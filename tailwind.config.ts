@@ -57,6 +57,11 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "auth-panel": {
+          DEFAULT: "hsl(var(--auth-panel))",
+          foreground: "hsl(var(--auth-panel-foreground))",
+          muted: "hsl(var(--auth-panel-muted))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
