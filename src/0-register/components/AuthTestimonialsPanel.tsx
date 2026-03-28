@@ -15,7 +15,12 @@ interface Testimonial {
   positionKey: string;
 }
 
-export function AuthTestimonialsPanel() {
+type AuthTestimonialsPanelProps = {
+  /** Tighter full-height scroll (e.g. Terms + fillViewport); default is centered marketing column. */
+  compact?: boolean;
+};
+
+export function AuthTestimonialsPanel({ compact = false }: AuthTestimonialsPanelProps) {
   const { t } = useTranslation();
 
   const performanceBadges: PerformanceBadge[] = [
@@ -48,8 +53,9 @@ export function AuthTestimonialsPanel() {
     { id: "3", quoteKey: "auth.panel.quote3", authorKey: "auth.panel.author3", positionKey: "auth.panel.role3" },
   ];
 
-  const badgeShell =
-    "inline-flex flex-col items-start rounded-xl px-3 py-2 shadow-sm border border-black/[0.06]";
+  const badgeShell = compact
+    ? "inline-flex flex-col items-start rounded-xl px-3 py-2 shadow-sm border border-black/[0.06]"
+    : "inline-flex flex-col items-center rounded-xl px-3 py-2 text-center shadow-sm border border-black/[0.06]";
 
   const PerformanceBadge = ({ badge }: { badge: PerformanceBadge }) => (
     <div className={badgeShell}>
@@ -70,7 +76,9 @@ export function AuthTestimonialsPanel() {
   );
 
   const TestimonialQuote = ({ item }: { item: Testimonial }) => (
-    <div className="rounded-xl bg-[hsl(var(--brand-white))] p-5 shadow-md border border-slate-200/80">
+    <div
+      className={`rounded-xl bg-[hsl(var(--brand-white))] p-5 shadow-md border border-slate-200/80 ${compact ? "text-left" : "text-center"}`}
+    >
       <blockquote className="text-slate-800 text-base leading-relaxed font-medium">
         &ldquo;{t(item.quoteKey)}&rdquo;
       </blockquote>
@@ -80,26 +88,42 @@ export function AuthTestimonialsPanel() {
     </div>
   );
 
+  const inner = (
+    <div className={compact ? "mx-auto w-full max-w-lg space-y-8" : "mx-auto w-full max-w-lg space-y-8 text-center"}>
+      <header>
+        <h2
+          className={
+            compact
+              ? "text-3xl font-bold tracking-tight text-slate-900 leading-tight"
+              : "text-3xl font-bold tracking-tight text-slate-900 leading-tight text-center"
+          }
+        >
+          {t("auth.panel.headline")}
+        </h2>
+      </header>
+      <section className={compact ? "flex flex-wrap gap-3" : "flex flex-wrap justify-center gap-3"}>
+        {performanceBadges.map((badge) => (
+          <PerformanceBadge key={badge.id} badge={badge} />
+        ))}
+      </section>
+      <section className="space-y-4">
+        {testimonials.map((item) => (
+          <TestimonialQuote key={item.id} item={item} />
+        ))}
+      </section>
+    </div>
+  );
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-[hsl(var(--auth-split-bg))] text-[hsl(var(--auth-panel-foreground))]">
-      <div className="flex flex-1 min-h-0 flex-col justify-center overflow-y-auto seamless-scroll px-8 py-10 lg:px-12 lg:py-14 max-h-[calc(100vh-120px)]">
-        <div className="mx-auto w-full max-w-lg space-y-8">
-          <header>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 leading-tight">
-              {t("auth.panel.headline")}
-            </h2>
-          </header>
-          <section className="flex flex-wrap gap-3">
-            {performanceBadges.map((badge) => (
-              <PerformanceBadge key={badge.id} badge={badge} />
-            ))}
-          </section>
-          <section className="space-y-4">
-            {testimonials.map((item) => (
-              <TestimonialQuote key={item.id} item={item} />
-            ))}
-          </section>
-        </div>
+      <div
+        className={
+          compact
+            ? "flex flex-1 min-h-0 flex-col justify-center overflow-y-auto seamless-scroll px-8 py-10 lg:px-12 lg:py-14 max-h-[calc(100vh-120px)]"
+            : "flex flex-1 min-h-0 w-full flex-col items-center justify-center overflow-y-auto seamless-scroll px-8 py-10 lg:px-12 lg:py-14 max-h-[calc(100vh-120px)]"
+        }
+      >
+        {inner}
       </div>
     </div>
   );

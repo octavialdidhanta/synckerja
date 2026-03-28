@@ -101,7 +101,7 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
         <div className="mb-5 flex w-full justify-center">
           <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
         </div>
-        <div className="text-center lg:text-left">
+        <div className="text-center">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
             {t("auth.register.title")}
           </h1>

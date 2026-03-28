@@ -57,7 +57,7 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden safe-area-top lg:max-h-none lg:min-h-screen lg:flex-row">
-      <div className="hidden min-h-0 w-full min-w-0 lg:flex lg:max-w-[50%] lg:flex-1 xl:max-w-[48%]">
+      <div className="hidden min-h-0 w-full min-w-0 lg:flex lg:max-w-[50%] lg:flex-1 lg:items-center lg:justify-center lg:min-h-screen xl:max-w-[48%]">
         <AuthTestimonialsPanel />
       </div>
 

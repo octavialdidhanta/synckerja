@@ -205,7 +205,7 @@ export default function LoginPage() {
               height={56}
             />
           </div>
-          <div className="text-center lg:text-left">
+          <div className="text-center">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
               {t("auth.login.welcomeTitle")}
             </h1>

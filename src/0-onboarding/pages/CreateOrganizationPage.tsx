@@ -105,7 +105,7 @@ export default function CreateOrganizationPage() {
             {t("onboarding.org.backLogin")}
           </Button>
 
-          <div className="text-center lg:text-left">
+          <div className="text-center">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
               {t("onboarding.org.pageTitle")}
             </h1>

@@ -32,10 +32,12 @@ export function OnboardingSplitLayout({
       <div
         className={cn(
           "hidden min-h-0 w-full min-w-0 lg:flex lg:max-w-[50%] lg:flex-1 xl:max-w-[48%]",
-          fillViewport && "lg:min-h-0 lg:max-h-full lg:overflow-hidden",
+          fillViewport
+            ? "lg:min-h-0 lg:max-h-full lg:overflow-hidden"
+            : "lg:min-h-screen lg:items-center lg:justify-center",
         )}
       >
-        <AuthTestimonialsPanel />
+        <AuthTestimonialsPanel compact={fillViewport} />
       </div>
       <div
         className={cn(
