@@ -23,7 +23,7 @@ export function OnboardingSplitLayout({
   return (
     <div
       className={cn(
-        "flex w-full flex-col overflow-hidden safe-area-top lg:flex-row",
+        "flex w-full flex-col overflow-hidden safe-area-top lg:flex-row lg:items-stretch",
         fillViewport
           ? "h-[100dvh] max-h-[100dvh] min-h-0 lg:h-[100dvh] lg:max-h-[100dvh]"
           : "min-h-[100dvh] max-h-[100dvh] lg:max-h-none lg:min-h-screen",
@@ -34,7 +34,7 @@ export function OnboardingSplitLayout({
           "hidden min-h-0 w-full min-w-0 lg:flex lg:max-w-[50%] lg:flex-1 xl:max-w-[48%]",
           fillViewport
             ? "lg:min-h-0 lg:max-h-full lg:overflow-hidden"
-            : "lg:min-h-screen lg:items-center lg:justify-center",
+            : "self-stretch",
         )}
       >
         <AuthTestimonialsPanel compact={fillViewport} />

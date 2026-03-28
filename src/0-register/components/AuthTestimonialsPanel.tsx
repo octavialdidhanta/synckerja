@@ -120,7 +120,7 @@ export function AuthTestimonialsPanel({ compact = false }: AuthTestimonialsPanel
         className={
           compact
             ? "flex flex-1 min-h-0 flex-col justify-center overflow-y-auto seamless-scroll px-8 py-10 lg:px-12 lg:py-14 max-h-[calc(100vh-120px)]"
-            : "flex flex-1 min-h-0 w-full flex-col items-center justify-center overflow-y-auto seamless-scroll px-8 py-10 lg:px-12 lg:py-14 max-h-[calc(100vh-120px)]"
+            : "flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-y-auto seamless-scroll px-8 py-10 lg:min-h-0 lg:px-12 lg:py-14"
         }
       >
         {inner}
