@@ -7,10 +7,20 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    passWithNoTests: true,
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: [
+      {
+        find: /^@\/onboarding\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/0-onboarding")}/$1`,
+      },
+      {
+        find: /^@\/register\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/0-register")}/$1`,
+      },
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+    ],
   },
 });

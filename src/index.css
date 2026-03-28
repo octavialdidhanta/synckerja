@@ -38,10 +38,16 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
-    /* Auth panel */
-    --auth-panel: 220 25% 11%;
-    --auth-panel-foreground: 220 14% 96%;
-    --auth-panel-muted: 220 15% 25%;
+    /* Synckerja Office brand (reference: blue #2074B6, red #E32526, white) */
+    --brand-blue: 204 70% 42%;
+    --brand-red: 359 77% 52%;
+    --brand-white: 0 0% 100%;
+    --auth-split-bg: 220 14% 96%;
+
+    /* Auth marketing panel (light) */
+    --auth-panel: var(--auth-split-bg);
+    --auth-panel-foreground: 220 20% 12%;
+    --auth-panel-muted: 220 10% 40%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -99,5 +105,33 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .auth-page-fixed {
+    @apply flex min-h-[100dvh] max-h-[100dvh] w-full overflow-hidden;
+  }
+  .auth-right-panel {
+    @apply bg-background;
+  }
+  .auth-form-panel-mobile {
+    @apply overflow-y-auto;
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .auth-input-scroll-margin {
+    scroll-margin-bottom: 6rem;
+  }
+  .seamless-scroll {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Scroll chaining: inner area scrolls first; at edges, parent can scroll (touch / wheel). */
+  .nested-scroll-touch-chain {
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 }

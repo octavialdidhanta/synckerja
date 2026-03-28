@@ -1,10 +1,17 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "allowJs": true,
     "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
+      "@/onboarding/*": [
+        "./src/0-onboarding/*"
+      ],
+      "@/register/*": [
+        "./src/0-register/*"
+      ],
       "@/*": [
         "./src/*"
       ]

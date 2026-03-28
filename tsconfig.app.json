@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
@@ -11,12 +12,19 @@
     "module": "ESNext",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "noEmit": true,
     "noFallthroughCasesInSwitch": false,
     "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
+      "@/onboarding/*": [
+        "./src/0-onboarding/*"
+      ],
+      "@/register/*": [
+        "./src/0-register/*"
+      ],
       "@/*": [
         "./src/*"
       ]
@@ -25,7 +33,9 @@
     "strict": false,
     "target": "ES2020",
     "types": [
-      "vitest/globals"
+      "vitest/globals",
+      "react",
+      "react-dom"
     ],
     "useDefineForClassFields": true
   },

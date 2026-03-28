@@ -1,0 +1,11 @@
+# Minimal Supabase CLI config. Adjust project_id when linking.
+
+[api]
+enabled = true
+
+# Edge gateway validates JWT before your function runs. If JWT verification stays ON in the
+# hosted project, you get POST 401 with execution_id null and no function logs.
+# Apply this file: `supabase functions deploy send-confirmation-email` (linked project), or:
+# `supabase functions deploy send-confirmation-email --project-ref <ref> --no-verify-jwt`
+[functions.send-confirmation-email]
+verify_jwt = false

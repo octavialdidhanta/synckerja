@@ -14,9 +14,17 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      {
+        find: /^@\/onboarding\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/0-onboarding")}/$1`,
+      },
+      {
+        find: /^@\/register\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/0-register")}/$1`,
+      },
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+    ],
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
 }));
