@@ -25,6 +25,7 @@ void i18n.use(initReactI18next).init({
   lng: getInitialLanguage(),
   fallbackLng: "id",
   interpolation: { escapeValue: false },
+  showSupportNotice: false,
 });
 
 export function setAppLanguage(lng: SupportedLanguage) {
