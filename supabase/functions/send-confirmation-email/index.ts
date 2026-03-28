@@ -54,12 +54,12 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: fromEmail,
         to: [email],
-        subject: "Verify your Synckerja Office account",
+        subject: "Verify your Office.Synckerja account",
         html: `
           <p>Hi ${escapeHtml(fullName || "there")},</p>
           <p>Your email verification code is:</p>
           ${codeHtml}
-          <p>Enter this 6-digit code on the <strong>Verify your email</strong> page in Synckerja Office.</p>
+          <p>Enter this 6-digit code on the <strong>Verify your email</strong> page in Office.Synckerja.</p>
           <p style="color:#64748b;font-size:13px;">This code expires in 24 hours. If you did not create an account, you can ignore this message.</p>
         `,
       }),

@@ -14,7 +14,7 @@
       "quote1": "A game-changer for how we run operations.",
       "author1": "Resa Linda",
       "role1": "Corporate HR Manager",
-      "quote2": "Synckerja keeps everyone aligned on goals and tasks.",
+      "quote2": "Office.Synckerja keeps everyone aligned on goals and tasks.",
       "author2": "Agus",
       "role2": "Chief Technology Officer",
       "quote3": "Versatile system with great support from the team.",
@@ -22,7 +22,7 @@
       "role3": "Head of Human Capital"
     },
     "register": {
-      "title": "Welcome to Synckerja Office",
+      "title": "Welcome to Office.Synckerja",
       "subtitle": "Start your free trial. No credit card required.",
       "fullName": "Full name *",
       "email": "Email *",
@@ -30,7 +30,7 @@
       "confirmPassword": "Confirm password *",
       "submit": "Sign up",
       "submitting": "Creating account…",
-      "hasAccount": "Already have a Synckerja Office account?",
+      "hasAccount": "Already have an Office.Synckerja account?",
       "login": "Log in",
       "termsPrefix": "By submitting you accept our",
       "terms": "Terms",
@@ -102,7 +102,7 @@
       "goLogin": "Continue to login"
     },
     "login": {
-      "welcomeTitle": "Welcome to Synckerja Office",
+      "welcomeTitle": "Welcome to Office.Synckerja",
       "welcomeSubtitle": "To get started, please sign in.",
       "email": "Email address *",
       "password": "Password *",
@@ -113,7 +113,7 @@
       "hidePassword": "Hide password",
       "submit": "Sign In",
       "submitting": "Signing in…",
-      "noAccount": "Don’t have a Synckerja Office account?",
+      "noAccount": "Don’t have an Office.Synckerja account?",
       "register": "Sign up",
       "sessionExpired": "Your session expired. Please sign in again.",
       "redirectToRegisterTitle": "No account for this email",
@@ -154,7 +154,7 @@
   "onboarding": {
     "org": {
       "pageTitle": "Create your first organization",
-      "pageSubtitle": "Complete your organization details to start using Synckerja Office.",
+      "pageSubtitle": "Complete your organization details to start using Office.Synckerja.",
       "termsPrefix": "I accept the",
       "termsLink": "Terms and Conditions",
       "phoneRequired": "Phone number is required.",
@@ -228,7 +228,7 @@
     },
     "welcome": {
       "title": "Welcome aboard",
-      "subtitle": "You’re ready to use Synckerja Office with your team.",
+      "subtitle": "You’re ready to use Office.Synckerja with your team.",
       "cta": "Go to dashboard"
     },
     "terms": {

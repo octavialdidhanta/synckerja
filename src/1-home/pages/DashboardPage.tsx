@@ -16,7 +16,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-[100dvh] flex flex-col seamless-scroll max-h-[calc(100vh-120px)] overflow-y-auto">
       <header className="border-b border-border px-6 py-4 flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold">Synckerja</h1>
+        <h1 className="text-xl font-semibold">Office.Synckerja</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link to="/settings">{t("dashboard.settingsLink")}</Link>

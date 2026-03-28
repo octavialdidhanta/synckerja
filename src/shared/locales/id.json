@@ -14,7 +14,7 @@
       "quote1": "Perubahan besar untuk cara kami menjalankan operasi.",
       "author1": "Resa Linda",
       "role1": "Manajer HR Korporat",
-      "quote2": "Synckerja menjaga semua orang selaras pada tujuan dan tugas.",
+      "quote2": "Office.Synckerja menjaga semua orang selaras pada tujuan dan tugas.",
       "author2": "Agus",
       "role2": "Chief Technology Officer",
       "quote3": "Sistem serbaguna dengan dukungan tim yang hebat.",
@@ -22,7 +22,7 @@
       "role3": "Head of Human Capital"
     },
     "register": {
-      "title": "Selamat datang di Synckerja Office",
+      "title": "Selamat datang di Office.Synckerja",
       "subtitle": "Mulai uji coba gratis. Tanpa kartu kredit.",
       "fullName": "Nama lengkap *",
       "email": "Email *",
@@ -30,7 +30,7 @@
       "confirmPassword": "Konfirmasi kata sandi *",
       "submit": "Daftar",
       "submitting": "Membuat akun…",
-      "hasAccount": "Sudah punya akun Synckerja Office?",
+      "hasAccount": "Sudah punya akun Office.Synckerja?",
       "login": "Masuk",
       "termsPrefix": "Dengan mengirim formulir Anda menyetujui",
       "terms": "Syarat & Ketentuan",
@@ -102,7 +102,7 @@
       "goLogin": "Lanjut ke login"
     },
     "login": {
-      "welcomeTitle": "Selamat datang di Synckerja Office",
+      "welcomeTitle": "Selamat datang di Office.Synckerja",
       "welcomeSubtitle": "Untuk memulai, silakan masuk.",
       "email": "Alamat email *",
       "password": "Kata sandi *",
@@ -113,7 +113,7 @@
       "hidePassword": "Sembunyikan kata sandi",
       "submit": "Masuk",
       "submitting": "Sedang masuk…",
-      "noAccount": "Belum punya akun Synckerja Office?",
+      "noAccount": "Belum punya akun Office.Synckerja?",
       "register": "Daftar",
       "sessionExpired": "Sesi Anda berakhir. Silakan masuk lagi.",
       "redirectToRegisterTitle": "Email belum terdaftar",
@@ -154,7 +154,7 @@
   "onboarding": {
     "org": {
       "pageTitle": "Buat organisasi pertama",
-      "pageSubtitle": "Lengkapi informasi organisasi Anda untuk mulai menggunakan Synckerja Office.",
+      "pageSubtitle": "Lengkapi informasi organisasi Anda untuk mulai menggunakan Office.Synckerja.",
       "termsPrefix": "Saya menyetujui",
       "termsLink": "Syarat dan Ketentuan",
       "phoneRequired": "Nomor telepon wajib diisi.",
@@ -228,7 +228,7 @@
     },
     "welcome": {
       "title": "Selamat bergabung",
-      "subtitle": "Anda siap menggunakan Synckerja Office bersama tim.",
+      "subtitle": "Anda siap menggunakan Office.Synckerja bersama tim.",
       "cta": "Ke dasbor"
     },
     "terms": {

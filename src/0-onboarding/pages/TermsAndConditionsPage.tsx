@@ -20,7 +20,7 @@ export default function TermsAndConditionsPage() {
           <h1 className="mb-2 text-2xl font-bold text-slate-900">
             Syarat dan Ketentuan / Terms and Conditions
           </h1>
-          <p className="text-sm text-slate-600">PT Integrasi Visual Digital Indonesia (Synckerja)</p>
+          <p className="text-sm text-slate-600">PT Integrasi Visual Digital Indonesia (Office.Synckerja)</p>
         </div>
 
         {/* Introduction */}
@@ -32,7 +32,7 @@ export default function TermsAndConditionsPage() {
           </p>
           <p className="text-slate-700 leading-relaxed">
             Syarat dan Ketentuan ini adalah Pengikatan kontrak yang mengatur hubungan hukum antara Pengguna dengan Penyedia Platform 
-            PT Integrasi Visual Digital Indonesia (Synckerja) sebagai Pemilik dan Pengembang Platform. Dengan membaca, memahami, 
+            PT Integrasi Visual Digital Indonesia (Office.Synckerja) sebagai Pemilik dan Pengembang Platform. Dengan membaca, memahami, 
             mengklik persetujuan, dan menggunakan Platform ini, maka dengan ini Pengguna telah setuju dan sepakat untuk tunduk terhadap 
             Syarat dan Ketentuan yang telah ditetapkan Penyedia Platform.
           </p>
@@ -138,7 +138,7 @@ export default function TermsAndConditionsPage() {
               <h2 className="text-lg font-semibold text-slate-900 mb-4">DEFINISI</h2>
               <div className="space-y-2 text-slate-700">
                 <p>• Platform adalah Situs web, aplikasi, atau layanan digital yang disediakan oleh Penyedia.</p>
-                <p>• Penyedia adalah PT Integrasi Visual Digital Indonesia (Synckerja) selaku Pemilik dan Pengembang Platform.</p>
+                <p>• Penyedia adalah PT Integrasi Visual Digital Indonesia (Office.Synckerja) selaku Pemilik dan Pengembang Platform.</p>
                 <p>• Pengguna adalah Setiap individu atau entitas yang mengakses atau menggunakan Platform.</p>
                 <p>• Konten adalah Segala bentuk informasi, data, teks, gambar, video, atau materi lain yang dipublikasikan di Platform.</p>
               </div>
@@ -507,7 +507,7 @@ export default function TermsAndConditionsPage() {
               <h2 className="text-lg font-semibold text-slate-900 mb-4">DEFINITIONS</h2>
               <div className="space-y-2 text-slate-700">
                 <p>• Platform is a website, application, or digital service provided by the Provider.</p>
-                <p>• Provider is PT Integrasi Visual Digital Indonesia (Synckerja) as the Platform Owner and Developer.</p>
+                <p>• Provider is PT Integrasi Visual Digital Indonesia (Office.Synckerja) as the Platform Owner and Developer.</p>
                 <p>• User is any individual or entity that accesses or uses the Platform.</p>
                 <p>• Content is any form of information, data, text, images, videos, or other material published on the Platform.</p>
               </div>
