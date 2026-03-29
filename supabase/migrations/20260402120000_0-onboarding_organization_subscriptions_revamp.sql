@@ -153,10 +153,6 @@ ALTER TABLE public.organization_subscriptions
 CREATE INDEX IF NOT EXISTS idx_org_subscriptions_org_status
   ON public.organization_subscriptions USING btree (organization_id, status);
 
-CREATE INDEX IF NOT EXISTS idx_org_subscriptions_end_date
-  ON public.organization_subscriptions USING btree (subscription_end_date)
-  WHERE (status = 'active');
-
 -- ---------------------------------------------------------------------------
 -- Trigger helpers
 -- ---------------------------------------------------------------------------

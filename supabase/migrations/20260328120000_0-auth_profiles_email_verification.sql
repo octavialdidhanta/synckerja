@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   CONSTRAINT profiles_email_key UNIQUE (email)
 );
 
-CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles USING btree (email);
+-- email lookups: use UNIQUE constraint profiles_email_key (no separate btree on email)
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 

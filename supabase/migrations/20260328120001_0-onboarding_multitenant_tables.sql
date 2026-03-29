@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS public.departments (
 
 CREATE UNIQUE INDEX IF NOT EXISTS departments_code_key ON public.departments (code) WHERE code IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_departments_is_default ON public.departments (is_default) WHERE is_default = true;
 CREATE INDEX IF NOT EXISTS idx_departments_created_by ON public.departments (created_by);
 
 DROP TRIGGER IF EXISTS update_departments_updated_at ON public.departments;

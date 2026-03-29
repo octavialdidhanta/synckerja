@@ -254,9 +254,31 @@
     },
     "nav": {
       "dashboard": "Dasbor",
+      "okr": "OKR",
+      "humanResources": "Human Resources",
       "subscription": "Langganan"
     },
+    "attendanceModule": {
+      "loadingAria": "Memuat kehadiran",
+      "pageLoading": "Memuat…",
+      "headerTitle": "Manajemen kehadiran",
+      "headerSubtitle": "Pantau kehadiran, wawasan, dan pengaturan",
+      "tabDashboard": "Dasbor",
+      "tabRecords": "Kehadiran",
+      "tabSettings": "Pengaturan"
+    },
+    "placeholder": {
+      "comingSoon": "Fitur ini akan segera hadir.",
+      "attendanceTitle": "Attendance",
+      "payrollTitle": "Payroll",
+      "back": "Kembali",
+      "contactAdmin": "Hubungi administrator untuk informasi lebih lanjut."
+    },
     "subnav": {
+      "hrEmployees": "Employees",
+      "hrAttendance": "Attendance",
+      "hrPayroll": "Payroll",
+      "hrRecruitment": "Rekrutmen",
       "subscriptionOverview": "Ringkasan",
       "subscriptionPlans": "Paket",
       "subscriptionManagement": "Pembayaran"
@@ -282,6 +304,38 @@
     "createOrgModal": {
       "title": "Buat organisasi baru",
       "subtitle": "Lengkapi informasi organisasi baru untuk melanjutkan."
+    },
+    "okr": {
+      "pageTitle": "Manajemen OKR",
+      "pageSubtitle": "Kelola tujuan dan hasil kunci perusahaan, departemen, dan individu",
+      "tab": {
+        "company": "Tujuan Perusahaan",
+        "department": "Tujuan Departemen",
+        "individual": "Tujuan Individu"
+      },
+      "loadingObjectives": "Memuat tujuan…",
+      "sidebar": {
+        "title": "Ringkasan OKR",
+        "subtitle": "Ringkasan dan wawasan",
+        "totalObjectives": "Total Tujuan",
+        "active": "Aktif",
+        "completed": "Selesai",
+        "avgProgress": "Rata-rata Progres",
+        "topPerformers": "Performa Teratas",
+        "recentActivity": "Aktivitas Terkini",
+        "noRecentActivity": "Tidak ada aktivitas terkini",
+        "unknownDepartment": "Departemen tidak dikenal",
+        "unknownEmployee": "Karyawan tidak dikenal",
+        "unknownPerson": "Tidak dikenal",
+        "checkIn": "Check-in",
+        "typeDepartment": "Departemen",
+        "typeIndividual": "Individu",
+        "progress": "Progres",
+        "notAvailable": "T/A",
+        "footer": {
+          "cycles": "Siklus: {{count}}"
+        }
+      }
     }
   },
   "transferOwnership": {
@@ -759,6 +813,236 @@
         "complexity": "Gabungkan huruf besar, kecil, angka, dan simbol",
         "noPersonalInfo": "Hindari nama, tanggal lahir, atau kata umum",
         "changeRegularly": "Ganti kata sandi jika Anda curiga sudah diketahui orang lain"
+      }
+    }
+  },
+  "home": {
+    "employeeStatus": {
+      "loadError": "Gagal memuat status karyawan",
+      "loadErrorGeneric": "Terjadi kesalahan saat memuat status",
+      "notAvailable": "Status karyawan tidak tersedia untuk akun ini",
+      "createError": "Gagal membuat status",
+      "createErrorGeneric": "Terjadi kesalahan saat membuat status",
+      "createSuccess": "Status berhasil dibuat",
+      "updateError": "Gagal memperbarui status",
+      "updateErrorGeneric": "Terjadi kesalahan saat memperbarui status",
+      "updateSuccess": "Status berhasil diperbarui",
+      "deleteError": "Gagal menghapus status",
+      "deleteErrorGeneric": "Terjadi kesalahan saat menghapus status",
+      "deleteSuccess": "Status berhasil dihapus"
+    }
+  },
+  "employees": {
+    "page": {
+      "loadingAria": "Memuat data karyawan"
+    },
+    "actions": {
+      "openMenu": "Buka menu aksi baris",
+      "viewDetails": "Lihat detail",
+      "resign": "Resign",
+      "delete": "Hapus"
+    },
+    "header": {
+      "pageTitle": "Employee Management",
+      "pageSubtitle": "Manage employee data, profiles, and organizational information",
+      "tabEmployees": "Employee Management",
+      "tabEmployeesDescription": "Manage employee data, profiles, and information",
+      "tabReprimand": "Reprimand",
+      "tabReprimandDescription": "Manage employee reprimands and disciplinary actions"
+    }
+  },
+  "recruitment": {
+    "page": {
+      "loadingAria": "Memuat rekrutmen"
+    },
+    "header": {
+      "pageTitle": "Rekrutmen",
+      "pageSubtitle": "Kelola lowongan, lamaran, dan proses rekrutmen",
+      "tabDashboard": "Dasbor",
+      "tabDashboardDescription": "Ringkasan lowongan dan metrik rekrutmen",
+      "tabJobOpenings": "Lowongan",
+      "tabJobOpeningsDescription": "Kelola lowongan pekerjaan",
+      "tabApplications": "Lamaran",
+      "tabApplicationsDescription": "Tinjau lamaran kandidat",
+      "tabInterviewees": "Kandidat wawancara",
+      "tabIntervieweesDescription": "Kelola wawancara dan evaluasi kandidat"
+    },
+    "accessDenied": {
+      "title": "Akses dibatasi",
+      "description": "Anda memerlukan peran Owner, Admin, atau HR untuk melihat rekrutmen.",
+      "back": "Kembali ke beranda"
+    }
+  },
+  "reprimands": {
+    "page": {
+      "loadingAria": "Memuat data teguran"
+    },
+    "accessDenied": {
+      "title": "Access restricted",
+      "description": "You need Owner, Admin, or HR role to view reprimands.",
+      "backToEmployees": "Back to Employees"
+    },
+    "error": {
+      "title": "Failed to load data",
+      "both": "Employee and reprimand data could not be loaded.",
+      "employees": "Employee data could not be loaded.",
+      "reprimands": "Reprimand data could not be loaded.",
+      "retry": "Try again"
+    },
+    "toast": {
+      "createSuccess": "Reprimand created successfully",
+      "createError": "Failed to create reprimand",
+      "sessionInvalid": "Session invalid. Please sign in again."
+    },
+    "filters": {
+      "searchPlaceholder": "Search reprimands...",
+      "departmentPlaceholder": "Department",
+      "allDepartments": "All Departments",
+      "statusPlaceholder": "Status",
+      "allStatus": "All Status",
+      "severityPlaceholder": "Severity",
+      "allSeverities": "All Severities",
+      "typePlaceholder": "Type",
+      "allTypes": "All Types",
+      "timePlaceholder": "Time Period",
+      "allTime": "All Time",
+      "thisWeek": "This Week",
+      "thisMonth": "This Month",
+      "lastMonth": "Last Month",
+      "last3Months": "Last 3 Months",
+      "last6Months": "Last 6 Months",
+      "thisYear": "This Year",
+      "lastYear": "Last Year",
+      "clearFiltersTitle": "Clear all filters"
+    },
+    "metrics": {
+      "totalTitle": "Total Reprimands",
+      "totalSubtitle": "All records",
+      "activeTitle": "Active Reprimands",
+      "activeSubtitle": "Ongoing cases",
+      "resolvedTitle": "Resolved",
+      "resolvedSubtitle": "Closed cases",
+      "criticalTitle": "Critical / High",
+      "criticalSubtitle": "High priority"
+    },
+    "overview": {
+      "title": "Reprimand Overview",
+      "subtitle": "Disciplinary action statistics and insights",
+      "totalReprimands": "Total Reprimands",
+      "activeWarnings": "Active Warnings",
+      "thisMonth": "This Month",
+      "severityDistribution": "Severity Distribution",
+      "recentActivity": "Recent Activity",
+      "noRecent": "No recent activity",
+      "unknownEmployee": "Unknown Employee"
+    },
+    "overviewTime": {
+      "justNow": "Just now",
+      "hoursAgo": "{{hours}}h ago",
+      "yesterday": "Yesterday",
+      "unknownType": "Unknown"
+    },
+    "sidebarFooter": {
+      "total": "Total Reprimands:",
+      "active": "Active:"
+    },
+    "tableFooter": {
+      "totalEmployees": "Total Employees:",
+      "totalReprimands": "Total Reprimands:"
+    },
+    "table": {
+      "emptyTitle": "No employees found",
+      "emptyDescription": "Add employees to start tracking reprimands."
+    },
+    "department": {
+      "employeesCount": "{{count}} employees",
+      "emptyDepartment": "No employees in this department"
+    },
+    "boxes": {
+      "reprimandN": "Reprimand {{n}}",
+      "showingMax": "Showing {{max}} of {{total}}",
+      "none": "No reprimand"
+    },
+    "dropdown": {
+      "noViolations": "No Violations",
+      "violationsBadge": "{{count}} Violations",
+      "active": "Active",
+      "resolved": "Resolved",
+      "noViolationsTitle": "No violations for {{name}}",
+      "noViolationsDesc": "This employee has a clean record with no disciplinary actions.",
+      "activeViolations": "Active Violations",
+      "resolvedViolations": "Resolved Violations",
+      "otherStatus": "Other Status",
+      "category": "Category:",
+      "previous": "Previous:",
+      "noPosition": "No position",
+      "statusIssued": "issued",
+      "statusResolved": "resolved",
+      "statusAppealed": "appealed",
+      "statusCancelled": "cancelled"
+    },
+    "dialog": {
+      "trigger": "Add Reprimand",
+      "title": "Add New Reprimand",
+      "description": "Create a new disciplinary action record for an employee",
+      "employee": "Employee *",
+      "selectEmployee": "Select employee",
+      "loadingEmployees": "Loading employees...",
+      "noEmployees": "No employees found",
+      "noEmployeeId": "No ID",
+      "reprimandType": "Reprimand Type *",
+      "selectReprimandType": "Select reprimand type",
+      "severity": "Severity Level *",
+      "selectSeverity": "Select severity level",
+      "violationCategory": "Violation Category *",
+      "selectViolationCategory": "Select violation category",
+      "incidentDate": "Incident Date *",
+      "incidentTime": "Incident Time",
+      "incidentLocation": "Incident Location",
+      "incidentLocationPh": "Enter incident location",
+      "previousWarnings": "Previous Warnings Count",
+      "improvementDeadline": "Improvement Deadline",
+      "followUpDate": "Follow Up Date",
+      "violationDescription": "Violation Description *",
+      "violationDescriptionPh": "Describe the violation in detail...",
+      "evidenceDetails": "Evidence Details",
+      "evidenceDetailsPh": "Describe any evidence supporting this reprimand...",
+      "witnessNames": "Witness Names",
+      "witnessNamesPh": "Enter witness names (comma separated)",
+      "correctiveAction": "Corrective Action Plan",
+      "correctiveActionPh": "Describe the corrective actions required...",
+      "supportingDoc": "Supporting Document",
+      "uploadLabel": "Upload supporting document",
+      "notes": "Additional Notes",
+      "notesPh": "Any additional notes or comments...",
+      "ackRequired": "Acknowledgment Required",
+      "formal": "Formal Reprimand",
+      "impactReview": "Impact Performance Review",
+      "cancel": "Cancel",
+      "submit": "Create Reprimand",
+      "submitting": "Creating...",
+      "typeVerbal": "Verbal Warning",
+      "typeWritten": "Written Warning",
+      "typeFinal": "Final Warning",
+      "typeSuspension": "Suspension",
+      "typeTermination": "Termination",
+      "severityLow": "Low",
+      "severityMedium": "Medium",
+      "severityHigh": "High",
+      "severityCritical": "Critical",
+      "catAttendance": "Attendance",
+      "catPerformance": "Performance",
+      "catConduct": "Conduct",
+      "catSafety": "Safety",
+      "catPolicy": "Policy Violation",
+      "catInsubordination": "Insubordination",
+      "catOther": "Other"
+    },
+    "form": {
+      "validation": {
+        "employeeRequired": "Please select an employee",
+        "incidentDateRequired": "Incident date is required",
+        "violationDescriptionRequired": "Violation description is required"
       }
     }
   }

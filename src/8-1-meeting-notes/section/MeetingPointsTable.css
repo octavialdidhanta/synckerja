@@ -1,0 +1,120 @@
+/* Custom CSS for MeetingPointsTable */
+
+/* Ensure sticky header works properly */
+.meeting-points-table {
+  position: relative;
+  width: 100%;
+}
+
+.meeting-points-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f9fafb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.meeting-points-table thead th {
+  background: #f9fafb !important;
+  border: none !important;
+}
+
+/* Remove all borders from table */
+.meeting-points-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.meeting-points-table th,
+.meeting-points-table td {
+  border: none !important;
+}
+
+.meeting-points-table thead tr,
+.meeting-points-table tbody tr {
+  border: none !important;
+}
+
+/* Ensure footer is not transparent */
+.meeting-table-footer {
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 10 !important;
+  border-top: 1px solid #e5e7eb !important;
+  box-shadow: 0 -1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Ensure proper text truncation for Discussion Point */
+.discussion-point-cell {
+  max-width: 400px;
+  width: 400px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.discussion-point-text {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.discussion-point-text:hover {
+  color: #2563eb;
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.discussion-point-text:active {
+  transform: translateY(0);
+  background-color: #e2e8f0;
+}
+
+/* Table cell styling - using inline styles for consistency with social media dashboard */
+.meeting-points-table td:nth-child(1) {
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+}
+
+.meeting-points-table td:nth-child(2) {
+  width: 400px;
+  min-width: 400px;
+  max-width: 400px;
+  overflow: hidden;
+}
+
+.meeting-points-table td:nth-child(3) {
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
+}
+
+.meeting-points-table td:nth-child(4) {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+}
+
+.meeting-points-table td:nth-child(5) {
+  width: 70px;
+  min-width: 70px;
+  max-width: 70px;
+}
+
+.meeting-points-table td:nth-child(6) {
+  width: 70px;
+  min-width: 70px;
+  max-width: 70px;
+}

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Building2, Check, ChevronDown, Loader2, Plus } from "lucide-react";
+import { Building2, Check, ChevronDown, Plus } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,18 +52,23 @@ export function OrganizationSwitcher() {
 
   if (isLoading && !data) {
     return (
-      <div className="flex max-w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-brand-blue" />
-        <div className="grid shrink-0 grid-cols-1">
+      <div
+        className="flex max-w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2"
+        aria-busy
+        aria-label={t("layout.orgSwitcher.loading")}
+      >
+        <Skeleton className="h-4 w-4 shrink-0 rounded" />
+        <div className="grid min-w-0 flex-1 shrink-0 grid-cols-1">
           <span
             className="invisible col-start-1 row-start-1 whitespace-nowrap text-sm font-semibold"
             aria-hidden
           >
             {ORG_SWITCHER_WIDTH_SAMPLE}
           </span>
-          <span className="col-start-1 row-start-1 truncate text-sm text-muted-foreground">
-            {t("layout.orgSwitcher.loading")}
-          </span>
+          <div className="col-start-1 row-start-1 space-y-2 py-0.5">
+            <Skeleton className="h-4 w-[min(100%,12rem)] max-w-full" />
+            <Skeleton className="h-3 w-[min(100%,8rem)] max-w-full" />
+          </div>
         </div>
       </div>
     );
@@ -77,6 +83,7 @@ export function OrganizationSwitcher() {
             variant="outline"
             className="h-auto max-w-full shrink-0 justify-start gap-2 border-border bg-background px-3 py-2 text-left font-normal hover:bg-brand-blue/10 hover:text-brand-blue"
             aria-label={t("layout.orgSwitcher.triggerAria")}
+            aria-busy={isSwitching}
             disabled={isSwitching}
           >
             <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -95,7 +102,7 @@ export function OrganizationSwitcher() {
               </div>
             </div>
             {isSwitching ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-brand-blue" />
+              <Skeleton className="h-4 w-4 shrink-0 rounded" aria-hidden />
             ) : (
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             )}

@@ -1,0 +1,68 @@
+/* Custom CSS for EmployeeTable */
+
+/* Ensure sticky header works properly */
+.employee-table {
+  position: relative;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1180px;
+}
+
+.employee-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f9fafb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.employee-table thead th {
+  background: #f9fafb !important;
+  border: none !important;
+  white-space: nowrap !important;
+}
+
+.employee-table th,
+.employee-table td {
+  border: none !important;
+}
+
+.employee-table thead tr,
+.employee-table tbody tr {
+  border: none !important;
+}
+
+/* Employee name cell styling */
+.employee-name-cell {
+  max-width: 200px;
+  width: 200px;
+  overflow: hidden;
+}
+
+.employee-name-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.employee-name-text:hover {
+  color: #2563eb;
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.employee-name-text:active {
+  transform: translateY(0);
+  background-color: #e2e8f0;
+}
+

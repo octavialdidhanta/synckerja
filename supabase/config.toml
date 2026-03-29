@@ -26,6 +26,10 @@ verify_jwt = false
 [functions.get-midtrans-config]
 verify_jwt = false
 
+# Public read of Maps JS API key (same pattern as get-midtrans-config); set GOOGLE_MAPS_API_KEY in project secrets.
+[functions.google-maps-key]
+verify_jwt = false
+
 [functions.calculate-prorate]
 verify_jwt = false
 

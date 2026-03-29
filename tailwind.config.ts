@@ -65,7 +65,42 @@ export default {
         brand: {
           blue: "hsl(var(--brand-blue))",
           red: "hsl(var(--brand-red))",
+          /** Aksen merah brand (sama dengan --brand-red); pakai untuk tekanan visual selain destructive penuh */
+          accent: "hsl(var(--brand-red))",
           white: "hsl(var(--brand-white))",
+          "blue-deep": "hsl(var(--brand-blue-deep))",
+          "blue-soft": "hsl(var(--brand-blue-soft))",
+          "blue-on-soft": "hsl(var(--brand-blue-on-soft))",
+        },
+        surface: {
+          subtle: "hsl(var(--surface-subtle))",
+          muted: "hsl(var(--surface-muted))",
+          raised: "hsl(var(--surface-raised))",
+          border: "hsl(var(--surface-border))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+          muted: "hsl(var(--success-muted))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+          muted: "hsl(var(--warning-muted))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+          muted: "hsl(var(--info-muted))",
+        },
+        "neutral-status": {
+          DEFAULT: "hsl(var(--neutral-status))",
+          muted: "hsl(var(--neutral-muted))",
+        },
+        okr: {
+          company: "hsl(var(--okr-company))",
+          department: "hsl(var(--okr-department))",
+          individual: "hsl(var(--okr-individual))",
         },
       },
       borderRadius: {

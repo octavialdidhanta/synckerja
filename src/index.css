@@ -8,8 +8,13 @@ All colors MUST be HSL.
 
 @layer base {
   /*
-   * Synckerja Office — UI tokens (light)
-   * Surfaces: white / near-white. Actions & focus: brand blue. Errors & strong accent: brand red.
+   * STANDAR WARNA SYNCKERJA (wajib untuk halaman baru)
+   * ────────────────────────────────────────────────
+   * 1) PUTIH / netral terang — warna utama permukaan: background, card, popover (--background, --card, surface-*).
+   * 2) BIRU — warna kedua / sekunder UI: aksi utama, link, fokus, info positif (--primary, --info*, --accent lembut).
+   * 3) MERAH — aksen (harus tetap dipakai di UI): peringatan keras, terlambat, sisa cuti/kuota kritis, konfirmasi
+   *    penting, tombol sekunder kuat (--destructive, --warning* = familia merah brand, --brand-red).
+   * Hindari hijau/oranye/ungu/hardcoded Tailwind di luar tiga poros ini; gunakan token di bawah.
    */
   :root {
     --background: 0 0% 99%;
@@ -45,13 +50,48 @@ All colors MUST be HSL.
     --radius: 0.75rem;
 
     /*
-     * Synckerja Office brand — gunakan token ini di UI (via Tailwind: brand-blue, brand-red, brand-white).
-     * Putih/near-white = permukaan utama (--background, --card). Biru = aksi & info sekunder. Merah = aksen & peringatan.
+     * Token semantik (semua HSL tanpa hsl()):
+     * success*  = variasi BIRU (positif / aktif / hadir) — bukan hijau.
+     * warning*  = variasi MERAH aksen (terlambat, perhatian, callout penting).
+     * info*     = BIRU informasi / selesai / sekunder kuat.
+     * neutral*  = netral di atas putih (draft, teks sekunder).
+     * okr-*     = semua hirarki OKR tetap hue biru brand (beda saturasi/terang).
      */
     --brand-blue: 204 70% 42%;
+    --brand-blue-deep: 204 72% 36%;
+    --brand-blue-soft: 204 55% 94%;
+    --brand-blue-on-soft: 204 70% 30%;
     --brand-red: 359 77% 52%;
     --brand-white: 0 0% 100%;
     --auth-split-bg: 220 14% 96%;
+
+    /* Surfaces (netral, hue 220 selaras dengan foreground) */
+    --surface-subtle: 220 14% 97%;
+    --surface-muted: 220 14% 94%;
+    --surface-raised: 0 0% 100%;
+    --surface-border: 220 13% 88%;
+
+    /* Positif / aktif / hadir — palet biru (bukan hijau) */
+    --success: 204 70% 40%;
+    --success-foreground: 204 70% 28%;
+    --success-muted: 204 50% 94%;
+
+    /* Aksen merah — terlambat, peringatan, tekanan visual */
+    --warning: 359 72% 46%;
+    --warning-foreground: 359 70% 30%;
+    --warning-muted: 359 80% 96%;
+
+    --info: 204 70% 42%;
+    --info-foreground: 204 70% 28%;
+    --info-muted: 204 50% 94%;
+
+    --neutral-status: 220 10% 42%;
+    --neutral-muted: 220 14% 96%;
+
+    /* OKR — seluruh level memakai keluarga biru */
+    --okr-company: 204 70% 42%;
+    --okr-department: 204 65% 36%;
+    --okr-individual: 204 58% 48%;
 
     /* Auth marketing panel (light) */
     --auth-panel: var(--auth-split-bg);
@@ -104,6 +144,34 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 204 70% 52%;
+
+    --brand-blue-deep: 204 65% 48%;
+    --brand-blue-soft: 204 35% 18%;
+    --brand-blue-on-soft: 204 70% 88%;
+
+    --surface-subtle: 222 24% 8%;
+    --surface-muted: 217 22% 14%;
+    --surface-raised: 222 20% 11%;
+    --surface-border: 217 20% 22%;
+
+    --success: 204 70% 55%;
+    --success-foreground: 204 85% 92%;
+    --success-muted: 204 35% 18%;
+
+    --warning: 359 65% 52%;
+    --warning-foreground: 359 85% 92%;
+    --warning-muted: 359 40% 18%;
+
+    --info: 204 70% 55%;
+    --info-foreground: 204 85% 92%;
+    --info-muted: 204 35% 18%;
+
+    --neutral-status: 215 16% 65%;
+    --neutral-muted: 217 22% 16%;
+
+    --okr-company: 204 70% 55%;
+    --okr-department: 204 65% 50%;
+    --okr-individual: 204 60% 58%;
   }
 }
 
@@ -119,6 +187,13 @@ All colors MUST be HSL.
 
   #root {
     @apply h-full min-h-0 overflow-hidden;
+  }
+
+  /* Input tanggal/waktu native: selaraskan highlight ke biru brand (bukan biru browser default). */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"] {
+    accent-color: hsl(var(--primary));
   }
 }
 
@@ -167,10 +242,37 @@ All colors MUST be HSL.
   .dark .seamless-scroll {
     scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
   }
+
+  /* Scrollbar fully hidden; keep overflow-y-auto + seamless-scroll for smooth inertial scroll. */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
   /* Scroll chaining: inner area scrolls first; at edges, parent can scroll (touch / wheel). */
   .nested-scroll-touch-chain {
     overscroll-behavior: auto;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  /* Home OKR tab: fill remaining tab height (flex) then scroll; cap by viewport */
+  .home-okr-tab-scroll {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: calc(100vh - 260px) !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: auto;
     touch-action: pan-y;
   }
 }

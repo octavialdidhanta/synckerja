@@ -1,0 +1,368 @@
+/* Enhanced Calendar Styles - Modern Design */
+
+/* Calendar container */
+.enhanced-calendar-wrapper {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 20px;
+  border: 1px solid #f1f5f9;
+}
+
+/* Calendar root - Force override */
+.rdp-root {
+  --rdp-cell-size: 32px;
+  --rdp-accent-color: #3b82f6;
+  --rdp-background-color: #eff6ff;
+  font-family: inherit;
+  width: 100% !important;
+}
+
+/* Override default grid layout */
+.rdp-month_grid {
+  display: block !important;
+  width: 100% !important;
+}
+
+.rdp-weekdays {
+  display: flex !important;
+  justify-content: space-between !important;
+  margin-bottom: 8px !important;
+  width: 100% !important;
+}
+
+.rdp-week {
+  display: flex !important;
+  justify-content: space-between !important;
+  margin-bottom: 4px !important;
+  width: 100% !important;
+}
+
+.rdp-weekday {
+  width: 32px !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.3px !important;
+  color: #64748b !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Month navigation buttons */
+.rdp-button_previous,
+.rdp-button_next {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+.rdp-button_previous:hover,
+.rdp-button_next:hover {
+  transform: scale(1.05) !important;
+  background-color: #f8fafc;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Caption styling for centered month name with navigation */
+.rdp-caption {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+}
+
+.rdp-caption_label {
+  position: relative !important;
+  text-align: center !important;
+  margin: 0 16px !important;
+  flex: 0 0 auto !important;
+}
+
+.rdp-nav {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+}
+
+.rdp-nav button {
+  position: relative !important;
+  flex: 0 0 auto !important;
+}
+
+/* Day cells - Force override */
+.rdp-day_button {
+  position: relative !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  font-size: 13px !important;
+  color: #000000 !important;
+}
+
+.rdp-day_button:hover {
+  transform: scale(1.05) !important;
+  background-color: #f1f5f9 !important;
+}
+
+/* Override cell styling */
+.rdp-week td {
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+/* Force flex layout for all calendar elements */
+.rdp-month_grid,
+.rdp-month_grid table,
+.rdp-month_grid tbody,
+.rdp-month_grid thead {
+  display: block !important;
+  width: 100% !important;
+}
+
+.rdp-month_grid tbody {
+  display: block !important;
+}
+
+.rdp-weekdays tr,
+.rdp-week tr {
+  display: flex !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.rdp-weekdays th,
+.rdp-week td {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+/* Selected day */
+.rdp-selected .rdp-day_button {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  color: white;
+  font-weight: 600;
+}
+
+.rdp-selected .rdp-day_button:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.5);
+  transform: scale(1.05);
+}
+
+/* Today */
+.rdp-today .rdp-day_button {
+  position: relative;
+  font-weight: 700;
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #3b82f6;
+}
+
+.rdp-today .rdp-day_button:hover {
+  background-color: #bfdbfe;
+  border-color: #2563eb;
+}
+
+/* Weekday headers */
+.rdp-weekday {
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+/* Outside days (previous/next month) */
+.rdp-outside .rdp-day_button {
+  opacity: 0.3;
+  color: #cbd5e1;
+}
+
+.rdp-outside .rdp-day_button:hover {
+  opacity: 0.5;
+  background-color: #f8fafc;
+}
+
+/* Disabled days */
+.rdp-day_button:disabled {
+  cursor: not-allowed;
+  opacity: 0.2;
+  color: #e2e8f0;
+}
+
+/* Focus styles */
+.rdp-day_button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Range selection */
+.rdp-range_middle .rdp-day_button {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.rdp-range_start .rdp-day_button,
+.rdp-range_end .rdp-day_button {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+/* Caption styling */
+.rdp-caption_label {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  text-align: center !important;
+  width: 100% !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rdp-root {
+  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Smooth transitions for all interactive elements */
+.rdp-day_button,
+.rdp-button_previous,
+.rdp-button_next {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  .rdp-root {
+    --rdp-cell-size: 28px;
+  }
+  
+  .enhanced-calendar-wrapper {
+    padding: 12px;
+  }
+  
+  .rdp-weekday {
+    font-size: 10px;
+    width: 28px !important;
+    height: 20px !important;
+  }
+  
+  .rdp-day_button {
+    font-size: 12px;
+    width: 28px !important;
+    height: 28px !important;
+  }
+  
+  .rdp-weekdays th,
+  .rdp-week td {
+    flex: 0 0 28px !important;
+    width: 28px !important;
+    height: 28px !important;
+  }
+  
+  .rdp-caption_label {
+    font-size: 14px;
+  }
+}
+
+/* Additional overrides to ensure proper layout */
+.rdp-month_grid * {
+  box-sizing: border-box !important;
+}
+
+.rdp-weekdays th,
+.rdp-week td {
+  position: relative !important;
+}
+
+/* Ensure proper spacing between weeks */
+.rdp-week:not(:last-child) {
+  margin-bottom: 4px !important;
+}
+
+/* Default navigation styling */
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .enhanced-calendar-wrapper {
+    background: #1e293b;
+    box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+    border-color: #334155;
+  }
+  
+  .rdp-weekday {
+    color: #94a3b8;
+  }
+  
+  .rdp-caption_label {
+    color: #f1f5f9;
+  }
+  
+  .rdp-day_button {
+    color: #e2e8f0;
+  }
+  
+  .rdp-day_button:hover {
+    background-color: #334155;
+  }
+  
+  .rdp-today .rdp-day_button {
+    background-color: #1e3a8a;
+    color: #dbeafe;
+    border-color: #3b82f6;
+  }
+}
+

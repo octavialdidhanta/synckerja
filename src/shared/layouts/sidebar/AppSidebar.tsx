@@ -34,10 +34,13 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
         <div className="flex-1 overflow-y-auto seamless-scroll pt-2">
           <nav className="space-y-0">
             {items.map((item, index) => {
-              const isActive =
-                item.path === "/"
+              const pathMatches = (p: string) =>
+                p === "/"
                   ? location.pathname === "/"
-                  : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                  : location.pathname === p || location.pathname.startsWith(`${p}/`);
+              const isActive =
+                pathMatches(item.path) ||
+                Boolean(item.activePathPrefixes?.some((prefix) => pathMatches(prefix)));
 
               return (
                 <button
@@ -184,15 +187,32 @@ export function AppSidebar() {
   }, []);
 
   const isParentActive = (item: MainNavItem) => {
+    if (item.activePathPrefix) {
+      const p = item.activePathPrefix;
+      if (currentPath === p || currentPath.startsWith(`${p}/`)) return true;
+    }
+    if (item.activePathPrefixes?.length) {
+      const extra = item.activePathPrefixes.some(
+        (p) => currentPath === p || currentPath.startsWith(`${p}/`),
+      );
+      if (extra) return true;
+    }
     if (item.path && item.path !== "#") {
       const mainActive =
         item.path === "/" ? currentPath === "/" : currentPath.startsWith(item.path);
       if (mainActive) return true;
     }
     return Boolean(
-      item.subItems?.some((sub) =>
-        sub.path === "/" ? currentPath === "/" : currentPath === sub.path || currentPath.startsWith(`${sub.path}/`),
-      ),
+      item.subItems?.some((sub) => {
+        const subMatch =
+          sub.path === "/"
+            ? currentPath === "/"
+            : currentPath === sub.path || currentPath.startsWith(`${sub.path}/`);
+        const extra = sub.activePathPrefixes?.some(
+          (p) => currentPath === p || currentPath.startsWith(`${p}/`),
+        );
+        return subMatch || Boolean(extra);
+      }),
     );
   };
 

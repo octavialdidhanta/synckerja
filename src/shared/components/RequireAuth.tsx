@@ -22,12 +22,10 @@ export function RequireAuth() {
     };
   }, []);
 
+  // Render the app shell and child routes while session resolves. A blocking spinner
+  // here replaced the entire <Outlet /> tree (no header/sidebar). Pages use skeletons instead.
   if (status === "loading") {
-    return (
-      <div className="flex h-full min-h-0 items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
+    return <Outlet />;
   }
 
   if (status === "out") {

@@ -1,0 +1,286 @@
+/* Custom CSS for TaskList Table */
+
+/* Ensure sticky header works properly */
+.task-list-table {
+  position: relative;
+  width: 100%;
+}
+
+.task-list-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f9fafb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.task-list-table thead th {
+  background: #f9fafb !important;
+  border: none !important;
+}
+
+/* Remove all borders from table */
+.task-list-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.task-list-table th,
+.task-list-table td {
+  border: none !important;
+}
+
+.task-list-table thead tr,
+.task-list-table tbody tr {
+  border: none !important;
+}
+
+/* Task title cell styling */
+.task-title-cell {
+  max-width: 300px;
+  width: 300px;
+  overflow: hidden;
+}
+
+.task-title-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.task-title-text:hover {
+  color: #2563eb;
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.task-title-text:active {
+  transform: translateY(0);
+  background-color: #e2e8f0;
+}
+
+/* Table header and cell fixed widths */
+.task-list-table th:nth-child(7),
+.task-list-table td:nth-child(7) {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+}
+
+.task-list-table th:nth-child(8),
+.task-list-table td:nth-child(8) {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+.task-list-table th:nth-child(9),
+.task-list-table td:nth-child(9) {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+/* Add padding for header columns to match body columns */
+.task-list-table th:nth-child(7) {
+  padding-left: 20px !important;
+}
+
+.task-list-table th:nth-child(8) {
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+.task-list-table th:nth-child(9) {
+  padding-left: 20px !important;
+}
+
+/* Priority dropdown button styling */
+.task-list-table td:nth-child(7) .priority-dropdown-trigger {
+  width: 100%;
+  justify-content: center;
+  padding: 2px 4px;
+  min-height: 24px;
+}
+
+.task-list-table td:nth-child(7) .priority-dropdown-trigger:hover {
+  background-color: transparent; /* avoid dark overlay */
+}
+.task-list-table td:nth-child(7) .priority-dropdown-trigger:focus,
+.task-list-table td:nth-child(7) .priority-dropdown-trigger:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Ensure PIC and Due Date columns are left-aligned */
+.task-list-table th:nth-child(4),
+.task-list-table td:nth-child(4) {
+  text-align: left !important;
+}
+
+.task-list-table th:nth-child(5),
+.task-list-table td:nth-child(5) {
+  text-align: left !important;
+}
+
+.task-list-table th:nth-child(6),
+.task-list-table td:nth-child(6) {
+  text-align: left !important;
+}
+
+/* Table cell fixed widths */
+.task-list-table td:nth-child(1) {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+}
+
+.task-list-table td:nth-child(2) {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+}
+
+.task-list-table td:nth-child(3) {
+  width: 250px;
+  min-width: 250px;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-list-table td:nth-child(4) {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+.task-list-table td:nth-child(5) {
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
+}
+
+.task-list-table td:nth-child(6) {
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
+}
+
+/* Add padding for better spacing between Status, Progress, and Action columns */
+.task-list-table td:nth-child(7) {
+  padding-left: 20px !important;
+}
+
+.task-list-table td:nth-child(8) {
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+.task-list-table td:nth-child(9) {
+  padding-left: 20px !important;
+}
+
+.task-list-table td:nth-child(10) {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+.mobile-task-list .task-list-table {
+  table-layout: fixed;
+}
+
+@media (max-width: 768px) {
+  .mobile-task-list .task-list-table th,
+  .mobile-task-list .task-list-table td {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .mobile-task-list .task-list-table td:nth-child(1),
+  .mobile-task-list .task-list-table th:nth-child(1) {
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+  }
+}
+
+/* Expanded row styling */
+.task-expanded-row {
+  background-color: #f9fafb !important;
+}
+
+/* Ensure expanded content row fills full width */
+.task-list-table tbody tr:has(td[colspan]) {
+  width: 100%;
+}
+
+.task-list-table tbody tr:has(td[colspan]) td {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+}
+
+/* Force full width for expanded content and empty state */
+.task-list-table tbody tr td[colspan] {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+/* Ensure empty state row fills full width */
+.task-list-table tbody tr:has(td[colspan="11"]) {
+  width: 100%;
+}
+
+.task-list-table tbody tr:has(td[colspan="11"]) td {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+}
+
+/* Smooth scrolling - moved to global index.css */
+
+/* Enhanced horizontal scroll for wide tables */
+.task-list-table {
+  min-width: 1000px; /* Ensure minimum width for horizontal scroll */
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+  scroll-behavior: smooth;
+}
+
+.task-list-table::-webkit-scrollbar {
+  display: none !important; /* WebKit browsers */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.task-list-table::-webkit-scrollbar-track {
+  display: none !important;
+}
+
+.task-list-table::-webkit-scrollbar-thumb {
+  display: none !important;
+}
+
+.task-list-table::-webkit-scrollbar-corner {
+  display: none !important;
+}

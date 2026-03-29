@@ -254,9 +254,31 @@
     },
     "nav": {
       "dashboard": "Dashboard",
+      "okr": "OKR",
+      "humanResources": "Human Resources",
       "subscription": "Subscription"
     },
+    "placeholder": {
+      "comingSoon": "This feature is coming soon.",
+      "attendanceTitle": "Attendance",
+      "payrollTitle": "Payroll",
+      "back": "Go back",
+      "contactAdmin": "Contact your administrator for more information."
+    },
+    "attendanceModule": {
+      "loadingAria": "Loading attendance",
+      "pageLoading": "Loading…",
+      "headerTitle": "Attendance management",
+      "headerSubtitle": "Monitor attendance, insights, and settings",
+      "tabDashboard": "Dashboard",
+      "tabRecords": "Attendance",
+      "tabSettings": "Settings"
+    },
     "subnav": {
+      "hrEmployees": "Employees",
+      "hrAttendance": "Attendance",
+      "hrPayroll": "Payroll",
+      "hrRecruitment": "Recruitment",
       "subscriptionOverview": "Overview",
       "subscriptionPlans": "Plans",
       "subscriptionManagement": "Management"
@@ -282,6 +304,38 @@
     "createOrgModal": {
       "title": "Create new organization",
       "subtitle": "Complete the details for your new organization to continue."
+    },
+    "okr": {
+      "pageTitle": "OKR Management",
+      "pageSubtitle": "Manage objectives and key results for company, departments, and individuals",
+      "tab": {
+        "company": "Company Objective",
+        "department": "Department Objective",
+        "individual": "Individual Objective"
+      },
+      "loadingObjectives": "Loading objectives…",
+      "sidebar": {
+        "title": "OKR Overview",
+        "subtitle": "Summary and insights",
+        "totalObjectives": "Total Objectives",
+        "active": "Active",
+        "completed": "Completed",
+        "avgProgress": "Avg Progress",
+        "topPerformers": "Top Performers",
+        "recentActivity": "Recent Activity",
+        "noRecentActivity": "No recent activity",
+        "unknownDepartment": "Unknown Department",
+        "unknownEmployee": "Unknown Employee",
+        "unknownPerson": "Unknown",
+        "checkIn": "Check-in",
+        "typeDepartment": "Department",
+        "typeIndividual": "Individual",
+        "progress": "Progress",
+        "notAvailable": "N/A",
+        "footer": {
+          "cycles": "Cycles: {{count}}"
+        }
+      }
     }
   },
   "transferOwnership": {
@@ -759,6 +813,236 @@
         "complexity": "Mix uppercase, lowercase, numbers, and symbols",
         "noPersonalInfo": "Avoid names, birthdays, or common words",
         "changeRegularly": "Change your password if you suspect it is known"
+      }
+    }
+  },
+  "home": {
+    "employeeStatus": {
+      "loadError": "Failed to load employee statuses",
+      "loadErrorGeneric": "Something went wrong while loading statuses",
+      "notAvailable": "Employee status is not available for this account",
+      "createError": "Could not create status",
+      "createErrorGeneric": "Something went wrong while creating status",
+      "createSuccess": "Status created",
+      "updateError": "Could not update status",
+      "updateErrorGeneric": "Something went wrong while updating status",
+      "updateSuccess": "Status updated",
+      "deleteError": "Could not delete status",
+      "deleteErrorGeneric": "Something went wrong while deleting status",
+      "deleteSuccess": "Status deleted"
+    }
+  },
+  "employees": {
+    "page": {
+      "loadingAria": "Loading employees"
+    },
+    "actions": {
+      "openMenu": "Open row actions",
+      "viewDetails": "View Details",
+      "resign": "Resign",
+      "delete": "Delete"
+    },
+    "header": {
+      "pageTitle": "Employee Management",
+      "pageSubtitle": "Manage employee data, profiles, and organizational information",
+      "tabEmployees": "Employee Management",
+      "tabEmployeesDescription": "Manage employee data, profiles, and information",
+      "tabReprimand": "Reprimand",
+      "tabReprimandDescription": "Manage employee reprimands and disciplinary actions"
+    }
+  },
+  "recruitment": {
+    "page": {
+      "loadingAria": "Loading recruitment"
+    },
+    "header": {
+      "pageTitle": "Recruitment",
+      "pageSubtitle": "Manage job openings, applications, and recruitment process",
+      "tabDashboard": "Dashboard",
+      "tabDashboardDescription": "Overview of job openings and recruitment metrics",
+      "tabJobOpenings": "Job Openings",
+      "tabJobOpeningsDescription": "Manage job openings and postings",
+      "tabApplications": "Applications",
+      "tabApplicationsDescription": "Manage and review candidate applications",
+      "tabInterviewees": "Interviewees",
+      "tabIntervieweesDescription": "Manage candidate interviews and evaluations"
+    },
+    "accessDenied": {
+      "title": "Access restricted",
+      "description": "You need Owner, Admin, or HR role to view recruitment.",
+      "back": "Back to home"
+    }
+  },
+  "reprimands": {
+    "page": {
+      "loadingAria": "Loading reprimand data"
+    },
+    "accessDenied": {
+      "title": "Access restricted",
+      "description": "You need Owner, Admin, or HR role to view reprimands.",
+      "backToEmployees": "Back to Employees"
+    },
+    "error": {
+      "title": "Failed to load data",
+      "both": "Employee and reprimand data could not be loaded.",
+      "employees": "Employee data could not be loaded.",
+      "reprimands": "Reprimand data could not be loaded.",
+      "retry": "Try again"
+    },
+    "toast": {
+      "createSuccess": "Reprimand created successfully",
+      "createError": "Failed to create reprimand",
+      "sessionInvalid": "Session invalid. Please sign in again."
+    },
+    "filters": {
+      "searchPlaceholder": "Search reprimands...",
+      "departmentPlaceholder": "Department",
+      "allDepartments": "All Departments",
+      "statusPlaceholder": "Status",
+      "allStatus": "All Status",
+      "severityPlaceholder": "Severity",
+      "allSeverities": "All Severities",
+      "typePlaceholder": "Type",
+      "allTypes": "All Types",
+      "timePlaceholder": "Time Period",
+      "allTime": "All Time",
+      "thisWeek": "This Week",
+      "thisMonth": "This Month",
+      "lastMonth": "Last Month",
+      "last3Months": "Last 3 Months",
+      "last6Months": "Last 6 Months",
+      "thisYear": "This Year",
+      "lastYear": "Last Year",
+      "clearFiltersTitle": "Clear all filters"
+    },
+    "metrics": {
+      "totalTitle": "Total Reprimands",
+      "totalSubtitle": "All records",
+      "activeTitle": "Active Reprimands",
+      "activeSubtitle": "Ongoing cases",
+      "resolvedTitle": "Resolved",
+      "resolvedSubtitle": "Closed cases",
+      "criticalTitle": "Critical / High",
+      "criticalSubtitle": "High priority"
+    },
+    "overview": {
+      "title": "Reprimand Overview",
+      "subtitle": "Disciplinary action statistics and insights",
+      "totalReprimands": "Total Reprimands",
+      "activeWarnings": "Active Warnings",
+      "thisMonth": "This Month",
+      "severityDistribution": "Severity Distribution",
+      "recentActivity": "Recent Activity",
+      "noRecent": "No recent activity",
+      "unknownEmployee": "Unknown Employee"
+    },
+    "overviewTime": {
+      "justNow": "Just now",
+      "hoursAgo": "{{hours}}h ago",
+      "yesterday": "Yesterday",
+      "unknownType": "Unknown"
+    },
+    "sidebarFooter": {
+      "total": "Total Reprimands:",
+      "active": "Active:"
+    },
+    "tableFooter": {
+      "totalEmployees": "Total Employees:",
+      "totalReprimands": "Total Reprimands:"
+    },
+    "table": {
+      "emptyTitle": "No employees found",
+      "emptyDescription": "Add employees to start tracking reprimands."
+    },
+    "department": {
+      "employeesCount": "{{count}} employees",
+      "emptyDepartment": "No employees in this department"
+    },
+    "boxes": {
+      "reprimandN": "Reprimand {{n}}",
+      "showingMax": "Showing {{max}} of {{total}}",
+      "none": "No reprimand"
+    },
+    "dropdown": {
+      "noViolations": "No Violations",
+      "violationsBadge": "{{count}} Violations",
+      "active": "Active",
+      "resolved": "Resolved",
+      "noViolationsTitle": "No violations for {{name}}",
+      "noViolationsDesc": "This employee has a clean record with no disciplinary actions.",
+      "activeViolations": "Active Violations",
+      "resolvedViolations": "Resolved Violations",
+      "otherStatus": "Other Status",
+      "category": "Category:",
+      "previous": "Previous:",
+      "noPosition": "No position",
+      "statusIssued": "issued",
+      "statusResolved": "resolved",
+      "statusAppealed": "appealed",
+      "statusCancelled": "cancelled"
+    },
+    "dialog": {
+      "trigger": "Add Reprimand",
+      "title": "Add New Reprimand",
+      "description": "Create a new disciplinary action record for an employee",
+      "employee": "Employee *",
+      "selectEmployee": "Select employee",
+      "loadingEmployees": "Loading employees...",
+      "noEmployees": "No employees found",
+      "noEmployeeId": "No ID",
+      "reprimandType": "Reprimand Type *",
+      "selectReprimandType": "Select reprimand type",
+      "severity": "Severity Level *",
+      "selectSeverity": "Select severity level",
+      "violationCategory": "Violation Category *",
+      "selectViolationCategory": "Select violation category",
+      "incidentDate": "Incident Date *",
+      "incidentTime": "Incident Time",
+      "incidentLocation": "Incident Location",
+      "incidentLocationPh": "Enter incident location",
+      "previousWarnings": "Previous Warnings Count",
+      "improvementDeadline": "Improvement Deadline",
+      "followUpDate": "Follow Up Date",
+      "violationDescription": "Violation Description *",
+      "violationDescriptionPh": "Describe the violation in detail...",
+      "evidenceDetails": "Evidence Details",
+      "evidenceDetailsPh": "Describe any evidence supporting this reprimand...",
+      "witnessNames": "Witness Names",
+      "witnessNamesPh": "Enter witness names (comma separated)",
+      "correctiveAction": "Corrective Action Plan",
+      "correctiveActionPh": "Describe the corrective actions required...",
+      "supportingDoc": "Supporting Document",
+      "uploadLabel": "Upload supporting document",
+      "notes": "Additional Notes",
+      "notesPh": "Any additional notes or comments...",
+      "ackRequired": "Acknowledgment Required",
+      "formal": "Formal Reprimand",
+      "impactReview": "Impact Performance Review",
+      "cancel": "Cancel",
+      "submit": "Create Reprimand",
+      "submitting": "Creating...",
+      "typeVerbal": "Verbal Warning",
+      "typeWritten": "Written Warning",
+      "typeFinal": "Final Warning",
+      "typeSuspension": "Suspension",
+      "typeTermination": "Termination",
+      "severityLow": "Low",
+      "severityMedium": "Medium",
+      "severityHigh": "High",
+      "severityCritical": "Critical",
+      "catAttendance": "Attendance",
+      "catPerformance": "Performance",
+      "catConduct": "Conduct",
+      "catSafety": "Safety",
+      "catPolicy": "Policy Violation",
+      "catInsubordination": "Insubordination",
+      "catOther": "Other"
+    },
+    "form": {
+      "validation": {
+        "employeeRequired": "Please select an employee",
+        "incidentDateRequired": "Incident date is required",
+        "violationDescriptionRequired": "Violation description is required"
       }
     }
   }

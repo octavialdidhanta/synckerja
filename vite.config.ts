@@ -43,6 +43,10 @@ export default defineConfig(({ mode }) => {
         find: /^@\/register\/(.*)$/,
         replacement: `${path.resolve(__dirname, "src/0-register")}/$1`,
       },
+      {
+        find: /^@\/features\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src")}/$1`,
+      },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
     ],
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],

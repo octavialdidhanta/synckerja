@@ -95,7 +95,6 @@ ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_order_id_unique ON public.payments (order_id) WHERE order_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_payments_organization_id ON public.payments (organization_id);
 CREATE INDEX IF NOT EXISTS idx_payments_org_status ON public.payments (organization_id, status);
 
 -- ---------------------------------------------------------------------------

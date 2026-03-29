@@ -1,0 +1,66 @@
+/* Custom Date Picker — border / shadow mengikuti token; warna cell dari Tailwind di TSX */
+
+.custom-date-picker {
+  font-family: inherit;
+  width: 100%;
+  max-width: 320px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px 0 hsl(var(--foreground) / 0.06);
+}
+
+.custom-date-picker .grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+}
+
+/* Hanya reset layout; warna dari kelas Tailwind pada tiap tombol */
+.custom-date-picker .custom-date-picker-day {
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  border-radius: calc(var(--radius) - 4px);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.custom-date-picker .custom-date-picker-day:disabled {
+  cursor: not-allowed;
+}
+
+.custom-date-picker .custom-date-picker-day:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+@keyframes custom-date-picker-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.custom-date-picker {
+  animation: custom-date-picker-fade-in 0.3s ease-out;
+}
+
+@media (max-width: 640px) {
+  .custom-date-picker {
+    max-width: 280px;
+    padding: 12px;
+  }
+
+  .custom-date-picker .custom-date-picker-day {
+    font-size: 12px;
+  }
+}
