@@ -64,7 +64,7 @@ export function AuthTestimonialsPanel({ compact = false }: AuthTestimonialsPanel
           badge.type === "best"
             ? "text-[hsl(var(--brand-blue))]"
             : badge.type === "lead"
-              ? "text-emerald-700"
+              ? "text-[hsl(var(--brand-red))]"
               : "text-violet-700"
         }`}
       >
@@ -119,8 +119,8 @@ export function AuthTestimonialsPanel({ compact = false }: AuthTestimonialsPanel
       <div
         className={
           compact
-            ? "flex flex-1 min-h-0 flex-col justify-center overflow-y-auto seamless-scroll px-8 py-10 lg:px-12 lg:py-14 max-h-[calc(100vh-120px)]"
-            : "flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-y-auto seamless-scroll px-8 py-10 lg:min-h-0 lg:px-12 lg:py-14"
+            ? "flex flex-1 min-h-0 flex-col justify-center overflow-x-hidden overflow-y-auto seamless-scroll px-8 py-10 lg:px-12 lg:py-14"
+            : "flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-x-hidden overflow-y-auto seamless-scroll px-8 py-10 lg:min-h-0 lg:px-12 lg:py-14"
         }
       >
         {inner}

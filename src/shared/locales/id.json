@@ -14,7 +14,7 @@
       "quote1": "Perubahan besar untuk cara kami menjalankan operasi.",
       "author1": "Resa Linda",
       "role1": "Manajer HR Korporat",
-      "quote2": "Office.Synckerja menjaga semua orang selaras pada tujuan dan tugas.",
+      "quote2": "Synckerja menjaga semua orang selaras pada tujuan dan tugas.",
       "author2": "Agus",
       "role2": "Chief Technology Officer",
       "quote3": "Sistem serbaguna dengan dukungan tim yang hebat.",
@@ -22,7 +22,7 @@
       "role3": "Head of Human Capital"
     },
     "register": {
-      "title": "Selamat datang di Office.Synckerja",
+      "title": "Selamat datang di Synckerja Office",
       "subtitle": "Mulai uji coba gratis. Tanpa kartu kredit.",
       "fullName": "Nama lengkap *",
       "email": "Email *",
@@ -30,7 +30,7 @@
       "confirmPassword": "Konfirmasi kata sandi *",
       "submit": "Daftar",
       "submitting": "Membuat akun…",
-      "hasAccount": "Sudah punya akun Office.Synckerja?",
+      "hasAccount": "Sudah punya akun Synckerja Office?",
       "login": "Masuk",
       "termsPrefix": "Dengan mengirim formulir Anda menyetujui",
       "terms": "Syarat & Ketentuan",
@@ -102,7 +102,7 @@
       "goLogin": "Lanjut ke login"
     },
     "login": {
-      "welcomeTitle": "Selamat datang di Office.Synckerja",
+      "welcomeTitle": "Selamat datang di Synckerja Office",
       "welcomeSubtitle": "Untuk memulai, silakan masuk.",
       "email": "Alamat email *",
       "password": "Kata sandi *",
@@ -113,7 +113,7 @@
       "hidePassword": "Sembunyikan kata sandi",
       "submit": "Masuk",
       "submitting": "Sedang masuk…",
-      "noAccount": "Belum punya akun Office.Synckerja?",
+      "noAccount": "Belum punya akun Synckerja Office?",
       "register": "Daftar",
       "sessionExpired": "Sesi Anda berakhir. Silakan masuk lagi.",
       "redirectToRegisterTitle": "Email belum terdaftar",
@@ -154,7 +154,7 @@
   "onboarding": {
     "org": {
       "pageTitle": "Buat organisasi pertama",
-      "pageSubtitle": "Lengkapi informasi organisasi Anda untuk mulai menggunakan Office.Synckerja.",
+      "pageSubtitle": "Lengkapi informasi organisasi Anda untuk mulai menggunakan Synckerja Office.",
       "termsPrefix": "Saya menyetujui",
       "termsLink": "Syarat dan Ketentuan",
       "phoneRequired": "Nomor telepon wajib diisi.",
@@ -228,11 +228,133 @@
     },
     "welcome": {
       "title": "Selamat bergabung",
-      "subtitle": "Anda siap menggunakan Office.Synckerja bersama tim.",
+      "subtitle": "Anda siap menggunakan Synckerja Office bersama tim.",
       "cta": "Ke dasbor"
     },
     "terms": {
       "backToOrg": "Kembali ke buat organisasi"
+    }
+  },
+  "layout": {
+    "appName": "Synckerja Office",
+    "sheetClose": "Tutup",
+    "header": {
+      "toggleSidebar": "Buka/tutup bilah samping",
+      "openMenu": "Buka menu akun",
+      "settings": "Pengaturan",
+      "signOut": "Keluar"
+    },
+    "userMenu": {
+      "notificationsAria": "Notifikasi",
+      "transferOwnership": "Alihkan kepemilikan"
+    },
+    "a11y": {
+      "mobileNavTitle": "Navigasi utama",
+      "mobileNavDescription": "Gunakan menu ini untuk berpindah antar bagian aplikasi."
+    },
+    "nav": {
+      "dashboard": "Dasbor",
+      "subscription": "Langganan"
+    },
+    "subnav": {
+      "subscriptionOverview": "Ringkasan",
+      "subscriptionPlans": "Paket",
+      "subscriptionManagement": "Pembayaran"
+    },
+    "orgSwitcher": {
+      "triggerAria": "Pilih organisasi",
+      "loading": "Memuat organisasi…",
+      "orgCount": "{{count}} organisasi",
+      "sectionTitle": "Organisasi Anda ({{count}})",
+      "createNew": "Buat organisasi baru",
+      "noOrganizations": "Belum ada organisasi",
+      "switchErrorTitle": "Gagal mengganti organisasi",
+      "switchErrorDesc": "Terjadi kesalahan. Silakan coba lagi.",
+      "switchErrorNotMember": "Anda bukan anggota organisasi tersebut.",
+      "role": {
+        "owner": "Pemilik",
+        "admin": "Admin",
+        "manager": "Manajer",
+        "member": "Anggota"
+      },
+      "roleUnknown": "{{role}}"
+    },
+    "createOrgModal": {
+      "title": "Buat organisasi baru",
+      "subtitle": "Lengkapi informasi organisasi baru untuk melanjutkan."
+    }
+  },
+  "transferOwnership": {
+    "fallback": {
+      "unknownUser": "Pengguna tidak dikenal",
+      "unknownOrganization": "Organisasi tidak dikenal"
+    },
+    "page": {
+      "backToDashboard": "Kembali ke dasbor",
+      "heroTitle": "Alihkan kepemilikan — {{company}}",
+      "heroSubtitle": "Anda sedang mengalihkan kepemilikan untuk organisasi ini.",
+      "accessDeniedToastTitle": "Akses ditolak",
+      "accessDeniedToastDescription": "Hanya pemilik organisasi yang dapat mengalihkan kepemilikan."
+    },
+    "accessDenied": {
+      "title": "Akses ditolak",
+      "description": "Hanya pemilik organisasi yang dapat mengakses halaman ini."
+    },
+    "loading": "Memuat…",
+    "form": {
+      "title": "Alihkan kepemilikan",
+      "confirmTitle": "Konfirmasi alih kepemilikan",
+      "validation": {
+        "pickMember": "Pilih anggota yang akan menjadi pemilik baru"
+      },
+      "loadingMembers": "Memuat anggota organisasi…",
+      "noEligibleTitle": "Tidak ada anggota yang memenuhi syarat",
+      "noEligibleBody": "Tidak ada anggota lain yang dapat menerima kepemilikan.",
+      "noEligibleBodyOnlyOrg": "Tambahkan anggota lain ke organisasi ini terlebih dahulu. Kepemilikan hanya dapat dialihkan ke anggota yang sudah tergabung.",
+      "chooseFromOrgHint": "Pilih dari anggota organisasi ({{count}} tersedia).",
+      "messageOptional": "Pesan (opsional)",
+      "messagePlaceholder": "Tambahkan pesan untuk pemilik baru…",
+      "processing": "Memproses…",
+      "warningTitle": "Peringatan penting",
+      "warningBody": "Setelah kepemilikan dialihkan, Anda kehilangan akses pemilik dan tidak dapat membatalkan dari layar ini.",
+      "targetLabel": "Tujuan alih kepemilikan:",
+      "targetNotFound": "Tujuan tidak ditemukan",
+      "messageLabel": "Pesan:",
+      "cancel": "Batal",
+      "confirmYes": "Ya, alihkan kepemilikan",
+      "pickNewOwner": "Pilih pemilik baru",
+      "pickMemberPlaceholder": "Pilih anggota sebagai pemilik baru",
+      "continue": "Lanjutkan"
+    },
+    "pending": {
+      "title": "Permintaan alih kepemilikan tertunda",
+      "cancel": "Batalkan",
+      "sent": "Dikirim:"
+    },
+    "toast": {
+      "success": {
+        "requestSentTitle": "Permintaan dimulai",
+        "requestSentDescription": "Permintaan alih kepemilikan telah dikirim.",
+        "cancelledTitle": "Permintaan dibatalkan",
+        "cancelledDescription": "Permintaan alih kepemilikan telah dibatalkan.",
+        "acceptedTitle": "Alih kepemilikan selesai",
+        "acceptedDescription": "Kepemilikan organisasi telah dialihkan kepada Anda. Memuat ulang workspace…"
+      },
+      "error": {
+        "rpcFailedTitle": "Alih kepemilikan gagal",
+        "startFailedDescription": "Tidak dapat memulai alih kepemilikan.",
+        "userNotFoundTitle": "Pengguna tidak ditemukan",
+        "userNotFoundDescription": "Email tersebut tidak terdaftar di sistem.",
+        "cancelFailedTitle": "Tidak dapat membatalkan",
+        "cancelFailedDescription": "Terjadi kesalahan saat membatalkan permintaan.",
+        "acceptFailedDescription": "Tidak dapat menerima alih kepemilikan.",
+        "title": "Kesalahan",
+        "emailNotMember": "Email tersebut bukan anggota organisasi. Pengguna harus bergabung ke organisasi terlebih dahulu."
+      },
+      "warning": {
+        "title": "Peringatan",
+        "membersLoading": "Data anggota masih dimuat. Mohon tunggu."
+      }
     }
   },
   "dashboard": {
@@ -241,11 +363,403 @@
     "settingsLink": "Pengaturan",
     "signOut": "Keluar"
   },
+  "common": {
+    "cancel": "Batal"
+  },
+  "subscription": {
+    "roleGuard": {
+      "loading": "Memuat…"
+    },
+    "layout": {
+      "title": "Kelola langganan",
+      "subtitle": "Ringkasan, paket, dan pembayaran untuk organisasi Anda",
+      "tabOverview": "Ringkasan & analitik",
+      "tabPlans": "Paket",
+      "tabManagement": "Pembayaran"
+    },
+    "banner": {
+      "expired": "Langganan Anda telah berakhir",
+      "expiresToday": "Berakhir hari ini",
+      "expiresTomorrow": "Berakhir besok",
+      "expiresInDays": "Berakhir dalam {{count}} hari",
+      "trialEnds": "Masa percobaan hampir berakhir",
+      "subscriptionEnds": "Langganan hampir berakhir",
+      "trialLabel": "Percobaan",
+      "subscriptionLabel": "Langganan",
+      "choosePlan": "Pilih paket",
+      "renew": "Perpanjang"
+    },
+    "expired": {
+      "title": "Langganan berakhir",
+      "description": "Perpanjang atau tingkatkan paket untuk terus menggunakan Synckerja Office di organisasi ini.",
+      "endedOn": "Berakhir pada {{date}}",
+      "goToPlans": "Lihat paket",
+      "goToManagement": "Riwayat pembayaran"
+    },
+    "overview": {
+      "pageTitle": "Ringkasan perusahaan",
+      "pageSubtitle": "Pantau langganan dan metrik penggunaan Anda",
+      "subscriptionMetricsTitle": "Metrik langganan",
+      "planLabel": "Paket: {{plan}}",
+      "refreshData": "Segarkan data",
+      "refreshDataTitle": "Segarkan data langganan",
+      "currentSubscriptionTitle": "Langganan saat ini",
+      "subscriptionWord": "langganan",
+      "employeeUsage": "Penggunaan karyawan",
+      "employeeUsageOf": "{{current}} dari {{max}}",
+      "overLimit": "Jumlah anggota melebihi batas paket ini.",
+      "trialPeriod": "Masa percobaan",
+      "subscriptionPeriod": "Periode langganan",
+      "endsOn": "Berakhir pada",
+      "renewsOn": "Perpanjangan pada",
+      "loadingShort": "Memuat…",
+      "loadingEllipsis": "…",
+      "expiredDaysAgo": "Berakhir {{count}} hari lalu",
+      "expiresToday": "Berakhir hari ini",
+      "daysRemainingCount": "Tersisa {{count}} hari",
+      "billing": "Penagihan",
+      "billingCycleMonthly": "Penagihan bulanan",
+      "billingCycleYearly": "Penagihan tahunan",
+      "nextPaymentOn": "Pembayaran berikutnya: {{date}}",
+      "nextPaymentDue": "Pembayaran berikutnya akan jatuh tempo",
+      "trialExpiredAlert": "Masa percobaan Anda telah berakhir",
+      "subscriptionExpiredAlert": "Langganan Anda telah berakhir",
+      "choosePlanRenew": "Pilih atau perpanjang paket agar layanan tidak terputus.",
+      "trialExpiresSoon": "Masa percobaan Anda hampir berakhir",
+      "subscriptionExpiresSoon": "Langganan Anda hampir berakhir",
+      "employeeLimitExceeded": "Batas karyawan terlampaui",
+      "upgradePlanEmployees": "Tingkatkan paket atau kurangi kursi.",
+      "employeeGrowth": "Pertumbuhan karyawan",
+      "employeeGrowthSubtitle": "Anggota baru dalam enam bulan terakhir",
+      "noEmployeeGrowthData": "Belum ada data pertumbuhan untuk periode ini.",
+      "featureUsageTitle": "Penggunaan fitur",
+      "featureUsageDescription": "Area paling sering digunakan (30 hari terakhir)",
+      "employeeUtilization": "Pemanfaatan karyawan",
+      "planEfficiency": "Efisiensi paket",
+      "growthRate": "Tingkat pertumbuhan",
+      "metricNoPlan": "Tidak ada paket aktif",
+      "metricCurrentPlan": "Paket saat ini",
+      "metricActiveMembers": "Anggota aktif",
+      "metricTrialDaysLeft": "Hari percobaan tersisa",
+      "metricDaysRemaining": "Hari tersisa",
+      "metricSubscriptionStatus": "Status langganan",
+      "metricStatusTrial": "Percobaan",
+      "metricStatusUnknown": "Tidak diketahui",
+      "metricLoading": "Memuat…",
+      "metricStatusShort": "Status",
+      "quickSummaryTitle": "Ringkas cepat",
+      "quickSummarySubtitle": "Aktivitas dan statistik terkini",
+      "sidebarActiveEmployees": "Karyawan aktif",
+      "sidebarMemberLimit": "Batas anggota",
+      "sidebarPlanName": "Nama paket",
+      "sidebarStatus": "Status",
+      "sidebarFooterEmployees": "Karyawan aktif: {{count}}",
+      "sidebarFooterFeatures": "Fitur terlacak: {{count}}",
+      "footerTotalMetrics": "Total metrik: {{count}}",
+      "footerLastUpdated": "Terakhir diperbarui:",
+      "footerRefresh": "Segarkan",
+      "card": {
+        "plan": "Paket saat ini",
+        "trial": "Percobaan",
+        "paid": "Berbayar",
+        "members": "{{current}} / {{limit}} anggota",
+        "expiry": "Sisa waktu",
+        "daysLeft": "Tersisa {{count}} hari",
+        "nextBilling": "Tagihan berikutnya: {{date}}",
+        "noBilling": "Belum ada tanggal tagihan berikutnya dari pembayaran",
+        "estimatedCycle": "Perkiraan siklus: {{days}} hari",
+        "utilization": "Pemanfaatan ruang kerja",
+        "growth": "Tren 6 bulan: {{rate}}"
+      },
+      "actions": {
+        "title": "Aksi cepat",
+        "plans": "Bandingkan paket",
+        "management": "Pembayaran & riwayat"
+      },
+      "growth": {
+        "title": "Anggota baru per bulan"
+      }
+    },
+    "management": {
+      "pending": {
+        "title": "Pembayaran tertunda",
+        "pay": "Bayar sekarang",
+        "refresh": "Segarkan status",
+        "cancel": "Batalkan pembayaran"
+      },
+      "history": {
+        "title": "Riwayat pembayaran",
+        "loading": "Memuat pembayaran…",
+        "empty": "Belum ada pembayaran berhasil.",
+        "order": "Order",
+        "amount": "Jumlah",
+        "status": "Status",
+        "date": "Tanggal"
+      },
+      "payment": {
+        "refreshed": "Status pembayaran diperbarui",
+        "refreshFailed": "Tidak dapat memperbarui status pembayaran",
+        "cancelled": "Pembayaran tertunda dibatalkan",
+        "cancelFailed": "Tidak dapat membatalkan pembayaran",
+        "status": {
+          "success": "Lunas",
+          "pending": "Tertunda"
+        }
+      }
+    },
+    "plans": {
+      "title": "Pilih paket Anda",
+      "description": "Sesuaikan jumlah anggota dan siklus penagihan. Harga diperbarui secara langsung.",
+      "error": {
+        "renewalFailed": "Tidak dapat memulai perpanjangan",
+        "paymentFailed": "Pembayaran gagal",
+        "paymentStartFailed": "Tidak dapat memulai pembayaran",
+        "temporaryError": "Gangguan sementara. Silakan coba lagi.",
+        "paymentMethodUnavailable": "Metode pembayaran tidak tersedia",
+        "paymentStartFailedWithMessage": "{{message}}"
+      },
+      "success": {
+        "paymentSuccess": "Pembayaran berhasil"
+      },
+      "info": {
+        "paymentProcessing": "Pembayaran sedang diproses",
+        "paymentCancelled": "Pembayaran dibatalkan"
+      },
+      "button": {
+        "renew": "Perpanjang",
+        "upgrade": "Tingkatkan",
+        "downgrade": "Turunkan",
+        "cannotDowngrade": "Tidak dapat menurunkan paket",
+        "upgradeToYearly": "Beralih ke tahunan",
+        "switchToMonthly": "Beralih ke bulanan",
+        "current": "Paket saat ini",
+        "select": "Pilih",
+        "comingSoon": "Segera hadir"
+      },
+      "footer": {
+        "showing": "Menampilkan {{count}} paket",
+        "lastUpdated": "Terakhir diperbarui {{time}}"
+      },
+      "comparison": {
+        "title": "Perbandingan paket",
+        "description": "Ringkasan ruang kerja Anda dibanding paket yang tersedia",
+        "currentPlan": "Langganan Anda",
+        "plan": "Paket",
+        "members": "Anggota",
+        "billing": "Penagihan",
+        "quickStats": "Statistik cepat",
+        "totalPlans": "Paket aktif",
+        "currentEmployees": "Karyawan",
+        "activeFeatures": "Area fitur",
+        "footer": {
+          "livePricing": "Harga langsung",
+          "realTime": "Berubah saat Anda mengubah kursi atau siklus"
+        }
+      },
+      "modal": {
+        "title": {
+          "schedule": "Jadwalkan perubahan paket",
+          "confirmYearly": "Konfirmasi penagihan tahunan",
+          "confirm": "Konfirmasi peningkatan"
+        },
+        "button": {
+          "schedule": "Jadwalkan perubahan",
+          "confirmPay": "Bayar sekarang",
+          "payNow": "Bayar sekarang"
+        },
+        "summaryPlan": "Dari {{from}} ke {{to}}",
+        "summaryMembers": "{{count}} kursi anggota",
+        "summaryProrate": "Prorata untuk {{days}} hari tersisa: {{amount}}",
+        "amount": "Total tagihan: {{amount}}",
+        "options": {
+          "title": "Bagaimana Anda ingin mengubah?",
+          "description": "Bayar selisih prorata sekarang atau jadwalkan perubahan untuk {{planName}} di akhir periode."
+        },
+        "details": {
+          "currentPlan": "Paket saat ini",
+          "newPlan": "Paket baru",
+          "members": "Anggota"
+        },
+        "prorate": {
+          "remainingDays": "Hari tersisa dalam siklus",
+          "percentage": "Persentase prorata"
+        },
+        "scheduled": {
+          "dateLabel": "Dijadwalkan pada"
+        }
+      },
+      "badge": {
+        "trial": "{{days}} hari tersisa dalam percobaan",
+        "current": "Saat ini",
+        "popular": "Populer"
+      },
+      "pricing": {
+        "perYear": "per tahun ({{count}} anggota)",
+        "perMonth": "per bulan ({{count}} anggota)"
+      },
+      "memberCount": {
+        "label": "{{count}} anggota",
+        "maxLabel": " (maks {{max}} pada percobaan)",
+        "min": "1",
+        "maxDisplay": "{{max}}"
+      },
+      "billingCycle": {
+        "yearly": "Penagihan tahunan (hemat jika tersedia)"
+      },
+      "features": {
+        "title": "Fitur yang disertakan"
+      },
+      "currentPlan": {
+        "label": "{{memberCount}} kursi ditagih · {{employeeCount}} karyawan aktif"
+      },
+      "downgrade": {
+        "error": "Kurangi anggota menjadi {{count}} atau kurang sebelum menurunkan paket"
+      },
+      "savings": "Hemat {{percentage}}% dengan penagihan tahunan",
+      "lastPaidForMembers": "Pembayaran terakhir {{amount}} untuk {{count}} anggota",
+      "priceBreakdown": {
+        "perMember": "Per anggota",
+        "monthlySubtotal": "Subtotal bulanan",
+        "yearlyDiscount": "Diskon tahunan ({{percentage}}%)",
+        "totalYearly": "Total (tahunan)",
+        "totalMonthly": "Total (bulanan)"
+      },
+      "demoRequired": "Paket ini memerlukan demo — hubungi tim penjualan.",
+      "trust": {
+        "secure": "Checkout aman",
+        "encrypted": "Pembayaran terenkripsi",
+        "support": "Dukungan saat Anda butuh"
+      },
+      "toast": {
+        "scheduleSuccess": "Perubahan paket dijadwalkan untuk akhir periode saat ini.",
+        "scheduleFailed": "Gagal menjadwalkan perubahan paket"
+      },
+      "hooks": {
+        "employeeLimitFailed": "Gagal memeriksa batas karyawan",
+        "prorateFailed": "Gagal menghitung prorata"
+      }
+    }
+  },
   "settings": {
     "title": "Pengaturan",
     "language": "Bahasa",
     "langEn": "English",
     "langId": "Bahasa Indonesia",
-    "back": "Kembali ke dasbor"
+    "back": "Kembali ke dasbor",
+    "page": {
+      "title": "Pengaturan",
+      "subtitle": "Kelola akun dan preferensi aplikasi Anda",
+      "navAria": "Bagian pengaturan"
+    },
+    "tabs": {
+      "profile": "Profil",
+      "security": "Keamanan"
+    },
+    "profile": {
+      "loadError": "Gagal memuat profil. Silakan coba lagi.",
+      "retry": "Coba lagi",
+      "language": {
+        "title": "Bahasa aplikasi",
+        "label": "Bahasa",
+        "optionId": "Bahasa Indonesia",
+        "optionEn": "English"
+      },
+      "photo": {
+        "title": "Foto profil",
+        "description": "Unggah foto. Foto akan tampil di aplikasi setelah Anda menyimpan profil.",
+        "fallbackName": "Pengguna",
+        "supportedFormats": "JPG, PNG, WebP, atau GIF maks. 5MB",
+        "toast": {
+          "authError": "Anda harus masuk untuk mengunggah foto",
+          "invalidType": "Pilih berkas gambar",
+          "fileTooLarge": "Ukuran maksimum berkas 5MB",
+          "uploadSuccess": "Foto diunggah — simpan profil untuk menyimpannya",
+          "uploadError": "Gagal mengunggah foto",
+          "deleteSuccess": "Foto dihapus — simpan profil untuk menerapkan",
+          "deleteError": "Gagal menghapus foto"
+        }
+      },
+      "personal": {
+        "title": "Informasi pribadi",
+        "description": "Perbarui nama dan kontak Anda"
+      },
+      "form": {
+        "fullNameLabel": "Nama lengkap",
+        "fullNamePlaceholder": "Nama lengkap Anda",
+        "phoneLabel": "Nomor telepon",
+        "phonePlaceholder": "Nomor telepon Anda",
+        "jobTitleLabel": "Jabatan",
+        "jobTitlePlaceholder": "Peran atau jabatan Anda",
+        "locationLabel": "Lokasi",
+        "locationPlaceholder": "Kota atau wilayah",
+        "websiteLabel": "Situs web",
+        "websitePlaceholder": "https://contoh.com",
+        "bioLabel": "Bio",
+        "bioPlaceholder": "Perkenalan singkat"
+      },
+      "status": {
+        "changesPending": "Ada perubahan yang belum disimpan",
+        "noChanges": "Semua perubahan telah tersimpan"
+      },
+      "actions": {
+        "reset": "Batalkan perubahan",
+        "save": "Simpan perubahan",
+        "saving": "Menyimpan…"
+      },
+      "toast": {
+        "updateSuccess": "Profil diperbarui",
+        "updateError": "Gagal memperbarui profil"
+      }
+    },
+    "security": {
+      "changePassword": {
+        "title": "Ubah kata sandi",
+        "description": "Gunakan kata sandi kuat yang tidak dipakai di layanan lain"
+      },
+      "form": {
+        "currentPasswordLabel": "Kata sandi saat ini",
+        "currentPasswordPlaceholder": "Masukkan kata sandi saat ini",
+        "newPasswordLabel": "Kata sandi baru",
+        "newPasswordPlaceholder": "Masukkan kata sandi baru",
+        "confirmPasswordLabel": "Konfirmasi kata sandi baru",
+        "confirmPasswordPlaceholder": "Ulangi kata sandi baru"
+      },
+      "validation": {
+        "currentRequired": "Kata sandi saat ini wajib diisi",
+        "newRequired": "Kata sandi baru wajib diisi",
+        "newTooShort": "Kata sandi minimal 8 karakter",
+        "confirmRequired": "Konfirmasi kata sandi baru",
+        "confirmMismatch": "Kata sandi tidak cocok",
+        "sameAsCurrent": "Kata sandi baru harus berbeda dari yang sekarang",
+        "currentIncorrect": "Kata sandi saat ini salah"
+      },
+      "error": {
+        "unableVerify": "Tidak dapat memverifikasi akun. Silakan masuk lagi.",
+        "updateFailed": "Gagal memperbarui kata sandi"
+      },
+      "toast": {
+        "updateSuccess": "Kata sandi berhasil diperbarui"
+      },
+      "actions": {
+        "update": "Perbarui kata sandi",
+        "updating": "Memperbarui…",
+        "cancel": "Kosongkan formulir"
+      },
+      "passwordStrength": {
+        "label": "Kekuatan kata sandi:",
+        "weak": "Lemah",
+        "fair": "Cukup",
+        "good": "Baik",
+        "strong": "Kuat"
+      },
+      "tips": {
+        "title": "Tips keamanan",
+        "description": "Rekomendasi menjaga keamanan akun",
+        "strongPassword": "Gunakan minimal 8 karakter",
+        "complexity": "Gabungkan huruf besar, kecil, angka, dan simbol",
+        "noPersonalInfo": "Hindari nama, tanggal lahir, atau kata umum",
+        "changeRegularly": "Ganti kata sandi jika Anda curiga sudah diketahui orang lain"
+      }
+    }
   }
 }

@@ -12,6 +12,9 @@
       "@/register/*": [
         "./src/0-register/*"
       ],
+      "@/10-subscription/*": [
+        "./src/10-subscription/*"
+      ],
       "@/*": [
         "./src/*"
       ]
@@ -26,6 +29,9 @@
     },
     {
       "path": "./tsconfig.node.json"
+    },
+    {
+      "path": "./tsconfig.supabase-functions.json"
     }
   ]
 }

@@ -24,7 +24,7 @@ export function RequireAuth() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center">
+      <div className="flex h-full min-h-0 items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );

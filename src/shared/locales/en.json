@@ -14,7 +14,7 @@
       "quote1": "A game-changer for how we run operations.",
       "author1": "Resa Linda",
       "role1": "Corporate HR Manager",
-      "quote2": "Office.Synckerja keeps everyone aligned on goals and tasks.",
+      "quote2": "Synckerja keeps everyone aligned on goals and tasks.",
       "author2": "Agus",
       "role2": "Chief Technology Officer",
       "quote3": "Versatile system with great support from the team.",
@@ -22,7 +22,7 @@
       "role3": "Head of Human Capital"
     },
     "register": {
-      "title": "Welcome to Office.Synckerja",
+      "title": "Welcome to Synckerja Office",
       "subtitle": "Start your free trial. No credit card required.",
       "fullName": "Full name *",
       "email": "Email *",
@@ -30,7 +30,7 @@
       "confirmPassword": "Confirm password *",
       "submit": "Sign up",
       "submitting": "Creating account…",
-      "hasAccount": "Already have an Office.Synckerja account?",
+      "hasAccount": "Already have a Synckerja Office account?",
       "login": "Log in",
       "termsPrefix": "By submitting you accept our",
       "terms": "Terms",
@@ -102,7 +102,7 @@
       "goLogin": "Continue to login"
     },
     "login": {
-      "welcomeTitle": "Welcome to Office.Synckerja",
+      "welcomeTitle": "Welcome to Synckerja Office",
       "welcomeSubtitle": "To get started, please sign in.",
       "email": "Email address *",
       "password": "Password *",
@@ -113,7 +113,7 @@
       "hidePassword": "Hide password",
       "submit": "Sign In",
       "submitting": "Signing in…",
-      "noAccount": "Don’t have an Office.Synckerja account?",
+      "noAccount": "Don’t have a Synckerja Office account?",
       "register": "Sign up",
       "sessionExpired": "Your session expired. Please sign in again.",
       "redirectToRegisterTitle": "No account for this email",
@@ -154,7 +154,7 @@
   "onboarding": {
     "org": {
       "pageTitle": "Create your first organization",
-      "pageSubtitle": "Complete your organization details to start using Office.Synckerja.",
+      "pageSubtitle": "Complete your organization details to start using Synckerja Office.",
       "termsPrefix": "I accept the",
       "termsLink": "Terms and Conditions",
       "phoneRequired": "Phone number is required.",
@@ -228,11 +228,133 @@
     },
     "welcome": {
       "title": "Welcome aboard",
-      "subtitle": "You’re ready to use Office.Synckerja with your team.",
+      "subtitle": "You’re ready to use Synckerja Office with your team.",
       "cta": "Go to dashboard"
     },
     "terms": {
       "backToOrg": "Back to create organization"
+    }
+  },
+  "layout": {
+    "appName": "Synckerja Office",
+    "sheetClose": "Close",
+    "header": {
+      "toggleSidebar": "Toggle sidebar",
+      "openMenu": "Open account menu",
+      "settings": "Settings",
+      "signOut": "Log out"
+    },
+    "userMenu": {
+      "notificationsAria": "Notifications",
+      "transferOwnership": "Transfer ownership"
+    },
+    "a11y": {
+      "mobileNavTitle": "Main navigation",
+      "mobileNavDescription": "Use this menu to move between sections of the app."
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "subscription": "Subscription"
+    },
+    "subnav": {
+      "subscriptionOverview": "Overview",
+      "subscriptionPlans": "Plans",
+      "subscriptionManagement": "Management"
+    },
+    "orgSwitcher": {
+      "triggerAria": "Select organization",
+      "loading": "Loading organizations…",
+      "orgCount": "{{count}} organization(s)",
+      "sectionTitle": "Your organizations ({{count}})",
+      "createNew": "Create new organization",
+      "noOrganizations": "No organization",
+      "switchErrorTitle": "Could not switch",
+      "switchErrorDesc": "Something went wrong. Please try again.",
+      "switchErrorNotMember": "You are not a member of that organization.",
+      "role": {
+        "owner": "Owner",
+        "admin": "Admin",
+        "manager": "Manager",
+        "member": "Member"
+      },
+      "roleUnknown": "{{role}}"
+    },
+    "createOrgModal": {
+      "title": "Create new organization",
+      "subtitle": "Complete the details for your new organization to continue."
+    }
+  },
+  "transferOwnership": {
+    "fallback": {
+      "unknownUser": "Unknown user",
+      "unknownOrganization": "Unknown organization"
+    },
+    "page": {
+      "backToDashboard": "Back to dashboard",
+      "heroTitle": "Transfer ownership — {{company}}",
+      "heroSubtitle": "You are transferring ownership for this organization.",
+      "accessDeniedToastTitle": "Access denied",
+      "accessDeniedToastDescription": "Only the organization owner can transfer ownership."
+    },
+    "accessDenied": {
+      "title": "Access denied",
+      "description": "Only the organization owner can access this page."
+    },
+    "loading": "Loading…",
+    "form": {
+      "title": "Transfer ownership",
+      "confirmTitle": "Confirm transfer ownership",
+      "validation": {
+        "pickMember": "Select a member to become the new owner"
+      },
+      "loadingMembers": "Loading organization members…",
+      "noEligibleTitle": "No eligible members",
+      "noEligibleBody": "There are no other members who can receive ownership.",
+      "noEligibleBodyOnlyOrg": "Add another member to this organization first. Ownership can only be transferred to someone who already belongs to the organization.",
+      "chooseFromOrgHint": "Choose from organization members ({{count}} available).",
+      "messageOptional": "Message (optional)",
+      "messagePlaceholder": "Add a message for the new owner…",
+      "processing": "Processing…",
+      "warningTitle": "Important warning",
+      "warningBody": "After transferring ownership, you will lose owner access and cannot undo this from this screen.",
+      "targetLabel": "Transfer target:",
+      "targetNotFound": "Target not found",
+      "messageLabel": "Message:",
+      "cancel": "Cancel",
+      "confirmYes": "Yes, transfer ownership",
+      "pickNewOwner": "Choose new owner",
+      "pickMemberPlaceholder": "Select a member to become the new owner",
+      "continue": "Continue"
+    },
+    "pending": {
+      "title": "Pending transfer requests",
+      "cancel": "Cancel",
+      "sent": "Sent:"
+    },
+    "toast": {
+      "success": {
+        "requestSentTitle": "Transfer started",
+        "requestSentDescription": "The ownership transfer request has been sent.",
+        "cancelledTitle": "Transfer cancelled",
+        "cancelledDescription": "The ownership transfer request has been cancelled.",
+        "acceptedTitle": "Transfer complete",
+        "acceptedDescription": "Organization ownership has been transferred to you. Refreshing your workspace…"
+      },
+      "error": {
+        "rpcFailedTitle": "Transfer failed",
+        "startFailedDescription": "Could not start the ownership transfer.",
+        "userNotFoundTitle": "User not found",
+        "userNotFoundDescription": "That email is not registered in the system.",
+        "cancelFailedTitle": "Could not cancel",
+        "cancelFailedDescription": "Something went wrong while cancelling the transfer.",
+        "acceptFailedDescription": "Could not accept the ownership transfer.",
+        "title": "Error",
+        "emailNotMember": "That email is not an organization member. The user must join the organization first."
+      },
+      "warning": {
+        "title": "Warning",
+        "membersLoading": "Member data is still loading. Please wait."
+      }
     }
   },
   "dashboard": {
@@ -241,11 +363,403 @@
     "settingsLink": "Settings",
     "signOut": "Log out"
   },
+  "common": {
+    "cancel": "Cancel"
+  },
+  "subscription": {
+    "roleGuard": {
+      "loading": "Loading…"
+    },
+    "layout": {
+      "title": "Subscription management",
+      "subtitle": "Overview, plans, and billing for your organization",
+      "tabOverview": "Overview & analytics",
+      "tabPlans": "Plans",
+      "tabManagement": "Management"
+    },
+    "banner": {
+      "expired": "Your subscription has expired",
+      "expiresToday": "Expires today",
+      "expiresTomorrow": "Expires tomorrow",
+      "expiresInDays": "Expires in {{count}} days",
+      "trialEnds": "Trial ending soon",
+      "subscriptionEnds": "Subscription ending soon",
+      "trialLabel": "Trial",
+      "subscriptionLabel": "Subscription",
+      "choosePlan": "Choose a plan",
+      "renew": "Renew"
+    },
+    "expired": {
+      "title": "Subscription expired",
+      "description": "Renew or upgrade to keep using Synckerja Office for this organization.",
+      "endedOn": "Ended on {{date}}",
+      "goToPlans": "View plans",
+      "goToManagement": "Payment history"
+    },
+    "overview": {
+      "pageTitle": "Company overview",
+      "pageSubtitle": "Monitor your subscription and usage metrics",
+      "subscriptionMetricsTitle": "Subscription metrics",
+      "planLabel": "Plan: {{plan}}",
+      "refreshData": "Refresh data",
+      "refreshDataTitle": "Refresh subscription data",
+      "currentSubscriptionTitle": "Current subscription",
+      "subscriptionWord": "subscription",
+      "employeeUsage": "Employee usage",
+      "employeeUsageOf": "{{current}} of {{max}}",
+      "overLimit": "You are over the member limit for this plan.",
+      "trialPeriod": "Trial period",
+      "subscriptionPeriod": "Subscription period",
+      "endsOn": "Ends on",
+      "renewsOn": "Renews on",
+      "loadingShort": "Loading…",
+      "loadingEllipsis": "…",
+      "expiredDaysAgo": "Expired {{count}} days ago",
+      "expiresToday": "Expires today",
+      "daysRemainingCount": "{{count}} days remaining",
+      "billing": "Billing",
+      "billingCycleMonthly": "Monthly billing",
+      "billingCycleYearly": "Yearly billing",
+      "nextPaymentOn": "Next payment: {{date}}",
+      "nextPaymentDue": "Next payment due",
+      "trialExpiredAlert": "Your trial has ended",
+      "subscriptionExpiredAlert": "Your subscription has expired",
+      "choosePlanRenew": "Choose or renew a plan to continue without interruption.",
+      "trialExpiresSoon": "Your trial is ending soon",
+      "subscriptionExpiresSoon": "Your subscription is ending soon",
+      "employeeLimitExceeded": "Employee limit exceeded",
+      "upgradePlanEmployees": "Upgrade your plan or reduce seats.",
+      "employeeGrowth": "Employee growth",
+      "employeeGrowthSubtitle": "New members over the last six months",
+      "noEmployeeGrowthData": "No employee growth data for this period yet.",
+      "featureUsageTitle": "Feature usage",
+      "featureUsageDescription": "Most used areas in your organization (last 30 days)",
+      "employeeUtilization": "Employee utilization",
+      "planEfficiency": "Plan efficiency",
+      "growthRate": "Growth rate",
+      "metricNoPlan": "No active plan",
+      "metricCurrentPlan": "Current plan",
+      "metricActiveMembers": "Active members",
+      "metricTrialDaysLeft": "Trial days left",
+      "metricDaysRemaining": "Days remaining",
+      "metricSubscriptionStatus": "Subscription status",
+      "metricStatusTrial": "Trial",
+      "metricStatusUnknown": "Unknown",
+      "metricLoading": "Loading…",
+      "metricStatusShort": "Status",
+      "quickSummaryTitle": "Quick summary",
+      "quickSummarySubtitle": "Recent activity and stats",
+      "sidebarActiveEmployees": "Active employees",
+      "sidebarMemberLimit": "Member limit",
+      "sidebarPlanName": "Plan name",
+      "sidebarStatus": "Status",
+      "sidebarFooterEmployees": "Active employees: {{count}}",
+      "sidebarFooterFeatures": "Tracked features: {{count}}",
+      "footerTotalMetrics": "Total metrics: {{count}}",
+      "footerLastUpdated": "Last updated:",
+      "footerRefresh": "Refresh",
+      "card": {
+        "plan": "Current plan",
+        "trial": "Trial",
+        "paid": "Paid",
+        "members": "{{current}} / {{limit}} members",
+        "expiry": "Time remaining",
+        "daysLeft": "{{count}} days left",
+        "nextBilling": "Next billing: {{date}}",
+        "noBilling": "No upcoming billing date from payments yet",
+        "estimatedCycle": "Estimated cycle window: {{days}} days",
+        "utilization": "Workspace utilization",
+        "growth": "6-month growth trend: {{rate}}"
+      },
+      "actions": {
+        "title": "Quick actions",
+        "plans": "Compare plans",
+        "management": "Payments & history"
+      },
+      "growth": {
+        "title": "New members by month"
+      }
+    },
+    "management": {
+      "pending": {
+        "title": "Pending payments",
+        "pay": "Pay now",
+        "refresh": "Refresh status",
+        "cancel": "Cancel payment"
+      },
+      "history": {
+        "title": "Payment history",
+        "loading": "Loading payments…",
+        "empty": "No successful payments yet.",
+        "order": "Order",
+        "amount": "Amount",
+        "status": "Status",
+        "date": "Date"
+      },
+      "payment": {
+        "refreshed": "Payment status updated",
+        "refreshFailed": "Could not refresh payment status",
+        "cancelled": "Pending payment cancelled",
+        "cancelFailed": "Could not cancel payment",
+        "status": {
+          "success": "Paid",
+          "pending": "Pending"
+        }
+      }
+    },
+    "plans": {
+      "title": "Choose your plan",
+      "description": "Adjust member seats and billing cycle. Pricing updates in real time.",
+      "error": {
+        "renewalFailed": "Could not start renewal",
+        "paymentFailed": "Payment failed",
+        "paymentStartFailed": "Could not start payment",
+        "temporaryError": "Temporary error. Please try again.",
+        "paymentMethodUnavailable": "Payment method unavailable",
+        "paymentStartFailedWithMessage": "{{message}}"
+      },
+      "success": {
+        "paymentSuccess": "Payment successful"
+      },
+      "info": {
+        "paymentProcessing": "Payment is processing",
+        "paymentCancelled": "Payment cancelled"
+      },
+      "button": {
+        "renew": "Renew",
+        "upgrade": "Upgrade",
+        "downgrade": "Downgrade",
+        "cannotDowngrade": "Cannot downgrade",
+        "upgradeToYearly": "Switch to yearly",
+        "switchToMonthly": "Switch to monthly",
+        "current": "Current plan",
+        "select": "Select",
+        "comingSoon": "Coming soon"
+      },
+      "footer": {
+        "showing": "Showing {{count}} plans",
+        "lastUpdated": "Last updated {{time}}"
+      },
+      "comparison": {
+        "title": "Plan comparison",
+        "description": "Snapshot of your workspace vs available plans",
+        "currentPlan": "Your subscription",
+        "plan": "Plan",
+        "members": "Members",
+        "billing": "Billing",
+        "quickStats": "Quick stats",
+        "totalPlans": "Active plans",
+        "currentEmployees": "Employees",
+        "activeFeatures": "Feature areas",
+        "footer": {
+          "livePricing": "Live pricing",
+          "realTime": "Updates when you change seats or cycle"
+        }
+      },
+      "modal": {
+        "title": {
+          "schedule": "Schedule plan change",
+          "confirmYearly": "Confirm yearly billing",
+          "confirm": "Confirm upgrade"
+        },
+        "button": {
+          "schedule": "Schedule change",
+          "confirmPay": "Pay now",
+          "payNow": "Pay now"
+        },
+        "summaryPlan": "From {{from}} to {{to}}",
+        "summaryMembers": "{{count}} member seats",
+        "summaryProrate": "Prorated for {{days}} days remaining: {{amount}}",
+        "amount": "Total due: {{amount}}",
+        "options": {
+          "title": "How do you want to change?",
+          "description": "Choose whether to pay the prorated difference now or schedule the change for {{planName}} at period end."
+        },
+        "details": {
+          "currentPlan": "Current plan",
+          "newPlan": "New plan",
+          "members": "Members"
+        },
+        "prorate": {
+          "remainingDays": "Remaining days in cycle",
+          "percentage": "Prorate percentage"
+        },
+        "scheduled": {
+          "dateLabel": "Scheduled for"
+        }
+      },
+      "badge": {
+        "trial": "{{days}} days left in trial",
+        "current": "Current",
+        "popular": "Popular"
+      },
+      "pricing": {
+        "perYear": "per year ({{count}} members)",
+        "perMonth": "per month ({{count}} members)"
+      },
+      "memberCount": {
+        "label": "{{count}} members",
+        "maxLabel": " (max {{max}} on trial)",
+        "min": "1",
+        "maxDisplay": "{{max}}"
+      },
+      "billingCycle": {
+        "yearly": "Yearly billing (save when available)"
+      },
+      "features": {
+        "title": "Included features"
+      },
+      "currentPlan": {
+        "label": "{{memberCount}} seats billed · {{employeeCount}} active employees"
+      },
+      "downgrade": {
+        "error": "Reduce members to {{count}} or fewer before downgrading"
+      },
+      "savings": "Save {{percentage}}% with yearly billing",
+      "lastPaidForMembers": "Last payment {{amount}} for {{count}} members",
+      "priceBreakdown": {
+        "perMember": "Per member",
+        "monthlySubtotal": "Monthly subtotal",
+        "yearlyDiscount": "Yearly discount ({{percentage}}%)",
+        "totalYearly": "Total (yearly)",
+        "totalMonthly": "Total (monthly)"
+      },
+      "demoRequired": "This plan requires a demo — contact sales.",
+      "trust": {
+        "secure": "Secure checkout",
+        "encrypted": "Encrypted payments",
+        "support": "Support when you need it"
+      },
+      "toast": {
+        "scheduleSuccess": "Plan change scheduled for end of current period.",
+        "scheduleFailed": "Failed to schedule plan change"
+      },
+      "hooks": {
+        "employeeLimitFailed": "Failed to check employee limit",
+        "prorateFailed": "Failed to calculate prorate"
+      }
+    }
+  },
   "settings": {
     "title": "Settings",
     "language": "Language",
     "langEn": "English",
     "langId": "Indonesian",
-    "back": "Back to dashboard"
+    "back": "Back to dashboard",
+    "page": {
+      "title": "Settings",
+      "subtitle": "Manage your account and application preferences",
+      "navAria": "Settings sections"
+    },
+    "tabs": {
+      "profile": "Profile",
+      "security": "Security"
+    },
+    "profile": {
+      "loadError": "Could not load your profile. Please try again.",
+      "retry": "Retry",
+      "language": {
+        "title": "Application language",
+        "label": "Language",
+        "optionId": "Indonesian",
+        "optionEn": "English"
+      },
+      "photo": {
+        "title": "Profile photo",
+        "description": "Upload a photo. It appears across the app after you save your profile.",
+        "fallbackName": "User",
+        "supportedFormats": "JPG, PNG, WebP, or GIF up to 5MB",
+        "toast": {
+          "authError": "You must be signed in to upload a photo",
+          "invalidType": "Please choose an image file",
+          "fileTooLarge": "Maximum file size is 5MB",
+          "uploadSuccess": "Photo uploaded — save your profile to keep it",
+          "uploadError": "Could not upload photo",
+          "deleteSuccess": "Photo removed — save your profile to apply",
+          "deleteError": "Could not remove photo"
+        }
+      },
+      "personal": {
+        "title": "Personal information",
+        "description": "Update your name and contact details"
+      },
+      "form": {
+        "fullNameLabel": "Full name",
+        "fullNamePlaceholder": "Your full name",
+        "phoneLabel": "Phone number",
+        "phonePlaceholder": "Your phone number",
+        "jobTitleLabel": "Job title",
+        "jobTitlePlaceholder": "Your role or title",
+        "locationLabel": "Location",
+        "locationPlaceholder": "City or region",
+        "websiteLabel": "Website",
+        "websitePlaceholder": "https://example.com",
+        "bioLabel": "Bio",
+        "bioPlaceholder": "A short introduction"
+      },
+      "status": {
+        "changesPending": "You have unsaved changes",
+        "noChanges": "All changes saved"
+      },
+      "actions": {
+        "reset": "Reset",
+        "save": "Save changes",
+        "saving": "Saving…"
+      },
+      "toast": {
+        "updateSuccess": "Profile updated",
+        "updateError": "Could not update profile"
+      }
+    },
+    "security": {
+      "changePassword": {
+        "title": "Change password",
+        "description": "Use a strong password you do not reuse elsewhere"
+      },
+      "form": {
+        "currentPasswordLabel": "Current password",
+        "currentPasswordPlaceholder": "Enter your current password",
+        "newPasswordLabel": "New password",
+        "newPasswordPlaceholder": "Enter a new password",
+        "confirmPasswordLabel": "Confirm new password",
+        "confirmPasswordPlaceholder": "Confirm your new password"
+      },
+      "validation": {
+        "currentRequired": "Current password is required",
+        "newRequired": "New password is required",
+        "newTooShort": "Password must be at least 8 characters",
+        "confirmRequired": "Please confirm your new password",
+        "confirmMismatch": "Passwords do not match",
+        "sameAsCurrent": "New password must be different from your current password",
+        "currentIncorrect": "Current password is incorrect"
+      },
+      "error": {
+        "unableVerify": "We could not verify your account. Try signing in again.",
+        "updateFailed": "Could not update password"
+      },
+      "toast": {
+        "updateSuccess": "Password updated successfully"
+      },
+      "actions": {
+        "update": "Update password",
+        "updating": "Updating…",
+        "cancel": "Clear form"
+      },
+      "passwordStrength": {
+        "label": "Password strength:",
+        "weak": "Weak",
+        "fair": "Fair",
+        "good": "Good",
+        "strong": "Strong"
+      },
+      "tips": {
+        "title": "Security tips",
+        "description": "Recommendations to keep your account safe",
+        "strongPassword": "Use at least 8 characters for your password",
+        "complexity": "Mix uppercase, lowercase, numbers, and symbols",
+        "noPersonalInfo": "Avoid names, birthdays, or common words",
+        "changeRegularly": "Change your password if you suspect it is known"
+      }
+    }
   }
 }

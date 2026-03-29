@@ -21,14 +21,7 @@ export function OnboardingSplitLayout({
   fillViewport = false,
 }: OnboardingSplitLayoutProps) {
   return (
-    <div
-      className={cn(
-        "flex w-full flex-col overflow-hidden safe-area-top lg:flex-row lg:items-stretch",
-        fillViewport
-          ? "h-[100dvh] max-h-[100dvh] min-h-0 lg:h-[100dvh] lg:max-h-[100dvh]"
-          : "min-h-[100dvh] max-h-[100dvh] lg:max-h-none lg:min-h-screen",
-      )}
-    >
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden safe-area-top lg:flex-row lg:items-stretch">
       <div
         className={cn(
           "hidden min-h-0 w-full min-w-0 lg:flex lg:max-w-[50%] lg:flex-1 xl:max-w-[48%]",
@@ -50,8 +43,8 @@ export function OnboardingSplitLayout({
           className={cn(
             "flex flex-1 min-h-0 flex-col px-5 py-8 sm:px-10 lg:py-12",
             fillViewport
-              ? "overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain"
-              : "overflow-y-auto seamless-scroll max-h-[calc(100vh-120px)] lg:max-h-none",
+              ? "overflow-x-hidden overflow-y-auto seamless-scroll nested-scroll-touch-chain"
+              : "overflow-x-hidden overflow-y-auto seamless-scroll",
             scrollClassName,
           )}
         >

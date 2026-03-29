@@ -1,10 +1,8 @@
-/** Minimal typings for Supabase Edge Functions (Deno). IDE uses this; runtime is Deno. */
-declare namespace Deno {
-  namespace env {
-    function get(key: string): string | undefined;
-  }
+/** JSR import is resolved at runtime by Deno; this silences IDE module resolution only. */
+declare module "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-  function serve(
-    handler: (request: Request) => Response | Promise<Response>,
-  ): void;
-}
+/** Minimal Deno surface used by Edge Functions (IDE only; runtime is Deno on Supabase). */
+declare const Deno: {
+  env: { get(key: string): string | undefined };
+  serve(handler: (req: Request) => Response | Promise<Response>): void;
+};

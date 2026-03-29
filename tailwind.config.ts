@@ -62,6 +62,11 @@ export default {
           foreground: "hsl(var(--auth-panel-foreground))",
           muted: "hsl(var(--auth-panel-muted))",
         },
+        brand: {
+          blue: "hsl(var(--brand-blue))",
+          red: "hsl(var(--brand-red))",
+          white: "hsl(var(--brand-white))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

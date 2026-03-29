@@ -5,7 +5,38 @@ enabled = true
 
 # Edge gateway validates JWT before your function runs. If JWT verification stays ON in the
 # hosted project, you get POST 401 with execution_id null and no function logs.
-# Apply this file: `supabase functions deploy send-confirmation-email` (linked project), or:
-# `supabase functions deploy send-confirmation-email --project-ref <ref> --no-verify-jwt`
+#
+# Supabase Auth can issue user access tokens as ES256 (asymmetric). The dashboard toggle
+# "Verify JWT with legacy secret" only accepts HS256 (anon/service legacy) — so authenticated
+# browser calls fail at the gateway. Turn verify_jwt OFF for app-called functions and enforce
+# auth inside the function with supabase.auth.getUser(access_token) where needed.
+#
+# Deploy: `supabase functions deploy <name> --no-verify-jwt` (or MCP deploy with verify_jwt: false)
 [functions.send-confirmation-email]
+verify_jwt = false
+
+# Midtrans server-to-server notification has no user JWT
+[functions.process-midtrans-payment]
+verify_jwt = false
+
+# Dedicated notification URL (signature check + forward to process-midtrans-payment)
+[functions.midtrans-webhook]
+verify_jwt = false
+
+[functions.get-midtrans-config]
+verify_jwt = false
+
+[functions.calculate-prorate]
+verify_jwt = false
+
+[functions.create-midtrans-payment]
+verify_jwt = false
+
+[functions.check-midtrans-payment-status]
+verify_jwt = false
+
+[functions.get-midtrans-snap-token]
+verify_jwt = false
+
+[functions.cancel-pending-payment]
 verify_jwt = false

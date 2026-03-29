@@ -168,15 +168,44 @@ export default function OrganizationForm({
         throw new Error(t("onboarding.org.error"));
       }
 
-      const { error: emErr } = await supabase.from("employees").insert({
-        user_id: userId,
-        full_name: fullName,
-        email: user.email ?? null,
-      });
+      const { data: existingEmployee } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
 
-      if (emErr) {
-        console.error(emErr);
-        throw new Error(t("onboarding.org.error"));
+      if (!existingEmployee) {
+        const { error: emErr } = await supabase.from("employees").insert({
+          user_id: userId,
+          organization_id: orgId,
+          full_name: fullName,
+          email: user.email ?? null,
+        });
+
+        if (emErr) {
+          console.error(emErr);
+          throw new Error(t("onboarding.org.error"));
+        }
+      } else {
+        const { error: linkErr } = await supabase
+          .from("employees")
+          .update({ organization_id: orgId })
+          .eq("id", existingEmployee.id)
+          .is("organization_id", null);
+
+        if (linkErr) {
+          console.warn("employees organization_id:", linkErr);
+        }
+      }
+
+      const { error: profileActiveErr } = await supabase
+        .from("profiles")
+        .update({ active_organization_id: orgId })
+        .eq("user_id", userId);
+
+      if (profileActiveErr) {
+        console.warn("profiles active_organization_id:", profileActiveErr);
       }
 
       toast({

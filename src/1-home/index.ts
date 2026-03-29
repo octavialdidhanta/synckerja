@@ -1,2 +1,3 @@
 export { default as DashboardPage } from "./pages/DashboardPage";
-export { default as SettingsPage } from "./pages/SettingsPage";
+export { SettingsPage } from "./settings";
+export { TransferOwnershipPage } from "./transfer-ownership";

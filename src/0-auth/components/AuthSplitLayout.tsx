@@ -20,7 +20,7 @@ export function AuthSplitLayout({
       : undefined;
 
   return (
-    <div className="flex min-h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden safe-area-top lg:max-h-none lg:min-h-screen lg:flex-row lg:items-stretch">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden safe-area-top lg:flex-row lg:items-stretch">
       <div className="hidden min-h-0 w-full min-w-0 self-stretch lg:flex lg:max-w-[50%] lg:flex-1 xl:max-w-[48%]">
         <AuthTestimonialsPanel />
       </div>
@@ -31,7 +31,7 @@ export function AuthSplitLayout({
       >
         <div
           ref={scrollPanelRef}
-          className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-5 py-8 sm:px-10 seamless-scroll max-h-[calc(100vh-120px)] lg:max-h-none lg:py-12"
+          className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-x-hidden overflow-y-auto px-5 py-8 sm:px-10 seamless-scroll lg:py-12"
         >
           {children}
         </div>

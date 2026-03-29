@@ -132,11 +132,11 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
           className={
             emailStatus.type === "error"
               ? "border-red-200 bg-red-50"
-              : "border-green-200 bg-green-50"
+              : "border-brand-blue/30 bg-brand-blue/10"
           }
         >
           <AlertDescription
-            className={emailStatus.type === "error" ? "text-red-700" : "text-green-700"}
+            className={emailStatus.type === "error" ? "text-red-700" : "text-[hsl(var(--brand-blue))]"}
           >
             {emailStatus.message}
           </AlertDescription>
@@ -215,7 +215,7 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
                 ].map((row) => (
                   <li
                     key={row.label}
-                    className={`flex items-center gap-1 ${row.ok ? "text-green-600" : "text-red-500"}`}
+                    className={`flex items-center gap-1 ${row.ok ? "text-[hsl(var(--brand-blue))]" : "text-[hsl(var(--brand-red))]"}`}
                   >
                     {row.ok ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
                     {row.label}

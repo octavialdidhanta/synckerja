@@ -8,6 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+
+# Bun (project uses npm + package-lock.json; lockfiles optional local artifacts)
+bun.lock
+bun.lockb
+
 # Local reference clone (no longer a git submodule; optional for development)
 synckerja-reference/
 

@@ -81,12 +81,12 @@ export function CreatePlanPlanCard({
 
       <div className="mt-2 flex flex-wrap gap-2">
         {plan.jumlah_hari_trial != null && plan.jumlah_hari_trial > 0 ? (
-          <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+          <span className="inline-flex rounded-md bg-brand-blue/10 px-2 py-0.5 text-xs font-medium text-[hsl(var(--brand-blue))]">
             {t("onboarding.plan.trialDays", { days: plan.jumlah_hari_trial })}
           </span>
         ) : null}
         {kind === "free_forever" ? (
-          <span className="inline-flex rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-900">
+          <span className="inline-flex rounded-md bg-brand-blue/10 px-2 py-0.5 text-xs font-medium text-[hsl(var(--brand-blue))]">
             {t("onboarding.plan.freeForeverBadge")}
           </span>
         ) : null}
@@ -164,7 +164,7 @@ export function CreatePlanPlanCard({
           />
         </div>
         {isYearly && pct != null && pct > 0 ? (
-          <p className="text-xs font-medium text-emerald-700">
+          <p className="text-xs font-medium text-[hsl(var(--brand-blue))]">
             {t("onboarding.plan.billingYearlySave", { pct })}
           </p>
         ) : null}
@@ -191,7 +191,7 @@ export function CreatePlanPlanCard({
           </span>
         </div>
         {isYearly && pct != null && pct > 0 ? (
-          <div className="flex justify-between text-xs text-emerald-700">
+          <div className="flex justify-between text-xs text-[hsl(var(--brand-blue))]">
             <span>{t("onboarding.plan.annualDiscount", { pct })}</span>
             <span>{formatMoney(total)}</span>
           </div>
