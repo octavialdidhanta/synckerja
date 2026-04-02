@@ -1,0 +1,63 @@
+---
+description: Unified loading skeleton pattern for page-level and panel-level data loading without flicker
+alwaysApply: true
+---
+
+# Loading Skeleton
+
+- Use one page-level skeleton overlay per route; avoid multiple visible skeletons/spinners for the same loading phase.
+- Keep route/tab state URL-derived on first render (no delayed sync from effect) to prevent wrong panel flash.
+- For settings-like pages with many hooks:
+  - Report each panel readiness into one shared loading context (ref-counted section id).
+  - Show page skeleton while `hasPendingLoad` is true.
+  - In panel components, return `null` during initial loading instead of local spinner/skeleton.
+- Include org/bootstrap loading in panel reporting so skeleton does not disappear before queries can run.
+- For hooks that fetch in `useEffect`, prevent one-frame false-ready state:
+  - Keep `loading` true until first fetch for the current key (e.g. `organizationId`) has completed.
+  - Track last fetched key (example: `lastFetchedOrgId`) and combine with `fetching`.
+- Realtime/background refetch should be silent and must not re-trigger full-page skeleton unless explicitly needed.
+- Add a short hide debounce (~150–250ms) before turning skeleton off when multiple sources settle in adjacent ticks; optionally chain **`requestAnimationFrame`** after the delay so the skeleton clears on the next paint (reduces one-frame flash).
+- On route change away from the module, reset local skeleton gate so direct URL entry starts protected.
+- Do not remove error states; if load fails, show error UI after skeleton phase ends.
+- Route/layout guards (e.g. role or org bootstrap) must not show centered text-only loading like “Memuat…”. Use a **shell skeleton** that matches the module layout; keep loading text for screen readers only (`aria-label` / `sr-only`).
+- Prefer one shell skeleton for the guard phase, then one page overlay skeleton inside the route if still fetching data (avoid stacking duplicate visible skeletons in the same phase).
+
+## Hard refresh & `PageAccessGuard`
+
+On direct URL load, auth + `configLoading` + access resolution can run **before** the lazy route chunk mounts. A **generic centered** guard loader followed by a **module-shaped** skeleton causes a visible layout jump.
+
+- For routes that already have a **layout-matched skeleton component**, pass it as **`loadingShell`** on `PageAccessGuard`.
+- When `loadingShell` is set, show it **immediately** while `(loading && !user) || isLoading || isResolvingAccess` (do not wait on the guard’s delayed “show loading UI” timer for this case).
+- Use the **same skeleton component** for: guard `loadingShell`, `React.Suspense` fallback, and (if used) the in-page overlay — so guard → chunk → data phases share one visual structure.
+- Wrap Suspense fallback in a flex container with the **same background** as the real page shell (e.g. `bg-gray-100` vs `bg-background`) to avoid a white flash between phases.
+
+## Layout-matched skeleton components
+
+- **Wajib: satu file skeleton tersendiri per route utama** (contoh: `IncomeDashboardSkeleton.tsx`, `ExpenseDashboardSkeleton.tsx`, `FooPageSkeleton.tsx`). Jangan menyematkan markup skeleton spesifik route hanya di dalam komponen “shared route skeleton” — file khusus memudahkan mirror DOM, guard/Suspense/overlay memakai komponen yang sama, dan menghindari drift antar fase loading.
+- Komponen **boleh dire-export** dari barrel jika perlu, tetapi definisi UI skeleton route harus tinggal di file itu (bukan inline 50+ baris di `App.tsx` atau di halaman).
+- Pengecualian sempit: skeleton **shared** untuk sub-rute dalam satu modul yang **benar-benar** punya layout identik (mis. empat tab dengan pola 9+3 kolom sama) boleh satu file dengan `variant`/props — tetap **satu file per pola layout**, bukan string di `PageAccessGuard`.
+- Mirror the **real page DOM**: scroll root classes (`scrollbar-hide`, `min-h-0`, `flex-1`), **outer shell background** selaras halaman live (mis. `bg-gray-100` lalu `bg-muted/40` untuk konten, seperti `/incomes/dashboard` dan `/expenses/dashboard`), horizontal padding (`px-4 pb-4`), main grid (`xl:grid-cols-12`, `gap-2`, same `min-h-[calc(100dvh-…)]` / `max-height` breakpoints as **Seamless Page Scroll Layout**), header/title blocks, and major cards/columns.
+- Reuse the same **bottom safe spacer** as the live page after the main grid (termasuk spacer luar `h-0 …` jika dipakai di halaman referensi).
+- Child sections that are only reached after the page is “ready” should not show a **second** skeleton (return `null` or empty placeholder with stable min-height if needed).
+
+## Aggregating `hasPendingLoad`
+
+- Include **`useCurrentOrg().loading`** (or equivalent) so the page does not flash empty before `organizationId` exists.
+- Include **every query** whose absence would show wrong or empty UI: e.g. master lists, metrics used only inside nested charts, bank accounts if the table depends on them.
+- Gate **`dataPending`** with `Boolean(organizationId)` when queries are `enabled` only with an org, so users without an org do not sit on a skeleton forever.
+- For **filter/key changes** (e.g. year selector), use **`placeholderData: keepPreviousData`** (or equivalent) on the query so `isLoading` does not flip the whole page back to skeleton on each change.
+
+## Optional: overlay instead of swap
+
+- To avoid unmounting the full page and swapping to skeleton, you may keep the main column mounted with **`invisible pointer-events-none`** and an **absolute inset-0** layer showing the same skeleton until `showContent` is true (see also Home OKR pattern). Use when swap flicker persists.
+
+## Minimal checklist
+
+- [ ] **Dedicated skeleton file** per route utama (`*DashboardSkeleton.tsx` / `*PageSkeleton.tsx`).
+- [ ] One visible skeleton layer per route.
+- [ ] `showSkeleton` driven by aggregated loading (`hasPendingLoad` + access/bootstrap states).
+- [ ] No duplicate panel-level loading UI during initial load.
+- [ ] No bare text/spinner-only full-page loading in route guards.
+- [ ] Guard / Suspense / data phases use the **same layout-matched skeleton** where applicable.
+- [ ] No flicker on in-app navigation.
+- [ ] No flicker on hard refresh/direct URL load.

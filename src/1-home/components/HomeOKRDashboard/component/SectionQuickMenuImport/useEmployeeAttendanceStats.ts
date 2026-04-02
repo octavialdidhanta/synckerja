@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { logger } from '@/shared/lib/logger';
@@ -149,8 +150,7 @@ export const useEmployeeAttendanceStats = () => {
       return stats;
     },
     enabled: !!currentOrg?.id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    ...attendanceHRQueryDefaults,
   });
 };
 

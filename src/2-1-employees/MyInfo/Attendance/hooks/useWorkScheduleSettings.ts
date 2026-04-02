@@ -1,5 +1,5 @@
-﻿
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -25,37 +25,97 @@ export interface WorkScheduleSettings {
 
 export const useWorkScheduleSettings = () => {
   const [settings, setSettings] = useState<WorkScheduleSettings[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { organizationId } = useCurrentOrg();
+  /** True only while fetching schedule rows (not org bootstrap — that is useCurrentOrg().loading). */
+  const [fetching, setFetching] = useState(false);
+  /** Avoid one frame where `fetching` is still false before the fetch effect runs (hard reload / URL bar). */
+  const [lastFetchedOrgId, setLastFetchedOrgId] = useState<string | null>(null);
+  const fetchGenerationRef = useRef(0);
+  const { organizationId, loading: orgLoading } = useCurrentOrg();
   const { toast } = useToast();
 
-  const fetchSettings = async () => {
-    if (!organizationId) {
-      setLoading(false);
+  /** `loading` for UI: wait for org context, then for schedule fetch (including pre-effect gap). */
+  const loading =
+    orgLoading ||
+    fetching ||
+    (organizationId != null && lastFetchedOrgId !== organizationId);
+
+  const fetchSettings = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!organizationId) {
+        return;
+      }
+      const silent = opts?.silent === true;
+      if (!silent) {
+        setFetching(true);
+      }
+      try {
+        const { data, error } = await supabase
+          .from('work_schedule_settings')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .eq('is_active', true)
+          .order('is_default', { ascending: false });
+
+        if (error) throw error;
+        setSettings(data || []);
+      } catch (error) {
+        console.error('Error fetching work schedule settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch work schedule settings",
+          variant: "destructive",
+        });
+      } finally {
+        if (!silent) {
+          setFetching(false);
+        }
+      }
+    },
+    [organizationId, toast],
+  );
+
+  useEffect(() => {
+    if (orgLoading) {
       return;
     }
-
-    try {
-      const { data, error } = await supabase
-        .from('work_schedule_settings')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true)
-        .order('is_default', { ascending: false });
-
-      if (error) throw error;
-      setSettings(data || []);
-    } catch (error) {
-      console.error('Error fetching work schedule settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch work schedule settings",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    if (!organizationId) {
+      setSettings([]);
+      setLastFetchedOrgId(null);
+      return;
     }
-  };
+    const gen = ++fetchGenerationRef.current;
+    void fetchSettings().finally(() => {
+      if (gen === fetchGenerationRef.current) {
+        setLastFetchedOrgId(organizationId);
+      }
+    });
+  }, [organizationId, orgLoading, fetchSettings]);
+
+  // Add real-time subscription for work schedule changes
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const channel = supabase
+      .channel('work-schedule-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'work_schedule_settings',
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        (payload) => {
+          console.log('🔄 Work schedule settings changed:', payload);
+          void fetchSettings({ silent: true });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [organizationId, fetchSettings]);
 
   const createSettings = async (settingsData: Omit<WorkScheduleSettings, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -67,7 +127,7 @@ export const useWorkScheduleSettings = () => {
 
       if (error) throw error;
 
-      setSettings(prev => [...prev, data]);
+      setSettings((prev) => [...prev, data]);
       toast({
         title: "Success",
         description: "Work schedule created successfully",
@@ -96,7 +156,7 @@ export const useWorkScheduleSettings = () => {
 
       if (error) throw error;
 
-      setSettings(prev => prev.map(setting => setting.id === id ? data : setting));
+      setSettings((prev) => prev.map((setting) => (setting.id === id ? data : setting)));
       toast({
         title: "Success",
         description: "Work schedule updated successfully",
@@ -123,7 +183,7 @@ export const useWorkScheduleSettings = () => {
 
       if (error) throw error;
 
-      setSettings(prev => prev.filter(setting => setting.id !== id));
+      setSettings((prev) => prev.filter((setting) => setting.id !== id));
       toast({
         title: "Success",
         description: "Work schedule deleted successfully",
@@ -141,45 +201,13 @@ export const useWorkScheduleSettings = () => {
     }
   };
 
-  useEffect(() => {
-    fetchSettings();
-  }, [organizationId]);
-  
-  // Add real-time subscription for work schedule changes
-  useEffect(() => {
-    if (!organizationId) return;
-    
-    const channel = supabase
-      .channel('work-schedule-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'work_schedule_settings',
-          filter: `organization_id=eq.${organizationId}`
-        },
-        (payload) => {
-          console.log('🔄 Work schedule settings changed:', payload);
-          fetchSettings(); // Refetch settings when they change
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [organizationId]);
-
   return {
     settings,
     loading,
     createSettings,
     updateSettings,
     deleteSettings,
-    refetch: fetchSettings,
+    refetch: () => fetchSettings(),
   };
 };
-
-
 

@@ -1,6 +1,7 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useLocation } from "react-router-dom";
+import { cn } from "@/shared/lib/utils";
 
 export type AttendanceSkeletonVariant = "dashboard" | "attendance" | "settings";
 
@@ -15,68 +16,439 @@ function useAttendanceLoadingAria() {
   return t("layout.attendanceModule.loadingAria", "Loading attendance");
 }
 
+/** Mirrors `HeaderAndTab`: title, subtitle, `nav` with `space-x-6` tab row (no container border-b). */
 function AttendanceHeaderSkeleton() {
   return (
-    <div className="mb-1 shrink-0 px-1 py-3">
-      <Skeleton className="mb-2 h-7 w-48 max-w-[80%]" />
-      <Skeleton className="mb-4 h-3 w-full max-w-xl" />
-      <div className="border-border flex flex-wrap gap-4 border-b pb-2">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-8 w-28" />
-        ))}
+    <div className="px-1 py-3">
+      <div className="mb-3">
+        <Skeleton className="mb-0.5 h-7 w-64 max-w-[90%]" />
+        <Skeleton className="h-3 w-full max-w-xl" />
+      </div>
+      <div className="-mb-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-2" aria-hidden>
+          <Skeleton className="h-9 w-36" />
+          <Skeleton className="h-9 w-32" />
+          <Skeleton className="h-9 w-28" />
+        </div>
       </div>
     </div>
   );
 }
 
+/** One penalty / metric card: label, value, subline + icon (matches PenaltyStatistics cards). */
+function MetricCardSkeleton() {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 space-y-2">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-8 w-20 max-w-full" />
+          <Skeleton className="h-3 w-36 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-8 shrink-0 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
+/** Compact metric (matches AttendanceAnalyticsDashboard overview cards). */
+function AnalyticsMetricCardSkeleton() {
+  return (
+    <div className="rounded-lg border border-border bg-card shadow-sm">
+      <div className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
+      </div>
+      <div className="px-4 pb-4">
+        <Skeleton className="mb-1 h-8 w-16" />
+        <Skeleton className="h-3 w-24" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Mirrors `DashboardOverview`: penalty stats row → Recent (1) + Trends (2) → analytics metrics → two charts.
+ */
 function DashboardBody() {
   return (
     <div className="border-border bg-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border p-4 shadow-sm">
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-lg border border-border p-3">
-            <Skeleton className="mb-2 h-3 w-20" />
-            <Skeleton className="h-8 w-16" />
+      <div className="space-y-2">
+        {/* PenaltyStatistics: grid-cols-4 */}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <MetricCardSkeleton key={i} />
+          ))}
+        </div>
+
+        {/* RecentPenaltiesWidget (1) + PenaltyTrendsChart (2) */}
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+          <div className="lg:col-span-1">
+            <div className="flex h-full min-h-[220px] flex-col rounded-lg border border-border bg-card shadow-sm">
+              <div className="border-b border-border px-4 py-3">
+                <Skeleton className="h-5 w-40" />
+              </div>
+              <div className="flex-1 space-y-3 p-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-[85%] max-w-[200px]" />
+                      <Skeleton className="h-3 w-[55%] max-w-[140px]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
-      <Skeleton className="mb-3 h-5 w-40" />
-      <div className="min-h-0 flex-1 space-y-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-md" />
-        ))}
+          <div className="lg:col-span-2">
+            <div className="flex h-full min-h-[220px] flex-col rounded-lg border border-border bg-card shadow-sm">
+              <div className="border-b border-border px-4 py-3">
+                <Skeleton className="mb-1 h-5 w-36" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+              <div className="flex flex-1 flex-col justify-end p-4 pt-2">
+                <Skeleton className="h-48 w-full rounded-md" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* AttendanceAnalyticsDashboard: 4 overview cards */}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <AnalyticsMetricCardSkeleton key={i} />
+          ))}
+        </div>
+
+        {/* Weekly trend + pie / distribution */}
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex min-h-[320px] flex-col rounded-lg border border-border bg-card shadow-sm"
+            >
+              <div className="border-b border-border px-4 py-3">
+                <Skeleton className="mb-1 h-5 w-48" />
+                <Skeleton className="h-3 w-64 max-w-full" />
+              </div>
+              <div className="flex flex-1 items-center justify-center p-4">
+                <Skeleton className="h-[260px] w-full max-w-full rounded-md" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function RecordsBody() {
+/** Matches `AttendanceToolbar`: search + status + date + reset + table/calendar toggle. */
+function RecordsToolbarSkeleton() {
+  return (
+    <div className="bg-card mb-2 shrink-0 rounded-md border border-border p-2">
+      <div className="flex flex-wrap items-center gap-1">
+        <Skeleton className="h-9 min-w-[200px] flex-1 rounded-md" />
+        <Skeleton className="h-9 w-full rounded-md sm:w-40" />
+        <Skeleton className="h-9 min-w-[140px] rounded-md sm:min-w-[180px]" />
+        <div className="ml-auto flex items-center gap-1.5">
+          <Skeleton className="h-9 w-20 rounded-md" />
+          <Skeleton className="h-9 w-[5.5rem] rounded-md" />
+          <Skeleton className="h-9 w-[5.5rem] rounded-md" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors `AttendanceTable` header + rows (table view). */
+function RecordsTableMainSkeleton() {
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="mb-4 shrink-0 space-y-1">
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-3.5 w-72 max-w-full" />
+      </div>
+      <div className="bg-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border">
+        <div className="bg-muted/50 shrink-0 border-b border-border px-3 py-2">
+          <div className="flex min-w-[800px] gap-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-3 flex-1 rounded sm:min-w-[72px]" />
+            ))}
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 space-y-0 overflow-hidden p-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex min-w-[800px] gap-2 border-b border-border/60 py-2.5 last:border-0"
+            >
+              {Array.from({ length: 8 }).map((_, j) => (
+                <Skeleton key={j} className="h-4 flex-1 rounded sm:min-w-[72px]" />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors `AttendanceCalendarView`: month nav + legend + day grid (calendar view). */
+function RecordsCalendarMainSkeleton() {
+  return (
+    <div className="bg-card flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="shrink-0 border-b border-border p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <Skeleton className="h-4 w-4 rounded-sm" />
+              <Skeleton className="h-3 w-14" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 p-3">
+        <div className="mb-2 grid grid-cols-7 gap-1">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <Skeleton key={i} className="h-6 rounded-md" />
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({ length: 35 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-square min-h-[2.5rem] rounded-md border border-border/60" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors `EnhancedAttendanceSidebar` “Live Analytics” card + scroll area. */
+function RecordsSidebarSkeleton() {
+  return (
+    <div className="bg-card flex h-full min-h-0 flex-col rounded-lg border border-border shadow-sm">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="h-full min-h-0 px-4 py-4 sm:px-6">
+          <div className="space-y-2">
+            <div className="rounded-lg border border-border bg-card shadow-sm">
+              <div className="border-b border-border px-3 pb-2 pt-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-4 rounded-sm" />
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="bg-success h-2 w-2 rounded-full opacity-50" />
+                </div>
+              </div>
+              <div className="space-y-2 px-3 pb-3">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="bg-success-muted relative rounded p-1.5 text-center">
+                    <Skeleton className="mx-auto h-6 w-10 bg-background/50" />
+                    <Skeleton className="mx-auto mt-1 h-3 w-12 bg-background/50" />
+                  </div>
+                  <div className="bg-warning-muted rounded p-1.5 text-center">
+                    <Skeleton className="mx-auto h-6 w-10 bg-background/50" />
+                    <Skeleton className="mx-auto mt-1 h-3 w-10 bg-background/50" />
+                  </div>
+                  <div className="bg-destructive/10 rounded p-1.5 text-center">
+                    <Skeleton className="mx-auto h-6 w-10 bg-background/50" />
+                    <Skeleton className="mx-auto mt-1 h-3 w-12 bg-background/50" />
+                  </div>
+                  <div className="bg-info-muted rounded p-1.5 text-center">
+                    <Skeleton className="mx-auto h-6 w-10 bg-background/50" />
+                    <Skeleton className="mx-auto mt-1 h-3 w-9 bg-background/50" />
+                  </div>
+                </div>
+                <div className="space-y-1.5 pt-1">
+                  <Skeleton className="h-1.5 w-full rounded-full" />
+                  <Skeleton className="h-1.5 w-full rounded-full" />
+                  <Skeleton className="h-1.5 w-full rounded-full" />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
+              <Skeleton className="mb-2 h-4 w-36" />
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-full max-w-[200px]" />
+                  <Skeleton className="h-3 w-full max-w-[120px]" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * `/attendance/attendance` — mirrors `EmployeeAttendanceTab` layout.
+ * `view` should match table vs calendar so the main panel matches the user’s toggle.
+ */
+function RecordsBody({ view }: { view: "table" | "calendar" }) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
         <div className="col-span-12 flex min-h-0 min-w-0 flex-col xl:col-span-9">
-          <div className="mb-2 shrink-0 rounded-md border border-border bg-card p-2">
-            <div className="flex flex-wrap gap-2">
-              <Skeleton className="h-9 w-full max-w-[200px]" />
-              <Skeleton className="h-9 w-28" />
-              <Skeleton className="h-9 w-24" />
-            </div>
-          </div>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-border bg-card shadow-sm">
-            <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-3">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <Skeleton key={i} className="h-11 w-full" />
-              ))}
+          <RecordsToolbarSkeleton />
+          <div
+            className={cn(
+              "bg-card flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-border shadow-sm",
+              view === "calendar" && "overflow-hidden",
+            )}
+          >
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3 sm:p-4">
+              {view === "table" ? <RecordsTableMainSkeleton /> : <RecordsCalendarMainSkeleton />}
             </div>
           </div>
         </div>
         <div className="col-span-12 flex min-h-0 flex-col xl:col-span-3">
-          <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card p-4 shadow-sm">
-            <Skeleton className="mb-4 h-4 w-32" />
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full rounded-md" />
-              ))}
+          <RecordsSidebarSkeleton />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors fixed-height `AttendanceSettingsLayout`: inner scroll panes for nav + form. */
+function SettingsBody() {
+  const scrollPane =
+    'scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+  return (
+    <div className="bg-surface-subtle flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden lg:flex-row">
+      <div className="bg-card flex max-h-[42vh] min-h-0 w-full shrink-0 flex-col border-border lg:h-full lg:max-h-none lg:w-80 lg:border-r">
+        <div className="shrink-0 border-b border-border p-4 lg:p-6">
+          <Skeleton className="mb-2 h-6 w-52 max-w-full" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="mt-1 h-3 w-full max-w-md" />
+        </div>
+        <div className={cn('p-3 lg:p-4', scrollPane)}>
+          <div className="space-y-1.5 lg:space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "w-full rounded-lg p-3 lg:p-4",
+                  i === 0
+                    ? "border-2 border-primary/25 bg-accent shadow-sm"
+                    : "border border-border bg-card",
+                )}
+              >
+                <div className="flex items-start space-x-2 lg:space-x-3">
+                  <Skeleton
+                    className={cn(
+                      "h-7 w-7 shrink-0 rounded-lg lg:h-9 lg:w-9",
+                      i === 0 ? "bg-primary/15" : "bg-muted",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Skeleton className="h-4 w-36 max-w-[85%]" />
+                      <Skeleton className="h-5 w-12 shrink-0 rounded-full" />
+                    </div>
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full max-w-lg" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="shrink-0 border-t border-border p-3 lg:p-4">
+          <div className="bg-accent rounded-lg border border-primary/20 p-2.5 lg:p-3">
+            <div className="flex items-center space-x-2">
+              <Skeleton className="bg-primary h-2 w-2 shrink-0 rounded-full opacity-80" />
+              <Skeleton className="h-3 w-36" />
+            </div>
+            <Skeleton className="mt-2 h-3 w-full max-w-sm" />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-card flex min-h-0 min-w-0 flex-1 flex-col lg:h-full">
+        <div className="shrink-0 border-b border-border px-4 py-3 lg:px-6 lg:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-7 w-56 max-w-full lg:h-8" />
+              <Skeleton className="h-3 w-full max-w-xl" />
+            </div>
+            <div className="ml-4 flex shrink-0 gap-2">
+              <Skeleton className="h-6 w-28 rounded-full" />
+              <Skeleton className="h-6 w-24 rounded-full" />
+            </div>
+          </div>
+        </div>
+        <div className={cn('p-4 lg:p-6', scrollPane)}>
+          <div className="mx-auto max-w-4xl space-y-4">
+            <Skeleton className="h-10 w-full max-w-full rounded-md" />
+            <Skeleton className="h-10 w-full max-w-full rounded-md" />
+            <Skeleton className="h-32 w-full max-w-full rounded-md" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Skeleton className="h-10 w-full rounded-md" />
+              <Skeleton className="h-10 w-full rounded-md" />
+            </div>
+            <Skeleton className="h-24 w-full rounded-md" />
+            <Skeleton className="h-10 w-40 max-w-full rounded-md" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AttendanceModuleSkeleton({
+  variant,
+  recordsView = "table",
+}: {
+  variant: AttendanceSkeletonVariant;
+  /** Table vs calendar main panel for `/attendance/attendance` (default: table). */
+  recordsView?: "table" | "calendar";
+}) {
+  const aria = useAttendanceLoadingAria();
+  return (
+    <div
+      className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans"
+      aria-busy
+      aria-label={aria}
+    >
+      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
+          <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-h-full flex-col">
+                <div className="mb-1 flex-shrink-0">
+                  <AttendanceHeaderSkeleton />
+                </div>
+                <div
+                  className={cn(
+                    "grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch",
+                    "[@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none",
+                    "[@media(max-height:760px)]:min-h-[700px]",
+                  )}
+                >
+                  <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+                    {variant === "dashboard" ? <DashboardBody /> : null}
+                    {variant === "attendance" ? <RecordsBody view={recordsView} /> : null}
+                    {variant === "settings" ? (
+                      <div className="border-border bg-card flex h-full max-h-[calc(100vh-120px)] min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-lg border p-4 shadow-sm">
+                        <SettingsBody />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div
+                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                  aria-hidden
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -85,47 +457,16 @@ function RecordsBody() {
   );
 }
 
-function SettingsBody() {
-  return (
-    <div className="border-border bg-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border p-4 shadow-sm">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row">
-        <div className="min-w-0 flex-1 space-y-4">
-          <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-        <div className="min-w-0 flex-1 space-y-4">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-24 w-full rounded-md" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-      </div>
-      <Skeleton className="h-9 w-28" />
-    </div>
-  );
-}
-
-export function AttendanceModuleSkeleton({ variant }: { variant: AttendanceSkeletonVariant }) {
-  const aria = useAttendanceLoadingAria();
-  return (
-    <div
-      className="bg-background flex h-full min-h-0 min-w-0 flex-1 flex-col font-sans"
-      aria-busy
-      aria-label={aria}
-    >
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 pb-3">
-        <AttendanceHeaderSkeleton />
-        {variant === "dashboard" ? <DashboardBody /> : null}
-        {variant === "attendance" ? <RecordsBody /> : null}
-        {variant === "settings" ? <SettingsBody /> : null}
-      </div>
-    </div>
-  );
+/** `PageAccessGuard` `loadingShell`: same skeleton as in-route overlay, path-aware. */
+export function AttendanceGuardLoadingShell() {
+  const { pathname } = useLocation();
+  const variant = getAttendanceSkeletonVariant(pathname);
+  return <AttendanceModuleSkeleton variant={variant} recordsView="table" />;
 }
 
 /** Lazy-route Suspense fallback: path-aware shell (dashboard / records / settings). */
 export function AttendanceRouteSkeleton() {
   const { pathname } = useLocation();
   const variant = getAttendanceSkeletonVariant(pathname);
-  return <AttendanceModuleSkeleton variant={variant} />;
+  return <AttendanceModuleSkeleton variant={variant} recordsView="table" />;
 }

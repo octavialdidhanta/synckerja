@@ -6,7 +6,7 @@ import { Separator } from "@/shared/components/ui/separator";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { JobDescAssignment, JobDescEmployeeSummary } from "./types";
-import { useDailyTask } from '../../DailyTaskContext';
+import { useDailyTask } from '../../context/DailyTaskContext';
 import { ModalViewSubSteps } from '../ModalViewSubSteps';
 import { supabase } from '@/shared/lib/supabaseClient';
 

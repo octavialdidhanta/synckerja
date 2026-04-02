@@ -78,7 +78,7 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
                   isLocked
                     ? 'border-transparent text-gray-400 cursor-not-allowed opacity-60'
                     : isActive
-                    ? 'border-blue-500 text-blue-600 cursor-pointer'
+                    ? 'border-brand-blue text-brand-blue cursor-pointer'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 cursor-pointer'
                 }`}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}

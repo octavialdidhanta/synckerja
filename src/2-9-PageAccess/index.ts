@@ -1,8 +1,8 @@
 // Header and Tab Component
-export { HeaderAndTab } from './HeaderAndTab';
+export { HeaderAndTab } from './section/HeaderAndTab';
 
 // Page Access Tab Component
-export { PageAccessTab } from './PageAccessTab';
+export { PageAccessTab } from './section/PageAccessTab';
 
 // Access Permissions Page Component
-export { AccessPermissionsConfig } from './component/AccessPermissionsPage';
+export { AccessPermissionsConfig } from './pages/AccessPermissionsPage';

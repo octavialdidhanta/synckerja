@@ -30,7 +30,7 @@ import { useCurrentOrg } from '@/shared/hooks/useCurrentOrg';
 import { CustomDatePicker } from '@/shared/calendar';
 import { useDailyTemplatesWithStepCount, useDailyTemplateSteps, useDailyTemplates } from '../hooks';
 import { applyDailyTemplateToTask } from '../services/applyDailyTemplateService';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { CreateDailyTemplateModal } from './CreateDailyTemplateModal';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { DailyTemplateScheduleType } from '../types';

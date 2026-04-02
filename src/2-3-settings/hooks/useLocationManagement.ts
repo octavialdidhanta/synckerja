@@ -749,15 +749,16 @@ export const usePenaltySettings = () => {
     [invalidateExemptions, toast]
   );
 
+  const queriesLoading = settingsQuery.isLoading || exemptionsQuery.isLoading;
   const loading =
-    settingsQuery.isLoading ||
-    exemptionsQuery.isLoading ||
+    queriesLoading ||
     isSavingSettings ||
     isMutatingExemption;
 
   return {
     settings: settingsQuery.data,
     loading,
+    queriesLoading,
     error: settingsQuery.error || exemptionsQuery.error,
     updateSettings,
     exemptions: exemptionsQuery.data ?? [],

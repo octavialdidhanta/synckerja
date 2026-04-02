@@ -15,7 +15,7 @@ export const UsageMetricsCards = memo(function UsageMetricsCards({ metrics, isLo
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 gap-1.5 md:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-1.5 md:grid-cols-3">
         {Array.from({ length: 3 }).map((_, index) => (
           <Card key={`usage-metrics-skeleton-${index}`}>
             <CardContent className="p-3">
@@ -33,7 +33,7 @@ export const UsageMetricsCards = memo(function UsageMetricsCards({ metrics, isLo
   if (!metrics) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-1.5 md:grid-cols-3">
+    <div className="grid min-w-0 grid-cols-1 gap-1.5 md:grid-cols-3">
       <Card>
         <CardContent className="p-2.5">
           <div className="text-center">

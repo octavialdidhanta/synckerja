@@ -15,7 +15,7 @@ export const FeatureUsageChart = memo(function FeatureUsageChart({ data, isLoadi
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="min-w-0 max-w-full overflow-hidden">
         <CardHeader>
           <div className="h-5 w-32 animate-pulse rounded bg-muted" />
           <div className="h-4 w-48 animate-pulse rounded bg-muted" />
@@ -28,16 +28,16 @@ export const FeatureUsageChart = memo(function FeatureUsageChart({ data, isLoadi
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5" />
+    <Card className="min-w-0 max-w-full overflow-hidden">
+      <CardHeader className="min-w-0">
+        <CardTitle className="flex min-w-0 items-center gap-2">
+          <BarChart3 className="h-5 w-5 shrink-0" />
           {t("subscription.overview.featureUsageTitle")}
         </CardTitle>
-        <CardDescription>{t("subscription.overview.featureUsageDescription")}</CardDescription>
+        <CardDescription className="min-w-0">{t("subscription.overview.featureUsageDescription")}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-64">
+      <CardContent className="min-w-0">
+        <div className="h-64 w-full min-w-0 overflow-x-auto">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} layout="horizontal" margin={{ left: 8, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

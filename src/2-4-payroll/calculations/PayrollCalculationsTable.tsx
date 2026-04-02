@@ -1,0 +1,272 @@
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { Eye, Trash2, AlertTriangle, Calculator, RefreshCw, Loader2 } from "lucide-react";
+import { PayrollCalculationsTableFooter } from "./PayrollCalculationsTableFooter";
+
+interface PayrollCalculationsTableProps {
+  calculations: Record<string, unknown>[];
+  /** Total rows before client-side filters (for footer). */
+  totalUnfiltered?: number;
+  taxAmounts: Record<string, number>;
+  isLoading: boolean;
+  onEmployeeSelect: (employee: Record<string, unknown>) => void;
+  onRefresh?: () => void;
+  onDeleteCalculation?: (calculation: Record<string, unknown>) => void;
+  deletingCalculationId?: string | null;
+}
+
+export function PayrollCalculationsTable({
+  calculations,
+  totalUnfiltered,
+  taxAmounts,
+  isLoading,
+  onEmployeeSelect,
+  onRefresh,
+  onDeleteCalculation,
+  deletingCalculationId,
+}: PayrollCalculationsTableProps) {
+  const totalAll = totalUnfiltered ?? calculations.length;
+
+  const paidCalculations = calculations.filter((calc) => calc.payment_status === "paid").length;
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "draft":
+        return "bg-muted text-foreground";
+      case "calculated":
+        return "bg-primary/15 text-primary";
+      case "approved":
+        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
+      case "paid":
+        return "bg-violet-500/15 text-violet-700 dark:text-violet-400";
+      default:
+        return "bg-muted text-foreground";
+    }
+  };
+
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-amber-500/15 text-amber-800 dark:text-amber-300";
+      case "processing":
+        return "bg-primary/15 text-primary";
+      case "paid":
+        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
+      case "failed":
+        return "bg-destructive/15 text-destructive";
+      default:
+        return "bg-muted text-foreground";
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+    }).format(amount || 0);
+  };
+
+  const formatCurrencyWithWarning = (amount: number, hasWarning: boolean) => {
+    const formattedAmount = formatCurrency(amount);
+    if (hasWarning && amount === 0) {
+      return (
+        <div className="flex items-center gap-1" title="No components configured">
+          <span>{formattedAmount}</span>
+          <AlertTriangle className="text-amber-500 h-4 w-4" />
+        </div>
+      );
+    }
+    return formattedAmount;
+  };
+
+  return (
+    <div className="flex h-full min-w-0 flex-col">
+      <div className="scrollbar-hide min-h-0 min-w-0 flex-1 overflow-x-auto">
+        <table className="w-full caption-bottom text-sm">
+          <TableHeader className="bg-muted/50 sticky top-0 z-20 shadow-sm">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="text-foreground bg-muted/50 min-w-[180px] px-3 text-xs font-medium whitespace-nowrap">
+                Employee
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
+                Department
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[140px] px-3 text-xs font-medium whitespace-nowrap">
+                Period
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
+                Basic Salary
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[110px] px-3 text-xs font-medium whitespace-nowrap">
+                Allowances
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[110px] px-3 text-xs font-medium whitespace-nowrap">
+                Deductions
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[90px] px-3 text-xs font-medium whitespace-nowrap">
+                Tax
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
+                Gross Pay
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
+                Net Pay
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[100px] px-3 text-xs font-medium whitespace-nowrap">
+                Status
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[100px] px-3 text-xs font-medium whitespace-nowrap">
+                Payment
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[80px] px-3 text-xs font-medium whitespace-nowrap">
+                Actions
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={12} className="text-muted-foreground py-12 text-center text-sm">
+                  Loading payroll calculations...
+                </TableCell>
+              </TableRow>
+            ) : !calculations || calculations.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={12} className="text-muted-foreground py-8 text-center text-sm">
+                  <div className="flex flex-col items-center space-y-2">
+                    <Calculator className="text-muted-foreground/50 h-8 w-8" />
+                    <div>No payroll calculations found</div>
+                    {onRefresh && (
+                      <Button
+                        onClick={onRefresh}
+                        variant="outline"
+                        className="mt-1 flex h-8 items-center gap-1.5 px-3 text-xs"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Refresh Data
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              calculations.map((calc) => {
+                const id = calc.id as string;
+                const info = calc.employee_payroll_info as
+                  | {
+                      employees?: {
+                        full_name?: string;
+                        employee_id?: string;
+                        departments?: { name?: string };
+                      };
+                    }
+                  | undefined;
+                const runs = calc.payroll_runs as
+                  | {
+                      run_name?: string;
+                      payroll_periods?: { period_name?: string };
+                    }
+                  | undefined;
+                return (
+                  <TableRow key={id} className="hover:bg-muted/30 h-12 transition-colors">
+                    <TableCell className="min-w-[180px] px-3">
+                      <div>
+                        <button
+                          type="button"
+                          className="text-foreground cursor-pointer text-sm font-medium hover:text-primary"
+                          onClick={() => onEmployeeSelect(calc)}
+                        >
+                          {info?.employees?.full_name || "Unknown Employee"}
+                        </button>
+                        <div className="text-muted-foreground text-xs">
+                          {info?.employees?.employee_id || "No ID"}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground min-w-[120px] px-3 text-sm">
+                      {info?.employees?.departments?.name || "No Department"}
+                    </TableCell>
+                    <TableCell className="min-w-[140px] px-3">
+                      <div>
+                        <div className="text-foreground text-sm font-medium">
+                          {runs?.payroll_periods?.period_name || "Unknown Period"}
+                        </div>
+                        <div className="text-muted-foreground text-xs">{runs?.run_name || "Unknown Run"}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="min-w-[120px] px-3 text-sm">
+                      {formatCurrency(Number(calc.basic_salary) || 0)}
+                    </TableCell>
+                    <TableCell className="min-w-[110px] px-3 text-sm">
+                      {formatCurrency(Number(calc.total_allowances) || 0)}
+                    </TableCell>
+                    <TableCell className="min-w-[110px] px-3 text-sm">
+                      {formatCurrency(Number(calc.total_deductions) || 0)}
+                    </TableCell>
+                    <TableCell className="min-w-[90px] px-3 text-sm">
+                      {formatCurrencyWithWarning((taxAmounts[id] ?? Number(calc.total_tax_deductions)) || 0, false)}
+                    </TableCell>
+                    <TableCell className="min-w-[120px] px-3 text-sm font-medium">
+                      {formatCurrency(Number(calc.gross_pay) || 0)}
+                    </TableCell>
+                    <TableCell className="min-w-[120px] px-3 text-sm font-medium">
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(Number(calc.net_pay) || 0)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="min-w-[100px] px-3">
+                      <Badge className={`${getStatusColor((calc.calculation_status as string) || "draft")} border`}>
+                        {(calc.calculation_status as string) || "draft"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="min-w-[100px] px-3">
+                      <Badge className={`${getPaymentStatusColor((calc.payment_status as string) || "pending")} border`}>
+                        {(calc.payment_status as string) || "pending"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="min-w-[80px] px-3">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onEmployeeSelect(calc)}
+                          title="View Payroll Details"
+                          className="hover:bg-primary/10 hover:text-primary"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {onDeleteCalculation && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDeleteCalculation(calc)}
+                            title="Delete Payroll Calculation"
+                            disabled={deletingCalculationId === id}
+                            className="hover:bg-destructive/10 hover:text-destructive disabled:opacity-80"
+                          >
+                            {deletingCalculationId === id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </table>
+      </div>
+
+      <PayrollCalculationsTableFooter
+        totalCalculations={totalAll}
+        filteredCalculations={calculations.length}
+        paidCalculations={paidCalculations}
+      />
+    </div>
+  );
+}

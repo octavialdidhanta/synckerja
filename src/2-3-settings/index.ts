@@ -1,48 +1,50 @@
 // Main Component
-export { default as AttendanceSettings } from './AttendanceSettings';
-export { default } from './AttendanceSettings'; // Default export for lazy loading
+export { default as AttendanceSettings } from './components/AttendanceSettings';
+export { default } from './components/AttendanceSettings'; // Default export for lazy loading
 
 // Layout & Error Boundary
-export { AttendanceSettingsLayout } from './AttendanceSettingsLayout';
-export { AttendanceErrorBoundary } from './AttendanceErrorBoundary';
+export { AttendanceSettingsLayout } from './components/AttendanceSettingsLayout';
+export { AttendanceErrorBoundary } from './components/AttendanceErrorBoundary';
 
 // Settings Sections
-export { WorkScheduleSettings } from './WorkScheduleSettings';
-export { AttendanceRulesSettings } from './AttendanceRulesSettings';
-export { ComprehensivePenaltySettings } from './ComprehensivePenaltySettings';
-export { ShiftSettings } from './ShiftSettings';
-export { IPAddressSettings } from './IPAddressSettings';
+export { WorkScheduleSettings } from './components/WorkScheduleSettings';
+export { AttendanceRulesSettings } from './components/AttendanceRulesSettings';
+export { ComprehensivePenaltySettings } from './components/ComprehensivePenaltySettings';
+export { ShiftSettings } from './components/ShiftSettings';
+export { IPAddressSettings } from './components/IPAddressSettings';
 
 // Management Components
-export { OptimizedOfficeLocationsList } from './OptimizedOfficeLocationsList';
-export { ClientManagement } from './ClientManagement';
-export { VisitScheduling } from './VisitScheduling';
-export { ShiftManagement } from './ShiftManagement';
-export { EmployeeShiftAssignment } from './EmployeeShiftAssignment';
+export { OptimizedOfficeLocationsList } from './components/OptimizedOfficeLocationsList';
+export { ClientManagement } from './components/ClientManagement';
+export { VisitScheduling } from './components/VisitScheduling';
+export { ShiftManagement } from './components/ShiftManagement';
+export { EmployeeShiftAssignment } from './components/EmployeeShiftAssignment';
 
 // Modals & Forms
-export { AddOfficeLocationModal } from './AddOfficeLocationModal';
-export { EditOfficeLocationModal } from './EditOfficeLocationModal';
-export { AddClientModal } from './AddClientModal';
-export { LocationTypesCRUD } from './LocationTypesCRUD';
-export { PenaltyRuleFormDialog } from './PenaltyRuleFormDialog';
-export { PenaltyMigrationGuide } from './PenaltyMigrationGuide';
-export { ManualHolidayForm } from './ManualHolidayForm';
+export { AddOfficeLocationModal } from './modals/AddOfficeLocationModal';
+export { EditOfficeLocationModal } from './modals/EditOfficeLocationModal';
+export { AddClientModal } from './modals/AddClientModal';
+export { LocationTypesCRUD } from './components/LocationTypesCRUD';
+export { PenaltyRuleFormDialog } from './modals/PenaltyRuleFormDialog';
+export { PenaltyMigrationGuide } from './components/PenaltyMigrationGuide';
+export { ManualHolidayForm } from './components/ManualHolidayForm';
 
 // Google Maps Components
-export { GoogleMapsSetup } from './GoogleMapsSetup';
-export { GoogleMapsLocationSelector } from './GoogleMapsLocationSelector';
-export { GoogleMapsAddressSearch } from './GoogleMapsAddressSearch';
-export { ModernGoogleMapsSelector } from './ModernGoogleMapsSelector';
-export { UnifiedLocationSelector } from './UnifiedLocationSelector';
-export { ManualLocationInput } from './ManualLocationInput';
-export { InteractiveLocationMap } from './InteractiveLocationMap';
-export { MapLocationSelector } from './MapLocationSelector';
-export { InteractiveMapLocationSelector } from './InteractiveMapLocationSelector';
+export { GoogleMapsSetup } from './components/GoogleMapsSetup';
+export { GoogleMapsLocationSelector } from './components/GoogleMapsLocationSelector';
+export { GoogleMapsAddressSearch } from './components/GoogleMapsAddressSearch';
+export { ModernGoogleMapsSelector } from './components/ModernGoogleMapsSelector';
+export { UnifiedLocationSelector } from './components/UnifiedLocationSelector';
+export { ManualLocationInput } from './components/ManualLocationInput';
+export { InteractiveLocationMap } from './components/InteractiveLocationMap';
+export { MapLocationSelector } from './components/MapLocationSelector';
+export { InteractiveMapLocationSelector } from './components/InteractiveMapLocationSelector';
 
 // Visit & Location Components
-export { LocationVisitScheduler } from './LocationVisitScheduler';
-export { LocationVisitsList } from './LocationVisitsList';
-export { EnhancedAddOfficeLocationModal } from './EnhancedAddOfficeLocationModal';
-export { EnhancedFaceRegistration } from './EnhancedFaceRegistration';
+export { LocationVisitScheduler } from './components/LocationVisitScheduler';
+export { LocationVisitsList } from './components/LocationVisitsList';
+export { EnhancedAddOfficeLocationModal } from './modals/EnhancedAddOfficeLocationModal';
+export { EnhancedFaceRegistration } from './components/EnhancedFaceRegistration';
 
+// Hooks (also available via ./hooks/* paths)
+export * from './hooks';

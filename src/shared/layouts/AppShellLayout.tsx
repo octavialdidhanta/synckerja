@@ -31,7 +31,7 @@ export function AppShellLayout() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {/* flex + flex-1 child: fills scrollport so pages don’t leave a bottom “strip” when using h-full/% */}
             {/* min-w-0: lets wide child pages (e.g. employees table min-width) shrink so inner overflow-x-auto works instead of clipping under overflow-x-hidden */}
-            <div className="seamless-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+            <div className="scrollbar-hide seamless-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
               <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col">
                 <Outlet />
               </div>

@@ -1,4 +1,4 @@
-﻿
+
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import {
@@ -58,12 +58,13 @@ const DeleteMeetingPointDialog = ({
           </AlertDialogTitle>
           <AlertDialogDescription className="text-gray-600">
             Are you sure you want to delete this meeting point? This action cannot be undone.
-            {meetingPoint && (
-              <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                <strong>Discussion Point:</strong> {meetingPoint.discussion_point}
-              </div>
-            )}
           </AlertDialogDescription>
+          {meetingPoint && (
+            <div className="mt-2 rounded bg-gray-50 p-2 text-sm text-gray-700">
+              <span className="font-semibold">Discussion Point:</span>{" "}
+              <span className="text-gray-700">{meetingPoint.discussion_point}</span>
+            </div>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose} disabled={isDeleting}>

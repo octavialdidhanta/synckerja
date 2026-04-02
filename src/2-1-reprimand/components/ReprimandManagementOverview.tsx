@@ -68,7 +68,7 @@ function ReprimandManagementOverview({ reprimands, employees }: ReprimandManagem
   };
 
   return (
-    <div className="flex h-full max-h-[calc(100vh-120px)] flex-col rounded-lg border border-border bg-card shadow-sm">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-card shadow-sm">
       <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
         <h3 className="text-sm font-semibold text-foreground">
           {t("reprimands.overview.title", "Reprimand Overview")}
@@ -78,8 +78,8 @@ function ReprimandManagementOverview({ reprimands, employees }: ReprimandManagem
         </p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <div className="seamless-scroll nested-scroll-touch-chain h-full space-y-4 overflow-y-auto overflow-x-hidden p-4">
+      <div className="min-h-0 flex-1">
+        <div className="h-full space-y-4 p-4">
           <div className="grid grid-cols-1 gap-3">
             <div className="rounded-lg bg-red-50 p-3">
               <div className="flex items-center justify-between">

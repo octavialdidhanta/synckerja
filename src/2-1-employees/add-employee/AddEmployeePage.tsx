@@ -2,10 +2,12 @@
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Card, CardContent } from '@/shared/components/ui/card';
-import { Skeleton } from '@/shared/components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useActiveOrganization } from '@/10-subscription/shared/useActiveOrganization';
+import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { CreateOrganizationModal } from '@/shared/layouts/header/CreateOrganizationModal';
+import { AddEmployeePageSkeleton } from './AddEmployeePageSkeleton';
 import { useAddEmployeeForm } from '../hooks/useAddEmployeeForm';
 import { useEmployeeValidation } from '../hooks/useEmployeeValidation';
 import { useEmployeeCreation } from '../hooks/useEmployeeCreation';
@@ -25,26 +27,18 @@ const AddEmployee = () => {
   const { toast } = useToast();
   const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
   const { organizationId, loading: orgLoading } = useCurrentOrg();
-  const { subscriptionStatus, statusLoading } = useOptimizedSubscription();
+  const { organizationId: activeOrgId, loading: membershipsLoading } = useActiveOrganization();
+  const { subscriptionStatus, statusLoading } = useOptimizedSubscription({ includePlans: false });
 
-  // Hide all scrollbars on this page
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .add-employee-page ::-webkit-scrollbar {
-        display: none !important;
-      }
-      .add-employee-page {
-        -ms-overflow-style: none !important;
-        scrollbar-width: none !important;
-      }
-    `;
-    document.head.appendChild(style);
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-  
+  /** Align with subscription org id; avoids form → spinner → form when user-organizations resolves after CurrentOrgContext. */
+  const hardDataReady =
+    !orgLoading &&
+    !membershipsLoading &&
+    (!organizationId || !activeOrgId || !statusLoading);
+  const wantsForm = Boolean(organizationId) && Boolean(activeOrgId);
+  const debouncedFormReady = useDebouncedReady(hardDataReady && wantsForm, 160);
+  const showBootstrapShell = !hardDataReady || (wantsForm && !debouncedFormReady);
+
   const {
     formData,
     isSubmitting,
@@ -70,9 +64,13 @@ const AddEmployee = () => {
   const handleSave = async () => {
     // Check if at or over employee limit before proceeding
     if (subscriptionStatus?.over_limit) {
+      const planLimit =
+        subscriptionStatus.member_limit && subscriptionStatus.member_limit > 0
+          ? subscriptionStatus.member_limit
+          : subscriptionStatus.member_count;
       toast({
         title: "Employee Limit Reached",
-        description: `You have reached your plan limit of ${maxEmployees} employees. Please upgrade your plan to add more employees.`,
+        description: `You have reached your plan limit of ${planLimit ?? "your plan's"} employees. Please upgrade your plan to add more employees.`,
         variant: "destructive",
       });
       return;
@@ -124,17 +122,13 @@ const AddEmployee = () => {
     }
   };
 
-  if (orgLoading || statusLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
+  if (showBootstrapShell) {
+    return <AddEmployeePageSkeleton />;
   }
 
   if (!organizationId) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex h-dvh w-full items-center justify-center bg-gray-50">
         <Card className="p-6 max-w-md">
           <div className="text-center">
             <h2 className="text-lg font-semibold mb-2">Organisasi Diperlukan</h2>
@@ -173,20 +167,17 @@ const AddEmployee = () => {
   };
 
   return (
-    <EmployeeLimitHardGuard feature="employee creation">
-      <div className="min-h-0 flex-1 bg-gray-50 pb-12 add-employee-page">
-        {/* Warning Banner - Show when at or over limit */}
+    <EmployeeLimitHardGuard subscriptionStatus={subscriptionStatus} statusLoading={statusLoading}>
+      <div className="flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-gray-50">
         {subscriptionStatus?.over_limit && (
-          <SubscriptionWarningBanner 
+          <SubscriptionWarningBanner
             subscriptionStatus={subscriptionStatus}
-            className="mx-4 mt-4"
+            className="mx-4 mt-4 shrink-0"
           />
         )}
-        
-        <main 
-          className="container mx-auto px-4 py-6 max-h-screen overflow-y-auto"
-        >
-          <div className="max-w-4xl mx-auto">
+
+        <main className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 pb-12 pt-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="container mx-auto max-w-4xl">
             <Button variant="ghost" onClick={handleBack} className="mb-4">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Employees

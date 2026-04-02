@@ -16,7 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/components/ui/tooltip';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { AssignTaskModal } from './AssignTaskModal';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';

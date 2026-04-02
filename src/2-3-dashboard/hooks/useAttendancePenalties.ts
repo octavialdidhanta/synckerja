@@ -44,8 +44,6 @@ export const useAttendancePenalties = () => {
     }
 
     try {
-      console.log('Fetching attendance penalties from database');
-      
       // Build query with joins so we have employee & rule data for widgets
       let query = supabase
         .from('attendance_penalties')

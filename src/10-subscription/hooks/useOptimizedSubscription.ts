@@ -6,6 +6,18 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
 
+/** RPC check without mounting subscription queries (e.g. useEmployeeCreation). */
+export async function fetchCanAddEmployee(organizationId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("can_add_employee", { p_org_id: organizationId });
+  if (error) return false;
+  return Boolean(data);
+}
+
+export type UseOptimizedSubscriptionOptions = {
+  /** When false, skips subscription_plans query (saves fetch on pages that only need status). */
+  includePlans?: boolean;
+};
+
 export interface SubscriptionStatus {
   status: "trial" | "active" | "expired" | "cancelled" | "suspended" | string;
   is_trial: boolean;
@@ -51,7 +63,8 @@ function parseFeatures(raw: unknown): string[] {
   return [];
 }
 
-export function useOptimizedSubscription() {
+export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptions) {
+  const includePlans = options?.includePlans ?? true;
   const { t } = useTranslation();
   const { organizationId } = useActiveOrganization();
   const queryClient = useQueryClient();
@@ -170,6 +183,7 @@ export function useOptimizedSubscription() {
         features: parseFeatures(row.features),
       })) as SubscriptionPlan[];
     },
+    enabled: includePlans,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     retry: 2,
@@ -209,13 +223,13 @@ export function useOptimizedSubscription() {
 
   const derivedState = useMemo(
     () => ({
-      isLoading: statusLoading || plansLoading,
+      isLoading: statusLoading || (includePlans ? plansLoading : false),
       hasActiveSubscription: subscriptionStatus?.is_active || false,
       isTrialExpired: subscriptionStatus?.is_expired && subscriptionStatus?.is_trial,
       daysLeft: subscriptionStatus?.days_until_expiry || 0,
       isOverLimit: subscriptionStatus?.over_limit || false,
     }),
-    [statusLoading, plansLoading, subscriptionStatus],
+    [statusLoading, plansLoading, subscriptionStatus, includePlans],
   );
 
   return {

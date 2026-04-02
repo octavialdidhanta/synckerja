@@ -51,7 +51,7 @@ export const CurrentSubscription = memo(function CurrentSubscription({
       : t("subscription.overview.billingCycleMonthly");
 
   return (
-    <Card>
+    <Card className="min-w-0 max-w-full overflow-hidden">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
-import { useMeetingNotes } from '../MeetingNotesContext';
+import { useMeetingNotes } from '../context/MeetingNotesContext';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 
 const MeetingFilters = () => {
@@ -48,15 +48,15 @@ const MeetingFilters = () => {
   return (
     <div className="flex items-center justify-between w-full">
       <div className="flex items-center gap-2">
-        <Calendar className="w-5 h-5 text-blue-600" />
+        <Calendar className="w-5 h-5 text-brand-blue" />
         <span className="text-lg font-medium text-gray-900">{new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
       </div>
       <div className="flex items-center gap-3">
       <div className="relative flex-1 max-w-md">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-brand-blue/70 w-4 h-4" />
         <Input
           placeholder="Search discussion points..."
-          className="pl-10 h-9 text-sm border-gray-200"
+          className="pl-10 h-9 text-sm border-brand-blue/20 focus-visible:ring-brand-blue/30"
           value={filters.search}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
@@ -64,12 +64,12 @@ const MeetingFilters = () => {
       
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-9 text-sm border-gray-200">
+          <Button variant="outline" className="h-9 text-sm border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 hover:text-brand-blue">
             {filters.status || 'All Statuses'}
             <ChevronDown className="ml-1 w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="bg-white z-50">
+        <DropdownMenuContent className="bg-white border-brand-blue/20 z-50">
           <DropdownMenuItem onClick={() => handleStatusFilter('All Statuses')}>
             All Statuses
           </DropdownMenuItem>
@@ -93,12 +93,12 @@ const MeetingFilters = () => {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-9 text-sm border-gray-200">
+          <Button variant="outline" className="h-9 text-sm border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 hover:text-brand-blue">
             {filters.requestBy || 'All Request By'}
             <ChevronDown className="ml-1 w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="bg-white z-50">
+        <DropdownMenuContent className="bg-white border-brand-blue/20 z-50">
           <DropdownMenuItem onClick={() => handleRequestByFilter('All Request By')}>
             All Request By
           </DropdownMenuItem>
@@ -112,12 +112,12 @@ const MeetingFilters = () => {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-9 text-sm border-gray-200 min-w-[120px]">
+          <Button variant="outline" className="h-9 text-sm border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 hover:text-brand-blue min-w-[120px]">
             {filters.timeFilter || 'All Time'}
             <ChevronDown className="ml-1 w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="bg-white z-50">
+        <DropdownMenuContent className="bg-white border-brand-blue/20 z-50">
           <DropdownMenuItem onClick={() => handleTimeFilter('All Time')}>
             All Time
           </DropdownMenuItem>

@@ -1,14 +1,14 @@
-﻿
+
 import { useState } from "react";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { attendanceHRQueryDefaults } from "@/shared/lib/attendanceHRQueryDefaults";
 import type { JobLevel } from "./jobLevelTypes";
 import { buildJobLevelQueryKey, fetchJobLevels } from "./jobLevelUtils";
 import { supabase } from "@/shared/lib/supabaseClient";
+import type { MasterCrudQueryOptions } from "./useDepartmentsCrud";
 
-export function useJobLevelsCrud(
-  orgId?: string
-) {
+export function useJobLevelsCrud(orgId?: string, queryOptions?: MasterCrudQueryOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const queryKey = buildJobLevelQueryKey(orgId);
@@ -16,6 +16,7 @@ export function useJobLevelsCrud(
   const jobLevelsQuery = useQuery({
     queryKey,
     queryFn: () => fetchJobLevels(),
+    ...(queryOptions?.sessionCache ? attendanceHRQueryDefaults : {}),
   });
   
   const data: JobLevel[] | undefined = jobLevelsQuery.data?.map(jl => ({

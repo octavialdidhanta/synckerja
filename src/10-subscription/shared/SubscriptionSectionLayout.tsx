@@ -43,39 +43,47 @@ export function SubscriptionSectionLayout({ children }: { children: React.ReactN
   const showBanner = !statusLoading && !!subscriptionStatus && daysLeft <= 3;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-border bg-card px-4 pb-2 pt-4">
-        <h1 className="text-xl font-bold text-foreground">{t("subscription.layout.title")}</h1>
-        <p className="text-xs text-muted-foreground">{t("subscription.layout.subtitle")}</p>
-        <nav className="mt-3 flex gap-6 border-b border-transparent">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => navigate(tab.path)}
-                className={cn(
-                  "flex items-center gap-1.5 border-b-2 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "border-brand-blue text-brand-blue"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {t(tab.labelKey)}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-      {showBanner && subscriptionStatus && (
-        <div className="shrink-0 border-b border-border bg-card">
-          <SubscriptionBanner subscriptionStatus={subscriptionStatus} />
+    <div className="flex min-h-full min-h-0 flex-1 flex-col">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="shrink-0 border-b border-border bg-card px-4">
+          <div className="px-1 py-3">
+            <div className="mb-3">
+              <h1 className="mb-0.5 text-xl font-bold text-foreground">{t("subscription.layout.title")}</h1>
+              <p className="text-xs text-muted-foreground">{t("subscription.layout.subtitle")}</p>
+            </div>
+            <div className="-mb-3">
+              <nav className="flex space-x-6">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => navigate(tab.path)}
+                  className={cn(
+                  "flex items-center gap-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "border-brand-blue text-brand-blue"
+                    : "border-transparent text-muted-foreground hover:border-brand-blue/30 hover:text-brand-blue",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {t(tab.labelKey)}
+                </button>
+              );
+            })}
+              </nav>
+            </div>
+          </div>
         </div>
-      )}
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        {showBanner && subscriptionStatus && (
+          <div className="shrink-0 border-b border-border bg-card">
+            <SubscriptionBanner subscriptionStatus={subscriptionStatus} />
+          </div>
+        )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+      </div>
     </div>
   );
 }

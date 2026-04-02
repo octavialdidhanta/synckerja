@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { LoadingDots } from "@/components/LoadingDots";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
   DateRangeValue,
   JobDescEmployeeSummary,
@@ -202,8 +202,12 @@ export const JobDescTracker = ({ onStatsChange }: JobDescTrackerProps) => {
               {renderFilters()}
 
               {isLoading ? (
-                <div className="py-6 flex items-center justify-center">
-                  <LoadingDots />
+                <div className="flex flex-col gap-3 py-6" aria-busy aria-label="Loading">
+                  <Skeleton className="h-24 w-full rounded-lg" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Skeleton className="h-20 rounded-lg" />
+                    <Skeleton className="h-20 rounded-lg" />
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
@@ -245,8 +249,10 @@ export const JobDescTracker = ({ onStatsChange }: JobDescTrackerProps) => {
             <div className="space-y-3">
               {renderFilters()}
               {isLoading ? (
-                <div className="py-6 flex items-center justify-center">
-                  <LoadingDots />
+                <div className="flex flex-col gap-3 py-6" aria-busy aria-label="Loading">
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
                 </div>
               ) : filteredSummaries.length === 0 ? (
                 <div className="border border-dashed border-gray-200 rounded-lg p-4 text-center text-xs text-gray-500">

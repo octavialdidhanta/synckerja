@@ -22,7 +22,6 @@ import { useSchedulePlanChange } from "@/10-subscription/hooks/useSchedulePlanCh
 import { PendingChangesCard } from "@/10-subscription/plans/section/PendingChangesCard";
 import { UpgradeOptionsModal } from "@/10-subscription/plans/modals/UpgradeOptionsModal";
 import { PlanCard, TrustIndicators } from "@/10-subscription/plans/section";
-import { PageSpinner } from "@/10-subscription/shared/PageSpinner";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
 
 const RENEWAL_WINDOW_DAYS = 7;
@@ -48,7 +47,7 @@ const HRISSubscriptionPlansTab = () => {
   const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
   const [proRatedData, setProRatedData] = useState<ProRatedData | null>(null);
   
-  const { data: plans, isLoading } = useSubscriptionPlans();
+  const { data: plans } = useSubscriptionPlans();
   const { subscriptionStatus, subscriptionPlans } = useOptimizedSubscription();
   const { organizationId } = useActiveOrganization();
   const { lastPaidAmount, lastPaidMemberCount } = useLastPaidSubscription(organizationId ?? undefined);
@@ -437,23 +436,6 @@ const HRISSubscriptionPlansTab = () => {
   const isRenewEligibleBase = Boolean(subscriptionStatus) && 
     (isRenewWindow || subscriptionStatus?.is_expired) && 
     !subscriptionStatus?.is_trial;
-  if (isLoading) {
-    return (
-      <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
-        <div className="col-span-12 md:col-span-9">
-          <div className="flex max-md:min-h-[360px] min-h-0 flex-1 items-center justify-center rounded-lg border border-border bg-card shadow-sm md:min-h-[240px]">
-            <PageSpinner />
-          </div>
-        </div>
-        <div className="col-span-12 md:col-span-3">
-          <div className="flex max-md:min-h-[280px] min-h-0 flex-1 items-center justify-center rounded-lg border border-border bg-card shadow-sm md:min-h-[240px]">
-            <PageSpinner />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="grid min-h-0 flex-1 grid-cols-12 gap-2 overflow-hidden">
       {/* Main Content Section — align with /subscription/overview */}
@@ -470,7 +452,7 @@ const HRISSubscriptionPlansTab = () => {
             </div>
 
             {/* Scrollable Content - single scroll per panel (rule 3.1) */}
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="p-4 space-y-4">
                 {/* Pending Changes Card */}
                 <PendingChangesCard />
@@ -564,7 +546,7 @@ const HRISSubscriptionPlansTab = () => {
           </div>
 
           {/* Scrollable Sidebar Content - single scroll per panel (rule 3.1) */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="space-y-4">
               {/* Current Plan Summary */}
               {subscriptionStatus && (

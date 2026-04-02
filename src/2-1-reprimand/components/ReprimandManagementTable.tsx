@@ -102,8 +102,8 @@ export function ReprimandManagementTable({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-muted/40 scrollbar-thumb-muted-foreground/25 hover:scrollbar-thumb-muted-foreground/40" style={{ maxHeight: 'calc(100vh - 280px)', scrollBehavior: 'smooth' }}>
+      {/* Content */}
+      <div className="flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 p-2">
           {/* Left Column */}
           <div className="space-y-2">

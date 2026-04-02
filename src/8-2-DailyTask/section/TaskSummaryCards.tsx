@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { CheckSquare, Clock, AlertTriangle, Calendar, TrendingUp, Percent } from 'lucide-react';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import RecentUpdateSteps from './RecentUpdateSteps';
 import { PendingApprovalSection } from './PendingApprovalSection';
@@ -42,13 +42,7 @@ const TaskSummaryCards = ({ onOpenPreview }: TaskSummaryCardsProps) => {
     { labelKey: 'dailyTask.summary.completionRate', defaultLabel: 'Completion Rate', count: summaryData.totalSteps > 0 ? Math.round((summaryData.completedSteps / summaryData.totalSteps) * 100) : 0, color: 'teal', icon: Percent, bgColor: 'bg-teal-50', textColor: 'text-teal-600', borderColor: 'border-teal-200', isPercent: true },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <div className="text-center text-gray-500">{t('dailyTask.summary.loading', 'Loading summary...')}</div>
-      </div>
-    );
-  }
+  if (isLoading) return null;
 
   return (
     <div className="space-y-3">

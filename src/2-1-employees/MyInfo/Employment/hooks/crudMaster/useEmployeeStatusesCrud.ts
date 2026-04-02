@@ -1,14 +1,14 @@
-﻿
+
 import { useState } from "react";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { attendanceHRQueryDefaults } from "@/shared/lib/attendanceHRQueryDefaults";
 import type { EmployeeStatus } from "./employeeStatusTypes";
 import { buildEmployeeStatusQueryKey, fetchEmployeeStatuses } from "./employeeStatusUtils";
 import { supabase } from "@/shared/lib/supabaseClient";
+import type { MasterCrudQueryOptions } from "./useDepartmentsCrud";
 
-export function useEmployeeStatusesCrud(
-  orgId?: string
-) {
+export function useEmployeeStatusesCrud(orgId?: string, queryOptions?: MasterCrudQueryOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const queryKey = buildEmployeeStatusQueryKey(orgId);
@@ -16,6 +16,7 @@ export function useEmployeeStatusesCrud(
   const statusesQuery = useQuery({
     queryKey,
     queryFn: () => fetchEmployeeStatuses(),
+    ...(queryOptions?.sessionCache ? attendanceHRQueryDefaults : {}),
   });
   
   const data: EmployeeStatus[] | undefined = statusesQuery.data?.map(status => ({

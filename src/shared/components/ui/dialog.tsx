@@ -28,10 +28,15 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+  /** Mobile full-screen shell hint; consumed here so it is not forwarded to the DOM. */
+  fullscreenAnimation?: boolean;
+};
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => {
+  DialogContentProps
+>(({ className, children, fullscreenAnimation: _fullscreenAnimation, ...props }, ref) => {
   const { t } = useTranslation();
   return (
     <DialogPortal>

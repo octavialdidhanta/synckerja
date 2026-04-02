@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useUserOrganizations } from "@/shared/hooks/useUserOrganizations";
+import { SubscriptionShellSkeleton } from "@/10-subscription/shared/SubscriptionShellSkeleton";
 
 function canManageSubscription(role: string | undefined): boolean {
   const r = (role || "").toLowerCase();
@@ -13,8 +14,9 @@ export function SubscriptionRoleGuard() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-        {t("subscription.roleGuard.loading")}
+      <div className="flex min-h-0 flex-1 flex-col" aria-busy="true" aria-label={t("subscription.roleGuard.loading")}>
+        <span className="sr-only">{t("subscription.roleGuard.loading")}</span>
+        <SubscriptionShellSkeleton />
       </div>
     );
   }

@@ -180,7 +180,7 @@ export const JobOpeningsTable = memo(({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+      <div className="flex-1 min-h-0 overflow-x-auto">
         <table className="w-full caption-bottom text-sm">
           <TableHeader className="bg-gray-50 sticky top-0 z-20 shadow-sm">
             <TableRow className="hover:bg-transparent">

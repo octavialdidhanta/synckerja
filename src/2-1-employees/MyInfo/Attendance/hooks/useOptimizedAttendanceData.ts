@@ -1,5 +1,6 @@
-﻿
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useEffect } from 'react';
@@ -36,8 +37,7 @@ export const useOptimizedOfficeLocations = () => {
       return data || [];
     },
     enabled: !!organizationId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    ...attendanceHRQueryDefaults,
   });
 
   // Prefetch related data
@@ -55,7 +55,8 @@ export const useOptimizedOfficeLocations = () => {
           if (error) throw error;
           return data || [];
         },
-        staleTime: 10 * 60 * 1000, // 10 minutes
+        staleTime: attendanceHRQueryDefaults.staleTime,
+        gcTime: attendanceHRQueryDefaults.gcTime,
       });
 
       queryClient.prefetchQuery({
@@ -71,7 +72,8 @@ export const useOptimizedOfficeLocations = () => {
           if (error) throw error;
           return data || [];
         },
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        staleTime: attendanceHRQueryDefaults.staleTime,
+        gcTime: attendanceHRQueryDefaults.gcTime,
       });
     }
   }, [organizationId, queryClient]);
@@ -99,8 +101,7 @@ export const useOptimizedLocationTypes = () => {
       }
       return data || [];
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    gcTime: 15 * 60 * 1000, // 15 minutes
+    ...attendanceHRQueryDefaults,
   });
 };
 
@@ -124,8 +125,7 @@ export const useOptimizedClients = () => {
       return data || [];
     },
     enabled: !!organizationId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    ...attendanceHRQueryDefaults,
   });
 };
 
@@ -151,8 +151,7 @@ export const useOptimizedWorkSchedules = () => {
       return data || [];
     },
     enabled: !!organizationId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    ...attendanceHRQueryDefaults,
   });
 };
 
@@ -176,8 +175,7 @@ export const useOptimizedNationalHolidays = () => {
       return data || [];
     },
     enabled: !!organizationId,
-    staleTime: 2 * 60 * 1000, // 2 minutes - shorter to catch updates faster
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    ...attendanceHRQueryDefaults,
   });
 };
 

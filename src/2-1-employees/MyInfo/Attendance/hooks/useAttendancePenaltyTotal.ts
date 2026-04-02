@@ -1,4 +1,5 @@
-﻿import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
@@ -38,7 +39,7 @@ export const useAttendancePenaltyTotal = (employeeId?: string, month?: number, y
       return data?.reduce((total, penalty) => total + (penalty.penalty_amount || 0), 0) || 0;
     },
     enabled: !!organizationId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    ...attendanceHRQueryDefaults,
   });
 };
 

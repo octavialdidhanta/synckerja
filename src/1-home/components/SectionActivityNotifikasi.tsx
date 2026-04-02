@@ -10,7 +10,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
 import { useEmployeeAssignments } from './hooks/useEmployeeAssignments';
 import { JobDescTimeframe, DateRangeValue, JobDescAssignment } from '@/8-2-DailyTask/section/JobDescTracker/types';
-import { useDailyTaskOptional } from '@/8-2-DailyTask/DailyTaskContext';
+import { useDailyTaskOptional } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { differenceInCalendarDays, startOfDay, format, formatDistanceToNowStrict } from 'date-fns';
 import { ModalViewSubSteps } from '@/8-2-DailyTask/section/ModalViewSubSteps';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -339,7 +339,7 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
       </CardHeader>
 
       <CardContent className="p-0 flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain px-4">
+        <div className="flex-1 min-h-0 overflow-x-hidden px-4">
           {activeTab === 'activities' ? (
             <>
           {isLoading ? null : error ? (
@@ -581,8 +581,8 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
                 {t('activity.filter.typeLabel', 'Tipe tugas')}
               </span>
             </div>
-            <div className="horizontal-scroll overflow-x-auto seamless-scroll">
-              <div className="flex min-w-max gap-1 py-1">
+            <div>
+              <div className="flex flex-wrap gap-1 py-1">
                 {typeFilters.map((filter) => (
                   <Button
                     key={filter.id}

@@ -51,7 +51,7 @@ import {
   calculateAssignedStepsProgress,
 } from './taskListHelpers';
 import type { Task } from '../../types';
-import { useDailyTask } from '../../DailyTaskContext';
+import { useDailyTask } from '../../context/DailyTaskContext';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Badge } from '@/shared/components/ui/badge';
 import { getTaskCheckboxRule } from '../../utils/taskCheckboxRules';

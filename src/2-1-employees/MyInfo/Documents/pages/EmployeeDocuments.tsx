@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { StandardLayout } from '@/shared/layouts';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
@@ -120,36 +119,31 @@ const EmployeeDocuments = () => {
 
   if (!employeeId || isLoading) {
     return (
-      <StandardLayout>
-        <div className="flex items-center justify-center min-h-96">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-        </div>
-      </StandardLayout>
+      <div className="flex min-h-0 flex-1 items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500" />
+      </div>
     );
   }
 
   if (error || !employee) {
     return (
-      <StandardLayout>
-        <div className="flex items-center justify-center min-h-96">
-          <Card className="w-96">
-            <CardContent className="text-center py-12">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Employee Not Found</h3>
-              <p className="text-gray-600 mb-4">The employee you're looking for doesn't exist.</p>
-              <Button onClick={handleBackToEmployees}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Employees
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </StandardLayout>
+      <div className="flex min-h-0 flex-1 items-center justify-center py-12">
+        <Card className="w-96 max-w-[90vw]">
+          <CardContent className="py-12 text-center">
+            <h3 className="mb-2 text-lg font-semibold text-gray-900">Employee Not Found</h3>
+            <p className="mb-4 text-gray-600">The employee you're looking for doesn't exist.</p>
+            <Button onClick={handleBackToEmployees}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Employees
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <StandardLayout>
-      <div className="min-h-screen bg-gray-100 flex flex-col font-sans relative">
+    <div className="relative flex min-h-0 flex-1 flex-col bg-gray-100 font-sans">
         <div className="flex flex-1 min-h-0">
           {/* Main Content */}
           <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
@@ -270,8 +264,7 @@ const EmployeeDocuments = () => {
               </div>
             </div>
         </div>
-      </div>
-    </StandardLayout>
+    </div>
   );
 };
 

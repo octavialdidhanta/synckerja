@@ -11,7 +11,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { Separator } from "@/shared/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { PROFILE_QUERY_KEY, useProfile, useUpdateProfile, type ProfileRow } from "@/shared/hooks/useProfile";
-import { resolveUiLanguage } from "@/shared/hooks/usePreferredLocaleSync";
+import { resolveUiLanguage } from "@/shared/i18n/resolveUiLanguage";
 import { setAppLanguage, type SupportedLanguage } from "@/shared/i18n";
 import { ProfilePhotoUpload } from "./ProfilePhotoUpload";
 

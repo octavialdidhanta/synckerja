@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -51,6 +51,16 @@ export const ModalPengajuanCutiKaryawan: React.FC<ModalPengajuanCutiKaryawanProp
   onClose,
   onSubmit
 }) => {
+  // Prevent background/body scrolling while dialog is open (avoids double-scroll + scrollbar bleed).
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   const { t, dateFnsLocale } = useAppTranslation();
   const {
     data: employeeData,
@@ -129,8 +139,11 @@ export const ModalPengajuanCutiKaryawan: React.FC<ModalPengajuanCutiKaryawanProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg w-[500px] h-[500px] max-h-[500px] overflow-y-auto p-0" style={{ zIndex: 50 }}>
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-20">
+      <DialogContent
+        className="max-w-lg w-[500px] h-[500px] max-h-[500px] overflow-y-auto p-0 scrollbar-hide seamless-scroll nested-scroll-touch-chain flex flex-col [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ zIndex: 50 }}
+      >
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-30">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-gray-900">
               {t('leaveRequest.title', 'Employee Leave Request')}
@@ -142,7 +155,7 @@ export const ModalPengajuanCutiKaryawan: React.FC<ModalPengajuanCutiKaryawanProp
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 px-6 pb-20">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 px-6 pb-24">
             {/* Leave Eligibility Alert */}
             <LeaveEligibilityAlert />
 
@@ -422,7 +435,7 @@ export const ModalPengajuanCutiKaryawan: React.FC<ModalPengajuanCutiKaryawanProp
         </Form>
 
         {/* Sticky Footer */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 z-30">
           <div className="flex justify-between gap-3">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1 text-sm" disabled={isLoading}>
               {t('common.cancel', 'Cancel')}

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Separator } from '@/shared/components/ui/separator';
 import { ListChecks } from 'lucide-react';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useIsMobile } from '@/mobile/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';

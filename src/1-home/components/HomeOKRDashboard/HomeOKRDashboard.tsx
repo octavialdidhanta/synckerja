@@ -161,7 +161,7 @@ const HomeOKRDashboardContent = () => {
               value="company-objectives"
               className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
-              <div className="home-okr-tab-scroll seamless-scroll nested-scroll-touch-chain space-y-4" role="region" aria-label="Objectives list">
+              <div className="space-y-4" role="region" aria-label="Objectives list">
               {/* Company Objectives Progress Overview */}
               <CompanyObjectivesProgressCard
                 enhancedCompanyObjectives={[]} // Will be populated by ObjectivesTab
@@ -200,9 +200,9 @@ const HomeOKRDashboardContent = () => {
             <TabsContent
               forceMount
               value="department-objectives"
-              className="mt-4 flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden"
+              className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
-              <div className="home-okr-tab-scroll seamless-scroll nested-scroll-touch-chain space-y-4" role="region" aria-label="Objectives list">
+              <div className="space-y-4" role="region" aria-label="Objectives list">
               {/* Department Objectives Progress Overview */}
               <DepartmentObjectivesProgressCard
                 enhancedDepartmentObjectives={[]} // Will be populated by ObjectivesTab
@@ -244,7 +244,7 @@ const HomeOKRDashboardContent = () => {
               value="individual-objectives"
               className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
-              <div className="home-okr-tab-scroll seamless-scroll nested-scroll-touch-chain space-y-4" role="region" aria-label="Objectives list">
+              <div className="space-y-4" role="region" aria-label="Objectives list">
               {/* Individual Objectives Progress Overview */}
               <IndividualObjectivesProgressCard
                 enhancedIndividualObjectives={[]} // Will be populated by ObjectivesTab

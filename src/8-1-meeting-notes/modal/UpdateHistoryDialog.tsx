@@ -14,7 +14,7 @@ import {
 } from '@/shared/components/ui/select';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { useToast } from '@/shared/hooks/use-toast';
-import { useMeetingNotes } from '@/8-1-meeting-notes/MeetingNotesContext';
+import { useMeetingNotes } from '@/8-1-meeting-notes/context/MeetingNotesContext';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 interface UpdateHistoryDialogProps {

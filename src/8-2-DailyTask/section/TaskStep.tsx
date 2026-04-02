@@ -3,7 +3,7 @@ import { CheckSquare, Square, Edit, Trash2, GripVertical, Paperclip, Upload, Fil
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AssignStepDialog } from './AssignStepDialog';

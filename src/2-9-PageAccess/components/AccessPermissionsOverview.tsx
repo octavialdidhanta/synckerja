@@ -1,8 +1,7 @@
-import { Shield, Users, Settings, TrendingUp, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Shield, Users, Settings, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { AccessPermissionsSidebarFooter } from './AccessPermissionsSidebarFooter';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
-import { usePermissionConfiguration } from '@/shared/auth/page-access/usePermissionConfiguration';
 
 interface AccessPermissionsOverviewProps {
   configurations?: any[];
@@ -32,87 +31,87 @@ export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermiss
   );
 
   return (
-    <div className="bg-white border rounded-lg h-full flex flex-col max-h-[calc(100vh-120px)]">
+    <div className="bg-card border-border flex h-full min-h-0 flex-1 flex-col rounded-lg border">
       {/* Header */}
-      <div className="px-4 py-1.5 border-b flex-shrink-0">
-        <h3 className="text-sm font-semibold text-gray-900">Access Overview</h3>
-        <p className="text-xs text-gray-500 mt-1">Permission statistics and insights</p>
+      <div className="flex-shrink-0 border-b px-4 py-1.5">
+        <h3 className="text-sm font-semibold text-foreground">Access Overview</h3>
+        <p className="text-muted-foreground mt-1 text-xs">Permission statistics and insights</p>
       </div>
 
-      {/* Scrollable Content - satu scroll container dengan nested-scroll-touch-chain */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4 space-y-4">
+      {/* Keep sidebar data contained inside the card height */}
+      <div className="scrollbar-hide flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
         {/* Quick Stats */}
         <div className="grid grid-cols-1 gap-3">
-          <div className="p-3 bg-blue-50 rounded-lg">
+          <div className="rounded-lg bg-brand-blue/10 p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-blue-800">Total Pages</p>
-                <p className="text-lg font-bold text-blue-900">{totalPages}</p>
+                <p className="text-xs font-medium text-brand-blue">Total Pages</p>
+                <p className="text-lg font-bold text-brand-blue">{totalPages}</p>
               </div>
-              <Shield className="h-4 w-4 text-blue-600" />
-            </div>
-          </div>
-          
-          <div className="p-3 bg-green-50 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-green-800">Default System</p>
-                <p className="text-lg font-bold text-green-900">{defaultPages}</p>
-              </div>
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <Shield className="h-4 w-4 text-brand-blue" />
             </div>
           </div>
 
-          <div className="p-3 bg-purple-50 rounded-lg">
+          <div className="bg-muted/60 rounded-lg p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-purple-800">Custom Pages</p>
-                <p className="text-lg font-bold text-purple-900">{customPages}</p>
+                <p className="text-xs font-medium text-foreground">Default System</p>
+                <p className="text-lg font-bold text-foreground">{defaultPages}</p>
               </div>
-              <Settings className="h-4 w-4 text-purple-600" />
+              <CheckCircle className="text-muted-foreground h-4 w-4" />
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-brand-blue/5 p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-brand-blue">Custom Pages</p>
+                <p className="text-lg font-bold text-brand-blue">{customPages}</p>
+              </div>
+              <Settings className="h-4 w-4 text-brand-blue" />
             </div>
           </div>
         </div>
 
         {/* Role Access Stats */}
         <div>
-          <h4 className="text-xs font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-foreground">
             <Users className="h-3 w-3" />
             Access by Role
           </h4>
           <div className="space-y-2">
-            <div className="bg-purple-50 rounded-lg p-3">
+            <div className="rounded-lg bg-brand-blue/10 p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-purple-900">Owner Access</p>
-                  <p className="text-xs text-purple-600">{ownerAccessible} pages accessible</p>
+                  <p className="text-sm font-medium text-brand-blue">Owner Access</p>
+                  <p className="text-xs text-brand-blue/80">{ownerAccessible} pages accessible</p>
                 </div>
                 <div className="text-right">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <div className="h-2 w-2 rounded-full bg-brand-blue" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-blue-50 rounded-lg p-3">
+            <div className="rounded-lg bg-brand-blue/5 p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-blue-900">Admin Access</p>
-                  <p className="text-xs text-blue-600">{adminAccessible} pages accessible</p>
+                  <p className="text-sm font-medium text-brand-blue">Admin Access</p>
+                  <p className="text-xs text-brand-blue/80">{adminAccessible} pages accessible</p>
                 </div>
                 <div className="text-right">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <div className="h-2 w-2 rounded-full bg-brand-blue/70" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-3">
+            <div className="bg-muted/50 rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Employee Access</p>
-                  <p className="text-xs text-gray-600">{employeeAccessible} pages accessible</p>
+                  <p className="text-sm font-medium text-foreground">Employee Access</p>
+                  <p className="text-muted-foreground text-xs">{employeeAccessible} pages accessible</p>
                 </div>
                 <div className="text-right">
-                  <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                  <div className="bg-muted-foreground h-2 w-2 rounded-full" />
                 </div>
               </div>
             </div>
@@ -121,7 +120,7 @@ export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermiss
 
         {/* Security Insights */}
         <div>
-          <h4 className="text-xs font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-foreground">
             <AlertTriangle className="h-3 w-3" />
             Security Insights
           </h4>
@@ -156,31 +155,33 @@ export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermiss
 
         {/* Recent Configurations */}
         <div>
-          <h4 className="text-xs font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-foreground">
             <Clock className="h-3 w-3" />
             Recent Configurations
           </h4>
           <div className="space-y-2">
             {configurations.length === 0 ? (
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-xs text-gray-500">No configurations found</p>
-                <p className="text-xs text-gray-400 mt-1">Add page configurations to see them here</p>
+              <div className="bg-muted/40 rounded-lg p-4 text-center">
+                <p className="text-muted-foreground text-xs">No configurations found</p>
+                <p className="text-muted-foreground mt-1 text-xs opacity-80">Add page configurations to see them here</p>
               </div>
             ) : (
               configurations.slice(0, 3).map((config) => (
-                <div key={config.id} className="bg-gray-50 rounded-lg p-3">
+                <div key={config.id} className="bg-muted/40 rounded-lg p-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-gray-900">{config.page_title}</p>
-                      <p className="text-xs text-gray-500">{config.page_path}</p>
+                      <p className="text-xs font-medium text-foreground">{config.page_title}</p>
+                      <p className="text-muted-foreground text-xs">{config.page_path}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-500">
+                      <p className="text-muted-foreground text-xs">
                         {config.organization_id === null ? 'System' : 'Custom'}
                       </p>
-                      <div className={`w-2 h-2 rounded-full mt-1 ${
-                        config.organization_id === null ? 'bg-green-500' : 'bg-blue-500'
-                      }`}></div>
+                      <div
+                        className={`mt-1 h-2 w-2 rounded-full ${
+                          config.organization_id === null ? 'bg-muted-foreground/50' : 'bg-brand-blue'
+                        }`}
+                      />
                     </div>
                   </div>
                 </div>

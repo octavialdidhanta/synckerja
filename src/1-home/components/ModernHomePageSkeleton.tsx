@@ -10,9 +10,9 @@ export function ModernHomePageSkeleton() {
       aria-busy
       aria-label="Loading home"
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4">
-          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
+          <div className="flex min-h-full min-h-0 flex-col">
             {/* Motivation strip */}
             <div className="mb-2 mt-2 flex-shrink-0">
               <div className="min-h-[70px] rounded-lg border border-border bg-muted/40 p-4">
@@ -27,10 +27,10 @@ export function ModernHomePageSkeleton() {
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
+            <div className="grid min-h-[calc(100dvh-210px)] flex-1 grid-cols-12 gap-2 [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]">
               {/* Profile column */}
               <div className="col-span-3 flex h-full min-h-0 flex-col">
-                <div className="flex h-full max-h-[calc(100vh-200px)] min-h-0 flex-col overflow-hidden seamless-scroll">
+                <div className="flex h-full min-h-0 flex-1 flex-col">
                   <div className="space-y-2">
                     <div className="rounded-lg border border-border p-4">
                       <div className="mb-4 flex items-center gap-3">
@@ -58,7 +58,7 @@ export function ModernHomePageSkeleton() {
 
               {/* OKR column */}
               <div className="col-span-6 flex h-full min-h-0 flex-col">
-                <div className="flex h-full max-h-[calc(100vh-200px)] min-h-0 flex-col overflow-hidden seamless-scroll">
+                <div className="flex h-full min-h-0 flex-1 flex-col">
                   <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
                     <div className="rounded-lg border border-border bg-muted/30 p-4">
                       <Skeleton className="h-6 w-64" />
@@ -83,7 +83,7 @@ export function ModernHomePageSkeleton() {
 
               {/* Activity column */}
               <div className="col-span-3 flex h-full min-h-0 flex-col">
-                <div className="flex h-full max-h-[calc(100vh-200px)] min-h-0 flex-col overflow-hidden seamless-scroll">
+                <div className="flex h-full min-h-0 flex-1 flex-col">
                   <div className="rounded-lg border border-border p-3">
                     <Skeleton className="mb-3 h-5 w-40" />
                     <Skeleton className="mb-2 h-10 w-full" />
@@ -107,6 +107,7 @@ export function ModernHomePageSkeleton() {
                 <Skeleton className="h-14 w-full rounded-md" />
               </div>
             </div>
+            <div className="h-4 flex-shrink-0" aria-hidden />
           </div>
         </div>
       </div>

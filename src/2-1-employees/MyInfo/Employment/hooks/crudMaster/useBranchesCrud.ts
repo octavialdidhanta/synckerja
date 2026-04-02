@@ -1,14 +1,14 @@
-﻿
+
 import { useState } from "react";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { attendanceHRQueryDefaults } from "@/shared/lib/attendanceHRQueryDefaults";
 import type { Branch } from "./branchTypes";
 import { buildBranchQueryKey, fetchBranches } from "./branchUtils";
 import { supabase } from "@/shared/lib/supabaseClient";
+import type { MasterCrudQueryOptions } from "./useDepartmentsCrud";
 
-export function useBranchesCrud(
-  orgId?: string
-) {
+export function useBranchesCrud(orgId?: string, queryOptions?: MasterCrudQueryOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const queryKey = buildBranchQueryKey(orgId);
@@ -16,6 +16,7 @@ export function useBranchesCrud(
   const branchesQuery = useQuery({
     queryKey,
     queryFn: () => fetchBranches(),
+    ...(queryOptions?.sessionCache ? attendanceHRQueryDefaults : {}),
   });
   
   const data: Branch[] | undefined = branchesQuery.data?.map(branch => ({

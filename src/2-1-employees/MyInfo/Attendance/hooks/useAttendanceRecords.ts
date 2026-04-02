@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
@@ -39,7 +40,8 @@ export const useAttendanceRecords = (organizationId?: string) => {
       console.log('Attendance records fetched:', data?.length || 0);
       return data || [];
     },
-    enabled: !!organizationId
+    enabled: !!organizationId,
+    ...attendanceHRQueryDefaults,
   });
 
   const getDefaultWorkScheduleId = async () => {

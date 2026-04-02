@@ -4,7 +4,7 @@ import { XCircle } from "lucide-react";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
-import { LoadingDots } from "@/shared/components/LoadingDots";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
@@ -15,6 +15,12 @@ export type PageAccessGuardProps = {
   /** Override path checked against permission_configurations */
   pagePath?: string;
   showAccessDeniedPage?: boolean;
+  /**
+   * Full-route loading UI that matches the destination page layout (e.g. incomes skeleton).
+   * When set, shown immediately while auth/access/config resolve — avoids centered placeholder
+   * then swapping to the real module shell on hard refresh.
+   */
+  loadingShell?: ReactNode;
 };
 
 const DENY_DEBOUNCE_MS = 250;
@@ -29,6 +35,7 @@ export function PageAccessGuard({
   requiresPermissions = true,
   pagePath,
   showAccessDeniedPage = true,
+  loadingShell,
 }: PageAccessGuardProps) {
   const { user, loading } = useAuth();
   const { t } = useAppTranslation();
@@ -110,13 +117,36 @@ export function PageAccessGuard({
   const shouldShowLoading =
     (loading && !user) || (showLoadingUI && isLoading) || isResolvingAccess;
 
+  const showModuleLoadingShell =
+    loadingShell != null &&
+    ((loading && !user) || isLoading || isResolvingAccess);
+
+  if (showModuleLoadingShell) {
+    return (
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
+        aria-busy
+        aria-label={t("pageAccess.loading", "Loading…")}
+      >
+        {loadingShell}
+        <span className="sr-only">{t("pageAccess.loading", "Loading…")}</span>
+      </div>
+    );
+  }
+
   if (shouldShowLoading) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-12">
-        <LoadingDots size="lg" />
-        <p className="text-sm text-muted-foreground">
-          {t("pageAccess.loading", "Loading…")}
-        </p>
+      <div
+        className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-12"
+        aria-busy
+        aria-label={t("pageAccess.loading", "Loading…")}
+      >
+        <div className="flex w-full max-w-xs flex-col gap-3 px-4">
+          <Skeleton className="h-10 w-full rounded-md" />
+          <Skeleton className="h-4 w-4/5 max-w-[280px]" />
+          <Skeleton className="h-4 w-3/5 max-w-[200px]" />
+        </div>
+        <span className="sr-only">{t("pageAccess.loading", "Loading…")}</span>
       </div>
     );
   }

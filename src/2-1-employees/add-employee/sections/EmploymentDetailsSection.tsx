@@ -17,8 +17,8 @@ import {
 export const EmploymentDetailsSection = ({ formData, handleInputChange }: EmploymentDataStepProps) => {
   const { organizationId } = useCurrentOrg();
   
-  const branchesCrud = useBranchesCrud(organizationId);
-  const employeeStatusesCrud = useEmployeeStatusesCrud(organizationId);
+  const branchesCrud = useBranchesCrud(organizationId, { sessionCache: true });
+  const employeeStatusesCrud = useEmployeeStatusesCrud(organizationId, { sessionCache: true });
 
   const CustomDropdown = ({ 
     label, 

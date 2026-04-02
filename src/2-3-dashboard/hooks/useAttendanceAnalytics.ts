@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
@@ -196,8 +197,6 @@ export const useAttendanceAnalytics = () => {
       };
     },
     enabled: !!organizationId,
-    staleTime: 1 * 60 * 1000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    refetchInterval: 2 * 60 * 1000, // Refresh every 2 minutes
+    ...attendanceHRQueryDefaults,
   });
 };

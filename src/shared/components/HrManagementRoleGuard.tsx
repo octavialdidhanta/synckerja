@@ -14,6 +14,11 @@ export type HrManagementRoleGuardProps = {
   deniedDescriptionKey?: string;
   deniedBackLabelKey?: string;
   deniedNavigateTo?: string;
+  /**
+   * When false, no inline skeleton while the role query is pending (use when the child route shows its own full-page skeleton).
+   * @default true
+   */
+  showPendingSkeleton?: boolean;
 };
 
 export function HrManagementRoleGuard({
@@ -22,12 +27,22 @@ export function HrManagementRoleGuard({
   deniedDescriptionKey = "reprimands.accessDenied.description",
   deniedBackLabelKey = "reprimands.accessDenied.backToEmployees",
   deniedNavigateTo = "/employees",
+  showPendingSkeleton = true,
 }: HrManagementRoleGuardProps) {
   const { data: role, isPending } = useCurrentUserRole();
   const { t } = useAppTranslation();
   const navigate = useNavigate();
 
   if (isPending) {
+    if (!showPendingSkeleton) {
+      return (
+        <div
+          className="flex min-h-0 min-w-0 flex-1 flex-col bg-gray-100"
+          aria-busy
+          aria-label={t("employees.page.loadingAria", "Loading")}
+        />
+      );
+    }
     return (
       <div
         className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 pt-2"

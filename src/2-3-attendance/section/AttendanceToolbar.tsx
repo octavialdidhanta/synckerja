@@ -42,16 +42,16 @@ export const AttendanceToolbar = ({
   );
 
   return (
-    <div className="bg-white border border-gray-200 p-2 rounded-md">
+    <div className="bg-card rounded-md border border-border p-2">
       <div className="flex flex-wrap items-center gap-1">
         <div className="relative flex-1 min-w-[200px]">
           <Input
             placeholder={t('search.employeeName', 'Search employee name...')}
             value={searchTerm}
             onChange={handleSearch}
-            className="h-9 w-full pl-4 pr-10 text-sm border border-gray-300 focus-visible:ring-blue-500 focus-visible:border-blue-500"
+            className="h-9 w-full border-input pl-4 pr-10 text-sm focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="text-muted-foreground absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" />
         </div>
 
         <Select value={status} onValueChange={onStatusChange}>

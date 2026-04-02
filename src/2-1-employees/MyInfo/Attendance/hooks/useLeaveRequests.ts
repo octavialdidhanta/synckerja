@@ -1,5 +1,6 @@
-﻿
+
 import { useQuery } from '@tanstack/react-query';
+import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { logger } from '@/shared/lib/logger';
@@ -145,8 +146,7 @@ export const useLeaveRequests = ({ month, year, status }: UseLeaveRequestsProps 
       return enrichedData as LeaveRequestData[];
     },
     enabled: !!organizationId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    ...attendanceHRQueryDefaults,
     retry: false, // Don't retry on failure - graceful degradation
   });
 };

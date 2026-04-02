@@ -1,24 +1,31 @@
-﻿
+
 import { useState } from "react";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { attendanceHRQueryDefaults } from "@/shared/lib/attendanceHRQueryDefaults";
 import type { JobPosition } from "./jobPositionTypes";
 import { buildJobPositionQueryKey, fetchJobPositions } from "./jobPositionUtils";
 import { supabase } from "@/shared/lib/supabaseClient";
+import type { MasterCrudQueryOptions } from "./useDepartmentsCrud";
 
 export function useJobPositionsCrud(
   orgId?: string,
-  extraFilter?: Record<string, string | number | boolean | undefined>
+  extraFilter?: Record<string, string | number | boolean | undefined>,
+  queryOptions?: MasterCrudQueryOptions,
 ) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const queryKey = buildJobPositionQueryKey(orgId);
 
   const jobPositionsQuery = useQuery({
-    queryKey: ['job_positions', orgId, extraFilter?.department_id],
+    queryKey: ["job_positions", orgId, extraFilter?.department_id],
     queryFn: () => fetchJobPositions(extraFilter?.department_id as string),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes cache
+    ...(queryOptions?.sessionCache
+      ? attendanceHRQueryDefaults
+      : {
+          staleTime: 5 * 60 * 1000,
+          gcTime: 10 * 60 * 1000,
+        }),
   });
   
   // Filter by extraFilter if provided, but don't apply organization filtering here

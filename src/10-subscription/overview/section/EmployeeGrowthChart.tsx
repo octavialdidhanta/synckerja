@@ -26,7 +26,7 @@ export const EmployeeGrowthChart = memo(function EmployeeGrowthChart({
 
   if (isLoading) {
     return (
-      <Card className="p-4">
+      <Card className="min-w-0 max-w-full overflow-hidden p-4">
         <div className="space-y-2">
           <div className="h-4 w-24 animate-pulse rounded bg-muted" />
           <div className="h-3 w-32 animate-pulse rounded bg-muted" />
@@ -38,7 +38,7 @@ export const EmployeeGrowthChart = memo(function EmployeeGrowthChart({
 
   if (!data?.length) {
     return (
-      <Card className="p-4">
+      <Card className="min-w-0 max-w-full overflow-hidden p-4">
         <div className="flex items-center gap-2 text-base font-semibold">
           <TrendingUp className="h-4 w-4" />
           {t("subscription.overview.employeeGrowth")}
@@ -49,13 +49,13 @@ export const EmployeeGrowthChart = memo(function EmployeeGrowthChart({
   }
 
   return (
-    <Card className="p-4">
+    <Card className="min-w-0 max-w-full overflow-hidden p-4">
       <div className="flex items-center gap-2 text-base font-semibold">
         <TrendingUp className="h-4 w-4" />
         {t("subscription.overview.employeeGrowth")}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">{t("subscription.overview.employeeGrowthSubtitle")}</p>
-      <div className="mt-3 h-44">
+      <div className="mt-3 h-44 w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

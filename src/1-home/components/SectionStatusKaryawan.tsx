@@ -169,7 +169,7 @@ export const SectionStatusKaryawan = ({ statusCreatedTrigger }: SectionStatusKar
           </div>
         ) : (
           /* Horizontal scroll container */
-          <div className="overflow-x-auto scrollbar-hide">
+          <div className="overflow-x-hidden">
             <div className="flex space-x-4 pb-2" style={{ width: 'max-content' }}>
               {statuses.map((status) => (
                 <div key={status.id} className="relative w-80 flex-shrink-0 rounded-md border border-border bg-muted/40 p-4">

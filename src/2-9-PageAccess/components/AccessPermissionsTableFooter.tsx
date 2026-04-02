@@ -15,12 +15,12 @@ export const AccessPermissionsTableFooter = ({
     : format(new Date(), 'MMM dd, yyyy HH:mm');
 
   return (
-    <div className="flex items-center justify-between text-xs text-gray-500">
+    <div className="text-muted-foreground flex items-center justify-between text-xs">
       <span className="flex items-center gap-1">
         <Settings className="h-3 w-3" />
         Total Configurations: {totalConfigurations}
       </span>
-      <span className="text-xs text-gray-400 flex items-center gap-1">
+      <span className="text-muted-foreground/80 flex items-center gap-1 text-xs">
         <Calendar className="h-3 w-3" />
         Last Updated: {formattedDate}
       </span>

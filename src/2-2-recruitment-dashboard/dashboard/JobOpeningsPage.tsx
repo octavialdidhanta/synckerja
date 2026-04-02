@@ -7,18 +7,17 @@ import {
   JobOpeningsOverview
 } from './components';
 import { JobOpeningsSidebarFooter } from './components/JobOpeningsSidebarFooter';
-import { useCurrentOrg } from '@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg';
-import { cn } from '@/shared/lib/utils';
-import { RecruitmentJobOpeningsSkeleton } from '@/2-2-recruitment-dashboard/components/RecruitmentSkeletons';
 import { useJobOpeningsCrud } from '@/2-2-recruitment-dashboard/job-openings/hooks/useJobOpeningsCrud';
 import { JobOpening } from '@/2-2-recruitment-dashboard/job-openings/hooks/jobOpeningTypes';
 import { filterJobOpenings, type JobOpeningsFilters as FilterType } from './utils/jobOpeningsUtils';
 import { Button } from '@/shared/components/ui/button';
 import { Plus } from 'lucide-react';
 import { JobOpeningModal, GenerateLinkModal } from '@/2-2-recruitment-dashboard/job-openings';
+import { useCurrentOrg } from '@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg';
+import { cn } from '@/shared/lib/utils';
+import { JobOpeningsPageSkeleton } from '@/2-2-recruitment-dashboard/components/RecruitmentSkeletons';
 
 export const JobOpeningsPage = () => {
-  const { loading: orgLoading } = useCurrentOrg();
   const [activeTab, setActiveTab] = useState('job-openings');
   const [filters, setFilters] = useState<FilterType>({
     search: '',
@@ -31,19 +30,22 @@ export const JobOpeningsPage = () => {
   const [generateLinkModalOpen, setGenerateLinkModalOpen] = useState(false);
   const [selectedJobForLink, setSelectedJobForLink] = useState<JobOpening | null>(null);
   
-  const { 
-    data: jobOpenings = [], 
-    isPending: jobOpeningsPending, 
+  const { loading: orgLoading } = useCurrentOrg();
+  const {
+    data: jobOpenings = [],
+    isPending: jobOpeningsPending,
     refetch,
     modalOpen,
     editItem,
-    openAddModal, 
-    openEditModal, 
+    openAddModal,
+    openEditModal,
     closeModal,
     saveItem,
     deleteItem,
-    saving
+    saving,
   } = useJobOpeningsCrud();
+
+  const showFullPageSkeleton = orgLoading || jobOpeningsPending;
 
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);
@@ -110,32 +112,30 @@ export const JobOpeningsPage = () => {
     });
   }, []);
 
-  const showFullPageSkeleton = orgLoading || jobOpeningsPending;
-
   return (
     <>
-      <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
+      <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
         <div
           className={cn(
-            'flex min-h-0 min-w-0 flex-1 flex-col bg-muted/30 font-sans',
+            'flex min-h-0 flex-1 flex-col px-4 pb-2',
             showFullPageSkeleton && 'pointer-events-none invisible',
           )}
         >
-        <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
-          <div className="flex min-h-0 flex-1 flex-col">
-              {/* Header and Tabs */}
-              <div className="flex-shrink-0 mb-1">
-                <HeaderAndTab 
-                  activeTab={activeTab} 
-                  onTabChange={handleTabChange} 
-                />
-              </div>
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-h-full flex-col">
+                <div className="mb-1 flex-shrink-0">
+                  <HeaderAndTab
+                    activeTab={activeTab}
+                    onTabChange={handleTabChange}
+                  />
+                </div>
 
-              {/* Grid Layout: 12 columns (9-3) */}
-              <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
+                {/* Grid Layout: 12 columns (9-3) */}
+                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 {/* Main Content - 9 columns */}
-                <div className="col-span-9 h-full">
-                  <div className="h-full flex flex-col">
+                <div className="col-span-9 flex min-h-0 flex-col">
+                  <div className="flex min-h-0 flex-1 flex-col">
                     {/* Filter Section */}
                     <div className="flex-shrink-0 mb-2">
                       <div className="bg-white border rounded-md p-2">
@@ -171,9 +171,9 @@ export const JobOpeningsPage = () => {
                 </div>
                 
                 {/* Right Column - Overview Sidebar (25% like employee page) */}
-                <div className="col-span-3 h-full">
-                  <div className="h-full flex flex-col">
-                    <div className="flex h-full max-h-[calc(100vh-8rem)] flex-col rounded-lg border border-border bg-card shadow-sm">
+                <div className="col-span-3 flex min-h-0 flex-col">
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card shadow-sm">
                       {/* Sidebar Header */}
                       <div className="px-4 py-1.5 border-b flex-shrink-0">
                         <div className="flex items-start justify-between gap-3">
@@ -191,9 +191,9 @@ export const JobOpeningsPage = () => {
                         </div>
                       </div>
 
-                      {/* Scrollable Sidebar Content */}
-                      <div className="flex-1 min-h-0 overflow-hidden">
-                        <div className="h-full p-4 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain min-h-0">
+                      {/* Sidebar Content */}
+                      <div className="flex-1 min-h-0">
+                        <div className="h-full min-h-0 p-4">
                           <JobOpeningsOverview jobOpenings={filteredJobOpenings} />
                         </div>
                       </div>
@@ -207,17 +207,23 @@ export const JobOpeningsPage = () => {
                     </div>
                   </div>
                 </div>
+                </div>
+
+                <div
+                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                  aria-hidden
+                />
               </div>
             </div>
           </div>
         </div>
-        </div>
 
-      {showFullPageSkeleton ? (
-        <div className="absolute inset-0 z-10 overflow-auto">
-          <RecruitmentJobOpeningsSkeleton />
-        </div>
-      ) : null}
+        {showFullPageSkeleton ? (
+          <div className="absolute inset-0 z-10 min-h-0 overflow-hidden">
+            <JobOpeningsPageSkeleton />
+          </div>
+        ) : null}
+      </div>
 
       <JobOpeningModal
         open={modalOpen}

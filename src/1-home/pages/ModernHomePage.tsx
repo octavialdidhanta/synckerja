@@ -19,23 +19,23 @@ function ModernHomePageInner() {
           showFullPageSkeleton && "invisible pointer-events-none",
         )}
       >
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4">
-            <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
+            <div className="flex min-h-full min-h-0 flex-col">
               <div className="mb-2 mt-2 flex-shrink-0">
                 <SectionMotivation />
               </div>
 
-              <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
+              <div className="grid min-h-[calc(100dvh-210px)] flex-1 grid-cols-12 gap-2 [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]">
                 <div className="col-span-3 flex h-full min-h-0 flex-col">
-                  <div className="flex h-full max-h-[calc(100vh-200px)] min-h-0 flex-col overflow-hidden seamless-scroll">
+                  <div className="flex h-full min-h-0 flex-1 flex-col">
                     <SectionProfile />
                   </div>
                 </div>
 
                 <div className="col-span-6 flex h-full min-h-0 flex-col">
-                  <div className="flex h-full max-h-[calc(100vh-200px)] min-h-0 flex-col overflow-hidden seamless-scroll">
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <div className="flex h-full min-h-0 flex-1 flex-col">
+                    <div className="flex h-full min-h-0 flex-1 flex-col">
                       <OKRSectionVisibilityProvider>
                         <HomeOKRDashboard />
                       </OKRSectionVisibilityProvider>
@@ -44,7 +44,7 @@ function ModernHomePageInner() {
                 </div>
 
                 <div className="col-span-3 flex h-full min-h-0 flex-col">
-                  <div className="flex h-full max-h-[calc(100vh-200px)] min-h-0 flex-col overflow-hidden seamless-scroll">
+                  <div className="flex h-full min-h-0 flex-1 flex-col">
                     <SectionActivityNotifikasi standalone />
                   </div>
                 </div>
@@ -53,6 +53,7 @@ function ModernHomePageInner() {
               <div className="mt-2 flex-shrink-0">
                 <SectionStatusKaryawan />
               </div>
+              <div className="h-4 flex-shrink-0" aria-hidden />
             </div>
           </div>
         </div>

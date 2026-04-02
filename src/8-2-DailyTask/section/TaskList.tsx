@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CheckSquare } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow } from '@/shared/components/ui/table';
 import { TooltipProvider } from '@/shared/components/ui/tooltip';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { type Task } from '../types';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useToast } from '@/shared/components/ui/use-toast';

@@ -1,0 +1,101 @@
+---
+description: Seamless single-scroll page layout for dashboard-style routes
+alwaysApply: true
+---
+
+# Seamless Page Scroll Layout
+
+Gunakan pola ini untuk halaman dashboard/panel seperti Home, OKR, Attendance, dll.
+
+- **Wajib (default):** root route/page gunakan `relative flex h-screen flex-col bg-gray-100` (atau background shell yang ekuivalen). Ini jadi baseline utama agar tinggi viewport konsisten antar modul.
+- Gunakan **satu vertical scroll container utama** di level route/page.
+- Jika route dirender di dalam layout yang **sudah punya scroll container** (contoh: `AppShellLayout`), root route **jangan** pakai `h-screen`; gunakan `h-full min-h-0 flex-1` agar tidak memunculkan scrollbar parent tambahan.
+- **Wajib (default):** gunakan **content wrapper fixed-height** `scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden` pada container utama konten.
+- Untuk layout yang meniru pola recruitment/applications, tetap gunakan baseline fixed-height yang sama (`max-h-[calc(100vh-120px)]`) agar tinggi konten seragam dengan halaman referensi seperti Employees.
+- Jika **header/tab ikut scroll** (header ditempatkan di dalam scroll container), gunakan varian **fill-parent**: `scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden` (tanpa `max-h-[calc(...)]`) agar tidak muncul **gap abu-abu** di bawah parent. Tetap pakai **grid baseline** `min-h-[calc(100vh-120px)]` + `flex-1` pada grid agar ritme tinggi selaras halaman seperti `/employees`.
+- **Setelah varian header-ikut-scroll stabil:** tambahkan **jarak bawah ringan** supaya konten tidak mentok: inner shell `px-4 pb-2` (bukan `pb-0`), dan **bottom safe spacer** di **dalam** kolom scroll (setelah grid utama), class `h-2 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4` + `aria-hidden`.
+- Hindari nested scroll area untuk konten utama (OKR list, activity panel, sidebar panel).
+- Sembunyikan scrollbar container utama dengan `scrollbar-hide` sambil tetap mempertahankan scroll.
+- Untuk kasus scrollbar masih terlihat di Windows/browser tertentu, gunakan hard-hide fallback di container scroll: `[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`.
+- Untuk monitor luas, biarkan panel utama `flex-1` agar area OKR/Activity tetap terasa penuh.
+- Untuk monitor sempit (`max-height`), gunakan `min-h` responsif pada grid/section agar layout tidak padat.
+- Dorong section bawah (seperti status/feed) agar terlihat penuh setelah user scroll, bukan langsung semua muat sekaligus.
+- Tambahkan **bottom safe spacer** kecil setelah konten utama dengan ukuran **konsisten**: default `h-2`, layar sedang-pendek `[@media(max-height:900px)]:h-3`, layar sangat pendek `[@media(max-height:760px)]:h-4`, agar footer tidak menempel taskbar OS tanpa membuat gap berlebih.
+- Samakan struktur skeleton dengan halaman utama agar tidak terjadi lompatan layout saat loading.
+- Jika ada horizontal chips/filter, utamakan `flex-wrap` dibanding membuat scroll area horizontal baru.
+
+## Contoh kelas yang direkomendasikan
+
+```tsx
+<div className="relative flex h-screen flex-col bg-gray-100">
+ <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
+  <div className="flex h-full flex-col">
+   {/* header / tabs */}
+   <div className="mb-1 flex-shrink-0">{/* ... */}</div>
+   <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="min-h-full">
+     <div className="grid min-h-[calc(100vh-120px)] grid-cols-12 gap-2">
+      {/* content */}
+     </div>
+    </div>
+   </div>
+  </div>
+ </div>
+</div>
+```
+
+## Pengecualian saat parent sudah scrollable
+
+```tsx
+<div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100">
+ <div className="scrollbar-hide flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+  {/* gunakan h-full/min-h-0, bukan h-screen */}
+ </div>
+</div>
+```
+
+## Varian saat header ikut scroll (referensi: `/okr`)
+
+Gunakan varian ini ketika `HeaderAndTab` menjadi bagian dari konten yang ikut bergerak saat scroll. Pola ini menghindari gap bawah sekaligus memberi **sedikit ruang** di tepi bawah viewport dan di akhir scroll.
+
+- Root boleh `overflow-hidden` jika perlu menahan layout penuh tinggi shell.
+- Inner shell: `pb-2` (bukan `pb-0` mentok).
+- Spacer responsif **setelah** grid utama, **di dalam** area scroll.
+
+```tsx
+<div className="relative flex h-screen flex-col overflow-hidden bg-gray-100">
+ <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+  <div className="flex h-full min-h-0 flex-col">
+   <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex min-h-full flex-col">
+     <div className="mb-1 flex-shrink-0">{/* HeaderAndTab */}</div>
+     <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+      {/* content */}
+     </div>
+     <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+    </div>
+   </div>
+  </div>
+ </div>
+</div>
+```
+
+## Ukuran referensi dari `/expenses/debt` (pakai ulang di halaman lain)
+
+- **Scroll root page (default)**: `relative flex h-screen flex-col bg-gray-100`.
+- **Jika layout parent sudah scrollable**: root page pakai `overflow-hidden` + `h-full min-h-0 flex-1` (hindari `h-screen`).
+- **Main content wrapper (default)**: `scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden`.
+- **Main content wrapper (header ikut scroll)**: `scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden` + hard-hide scrollbar seperti default; **jangan** pakai `max-h-[calc(100vh-120px)]` pada wrapper yang juga berisi header di dalamnya.
+- **Inner shell (header ikut scroll, jarak bawah moderat)**: `px-4 pb-2` (bukan `pb-4` tebal default jika modul sudah punya spacer dalam scroll; sesuaikan kebutuhan).
+- **Grid + spacer (header ikut scroll)**: grid `min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch`; lalu spacer `h-2 / h-3 / h-4` di dalam scroll setelah grid.
+- **Main scroll container (varian parent-scrollable)**: `scrollbar-hide flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden`.
+- **Main content area (fixed-height variant)**: `scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden`.
+- **Inner shell**: `flex min-h-0 min-w-0 flex-1 flex-col bg-muted/40 px-4 pb-4`.
+- **Grid konten utama (default)**: `grid min-h-[calc(100vh-120px)] min-w-0 gap-2`.
+- **Grid konten utama (opsional untuk modul yang butuh ritme tinggi responsif)**: `grid min-h-[calc(100dvh-210px)] min-w-0 flex-1 gap-2 [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]`.
+- **Container section tabel utama (agar tetap bisa scroll saat data kosong)**: `flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]`.
+- **Jarak spacer antara section utama (termasuk footer tabel) dan batas bawah container scroll**: `h-2` (default), `[@media(max-height:900px)]:h-3`, `[@media(max-height:760px)]:h-4`.
+- **Spacer bawah terluar (safe offset tambahan terhadap taskbar/viewport bawah)**: `h-0 [@media(max-height:900px)]:h-4`.
+
+Gunakan angka di atas sebagai baseline untuk route lain supaya ritme tinggi konten, jarak footer, dan perilaku scroll konsisten.
+pastikan headerandtab juga ikut terscroll

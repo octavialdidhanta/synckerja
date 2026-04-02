@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 
 export const TaskListDebug = () => {
   const { tasks, addTask, addTaskStep } = useDailyTask();

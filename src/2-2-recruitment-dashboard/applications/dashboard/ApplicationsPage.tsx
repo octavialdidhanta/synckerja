@@ -1,19 +1,19 @@
-﻿
+
 import { ApplicationsFilters } from './ApplicationsFilters';
 import { ApplicationsTable } from './ApplicationsTable';
 
 export const ApplicationsPage = () => {
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
       {/* Page Content */}
-      <div className="space-y-4">
-        {/* Filters */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+        {/* Filters — match /recruitment/interviewees (IntervieweeTab) */}
+        <div className="rounded-md border bg-white p-2">
           <ApplicationsFilters />
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        {/* Table — match interviewees table shell */}
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border bg-white">
           <ApplicationsTable />
         </div>
       </div>

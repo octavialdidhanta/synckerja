@@ -1,14 +1,18 @@
-﻿
+
 import { useState } from "react";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { attendanceHRQueryDefaults } from "@/shared/lib/attendanceHRQueryDefaults";
 import type { Department } from "./departmentTypes";
 import { buildDepartmentQueryKey, fetchDepartments } from "./departmentUtils";
 import { supabase } from "@/shared/lib/supabaseClient";
 
-export function useDepartmentsCrud(
-  orgId?: string
-) {
+export type MasterCrudQueryOptions = {
+  /** Satu fetch per sesi SPA; tanpa refetch saat remount (mis. wizard /employees/add). */
+  sessionCache?: boolean;
+};
+
+export function useDepartmentsCrud(orgId?: string, queryOptions?: MasterCrudQueryOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const queryKey = buildDepartmentQueryKey(orgId);
@@ -16,11 +20,15 @@ export function useDepartmentsCrud(
   const departmentsQuery = useQuery({
     queryKey,
     queryFn: () => fetchDepartments(),
-    staleTime: 0, // Always fetch fresh data
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
-    retry: 3,
-    retryDelay: 1000
+    ...(queryOptions?.sessionCache
+      ? attendanceHRQueryDefaults
+      : {
+          staleTime: 0,
+          refetchOnMount: true,
+          refetchOnWindowFocus: false,
+          retry: 3,
+          retryDelay: 1000,
+        }),
   });
 
   // Store the full department objects (with isDefault property).
@@ -30,6 +38,7 @@ export function useDepartmentsCrud(
   }));
   
   const isLoading: boolean = departmentsQuery.isLoading;
+  const isPending: boolean = departmentsQuery.isPending;
   const refetch: () => void = departmentsQuery.refetch;
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -109,6 +118,7 @@ export function useDepartmentsCrud(
   return {
     data,
     isLoading,
+    isPending,
     modalOpen,
     editItem,
     openAddModal,

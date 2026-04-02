@@ -16,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/shared/components/ui/popover';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { useActiveEmployeeIds } from '../hooks/useActiveEmployeeIds';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -300,8 +300,8 @@ export const TaskFilters = ({ onAddTask, showAddTaskButton = true }: TaskFilters
 
   return (
     <div className="w-full min-w-0">
-      <div className="p-1.5 sm:p-2 bg-white border border-gray-200 rounded-md min-w-0 overflow-hidden">
-        <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden min-w-0 seamless-scroll nested-scroll-touch-chain">
+      <div className="min-w-0 overflow-hidden">
+        <div className="seamless-scroll nested-scroll-touch-chain flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden">
       {/* Search Input - Hidden when PIC filter is active */}
       {!filters.pic && (
         <div className="relative flex-1 min-w-[120px]">
@@ -310,7 +310,7 @@ export const TaskFilters = ({ onAddTask, showAddTaskButton = true }: TaskFilters
             placeholder="Search tasks and steps..."
             value={filters.search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-7 pr-2 h-8 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="h-8 rounded-md border border-border pl-7 pr-2 text-sm focus:border-transparent focus:ring-2 focus:ring-brand-blue"
           />
         </div>
       )}
@@ -326,7 +326,7 @@ export const TaskFilters = ({ onAddTask, showAddTaskButton = true }: TaskFilters
               <span className="truncate text-amber-600">Failed to load</span>
             ) : filters.department ? (
               <div className="flex items-center gap-2 whitespace-nowrap overflow-hidden">
-                <Building2 className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <Building2 className="w-4 h-4 text-brand-blue flex-shrink-0" />
                 <span className="truncate">{departments.find(d => d.id === filters.department)?.name || 'All Departments'}</span>
               </div>
             ) : (
@@ -345,7 +345,7 @@ export const TaskFilters = ({ onAddTask, showAddTaskButton = true }: TaskFilters
           {!departmentsError && departments.map((department) => (
             <SelectItem key={department.id} value={department.id}>
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-blue-600" />
+                <Building2 className="w-4 h-4 text-brand-blue" />
                 {department.name}
               </div>
             </SelectItem>
@@ -488,7 +488,7 @@ export const TaskFilters = ({ onAddTask, showAddTaskButton = true }: TaskFilters
             sideOffset={4}
           >
             <div className="text-sm font-medium text-gray-700 mb-2 px-2 flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-blue-500" />
+              <CalendarIcon className="h-4 w-4 text-brand-blue" />
               Select Plan Date
             </div>
             <MonthPicker
@@ -511,7 +511,7 @@ export const TaskFilters = ({ onAddTask, showAddTaskButton = true }: TaskFilters
             toast({ title: 'Error', description: 'Failed to refresh tasks', variant: 'destructive' });
           }
         }}
-        className={`shrink-0 h-8 w-8 p-0 ${highlightFromPendingApproval ? 'border-amber-300 text-amber-700 hover:bg-amber-50' : ''}`}
+        className={`h-8 w-8 shrink-0 border-brand-blue/25 p-0 text-brand-blue hover:bg-brand-blue/10 ${highlightFromPendingApproval ? 'border-amber-300 text-amber-700 hover:bg-amber-50' : ''}`}
         title={highlightFromPendingApproval ? t('dailyTask.filters.refreshShowAll', 'Refresh to show all tasks') : t('dailyTask.filters.refresh', 'Refresh')}
       >
         <RefreshCw className="w-4 h-4" />
@@ -521,7 +521,7 @@ export const TaskFilters = ({ onAddTask, showAddTaskButton = true }: TaskFilters
       {showAddTaskButton && (
         <Button
           onClick={() => setIsCreateTaskDialogOpen(true)}
-          className="shrink-0 ml-auto bg-blue-600 hover:bg-blue-700 text-white px-3 h-8 flex items-center gap-1.5 text-sm"
+          className="ml-auto flex h-8 shrink-0 items-center gap-1.5 bg-brand-blue px-3 text-sm text-white hover:bg-brand-blue/90"
         >
           <Plus className="w-3.5 h-3.5" />
           Add Task

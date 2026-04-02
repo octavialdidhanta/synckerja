@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Target, CheckCircle, Clock, User, ChevronRight, Loader2 } from 'lucide-react';
-import { LoadingDots } from '@/components/LoadingDots';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -656,13 +655,7 @@ const TaskInitiative: React.FC<TaskInitiativeProps> = ({ onStatsChange }) => {
     }
   };
 
-  if (isLoading || tasksLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <LoadingDots size="lg" />
-      </div>
-    );
-  }
+  if (isLoading || tasksLoading) return null;
 
   return (
     <div className="space-y-4">

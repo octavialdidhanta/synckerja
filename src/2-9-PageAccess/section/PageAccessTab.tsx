@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { HeaderAndTab } from './HeaderAndTab';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
@@ -8,31 +7,30 @@ import { Switch } from '@/shared/components/ui/switch';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Loader2, Plus, Edit, Trash2 } from 'lucide-react';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { usePermissionConfiguration, PermissionConfiguration } from '@/shared/auth/page-access/usePermissionConfiguration';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { EmployeeMultiSelect } from '@/2-9-PageAccess/component/employee-multi-select';
-import { AccessPermissionsOverview } from '@/2-9-PageAccess/component/AccessPermissionsOverview';
-import { AccessPermissionsTableFooter } from '@/2-9-PageAccess/component/AccessPermissionsTableFooter';
+import { EmployeeMultiSelect } from '@/2-9-PageAccess/components/employee-multi-select';
+import { AccessPermissionsOverview } from '@/2-9-PageAccess/components/AccessPermissionsOverview';
+import { AccessPermissionsTableFooter } from '@/2-9-PageAccess/components/AccessPermissionsTableFooter';
 
 const ROLE_DESCRIPTIONS = {
   owner: {
     title: 'Organization Owner',
     description: 'Full access to all features and settings',
-    color: 'bg-purple-100 text-purple-800 border-purple-300'
+    color: 'border-brand-blue/30 bg-brand-blue/10 text-brand-blue',
   },
   admin: {
     title: 'Administrator',
     description: 'Can manage employees and most features',
-    color: 'bg-blue-100 text-blue-800 border-blue-300'
+    color: 'border-brand-blue/25 bg-brand-blue/10 text-brand-blue',
   },
   employee: {
     title: 'Employee',
     description: 'Basic access to core features',
-    color: 'bg-gray-100 text-gray-800 border-gray-300'
-  }
+    color: 'border-border bg-muted text-muted-foreground',
+  },
 };
 
 interface CreatePageFormData {
@@ -44,7 +42,7 @@ interface CreatePageFormData {
 }
 
 export const PageAccessTab = () => {
-  const { userRole, organization } = useCentralizedUserData();
+  const { organization } = useCentralizedUserData();
   
   const {
     configurations,
@@ -53,20 +51,16 @@ export const PageAccessTab = () => {
     updatePermissionConfiguration,
     deletePermissionConfiguration
   } = usePermissionConfiguration();
-  
-  // Debug logging
-  console.log('🚀 PageAccessTab - configurations:', configurations);
-  console.log('🚀 PageAccessTab - loading:', loading);
-  console.log('🚀 PageAccessTab - configurations length:', configurations?.length);
-  
+
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState('page-access');
-  const [localChanges, setLocalChanges] = useState<Record<string, string[]>>({});
+  const [pendingRowId, setPendingRowId] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingConfig, setEditingConfig] = useState<PermissionConfiguration | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<CreatePageFormData>({
     page_path: '',
     page_title: '',
@@ -75,40 +69,43 @@ export const PageAccessTab = () => {
     exception_paths: []
   });
 
+  // Prevent background/body scrolling while dialogs are open.
+  // This also reduces visual glitches where modal content can appear to "overlap" parent layout.
+  useEffect(() => {
+    if (!showCreateDialog && !showEditDialog) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showCreateDialog, showEditDialog]);
+
   const getRoleAccess = (config: PermissionConfiguration, role: string) => {
     return config.roles_allowed?.includes(role) || false;
   };
 
-  const toggleRoleAccess = (config: PermissionConfiguration, role: string) => {
+  const toggleRoleAccess = async (config: PermissionConfiguration, role: string) => {
     if (role === 'owner') return;
-    
+
     const currentRoles = config.roles_allowed || [];
     const newRoles = currentRoles.includes(role)
-      ? currentRoles.filter(r => r !== role)
+      ? currentRoles.filter((r) => r !== role)
       : [...currentRoles, role];
-    
-    setLocalChanges(prev => ({
-      ...prev,
-      [config.id]: newRoles
-    }));
-  };
 
-  const handleSaveSettings = async () => {
+    setPendingRowId(config.id);
     try {
-      for (const [configId, newRoles] of Object.entries(localChanges)) {
-        await updatePermissionConfiguration(configId, { roles_allowed: newRoles });
+      const result = await updatePermissionConfiguration(config.id, { roles_allowed: newRoles });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update');
       }
-      setLocalChanges({});
-      toast({
-        title: 'Success',
-        description: 'Permission settings saved successfully',
-      });
     } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to save permission settings',
+        description: error instanceof Error ? error.message : 'Failed to save permission',
       });
+    } finally {
+      setPendingRowId(null);
     }
   };
 
@@ -134,16 +131,12 @@ export const PageAccessTab = () => {
 
     setSaving(true);
     try {
-      console.log('🚀 Creating page access with data:', formData);
-      
       const result = await createPermissionConfiguration({
         ...formData,
         organization_id: organization?.id || null,
         is_active: true
       });
-      
-      console.log('📋 Create result:', result);
-      
+
       if (result.success) {
         setShowCreateDialog(false);
         setFormData({
@@ -161,7 +154,6 @@ export const PageAccessTab = () => {
         throw new Error(result.error || 'Failed to create');
       }
     } catch (error) {
-      console.error('❌ Failed to create page access:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -212,12 +204,25 @@ export const PageAccessTab = () => {
   };
 
   const handleDeletePage = async (config: PermissionConfiguration) => {
+    if (config.organization_id === null) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot Delete',
+        description: 'Default system configuration cannot be deleted.',
+      });
+      return;
+    }
+
     if (!confirm(`Are you sure you want to delete access configuration for "${config.page_title}"?`)) {
       return;
     }
 
+    setDeletingId(config.id);
     try {
-      await deletePermissionConfiguration(config.id);
+      const result = await deletePermissionConfiguration(config.id);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete page access');
+      }
       toast({
         title: 'Success',
         description: 'Page access deleted successfully',
@@ -226,29 +231,10 @@ export const PageAccessTab = () => {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to delete page access',
+        description: error instanceof Error ? error.message : 'Failed to delete page access',
       });
-    }
-  };
-
-  const handleResetToDefaults = async () => {
-    if (!confirm('Are you sure you want to reset all permissions to defaults? This will remove all custom configurations.')) {
-      return;
-    }
-
-    try {
-      // Reset functionality not implemented yet
-      setLocalChanges({});
-      toast({
-        title: 'Info',
-        description: 'Reset to defaults functionality will be implemented soon',
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to reset permissions',
-      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -263,42 +249,33 @@ export const PageAccessTab = () => {
     }));
   };
 
-  const hasUnsavedChanges = Object.keys(localChanges).length > 0;
-
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
   };
 
-  // Debug logging - removed manual access check since ProtectedRoute handles it
-  console.log('🔐 PageAccessTab Debug:', {
-    userRole,
-    configurations: configurations.length,
-    configsLoaded: !loading
-  });
-
   return (
-    <div className="bg-background flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-4 font-sans">
-                <div className="mb-1 shrink-0">
-                  <HeaderAndTab 
-                    activeTab={activeTab} 
-                    onTabChange={handleTabChange} 
+    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-h-full min-w-0 flex-col">
+                <div className="mb-1 flex-shrink-0">
+                  <HeaderAndTab
+                    activeTab={activeTab}
+                    onTabChange={handleTabChange}
                   />
                 </div>
-                
-                {/* Main Content Area - Grid Layout */}
-                <div className="flex-1 grid grid-cols-12 gap-2 min-h-0">
-                  {/* Left Column - Main Content - 9 columns */}
-                  <div className="col-span-9 flex flex-col min-h-0">
-                    
-                    {/* Main Card Section - fixed height sama dengan sidebar Access Overview */}
-                    <div className="flex-1 min-h-0 max-h-[calc(100vh-120px)]">
-                      <div className="h-full bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+
+                <div className="grid h-[min(1400px,calc(100dvh-120px))] min-h-[600px] min-w-0 w-full flex-none grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:h-[min(1180px,calc(100dvh-115px))] [@media(max-height:760px)]:h-[min(1000px,calc(100dvh-110px))]">
+                  <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+                    <div className="bg-card border-border flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border shadow-sm">
                         {/* Card Header */}
-                        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200">
+                        <div className="border-border flex-shrink-0 border-b px-4 py-2">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h2 className="text-lg font-semibold text-gray-900">Page Access Configuration</h2>
-                              <p className="text-sm text-gray-600 mt-1">
+                              <h2 className="text-lg font-semibold text-foreground">Page Access Configuration</h2>
+                              <p className="text-muted-foreground mt-1 text-sm">
                                 Configure which roles can access specific pages and features
                               </p>
                             </div>
@@ -309,12 +286,12 @@ export const PageAccessTab = () => {
                                   Add New Page
                                 </Button>
                               </DialogTrigger>
-              <DialogContent className="w-[520px] h-[520px] max-w-[95vw] max-h-[95vh] p-0 flex flex-col">
-                <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
+              <DialogContent className="flex h-[520px] w-[520px] max-h-[95vh] max-w-[95vw] flex-col overflow-hidden p-0">
+                <DialogHeader className="flex-shrink-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-6 pb-4 pt-6 dark:from-brand-blue/15 dark:to-brand-blue/5">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                        <Plus className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-blue/15">
+                        <Plus className="h-5 w-5 text-brand-blue" />
                       </div>
                       <div className="min-w-0">
                         <DialogTitle className="text-xl font-semibold truncate">
@@ -330,7 +307,7 @@ export const PageAccessTab = () => {
                     </div>
                   </div>
                 </DialogHeader>
-                <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
+                <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-24 space-y-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <div>
                     <Label htmlFor="page_path">Page Path *</Label>
                     <Input 
@@ -419,11 +396,11 @@ export const PageAccessTab = () => {
                     </p>
                   </div>
                 </div>
-                <DialogFooter className="px-6 pb-6 pt-4 flex-shrink-0 border-t bg-muted/30">
+                <DialogFooter className="relative z-30 px-6 pb-6 pt-4 flex-shrink-0 border-t bg-muted/30">
                   <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="w-full md:w-auto">
                     Cancel
                   </Button>
-                  <Button onClick={handleCreatePage} disabled={saving} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700">
+                  <Button onClick={handleCreatePage} disabled={saving} className="w-full bg-brand-blue hover:bg-brand-blue/90 md:w-auto">
                     {saving ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -438,14 +415,9 @@ export const PageAccessTab = () => {
                         </div>
                         
                         {/* Scrollable Table Content - satu scroll container per panel */}
-                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+                        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-auto pb-6">
                           <div className="p-4">
-                            {loading ? (
-                              <div className="flex items-center justify-center py-8">
-                                <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                                Loading configurations...
-                              </div>
-                            ) : (
+                            {loading ? null : (
                               <div className="relative w-full min-h-0">
                                 <Table>
                                   <TableHeader>
@@ -466,14 +438,9 @@ export const PageAccessTab = () => {
                                       <TableRow key={config.id}>
                                         <TableCell className="text-center">
                                           <div className="font-medium">{config.page_title}</div>
-                                          {localChanges[config.id] && (
-                                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300 mt-1">
-                                              Modified
-                                            </Badge>
-                                          )}
                                         </TableCell>
                                         <TableCell className="text-center">
-                                          <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                          <code className="bg-muted rounded px-2 py-1 text-xs">
                                             {config.page_path}
                                           </code>
                                         </TableCell>
@@ -514,8 +481,8 @@ export const PageAccessTab = () => {
                                             <Switch 
                                               id={`${config.id}-${role}`} 
                                               checked={role === 'owner' ? true : getRoleAccess(config, role)} 
-                                              onCheckedChange={() => toggleRoleAccess(config, role)} 
-                                              disabled={saving || role === 'owner'} 
+                                              onCheckedChange={() => void toggleRoleAccess(config, role)} 
+                                              disabled={saving || pendingRowId === config.id || role === 'owner'} 
                                             />
                                           </TableCell>
                                         ))}
@@ -524,16 +491,24 @@ export const PageAccessTab = () => {
                                             <Button variant="outline" size="sm" onClick={() => handleEditPage(config)}>
                                               <Edit className="w-3 h-3" />
                                             </Button>
-                                            {config.organization_id !== null && (
-                                              <Button 
-                                                variant="outline" 
-                                                size="sm" 
-                                                onClick={() => handleDeletePage(config)} 
-                                                className="text-red-600 hover:text-red-700"
-                                              >
+                                            <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              onClick={() => handleDeletePage(config)}
+                                              disabled={deletingId === config.id || config.organization_id === null}
+                                              title={
+                                                config.organization_id === null
+                                                  ? 'Default system configuration cannot be deleted'
+                                                  : 'Delete page access configuration'
+                                              }
+                                              className="text-red-600 hover:text-red-700 disabled:text-muted-foreground"
+                                            >
+                                              {deletingId === config.id ? (
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                              ) : (
                                                 <Trash2 className="w-3 h-3" />
-                                              </Button>
-                                            )}
+                                              )}
+                                            </Button>
                                           </div>
                                         </TableCell>
                                       </TableRow>
@@ -546,22 +521,31 @@ export const PageAccessTab = () => {
                         </div>
 
                         {/* Table Footer */}
-                        <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 bg-gray-50">
+                        <div className="border-border bg-muted/40 mt-2 flex-shrink-0 rounded-md border px-4 py-2">
                           <AccessPermissionsTableFooter 
                             totalConfigurations={configurations.length}
                             lastUpdated={configurations.find(c => c.organization_id !== null)?.updated_at}
                           />
                         </div>
-                      </div>
                     </div>
                   </div>
-                  
-                  {/* Right Column - Overview Sidebar - 3 columns, tinggi sama dengan table utama */}
-                  <div className="col-span-3 h-full max-h-[calc(100vh-120px)]">
-                    <AccessPermissionsOverview configurations={configurations} />
+
+                  <div className="col-span-3 flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+                    <div className="flex h-full min-h-0 min-w-0 flex-col">
+                      <AccessPermissionsOverview configurations={configurations} />
+                    </div>
                   </div>
                 </div>
 
+                <div
+                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                  aria-hidden
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

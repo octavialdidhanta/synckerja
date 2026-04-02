@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { id as idLocale, enUS } from "date-fns/locale";
-import { useLanguage } from "./LanguageProvider";
 import { defaultTranslations, type AppLanguage } from "./translations";
+import { resolveUiLanguage } from "./resolveUiLanguage";
 
 function applyVariables(
   template: string,
@@ -19,12 +19,13 @@ function applyVariables(
  * Keeps the legacy `t(key, fallback?, variables?)` signature for existing call sites.
  */
 export function useAppTranslation() {
-  const { language } = useLanguage();
-  const { t: i18nT } = useTranslation();
+  const { t: i18nT, i18n } = useTranslation();
+  /** Always follow i18next (source of truth). LanguageProvider is optional; without it the old useLanguage() fallback stayed stale after changeLanguage. */
+  const language = resolveUiLanguage(i18n.language) as AppLanguage;
 
   const t = useCallback(
     (key: string, fallback?: string, variables?: Record<string, string | number>) => {
-      const lang = language as AppLanguage;
+      const lang = language;
       const dict = defaultTranslations[lang];
       const fallbackText =
         fallback ?? dict[key as keyof typeof dict] ?? defaultTranslations.en[key as keyof typeof defaultTranslations.en] ?? key;

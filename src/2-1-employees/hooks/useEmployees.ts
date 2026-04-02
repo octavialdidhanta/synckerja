@@ -1,5 +1,6 @@
-﻿
+
 import { useQuery } from '@tanstack/react-query';
+import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { getOptimizedCurrentOrganizationId } from './useOptimizedCurrentOrg';
 
@@ -122,7 +123,6 @@ export const useEmployees = () => {
       console.log('Optimized employees fetched:', withManagers.length);
       return withManagers;
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes for employee data
-    gcTime: 20 * 60 * 1000, // 20 minutes cache
+    ...attendanceHRQueryDefaults,
   });
 };

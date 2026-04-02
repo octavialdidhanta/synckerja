@@ -26,7 +26,7 @@ import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { logger } from '@/shared/lib/logger';
 import { createCompletionApprovalIfAssignee } from '../services/completionApprovalService';
-import { useDailyTaskOptional } from '../DailyTaskContext';
+import { useDailyTaskOptional } from '../context/DailyTaskContext';
 import { useIsMobile } from '@/mobile/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 

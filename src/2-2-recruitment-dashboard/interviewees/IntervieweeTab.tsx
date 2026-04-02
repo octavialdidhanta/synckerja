@@ -750,8 +750,8 @@ Best regards,
           </div>
         </div>
       ) : (
-        <div className="w-full max-w-full bg-white border rounded-lg overflow-hidden max-h-[calc(100vh-200px)] flex flex-col min-w-0">
-          <div className="w-full max-w-full flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain">
+        <div className="w-full max-w-full min-w-0 overflow-hidden rounded-lg border bg-white">
+          <div className="w-full max-w-full min-w-0 overflow-x-auto seamless-scroll nested-scroll-touch-chain">
             <Table className="min-w-[1280px]">
               <TableHeader>
                 <TableRow className="bg-gray-50">

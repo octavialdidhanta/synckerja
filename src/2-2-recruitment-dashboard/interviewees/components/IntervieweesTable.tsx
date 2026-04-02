@@ -1,7 +1,7 @@
-﻿import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Badge } from '@/shared/components/ui/badge';
-import { LoadingDots } from '@/shared/components/LoadingDots';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 import { MoreHorizontal, Eye, UserPlus, Trash2 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -195,8 +195,10 @@ export const IntervieweesTable = memo(({
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-12">
-                  <div className="flex items-center justify-center">
-                    <LoadingDots size="lg" />
+                  <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-64 max-w-full" />
+                    <Skeleton className="h-4 w-52 max-w-full" />
                   </div>
                 </TableCell>
               </TableRow>

@@ -12,7 +12,7 @@ import {
   DialogDescription,
 } from '@/shared/components/ui/dialog';
 import { useCompletionApprovals } from '../hooks/useCompletionApprovals';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
 import type { CompletionApprovalRow } from '../services/completionApprovalService';

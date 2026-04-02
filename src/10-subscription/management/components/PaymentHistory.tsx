@@ -111,6 +111,10 @@ export function PaymentHistory() {
     return <Badge variant="destructive">{status}</Badge>;
   };
 
+  if (isLoading) {
+    return null;
+  }
+
   return (
     <div className="space-y-4">
       {pendingPayments.length > 0 && (
@@ -187,9 +191,7 @@ export function PaymentHistory() {
           <CardTitle className="text-base">{t("subscription.management.history.title")}</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">{t("subscription.management.history.loading")}</p>
-          ) : payments.length === 0 ? (
+          {payments.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("subscription.management.history.empty")}</p>
           ) : (
             <Table>

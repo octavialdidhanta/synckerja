@@ -1,42 +1,37 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useCallback, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import { Separator } from '@/shared/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
-import { Shield, Users, Settings, Info, CheckCircle, XCircle, HelpCircle, FileText } from 'lucide-react';
+import { CheckCircle, XCircle, HelpCircle } from 'lucide-react';
 import { useDepartmentAccess } from '@/shared/auth/page-access/useDepartmentAccess';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { usePermissionConfiguration } from '@/shared/auth/page-access/usePermissionConfiguration';
-import { HeaderAndTab } from '@/2-9-PageAccess/HeaderAndTab';
-import { PageAccessTab } from '@/2-9-PageAccess/PageAccessTab';
-import { LoadingDots } from '@/shared/components/LoadingDots';
+import { HeaderAndTab } from '@/2-9-PageAccess/section/HeaderAndTab';
+import { PageAccessTab } from '@/2-9-PageAccess/section/PageAccessTab';
+import { AccessPermissionsPageSkeleton } from '@/2-9-PageAccess/skeletons/AccessPermissionsPageSkeleton';
 
 const ROLE_DESCRIPTIONS = {
   owner: {
     title: 'Organization Owner',
     description: 'Full access to all features and settings',
-    color: 'bg-red-100 text-red-800 border-red-300'
+    color: 'border-brand-blue/30 bg-brand-blue/10 text-brand-blue',
   },
   admin: {
     title: 'Administrator',
     description: 'Administrative access to most features',
-    color: 'bg-blue-100 text-blue-800 border-blue-300'
+    color: 'border-brand-blue/25 bg-brand-blue/10 text-brand-blue',
   },
   employee: {
     title: 'Employee',
     description: 'Limited access to personal and department data',
-    color: 'bg-gray-100 text-gray-800 border-gray-300'
-  }
+    color: 'border-border bg-muted text-muted-foreground',
+  },
 };
 
 export const AccessPermissionsConfig = () => {
-  const {
-    isOwner,
-    isAdmin,
-    userRole
-  } = useCentralizedUserData();
+  const { userRole, loading: bootstrapLoading } = useCentralizedUserData();
   
   const {
     getAccessLevel,
@@ -47,10 +42,12 @@ export const AccessPermissionsConfig = () => {
   
   const {
     configurations,
+    loading: permissionLoading,
   } = usePermissionConfiguration();
   
   const navigate = useNavigate();
   const location = useLocation();
+  const isAccessPermissionsRoute = location.pathname.startsWith('/access-permissions');
   
   // Define tabs array for access checking and navigation
   const tabs = ['overview', 'roles', 'pages'];
@@ -67,6 +64,31 @@ export const AccessPermissionsConfig = () => {
   };
   
   const activeTab = getActiveTabFromPath();
+  const [routeSkeletonGate, setRouteSkeletonGate] = useState(true);
+  const initialPending = configLoading || permissionLoading || bootstrapLoading || routeSkeletonGate;
+  const [showSkeleton, setShowSkeleton] = useState(initialPending);
+
+  useEffect(() => {
+    if (!isAccessPermissionsRoute) {
+      setRouteSkeletonGate(true);
+      return;
+    }
+    const gateTimer = window.setTimeout(() => {
+      setRouteSkeletonGate(false);
+    }, 220);
+    return () => window.clearTimeout(gateTimer);
+  }, [isAccessPermissionsRoute, location.pathname]);
+
+  useEffect(() => {
+    if (initialPending) {
+      setShowSkeleton(true);
+      return;
+    }
+    const hideTimer = window.setTimeout(() => {
+      setShowSkeleton(false);
+    }, 180);
+    return () => window.clearTimeout(hideTimer);
+  }, [initialPending]);
   
   // MODIFIED: Always allow access to page-access tab (database-only control)
   const hasAccessToAnyTab = tabs.some(tab => {
@@ -105,8 +127,7 @@ export const AccessPermissionsConfig = () => {
           navigate('/access-permissions/page-access', { replace: true });
         }
       }
-    } catch (error) {
-      console.error('Navigation error in AccessPermissionsConfig:', error);
+    } catch {
       // Fallback to overview if navigation fails
       if (currentPath !== '/access-permissions/page-access') {
         navigate('/access-permissions/page-access', { replace: true });
@@ -132,8 +153,7 @@ export const AccessPermissionsConfig = () => {
         // Redirect to page-access as fallback (always accessible)
         navigate('/access-permissions/page-access');
       }
-    } catch (error) {
-      console.error('Tab navigation error:', error);
+    } catch {
       // Fallback to page-access tab
       navigate('/access-permissions/page-access');
     }
@@ -141,13 +161,8 @@ export const AccessPermissionsConfig = () => {
 
   // CONDITIONAL RETURNS AFTER ALL HOOKS
   // Check if user has permission to view this page (respects exceptions)
-  if (configLoading) {
-    return (
-      <div className="bg-background flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-12">
-        <LoadingDots size="lg" />
-        <p className="text-muted-foreground text-sm">Loading permissions…</p>
-      </div>
-    );
+  if (initialPending) {
+    return <AccessPermissionsPageSkeleton />;
   }
 
   if (!hasAccessToAnyTab) {
@@ -164,8 +179,18 @@ export const AccessPermissionsConfig = () => {
     );
   }
 
+  if (activeTab === 'pages') {
+    return <PageAccessTab />;
+  }
+
   return (
     <div className="bg-background relative flex min-h-0 min-w-0 flex-1 flex-col font-sans">
+      {showSkeleton && (
+        <AccessPermissionsPageSkeleton
+          className="absolute inset-0 z-20 bg-background/95 backdrop-blur-[1px]"
+          srLabel={null}
+        />
+      )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-4">
           <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -203,7 +228,7 @@ export const AccessPermissionsConfig = () => {
                             <h4 className="font-medium">Access Summary:</h4>
                             <p className="text-sm text-muted-foreground">{getAccessLevel()}</p>
                             {getDepartmentRestrictionMessage() && (
-                              <p className="text-sm text-orange-600 bg-orange-50 p-2 rounded">
+                              <p className="rounded-md border border-amber-200 bg-amber-50/80 p-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
                                 {getDepartmentRestrictionMessage()}
                               </p>
                             )}
@@ -308,11 +333,6 @@ export const AccessPermissionsConfig = () => {
                     </div>
                   )}
 
-                  {activeTab === 'pages' && (
-                    <div className="space-y-6">
-                      <PageAccessTab />
-                    </div>
-                  )}
                 </div>
           </div>
         </div>

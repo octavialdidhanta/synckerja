@@ -36,7 +36,7 @@ import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { TaskStep } from '@/8-2-DailyTask/section/TaskStep';
 import { AssignStepDialog } from '@/8-2-DailyTask/section/AssignStepDialog';
 import { AddStepModal } from './AddStepModal';
-import { MeetingNotesProvider } from '@/8-1-meeting-notes/MeetingNotesContext';
+import { MeetingNotesProvider } from '@/8-1-meeting-notes/context/MeetingNotesContext';
 
 interface TaskFile {
   id: string;

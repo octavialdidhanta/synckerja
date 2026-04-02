@@ -8,7 +8,7 @@ import { buildEmployeeData } from '../add-employee/useEmployeeDataBuilder';
 import { useUserCreation } from './useUserCreation';
 import { useMagicLinkCreation } from './useMagicLinkCreation';
 import { useDataCleanup } from './useDataCleanup';
-import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
+import { fetchCanAddEmployee } from "@/10-subscription/hooks/useOptimizedSubscription";
 import { useEmployeeDocuments } from './useEmployeeDocuments';
 import { useQueryClient } from '@tanstack/react-query';
 // import { optimizedQueryKeys } from '@/utils/optimizedQueryClient';
@@ -20,7 +20,6 @@ export const useEmployeeCreation = () => {
   const { createUser } = useUserCreation();
   const { createMagicLink } = useMagicLinkCreation();
   const { cleanupUserData } = useDataCleanup();
-  const { canAddEmployee } = useOptimizedSubscription();
   const { addDocument } = useEmployeeDocuments('');
 
   const createEmployee = async (formData: EmployeeFormData): Promise<CreateEmployeeResult | null> => {
@@ -46,7 +45,7 @@ export const useEmployeeCreation = () => {
       }
 
       // Check employee limit before proceeding
-      const canAdd = await canAddEmployee();
+      const canAdd = await fetchCanAddEmployee(organizationId);
       if (!canAdd) {
         toast({
           title: "Employee Limit Exceeded",

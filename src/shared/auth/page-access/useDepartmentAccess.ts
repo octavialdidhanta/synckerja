@@ -23,6 +23,7 @@ const UNRESTRICTED_DURING_LOADING = [
   "/transfer-ownership",
   "/settings",
   "/payroll",
+  "/incomes",
 ];
 
 const CROSS_DEPARTMENT_PAGES = ["/employees", "/reports", "/company", "/organization"];

@@ -23,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/shared/components/ui/popover';
-import { useDailyTask } from '@/8-2-DailyTask/DailyTaskContext';
+import { useDailyTask } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { AssignTaskModal } from './AssignTaskModal';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';

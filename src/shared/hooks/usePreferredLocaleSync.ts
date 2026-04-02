@@ -3,12 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { setAppLanguage, supportedLanguages, type SupportedLanguage } from "@/shared/i18n";
+import { resolveUiLanguage } from "@/shared/i18n/resolveUiLanguage";
 
-export function resolveUiLanguage(lng: string | undefined): SupportedLanguage {
-  const raw = (lng ?? "id").toLowerCase();
-  if (raw.startsWith("en")) return "en";
-  return "id";
-}
+export { resolveUiLanguage };
 
 async function fetchPreferredLocale(userId: string): Promise<string | null> {
   const { data, error } = await supabase
@@ -37,6 +34,11 @@ export function usePreferredLocaleSync(userId: string | null | undefined) {
     staleTime: 60_000,
   });
 
+  /**
+   * Sync DB → i18n only when the profile-locale query result changes (login, refetch after save).
+   * Do NOT list `i18n` or `i18n.language` in deps: that re-ran after every `changeLanguage` and
+   * reset the UI to `profiles.preferred_locale` while the user was previewing another language.
+   */
   useEffect(() => {
     if (!userId || query.isLoading || query.isError) return;
     const fromDb = query.data;
@@ -45,7 +47,8 @@ export function usePreferredLocaleSync(userId: string | null | undefined) {
     if (fromDb !== current) {
       setAppLanguage(fromDb);
     }
-  }, [userId, query.isLoading, query.isError, query.data, i18n.language]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only sync on query.data / userId changes
+  }, [userId, query.isLoading, query.isError, query.data]);
 }
 
 export function isSupportedLocale(v: string): v is SupportedLanguage {

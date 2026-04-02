@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckSquare, Clock, Edit, Plus, RotateCcw, Calendar, FilterX } from 'lucide-react';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
@@ -80,17 +80,7 @@ const RecentUpdateSteps = () => {
     return date.toLocaleDateString();
   };
 
-  if (isLoading) {
-    return (
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-          <Clock className="w-4 h-4" />
-          {t('dailyTask.recentUpdates.title', 'Recent Step Updates')}
-        </h4>
-        <div className="text-center text-gray-500 text-sm">{t('dailyTask.recentUpdates.loading', 'Loading...')}</div>
-      </div>
-    );
-  }
+  if (isLoading) return null;
 
   const handleDateRangeChange = (value: string) => {
     if (value === 'custom') {

@@ -1,11 +1,13 @@
 // Components
-export { default as DashboardOverview } from './DashboardOverview';
-export { default } from './DashboardOverview'; // Default export for lazy loading
-export { PenaltyStatistics } from './PenaltyStatistics';
-export { RecentPenaltiesWidget } from './RecentPenaltiesWidget';
-export { PenaltyTrendsChart } from './PenaltyTrendsChart';
-export { AttendanceAnalyticsDashboard } from './AttendanceAnalyticsDashboard';
+export {
+  DashboardOverview,
+  PenaltyStatistics,
+  RecentPenaltiesWidget,
+  PenaltyTrendsChart,
+  AttendanceAnalyticsDashboard,
+} from './components';
+
+export { default } from './components';
 
 // Hooks
 export * from './hooks';
-

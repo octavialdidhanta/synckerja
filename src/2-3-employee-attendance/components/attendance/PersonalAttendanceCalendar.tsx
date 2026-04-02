@@ -7,7 +7,7 @@ import { useAttendanceRecords } from '@/2-1-employees/MyInfo/Attendance/hooks/us
 import { getCurrentOrganizationId } from '@/shared/auth/hooks/useCurrentOrg';
 import { useOptimizedNationalHolidays } from '@/2-1-employees/MyInfo/Attendance/hooks/useOptimizedAttendanceData';
 import { useAttendancePenaltyTotal } from '@/2-1-employees/MyInfo/Attendance/hooks/useAttendancePenaltyTotal';
-import { EmployeePenaltyCell } from '@/features/2-3-employee-attendance/EmployeePenaltyCell';
+import { EmployeePenaltyCell } from '../EmployeePenaltyCell';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { useLeaveRequests } from '@/2-1-employees/MyInfo/Attendance/hooks/useLeaveRequests';
@@ -62,13 +62,20 @@ const isNonWorkingDay = (date: number, month: number, year: number, workingDays:
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'H': return 'bg-emerald-200 text-emerald-800 border-emerald-300';
-    case 'I': return 'bg-blue-200 text-blue-800 border-blue-300';
-    case 'S': return 'bg-yellow-200 text-yellow-800 border-yellow-300';
-    case 'C': return 'bg-orange-200 text-orange-800 border-orange-300';
-    case 'A': return 'bg-red-200 text-red-800 border-red-300';
-    case 'T': return 'bg-purple-200 text-purple-800 border-purple-300';
-    default: return 'bg-gray-50 border-gray-200';
+    case 'H':
+      return 'bg-emerald-200 text-emerald-800 border-emerald-300';
+    case 'I':
+      return 'bg-blue-200 text-blue-800 border-blue-300';
+    case 'S':
+      return 'bg-yellow-200 text-yellow-800 border-yellow-300';
+    case 'C':
+      return 'bg-orange-200 text-orange-800 border-orange-300';
+    case 'A':
+      return 'bg-red-200 text-red-800 border-red-300';
+    case 'T':
+      return 'bg-purple-200 text-purple-800 border-purple-300';
+    default:
+      return 'bg-gray-50 border-gray-200';
   }
 };
 
@@ -227,7 +234,7 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
           <p className="text-gray-600">{t('attendanceCalendar.loading', 'Loading attendance data...')}</p>
         </div>
       </div>
@@ -235,10 +242,10 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
   }
 
   return (
-    <div className="flex flex-col max-h-[calc(100vh-200px)] bg-white rounded-lg border border-gray-200">
+    <div className="flex max-h-[calc(100vh-200px)] flex-col rounded-lg border border-gray-200 bg-white">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-4 rounded-t-lg">
-        <div className="flex items-center justify-between mb-4">
+      <div className="rounded-t-lg border-b border-gray-200 bg-white p-4">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Calendar className="h-5 w-5 text-primary" />
             <h3 className="text-lg font-semibold text-gray-900">{t('attendanceCalendar.title', 'Attendance Calendar')}</h3>
@@ -252,7 +259,7 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-lg font-semibold text-gray-800 min-w-[150px] text-center">
+            <span className="min-w-[150px] text-center text-lg font-semibold text-gray-800">
               {getMonthName(currentMonth)}
             </span>
             <Button
@@ -267,10 +274,10 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
         </div>
 
         {/* Employee name and summary stats */}
-        <div className="bg-slate-50 px-4 py-3 rounded-lg mb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="mb-3 rounded-lg bg-slate-50 px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="font-medium text-gray-900">{userData?.full_name || t('common.loading', 'Loading...')}</span>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-600">
+            <div className="flex flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:items-center sm:gap-4">
               <span>{applyVariables(t('attendanceCalendar.workingDays', 'Working Days: {{days}}'), { days: String(totalWorkingDays) })}</span>
               <span>{applyVariables(t('attendanceCalendar.attendanceRate', 'Attendance Rate: {{rate}}%'), { rate: String(attendanceRate) })}</span>
               <span className="hidden sm:inline">{t('attendanceCalendar.penaltyThisMonth', 'Penalty This Month')}: <strong className="text-red-600">{formatToRupiah(personalPenalties)}</strong></span>
@@ -282,38 +289,53 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm">
           <div className="flex items-center gap-1">
-            <span className="w-4 h-4 bg-emerald-200 text-emerald-800 rounded text-xs flex items-center justify-center font-medium border border-emerald-300">H</span>
+            <span className="flex h-4 w-4 items-center justify-center rounded border border-emerald-300 bg-emerald-200 text-xs font-medium text-emerald-800">
+              H
+            </span>
             <span className="text-gray-600">{t('attendanceCalendar.status.present', 'Present')}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-4 h-4 bg-blue-200 text-blue-800 rounded text-xs flex items-center justify-center font-medium border border-blue-300">I</span>
+            <span className="flex h-4 w-4 items-center justify-center rounded border border-blue-300 bg-blue-200 text-xs font-medium text-blue-800">
+              I
+            </span>
             <span className="text-gray-600">{t('attendanceCalendar.status.permission', 'Permission')}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-4 h-4 bg-yellow-200 text-yellow-800 rounded text-xs flex items-center justify-center font-medium border border-yellow-300">S</span>
+            <span className="flex h-4 w-4 items-center justify-center rounded border border-yellow-300 bg-yellow-200 text-xs font-medium text-yellow-800">
+              S
+            </span>
             <span className="text-gray-600">{t('attendanceCalendar.status.sick', 'Sick')}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-4 h-4 bg-orange-200 text-orange-800 rounded text-xs flex items-center justify-center font-medium border border-orange-300">C</span>
+            <span className="flex h-4 w-4 items-center justify-center rounded border border-orange-300 bg-orange-200 text-xs font-medium text-orange-800">
+              C
+            </span>
             <span className="text-gray-600">{t('attendanceCalendar.status.leave', 'Leave')}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-4 h-4 bg-red-200 text-red-800 rounded text-xs flex items-center justify-center font-medium border border-red-300">A</span>
+            <span className="flex h-4 w-4 items-center justify-center rounded border border-red-300 bg-red-200 text-xs font-medium text-red-800">
+              A
+            </span>
             <span className="text-gray-600">{t('attendanceCalendar.status.absent', 'Absent')}</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-4 h-4 bg-purple-200 text-purple-800 rounded text-xs flex items-center justify-center font-medium border border-purple-300">T</span>
+            <span className="flex h-4 w-4 items-center justify-center rounded border border-purple-300 bg-purple-200 text-xs font-medium text-purple-800">
+              T
+            </span>
             <span className="text-gray-600">{t('attendanceCalendar.status.late', 'Late')}</span>
           </div>
         </div>
       </div>
 
       {/* Calendar */}
-      <div className="flex-1 overflow-auto max-h-[900px]">
-        <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-b-lg overflow-hidden min-w-[280px]">
+      <div className="max-h-[900px] flex-1 overflow-auto">
+        <div className="grid min-w-[280px] grid-cols-7 gap-px overflow-hidden rounded-b-lg bg-gray-200">
           {/* Days of week header */}
           {getDayNames().map((day, index) => (
-            <div key={index} className="bg-slate-700 text-white p-2 sm:p-3 text-center font-medium text-xs sm:text-sm">
+            <div
+              key={index}
+              className="bg-slate-700 p-2 text-center text-xs font-medium text-white sm:p-3 sm:text-sm"
+            >
               {day}
             </div>
           ))}
@@ -330,7 +352,7 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
             // Add empty cells for offset
             for (let i = 0; i < adjustedFirstDay; i++) {
               cells.push(
-                <div key={`empty-${i}`} className="bg-gray-100 p-2 sm:p-3 min-h-[50px] sm:min-h-[60px]"></div>
+                <div key={`empty-${i}`} className="min-h-[50px] bg-gray-100 p-2 sm:min-h-[60px] sm:p-3"></div>
               );
             }
             
@@ -340,13 +362,21 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
               const isNonWorking = isNonWorkingDay(date, currentMonth, currentYear, workingDays, nationalHolidays);
               
               cells.push(
-                <div 
-                  key={date} 
-                  className={`p-2 sm:p-3 min-h-[50px] sm:min-h-[60px] flex flex-col items-center justify-center border-r border-b border-gray-100 ${
-                    isNonWorking ? 'bg-red-500 text-white' : status ? getStatusColor(status) : 'bg-white hover:bg-gray-50'
+                <div
+                  key={date}
+                  className={`flex min-h-[50px] flex-col items-center justify-center border-b border-r border-gray-100 p-2 sm:min-h-[60px] sm:p-3 ${
+                    isNonWorking
+                      ? 'bg-red-500 text-white'
+                      : status
+                        ? getStatusColor(status)
+                        : 'bg-white hover:bg-gray-50'
                   }`}
                 >
-                  <span className={`text-sm sm:text-lg font-semibold mb-1 ${isNonWorking ? 'text-white' : 'text-gray-800'}`}>{date}</span>
+                  <span
+                    className={`mb-1 text-sm font-semibold sm:text-lg ${isNonWorking ? 'text-white' : 'text-gray-800'}`}
+                  >
+                    {date}
+                  </span>
                   {status && (
                     <span className="text-xs font-bold px-1 py-0.5 sm:px-2 sm:py-1 rounded border text-current">
                       {status}
@@ -361,43 +391,43 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
         </div>
         
         {/* Summary section */}
-        <div className="bg-gray-50 p-4 border-t space-y-4 overflow-y-auto max-h-[500px]">
+        <div className="max-h-[500px] space-y-4 overflow-y-auto border-t bg-gray-50 p-4">
           {/* Attendance Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-4 text-center">
-            <div className="bg-emerald-50 p-2 sm:p-3 rounded border">
-              <div className="text-sm sm:text-lg font-bold text-emerald-700">{stats.H}</div>
+          <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-3 sm:gap-4 md:grid-cols-6">
+            <div className="rounded border bg-emerald-50 p-2 sm:p-3">
+              <div className="text-sm font-bold text-emerald-700 sm:text-lg">{stats.H}</div>
               <div className="text-xs text-emerald-600">{t('attendanceCalendar.status.present', 'Present')}</div>
             </div>
-            <div className="bg-red-50 p-2 sm:p-3 rounded border">
-              <div className="text-sm sm:text-lg font-bold text-red-700">{stats.A}</div>
+            <div className="rounded border bg-red-50 p-2 sm:p-3">
+              <div className="text-sm font-bold text-red-700 sm:text-lg">{stats.A}</div>
               <div className="text-xs text-red-600">{t('attendanceCalendar.status.absent', 'Absent')}</div>
             </div>
-            <div className="bg-orange-50 p-2 sm:p-3 rounded border">
-              <div className="text-sm sm:text-lg font-bold text-orange-700">{stats.C}</div>
+            <div className="rounded border bg-orange-50 p-2 sm:p-3">
+              <div className="text-sm font-bold text-orange-700 sm:text-lg">{stats.C}</div>
               <div className="text-xs text-orange-600">{t('attendanceCalendar.status.leave', 'Leave')}</div>
             </div>
-            <div className="bg-blue-50 p-2 sm:p-3 rounded border">
-              <div className="text-sm sm:text-lg font-bold text-blue-700">{stats.I}</div>
+            <div className="rounded border bg-blue-50 p-2 sm:p-3">
+              <div className="text-sm font-bold text-blue-700 sm:text-lg">{stats.I}</div>
               <div className="text-xs text-blue-600">{t('attendanceCalendar.status.permission', 'Permission')}</div>
             </div>
-            <div className="bg-yellow-50 p-2 sm:p-3 rounded border">
-              <div className="text-sm sm:text-lg font-bold text-yellow-700">{stats.S}</div>
+            <div className="rounded border bg-yellow-50 p-2 sm:p-3">
+              <div className="text-sm font-bold text-yellow-700 sm:text-lg">{stats.S}</div>
               <div className="text-xs text-yellow-600">{t('attendanceCalendar.status.sick', 'Sick')}</div>
             </div>
-            <div className="bg-purple-50 p-2 sm:p-3 rounded border">
-              <div className="text-sm sm:text-lg font-bold text-purple-700">{stats.T}</div>
+            <div className="rounded border bg-purple-50 p-2 sm:p-3">
+              <div className="text-sm font-bold text-purple-700 sm:text-lg">{stats.T}</div>
               <div className="text-xs text-purple-600">{t('attendanceCalendar.status.late', 'Late')}</div>
             </div>
           </div>
           
           {/* Detailed Breakdown */}
           <div className="border-t pt-4">
-            <h4 className="text-sm font-semibold text-gray-800 mb-3">{t('attendanceCalendar.latePenaltyDetails', 'Late & Penalty Details')}</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200">
-                <div className="text-lg sm:text-2xl font-bold text-purple-600">{processedEmployeeData.totalLateMinutes}</div>
-                <div className="text-xs sm:text-sm text-gray-600">{t('attendanceCalendar.totalLateMinutes', 'Total Late Minutes')}</div>
-                <div className="text-xs text-gray-500 mt-1">
+            <h4 className="mb-3 text-sm font-semibold text-gray-800">{t('attendanceCalendar.latePenaltyDetails', 'Late & Penalty Details')}</h4>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+                <div className="text-lg font-bold text-purple-600 sm:text-2xl">{processedEmployeeData.totalLateMinutes}</div>
+                <div className="text-xs text-gray-600 sm:text-sm">{t('attendanceCalendar.totalLateMinutes', 'Total Late Minutes')}</div>
+                <div className="mt-1 text-xs text-gray-500">
                   {applyVariables(t('attendanceCalendar.timeFormat', '{{hours}}h {{minutes}}m'), {
                     hours: String(Math.floor(processedEmployeeData.totalLateMinutes / 60)),
                     minutes: String(processedEmployeeData.totalLateMinutes % 60)
@@ -405,18 +435,18 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
                 </div>
               </div>
               
-              <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200">
-                <div className="text-lg sm:text-2xl font-bold text-red-600">{formatToRupiah(personalPenalties)}</div>
-                <div className="text-xs sm:text-sm text-gray-600">{t('attendanceCalendar.totalPenaltyThisMonth', 'Total Penalty This Month')}</div>
-                <div className="text-xs text-gray-500 mt-1">
+              <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+                <div className="text-lg font-bold text-red-600 sm:text-2xl">{formatToRupiah(personalPenalties)}</div>
+                <div className="text-xs text-gray-600 sm:text-sm">{t('attendanceCalendar.totalPenaltyThisMonth', 'Total Penalty This Month')}</div>
+                <div className="mt-1 text-xs text-gray-500">
                   {t('attendanceCalendar.basedOnCompanyRules', 'Based on company rules')}
                 </div>
               </div>
               
-              <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 sm:col-span-2 lg:col-span-1">
-                <div className="text-lg sm:text-2xl font-bold text-amber-600">{stats.T}</div>
-                <div className="text-xs sm:text-sm text-gray-600">{t('attendanceCalendar.totalLateDays', 'Total Late Days')}</div>
-                <div className="text-xs text-gray-500 mt-1">
+              <div className="rounded-lg border border-gray-200 bg-white p-3 sm:col-span-2 sm:p-4 lg:col-span-1">
+                <div className="text-lg font-bold text-amber-600 sm:text-2xl">{stats.T}</div>
+                <div className="text-xs text-gray-600 sm:text-sm">{t('attendanceCalendar.totalLateDays', 'Total Late Days')}</div>
+                <div className="mt-1 text-xs text-gray-500">
                   {applyVariables(t('attendanceCalendar.averagePerDay', 'Average: {{minutes}} minutes/day'), {
                     minutes: String(stats.T > 0 ? Math.round(processedEmployeeData.totalLateMinutes / stats.T) : 0)
                   })}
@@ -425,8 +455,8 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
             </div>
             
             {/* Monthly Performance */}
-            <div className="mt-4 bg-white p-3 sm:p-4 rounded-lg border border-gray-200">
-              <h5 className="text-sm font-medium text-gray-800 mb-2">{t('attendanceCalendar.monthlyPerformance', 'Monthly Attendance Performance')}</h5>
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+              <h5 className="mb-2 text-sm font-medium text-gray-800">{t('attendanceCalendar.monthlyPerformance', 'Monthly Attendance Performance')}</h5>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                   <span>{applyVariables(t('attendanceCalendar.attendance', 'Attendance: {{rate}}%'), { rate: String(attendanceRate) })}</span>

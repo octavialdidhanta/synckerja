@@ -255,57 +255,66 @@ export const ReprimandManagementPage = () => {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-gray-100 font-sans">
       <div
         className={cn(
-          "flex min-h-0 min-w-0 flex-1 flex-col bg-muted/40 font-sans",
+          "flex min-h-0 min-w-0 w-full flex-1",
           showFullPageSkeleton && "pointer-events-none invisible",
         )}
       >
-        <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-1 flex-shrink-0">
-              <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
-            </div>
+        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col bg-muted/40 px-4 pb-2">
+          <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-h-full flex-col">
+                <div className="mb-1 flex-shrink-0">
+                  <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
+                </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
-              <div className="col-span-9 h-full min-w-0">
-                <div className="flex h-full min-w-0 flex-col">
-                  <div className="mb-2 flex-shrink-0">
-                    <div className="rounded-md border border-border bg-card p-2">
-                      <ReprimandManagementFilters
-                        filters={filters}
-                        updateFilter={updateFilter}
-                        getFilterOptions={getFilterOptions}
-                        clearFilters={clearFilters}
-                      />
+                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+                  <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+                    <div className="flex h-full min-h-0 min-w-0 flex-col">
+                      <div className="mb-2 flex-shrink-0">
+                        <div className="rounded-md border border-border bg-card p-2">
+                          <ReprimandManagementFilters
+                            filters={filters}
+                            updateFilter={updateFilter}
+                            getFilterOptions={getFilterOptions}
+                            clearFilters={clearFilters}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mb-2 flex-shrink-0">
+                        <ReprimandManagementMetricsCards reprimands={filteredReprimands} employees={filteredEmployees} />
+                      </div>
+
+                      <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
+                        <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                          <ReprimandManagementTable
+                            employeesByDepartment={employeesByDepartment}
+                            reprimands={filteredReprimands}
+                            selectedDepartment={filters.department}
+                            getReprimandCount={getReprimandCount}
+                            renderReprimandBoxes={renderReprimandBoxes}
+                            totalEmployees={filteredEmployees.length}
+                            totalReprimands={filteredReprimands.length}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mb-2 flex-shrink-0">
-                    <ReprimandManagementMetricsCards reprimands={filteredReprimands} employees={filteredEmployees} />
-                  </div>
-
-                  <div className="min-h-0 min-w-0 flex-1">
-                    <div className="flex h-full min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm seamless-scroll">
-                      <ReprimandManagementTable
-                        employeesByDepartment={employeesByDepartment}
-                        reprimands={filteredReprimands}
-                        selectedDepartment={filters.department}
-                        getReprimandCount={getReprimandCount}
-                        renderReprimandBoxes={renderReprimandBoxes}
-                        totalEmployees={filteredEmployees.length}
-                        totalReprimands={filteredReprimands.length}
-                      />
+                  <div className="col-span-3 flex h-full min-h-0 min-w-0 flex-col self-stretch">
+                    <div className="flex h-full min-h-0 min-w-0 flex-col">
+                      <ReprimandManagementOverview reprimands={filteredReprimands} employees={filteredEmployees} />
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="col-span-3 h-full">
-                <div className="flex h-full flex-col">
-                  <ReprimandManagementOverview reprimands={filteredReprimands} employees={filteredEmployees} />
-                </div>
+                <div
+                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                  aria-hidden
+                />
               </div>
             </div>
           </div>
@@ -313,7 +322,7 @@ export const ReprimandManagementPage = () => {
       </div>
 
       {showFullPageSkeleton ? (
-        <div className="absolute inset-0 z-10 overflow-auto">
+        <div className="absolute inset-0 z-10 overflow-hidden">
           <ReprimandManagementPageSkeleton />
         </div>
       ) : null}

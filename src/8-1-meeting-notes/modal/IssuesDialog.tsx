@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/shared/components/ui/table';
 import { useToast } from '@/shared/hooks/use-toast';
-import { useMeetingNotes } from '../MeetingNotesContext';
+import { useMeetingNotes } from '../context/MeetingNotesContext';
 import UpdateHistoryDialog from './UpdateHistoryDialog';
 import { AddSolutionAsDailyTaskModal } from './AddSolutionAsDailyTaskModal';
 

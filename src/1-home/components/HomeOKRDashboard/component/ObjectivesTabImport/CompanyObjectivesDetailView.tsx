@@ -4,8 +4,21 @@ import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import { Progress } from '@/shared/components/ui/progress';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
-import { Building, Plus, Target, ChevronRight, ChevronDown, CheckCircle, Users, TrendingUp, Calendar, BarChart3, Trash2, Edit } from 'lucide-react';
-import { LoadingDots } from '@/shared/components/LoadingDots';
+import {
+  Building,
+  Plus,
+  Target,
+  ChevronRight,
+  ChevronDown,
+  CheckCircle,
+  Users,
+  TrendingUp,
+  Calendar,
+  BarChart3,
+  Trash2,
+  Edit,
+  Loader2,
+} from 'lucide-react';
 import { useReportOkrTabStatus } from '@/1-home/context/HomeOkrTabsLoadContext';
 import { useReportOkrPageDetail } from '@/1-OKR/context/OkrPageDetailLoadContext';
 import { logger } from '@/shared/lib/logger';
@@ -471,7 +484,7 @@ export const CompanyObjectivesDetailView = ({
                   okrStandaloneUi ? (
                     <Trash2 className="h-3 w-3 shrink-0 opacity-40" aria-hidden />
                   ) : (
-                    <LoadingDots size="sm" className="flex-shrink-0" />
+                    <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" aria-hidden />
                   )
                 ) : (
                   <Trash2 className="h-3 w-3" />
@@ -546,7 +559,13 @@ export const CompanyObjectivesDetailView = ({
             
             {/* Display All Key Results (Company + Department Objectives) */}
             {objective.all_key_results && objective.all_key_results.length > 0 && (
-              <div className="space-y-2 mb-4 max-h-[520px] overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain min-h-0 pr-2">
+              <div
+                className={`space-y-2 mb-4 min-h-0 pr-2 ${
+                  okrStandaloneUi
+                    ? ""
+                    : "max-h-[520px] overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain"
+                }`}
+              >
                 {objective.all_key_results.map((kr: any) => {
                   const actualKRProgress = getActualProgress(kr);
                   const isDepartmentObjective = kr.source_type === 'department_objective';

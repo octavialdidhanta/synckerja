@@ -22,7 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/shared/components/ui/popover';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 import { DueDatePicker } from './DueDatePicker';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { MonthPicker } from '@/shared/calendar';

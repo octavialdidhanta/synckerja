@@ -15,7 +15,7 @@ import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { Badge } from '@/shared/components/ui/badge';
 import { Progress } from '@/shared/components/ui/progress';
 import { ActivitiesTab } from '../DepartmentObjectivesViewImport/ActivitiesTab';
-import { DailyTaskProvider } from '@/8-2-DailyTask/DailyTaskContext';
+import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { BlockerDisplay } from '@/8-2-DailyTask/section/BlockerDisplay';
 interface WeeklyPeriod {
   weekStart: Date;

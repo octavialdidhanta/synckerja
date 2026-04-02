@@ -154,24 +154,24 @@ function OKRPageContent() {
   );
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-gray-100 font-sans dark:bg-muted/30">
       <div
         className={cn(
-          "flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-gray-100 font-sans dark:bg-muted/30",
+          "flex min-h-0 w-full min-w-0 flex-1",
           showFullPageSkeleton && "invisible pointer-events-none",
         )}
       >
-        <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
-          <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-4">
-            <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
+          <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
+              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex min-h-full flex-col">
               <div className="mb-1 flex-shrink-0">
                 <HeaderAndTab onTabChange={handleTabChange} />
               </div>
-
-              <div className="grid h-full min-h-0 min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-9 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch overflow-hidden">
-                  <Card className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border border-border">
-                    <CardContent className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden p-0 sm:p-6">
+                  <Card className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col border border-border">
+                    <CardContent className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col p-0 sm:p-6">
                       {activeTab === "company-objectives" ? (
                         <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
                           <div className="shrink-0">
@@ -191,7 +191,7 @@ function OKRPageContent() {
                               isLoadingCycles={false}
                             />
                           </div>
-                          <div className="nested-scroll-touch-chain seamless-scroll flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0 overflow-y-auto overflow-x-hidden">
+                          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
                             {organizationId ? (
                               <CompanyObjectivesDetailView
                                 organizationId={organizationId}
@@ -222,7 +222,7 @@ function OKRPageContent() {
                               isLoadingCycles={false}
                             />
                           </div>
-                          <div className="nested-scroll-touch-chain seamless-scroll flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0 overflow-y-auto overflow-x-hidden">
+                          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
                             {organizationId ? (
                               <DepartmentObjectivesView
                                 organizationId={organizationId}
@@ -251,7 +251,7 @@ function OKRPageContent() {
                               isLoadingCycles={false}
                             />
                           </div>
-                          <div className="nested-scroll-touch-chain seamless-scroll flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0 overflow-y-auto overflow-x-hidden">
+                          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
                             {organizationId ? (
                               <IndividualObjectivesView
                                 organizationId={organizationId}
@@ -266,7 +266,7 @@ function OKRPageContent() {
                   </Card>
                 </div>
 
-                <div className="col-span-3 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                <div className="col-span-3 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch rounded-lg border border-border bg-card shadow-sm">
                   <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -276,8 +276,8 @@ function OKRPageContent() {
                     </div>
                   </div>
 
-                  <div className="min-h-0 flex-1 overflow-hidden">
-                    <div className="nested-scroll-touch-chain seamless-scroll h-full min-h-0 overflow-y-auto overflow-x-hidden p-4">
+                  <div className="min-h-0 flex-1">
+                    <div className="h-full min-h-0 p-4">
                       <OKRSidebar
                         activeTab={activeTab}
                         organizationId={organizationId ?? undefined}
@@ -293,9 +293,14 @@ function OKRPageContent() {
                   <OKRSidebarFooter totalCycles={cycles.length} activeCycleId={activeCycleId} />
                 </div>
               </div>
+              <div
+                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                aria-hidden
+              />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
       </div>
 
       {showFullPageSkeleton ? (

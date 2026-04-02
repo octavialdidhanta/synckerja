@@ -1,7 +1,7 @@
-﻿import React, { useRef } from 'react';
+import React, { useRef } from 'react';
 import { Paperclip, Upload, X } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
-import { useDailyTask } from '../DailyTaskContext';
+import { useDailyTask } from '../context/DailyTaskContext';
 
 interface FileUploadProps {
   taskId: string;

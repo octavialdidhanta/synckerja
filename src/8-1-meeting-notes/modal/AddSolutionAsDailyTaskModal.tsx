@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
-import { CheckSquare, Target, FileText, Info } from 'lucide-react';
+import { CheckSquare, Target, FileText, Info, Loader2 } from 'lucide-react';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { logger } from '@/shared/lib/logger';
 import { useOkrCycles } from '@/1-home/components/HomeOKRDashboard/hooks/useOkrCycles';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { ObjectiveHierarchyDialog } from '@/8-2-DailyTask/section/ObjectiveHierarchyDialog';
-import { LoadingDots } from '@/shared/components/LoadingDots';
 import { Badge } from '@/shared/components/ui/badge';
 
 interface AddSolutionAsDailyTaskModalProps {
@@ -368,8 +367,8 @@ export const AddSolutionAsDailyTaskModal: React.FC<AddSolutionAsDailyTaskModalPr
                 Individual Objective <span className="text-red-500">*</span>
               </label>
               {isCheckingExistingTask ? (
-                <div className="w-full border border-gray-200 rounded-lg p-3 flex items-center gap-2 bg-gray-50">
-                  <LoadingDots size="sm" />
+                <div className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
                   <span className="text-sm text-gray-600">Checking for existing task...</span>
                 </div>
               ) : (
@@ -465,8 +464,8 @@ export const AddSolutionAsDailyTaskModal: React.FC<AddSolutionAsDailyTaskModalPr
 
             {/* Loading State */}
             {isSubmitting && (
-              <div className="flex flex-col items-center justify-center py-6 space-y-3">
-                <LoadingDots size="lg" />
+              <div className="flex flex-col items-center justify-center space-y-3 py-6">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
                 <p className="text-sm text-gray-600">Creating task and step...</p>
               </div>
             )}
@@ -491,7 +490,7 @@ export const AddSolutionAsDailyTaskModal: React.FC<AddSolutionAsDailyTaskModalPr
             >
               {isSubmitting ? (
                 <div className="flex items-center gap-2">
-                  <LoadingDots size="sm" />
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                   <span>Creating...</span>
                 </div>
               ) : (

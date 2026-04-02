@@ -1,6 +1,6 @@
 
 import { AlertTriangle, Clock, CheckCircle, XCircle, MessageSquare, RotateCcw } from 'lucide-react';
-import { useMeetingNotes } from '../MeetingNotesContext';
+import { useMeetingNotes } from '../context/MeetingNotesContext';
 
 interface SummaryData {
   label: string;
@@ -81,13 +81,7 @@ const MeetingSummaryCards = () => {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <div className="text-center text-gray-500">Loading summary...</div>
-      </div>
-    );
-  }
+  if (isLoading) return null;
 
   return (
     <div className="space-y-3">
@@ -109,14 +103,14 @@ const MeetingSummaryCards = () => {
         })}
       </div>
       
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4">
-        <h4 className="font-semibold text-gray-900 text-sm mb-2">Recent Updates</h4>
+      <div className="bg-white border border-brand-blue/20 rounded-lg p-4 mt-4">
+        <h4 className="font-semibold text-brand-blue text-sm mb-2">Recent Updates</h4>
         {recentUpdates.length === 0 ? (
           <p className="text-sm text-gray-500">No recent updates.</p>
         ) : (
           <div className="space-y-2">
             {recentUpdates.map((update) => (
-              <div key={update.id} className="bg-gray-50 rounded-md p-2 border-l-4 border-blue-400">
+              <div key={update.id} className="bg-brand-blue/5 rounded-md p-2 border-l-4 border-brand-blue/50">
                 <div className="text-xs text-gray-500 mb-1">
                   {formatDate(update.created_at)} • {(update.meeting_point_solutions?.solution_description ?? 'Update').substring(0, 30)}...
                 </div>

@@ -2,7 +2,7 @@ import { memo, useMemo, useCallback } from 'react';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Badge } from '@/shared/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
-import { LoadingDots } from "@/shared/components/LoadingDots";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import { getPhotoUrl, getInitials } from '../hooks/photoUtils';
 import { EmployeeActionsDropdown } from './EmployeeActionsDropdown';
 import type { Employee } from '../hooks/useEmployees';
@@ -208,8 +208,8 @@ export const EmployeeTable = memo(({
   ), [employees, allEmployees, currentUserEmail, userRole, onRefresh, onViewEmployee]);
 
   return (
-    <div className="h-full min-w-0 flex flex-col">
-      <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-auto seamless-scroll nested-scroll-touch-chain">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto">
         <table className="w-full caption-bottom text-sm employee-table">
           <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
             <TableRow className="hover:bg-transparent">
@@ -227,8 +227,10 @@ export const EmployeeTable = memo(({
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={10} className="py-12 text-center">
-                  <div className="flex items-center justify-center">
-                    <LoadingDots size="lg" />
+                  <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-64 max-w-full" />
+                    <Skeleton className="h-4 w-52 max-w-full" />
                   </div>
                 </TableCell>
               </TableRow>
