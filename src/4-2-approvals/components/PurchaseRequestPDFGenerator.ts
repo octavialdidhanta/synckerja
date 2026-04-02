@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format } from 'date-fns';
 
 interface OrganizationData {

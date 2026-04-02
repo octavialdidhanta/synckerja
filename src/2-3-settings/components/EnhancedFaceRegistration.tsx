@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/shared/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import { Progress } from '@/shared/components/ui/progress';
 import { useEnhancedFaceRegistration } from '@/2-1-employees/MyInfo/Attendance/hooks/useEnhancedFaceRegistration';
-import { validateFaceQuality, generateFaceDescriptor, areModelsLoaded, initializeFaceAPI } from '@/utils/faceRecognition';
+import { validateFaceQuality, generateFaceDescriptor, areModelsLoaded, initializeFaceAPI } from '@/shared/utils/faceRecognition';
 
 export const EnhancedFaceRegistration = () => {
   const [isOpen, setIsOpen] = useState(false);

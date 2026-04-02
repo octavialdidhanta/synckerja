@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -9,9 +9,9 @@ import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { Plus, Edit, Trash2, Save, X, MoreVertical } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
-import { useWorkExperiences, WorkExperience } from '../../hooks/useWorkExperiences';
-import { Employee } from '../../hooks/useEmployees';
-import { useCurrentOrg } from '../../hooks/useCurrentOrg';
+import { useWorkExperiences, WorkExperience } from '@/shared/hooks/employees/useWorkExperiences';
+import { Employee } from '@/shared/hooks/employees/useEmployees';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 interface WorkExperienceInfoTabProps {
   employee: Employee;

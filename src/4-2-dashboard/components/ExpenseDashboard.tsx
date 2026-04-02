@@ -33,7 +33,7 @@ import {
 import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { addExpenseSchema, AddExpenseFormData, RECURRING_FREQUENCIES } from './AddExpenseForm';
-import { useDepartmentsCrud } from '@/2-1-employees/MyInfo/Employment/hooks/crudMaster/useDepartmentsCrud';
+import { useDepartmentsCrud } from '@/shared/hooks/crudMaster/useDepartmentsCrud';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { DepartmentCrudModal } from './DepartmentCrudModal';
 import { ExpenseTypeCrudModal } from './ExpenseTypeCrudModal';

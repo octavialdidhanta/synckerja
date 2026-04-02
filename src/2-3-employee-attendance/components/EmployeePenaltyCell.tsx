@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatToRupiah } from '@/2-1-employees/MyInfo/Attendance/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useAttendancePenaltyTotal } from '@/2-1-employees/MyInfo/Attendance/hooks/useAttendancePenaltyTotal';
 
 interface EmployeePenaltyCellProps {

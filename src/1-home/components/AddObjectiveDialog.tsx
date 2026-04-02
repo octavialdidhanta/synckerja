@@ -6,7 +6,7 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Plus, CalendarDays, Calendar } from 'lucide-react';
-import { useOkrCycles } from './HomeOKRDashboard/hooks/useOkrCycles';
+import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { useCreateObjective } from './HomeOKRDashboard/component/ObjectivesTabImport/useObjectives';
 import { useUpdateCompanyObjective } from './HomeOKRDashboard/hooks/useUpdateCompanyObjective';
 import { useUnifiedProfile } from '@/shared/hooks/useUnifiedProfile';

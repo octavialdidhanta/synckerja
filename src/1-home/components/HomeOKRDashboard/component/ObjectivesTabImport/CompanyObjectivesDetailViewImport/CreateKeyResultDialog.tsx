@@ -5,7 +5,6 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-// import { useCreateKeyResult } from '@/hooks/organized/okr'; // TODO: File not found
 import { useDepartments } from './useDepartments';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
@@ -14,7 +13,6 @@ import { getEmployeeStatus } from '@/2-1-employees/utils/employeeUtils';
 import { toast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useQueryClient } from '@tanstack/react-query';
-// import { useCreateIndividualObjective } from '@/hooks/organized/okr'; // TODO: File not found
 import type { Objective } from '@/types/okr';
 
 interface CreateKeyResultDialogProps {

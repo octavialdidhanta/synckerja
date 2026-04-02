@@ -6,7 +6,7 @@ export { default as EmployeeEmploymentInfo } from './pages/EmployeeEmploymentInf
 // Re-export all components
 export * from './components';
 
-// Re-export all hooks (removed - use @/hooks/ directly)
+// Hooks: use @/shared/hooks/* or ./hooks barrel (no root src/hooks).
 // export * from './hooks';
 
 // Re-export all utilities

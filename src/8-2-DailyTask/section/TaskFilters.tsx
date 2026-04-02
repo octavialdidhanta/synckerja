@@ -28,7 +28,7 @@ import { CreateTaskDialog } from './CreateTaskDialog';
 import { MonthPicker } from '@/shared/calendar';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
-import { useCurrentOrg } from '@/shared/hooks/useCurrentOrg';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 interface TaskFiltersProps {
   onAddTask?: () => void;

@@ -9,7 +9,7 @@ import { Badge } from '@/shared/components/ui/badge';
 import { useIncomeTransactions } from '@/4-1-dashboard/hooks';
 import { IncomeTransactionDialog } from '@/4-1-dashboard/components/IncomeTransactionDialog';
 import { IncomeTransactionViewDialog } from './IncomeTransactionViewDialog';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format } from 'date-fns';
 import { AddIncomeForm } from '@/4-1-dashboard/components/AddIncomeForm';
 import { IncomeTransactionWithRelations } from '@/4-1-dashboard/types';

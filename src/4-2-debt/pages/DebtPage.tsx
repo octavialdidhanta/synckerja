@@ -13,7 +13,7 @@ import { useDebts } from '../hooks';
 import { DebtTable, DebtForm, DebtPaymentHistoryModal } from '../components';
 import { DebtPaymentModal } from '../components/DebtPaymentModal';
 import { Debt, CreateDebtData, UpdateDebtData } from '../types';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';

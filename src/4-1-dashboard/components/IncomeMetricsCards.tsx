@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { TrendingUp, TrendingDown, DollarSign, Receipt, Calendar, Target } from 'lucide-react';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useIncomeMetrics } from '../hooks';
 
 export const IncomeMetricsCards = () => {

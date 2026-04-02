@@ -19,6 +19,9 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
+      "@supabase/types": [
+        "./supabase/types.ts"
+      ],
       "@/onboarding/*": [
         "./src/0-onboarding/*"
       ],
@@ -46,6 +49,8 @@
     "useDefineForClassFields": true
   },
   "include": [
-    "src"
+    "src",
+    "supabase/types.ts",
+    "vite-env.d.ts"
   ]
 }

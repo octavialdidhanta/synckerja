@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useCurrentOrg } from "@/shared/hooks/useCurrentOrg";
+import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { usePurchaseRequests } from "@/9-request-form/hooks/usePurchaseRequests";
 
 const HIDE_SKELETON_DEBOUNCE_MS = 200;

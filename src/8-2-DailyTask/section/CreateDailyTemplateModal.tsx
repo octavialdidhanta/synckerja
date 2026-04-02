@@ -21,7 +21,7 @@ import { Plus, Pencil, Trash2, X } from 'lucide-react';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { useCurrentOrg } from '@/shared/hooks/useCurrentOrg';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { useDailyTemplates, useDailyTemplate, useDailyTemplateSteps } from '../hooks';
 import type {

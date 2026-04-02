@@ -1,8 +1,8 @@
-﻿
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentUser } from './useCurrentUser';
-import { useCurrentOrg } from './useCurrentOrg';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 export const useCurrentEmployee = () => {
   const { user } = useCurrentUser();

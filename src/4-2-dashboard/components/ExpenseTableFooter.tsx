@@ -1,6 +1,6 @@
 import React from 'react';
 import { Receipt } from 'lucide-react';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 
 interface ExpenseTableFooterProps {
   totalExpenses: number;

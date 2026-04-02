@@ -8,9 +8,12 @@ import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { getCached, setCache, clearCache, trackQuery } from '../utils/optimizationUtils';
-import { useTaskFilterState } from '../hooks/useTaskFilterState';
-import { useTaskFilters, TaskFilters } from '../hooks/useTaskFilters';
-import { useTaskRealtime } from '../hooks/useTaskRealtime';
+import {
+  useTaskFilterState,
+  useTaskFilters,
+  useTaskRealtime,
+  type TaskFilters,
+} from '@/shared/hooks/daily-task';
 import { logger } from '@/shared/lib/logger';
 import { globalTaskIdsCache } from '../utils/globalTaskIdsCache';
 import {

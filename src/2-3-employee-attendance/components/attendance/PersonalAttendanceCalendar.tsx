@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { formatToRupiah } from '@/2-1-employees/MyInfo/Attendance/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useWorkScheduleSettings } from '@/2-1-employees/MyInfo/Attendance/hooks/useWorkScheduleSettings';
 import { useAttendanceRecords } from '@/2-1-employees/MyInfo/Attendance/hooks/useAttendanceRecords';
 import { getCurrentOrganizationId } from '@/shared/auth/hooks/useCurrentOrg';

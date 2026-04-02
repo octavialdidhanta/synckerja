@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -9,8 +9,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, Edit, Trash2, Save, X, MoreVertical, FileText, Download, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { useEmployeeDocuments, EmployeeDocument } from '@/hooks/useEmployeeDocuments';
-import { Employee } from '@/hooks/useEmployees';
+import { useEmployeeDocuments, EmployeeDocument } from '@/shared/hooks/employees/useEmployeeDocuments';
+import { Employee } from '@/shared/hooks/employees/useEmployees';
 
 interface DocumentsTabProps {
   employee: Employee;

@@ -37,7 +37,7 @@ async function fetchProfile(): Promise<ProfileRow | null> {
   if (userError) throw userError;
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .select(
       "user_id, email, full_name, phone, bio, job_title, location, website, profile_photo_url, preferred_locale, active_organization_id, updated_at",
@@ -45,8 +45,36 @@ async function fetchProfile(): Promise<ProfileRow | null> {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (error) throw error;
-  return data as ProfileRow | null;
+  if (profileError) throw profileError;
+  if (!profileData) return null;
+
+  const { data: detailsData } = await supabase
+    .from("user_profile_details")
+    .select("*")
+    .eq("profile_id", user.id)
+    .maybeSingle();
+
+  const { data: employeeData } = await supabase
+    .from("employees")
+    .select("profile_photo_url")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const photoUrl =
+    detailsData?.profile_photo_url ||
+    employeeData?.profile_photo_url ||
+    profileData.profile_photo_url ||
+    null;
+
+  return {
+    ...profileData,
+    phone: detailsData?.phone ?? profileData.phone,
+    bio: detailsData?.bio ?? profileData.bio,
+    job_title: detailsData?.job_title ?? profileData.job_title,
+    location: detailsData?.location ?? profileData.location,
+    website: detailsData?.website ?? profileData.website,
+    profile_photo_url: photoUrl,
+  } as ProfileRow;
 }
 
 export function useProfile() {

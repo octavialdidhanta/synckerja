@@ -8,7 +8,7 @@ import { IndividualObjectivesView } from './ObjectivesTabImport/IndividualObject
 import { CompanyObjectivesDetailView } from './ObjectivesTabImport/CompanyObjectivesDetailView';
 // TODO: Update to use specific contribution modals
 // import { ModalCreateObjective } from '../components/ModalCreateObjective';
-import { useOkrCycles } from './ObjectivesTabImport/useOkrCycles';
+import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { useObjectives } from './ObjectivesTabImport/useObjectives';
 import { useFilteredObjectives } from './ObjectivesTabImport/useFilteredObjectives';
 import { getDefaultCycleForCurrentPeriod } from './ObjectivesTabImport/okrUtils';

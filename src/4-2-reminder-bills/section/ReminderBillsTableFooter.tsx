@@ -1,4 +1,4 @@
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 
 interface ReminderBillsTableFooterProps {
   totalBills: number;

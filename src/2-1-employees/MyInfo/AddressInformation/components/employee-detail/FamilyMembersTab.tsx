@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -10,9 +10,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, Edit, Trash2, Save, X, MoreVertical, Users } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { useFamilyMembers, FamilyMember } from '@/hooks/useFamilyMembers';
-import { Employee } from '@/hooks/useEmployees';
-import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { useFamilyMembers, FamilyMember } from '@/shared/hooks/employees/useFamilyMembers';
+import { Employee } from '@/shared/hooks/employees/useEmployees';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 interface FamilyMembersTabProps {
   employee: Employee;

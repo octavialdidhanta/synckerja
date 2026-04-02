@@ -26,7 +26,7 @@ import {
 import { Layers, ArrowLeft, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useAuth } from '@/shared/auth/contexts/AuthContext';
-import { useCurrentOrg } from '@/shared/hooks/useCurrentOrg';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { CustomDatePicker } from '@/shared/calendar';
 import { useDailyTemplatesWithStepCount, useDailyTemplateSteps, useDailyTemplates } from '../hooks';
 import { applyDailyTemplateToTask } from '../services/applyDailyTemplateService';

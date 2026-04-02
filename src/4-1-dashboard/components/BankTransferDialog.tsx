@@ -20,7 +20,7 @@ import {
 import { Textarea } from '@/shared/components/ui/textarea';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { formatInputNumber, parseInputNumber } from '@/shared/lib/pricingInputUtils';
 import { toast } from 'sonner';
 import type { BankAccount } from '@/shared/hooks/finance/useBankAccounts';

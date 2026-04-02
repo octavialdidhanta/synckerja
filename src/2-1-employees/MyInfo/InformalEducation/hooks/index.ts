@@ -1,30 +1,14 @@
-// Informal Education Information Page Hooks
-// All hooks used by the /my-info/education/informal page
+// Informal education page — shared data hooks live in @/shared/hooks/*
 
-// Main hooks
-export { useEmployeeDetail } from './useEmployeeDetail';
-export { useUpdateEmployee } from '../../PersonalInformation/hooks/useUpdateEmployee';
+export { useEmployeeDetail } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useEmployeeDetail';
+export { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
+export { useUpdateEmployee } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useUpdateEmployee';
 export { useAutoSave } from '@/shared/hooks/useAutoSave';
 export { usePerformanceMonitor } from '@/shared/hooks/usePerformanceMonitor';
-export * from './useEmployees';
 
-// Utility hooks
+export * from '@/shared/hooks/employees';
 export { useShowToast } from '@/shared/hooks/useShowToast';
-export { useCurrentOrg, getCurrentOrganizationId } from './useCurrentOrg';
-export { getOptimizedCurrentOrganizationId } from './useOptimizedCurrentOrg';
-export { useAvatarSync } from './useAvatarSync';
+export { useCurrentOrg, getCurrentOrganizationId } from '@/2-1-employees/MyInfo/WorkExperience/hooks/useCurrentOrg';
+export { getOptimizedCurrentOrganizationId } from '@/shared/hooks/employees/useOptimizedCurrentOrg';
 
-// Employee data hooks
-export { useEmployeePayroll } from './useEmployeePayroll';
-export { useEmployeeDocuments } from './useEmployeeDocuments';
-export { useWorkExperiences } from './useWorkExperiences';
-export { useFamilyMembers } from './useFamilyMembers';
-export { useEducations } from './useEducations';
-export { useInformalEducations } from './useInformalEducations';
-
-// Additional hooks for address page
-export { usePayrollPeriods } from './usePayrollPeriods';
-export { useProfile } from './useProfile';
-
-// CRUD Master Data Hooks
-export * from './crudMaster';
+export * from '@/shared/hooks/crudMaster';

@@ -5,7 +5,7 @@ import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useEmployeeLeaveBalance } from '@/2-1-employees/MyInfo/LeavePermit/hooks/useEmployeeLeaveBalance';
 import { SectionQuickMenu } from './HomeOKRDashboard/component/SectionQuickMenu';
 import { EmployeeProfilePhoto } from '@/shared/components/EmployeeProfilePhoto';
-import { useAvatarSync } from '@/2-1-employees/MyInfo/LeavePermit/hooks/useAvatarSync';
+import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
 import { useUserData } from '@/shared/auth/hooks/useUserData';
 import { useTeamAvailability } from './useTeamAvailability';
 import { toast } from 'sonner';

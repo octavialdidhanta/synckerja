@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
@@ -37,7 +37,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format, differenceInYears } from 'date-fns';
 
 interface JobApplication {

@@ -7,12 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/shared/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { useUpdateEmployee } from '../../hooks';
-import { useDepartmentsCrud } from '../../hooks/crudMaster/useDepartmentsCrud';
-import { useJobPositionsCrud } from '../../hooks/crudMaster/useJobPositionsCrud';
-import { useJobLevelsCrud } from '../../hooks/crudMaster/useJobLevelsCrud';
-import { useBranchesCrud } from '../../hooks/crudMaster/useBranchesCrud';
-import { useEmployeeStatusesCrud } from '../../hooks/crudMaster/useEmployeeStatusesCrud';
-import { useCurrentOrg } from '../../hooks/useCurrentOrg';
+import { useDepartmentsCrud } from '@/shared/hooks/crudMaster/useDepartmentsCrud';
+import { useJobPositionsCrud } from '@/shared/hooks/crudMaster/useJobPositionsCrud';
+import { useJobLevelsCrud } from '@/shared/hooks/crudMaster/useJobLevelsCrud';
+import { useBranchesCrud } from '@/shared/hooks/crudMaster/useBranchesCrud';
+import { useEmployeeStatusesCrud } from '@/shared/hooks/crudMaster/useEmployeeStatusesCrud';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAutoSave } from '@/shared/hooks/useAutoSave';
 import { Briefcase, Plus, ChevronDown, MoreVertical, Edit, Trash2 } from 'lucide-react';
 

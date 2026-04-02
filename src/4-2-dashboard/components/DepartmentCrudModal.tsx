@@ -5,7 +5,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { Plus, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
-import { useDepartmentsCrud } from '@/2-1-employees/MyInfo/Employment/hooks/crudMaster/useDepartmentsCrud';
+import { useDepartmentsCrud } from '@/shared/hooks/crudMaster/useDepartmentsCrud';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { toast } from 'sonner';
 

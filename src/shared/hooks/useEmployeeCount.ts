@@ -1,6 +1,6 @@
-﻿import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { useCurrentOrg } from './useCurrentOrg';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 export const useEmployeeCount = () => {
   const { organizationId } = useCurrentOrg();

@@ -30,7 +30,7 @@ import { useIndividualObjectives } from '../../modal/useIndividualObjectives';
 import { useDepartments } from './CompanyObjectivesDetailViewImport/useDepartments';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentOrg } from '../../hooks/useCurrentOrg';
-import { useOkrCycles } from './useOkrCycles';
+import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { YearQuarterSelection } from '../FiturTimePeriod';
 import { filterCyclesByYearQuarter, hasYearQuarterSelection } from '../yearQuarterFilter';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/shared/components/ui/accordion';

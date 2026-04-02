@@ -1,0 +1,12 @@
+{
+  "css.lint.unknownAtRules": "ignore",
+  "files.associations": {
+    "bun.lock": "plaintext"
+  },
+  "git.enabled": true,
+  "git.path": [
+    "C:/Program Files/Git/cmd/git.exe",
+    "C:/Program Files/Git/bin/git.exe",
+    "C:\\Program Files\\Git\\cmd\\git.exe"
+  ]
+}

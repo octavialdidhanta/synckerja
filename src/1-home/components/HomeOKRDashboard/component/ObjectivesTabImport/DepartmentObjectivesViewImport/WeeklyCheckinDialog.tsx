@@ -8,9 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { useCreateWeeklyCheckin, getCurrentWeekDates } from '@/hooks/useWeeklyCheckins';
-import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { useToast } from '@/hooks/use-toast';
+import { useCreateWeeklyCheckin, getCurrentWeekDates } from '@/shared/hooks/useWeeklyCheckins';
+import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
+import { useToast } from '@/shared/hooks/use-toast';
 import { Calendar, TrendingUp } from 'lucide-react';
 import type { CheckinStatus } from '@/types/okr';
 
@@ -84,7 +84,6 @@ export const WeeklyCheckinDialog: React.FC<WeeklyCheckinDialogProps> = ({
       await createCheckin.mutateAsync({
         organization_id: organizationId,
         key_result_id: keyResult.id,
-        employee_id: user.id,
         week_start_date: weekDates.start,
         current_value: formData.current_value,
         confidence_level: formData.confidence_level,

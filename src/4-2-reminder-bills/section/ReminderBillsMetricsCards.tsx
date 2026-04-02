@@ -1,5 +1,5 @@
 import type { Expense } from '@/shared/hooks/finance/useExpenses';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Calendar, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
 
 type ReminderBillsMetricsCardsProps = {

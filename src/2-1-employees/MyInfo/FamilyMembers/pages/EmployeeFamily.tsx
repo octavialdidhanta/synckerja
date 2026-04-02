@@ -6,10 +6,10 @@ import { Badge } from '@/shared/components/ui/badge';
 import { EmployeeProfilePhoto } from '@/shared/components/EmployeeProfilePhoto';
 import { ArrowLeft, Edit, Save, X, User, GraduationCap, Users, FileText, Briefcase, Calendar, Clock, MapPin, DollarSign } from 'lucide-react';
 import { FamilyMembersInfoTab } from '../components/employee-detail/FamilyMembersInfoTab';
-import { useEmployeeDetail } from '../../FamilyMembers/hooks/useEmployeeDetail';
-import { useAvatarSync } from '../../FamilyMembers/hooks/useAvatarSync';
+import { useEmployeeDetail } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useEmployeeDetail';
+import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
 import { toast } from 'sonner';
-import { useFamilyMembers } from '../../FamilyMembers/hooks/useFamilyMembers';
+import { useFamilyMembers } from '@/shared/hooks/employees/useFamilyMembers';
 import { FamilySidebarFooter } from '../components/FamilySidebarFooter';
 import { FamilyTableFooter } from '../components/FamilyTableFooter';
 

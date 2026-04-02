@@ -6,10 +6,10 @@ import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { RefreshCw, Search, Filter, Calendar, Users } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { useToast } from '@/hooks/organized/utils';
+import { useToast } from '@/shared/hooks/use-toast';
 import { CandidateQuickViewModal } from './CandidateQuickViewModal';
 import { CandidateActionsDropdown } from './CandidateActionsDropdown';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 
 interface JobApplication {

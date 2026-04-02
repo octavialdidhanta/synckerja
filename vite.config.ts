@@ -36,6 +36,10 @@ export default defineConfig(({ mode }) => {
   resolve: {
     alias: [
       {
+        find: "@supabase/types",
+        replacement: path.resolve(__dirname, "supabase/types.ts"),
+      },
+      {
         find: /^@\/onboarding\/(.*)$/,
         replacement: `${path.resolve(__dirname, "src/0-onboarding")}/$1`,
       },

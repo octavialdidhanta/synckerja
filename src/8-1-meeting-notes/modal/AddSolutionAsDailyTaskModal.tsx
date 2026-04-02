@@ -5,7 +5,7 @@ import { CheckSquare, Target, FileText, Info, Loader2 } from 'lucide-react';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { logger } from '@/shared/lib/logger';
-import { useOkrCycles } from '@/1-home/components/HomeOKRDashboard/hooks/useOkrCycles';
+import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { ObjectiveHierarchyDialog } from '@/8-2-DailyTask/section/ObjectiveHierarchyDialog';
 import { Badge } from '@/shared/components/ui/badge';

@@ -1,4 +1,4 @@
-import { TaskFilters } from '../hooks/useTaskFilterState';
+import type { TaskFilters } from '@/shared/hooks/daily-task/useTaskFilters';
 
 export interface TaskLink {
   id: string;

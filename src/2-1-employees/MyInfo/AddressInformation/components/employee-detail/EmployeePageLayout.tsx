@@ -10,8 +10,8 @@ import { Badge } from '@/shared/components/ui/badge';
 import { EmployeeProfilePhoto } from '@/shared/components/EmployeeProfilePhoto';
 import { ArrowLeft, Edit, Save, X, User, GraduationCap, Users, FileText, Briefcase, Calendar, Clock, MapPin, DollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Employee } from '../../hooks/useEmployees';
-import { useAvatarSync } from '../../hooks/useAvatarSync';
+import { Employee } from '@/shared/hooks/employees/useEmployees';
+import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
 import { toast } from 'sonner';
 
 interface EmployeePageLayoutProps {

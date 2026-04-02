@@ -1,5 +1,5 @@
 import type { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { TrendingUp, Clock, CheckCircle, CreditCard } from 'lucide-react';
 
 type PaymentMetricsCardsProps = {

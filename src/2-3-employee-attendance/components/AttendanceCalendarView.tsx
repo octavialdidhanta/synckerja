@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatToRupiah } from '@/2-1-employees/MyInfo/Attendance/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
 import { getEmployeeStatus } from '@/2-1-employees/utils/employeeUtils';
 import { useAttendanceRecords } from '@/2-1-employees/MyInfo/Attendance/hooks/useAttendanceRecords';

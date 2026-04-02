@@ -1,12 +1,12 @@
 
 import React from "react";
 import { EmploymentDataStepProps } from '../types';
-import { useDepartmentsCrud } from "../../MyInfo/Employment/hooks/crudMaster/useDepartmentsCrud";
-import { useJobPositionsCrud } from "../../MyInfo/Employment/hooks/crudMaster/useJobPositionsCrud";
-import { useJobLevelsCrud } from "../../MyInfo/Employment/hooks/crudMaster/useJobLevelsCrud";
+import { useDepartmentsCrud } from '@/shared/hooks/crudMaster/useDepartmentsCrud';
+import { useJobPositionsCrud } from '@/shared/hooks/crudMaster/useJobPositionsCrud';
+import { useJobLevelsCrud } from '@/shared/hooks/crudMaster/useJobLevelsCrud';
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
-import { useEmployees } from "../../hooks/useEmployees";
-import type { Employee } from "../../hooks/useEmployees";
+import { useEmployees } from "@/shared/hooks/employees/useEmployees";
+import type { Employee } from "@/shared/hooks/employees/useEmployees";
 import { getEligibleManagersForEmployee } from "../../utils/employeeUtils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import {

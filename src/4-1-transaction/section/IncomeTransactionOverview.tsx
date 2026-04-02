@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DollarSign, Calendar, Receipt, Building2 } from 'lucide-react';
 import { useIncomeTransactions } from '@/4-1-dashboard/hooks';
 import { useIncomeMetrics } from '@/4-1-dashboard/hooks';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { BankAccountManagement } from './BankAccountManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 

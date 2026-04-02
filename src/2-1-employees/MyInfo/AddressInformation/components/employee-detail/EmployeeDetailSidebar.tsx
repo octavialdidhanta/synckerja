@@ -1,10 +1,10 @@
-﻿
+
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { Button } from '@/shared/components/ui/button';
 import { MapPin, Phone, Mail, Calendar, Building, Camera } from 'lucide-react';
-import { Employee } from '@/hooks/useEmployees';
+import { Employee } from '@/shared/hooks/employees/useEmployees';
 import { FileUpload } from '@/shared/components/ui/file-upload';
 import { useUpdateEmployee } from '../../hooks';
 import { useState, useEffect } from 'react';

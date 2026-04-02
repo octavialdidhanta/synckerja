@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useLeaveRequests } from '@/hooks/useLeaveRequests';
+import { useLeaveRequests } from '@/2-1-employees/MyInfo/Attendance/hooks/useLeaveRequests';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { 

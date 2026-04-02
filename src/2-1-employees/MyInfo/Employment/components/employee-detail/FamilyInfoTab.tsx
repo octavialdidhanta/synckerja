@@ -10,8 +10,8 @@ import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { MoreVertical, Plus, Edit, Save, X, Trash2, Upload, Camera } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
-import { Employee } from '../../hooks/useEmployees';
-import { useFamilyMembers, FamilyMember } from '../../hooks/useFamilyMembers';
+import { Employee } from '@/shared/hooks/employees/useEmployees';
+import { useFamilyMembers, FamilyMember } from '@/shared/hooks/employees/useFamilyMembers';
 import { useShowToast } from '@/shared/hooks/useShowToast';
 import { supabase } from '@/shared/lib/supabaseClient';
 interface FamilyInfoTabProps {

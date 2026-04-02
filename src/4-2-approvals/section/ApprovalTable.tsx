@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Badge } from '@/shared/components/ui/badge';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';

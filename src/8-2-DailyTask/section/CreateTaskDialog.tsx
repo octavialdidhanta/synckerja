@@ -29,7 +29,7 @@ import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useIndividualObjectives } from '@/1-home/components/HomeOKRDashboard/modal/useIndividualObjectives';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { useOkrCycles } from '@/1-home/components/HomeOKRDashboard/hooks/useOkrCycles';
+import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { ObjectiveHierarchyDialog } from '@/8-2-DailyTask/section/ObjectiveHierarchyDialog';
 import { useIsMobile } from '@/mobile/hooks/use-mobile';
 import { MonthPicker } from '@/shared/calendar';

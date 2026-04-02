@@ -1,5 +1,5 @@
 import { usePurchaseRequests, PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Badge } from '@/shared/components/ui/badge';
 import { Clock, CheckCircle, XCircle, AlertTriangle, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';

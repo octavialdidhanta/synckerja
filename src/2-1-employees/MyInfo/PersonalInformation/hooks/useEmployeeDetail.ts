@@ -1,7 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { Employee } from './useEmployees';
+import { Employee } from '@/shared/hooks/employees/useEmployees';
 import { usePerformanceMonitor } from '@/shared/hooks/usePerformanceMonitor';
 
 export const useEmployeeDetail = (employeeId: string | null) => {

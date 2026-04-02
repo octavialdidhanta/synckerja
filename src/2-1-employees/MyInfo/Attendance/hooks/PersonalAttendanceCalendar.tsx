@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Progress } from '@/shared/components/ui/progress';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { formatToRupiah } from '../utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useWorkScheduleSettings } from './useWorkScheduleSettings';
 import { useAttendanceRecords } from './useAttendanceRecords';
 import { getCurrentOrganizationId } from '@/shared/auth/hooks/useCurrentOrg';

@@ -9,7 +9,7 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Separator } from '@/shared/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/components/ui/tabs';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format } from 'date-fns';
 import { PurchaseRequest, useUpdatePurchaseRequestStatus } from '@/9-request-form/hooks/usePurchaseRequests';
 import { useExpenseTypes } from '@/shared/hooks/finance/useExpenseTypes';

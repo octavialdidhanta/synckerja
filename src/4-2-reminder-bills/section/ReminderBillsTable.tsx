@@ -1,6 +1,6 @@
 import { Expense } from '@/shared/hooks/finance/useExpenses';
 import { isRecurringBillPayNowEligible } from '@/4-2-reminder-bills/utils/reminderBillsUtils';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Badge } from '@/shared/components/ui/badge';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Building, Calendar, DollarSign } from 'lucide-react';

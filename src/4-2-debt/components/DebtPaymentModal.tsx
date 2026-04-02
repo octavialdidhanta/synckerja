@@ -28,7 +28,7 @@ import { pickReceiptImageFiles } from '@/mobile/utils/pickReceiptFromGallery';
 import { Debt } from '../types';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { formatInputNumber, parseInputNumber } from '../utils/numberFormat';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { toast } from 'sonner';

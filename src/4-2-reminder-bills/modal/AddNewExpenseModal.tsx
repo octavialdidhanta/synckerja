@@ -41,7 +41,7 @@ import { isRecurringBillPayNowEligible } from "@/4-2-reminder-bills/utils/remind
 import { useExpenseTypes } from "@/shared/hooks/finance/useExpenseTypes";
 import { useExpenseCategories } from "@/shared/hooks/finance/useExpenseCategories";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
-import { useDepartmentsCrud } from "@/2-1-employees/MyInfo/Employment/hooks/crudMaster/useDepartmentsCrud";
+import { useDepartmentsCrud } from "@/shared/hooks/crudMaster/useDepartmentsCrud";
 import { useDebtsForExpense } from "@/shared/hooks/finance/useDebtsForExpense";
 import { useBankAccounts } from "@/shared/hooks/finance/useBankAccounts";
 import { useBankAccountBalances } from "@/shared/hooks/finance/useBankAccountBalances";

@@ -13,7 +13,6 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Calendar, Target, Clock, AlertCircle } from 'lucide-react';
-// import { useCreateActivity } from '@/hooks/useActivities'; // TODO: File not found
 import { useCurrentUserEmployee } from '@/1-home/components/HomeOKRDashboard/component/SectionGreetingsImport/useCurrentUserEmployee';
 import { supabase } from '@/shared/lib/supabaseClient';
 

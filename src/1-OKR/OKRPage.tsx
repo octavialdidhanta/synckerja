@@ -19,7 +19,7 @@ import {
 } from "@/1-home/components/HomeOKRDashboard/component/yearQuarterFilter";
 import { useCurrentOrg } from "@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg";
 import { useObjectiveStats } from "@/1-home/components/HomeOKRDashboard/hooks/useObjectiveStats";
-import { useOkrCycles } from "@/1-home/components/HomeOKRDashboard/hooks/useOkrCycles";
+import { useOkrCycles } from "@/shared/hooks/useOkrCycles";
 import { OKRSectionVisibilityProvider } from "@/1-home/components/HomeOKRDashboard/OKRSectionVisibilityContext";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { cn } from "@/shared/lib/utils";

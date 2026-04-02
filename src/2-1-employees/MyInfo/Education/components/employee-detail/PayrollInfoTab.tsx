@@ -7,9 +7,9 @@ import { Label } from '@/shared/components/ui/label';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Plus, Trash2, Edit, Save, X, DollarSign } from 'lucide-react';
-import { useEmployeePayroll, type EmployeePayrollInfo, type PayrollComponent } from '../../hooks/useEmployeePayroll';
-import { usePayrollPeriods } from '../../hooks/usePayrollPeriods';
-import { useProfile } from '../../hooks/useProfile';
+import { useEmployeePayroll, type EmployeePayrollInfo, type PayrollComponent } from '@/shared/hooks/employees/useEmployeePayroll';
+import { usePayrollPeriods } from '@/shared/hooks/employees/usePayrollPeriods';
+import { useProfile } from '@/shared/hooks/useProfile';
 import { useAutoSave } from '@/shared/hooks/useAutoSave';
 import { toast } from 'sonner';
 

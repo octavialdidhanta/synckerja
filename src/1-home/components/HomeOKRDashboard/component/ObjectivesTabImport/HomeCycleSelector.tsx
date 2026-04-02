@@ -1,11 +1,10 @@
-﻿
+
 import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useOkrCycles } from '@/hooks/organized/okr';
+import { useOkrCycles, type OkrCycle } from '@/shared/hooks/useOkrCycles';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import type { OkrCycle } from '@/types/okr';
 import type { OkrFilterState } from '@/types/okr-filter';
 
 interface HomeCycleSelectorProps {
@@ -22,7 +21,7 @@ export const HomeCycleSelector: React.FC<HomeCycleSelectorProps> = ({
   onFiltersChange
 }) => {
   const { organizationId } = useCurrentOrg();
-  const { cycles = [] } = useOkrCycles(organizationId);
+  const { data: cycles = [] } = useOkrCycles(organizationId);
 
   const handleCycleChange = (cycleId: string) => {
     if (cycleId === 'all') {

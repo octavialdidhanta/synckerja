@@ -11,7 +11,7 @@ import {
   useJobPositionsCrud,
   useJobLevelsCrud,
   useEmployeeStatusesCrud
-} from '@/2-1-employees/MyInfo/Employment/hooks/crudMaster';
+} from '@/shared/hooks/crudMaster';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 interface JobOpeningModalProps {

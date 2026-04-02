@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -6,18 +6,17 @@ import { Label } from '@/shared/components/ui/label';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Plus, Trash2, Edit, Save, X, DollarSign } from 'lucide-react';
-import { 
-  useEmployeePayrollInfo, 
-  usePayrollComponents, 
+import {
+  useEmployeePayrollInfo,
+  usePayrollComponents,
   useSavePayrollInfo,
   useAddPayrollComponent,
   useUpdatePayrollComponent,
   useDeletePayrollComponent,
-  type EmployeePayrollInfo, 
-  type PayrollComponent 
-} from '../../hooks/useEmployeePayrollQuery';
-import { usePayrollPeriods } from '../../hooks/usePayrollPeriods';
-import { useProfile } from '../../hooks/useProfile';
+} from '@/shared/hooks/employees/useEmployeePayrollQuery';
+import type { EmployeePayrollInfo, PayrollComponent } from '@/shared/hooks/employees/useEmployeePayroll';
+import { usePayrollPeriods } from '@/shared/hooks/employees/usePayrollPeriods';
+import { useProfile } from '@/shared/hooks/useProfile';
 import { toast } from 'sonner';
 
 interface PayrollInfoTabProps {

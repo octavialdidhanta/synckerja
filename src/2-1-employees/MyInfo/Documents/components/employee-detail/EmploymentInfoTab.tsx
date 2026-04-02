@@ -5,12 +5,12 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { useUpdateEmployee } from '../../hooks';
-import { useDepartmentsCrud } from '../../hooks/crudMaster/useDepartmentsCrud';
-import { useJobPositionsCrud } from '../../hooks/crudMaster/useJobPositionsCrud';
-import { useJobLevelsCrud } from '../../hooks/crudMaster/useJobLevelsCrud';
-import { useBranchesCrud } from '../../hooks/crudMaster/useBranchesCrud';
-import { useEmployeeStatusesCrud } from '../../hooks/crudMaster/useEmployeeStatusesCrud';
-import { useCurrentOrg } from '../../hooks/useCurrentOrg';
+import { useDepartmentsCrud } from '@/shared/hooks/crudMaster/useDepartmentsCrud';
+import { useJobPositionsCrud } from '@/shared/hooks/crudMaster/useJobPositionsCrud';
+import { useJobLevelsCrud } from '@/shared/hooks/crudMaster/useJobLevelsCrud';
+import { useBranchesCrud } from '@/shared/hooks/crudMaster/useBranchesCrud';
+import { useEmployeeStatusesCrud } from '@/shared/hooks/crudMaster/useEmployeeStatusesCrud';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAutoSave } from '@/shared/hooks/useAutoSave';
 import { Briefcase } from 'lucide-react';
 

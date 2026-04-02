@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import BasicInfoFields from "./BasicInfoFields";
 import AdditionalInfoFields from "./AdditionalInfoFields";
 import { OrganizationFormData, initialFormData } from "./types";
-import { useOrganizationCreation } from "@/hooks/organized/utils";
+import { useOrganizationCreation } from "@/2-8-organization/hooks/useOrganizationCreation";
 
 interface OrganizationFormProps {
   onSuccess?: () => void;

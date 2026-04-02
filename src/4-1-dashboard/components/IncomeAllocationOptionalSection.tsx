@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select';
 import { useIncomeTransactions } from '@/4-1-dashboard/hooks';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { IncomeTransactionWithRelations } from '@/4-1-dashboard/types';
 

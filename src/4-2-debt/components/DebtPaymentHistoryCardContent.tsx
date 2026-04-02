@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { Calendar, Receipt, CreditCard, Hash } from 'lucide-react';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import type { DebtPaymentRecord } from '../hooks/useDebtPayments';
 import { cn } from '@/shared/lib/utils';
 

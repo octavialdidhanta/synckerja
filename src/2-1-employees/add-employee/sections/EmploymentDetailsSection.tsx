@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { EmploymentDataStepProps } from '../types';
-import { useBranchesCrud } from '../../MyInfo/Employment/hooks/crudMaster/useBranchesCrud';
-import { useEmployeeStatusesCrud } from '../../MyInfo/Employment/hooks/crudMaster/useEmployeeStatusesCrud';
+import { useBranchesCrud } from '@/shared/hooks/crudMaster/useBranchesCrud';
+import { useEmployeeStatusesCrud } from '@/shared/hooks/crudMaster/useEmployeeStatusesCrud';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { Button } from '@/shared/components/ui/button';
 import { Plus, MoreVertical, Edit, Trash2, ChevronDown } from 'lucide-react';

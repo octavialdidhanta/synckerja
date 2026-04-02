@@ -8,7 +8,7 @@ import { Calendar, TrendingUp, DollarSign, Target, Clock, History, ChevronDown }
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 import { useIncomeMetrics, useIncomeTransactions, useMonthlyIncomeData } from '../hooks';
 import { useIncomeMasterData } from '../hooks/useIncomeMasterData';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { IncomeVsExpensesChart } from './IncomeVsExpensesChart';
 import { RecentIncomeOverview } from './RecentIncomeOverview';
 import { IncomeTransactionWithRelations } from '../types';

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
 import { Badge } from '@/shared/components/ui/badge';
 import { useIncomeTransactions } from '../hooks';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format } from 'date-fns';
 import { AddIncomeForm } from './AddIncomeForm';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';

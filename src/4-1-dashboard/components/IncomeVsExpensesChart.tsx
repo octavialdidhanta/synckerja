@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/shared/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useIncomeMetrics } from '../hooks';
 import { useExpenseMetrics } from '@/shared/hooks/finance/useExpenseMetrics';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 
 export const IncomeVsExpensesChart = () => {
   const { data: incomeMetrics, isLoading: incomeLoading } = useIncomeMetrics();

@@ -1,5 +1,5 @@
 import { usePurchaseRequests } from '@/9-request-form/hooks/usePurchaseRequests';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { TrendingUp, Clock, CheckCircle, RotateCcw } from 'lucide-react';
 
 export const ApprovalMetricsCards = () => {

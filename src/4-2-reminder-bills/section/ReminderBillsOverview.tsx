@@ -1,5 +1,5 @@
 import { Expense } from '@/shared/hooks/finance/useExpenses';
-import { formatToRupiah } from '@/utils/formatCurrency';
+import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Badge } from '@/shared/components/ui/badge';
 import { Calendar, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
