@@ -34,7 +34,7 @@ export function DailyTaskPageSkeleton() {
               </div>
 
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                <div className="col-span-9 flex flex-col min-h-0 gap-2">
+                <div className="col-span-9 flex min-h-0 min-w-0 flex-col gap-1">
                   <div className="flex-shrink-0">
                     <div className="w-full min-w-0">
                       <div className="bg-white border border-gray-200 rounded-md min-w-0 overflow-hidden p-1.5 sm:p-2">
@@ -64,16 +64,14 @@ export function DailyTaskPageSkeleton() {
                   </div>
                 </div>
 
-                <div className="col-span-3 h-full flex flex-col min-h-0">
-                  <div className="bg-white border rounded-lg h-full flex flex-col min-h-0">
-                    <div className="border-b flex-shrink-0">
-                      <div className="flex border-b border-gray-200">
-                        <Skeleton className="m-2 h-7 flex-1" />
-                        <Skeleton className="m-2 h-7 flex-1" />
-                        <Skeleton className="m-2 h-7 flex-1" />
-                      </div>
+                <div className="col-span-3 flex h-full min-h-0 min-w-0 flex-col">
+                  <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <div className="flex min-w-0 shrink-0 border-b border-gray-200 bg-gray-50">
+                      <Skeleton className="m-1.5 h-8 min-w-0 flex-1 rounded-md sm:m-2" />
+                      <Skeleton className="m-1.5 h-8 min-w-0 flex-1 rounded-md sm:m-2" />
+                      <Skeleton className="m-1.5 h-8 min-w-0 flex-1 rounded-md sm:m-2" />
                     </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4">
+                    <div className="flex min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto seamless-scroll nested-scroll-touch-chain p-4 [scrollbar-gutter:stable]">
                       <Skeleton className="mb-3 h-16 w-full rounded-lg" />
                       <Skeleton className="mb-3 h-16 w-full rounded-lg" />
                       <Skeleton className="mb-3 h-16 w-full rounded-lg" />

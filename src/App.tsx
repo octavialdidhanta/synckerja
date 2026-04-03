@@ -78,6 +78,12 @@ import { DailyTaskPageSkeleton } from "@/8-2-DailyTask/skeletons/DailyTaskPageSk
 import { DailyTaskReportPageSkeleton } from "@/8-2-DailyTaskReport/skeletons/DailyTaskReportPageSkeleton";
 import { HabitTrackerPageSkeleton } from "@/8-2-HabitTracker/skeletons/HabitTrackerPageSkeleton";
 import { MeetingNotesPageSkeleton } from "@/8-1-meeting-notes/skeletons/MeetingNotesPageSkeleton";
+import { PasswordManagerPageSkeleton } from "@/8-PasswordManager/skeletons/PasswordManagerPageSkeleton";
+import { PPh21PageSkeleton } from "@/8-4-pph-21/skeletons/PPh21PageSkeleton";
+import { CalculatorPageSkeleton } from "@/8-3-calculator/skeletons/CalculatorPageSkeleton";
+import { PricingToolsPageSkeleton } from "@/8-2-pricing-tools/skeletons/PricingToolsPageSkeleton";
+import { PromoSimulationPageSkeleton } from "@/8-2-promo-simulation/skeletons/PromoSimulationPageSkeleton";
+import { DefaultPricesPageSkeleton } from "@/8-2-1-default-prices/skeletons/DefaultPricesPageSkeleton";
 
 const RecruitmentSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
@@ -129,6 +135,13 @@ const DailyTaskPage = lazy(() => import("@/8-2-DailyTask/pages/DailyTaskPage"));
 const DailyTaskReportPage = lazy(() => import("@/8-2-DailyTaskReport/pages/DailyTaskReportPage"));
 const HabitTrackerPage = lazy(() => import("@/8-2-HabitTracker/pages/HabitTrackerPage"));
 const MeetingNotesToolPage = lazy(() => import("@/8-1-meeting-notes/pages/MeetingNotesPage"));
+const PasswordManagerPage = lazy(() => import("@/8-PasswordManager/pages/PasswordManagerPage"));
+const PPh21CalculatorPage = lazy(() => import("@/8-4-pph-21/pages/PPh21CalculatorPage"));
+const DefaultPricesPage = lazy(() => import("@/8-2-1-default-prices/pages/DefaultPricesPage"));
+const CalculatorServicesPage = lazy(() => import("@/8-3-calculator/pages/CalculatorServicesPage"));
+const CalculatorSalesPage = lazy(() => import("@/8-3-calculator/pages/CalculatorSalesPage"));
+const PricingToolsPage = lazy(() => import("@/8-2-pricing-tools/pages/PricingToolsPage"));
+const PromoSimulationPage = lazy(() => import("@/8-2-promo-simulation/pages/PromoSimulationPage"));
 
 const IncomeDashboardSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
@@ -255,6 +268,81 @@ const HabitTrackerSuspense = ({ children }: { children: ReactNode }) => (
     fallback={
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
         <HabitTrackerPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const PasswordManagerSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <PasswordManagerPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const PPh21CalculatorSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <PPh21PageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const CalculatorSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <CalculatorPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const PricingToolsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background font-sans"
+        aria-busy
+      >
+        <PricingToolsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const PromoSimulationSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background" aria-busy>
+        <PromoSimulationPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const DefaultPricesSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <DefaultPricesPageSkeleton />
       </div>
     }
   >
@@ -689,6 +777,101 @@ const App = () => (
                               <HabitTrackerSuspense>
                                 <HabitTrackerPage />
                               </HabitTrackerSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/tools/password-manager"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/tools/password-manager"
+                              loadingShell={<PasswordManagerPageSkeleton />}
+                            >
+                              <PasswordManagerSuspense>
+                                <PasswordManagerPage />
+                              </PasswordManagerSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/tools/pph21-calculator"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/tools/pph21-calculator"
+                              loadingShell={<PPh21PageSkeleton />}
+                            >
+                              <PPh21CalculatorSuspense>
+                                <PPh21CalculatorPage />
+                              </PPh21CalculatorSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/tools/default-prices"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/tools/default-prices"
+                              loadingShell={<DefaultPricesPageSkeleton />}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/tools/pricing-tools"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/tools/pricing-tools"
+                              loadingShell={<PricingToolsPageSkeleton />}
+                            >
+                              <PricingToolsSuspense>
+                                <PricingToolsPage />
+                              </PricingToolsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/tools/promo-simulation"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/tools/promo-simulation"
+                              loadingShell={<PromoSimulationPageSkeleton />}
+                            >
+                              <PromoSimulationSuspense>
+                                <PromoSimulationPage />
+                              </PromoSimulationSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/tools/calculator"
+                          element={<Navigate to="/tools/calculator/services" replace />}
+                        />
+                        <Route
+                          path="/tools/calculator/services"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/tools/calculator"
+                              loadingShell={<CalculatorPageSkeleton />}
+                            >
+                              <CalculatorSuspense>
+                                <CalculatorServicesPage />
+                              </CalculatorSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/tools/calculator/sales"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/tools/calculator"
+                              loadingShell={<CalculatorPageSkeleton />}
+                            >
+                              <CalculatorSuspense>
+                                <CalculatorSalesPage />
+                              </CalculatorSuspense>
                             </PageAccessGuard>
                           }
                         />

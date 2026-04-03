@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
-import { HeaderAndTab } from "@/8-2-DailyTask/section/HeaderAndTab";
+import { ToolsHeaderAndTab } from "@/shared/layouts/tools";
 import { MeetingNotesPageSkeleton } from "../skeletons/MeetingNotesPageSkeleton";
 
 type MeetingNotesModuleShellProps = {
@@ -28,7 +28,7 @@ export function MeetingNotesModuleShell({ children, showContent }: MeetingNotesM
             >
               <div className="flex min-h-full flex-col bg-muted/40">
                 <div className="mb-1 min-w-0 shrink-0">
-                  <HeaderAndTab activeTab="meeting-notes" onTabChange={() => {}} />
+                  <ToolsHeaderAndTab activeTab="meeting-notes" onTabChange={() => {}} />
                 </div>
 
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">

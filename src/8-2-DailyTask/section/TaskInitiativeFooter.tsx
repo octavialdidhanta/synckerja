@@ -13,8 +13,8 @@ export const TaskInitiativeFooter: React.FC<TaskInitiativeFooterProps> = ({
   const assignedItems = totalItems - unassignedItems;
   
   return (
-    <div className="border-t border-gray-200 p-3 bg-gray-50 flex-shrink-0">
-      <div className="grid grid-cols-3 gap-2 text-center">
+    <div className="min-w-0 shrink-0 border-t border-gray-200 bg-gray-50 p-3">
+      <div className="grid min-w-0 w-full grid-cols-3 gap-2 text-center">
         <div className="flex flex-col items-center">
           <Target className="w-4 h-4 text-indigo-600 mb-1" />
           <div className="text-xs font-semibold text-gray-900">{totalItems}</div>

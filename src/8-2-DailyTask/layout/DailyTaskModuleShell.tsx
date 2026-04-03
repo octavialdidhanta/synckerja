@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
-import { HeaderAndTab } from "../section/HeaderAndTab";
+import { ToolsHeaderAndTab } from "@/shared/layouts/tools";
 import { DailyTaskPageSkeleton } from "../skeletons/DailyTaskPageSkeleton";
 
 type DailyTaskModuleShellProps = {
@@ -33,7 +33,7 @@ export function DailyTaskModuleShell({
             <div className={cn(MAIN_SCROLL, "min-w-0")}>
               <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
                 <div className="mb-1 min-w-0 shrink-0">
-                  <HeaderAndTab activeTab={activeTab} onTabChange={onTabChange} />
+                  <ToolsHeaderAndTab activeTab={activeTab} onTabChange={onTabChange} />
                 </div>
 
                 {children}

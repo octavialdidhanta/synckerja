@@ -407,7 +407,7 @@ export const JobDescEmployeeCard = ({ summary }: JobDescEmployeeCardProps) => {
         <div className="mt-3">
           <button
             onClick={() => setShowCompleted((prev) => !prev)}
-            className="text-xs text-indigo-600 hover:text-indigo-500 font-medium"
+            className="text-xs font-medium text-brand-blue hover:text-brand-blue/80"
           >
             {showCompleted
               ? t("dailyTask.jobDesc.completed.hide", "Sembunyikan tugas selesai")

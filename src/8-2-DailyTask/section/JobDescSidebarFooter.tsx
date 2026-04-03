@@ -25,10 +25,10 @@ export const JobDescSidebarFooter: React.FC<JobDescSidebarFooterProps> = ({
   const { t } = useAppTranslation();
 
   return (
-    <div className="border-t border-gray-200 p-3 bg-gray-50 flex-shrink-0">
-      <div className="grid grid-cols-2 gap-2 text-center">
+    <div className="min-w-0 shrink-0 border-t border-gray-200 bg-gray-50 p-3">
+      <div className="grid min-w-0 w-full grid-cols-2 gap-2 text-center">
         <div className="flex flex-col items-center">
-          <Briefcase className="w-4 h-4 text-indigo-600 mb-1" />
+          <Briefcase className="mb-1 h-4 w-4 text-brand-blue" />
           <div className="text-xs font-semibold text-gray-900">{assignments}</div>
           <div className="text-xs text-gray-500">
             {t('dailyTask.jobDesc.metrics.activeAssignments', 'Tugas Aktif')}

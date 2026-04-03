@@ -60,8 +60,8 @@ export const JobDescFilters = ({
               className={cn(
                 "px-3 py-1.5 text-xs rounded-full border transition-colors",
                 timeframe === option.value
-                  ? "bg-indigo-600 text-white border-indigo-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300",
+                  ? "border-brand-blue bg-brand-blue text-white"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300",
               )}
             >
               {t(option.translationKey, option.value)}
@@ -120,7 +120,7 @@ export const JobDescFilters = ({
         <select
           value={selectedEmployeeId ?? ""}
           onChange={(event) => onEmployeeChange(event.target.value || null)}
-          className="h-8 text-xs border rounded px-2 text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="h-8 rounded border px-2 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-brand-blue/40"
         >
           <option value="">
             {t("dailyTask.jobDesc.filters.employeePlaceholder", "Semua karyawan")}
@@ -145,7 +145,6 @@ export const JobDescFilters = ({
         <Switch
           checked={showIdleOnly}
           onCheckedChange={onShowIdleOnlyChange}
-          className="data-[state=checked]:bg-indigo-600 data-[state=unchecked]:bg-gray-300"
           aria-label="Toggle idle only"
         />
       </div>
@@ -162,7 +161,6 @@ export const JobDescFilters = ({
         <Switch
           checked={includeOverdue}
           onCheckedChange={onIncludeOverdueChange}
-          className="data-[state=checked]:bg-indigo-600 data-[state=unchecked]:bg-gray-300"
           aria-label="Toggle include overdue"
         />
       </div>

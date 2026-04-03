@@ -20,11 +20,6 @@ export function AppShellLayout() {
       mobileNavSheetDescription={t("layout.a11y.mobileNavDescription")}
     >
       <AppHeader />
-      {/* Full-width rule under header; z above sidebars so it stays visible on white backgrounds */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed left-0 right-0 top-16 z-[60] h-px bg-slate-400 dark:bg-slate-500"
-      />
       <div className="mt-16 flex min-h-0 min-w-0 flex-1">
         <AppSidebar />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">

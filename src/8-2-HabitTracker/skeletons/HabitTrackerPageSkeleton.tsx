@@ -35,9 +35,9 @@ export function HabitTrackerPageSkeleton() {
 
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 flex-col">
-                  <div className="flex min-h-0 flex-1 flex-col max-h-[calc(100vh-120px)]">
-                    <div className="mb-0.5 flex-shrink-0">
-                      <div className="grid grid-cols-4 gap-2">
+                  <div className="flex min-h-0 max-h-[calc(100vh-120px)] flex-1 flex-col">
+                    <div className="mb-2 flex-shrink-0">
+                      <div className="grid grid-cols-4 gap-1.5">
                         {Array.from({ length: 4 }).map((_, i) => (
                           <div key={i} className="rounded-lg border border-gray-200 bg-white p-3">
                             <Skeleton className="mb-2 h-3 w-20" />
@@ -46,9 +46,9 @@ export function HabitTrackerPageSkeleton() {
                         ))}
                       </div>
                     </div>
-                    <div className="flex-shrink-0 px-0 pb-0.5">
-                      <div className="rounded-lg border border-gray-200 bg-white p-3">
-                        <div className="flex items-center gap-3">
+                    <div className="mb-2 flex-shrink-0">
+                      <div className="rounded-md border border-gray-200 bg-white p-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <Skeleton className="h-10 flex-1 rounded-md" />
                           <Skeleton className="h-10 w-40 rounded-md" />
                           <Skeleton className="h-10 w-40 rounded-md" />

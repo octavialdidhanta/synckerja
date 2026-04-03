@@ -153,8 +153,9 @@ export const JobDescTracker = ({ onStatsChange }: JobDescTrackerProps) => {
         <CardTitle className="text-base flex items-center justify-between">
           <span>{t("dailyTask.jobDesc.title", "Job Desc Tracker")}</span>
           <button
+            type="button"
             onClick={() => refetch()}
-            className="text-xs text-indigo-600 hover:text-indigo-500"
+            className="text-xs text-brand-blue hover:text-brand-blue/80"
           >
             {t("dailyTask.jobDesc.refresh", "Segarkan")}
           </button>
@@ -172,11 +173,17 @@ export const JobDescTracker = ({ onStatsChange }: JobDescTrackerProps) => {
           className="flex flex-col h-full"
         >
           <div className="px-1 mb-2">
-            <TabsList className="grid grid-cols-2 h-9 w-full">
-              <TabsTrigger value="overview" className="text-xs">
+            <TabsList className="grid h-9 w-full grid-cols-2 bg-muted/80 p-1">
+              <TabsTrigger
+                value="overview"
+                className="text-xs data-[state=active]:text-brand-blue"
+              >
                 {t("dailyTask.jobDesc.tabs.overview", "Overview")}
               </TabsTrigger>
-              <TabsTrigger value="detail" className="text-xs">
+              <TabsTrigger
+                value="detail"
+                className="text-xs data-[state=active]:text-brand-blue"
+              >
                 {t("dailyTask.jobDesc.tabs.detail", "Detail")}
               </TabsTrigger>
             </TabsList>
@@ -211,14 +218,14 @@ export const JobDescTracker = ({ onStatsChange }: JobDescTrackerProps) => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
-                    <p className="text-[11px] text-indigo-700">
+                  <div className="rounded-lg border border-brand-blue/20 bg-brand-blue/10 p-3">
+                    <p className="text-[11px] text-brand-blue">
                       {t("dailyTask.jobDesc.metrics.activeAssignments", "Tugas Aktif")}
                     </p>
-                    <p className="text-2xl font-semibold text-indigo-900">
+                    <p className="text-2xl font-semibold text-brand-blue">
                       {metrics.assignments}
                     </p>
-                    <p className="text-[11px] text-indigo-600">
+                    <p className="text-[11px] text-brand-blue/80">
                       {t("dailyTask.jobDesc.metrics.busyEmployees", "{{count}} karyawan sibuk", {
                         count: metrics.busy,
                       })}

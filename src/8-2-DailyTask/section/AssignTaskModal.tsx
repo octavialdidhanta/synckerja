@@ -102,18 +102,18 @@ export const AssignTaskModal: React.FC<AssignTaskModalProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'p-0 gap-0 flex flex-col',
+          'flex min-h-0 flex-col gap-0 overflow-hidden p-0',
           isMobile
-            ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area'
-            : 'max-w-md max-h-[90vh]'
+            ? 'modal-above-safe-area fixed left-0 right-0 top-0 max-h-none w-full max-w-none translate-x-0 translate-y-0 rounded-none'
+            : 'max-h-[90vh] max-w-md'
         )}
         hideCloseButton={isMobile}
         fullscreenAnimation={isMobile}
       >
         <DialogHeader
           className={cn(
-            'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left safe-area-top',
-            isMobile ? 'px-4 pt-4 pb-3' : 'px-6 pt-6 pb-4'
+            'relative z-10 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 text-left dark:from-blue-950/20 dark:to-indigo-950/20 safe-area-top',
+            isMobile ? 'px-4 pb-3 pt-4' : 'px-6 pb-4 pt-6'
           )}
         >
           <DialogTitle className="text-lg font-semibold flex items-center gap-2">
@@ -124,12 +124,12 @@ export const AssignTaskModal: React.FC<AssignTaskModalProps> = ({
 
         <div
           className={cn(
-            'flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll space-y-4',
-            isMobile ? 'px-6 pt-4 pb-6' : 'px-6 pt-4 pb-4'
+            'min-h-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-y-contain seamless-scroll',
+            isMobile ? 'px-6 pb-8 pt-4' : 'px-6 pb-8 pt-4'
           )}
         >
           {/* Employee Selection */}
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Assign To <span className="text-red-500">*</span>
             </label>
@@ -171,7 +171,7 @@ export const AssignTaskModal: React.FC<AssignTaskModalProps> = ({
           </div>
 
           {/* Department Selection */}
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Department
             </label>
@@ -211,7 +211,7 @@ export const AssignTaskModal: React.FC<AssignTaskModalProps> = ({
           </div>
 
           {/* Deadline Selection */}
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Deadline (Optional)
             </label>
@@ -230,7 +230,12 @@ export const AssignTaskModal: React.FC<AssignTaskModalProps> = ({
         </div>
 
         {/* Footer - rules: px-4 pt-3 pb-3, no safe-area-padding-bottom, size="sm", primary = variant default */}
-        <div className={cn('px-4 pt-3 pb-3 flex-shrink-0 border-t bg-muted/30', isMobile ? '' : 'px-6 pt-4 pb-4')}>
+        <div
+          className={cn(
+            'relative z-10 flex-shrink-0 border-t bg-background px-4 pb-3 pt-3',
+            isMobile ? '' : 'px-6 pb-4 pt-4'
+          )}
+        >
           <div className="flex items-center justify-between gap-2">
             <Button
               type="button"

@@ -100,6 +100,36 @@ export const mainNavItems: MainNavItem[] = [
         path: "/tools/daily-task?view=summary",
         activePathPrefixes: ["/tools/daily-task"],
       },
+      {
+        titleKey: "sidebar.tools.passwordManager.title",
+        path: "/tools/password-manager",
+        activePathPrefixes: ["/tools/password-manager"],
+      },
+      {
+        titleKey: "sidebar.tools.pph21Calculator.title",
+        path: "/tools/pph21-calculator",
+        activePathPrefixes: ["/tools/pph21-calculator"],
+      },
+      {
+        titleKey: "sidebar.tools.defaultPrices.title",
+        path: "/tools/default-prices",
+        activePathPrefixes: ["/tools/default-prices"],
+      },
+      {
+        titleKey: "sidebar.tools.campaignCalculator.title",
+        path: "/tools/calculator/services",
+        activePathPrefixes: ["/tools/calculator"],
+      },
+      {
+        titleKey: "sidebar.tools.pricingTools.title",
+        path: "/tools/pricing-tools",
+        activePathPrefixes: ["/tools/pricing-tools"],
+      },
+      {
+        titleKey: "sidebar.tools.promoSimulation.title",
+        path: "/tools/promo-simulation",
+        activePathPrefixes: ["/tools/promo-simulation"],
+      },
     ],
   },
   {

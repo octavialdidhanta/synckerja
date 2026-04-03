@@ -34,10 +34,20 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
         <div className="flex-1 overflow-y-auto seamless-scroll pt-2">
           <nav className="space-y-0">
             {items.map((item, index) => {
-              const pathMatches = (p: string) =>
-                p === "/"
+              /** Strip query/hash so `/tools/daily-task?view=summary` matches `/tools/daily-task` */
+              const pathBase = (full: string) => {
+                const q = full.indexOf("?");
+                const h = full.indexOf("#");
+                const cut =
+                  q >= 0 && h >= 0 ? Math.min(q, h) : q >= 0 ? q : h >= 0 ? h : -1;
+                return cut >= 0 ? full.slice(0, cut) : full;
+              };
+              const pathMatches = (p: string) => {
+                const base = pathBase(p);
+                return base === "/"
                   ? location.pathname === "/"
-                  : location.pathname === p || location.pathname.startsWith(`${p}/`);
+                  : location.pathname === base || location.pathname.startsWith(`${base}/`);
+              };
               const isActive =
                 pathMatches(item.path) ||
                 Boolean(item.activePathPrefixes?.some((prefix) => pathMatches(prefix)));
@@ -95,6 +105,7 @@ export function AppSidebar() {
   } = useSidebarState();
 
   const sidebarGroupRef = useRef<HTMLDivElement | null>(null);
+  const subSidebarPanelRef = useRef<HTMLDivElement | null>(null);
   const [subSidebarLeft, setSubSidebarLeft] = useState(0);
 
   const activeMenuItem = mainNavItems.find(
@@ -137,6 +148,19 @@ export function AppSidebar() {
   }, [subSidebarOpen]);
 
   const subSidebarMeasuredOpen = subSidebarOpen && subSidebarPaintOpen;
+
+  /** Avoid aria-hidden on sub-panel while a descendant button still has focus (browser a11y warning). */
+  useEffect(() => {
+    if (subSidebarOpen) return;
+    const active = document.activeElement;
+    if (
+      active &&
+      active instanceof HTMLElement &&
+      subSidebarPanelRef.current?.contains(active)
+    ) {
+      active.blur();
+    }
+  }, [subSidebarOpen]);
 
   const [subMenuSnapshot, setSubMenuSnapshot] = useState<MainNavItem | null>(null);
   useEffect(() => {
@@ -354,6 +378,7 @@ export function AppSidebar() {
         </Sidebar>
 
         <div
+          ref={subSidebarPanelRef}
           role="complementary"
           aria-hidden={!subSidebarOpen}
           onMouseEnter={handleSubSidebarMouseEnter}

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
-import { HeaderAndTab } from "@/8-2-DailyTask/section/HeaderAndTab";
+import { ToolsHeaderAndTab } from "@/shared/layouts/tools";
 import { HabitTrackerPageSkeleton } from "../skeletons/HabitTrackerPageSkeleton";
 
 type HabitTrackerModuleShellProps = {
@@ -29,7 +29,7 @@ export function HabitTrackerModuleShell({
             <div className={cn(MAIN_SCROLL, "min-w-0")}>
               <div className="flex min-h-full flex-col bg-muted/40">
                 <div className="mb-1 min-w-0 shrink-0">
-                  <HeaderAndTab activeTab="habits-tracker" onTabChange={() => {}} />
+                  <ToolsHeaderAndTab activeTab="habits-tracker" onTabChange={() => {}} />
                 </div>
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   {children}

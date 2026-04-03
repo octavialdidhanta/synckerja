@@ -1,5 +1,5 @@
 ﻿import { supabase } from '@/shared/lib/supabaseClient';
-import { computeStepDueDate } from '@/features/8_2_1_default_prices/utils/sopDateUtils';
+import { computeStepDueDate } from '@/8-2-1-default-prices/utils/sopDateUtils';
 import type { DailyTemplate, DailyTemplateStep } from '../types';
 
 export interface ApplyDailyTemplateParams {

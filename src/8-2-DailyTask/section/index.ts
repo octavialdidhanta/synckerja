@@ -1,4 +1,3 @@
-export { HeaderAndTab } from './HeaderAndTab';
 export { TaskFilters } from './TaskFilters';
 export { TaskList } from './TaskList';
 export { default as TaskSummaryCards } from './TaskSummaryCards';

@@ -228,11 +228,14 @@ export const HabitSpreadsheetView = () => {
       <div ref={unifiedScrollRef} className="flex-1 min-h-0 overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain relative flex flex-col">
         <div className="flex-1 flex flex-col min-h-0" style={{ minWidth: `calc(250px + ${monthDays.length * 45}px + 280px)` }}>
             <div className="flex-shrink-0">
-              <table className="border-collapse bg-white" style={{ width: "100%", minWidth: `calc(250px + ${monthDays.length * 45}px + 280px)` }}>
-                <thead className="sticky top-0 z-20 border-b border-brand-blue/20 bg-brand-blue/[0.03]" style={{ boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)" }}>
+              <table
+                className="border-separate border-spacing-0 bg-white"
+                style={{ width: "100%", minWidth: `calc(250px + ${monthDays.length * 45}px + 280px)`, tableLayout: "fixed" }}
+              >
+                <thead className="sticky top-0 z-[25] border-b border-brand-blue/20 bg-brand-blue-soft" style={{ boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)" }}>
                   <tr style={{ height: "45px" }}>
                     <th
-                      className="sticky left-0 z-30 border-r border-brand-blue/20 bg-brand-blue/[0.03] px-4 text-left text-sm font-semibold text-gray-700 shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                      className="sticky left-0 z-[50] border-b border-r border-brand-blue/20 bg-brand-blue-soft px-4 text-left text-sm font-semibold text-gray-700 shadow-[2px_0_4px_rgba(0,0,0,0.08)]"
                       style={{ width: "250px", minWidth: "250px", height: "45px", verticalAlign: "middle", paddingTop: "8px", paddingBottom: "8px" }}
                     >
                       Habit Name
@@ -242,7 +245,7 @@ export const HabitSpreadsheetView = () => {
                       return (
                         <th
                           key={day.toISOString()}
-                          className={`border-r border-brand-blue/20 bg-brand-blue/[0.03] px-1 text-center text-xs font-medium text-gray-700 ${isCurrentDay ? "bg-brand-blue/15" : ""}`}
+                          className={`relative z-0 border-b border-r border-brand-blue/20 px-1 text-center text-xs font-medium text-gray-700 ${isCurrentDay ? "bg-brand-blue-soft brightness-[0.97]" : "bg-brand-blue-soft"}`}
                           style={{ width: "45px", minWidth: "45px", height: "45px", verticalAlign: "middle", paddingTop: "8px", paddingBottom: "8px" }}
                         >
                           <div className="flex flex-col items-center gap-0.5">
@@ -253,27 +256,27 @@ export const HabitSpreadsheetView = () => {
                       );
                     })}
                     <th
-                      className="border-r border-gray-300 px-3 text-center text-xs font-semibold text-gray-700 bg-gray-100"
+                      className="relative z-0 border-b border-r border-gray-300 bg-gray-100 px-3 text-center text-xs font-semibold text-gray-700"
                       style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "8px", paddingBottom: "8px" }}
                     >
                       Goal
                     </th>
                     <th
-                      className="border-r border-gray-300 px-3 text-center text-xs font-semibold text-gray-700 bg-gray-100"
+                      className="relative z-0 border-b border-r border-gray-300 bg-gray-100 px-3 text-center text-xs font-semibold text-gray-700"
                       style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "8px", paddingBottom: "8px" }}
                     >
                       Actual
                     </th>
                     <th
-                      className="border-r-0 px-3 text-center text-xs font-semibold text-gray-700 bg-gray-100"
+                      className="relative z-0 border-b border-gray-300 bg-gray-100 px-3 text-center text-xs font-semibold text-gray-700"
                       style={{ width: "120px", minWidth: "120px", height: "45px", verticalAlign: "middle", paddingTop: "8px", paddingBottom: "8px" }}
                     >
                       Progress
                     </th>
                   </tr>
-                  <tr className="border-y border-brand-blue/20 bg-brand-blue/[0.03]" style={{ height: "45px" }}>
+                  <tr className="border-y border-brand-blue/20 bg-brand-blue-soft" style={{ height: "45px" }}>
                     <td
-                      className="sticky left-0 z-10 border-r border-brand-blue/20 bg-brand-blue/[0.03] px-4 shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                      className="sticky left-0 z-[40] border-b border-r border-brand-blue/20 bg-brand-blue-soft px-4 shadow-[2px_0_4px_rgba(0,0,0,0.08)]"
                       style={{ width: "250px", minWidth: "250px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}
                     >
                       <span className="text-xs font-semibold text-gray-700">Daily Stats</span>
@@ -286,7 +289,7 @@ export const HabitSpreadsheetView = () => {
                       return (
                         <td
                           key={`stats-${day.toISOString()}`}
-                          className={`border-r border-brand-blue/20 px-1 text-center ${isCurrentDay ? "bg-brand-blue/15" : ""}`}
+                          className={`relative z-0 border-b border-r border-brand-blue/20 px-1 text-center ${isCurrentDay ? "bg-brand-blue-soft brightness-[0.97]" : "bg-brand-blue-soft"}`}
                           style={{ width: "45px", minWidth: "45px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}
                         >
                           <div className="flex flex-col items-center gap-0.5">
@@ -295,13 +298,13 @@ export const HabitSpreadsheetView = () => {
                         </td>
                       );
                     })}
-                    <td className="border-r border-gray-300 px-2 text-center bg-gray-50" style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}>
+                    <td className="relative z-0 border-b border-r border-gray-300 bg-gray-50 px-2 text-center" style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}>
                       <div className="flex items-center justify-center gap-1">
                         <Target className="h-3 w-3 text-gray-500" />
                         <span className="text-xs font-semibold text-gray-900">{getTotalMonthlyGoalForStats()}</span>
                       </div>
                     </td>
-                    <td className="border-r border-gray-300 px-2 text-center bg-gray-50" style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}>
+                    <td className="relative z-0 border-b border-r border-gray-300 bg-gray-50 px-2 text-center" style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}>
                       {(() => {
                         const totalGoal = getTotalMonthlyGoalForStats();
                         const totalActual = chartData.reduce((sum, _dayData, idx) => sum + getDailyStatsAnalysis(monthDays[idx]).actual, 0);
@@ -312,7 +315,7 @@ export const HabitSpreadsheetView = () => {
                         );
                       })()}
                     </td>
-                    <td className="border-r-0 px-2 bg-gray-50" style={{ width: "120px", minWidth: "120px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}>
+                    <td className="relative z-0 border-b border-gray-300 bg-gray-50 px-2" style={{ width: "120px", minWidth: "120px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}>
                       {(() => {
                         const totalGoal = getTotalMonthlyGoalForStats();
                         const totalActual = chartData.reduce((sum, _dayData, idx) => sum + getDailyStatsAnalysis(monthDays[idx]).actual, 0);
@@ -348,11 +351,11 @@ export const HabitSpreadsheetView = () => {
                       const isSelected = selectedHabit === habit.id;
                       const _isLastRow = habitIndex === filteredHabits.length - 1;
                       return (
-                        <tr key={habit.id} className={`group transition-colors ${isSelected ? "bg-brand-blue/10" : "hover:bg-brand-blue/[0.03]"}`} onClick={() => setSelectedHabit(habit.id)} style={{ height: "45px" }}>
+                        <tr key={habit.id} className="group transition-colors" onClick={() => setSelectedHabit(habit.id)} style={{ height: "45px" }}>
                           <td
-                            className={`sticky left-0 z-10 border-r border-gray-300 border-b border-gray-300 p-0 shadow-[2px_0_4px_rgba(0,0,0,0.1)] transition-colors ${
-                              isSelected ? "bg-brand-blue/10" : "bg-white"
-                            } group-hover:bg-brand-blue/[0.03]`}
+                            className={`sticky left-0 z-[15] border-r border-gray-300 border-b border-gray-300 p-0 shadow-[2px_0_4px_rgba(0,0,0,0.08)] transition-colors ${
+                              isSelected ? "bg-brand-blue-soft" : "bg-white group-hover:bg-slate-50"
+                            }`}
                             style={{ width: "250px", minWidth: "250px", height: "45px", verticalAlign: "middle", overflow: "hidden" }}
                           >
                             <div className="overflow-hidden" style={{ width: HABIT_NAME_CELL_WIDTH }}>
@@ -422,9 +425,17 @@ export const HabitSpreadsheetView = () => {
                             return (
                               <td
                                 key={`${habit.id}-${day.toISOString()}`}
-                                className={`border-r border-b border-brand-blue/20 px-1 text-center transition-colors ${
-                                  isDayAllowed ? "cursor-pointer hover:bg-brand-blue/[0.06]" : isMonthlyHabit ? "cursor-pointer opacity-50 hover:opacity-70" : "cursor-not-allowed opacity-50"
-                                } ${isCurrentDay ? "bg-brand-blue/10" : "bg-white"} ${isSelected && isDayAllowed ? "group-hover:bg-brand-blue/15" : ""}`}
+                                className={`relative z-0 border-r border-b border-brand-blue/20 px-1 text-center transition-colors ${
+                                  isDayAllowed ? "cursor-pointer hover:bg-slate-100" : isMonthlyHabit ? "cursor-pointer opacity-50 hover:opacity-70" : "cursor-not-allowed opacity-50"
+                                } ${
+                                  isSelected
+                                    ? isCurrentDay
+                                      ? "bg-sky-200"
+                                      : "bg-brand-blue-soft"
+                                    : isCurrentDay
+                                      ? "bg-brand-blue-soft brightness-[0.98]"
+                                      : "bg-white group-hover:bg-slate-50"
+                                }`}
                                 style={{
                                   width: "45px",
                                   minWidth: "45px",
@@ -533,7 +544,7 @@ export const HabitSpreadsheetView = () => {
                             return (
                               <>
                                 <td
-                                  className={`border-r border-b border-brand-blue/20 bg-white px-2 text-center ${isSelected ? "bg-brand-blue/10" : ""} group-hover:bg-brand-blue/[0.03]`}
+                                  className={`relative z-0 border-r border-b border-brand-blue/20 px-2 text-center ${isSelected ? "bg-brand-blue-soft" : "bg-white group-hover:bg-slate-50"}`}
                                   style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}
                                 >
                                   <div className="flex items-center justify-center gap-1">
@@ -542,13 +553,13 @@ export const HabitSpreadsheetView = () => {
                                   </div>
                                 </td>
                                 <td
-                                  className={`border-r border-b border-brand-blue/20 bg-white px-2 text-center ${isSelected ? "bg-brand-blue/10" : ""} group-hover:bg-brand-blue/[0.03]`}
+                                  className={`relative z-0 border-r border-b border-brand-blue/20 px-2 text-center ${isSelected ? "bg-brand-blue-soft" : "bg-white group-hover:bg-slate-50"}`}
                                   style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}
                                 >
                                   <span className={`text-sm font-semibold ${actual >= goal ? "text-brand-blue" : actual >= goal * 0.5 ? "text-brand-blue" : "text-gray-900"}`}>{actual}</span>
                                 </td>
                                 <td
-                                  className={`border-b border-r-0 border-brand-blue/20 bg-white px-2 ${isSelected ? "bg-brand-blue/10" : ""} group-hover:bg-brand-blue/[0.03]`}
+                                  className={`relative z-0 border-b border-r-0 border-brand-blue/20 px-2 ${isSelected ? "bg-brand-blue-soft" : "bg-white group-hover:bg-slate-50"}`}
                                   style={{ width: "120px", minWidth: "120px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}
                                 >
                                   <div className="flex items-center gap-2">
@@ -569,16 +580,16 @@ export const HabitSpreadsheetView = () => {
               </table>
             </div>
             <div className="flex-1" />
-            <div className="sticky bottom-0 z-20 flex-shrink-0 border-t border-brand-blue/20 bg-brand-blue/[0.03]">
+            <div className="sticky bottom-0 z-20 flex-shrink-0 border-t border-brand-blue/20 bg-brand-blue-soft">
               <div className="flex flex-col" style={{ minWidth: `calc(250px + ${monthDays.length * 45}px + 280px)` }}>
-                <div className="flex border-t border-brand-blue/20 py-4">
-                  <div className="sticky left-0 z-10 flex w-[250px] min-w-[250px] flex-shrink-0 flex-col items-center justify-center self-stretch border-r border-brand-blue/20 bg-brand-blue/[0.03] shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
+                <div className="relative isolate flex border-t border-brand-blue/20 py-4">
+                  <div className="sticky left-0 z-[45] flex w-[250px] min-w-[250px] flex-shrink-0 flex-col items-center justify-center self-stretch border-r border-brand-blue/20 bg-brand-blue-soft shadow-[2px_0_6px_rgba(0,0,0,0.08)]">
                     <div className="flex flex-col items-center justify-center flex-1 w-full py-4">
                       <div className="text-sm font-semibold text-gray-700 mb-2">{t("habitTracker.consistencyRateHeader", "Consistency Rate")}</div>
                       <div className="text-4xl font-bold text-gray-900 w-full text-center">{Math.round(cumulativeConsistencyRate)}%</div>
                     </div>
                   </div>
-                  <div className="flex-1 flex-shrink-0" style={{ width: `${monthDays.length * 45}px`, minWidth: `${monthDays.length * 45}px` }}>
+                  <div className="relative z-0 min-w-0 flex-1 flex-shrink-0 overflow-hidden" style={{ width: `${monthDays.length * 45}px`, minWidth: `${monthDays.length * 45}px` }}>
                     <ResponsiveContainer width="100%" height={150}>
                       <LineChart data={chartData} margin={{ top: 5, right: 22.5, left: 0, bottom: 5 }} barCategoryGap={0}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -622,7 +633,7 @@ export const HabitSpreadsheetView = () => {
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex-shrink-0 border-l border-brand-blue/20 bg-brand-blue/[0.03]" style={{ width: "280px", minWidth: "280px" }} />
+                  <div className="relative z-0 flex-shrink-0 border-l border-brand-blue/20 bg-brand-blue-soft" style={{ width: "280px", minWidth: "280px" }} />
                 </div>
               </div>
             </div>

@@ -297,10 +297,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       >
         <DialogContent
           className={cn(
-            'p-0 flex flex-col gap-0',
+            'flex min-h-0 flex-col gap-0 overflow-hidden p-0',
             isMobile
               ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area z-30'
-              : 'w-[620px] max-w-[90vw] max-h-[90vh] h-[600px]'
+              : 'h-[600px] max-h-[90vh] w-[620px] max-w-[90vw]'
           )}
           overlayClassName={isMobile ? 'z-30' : undefined}
           hideCloseButton={isMobile || !dismissible}
@@ -312,21 +312,25 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             if (!dismissible) e.preventDefault();
           }}
         >
-          <DialogHeader className="flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left safe-area-top px-4 pt-4 pb-3">
+          <DialogHeader className="relative z-10 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left safe-area-top px-4 pt-4 pb-3">
             <DialogTitle className="text-lg font-semibold">{t('dailyTask.createTask.title', 'Create New Task')}</DialogTitle>
           </DialogHeader>
 
-          <form id="create-task-form" onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <form
+            id="create-task-form"
+            onSubmit={handleSubmit}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
             {/* Scrollable body: on input focus, consider scrollIntoView({ behavior: 'smooth', block: 'nearest' }) so the field stays visible when soft keyboard opens on Android. */}
             <div
-              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-6"
+              className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-6 pb-8 pt-4"
               style={{
                 scrollbarWidth: 'thin',
                 scrollBehavior: 'smooth',
                 scrollbarColor: '#d1d5db transparent',
               }}
             >
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-6">
                 {/* Task Title & Description */}
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -520,7 +524,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               </div>
             </div>
 
-            <div className="px-4 pt-3 pb-3 flex-shrink-0 border-t bg-muted/30">
+            <div className="relative z-10 flex-shrink-0 border-t bg-background px-4 pb-3 pt-3">
               <div className="flex items-center justify-end gap-2">
                 <Button
                   type="button"

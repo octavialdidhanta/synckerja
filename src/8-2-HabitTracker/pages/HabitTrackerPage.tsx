@@ -12,11 +12,11 @@ const HabitTrackerContent = () => {
   return (
     <HabitTrackerModuleShell showContent={showContent}>
       <div className="col-span-12 flex min-h-0 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col max-h-[calc(100vh-120px)]">
-          <div className="mb-0.5 flex-shrink-0">
+        <div className="flex min-h-0 max-h-[calc(100vh-120px)] flex-1 flex-col">
+          <div className="mb-2 flex-shrink-0">
             <HabitStats />
           </div>
-          <div className="flex-shrink-0 px-0 pb-0.5">
+          <div className="mb-2 flex-shrink-0">
             <HabitFilters />
           </div>
           <div className="min-h-0 flex-1">

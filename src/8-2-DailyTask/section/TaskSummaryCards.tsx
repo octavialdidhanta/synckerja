@@ -45,8 +45,8 @@ const TaskSummaryCards = ({ onOpenPreview }: TaskSummaryCardsProps) => {
   if (isLoading) return null;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+    <div className="min-w-0 space-y-3">
+      <div className="grid min-w-0 grid-cols-2 gap-3">
         {summaryCards.map((item, index) => {
           const IconComponent = item.icon;
           const label = t(item.labelKey, item.defaultLabel);
