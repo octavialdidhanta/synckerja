@@ -5,22 +5,27 @@ interface ProgressBarProps {
   current: number;
   target: number;
   className?: string;
-  color?: 'purple' | 'blue' | 'green';
+  /** Brand fill + label; legacy colors kept for optional reuse */
+  color?: 'primary' | 'purple' | 'blue' | 'green';
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({ 
   current, 
   target, 
   className = "",
-  color = 'purple' 
+  color = 'primary' 
 }) => {
   const percentage = target > 0 ? Math.min(Math.round((current / target) * 100), 100) : 0;
   
   const colorClasses = {
+    primary: 'bg-primary',
     purple: 'bg-purple-600',
     blue: 'bg-blue-600', 
     green: 'bg-green-600'
   };
+
+  const labelClass =
+    color === 'primary' ? 'text-primary' : 'text-foreground';
 
   if (target === 0) {
     return (
@@ -38,7 +43,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           style={{ width: `${percentage}%` }}
         />
       </div>
-      <span className="text-xs font-medium w-8 text-right">{percentage}%</span>
+      <span className={`text-xs font-medium w-8 text-right tabular-nums ${labelClass}`}>{percentage}%</span>
     </div>
   );
 };

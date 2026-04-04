@@ -404,19 +404,14 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
         logger.query('ðŸ” Fetching tasks for organization:', organizationId);
       }
       trackQuery('fetch_tasks');
-      
-      // Get current user - fail fast if slow (2s max)
-      const getUserPromise = supabase.auth.getUser();
-      const getUserTimeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('getUser timeout')), 2000)
-      );
-      
+
+      // Await getUser without a short Promise.race: a 2s timeout left getUser() pending while
+      // other code still contended on the auth Web Lock, worsening steal/AbortError cascades.
       let user: any = null;
       try {
-        const result = await Promise.race([getUserPromise, getUserTimeout]);
-        user = (result as any)?.data?.user;
+        const { data } = await supabase.auth.getUser();
+        user = data?.user ?? null;
       } catch {
-        // Jangan setTasks([]): effect bisa re-run; panggilan lain mungkin sudah set tasks dari cache/sukses. Hanya set loading false.
         setIsLoading(false);
         return;
       }

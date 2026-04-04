@@ -30,7 +30,23 @@ function messageForAuthError(error: AuthError, t: (key: string) => string): stri
   return error.message;
 }
 
-async function routeAfterLogin(navigate: (path: string, opts?: { replace?: boolean }) => void) {
+function safeInternalRedirectPath(raw: string | null): string | null {
+  if (raw == null || raw === "") return null;
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return null;
+    }
+  })();
+  if (decoded == null || !decoded.startsWith("/") || decoded.startsWith("//")) return null;
+  return decoded;
+}
+
+async function routeAfterLogin(
+  navigate: (path: string, opts?: { replace?: boolean }) => void,
+  redirectToParam?: string | null,
+) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
@@ -70,7 +86,8 @@ async function routeAfterLogin(navigate: (path: string, opts?: { replace?: boole
     return;
   }
 
-  navigate("/", { replace: true });
+  const next = safeInternalRedirectPath(redirectToParam ?? null);
+  navigate(next ?? "/", { replace: true });
 }
 
 export default function LoginPage() {
@@ -183,7 +200,7 @@ export default function LoginPage() {
         toast({ title: messageForAuthError(error, t), variant: "destructive" });
         return;
       }
-      await routeAfterLogin(navigate);
+      await routeAfterLogin(navigate, searchParams.get("redirectTo"));
     } finally {
       setLoading(false);
     }

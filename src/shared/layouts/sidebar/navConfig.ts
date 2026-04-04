@@ -83,6 +83,24 @@ export const mainNavItems: MainNavItem[] = [
     ],
   },
   {
+    id: "digitalMarketing",
+    titleKey: "sidebar.digitalMarketing.title",
+    icon: Target,
+    activePathPrefixes: ["/digital-marketing", "/kol-management"],
+    subItems: [
+      {
+        titleKey: "sidebar.digitalMarketing.socialMedia.title",
+        path: "/digital-marketing/social-media/dashboard",
+        activePathPrefixes: ["/digital-marketing/social-media"],
+      },
+      {
+        titleKey: "sidebar.digitalMarketing.kolManagement.title",
+        path: "/kol-management/dashboard",
+        activePathPrefixes: ["/kol-management"],
+      },
+    ],
+  },
+  {
     id: "requestForm",
     titleKey: "sidebar.requestForm.title",
     icon: ClipboardList,

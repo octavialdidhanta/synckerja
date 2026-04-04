@@ -44,3 +44,33 @@ verify_jwt = false
 
 [functions.cancel-pending-payment]
 verify_jwt = false
+
+# Browser invokes with user access_token (often ES256). Gateway JWT verify → 401, execution_id null.
+# Auth is enforced inside each handler (service role + auth.getUser(jwt)).
+[functions.generate-design-image]
+verify_jwt = false
+
+[functions.detect-digital-asset-image]
+verify_jwt = false
+
+[functions.generate-script-ai]
+verify_jwt = false
+
+# Browser calls with user JWT (ES256); auth enforced inside (getUser + token exchange).
+[functions.google-oauth-token]
+verify_jwt = false
+
+[functions.google-oauth-manage]
+verify_jwt = false
+
+[functions.google-drive-file-meta]
+verify_jwt = false
+
+[functions.google-drive-list-folder]
+verify_jwt = false
+
+[functions.google-drive-file-media]
+verify_jwt = false
+
+[functions.google-drive-file-thumbnail]
+verify_jwt = false

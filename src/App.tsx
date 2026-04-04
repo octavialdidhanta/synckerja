@@ -9,7 +9,7 @@ import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { RequireAuth } from "@/shared/components/RequireAuth";
 import { AppShellLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
-import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from "@/0-auth";
+import { ForgotPasswordPage, GoogleOAuthCallbackPage, LoginPage, ResetPasswordPage } from "@/0-auth";
 import { OKRPage } from "@/1-OKR";
 import { ModernHomePage, SettingsPage, TransferOwnershipPage } from "@/1-home";
 import { ProfileSettings, SecuritySettings } from "@/1-home/settings";
@@ -84,6 +84,18 @@ import { CalculatorPageSkeleton } from "@/8-3-calculator/skeletons/CalculatorPag
 import { PricingToolsPageSkeleton } from "@/8-2-pricing-tools/skeletons/PricingToolsPageSkeleton";
 import { PromoSimulationPageSkeleton } from "@/8-2-promo-simulation/skeletons/PromoSimulationPageSkeleton";
 import { DefaultPricesPageSkeleton } from "@/8-2-1-default-prices/skeletons/DefaultPricesPageSkeleton";
+import { KolManagementRouteLoadingShell } from "@/6-2-1-dashboard/kol-management/components/KolManagementRouteLoadingShell";
+import { KolManagementDashboardPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementDashboardPageSkeleton";
+import { KolManagementKolManagementPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementKolManagementPageSkeleton";
+import { KolManagementCampaignsPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementCampaignsPageSkeleton";
+import { KolManagementContentPostPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementContentPostPageSkeleton";
+import { KolManagementPaymentTermsPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementPaymentTermsPageSkeleton";
+import { SocialMediaShellSkeleton } from "@/6-1-dashboard/skeletons/SocialMediaShellSkeleton";
+import { SocialMediaDashboardSkeleton } from "@/6-1-dashboard/skeletons/SocialMediaDashboardSkeleton";
+import { ContentCalendarPageSkeleton } from "@/6-1-content-calendar/skeletons/ContentCalendarPageSkeleton";
+import { ProductKnowledgePageSkeleton } from "@/6-1-product-knowledge/skeletons/ProductKnowledgePageSkeleton";
+import { ScriptGeneratorPageSkeleton } from "@/6-1-script-generator/skeletons/ScriptGeneratorPageSkeleton";
+import { SocialMediaSettingsPageSkeleton } from "@/6-1-social-media-settings/skeletons/SocialMediaSettingsPageSkeleton";
 
 const RecruitmentSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
@@ -142,6 +154,19 @@ const CalculatorServicesPage = lazy(() => import("@/8-3-calculator/pages/Calcula
 const CalculatorSalesPage = lazy(() => import("@/8-3-calculator/pages/CalculatorSalesPage"));
 const PricingToolsPage = lazy(() => import("@/8-2-pricing-tools/pages/PricingToolsPage"));
 const PromoSimulationPage = lazy(() => import("@/8-2-promo-simulation/pages/PromoSimulationPage"));
+const KolManagementDashboardPage = lazy(
+  () =>
+    import("@/6-2-1-dashboard/kol-management/pages/KolManagementDashboardPage"),
+);
+
+const SocialMediaDashboardPage = lazy(() => import("@/6-1-dashboard/pages/SocialMediaDashboardPage"));
+const SocialMediaContentCalendarPage = lazy(() => import("@/6-1-content-calendar/ContentCalendarPage"));
+const SocialMediaProductKnowledgePage = lazy(() => import("@/6-1-product-knowledge/ProductKnowledgePage"));
+const SocialMediaScriptGeneratorPage = lazy(() => import("@/6-1-script-generator/ScriptGeneratorPage"));
+const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings/SettingsPage"));
+const ReviewRouteGate = lazy(() =>
+  import("@/6-1-dashboard/routes/ReviewRouteGate").then((m) => ({ default: m.ReviewRouteGate })),
+);
 
 const IncomeDashboardSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
@@ -350,6 +375,156 @@ const DefaultPricesSuspense = ({ children }: { children: ReactNode }) => (
   </Suspense>
 );
 
+const KolManagementSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <KolManagementRouteLoadingShell />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+/** Rute `/kol-management/dashboard` — guard + Suspense memakai skeleton layout yang sama dengan halaman live. */
+const KolManagementDashboardSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <KolManagementDashboardPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+/** Rute `/kol-management/kol-management` — daftar KOL + sidebar overview. */
+const KolManagementKolManagementSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <KolManagementKolManagementPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+/** Rute `/kol-management/campaigns` — tabel kampanye + metrik + sidebar. */
+const KolManagementCampaignsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <KolManagementCampaignsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+/** Rute `/kol-management/content-post` — daftar content post + metrik + sidebar. */
+const KolManagementContentPostSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <KolManagementContentPostPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+/** Rute `/kol-management/payment-terms` — template & agreement payment terms. */
+const KolManagementPaymentTermsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <KolManagementPaymentTermsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const SocialMediaSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <SocialMediaShellSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const SocialMediaDashboardSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <SocialMediaDashboardSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const SocialMediaProductKnowledgeSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <ProductKnowledgePageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const SocialMediaScriptGeneratorSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <ScriptGeneratorPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const SocialMediaSettingsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/40" aria-busy>
+        <SocialMediaSettingsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+/** Rute content calendar — skeleton selaras layout halaman (bukan shell dashboard generik). */
+const ContentCalendarSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <ContentCalendarPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
 const CompanySuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -413,6 +588,7 @@ const App = () => (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <Routes>
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/auth/google/callback" element={<GoogleOAuthCallbackPage />} />
                   <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                   <Route path="/reset-password" element={<ResetPasswordPage />} />
                   <Route path="/register" element={<RegisterPage />} />
@@ -458,6 +634,23 @@ const App = () => (
                       <RecruitmentSuspense>
                         <PublicCandidateProfile />
                       </RecruitmentSuspense>
+                    }
+                  />
+                  <Route
+                    path="/review/:token"
+                    element={
+                      <Suspense
+                        fallback={
+                          <div
+                            className="flex min-h-[40vh] flex-1 items-center justify-center bg-gray-50"
+                            aria-busy
+                          >
+                            <span className="sr-only">Loading</span>
+                          </div>
+                        }
+                      >
+                        <ReviewRouteGate />
+                      </Suspense>
                     }
                   />
 
@@ -872,6 +1065,150 @@ const App = () => (
                               <CalculatorSuspense>
                                 <CalculatorSalesPage />
                               </CalculatorSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/kol-management/dashboard"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/kol-management/dashboard"
+                              loadingShell={<KolManagementDashboardPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <KolManagementDashboardSuspense>
+                                <KolManagementDashboardPage />
+                              </KolManagementDashboardSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/kol-management/kol-management"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/kol-management/kol-management"
+                              loadingShell={<KolManagementKolManagementPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <KolManagementKolManagementSuspense>
+                                <KolManagementDashboardPage />
+                              </KolManagementKolManagementSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/kol-management/campaigns"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/kol-management/campaigns"
+                              loadingShell={<KolManagementCampaignsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <KolManagementCampaignsSuspense>
+                                <KolManagementDashboardPage />
+                              </KolManagementCampaignsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/kol-management/content-post"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/kol-management/content-post"
+                              loadingShell={<KolManagementContentPostPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <KolManagementContentPostSuspense>
+                                <KolManagementDashboardPage />
+                              </KolManagementContentPostSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/kol-management/payment-terms"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/kol-management/payment-terms"
+                              loadingShell={<KolManagementPaymentTermsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <KolManagementPaymentTermsSuspense>
+                                <KolManagementDashboardPage />
+                              </KolManagementPaymentTermsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/social-media"
+                          element={<Navigate to="/digital-marketing/social-media/dashboard" replace />}
+                        />
+                        <Route
+                          path="/digital-marketing/social-media/dashboard"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/social-media"
+                              loadingShell={<SocialMediaDashboardSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <SocialMediaDashboardSuspense>
+                                <SocialMediaDashboardPage />
+                              </SocialMediaDashboardSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/social-media/content-calendar"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/social-media"
+                              loadingShell={<ContentCalendarPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <ContentCalendarSuspense>
+                                <SocialMediaContentCalendarPage />
+                              </ContentCalendarSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/social-media/product-knowledge"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/social-media"
+                              loadingShell={<ProductKnowledgePageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <SocialMediaProductKnowledgeSuspense>
+                                <SocialMediaProductKnowledgePage />
+                              </SocialMediaProductKnowledgeSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/social-media/script-generator"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/social-media"
+                              loadingShell={<ScriptGeneratorPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <SocialMediaScriptGeneratorSuspense>
+                                <SocialMediaScriptGeneratorPage />
+                              </SocialMediaScriptGeneratorSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/social-media/settings"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/social-media"
+                              loadingShell={<SocialMediaSettingsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-muted/40"
+                            >
+                              <SocialMediaSettingsSuspense>
+                                <SocialMediaDmSettingsPage />
+                              </SocialMediaSettingsSuspense>
                             </PageAccessGuard>
                           }
                         />

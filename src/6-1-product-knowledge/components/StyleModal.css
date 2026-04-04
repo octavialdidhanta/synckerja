@@ -1,0 +1,28 @@
+/* StyleModal specific styles - Ensure scrollable pillar list works */
+.seamless-scroll {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.seamless-scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Force scrollable area to work in PopoverContent */
+[data-radix-popover-content] .flex-1.min-h-0 {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  max-height: 320px !important;
+}
+
+/* Ensure PopoverContent has proper height constraint */
+[data-radix-popover-content] {
+  max-height: 400px !important;
+  height: 400px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}

@@ -1,0 +1,24 @@
+/* AddContentDialog specific styles */
+.seamless-scroll {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.seamless-scroll::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Ensure dropdowns appear above everything */
+[data-radix-select-content] {
+  z-index: 999999 !important;
+}
+
+/* Fix for modal z-index conflicts */
+[data-radix-dialog-content] {
+  z-index: 999999 !important;
+}
+
+/* Ensure proper positioning for popper content */
+[data-radix-popper-content-wrapper] {
+  z-index: 999999 !important;
+}

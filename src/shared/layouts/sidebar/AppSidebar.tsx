@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type TransitionEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type TransitionEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
@@ -17,6 +17,7 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [, startTransition] = useTransition();
   const resolvedTitle = t(titleKey);
 
   return (
@@ -56,7 +57,11 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
                 <button
                   key={item.path}
                   type="button"
-                  onClick={() => navigate(item.path)}
+                  onClick={() =>
+                    startTransition(() => {
+                      navigate(item.path);
+                    })
+                  }
                   className={cn(
                     "group relative flex w-full transform-none items-center gap-3 px-4 py-3 text-left text-[15px] font-normal transition-colors duration-200",
                     isActive
@@ -94,6 +99,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [, startTransition] = useTransition();
   const currentPath = location.pathname;
   const {
     activeSubSidebar,
@@ -293,7 +299,11 @@ export function AppSidebar() {
                         {item.path && item.path !== "#" ? (
                           <button
                             type="button"
-                            onClick={() => navigate(item.path!)}
+                            onClick={() =>
+                              startTransition(() => {
+                                navigate(item.path!);
+                              })
+                            }
                             className={cn(
                               "group relative flex h-11 w-full min-w-0 transform-none items-center justify-between rounded-none border-l-4 border-transparent px-2 text-left text-sm font-medium leading-none",
                               "text-foreground transition-[background-color,color] duration-200 ease-in-out motion-reduce:transition-none",

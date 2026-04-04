@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -21,6 +22,16 @@ import {
 } from "@/shared/components/ui/tooltip";
 import { MoreVertical, Pencil, Trash2, ListChecks } from "lucide-react";
 import { useToast } from "@/shared/components/ui/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import type { DefaultPriceRow } from "../types/defaultPrices";
 
 function formatRupiah(n: number): string {
@@ -37,13 +48,17 @@ export type DefaultPricesTableProps = {
 
 export function DefaultPricesTable({ rows, isLoading, onEdit, onDelete, onOpenSop }: DefaultPricesTableProps) {
   const { toast } = useToast();
+  const [deleteTarget, setDeleteTarget] = useState<DefaultPriceRow | null>(null);
 
-  const handleDelete = async (id: string) => {
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await onDelete(id);
+      await onDelete(deleteTarget.id);
       toast({ title: "Deleted", description: "Default price removed." });
     } catch {
       toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -59,8 +74,9 @@ export function DefaultPricesTable({ rows, isLoading, onEdit, onDelete, onOpenSo
   }
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <Table>
+    <>
+      <TooltipProvider delayDuration={200}>
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="max-w-[160px] w-[160px]">Service</TableHead>
@@ -104,7 +120,7 @@ export function DefaultPricesTable({ rows, isLoading, onEdit, onDelete, onOpenSo
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end">
                     {onOpenSop ? (
                       <DropdownMenuItem onClick={() => onOpenSop(row)}>
                         <ListChecks className="mr-2 h-4 w-4" />
@@ -115,7 +131,12 @@ export function DefaultPricesTable({ rows, isLoading, onEdit, onDelete, onOpenSo
                       <Pencil className="mr-2 h-4 w-4" />
                       Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive" onClick={() => void handleDelete(row.id)}>
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => {
+                        setDeleteTarget(row);
+                      }}
+                    >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Delete
                     </DropdownMenuItem>
@@ -125,7 +146,28 @@ export function DefaultPricesTable({ rows, isLoading, onEdit, onDelete, onOpenSo
             </TableRow>
           ))}
         </TableBody>
-      </Table>
-    </TooltipProvider>
+        </Table>
+      </TooltipProvider>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete default price</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this default price? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

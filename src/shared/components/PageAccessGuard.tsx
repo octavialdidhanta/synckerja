@@ -7,6 +7,7 @@ import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAcce
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 
 export type PageAccessGuardProps = {
   children: ReactNode;
@@ -21,6 +22,8 @@ export type PageAccessGuardProps = {
    * then swapping to the real module shell on hard refresh.
    */
   loadingShell?: ReactNode;
+  /** Shell background behind `loadingShell` (e.g. `bg-gray-100` for KOL modules). */
+  loadingShellWrapperClassName?: string;
 };
 
 const DENY_DEBOUNCE_MS = 250;
@@ -36,6 +39,7 @@ export function PageAccessGuard({
   pagePath,
   showAccessDeniedPage = true,
   loadingShell,
+  loadingShellWrapperClassName,
 }: PageAccessGuardProps) {
   const { user, loading } = useAuth();
   const { t } = useAppTranslation();
@@ -117,14 +121,18 @@ export function PageAccessGuard({
   const shouldShowLoading =
     (loading && !user) || (showLoadingUI && isLoading) || isResolvingAccess;
 
-  const showModuleLoadingShell =
-    loadingShell != null &&
-    ((loading && !user) || isLoading || isResolvingAccess);
-
-  if (showModuleLoadingShell) {
+  /**
+   * Selama `shouldShowLoading`, jika route menyediakan `loadingShell`, selalu pakai itu
+   * (layout penuh). Jangan fallback ke skeleton tengah `max-w-xs` — itu terlihat "pendek"
+   * dan tidak mirror halaman (mis. KOL dashboard).
+   */
+  if (loadingShell != null && shouldShowLoading) {
     return (
       <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
+        className={cn(
+          "flex h-full min-h-0 min-w-0 flex-1 flex-col",
+          loadingShellWrapperClassName ?? "bg-background",
+        )}
         aria-busy
         aria-label={t("pageAccess.loading", "Loading…")}
       >

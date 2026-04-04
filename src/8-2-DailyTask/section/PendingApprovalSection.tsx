@@ -17,7 +17,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
 import type { CompletionApprovalRow } from '../services/completionApprovalService';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { usePublicReviewToken } from '@/features/6-1-dashboard/hook/usePublicReviewToken';
+import { usePublicReviewToken } from '@/6-1-dashboard/hook/usePublicReviewToken';
 import { useIsMobile } from '@/mobile/hooks/use-mobile';
 
 function getDisplayTitle(row: CompletionApprovalRow): string {

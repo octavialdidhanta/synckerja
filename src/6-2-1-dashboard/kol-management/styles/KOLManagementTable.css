@@ -1,0 +1,35 @@
+/* Custom CSS for KOLManagementTable */
+
+/* Ensure sticky header works properly */
+.kol-management-table {
+  position: relative;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1000px;
+}
+
+.kol-management-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f9fafb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.kol-management-table thead th {
+  background: #f9fafb !important;
+  border: none !important;
+  white-space: nowrap !important;
+}
+
+.kol-management-table th,
+.kol-management-table td {
+  border: none !important;
+}
+
+.kol-management-table thead tr,
+.kol-management-table tbody tr {
+  border: none !important;
+}
+
