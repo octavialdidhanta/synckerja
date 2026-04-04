@@ -72,7 +72,7 @@ export const DueDateDialog: React.FC<DueDateDialogProps> = ({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-blue-600" />
+            <Calendar className="h-5 w-5 text-primary" />
             Set Due Date
           </DialogTitle>
         </DialogHeader>
@@ -91,7 +91,7 @@ export const DueDateDialog: React.FC<DueDateDialogProps> = ({
           {/* Date Selection */}
           <div className="space-y-2">
             <Label htmlFor="due-date" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-500" />
+              <Calendar className="h-4 w-4 text-primary" />
               Due Date
             </Label>
             <Input
@@ -100,14 +100,14 @@ export const DueDateDialog: React.FC<DueDateDialogProps> = ({
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               min={new Date().toISOString().split('T')[0]}
-              className="w-full"
+              className="w-full focus-visible:border-primary focus-visible:ring-primary"
             />
           </div>
 
           {/* Time Selection */}
           <div className="space-y-2">
             <Label htmlFor="due-time" className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-gray-500" />
+              <Clock className="h-4 w-4 text-primary" />
               Due Time
             </Label>
             <Input
@@ -115,17 +115,17 @@ export const DueDateDialog: React.FC<DueDateDialogProps> = ({
               type="time"
               value={selectedTime}
               onChange={(e) => setSelectedTime(e.target.value)}
-              className="w-full"
+              className="w-full focus-visible:border-primary focus-visible:ring-primary"
             />
           </div>
 
           {/* Preview */}
           {selectedDate && (
-            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-              <div className="text-xs font-medium text-blue-700 mb-1">
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <div className="mb-1 text-xs font-medium text-primary">
                 Deadline Preview
               </div>
-              <div className="text-sm font-semibold text-blue-900">
+              <div className="text-sm font-semibold text-foreground">
                 {new Date(`${selectedDate}T${selectedTime}`).toLocaleString('en-US', {
                   weekday: 'long',
                   year: 'numeric',
@@ -150,7 +150,7 @@ export const DueDateDialog: React.FC<DueDateDialogProps> = ({
           <Button
             onClick={handleConfirm}
             disabled={!isValidDate || isLoading}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isLoading ? (
               <>

@@ -1,4 +1,4 @@
-﻿
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '../hooks/useCurrentOrg';
@@ -95,8 +95,8 @@ export const AttendanceStatusProvider = ({ children }: AttendanceStatusProviderP
 
       if (record) {
         setTodayRecord(record);
-        setHasCheckedIn(!!record.check_in_time);
-        setHasCheckedOut(!!record.check_out_time);
+        setHasCheckedIn(!!(record.check_in_at || record.check_in_time));
+        setHasCheckedOut(!!(record.check_out_at || record.check_out_time));
         if (import.meta.env?.DEV) {
           console.log('✅ Status updated:', {
             checkIn: !!record.check_in_time,

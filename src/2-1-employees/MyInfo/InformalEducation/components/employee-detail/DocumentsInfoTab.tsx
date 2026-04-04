@@ -129,7 +129,7 @@ export const DocumentsInfoTab = ({ employee, isEditMode, onUpdate }: DocumentsIn
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -142,7 +142,7 @@ export const DocumentsInfoTab = ({ employee, isEditMode, onUpdate }: DocumentsIn
           <Button
             onClick={() => setIsAddingNew(true)}
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Document
@@ -152,7 +152,7 @@ export const DocumentsInfoTab = ({ employee, isEditMode, onUpdate }: DocumentsIn
 
       {/* Add New Document Form */}
       {isAddingNew && (
-        <Card className="border-2 border-blue-200 bg-blue-50">
+        <Card className="border-2 border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
@@ -421,7 +421,7 @@ export const DocumentsInfoTab = ({ employee, isEditMode, onUpdate }: DocumentsIn
             {isEditMode && (
               <Button
                 onClick={() => setIsAddingNew(true)}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add First Document

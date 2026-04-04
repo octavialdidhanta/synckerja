@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { parseAttendanceInstant } from '@/1-home/utils/attendanceDateTime';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { SimpleAttendanceCamera } from './SectionQuickMenuImport/SimpleAttendanceCamera';
 import { AttendanceStats } from './SectionQuickMenuImport/AttendanceStats';
@@ -36,13 +37,19 @@ export const SectionQuickMenu = ({
   const { data: employeeData, isLoading: employeeLoading } = useCurrentEmployee();
 
   const calculateWorkingHours = (record: any) => {
-    if (!record?.check_in_time) {
+    const checkIn = parseAttendanceInstant(
+      record?.attendance_date,
+      record?.check_in_time,
+      record?.check_in_at
+    );
+    if (!checkIn) {
       return t('quickMenu.workingTimeZero', '0 hours 0 minutes');
     }
-    
-    const checkIn = new Date(record.check_in_time);
-    const checkOut = record.check_out_time ? new Date(record.check_out_time) : new Date();
-    
+
+    const checkOut =
+      parseAttendanceInstant(record?.attendance_date, record?.check_out_time, record?.check_out_at) ??
+      new Date();
+
     const diffMs = checkOut.getTime() - checkIn.getTime();
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));

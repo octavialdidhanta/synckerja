@@ -174,7 +174,7 @@ export const ComprehensiveLeaveHistory = ({ employeeId, organizationId }: Compre
                 <p className="text-2xl font-bold">{totalDaysUsed}</p>
                 <p className="text-xs text-muted-foreground">{t('leaveHistory.daysThisYear', 'days this year')}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-blue-500" />
+              <CheckCircle className="h-8 w-8 text-primary" />
             </div>
           </CardContent>
         </Card>
@@ -339,7 +339,7 @@ export const ComprehensiveLeaveHistory = ({ employeeId, organizationId }: Compre
                               )}
                             </div>
                             {allocation.allocation_type === 'annual_grant' && (
-                              <div className="text-xs text-blue-600 mt-1 bg-blue-50 px-2 py-1 rounded">
+                              <div className="text-xs text-primary mt-1 bg-primary/5 px-2 py-1 rounded">
                                 {t('leaveHistory.annualLeaveInfo', 'ℹ️ Annual leave is valid for the calendar year (Jan 1 - Dec 31). Remaining leave is not carried over to the next year.')}
                               </div>
                             )}
@@ -459,13 +459,13 @@ export const ComprehensiveLeaveHistory = ({ employeeId, organizationId }: Compre
               </Card>
 
               {/* System Summary */}
-              <Card className="bg-blue-50 border-blue-200">
+              <Card className="bg-primary/5 border-primary/20">
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-3 mb-4">
-                    <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                    <Info className="h-5 w-5 text-primary mt-0.5" />
                     <div>
-                      <h3 className="font-semibold text-blue-900">{t('leaveHistory.systemTitle', 'Annual Leave System')}</h3>
-                      <p className="text-sm text-blue-700 mt-1">
+                      <h3 className="font-semibold text-foreground">{t('leaveHistory.systemTitle', 'Annual Leave System')}</h3>
+                      <p className="text-sm text-foreground/80 mt-1">
                         {t('leaveHistory.systemDesc', 'Summary of applied leave policy')}
                       </p>
                     </div>
@@ -473,48 +473,48 @@ export const ComprehensiveLeaveHistory = ({ employeeId, organizationId }: Compre
                   
                   <div className="space-y-3 text-sm">
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
                       <span className="font-medium">{t('leaveHistory.period', 'Period')}:</span>
                       <span>{t('leaveHistory.calendarYear', 'Calendar year (Jan 1 - Dec 31)')}</span>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
                       <span className="font-medium">{t('leaveHistory.update', 'Update')}:</span>
                       <span>{t('leaveHistory.autoUpdate', 'Automatically every January 1st')}</span>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
                       <span className="font-medium">{t('leaveHistory.remaining', 'Remaining leave')}:</span>
                       <span>{t('leaveHistory.expiresAtYearEnd', 'Expires on December 31st')}</span>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
                       <span className="font-medium">{t('leaveHistory.carryOver', 'Carry Over')}:</span>
                       <span>{t('leaveHistory.noCarryOver', 'None (0 days)')}</span>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
                       <span className="font-medium">{t('leaveHistory.newAllocation', 'New allocation')}:</span>
                       <span>{applyVariables(t('leaveHistory.daysPerYearAllocation', '{{days}} days each year'), { days: leavePolicy.annual_leave_days })}</span>
                     </div>
                   </div>
 
-                  <div className="mt-6 pt-4 border-t border-blue-200">
-                    <h4 className="font-medium text-blue-900 mb-3">{t('leaveHistory.eligibilityPolicy', 'Eligibility Policy')}</h4>
+                  <div className="mt-6 pt-4 border-t border-primary/20">
+                    <h4 className="font-medium text-foreground mb-3">{t('leaveHistory.eligibilityPolicy', 'Eligibility Policy')}</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-2">
-                        <CalendarDays className="h-4 w-4 text-blue-600" />
+                        <CalendarDays className="h-4 w-4 text-primary" />
                         <span dangerouslySetInnerHTML={{ __html: applyVariables(t('leaveHistory.employeeGetsDays', 'Employees receive <strong>{{days}} days</strong> leave per year'), { days: leavePolicy.annual_leave_days }) }} />
                       </div>
                       <div className="flex items-center gap-2">
                         {leavePolicy.leave_strategy === 'after_probation' ? (
-                          <Users className="h-4 w-4 text-blue-600" />
+                          <Users className="h-4 w-4 text-primary" />
                         ) : (
-                          <Clock className="h-4 w-4 text-blue-600" />
+                          <Clock className="h-4 w-4 text-primary" />
                         )}
                         <span>
                           {leavePolicy.leave_strategy === 'after_probation' 

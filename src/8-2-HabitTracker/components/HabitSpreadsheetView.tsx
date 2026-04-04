@@ -51,12 +51,12 @@ export const HabitSpreadsheetView = () => {
   useEffect(() => {
     const style = document.createElement("style");
     style.textContent = `
-      .checkbox-full-green[data-state="checked"] {
-        background-color: #16a34a !important;
-        border-color: #16a34a !important;
+      .habit-grid-checkbox-checked[data-state="checked"] {
+        background-color: hsl(var(--primary)) !important;
+        border-color: hsl(var(--primary)) !important;
       }
-      .checkbox-full-green[data-state="checked"] svg {
-        color: white !important;
+      .habit-grid-checkbox-checked[data-state="checked"] svg {
+        color: hsl(var(--primary-foreground)) !important;
       }
       .habit-grid-checkbox {
         border-radius: 2px !important;
@@ -218,7 +218,7 @@ export const HabitSpreadsheetView = () => {
               </Button>
             </div>
           </div>
-          <Button size="sm" onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-brand-blue text-white hover:bg-brand-blue/90">
+          <Button size="sm" onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
             <Plus className="h-4 w-4" />
             Add Habit
           </Button>
@@ -250,7 +250,7 @@ export const HabitSpreadsheetView = () => {
                         >
                           <div className="flex flex-col items-center gap-0.5">
                             <span className="text-[10px] text-gray-500 uppercase">{format(day, "EEE")}</span>
-                            <span className={`text-sm font-semibold ${isCurrentDay ? "text-brand-blue" : "text-gray-900"}`}>{format(day, "d")}</span>
+                            <span className={`text-sm font-semibold ${isCurrentDay ? "text-primary" : "text-gray-900"}`}>{format(day, "d")}</span>
                           </div>
                         </th>
                       );
@@ -293,7 +293,11 @@ export const HabitSpreadsheetView = () => {
                           style={{ width: "45px", minWidth: "45px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}
                         >
                           <div className="flex flex-col items-center gap-0.5">
-                            <div className={`text-[10px] font-bold ${isComplete ? "rounded bg-brand-blue px-1.5 py-0.5 text-white" : "text-gray-700"}`}>{percentage}%</div>
+                            <div
+                              className={`text-[10px] font-bold ${isComplete ? "rounded bg-primary px-1.5 py-0.5 text-primary-foreground" : "text-gray-700"}`}
+                            >
+                              {percentage}%
+                            </div>
                           </div>
                         </td>
                       );
@@ -309,7 +313,7 @@ export const HabitSpreadsheetView = () => {
                         const totalGoal = getTotalMonthlyGoalForStats();
                         const totalActual = chartData.reduce((sum, _dayData, idx) => sum + getDailyStatsAnalysis(monthDays[idx]).actual, 0);
                         return (
-                          <span className={`text-xs font-semibold ${totalActual >= totalGoal ? "text-brand-blue" : totalActual >= totalGoal * 0.5 ? "text-brand-blue" : "text-gray-900"}`}>
+                          <span className={`text-xs font-semibold ${totalActual >= totalGoal ? "text-primary" : totalActual >= totalGoal * 0.5 ? "text-primary" : "text-gray-900"}`}>
                             {totalActual}
                           </span>
                         );
@@ -320,7 +324,7 @@ export const HabitSpreadsheetView = () => {
                         const totalGoal = getTotalMonthlyGoalForStats();
                         const totalActual = chartData.reduce((sum, _dayData, idx) => sum + getDailyStatsAnalysis(monthDays[idx]).actual, 0);
                         const totalProgress = totalGoal > 0 ? Math.min((totalActual / totalGoal) * 100, 100) : 0;
-                        const progressColor = "bg-brand-blue";
+                        const progressColor = "bg-primary";
                         return (
                           <div className="flex items-center gap-2">
                             <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
@@ -430,7 +434,7 @@ export const HabitSpreadsheetView = () => {
                                 } ${
                                   isSelected
                                     ? isCurrentDay
-                                      ? "bg-sky-200"
+                                      ? "bg-primary/20"
                                       : "bg-brand-blue-soft"
                                     : isCurrentDay
                                       ? "bg-brand-blue-soft brightness-[0.98]"
@@ -485,7 +489,7 @@ export const HabitSpreadsheetView = () => {
                                           }}
                                           disabled={!isDayAllowed && !isMonthlyHabit}
                                           className={`h-4 w-4 rounded-sm habit-grid-checkbox ${isDayAllowed || (isMonthlyHabit && !isDayAllowed) ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
-                                            checkboxState === true ? "checkbox-full-green" : ""
+                                            checkboxState === true ? "habit-grid-checkbox-checked" : ""
                                           }`}
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -499,7 +503,7 @@ export const HabitSpreadsheetView = () => {
                                       </div>
                                       {entriesCount > 0 ? (
                                         <div className="flex items-center justify-center flex-shrink-0" style={{ height: "9px", minHeight: "9px", maxHeight: "9px", marginTop: "0px" }}>
-                                          <span className="text-[8px] font-semibold leading-none text-brand-blue">
+                                          <span className="text-[8px] font-semibold leading-none text-primary">
                                             {entriesCount}/{habit.target_count}
                                           </span>
                                         </div>
@@ -521,7 +525,7 @@ export const HabitSpreadsheetView = () => {
                                         }}
                                         disabled={!isDayAllowed && !isMonthlyHabit}
                                         className={`h-4 w-4 rounded-sm habit-grid-checkbox ${isDayAllowed || (isMonthlyHabit && !isDayAllowed) ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
-                                          checkboxState === true ? "checkbox-full-green" : ""
+                                          checkboxState === true ? "habit-grid-checkbox-checked" : ""
                                         }`}
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -540,7 +544,7 @@ export const HabitSpreadsheetView = () => {
                           })}
                           {(() => {
                             const { goal, actual, progress } = getHabitAnalysisForRow(habit);
-                            const progressColor = "bg-brand-blue";
+                            const progressColor = "bg-primary";
                             return (
                               <>
                                 <td
@@ -556,7 +560,7 @@ export const HabitSpreadsheetView = () => {
                                   className={`relative z-0 border-r border-b border-brand-blue/20 px-2 text-center ${isSelected ? "bg-brand-blue-soft" : "bg-white group-hover:bg-slate-50"}`}
                                   style={{ width: "80px", minWidth: "80px", height: "45px", verticalAlign: "middle", paddingTop: "6px", paddingBottom: "6px" }}
                                 >
-                                  <span className={`text-sm font-semibold ${actual >= goal ? "text-brand-blue" : actual >= goal * 0.5 ? "text-brand-blue" : "text-gray-900"}`}>{actual}</span>
+                                  <span className={`text-sm font-semibold ${actual >= goal ? "text-primary" : actual >= goal * 0.5 ? "text-primary" : "text-gray-900"}`}>{actual}</span>
                                 </td>
                                 <td
                                   className={`relative z-0 border-b border-r-0 border-brand-blue/20 px-2 ${isSelected ? "bg-brand-blue-soft" : "bg-white group-hover:bg-slate-50"}`}
@@ -623,10 +627,10 @@ export const HabitSpreadsheetView = () => {
                         <Line
                           type="monotone"
                           dataKey="pct"
-                          stroke="#10b981"
+                          stroke="hsl(var(--primary))"
                           strokeWidth={2.5}
-                          dot={{ fill: "#10b981", strokeWidth: 2, r: 3 }}
-                          activeDot={{ r: 5 }}
+                          dot={{ fill: "hsl(var(--primary))", stroke: "hsl(var(--primary))", strokeWidth: 2, r: 3 }}
+                          activeDot={{ r: 5, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
                           isAnimationActive={false}
                           connectNulls={false}
                         />
@@ -694,7 +698,7 @@ export const HabitSpreadsheetView = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <Edit className="w-5 h-5 text-brand-blue" />
+              <Edit className="w-5 h-5 text-primary" />
               {t("habitTracker.monthlyHabit.changeDateTitle", "Ubah Tanggal Habit Bulanan")}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -750,7 +754,7 @@ export const HabitSpreadsheetView = () => {
                           <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">{t("habitTracker.monthlyHabit.noDateToReplace", "Tidak ada tanggal yang bisa diganti")}</div>
                         )}
                         {selectedOldDate && (
-                          <div className="rounded border border-brand-blue/20 bg-brand-blue/10 p-2 text-xs text-gray-500">
+                          <div className="rounded border border-primary/20 bg-primary/10 p-2 text-xs text-gray-500">
                             {t("habitTracker.monthlyHabit.dateChangeInfo", "Tanggal {oldDate} akan dinonaktifkan dan diganti dengan tanggal {newDate}", {
                               oldDate: formatDateForDisplay(selectedOldDate),
                               newDate: formatDateForDisplay(monthlyHabitConfirmModal.newDate),
@@ -830,7 +834,7 @@ export const HabitSpreadsheetView = () => {
                   });
                 }
               }}
-              className="bg-brand-blue hover:bg-brand-blue/90 focus:ring-brand-blue"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary"
             >
               <Edit className="w-4 h-4 mr-2" />
               {t("habitTracker.monthlyHabit.changeDateButton", "Ubah Tanggal")}

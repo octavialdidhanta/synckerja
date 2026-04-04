@@ -12,17 +12,17 @@ export const HabitStats = () => {
       : 0;
   const totalStreak = stats.reduce((sum, s) => sum + s.current_streak, 0);
   const statCards = [
-    { label: "Total Habits", value: totalHabits, icon: Target, color: "text-brand-blue", bgColor: "bg-brand-blue/10" },
-    { label: "Active Habits", value: activeHabits, icon: CheckCircle2, color: "text-brand-blue", bgColor: "bg-brand-blue/10" },
-    { label: "Avg Completion", value: `${totalCompletionRate.toFixed(0)}%`, icon: TrendingUp, color: "text-brand-blue", bgColor: "bg-brand-blue/10" },
-    { label: "Total Streak", value: totalStreak, icon: Flame, color: "text-brand-blue", bgColor: "bg-brand-blue/10" },
+    { label: "Total Habits", value: totalHabits, icon: Target, color: "text-primary", bgColor: "bg-primary/10" },
+    { label: "Active Habits", value: activeHabits, icon: CheckCircle2, color: "text-primary", bgColor: "bg-primary/10" },
+    { label: "Avg Completion", value: `${totalCompletionRate.toFixed(0)}%`, icon: TrendingUp, color: "text-primary", bgColor: "bg-primary/10" },
+    { label: "Total Streak", value: totalStreak, icon: Flame, color: "text-primary", bgColor: "bg-primary/10" },
   ];
   return (
     <div className="grid grid-cols-4 gap-1.5">
       {statCards.map((stat) => {
         const Icon = stat.icon;
         return (
-          <Card key={stat.label} className="border border-brand-blue/20 bg-white ring-1 ring-brand-blue/10">
+          <Card key={stat.label} className="border border-primary/20 bg-white ring-1 ring-primary/10">
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>

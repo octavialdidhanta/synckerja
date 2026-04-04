@@ -1,11 +1,55 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardList, CreditCard, Layers, Target, Users, Wallet, Wrench } from "lucide-react";
+import { Briefcase, ClipboardList, CreditCard, Layers, Target, Users, Wallet, Wrench } from "lucide-react";
+
+/** Strip query/hash for path comparison */
+export function pathBaseFromNavPath(full: string): string {
+  const q = full.indexOf("?");
+  const h = full.indexOf("#");
+  const cut = q >= 0 && h >= 0 ? Math.min(q, h) : q >= 0 ? q : h >= 0 ? h : -1;
+  return cut >= 0 ? full.slice(0, cut) : full;
+}
+
+export function navSubItemPathMatches(pathname: string, pathWithMaybeQuery: string): boolean {
+  const base = pathBaseFromNavPath(pathWithMaybeQuery);
+  return base === "/"
+    ? pathname === "/"
+    : pathname === base || pathname.startsWith(`${base}/`);
+}
+
+/** Active state for nav sub-items that share a path with different query params (see `matchSearch` / `inactiveWhenSearch`). */
+export function isNavSubItemActive(item: NavSubItem, pathname: string, search: string): boolean {
+  const pathActive =
+    navSubItemPathMatches(pathname, item.path) ||
+    Boolean(item.activePathPrefixes?.some((prefix) => navSubItemPathMatches(pathname, prefix)));
+  if (!pathActive) return false;
+
+  const sp = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+
+  if (item.matchSearch && Object.keys(item.matchSearch).length > 0) {
+    for (const [k, v] of Object.entries(item.matchSearch)) {
+      if (sp.get(k) !== v) return false;
+    }
+    return true;
+  }
+
+  if (item.inactiveWhenSearch && Object.keys(item.inactiveWhenSearch).length > 0) {
+    for (const [k, v] of Object.entries(item.inactiveWhenSearch)) {
+      if (sp.get(k) === v) return false;
+    }
+  }
+
+  return true;
+}
 
 export type NavSubItem = {
   titleKey: string;
   path: string;
   /** Extra prefixes that highlight this sub-item (e.g. /my-info for employee detail) */
   activePathPrefixes?: string[];
+  /** All of these query params must match for this row to be active */
+  matchSearch?: Record<string, string>;
+  /** If the URL has these query values, this row is not active (e.g. hide “CRM” when `?view=report`) */
+  inactiveWhenSearch?: Record<string, string>;
 };
 
 export type MainNavItem = {
@@ -101,11 +145,45 @@ export const mainNavItems: MainNavItem[] = [
     ],
   },
   {
-    id: "requestForm",
-    titleKey: "sidebar.requestForm.title",
-    icon: ClipboardList,
-    path: "/request-form/purchase",
-    activePathPrefix: "/request-form",
+    id: "operations",
+    titleKey: "sidebar.operations.title",
+    icon: Briefcase,
+    activePathPrefixes: ["/operations"],
+    subItems: [
+      {
+        titleKey: "sidebar.operations.crm.title",
+        path: "/operations/consultant/leads-management",
+        activePathPrefixes: [
+          "/operations/consultant/leads-management",
+          "/operations/consultant/dashboard",
+        ],
+      },
+      {
+        titleKey: "sidebar.operations.sales.title",
+        path: "/operations/sales/activities",
+        activePathPrefixes: ["/operations/sales"],
+      },
+      {
+        titleKey: "sidebar.operations.whatsappConnect.title",
+        path: "/operations/consultant/whatsapp/connect",
+        activePathPrefixes: ["/operations/consultant/whatsapp/connect"],
+      },
+      {
+        titleKey: "sidebar.operations.instagramConnect.title",
+        path: "/operations/consultant/instagram/connect",
+        activePathPrefixes: ["/operations/consultant/instagram/connect"],
+      },
+      {
+        titleKey: "sidebar.operations.emailConnect.title",
+        path: "/operations/consultant/email/connect",
+        activePathPrefixes: ["/operations/consultant/email/connect"],
+      },
+      {
+        titleKey: "sidebar.operations.livechat.title",
+        path: "/operations/consultant/all/livechat",
+        activePathPrefixes: ["/operations/consultant/all/livechat"],
+      },
+    ],
   },
   {
     id: "tools",
@@ -149,6 +227,13 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: ["/tools/promo-simulation"],
       },
     ],
+  },
+  {
+    id: "requestForm",
+    titleKey: "sidebar.requestForm.title",
+    icon: ClipboardList,
+    path: "/request-form/purchase",
+    activePathPrefix: "/request-form",
   },
   {
     id: "subscription",

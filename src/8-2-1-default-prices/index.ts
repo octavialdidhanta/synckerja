@@ -9,3 +9,5 @@ export {
   useSopTemplateSteps,
   useSopTemplateByService,
 } from "./hooks";
+export { SopWorkflowModal } from "./components/SopWorkflowModal";
+export type { SopTemplateStep } from "./types/sopTypes";

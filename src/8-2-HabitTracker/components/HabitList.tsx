@@ -33,7 +33,7 @@ export const HabitList = () => {
                       <div className="flex items-center gap-2">
                         <div className="h-3 w-3 rounded-full" style={{ backgroundColor: habit.color || "#3b82f6" }} />
                         <h3 className="truncate font-semibold">{habit.name}</h3>
-                        {!habit.is_active ? <Badge variant="secondary">Inactive</Badge> : <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                        {!habit.is_active ? <Badge variant="secondary">Inactive</Badge> : <CheckCircle2 className="h-4 w-4 text-primary" />}
                       </div>
                       {habit.description ? <p className="mt-1 text-sm text-gray-600">{habit.description}</p> : null}
                     </div>

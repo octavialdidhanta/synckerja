@@ -234,7 +234,7 @@ export const FamilyInfoTab = ({
   };
   if (isLoading) {
     return <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>;
   }
   const getRelationshipLabel = (value: string) => {
@@ -248,14 +248,14 @@ export const FamilyInfoTab = ({
   return <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">Family Members</h3>
-        {isEditMode && <Button onClick={() => setIsAddingNew(true)} className="bg-blue-600 hover:bg-blue-700 text-white" size="sm">
+        {isEditMode && <Button onClick={() => setIsAddingNew(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground" size="sm">
             <Plus className="h-4 w-4 mr-2" />
             Add Family Member
           </Button>}
       </div>
 
       {/* Add New Member Form */}
-      {isAddingNew && isEditMode && <Card className="border-2 border-blue-200 bg-blue-50">
+      {isAddingNew && isEditMode && <Card className="border-2 border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div className="space-y-2">
@@ -445,7 +445,7 @@ const FamilyMemberListItem = ({
     onUpdate(editData);
   };
   if (isEditing) {
-    return <div className="p-4 bg-blue-50 border-blue-200">
+    return <div className="p-4 bg-primary/5 border border-primary/20">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div className="space-y-2">
             <Label>Name *</Label>
@@ -541,7 +541,7 @@ const FamilyMemberListItem = ({
         {/* Photo */}
         <div className="flex-shrink-0 relative mr-4">
           <Avatar className="h-12 w-12">
-            {photoUrl ? <AvatarImage src={photoUrl} alt={member.name} /> : <AvatarFallback className="bg-blue-100 text-blue-600">
+            {photoUrl ? <AvatarImage src={photoUrl} alt={member.name} /> : <AvatarFallback className="bg-primary/15 text-primary">
                 {member.name ? member.name.charAt(0).toUpperCase() : 'F'}
               </AvatarFallback>}
           </Avatar>
@@ -549,7 +549,7 @@ const FamilyMemberListItem = ({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-6 w-6 p-0 rounded-full bg-white border shadow-sm" disabled={uploadingPhoto}>
-                    {uploadingPhoto ? <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-500"></div> : <Camera className="h-3 w-3" />}
+                    {uploadingPhoto ? <div className="animate-spin rounded-full h-3 w-3 border-b border-primary"></div> : <Camera className="h-3 w-3" />}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-white border shadow-lg">

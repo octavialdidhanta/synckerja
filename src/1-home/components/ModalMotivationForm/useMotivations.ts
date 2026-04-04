@@ -305,13 +305,18 @@ export const useMotivations = () => {
         throw new Error('User not authenticated');
       }
 
-      // Check if user already liked this motivation
-      const { data: existingLike } = await supabase
+      // Check if user already liked this motivation (0 rows → .single() causes 406 Not Acceptable)
+      const { data: existingLike, error: likeLookupError } = await supabase
         .from('motivation_likes')
         .select('id')
         .eq('motivation_id', motivationId)
         .eq('employee_id', employeeData.id)
-        .single();
+        .maybeSingle();
+
+      if (likeLookupError) {
+        console.error('Error checking motivation like:', likeLookupError);
+        throw likeLookupError;
+      }
 
       if (existingLike) {
         // Unlike - remove the like

@@ -59,7 +59,7 @@ export const EmploymentDocumentsSection = ({ formData, handleInputChange }: Empl
           </Label>
           <div className="flex items-center gap-3">
             <div className="flex-1">
-              <label className="flex items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-gray-300 border-dashed rounded-lg appearance-none cursor-pointer hover:border-blue-400 focus:outline-none">
+              <label className="flex items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-gray-300 border-dashed rounded-lg appearance-none cursor-pointer hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
                 <div className="flex flex-col items-center space-y-2">
                   <Upload className="w-8 h-8 text-gray-400" />
                   <span className="text-sm text-gray-500">
@@ -76,16 +76,16 @@ export const EmploymentDocumentsSection = ({ formData, handleInputChange }: Empl
               </label>
             </div>
             {contractFileName && (
-              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                <File className="w-4 h-4 text-blue-600" />
-                <span className="text-sm text-blue-900 max-w-[200px] truncate">{contractFileName}</span>
+              <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg border border-primary/15">
+                <File className="w-4 h-4 text-primary" />
+                <span className="text-sm text-foreground max-w-[200px] truncate">{contractFileName}</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={clearContract}
-                  className="h-6 w-6 p-0 hover:bg-blue-100"
+                  className="h-6 w-6 p-0 hover:bg-primary/10"
                 >
-                  <X className="w-4 h-4 text-blue-600" />
+                  <X className="w-4 h-4 text-primary" />
                 </Button>
               </div>
             )}
@@ -99,7 +99,7 @@ export const EmploymentDocumentsSection = ({ formData, handleInputChange }: Empl
           </Label>
           <div className="flex items-center gap-3">
             <div className="flex-1">
-              <label className="flex items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-gray-300 border-dashed rounded-lg appearance-none cursor-pointer hover:border-blue-400 focus:outline-none">
+              <label className="flex items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-gray-300 border-dashed rounded-lg appearance-none cursor-pointer hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
                 <div className="flex flex-col items-center space-y-2">
                   <Upload className="w-8 h-8 text-gray-400" />
                   <span className="text-sm text-gray-500">
@@ -116,16 +116,16 @@ export const EmploymentDocumentsSection = ({ formData, handleInputChange }: Empl
               </label>
             </div>
             {certificateFileName && (
-              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
-                <File className="w-4 h-4 text-green-600" />
-                <span className="text-sm text-green-900 max-w-[200px] truncate">{certificateFileName}</span>
+              <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg border border-primary/15">
+                <File className="w-4 h-4 text-primary" />
+                <span className="text-sm text-foreground max-w-[200px] truncate">{certificateFileName}</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={clearCertificate}
-                  className="h-6 w-6 p-0 hover:bg-green-100"
+                  className="h-6 w-6 p-0 hover:bg-primary/10"
                 >
-                  <X className="w-4 h-4 text-green-600" />
+                  <X className="w-4 h-4 text-primary" />
                 </Button>
               </div>
             )}
@@ -139,7 +139,7 @@ export const EmploymentDocumentsSection = ({ formData, handleInputChange }: Empl
           </Label>
           <textarea
             id="job_description"
-            className="w-full min-h-[100px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full min-h-[100px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
             value={formData.job_description || ''}
             onChange={(e) => handleInputChange('job_description', e.target.value)}
             placeholder="Enter job description and responsibilities"

@@ -148,7 +148,7 @@ export function TaskListRow({
           isHighlightedFromPendingApproval
             ? 'bg-amber-50 border-l-4 border-l-amber-500 shadow-md'
             : isHighlighted
-              ? 'bg-blue-50 border-l-4 border-l-blue-500 shadow-md'
+              ? 'border-l-4 border-l-primary bg-primary/5 shadow-md'
               : ''
         }`}
       >
@@ -198,13 +198,13 @@ export function TaskListRow({
           <Tooltip>
             <TooltipTrigger asChild>
               <div
-                className={`text-sm font-medium cursor-pointer hover:text-blue-600 truncate flex flex-wrap items-center gap-2 ${
+                className={`text-sm font-medium cursor-pointer hover:text-primary truncate flex flex-wrap items-center gap-2 ${
                   checkboxRule.isChecked ? 'line-through text-gray-500' : 'text-gray-900'
                 }`}
                 onClick={() => onToggleExpansion(task.id)}
               >
                 {isHighlightedFromPendingApproval && <Target className="w-4 h-4 text-amber-600 animate-pulse" />}
-                {isHighlighted && !isHighlightedFromPendingApproval && <Target className="w-4 h-4 text-blue-600 animate-pulse" />}
+                {isHighlighted && !isHighlightedFromPendingApproval && <Target className="w-4 h-4 text-primary animate-pulse" />}
                 {task.title}
                 {taskRejectReason && (
                   <Badge className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200">
@@ -246,7 +246,7 @@ export function TaskListRow({
 
         <TableCell className="px-2 py-3 text-left overflow-hidden" style={{ width: '180px', minWidth: '180px', maxWidth: '180px' }}>
           {task.objective_id ? (
-            <Badge variant="secondary" className="text-[10px] font-normal bg-blue-50 text-blue-700 border border-blue-200 truncate max-w-full inline-block" title={objectiveTitle || undefined}>
+            <Badge variant="secondary" className="text-[10px] font-normal border border-primary/20 bg-primary/5 text-primary truncate max-w-full inline-block" title={objectiveTitle || undefined}>
               {t('dailyTask.objective.linkedTo', 'Linked to')}: {objectiveTitle || '…'}
             </Badge>
           ) : (
@@ -260,7 +260,7 @@ export function TaskListRow({
           <div className="flex items-center gap-2 min-w-0">
             {department ? (
               <>
-                <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+                <Building2 className="w-4 h-4 shrink-0 text-primary" />
                 <span className="text-sm text-gray-900 font-medium truncate block min-w-0" title={department.name}>
                   {department.name}
                 </span>
@@ -275,7 +275,7 @@ export function TaskListRow({
           <div className="flex items-start min-w-0">
             {task.assigned_to_name ? (
               <div className="flex gap-2 min-w-0 overflow-hidden">
-                <User className="w-4 h-4 flex-shrink-0 text-blue-600 mt-0.5" />
+                <User className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
                 <div className="min-w-0 flex-1">
                   <span
                     className="text-sm text-gray-900 font-medium truncate block"
@@ -317,8 +317,8 @@ export function TaskListRow({
               const isDifferent = dueDateObj && !isSameMonth(planDateObj, dueDateObj);
               return (
                 <div className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-blue-600" />
-                  <span className="text-sm text-blue-600 font-medium">
+                  <Calendar className="h-3 w-3 text-primary" />
+                  <span className="text-sm font-medium text-primary">
                     {format(planDateObj, 'MMM yyyy', { locale: idLocale })}
                   </span>
                   {isDifferent && (
@@ -441,8 +441,8 @@ export function TaskListRow({
                   <span className="text-green-700">Low</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onPriorityChange(task.id, 'medium')} className="flex items-center gap-2">
-                  <Flag className="w-3 h-3 text-blue-600" />
-                  <span className="text-blue-700">Medium</span>
+                  <Flag className="h-3 w-3 text-primary" />
+                  <span className="text-primary">Medium</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onPriorityChange(task.id, 'high')} className="flex items-center gap-2">
                   <Flag className="w-3 h-3 text-orange-600" />
@@ -476,7 +476,7 @@ export function TaskListRow({
             <div className="w-full bg-gray-200 rounded-full h-1.5">
               <div
                 className={`h-1.5 rounded-full transition-all duration-300 ${
-                  progress === 100 ? 'bg-green-500' : 'bg-blue-600'
+                  progress === 100 ? 'bg-green-500' : 'bg-primary'
                 }`}
                 style={{ width: `${progress}%` }}
               />
@@ -533,7 +533,7 @@ export function TaskListRow({
               onClick={() => creatorCanEdit && setEditingTask(task.id)}
               disabled={!creatorCanEdit}
               className={`h-7 w-7 p-0 ${
-                creatorCanEdit ? 'hover:bg-blue-50 hover:text-blue-600 cursor-pointer' : 'opacity-40 cursor-not-allowed'
+                creatorCanEdit ? 'cursor-pointer hover:bg-primary/10 hover:text-primary' : 'opacity-40 cursor-not-allowed'
               }`}
               title={creatorCanEdit ? 'Edit task' : '🔒 Only task creator can edit'}
             >
@@ -563,8 +563,8 @@ export function TaskListRow({
               isHighlightedFromPendingApproval
                 ? 'bg-amber-50 border-l-4 border-l-amber-500 border-amber-200'
                 : isHighlighted
-                  ? 'bg-blue-100 border-l-4 border-l-blue-500 border-blue-200'
-                  : 'bg-blue-50 border-blue-200'
+                  ? 'border-l-4 border-l-primary border-primary/25 bg-primary/10'
+                  : 'border-primary/20 bg-primary/5'
             }`}
             style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}
           >
@@ -585,7 +585,7 @@ export function TaskListRow({
               <div className="w-full">
                 <div className="flex items-center justify-between mb-3 w-full">
                   <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                    <CheckSquare className="w-4 h-4 text-blue-600" />
+                    <CheckSquare className="h-4 w-4 text-primary" />
                     {t('dailyTask.workflow') ?? 'Workflow'} (
                     {`${visibleSteps.filter((s) => s.is_completed).length}/${visibleSteps.length}`})
                   </h4>
@@ -595,7 +595,7 @@ export function TaskListRow({
                         variant="ghost"
                         size="sm"
                         onClick={() => setAddTemplateDialog({ isOpen: true, taskId: task.id, taskTitle: task.title })}
-                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                        className="cursor-pointer text-primary hover:bg-primary/10 hover:text-primary/90"
                         title={t('dailyTask.template.addTemplate') ?? 'Add template to this task'}
                       >
                         <Layers className="w-4 h-4 mr-1" />
@@ -611,8 +611,8 @@ export function TaskListRow({
                       disabled={!creatorCanEdit}
                       className={`${
                         creatorCanEdit
-                          ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer'
-                          : 'text-gray-400 opacity-50 cursor-not-allowed'
+                          ? 'cursor-pointer text-primary hover:bg-primary/10 hover:text-primary/90'
+                          : 'cursor-not-allowed text-gray-400 opacity-50'
                       }`}
                       title={creatorCanEdit ? 'Add a new step to this task' : '🔒 Only task creator can add steps'}
                     >
@@ -627,10 +627,10 @@ export function TaskListRow({
                 >
                   <div className="space-y-2 min-h-[50px] w-full">
                     {visibleSteps.length === 0 ? (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-                        <CheckSquare className="w-8 h-8 mx-auto text-blue-400 mb-2" />
-                        <p className="text-sm font-medium text-blue-900 mb-1">No steps yet</p>
-                        <p className="text-xs text-blue-700">
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-center">
+                        <CheckSquare className="mx-auto mb-2 h-8 w-8 text-primary/70" />
+                        <p className="mb-1 text-sm font-medium text-foreground">No steps yet</p>
+                        <p className="text-xs text-muted-foreground">
                           {filters?.pic ? 'No steps assigned to selected PIC' : 'Steps will appear here once created or assigned to you'}
                         </p>
                       </div>

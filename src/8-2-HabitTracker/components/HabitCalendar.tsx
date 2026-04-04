@@ -25,7 +25,7 @@ export const HabitCalendar = () => {
         <div className="grid grid-cols-7 gap-1">
           {days.map((d) => {
             const hasEntry = entries.some((e) => e.entry_date === format(d, "yyyy-MM-dd"));
-            return <div key={d.toISOString()} className={`aspect-square rounded border p-1 text-xs ${hasEntry ? "border-green-200 bg-green-50" : "border-gray-200"}`}>{format(d, "d")}</div>;
+            return <div key={d.toISOString()} className={`aspect-square rounded border p-1 text-xs ${hasEntry ? "border-primary/25 bg-primary/10" : "border-gray-200"}`}>{format(d, "d")}</div>;
           })}
         </div>
       </CardContent>

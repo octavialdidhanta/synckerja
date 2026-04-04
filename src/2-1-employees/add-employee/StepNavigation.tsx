@@ -53,7 +53,7 @@ export const StepNavigation = ({
           <Button 
             onClick={onSave} 
             disabled={isSubmitting}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+            className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isSubmitting ? (
               <>

@@ -90,6 +90,7 @@ export const IndividualObjectivesView = ({
   // Get department objectives for showing as key results in Department tab
   const {
     data: departmentObjectives = [],
+    isPending: departmentObjectivesPending,
     error: departmentObjectivesError,
   } = useDepartmentObjectives(organizationId, finalCycleIds);
 
@@ -100,7 +101,10 @@ export const IndividualObjectivesView = ({
   } = useDepartments(organizationId);
 
   const individualTabLoading =
-    loadingEmployees || loadingObjectives || loadingDepartments;
+    loadingEmployees ||
+    loadingObjectives ||
+    loadingDepartments ||
+    departmentObjectivesPending;
   const individualTabError =
     (employeesError as Error | null | undefined) ||
     (individualObjectivesError as Error | null | undefined) ||

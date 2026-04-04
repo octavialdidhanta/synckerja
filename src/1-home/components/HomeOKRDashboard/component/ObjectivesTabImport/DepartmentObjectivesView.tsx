@@ -8,7 +8,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Building, Plus, Target, ChevronRight, ChevronDown, CheckCircle, Users, TrendingUp, Calendar, User, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { useReportOkrTabStatus } from '@/1-home/context/HomeOkrTabsLoadContext';
 import { useReportOkrPageDetail } from '@/1-OKR/context/OkrPageDetailLoadContext';
-import { useObjectives } from './useObjectives';
 import { useFilteredObjectives } from './useFilteredObjectives';
 import { useDepartments } from './CompanyObjectivesDetailViewImport/useDepartments';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
@@ -81,9 +80,7 @@ export const DepartmentObjectivesView = ({
     isLoading: loadingDepartments,
     error: departmentsError,
   } = useDepartments(organizationId);
-  const {
-    data: employees = []
-  } = useEmployees();
+  const { data: employees = [], isPending: employeesPending } = useEmployees();
 
   const activeEmployees = useMemo(() => {
     return employees.filter(emp => {
@@ -95,7 +92,8 @@ export const DepartmentObjectivesView = ({
   // Get individual objectives ONLY for the specific department objectives
   // This prevents data sharing and improves performance
   const {
-    data: individualObjectives = []
+    data: individualObjectives = [],
+    isPending: individualObjectivesPending,
   } = useIndividualObjectives(organizationId, finalCycleIds);
   const {
     user: currentUser
@@ -109,10 +107,11 @@ export const DepartmentObjectivesView = ({
   const deleteObjective = useDeleteDepartmentObjective();
 
   // Filter department objectives by department for each department
-  const loadingAllObjectives = loadingObjectives;
-
   const departmentTabLoading =
-    loadingObjectives || loadingDepartments || loadingAllObjectives;
+    loadingObjectives ||
+    loadingDepartments ||
+    employeesPending ||
+    individualObjectivesPending;
   const departmentTabError =
     (departmentObjectivesError as Error | null | undefined) ||
     (departmentsError as Error | null | undefined) ||

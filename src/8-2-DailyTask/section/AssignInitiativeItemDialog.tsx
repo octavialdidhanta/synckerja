@@ -223,33 +223,33 @@ export const AssignInitiativeItemDialog: React.FC<AssignInitiativeItemDialogProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[520px] h-[520px] max-w-[95vw] max-h-[95vh] p-0 flex flex-col">
-        <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+      <DialogContent className="flex h-auto max-h-[min(560px,92vh)] w-full max-w-[520px] flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b bg-gradient-to-r from-primary/5 to-primary/10 px-6 pb-4 pt-6 pr-14 dark:from-primary/10 dark:to-primary/5 sm:pr-16">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 dark:bg-primary/20">
+              <Users className="h-5 w-5 text-primary" />
             </div>
-            <div className="min-w-0">
-              <DialogTitle className="text-xl font-semibold truncate">
-                Assign {getItemTypeLabel()}
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-xl font-semibold leading-tight">
+                <span className="line-clamp-2">Assign {getItemTypeLabel()}</span>
               </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground mt-1 truncate">
+              <DialogDescription className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                 Assign this {getItemTypeLabel().toLowerCase()} and optionally add a deadline.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
-          <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
-            <div className="text-xs font-medium text-gray-500 mb-1">
+        <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-6 py-4">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <div className="mb-1 text-xs font-medium text-gray-500">
               {getItemTypeLabel()}
             </div>
-            <div className="text-sm font-medium text-gray-900 line-clamp-2">
+            <div className="break-words text-sm font-medium text-gray-900">
               {item.title}
             </div>
             {(item.taskTitle || item.parentStepTitle) && (
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="mt-1 min-w-0 break-words text-xs text-gray-500">
                 {item.taskTitle && <span>{item.taskTitle}</span>}
                 {item.parentStepTitle && <span> → {item.parentStepTitle}</span>}
               </div>
@@ -257,21 +257,21 @@ export const AssignInitiativeItemDialog: React.FC<AssignInitiativeItemDialogProp
           </div>
 
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <div className="relative min-w-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
               placeholder="Search employees..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="min-w-0 pl-10 focus-visible:border-primary focus-visible:ring-primary"
             />
           </div>
 
           {/* Employee List */}
-          <div className="max-h-60 overflow-y-auto space-y-2">
+          <div className="min-h-0 min-w-0 max-h-[min(240px,35vh)] space-y-2 overflow-x-hidden overflow-y-auto">
             {loading ? (
               <div className="text-center py-4">
-                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 <p className="text-sm text-gray-500 mt-2">Loading employees...</p>
               </div>
             ) : filteredEmployees.length === 0 ? (
@@ -283,22 +283,22 @@ export const AssignInitiativeItemDialog: React.FC<AssignInitiativeItemDialogProp
               filteredEmployees.map((employee) => (
                 <div
                   key={employee.id}
-                  className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                  className={`min-w-0 cursor-pointer rounded-md border p-3 transition-colors ${
                     employee.id === selectedEmployee
-                      ? 'bg-blue-50 border-blue-200'
-                      : 'bg-white border-gray-200 hover:bg-blue-50 hover:border-blue-200'
+                      ? 'border-primary/30 bg-primary/10'
+                      : 'border-gray-200 bg-white hover:border-primary/25 hover:bg-primary/5'
                   }`}
                   onClick={() => setSelectedEmployee(employee.id)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{employee.full_name}</p>
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900">{employee.full_name}</p>
                       {employee.email && (
-                        <p className="text-xs text-gray-500">{employee.email}</p>
+                        <p className="truncate text-xs text-gray-500">{employee.email}</p>
                       )}
                     </div>
                     {employee.id === selectedEmployee && (
-                      <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                      <div className="h-2 w-2 shrink-0 rounded-full bg-primary" />
                     )}
                   </div>
                 </div>
@@ -307,28 +307,28 @@ export const AssignInitiativeItemDialog: React.FC<AssignInitiativeItemDialogProp
           </div>
 
           {/* Deadline Selection */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-500" />
+          <div className="min-w-0 space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <Calendar className="h-4 w-4 shrink-0 text-primary" />
               Deadline (Optional)
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
-                className="w-full"
+                className="min-w-0 w-full max-w-full focus-visible:border-primary focus-visible:ring-primary"
               />
               <Input
                 type="time"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}
-                className="w-full"
+                className="min-w-0 w-full max-w-full focus-visible:border-primary focus-visible:ring-primary"
               />
             </div>
             {dueDate && (
-              <p className="text-xs text-gray-500">
+              <p className="break-words text-xs text-gray-500">
                 Due: {new Date(`${dueDate}T${dueTime}`).toLocaleString('en-US', {
                   weekday: 'long',
                   year: 'numeric',
@@ -342,7 +342,7 @@ export const AssignInitiativeItemDialog: React.FC<AssignInitiativeItemDialogProp
           </div>
         </div>
 
-        <DialogFooter className="px-6 pb-6 pt-4 flex-shrink-0 border-t bg-muted/30 flex-row justify-end gap-3">
+        <DialogFooter className="shrink-0 flex-row justify-end gap-3 border-t bg-muted/30 px-6 pb-6 pt-4">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -353,7 +353,7 @@ export const AssignInitiativeItemDialog: React.FC<AssignInitiativeItemDialogProp
           <Button
             onClick={handleAssign}
             disabled={!selectedEmployee || isAssigning || (dueDate && !isValidDate)}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isAssigning ? (
               <>

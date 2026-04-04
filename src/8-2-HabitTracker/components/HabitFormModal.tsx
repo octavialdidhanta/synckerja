@@ -332,7 +332,7 @@ export const HabitFormModal = ({ isOpen, onClose, habitId }: HabitFormModalProps
         <DialogHeader
           className={
             isMobile
-              ? "flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 text-left safe-area-top px-4 pt-4 pb-3"
+              ? "flex-shrink-0 border-b bg-gradient-to-r from-primary/5 to-primary/10 text-left safe-area-top px-4 pt-4 pb-3"
               : "flex-shrink-0 px-6 pt-6 pb-4 border-b border-gray-200"
           }
         >
@@ -462,7 +462,7 @@ export const HabitFormModal = ({ isOpen, onClose, habitId }: HabitFormModalProps
                         disabled={isMaxReached}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                           isSelected
-                            ? "bg-blue-600 text-white hover:bg-blue-700"
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
                             : isMaxReached
                               ? "bg-gray-50 text-gray-400 cursor-not-allowed opacity-50"
                               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -524,7 +524,7 @@ export const HabitFormModal = ({ isOpen, onClose, habitId }: HabitFormModalProps
                           disabled={isMaxReached}
                           className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                             isSelected
-                              ? "bg-blue-600 text-white hover:bg-blue-700"
+                              ? "bg-primary text-primary-foreground hover:bg-primary/90"
                               : isMaxReached
                                 ? "bg-gray-50 text-gray-400 cursor-not-allowed opacity-50"
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"

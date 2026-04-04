@@ -21,14 +21,14 @@ export const InviteAccessStep = ({ formData }: InviteStepProps) => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/15">
               <div>
                 <p className="font-semibold">Assigned Role:</p>
                 <Badge variant={formData.role ? 'default' : 'secondary'} className="mt-1">
                   {formData.role || 'employee'}
                 </Badge>
               </div>
-              <Briefcase className="h-8 w-8 text-blue-600" />
+              <Briefcase className="h-8 w-8 text-primary shrink-0" />
             </div>
             
             {formData.role && (
@@ -41,7 +41,7 @@ export const InviteAccessStep = ({ formData }: InviteStepProps) => {
                   <p className="text-sm text-orange-700">Employee management and HR functions.</p>
                 )}
                 {formData.role === 'manager' && (
-                  <p className="text-sm text-blue-700">Team management and department reporting.</p>
+                  <p className="text-sm text-primary">Team management and department reporting.</p>
                 )}
                 {formData.role === 'employee' && (
                   <p className="text-sm text-green-700">Personal profile access and basic functions.</p>
@@ -52,25 +52,25 @@ export const InviteAccessStep = ({ formData }: InviteStepProps) => {
         </Card>
 
         {/* Magic Link Info - Condensed */}
-        <Card className="bg-green-50 border-green-200">
+        <Card className="bg-primary/5 border-primary/20">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg text-green-800">
-              <Mail className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+              <Mail className="h-5 w-5 text-primary" />
               Magic Link Authentication
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-green-800">
+          <CardContent className="text-foreground">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle className="h-4 w-4 text-primary shrink-0" />
                 <span className="text-sm">Secure one-click login via email</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle className="h-4 w-4 text-primary shrink-0" />
                 <span className="text-sm">No password required</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle className="h-4 w-4 text-primary shrink-0" />
                 <span className="text-sm">24-hour secure token expiry</span>
               </div>
             </div>

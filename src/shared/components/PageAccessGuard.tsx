@@ -118,15 +118,18 @@ export function PageAccessGuard({
 
   // While auth is still hydrating, `user` is null — must not redirect to /login before
   // `showLoadingUI` flips (250ms), or refresh on guarded routes looks like a logout.
+  /** Tanpa delay 250ms: layout-matched shell harus tampil segera saat auth/org/config resolve (Loading Skeleton rule). */
+  const guardShellBlocking = (loading && !user) || isLoading || isResolvingAccess;
+
   const shouldShowLoading =
     (loading && !user) || (showLoadingUI && isLoading) || isResolvingAccess;
 
   /**
-   * Selama `shouldShowLoading`, jika route menyediakan `loadingShell`, selalu pakai itu
+   * Selama `guardShellBlocking`, jika route menyediakan `loadingShell`, selalu pakai itu
    * (layout penuh). Jangan fallback ke skeleton tengah `max-w-xs` — itu terlihat "pendek"
    * dan tidak mirror halaman (mis. KOL dashboard).
    */
-  if (loadingShell != null && shouldShowLoading) {
+  if (loadingShell != null && guardShellBlocking) {
     return (
       <div
         className={cn(

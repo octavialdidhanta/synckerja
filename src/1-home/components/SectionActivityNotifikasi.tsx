@@ -243,6 +243,10 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
     { id: 'subStep', label: t('dailyTask.jobDesc.assignment.type.subStep', 'Sub-step'), count: filteredActiveAssignments.filter(t => t.type === 'subStep').length + filteredCompletedAssignments.filter(t => t.type === 'subStep').length },
   ];
 
+  if (isLoading) {
+    return null;
+  }
+
   return (
     <Card className="h-full flex flex-col overflow-hidden">
       {/* Tab Switcher */}
@@ -342,7 +346,7 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
         <div className="flex-1 min-h-0 overflow-x-hidden px-4">
           {activeTab === 'activities' ? (
             <>
-          {isLoading ? null : error ? (
+          {error ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="text-sm text-red-500 leading-relaxed">
                     {t('activity.error', 'Error loading activities')}

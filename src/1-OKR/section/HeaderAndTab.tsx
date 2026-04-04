@@ -2,6 +2,7 @@ import { Building, Target, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { cn } from "@/shared/lib/utils";
+import { getOkrActiveTabFromPath } from "../utils/okrPaths";
 
 interface HeaderAndTabProps {
   onTabChange: (tab: string) => void;
@@ -29,7 +30,7 @@ export function HeaderAndTab({ onTabChange }: HeaderAndTabProps) {
     },
   ];
 
-  const resolvedActive = getActiveTabFromPath(location.pathname);
+  const resolvedActive = getOkrActiveTabFromPath(location.pathname);
 
   const handleTabClick = (tabId: string) => {
     onTabChange(tabId);
@@ -69,12 +70,6 @@ export function HeaderAndTab({ onTabChange }: HeaderAndTabProps) {
       </div>
     </div>
   );
-}
-
-function getActiveTabFromPath(pathname: string): string {
-  if (pathname.includes("/department-objective")) return "department-objectives";
-  if (pathname.includes("/individual-objective")) return "individual-objectives";
-  return "company-objectives";
 }
 
 HeaderAndTab.displayName = "HeaderAndTab";

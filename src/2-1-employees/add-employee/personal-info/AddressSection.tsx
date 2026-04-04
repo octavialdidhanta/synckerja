@@ -14,7 +14,7 @@ export const AddressSection = ({ formData, handleInputChange }: PersonalDataStep
         value={formData.address || ''}
         onChange={e => handleInputChange('address', e.target.value)}
         placeholder="Enter address"
-        className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 min-h-[80px] text-sm resize-none"
+        className="border-gray-300 focus-visible:border-primary focus-visible:ring-primary min-h-[80px] text-sm resize-none"
       />
     </div>
   );

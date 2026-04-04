@@ -658,12 +658,14 @@ const TaskInitiative: React.FC<TaskInitiativeProps> = ({ onStatsChange }) => {
   if (isLoading || tasksLoading) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-0 space-y-4">
       {/* Header Stats */}
-      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Target className="w-5 h-5 text-indigo-600" />
-          <h4 className="font-semibold text-gray-900 text-sm">Available Tasks</h4>
+      <div className="rounded-lg border-2 border-primary/40 bg-gradient-to-br from-primary/25 via-primary/15 to-primary/20 p-4 shadow-sm ring-1 ring-primary/15">
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/20">
+            <Target className="h-5 w-5 text-primary" />
+          </div>
+          <h4 className="text-sm font-semibold text-foreground">Available Tasks</h4>
         </div>
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
@@ -710,7 +712,7 @@ const TaskInitiative: React.FC<TaskInitiativeProps> = ({ onStatsChange }) => {
 
                   {/* Title */}
                   <h5 
-                    className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2 cursor-pointer hover:text-indigo-600 transition-colors"
+                    className="mb-1 line-clamp-2 cursor-pointer text-sm font-semibold text-gray-900 transition-colors hover:text-primary"
                     onClick={() => handleItemNavigation(item)}
                   >
                     {item.title}
@@ -765,7 +767,7 @@ const TaskInitiative: React.FC<TaskInitiativeProps> = ({ onStatsChange }) => {
 
                   {/* Due Date Info */}
                   {item.dueDate && (
-                    <div className="flex items-center gap-1 text-xs text-blue-600 mt-1">
+                    <div className="mt-1 flex items-center gap-1 text-xs font-medium text-primary">
                       <Clock className="w-3 h-3" />
                       <span>
                         Due: {new Date(item.dueDate).toLocaleDateString('en-US', {
@@ -786,7 +788,11 @@ const TaskInitiative: React.FC<TaskInitiativeProps> = ({ onStatsChange }) => {
                   variant={item.assignedTo ? "outline" : "default"}
                   disabled={takingTask === item.id || item.assignedTo === currentEmployeeId}
                   onClick={() => handleTakeTaskClick(item)}
-                  className="flex-shrink-0"
+                  className={
+                    item.assignedTo
+                      ? "flex-shrink-0 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+                      : "flex-shrink-0 bg-primary font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
+                  }
                 >
                   {takingTask === item.id ? (
                     <Loader2 className="w-3 h-3 animate-spin" />

@@ -4,8 +4,15 @@ import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
 import { Sidebar, SidebarContent } from "@/shared/components/ui/sidebar";
 import { cn } from "@/shared/lib/utils";
-import { mainNavItems, type MainNavItem, type NavSubItem } from "./navConfig";
+import {
+  mainNavItems,
+  pathBaseFromNavPath,
+  isNavSubItemActive,
+  type MainNavItem,
+  type NavSubItem,
+} from "./navConfig";
 import { useSidebarState } from "./useSidebarState";
+import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
 
 interface SubSidebarPanelProps {
   items: NavSubItem[];
@@ -35,27 +42,11 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
         <div className="flex-1 overflow-y-auto seamless-scroll pt-2">
           <nav className="space-y-0">
             {items.map((item, index) => {
-              /** Strip query/hash so `/tools/daily-task?view=summary` matches `/tools/daily-task` */
-              const pathBase = (full: string) => {
-                const q = full.indexOf("?");
-                const h = full.indexOf("#");
-                const cut =
-                  q >= 0 && h >= 0 ? Math.min(q, h) : q >= 0 ? q : h >= 0 ? h : -1;
-                return cut >= 0 ? full.slice(0, cut) : full;
-              };
-              const pathMatches = (p: string) => {
-                const base = pathBase(p);
-                return base === "/"
-                  ? location.pathname === "/"
-                  : location.pathname === base || location.pathname.startsWith(`${base}/`);
-              };
-              const isActive =
-                pathMatches(item.path) ||
-                Boolean(item.activePathPrefixes?.some((prefix) => pathMatches(prefix)));
+              const isActive = isNavSubItemActive(item, location.pathname, location.search);
 
               return (
                 <button
-                  key={item.path}
+                  key={`${item.titleKey}-${item.path}`}
                   type="button"
                   onClick={() =>
                     startTransition(() => {
@@ -234,10 +225,11 @@ export function AppSidebar() {
     }
     return Boolean(
       item.subItems?.some((sub) => {
+        const base = pathBaseFromNavPath(sub.path);
         const subMatch =
-          sub.path === "/"
+          base === "/"
             ? currentPath === "/"
-            : currentPath === sub.path || currentPath.startsWith(`${sub.path}/`);
+            : currentPath === base || currentPath.startsWith(`${base}/`);
         const extra = sub.activePathPrefixes?.some(
           (p) => currentPath === p || currentPath.startsWith(`${p}/`),
         );
@@ -248,6 +240,7 @@ export function AppSidebar() {
 
   return (
     <div className="relative flex h-full">
+      <LiveChatAppBadgeSync />
       <div
         ref={sidebarGroupRef}
         onMouseEnter={handleMouseEnter}

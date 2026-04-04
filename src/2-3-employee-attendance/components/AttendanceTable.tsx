@@ -121,22 +121,29 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
 
   const formatTime = (timeString: string | null) => {
     if (!timeString) return '-';
-    try {
-      // Handle full timestamp format (e.g., "2025-07-15 05:57:25+00")
-      const date = new Date(timeString);
-      if (isNaN(date.getTime())) {
-        console.error('Invalid timestamp:', timeString);
-        return '-';
-      }
-      return date.toLocaleTimeString('id-ID', {
+    const s = String(timeString).trim();
+
+    // Full instants: ISO / "YYYY-MM-DD HH:mm:ss" / etc.
+    const asDate = new Date(s);
+    if (!isNaN(asDate.getTime())) {
+      return asDate.toLocaleTimeString('id-ID', {
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false
+        hour12: false,
       });
-    } catch (error) {
-      console.error('Error formatting time:', error, 'for timestamp:', timeString);
-      return '-';
     }
+
+    // PostgreSQL TIME / TIMESTAMPTZ time portion only: "14:50:52", optional fraction / offset
+    const wallClock = s.match(
+      /^(\d{1,2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}(?::\d{2})?)?$/i,
+    );
+    if (wallClock) {
+      const hh = wallClock[1].padStart(2, '0');
+      const mm = wallClock[2].padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+
+    return '-';
   };
 
   const formatDate = (dateString: string | null) => {
@@ -262,18 +269,18 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
       <div className="rounded-md border bg-white min-h-0">
         <div className="min-h-0">
           <TooltipProvider delayDuration={200}>
-            <Table className="w-full min-w-[1200px] table-fixed">
+            <Table className="w-full min-w-[1300px] table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[200px]">Employee</TableHead>
+                  <TableHead className="w-[280px] min-w-[280px]">Employee</TableHead>
                   <TableHead className="min-w-[120px]">Date</TableHead>
                   <TableHead className="min-w-[100px]">Check In</TableHead>
                   <TableHead className="min-w-[100px]">Check Out</TableHead>
                   <TableHead className="min-w-[100px]">Working Hours</TableHead>
                   <TableHead className="min-w-[80px]">Status</TableHead>
-                  <TableHead className="min-w-[200px]">Check In Location</TableHead>
-                  <TableHead className="min-w-[200px]">Check Out Location</TableHead>
-                  <TableHead className="min-w-[220px]">Notes</TableHead>
+                  <TableHead className="min-w-[200px] whitespace-nowrap">Check In Location</TableHead>
+                  <TableHead className="min-w-[200px] whitespace-nowrap pr-6">Check Out Location</TableHead>
+                  <TableHead className="min-w-[240px] pl-5">Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -286,16 +293,16 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
                 ) : (
                   filteredRecords.map((record) => (
                     <TableRow key={record.id}>
-                      <TableCell className="min-w-[200px]">
+                      <TableCell className="w-[280px] min-w-[280px]">
                         <div className="flex items-center gap-3">
-                          <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
+                          <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
                             <User className="text-muted-foreground h-4 w-4" />
                           </div>
-                          <div className="min-w-0">
-                            <div className="font-medium truncate">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium">
                               {record.employees?.full_name || 'Unknown'}
                             </div>
-                            <div className="text-sm text-muted-foreground truncate">
+                            <div className="truncate text-sm text-muted-foreground">
                               {record.employees?.email || '-'}
                             </div>
                           </div>
@@ -364,7 +371,7 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
                           </Tooltip>
                         </div>
                       </TableCell>
-                      <TableCell className="min-w-[200px]">
+                      <TableCell className="min-w-[200px] pr-6">
                         <div className="flex items-center gap-1">
                           <MapPin className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                           <Tooltip delayDuration={200}>
@@ -383,7 +390,7 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
                           </Tooltip>
                         </div>
                       </TableCell>
-                      <TableCell className="min-w-[220px] max-w-[260px]">
+                      <TableCell className="min-w-[240px] max-w-[280px] pl-5">
                         <Tooltip delayDuration={200}>
                           <TooltipTrigger asChild>
                             <span className="block cursor-default truncate text-sm">

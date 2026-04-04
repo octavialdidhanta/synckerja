@@ -5,7 +5,7 @@ import { OKRSectionVisibilityProvider } from "../components/HomeOKRDashboard/OKR
 import { SectionActivityNotifikasi } from "../components/SectionActivityNotifikasi";
 import { SectionStatusKaryawan } from "../components/SectionStatusKaryawan";
 import { HomePageLoadProvider, useHomePageLoad } from "../context/HomePageLoadContext";
-import { ModernHomePageSkeleton } from "../components/ModernHomePageSkeleton";
+import { HomePageSkeleton } from "../skeletons/HomePageSkeleton";
 import { cn } from "@/shared/lib/utils";
 
 function ModernHomePageInner() {
@@ -19,7 +19,7 @@ function ModernHomePageInner() {
           showFullPageSkeleton && "invisible pointer-events-none",
         )}
       >
-        <div className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
             <div className="flex min-h-full min-h-0 flex-col">
               <div className="mb-2 mt-2 flex-shrink-0">
@@ -60,8 +60,8 @@ function ModernHomePageInner() {
       </div>
 
       {showFullPageSkeleton ? (
-        <div className="absolute inset-0 z-10 overflow-auto bg-background">
-          <ModernHomePageSkeleton />
+        <div className="absolute inset-0 z-10 flex min-h-0 flex-col overflow-auto bg-background">
+          <HomePageSkeleton />
         </div>
       ) : null}
     </div>

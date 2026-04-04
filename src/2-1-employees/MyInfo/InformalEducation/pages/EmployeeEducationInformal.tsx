@@ -111,7 +111,7 @@ const EmployeeEducationInformal = () => {
   if (!employeeId || isLoading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500" />
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
       </div>
     );
   }
@@ -206,7 +206,7 @@ const EmployeeEducationInformal = () => {
                                 size="sm"
                                 className={`w-full justify-start text-xs ${
                                   item.active 
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                    ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
                                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                                 }`}
                                 onClick={() => navigate(item.path)}

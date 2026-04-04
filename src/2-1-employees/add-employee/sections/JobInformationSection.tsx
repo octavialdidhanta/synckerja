@@ -15,7 +15,7 @@ export const JobInformationSection = ({ formData, handleInputChange }: Employmen
             value={formData.employee_id || ''}
             onChange={(e) => handleInputChange('employee_id', e.target.value)}
             placeholder="Auto-generated if empty"
-            className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 bg-gray-50"
+            className="border-gray-300 focus-visible:border-primary focus-visible:ring-primary bg-gray-50"
           />
         </div>
         <div className="space-y-2">
@@ -27,7 +27,7 @@ export const JobInformationSection = ({ formData, handleInputChange }: Employmen
             type="date"
             value={formData.join_date || ''}
             onChange={(e) => handleInputChange('join_date', e.target.value)}
-            className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+            className="border-gray-300 focus-visible:border-primary focus-visible:ring-primary"
           />
         </div>
       </div>

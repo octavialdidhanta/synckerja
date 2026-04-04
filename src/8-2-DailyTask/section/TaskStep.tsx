@@ -950,7 +950,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
         variant="ghost"
         size="sm"
         onClick={() => setIsViewSubStepsOpen(true)}
-        className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600 relative"
+        className="h-6 w-6 p-0 text-gray-400 hover:text-primary relative"
         title="View steps"
       >
         <ListChecks className="w-3 h-3" />
@@ -966,14 +966,14 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
         onClick={() => setShowFiles(!showFiles)}
         className={`h-6 w-6 p-0 hover:text-gray-600 relative ${
           step.files && step.files.length > 0 
-            ? 'text-blue-500' 
+            ? 'text-primary' 
             : 'text-gray-400'
         }`}
         title={`Toggle files ${step.files && step.files.length > 0 ? `(${step.files.length})` : ''}`}
       >
         <Paperclip className="w-3 h-3" />
         {fileCount > 0 && (
-          <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+          <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
             {fileCount}
           </div>
         )}
@@ -1039,13 +1039,13 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
           size="sm"
           onClick={() => setIsUpdateHistoryOpen(true)}
           className={`h-6 w-6 p-0 relative ${
-            updateHistoryCount > 0 ? 'text-blue-600 hover:text-blue-700' : 'text-blue-500 hover:text-blue-600'
+            updateHistoryCount > 0 ? 'text-primary hover:text-primary/90' : 'text-primary/80 hover:text-primary'
           }`}
           title={`Update History from Meeting Notes ${updateHistoryCount > 0 ? `(${updateHistoryCount})` : ''}`}
         >
           <FileEdit className="w-3 h-3" />
           {updateHistoryCount > 0 && (
-            <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+            <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
               {updateHistoryCount > 99 ? '99+' : updateHistoryCount}
             </div>
           )}
@@ -1087,15 +1087,15 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
         isHighlightedFromPendingApproval
           ? 'bg-amber-50 border-amber-300 hover:bg-amber-100'
           : sortableIsDragging
-            ? 'shadow-lg bg-blue-100 border-blue-100'
-            : 'bg-white hover:bg-blue-50 border-blue-100'
+            ? 'shadow-lg border-primary/25 bg-primary/10'
+            : 'border-primary/15 bg-white hover:bg-primary/5'
       }`
     : `flex flex-col gap-0 px-2 py-1.5 rounded-md transition-colors border ${
         isHighlightedFromPendingApproval
           ? 'bg-amber-50 border-amber-300 hover:bg-amber-100'
           : sortableIsDragging
-            ? 'shadow-lg bg-blue-100 border-blue-100'
-            : 'bg-white hover:bg-blue-50 border-blue-100'
+            ? 'shadow-lg border-primary/25 bg-primary/10'
+            : 'border-primary/15 bg-white hover:bg-primary/5'
       }`;
       const rowContent = (
         <>
@@ -1200,7 +1200,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                         <DialogTrigger asChild>
                           <button
                             type="button"
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer flex-shrink-0"
+                            className="flex-shrink-0 cursor-pointer text-xs font-medium text-primary hover:text-primary/90"
                             onClick={(e) => {
                               e.stopPropagation();
                               setIsDescriptionPopoverOpen(true);
@@ -1230,7 +1230,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                         <PopoverTrigger asChild>
                           <button
                             type="button"
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer flex-shrink-0"
+                            className="flex-shrink-0 cursor-pointer text-xs font-medium text-primary hover:text-primary/90"
                             onClick={(e) => {
                               e.stopPropagation();
                               setIsDescriptionPopoverOpen(true);
@@ -1275,7 +1275,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                       </span>
                     )}
                     {!isAssignedToMe && step.assigned_to && isStepCreator && (
-                      <span className="text-[10px] text-blue-600">
+                      <span className="text-[10px] text-primary">
                         Assigned to {step.assigned_employee?.full_name || 'other'}
                       </span>
                     )}
@@ -1308,7 +1308,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                       </span>
                     )}
                     {!isAssignedToMe && step.assigned_to && isStepCreator && (
-                      <span className="text-[10px] text-blue-600">
+                      <span className="text-[10px] text-primary">
                         Assigned to {step.assigned_employee?.full_name || 'other'}
                       </span>
                     )}
@@ -1343,7 +1343,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                 {contentOnly ? (
                   <div className="w-full h-1.5 overflow-hidden rounded bg-gray-200">
                     <div
-                      className="h-full rounded bg-blue-500 transition-all duration-300"
+                      className="h-full rounded bg-primary transition-all duration-300"
                       style={{ width: `${Math.min(100, Math.round((subStepCompletedCount / subStepCount) * 100))}%` }}
                     />
                   </div>
@@ -1351,7 +1351,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                   <div className="w-full flex items-center gap-2">
                     <div className="flex-1 min-w-0 h-1.5 overflow-hidden rounded bg-gray-200">
                       <div
-                        className="h-full rounded bg-blue-500 transition-all duration-300"
+                        className="h-full rounded bg-primary transition-all duration-300"
                         style={{ width: `${Math.min(100, Math.round((subStepCompletedCount / subStepCount) * 100))}%` }}
                       />
                     </div>
@@ -1373,7 +1373,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                       </span>
                     )}
                     {!isAssignedToMe && step.assigned_to && isStepCreator && (
-                      <span className="text-[10px] text-blue-600">
+                      <span className="text-[10px] text-primary">
                         Assigned to {step.assigned_employee?.full_name || 'other'}
                       </span>
                     )}
@@ -1479,7 +1479,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
               >
                 {isUploading ? (
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     Uploading...
                   </div>
                 ) : (
@@ -1500,7 +1500,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                           variant="ghost"
                           size="sm"
                           onClick={() => window.open(file.file_url, '_blank')}
-                          className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700"
+                          className="h-6 w-6 p-0 text-primary hover:text-primary/90"
                           title="View file"
                         >
                           <FileText className="w-3 h-3" />
@@ -1545,7 +1545,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
           >
             {isUploading ? (
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 Uploading...
               </div>
             ) : (
@@ -1569,7 +1569,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                     variant="ghost"
                     size="sm"
                     onClick={() => window.open(file.file_url, '_blank')}
-                    className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700"
+                    className="h-6 w-6 p-0 text-primary hover:text-primary/90"
                     title="View file"
                   >
                     <FileText className="w-3 h-3" />

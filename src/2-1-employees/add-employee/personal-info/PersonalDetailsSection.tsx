@@ -27,7 +27,11 @@ const religionOptions = [
 ];
 
 const fieldClass = 'space-y-2';
-const inputClass = 'border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm';
+const inputClass =
+  'border-gray-300 focus-visible:border-primary focus-visible:ring-primary text-sm';
+/** SelectTrigger uses `focus:` (not focus-visible) in the UI primitive. */
+const selectTriggerClass =
+  'border-gray-300 focus:border-primary focus:ring-primary text-sm';
 
 export const PersonalDetailsSection = ({ formData, handleInputChange }: PersonalDataStepProps) => {
   return (
@@ -77,7 +81,7 @@ export const PersonalDetailsSection = ({ formData, handleInputChange }: Personal
           Religion
         </Label>
         <Select value={formData.religion || ''} onValueChange={value => handleInputChange('religion', value)}>
-          <SelectTrigger className={inputClass}>
+          <SelectTrigger className={selectTriggerClass}>
             <SelectValue placeholder="Select religion" />
           </SelectTrigger>
           <SelectContent>
@@ -108,7 +112,7 @@ export const PersonalDetailsSection = ({ formData, handleInputChange }: Personal
           Gender
         </Label>
         <Select value={formData.gender || ''} onValueChange={value => handleInputChange('gender', value)}>
-          <SelectTrigger className={inputClass}>
+          <SelectTrigger className={selectTriggerClass}>
             <SelectValue placeholder="Select gender" />
           </SelectTrigger>
           <SelectContent>
@@ -126,7 +130,7 @@ export const PersonalDetailsSection = ({ formData, handleInputChange }: Personal
           Marital Status
         </Label>
         <Select value={formData.marital_status || ''} onValueChange={value => handleInputChange('marital_status', value)}>
-          <SelectTrigger className={inputClass}>
+          <SelectTrigger className={selectTriggerClass}>
             <SelectValue placeholder="Select marital status" />
           </SelectTrigger>
           <SelectContent>

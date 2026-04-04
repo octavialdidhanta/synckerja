@@ -137,7 +137,7 @@ export const FamilyMembersTab = ({ employee, isEditMode, onUpdate }: FamilyMembe
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -153,7 +153,7 @@ export const FamilyMembersTab = ({ employee, isEditMode, onUpdate }: FamilyMembe
           <Button
             onClick={() => setIsAddingNew(true)}
             disabled={isAddingNew || editingId !== null}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Family Member

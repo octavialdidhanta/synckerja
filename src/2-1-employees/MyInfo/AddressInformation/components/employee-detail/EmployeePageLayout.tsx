@@ -139,7 +139,7 @@ export const EmployeePageLayout: React.FC<EmployeePageLayoutProps> = ({
         <div className="mt-16 flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <AppSidebar />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500" />
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
           </div>
         </div>
       </SidebarProvider>
@@ -184,7 +184,7 @@ export const EmployeePageLayout: React.FC<EmployeePageLayoutProps> = ({
                           </Button>
                           <Button 
                             onClick={onSaveChanges}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
                           >
                             <Save className="h-4 w-4 mr-2" />
                             Save Changes
@@ -193,7 +193,7 @@ export const EmployeePageLayout: React.FC<EmployeePageLayoutProps> = ({
                       ) : (
                         <Button 
                           onClick={() => onEditModeChange(true)} 
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                           <Edit className="h-4 w-4 mr-2" />
                           Edit Profile
@@ -259,7 +259,7 @@ export const EmployeePageLayout: React.FC<EmployeePageLayoutProps> = ({
                           size="sm"
                           className={`justify-start text-xs ${
                             item.active 
-                              ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                              ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                           onClick={() => navigate(item.path)}
@@ -343,7 +343,7 @@ export const EmployeePageLayout: React.FC<EmployeePageLayoutProps> = ({
                             variant={item.active ? "default" : "ghost"}
                             className={`w-full justify-start text-sm ${
                               item.active 
-                                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
                                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                             }`}
                             onClick={() => navigate(item.path)}

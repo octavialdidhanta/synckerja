@@ -57,7 +57,7 @@ export const HabitTargetCountModal = ({ isOpen, onClose, habitId, date }: HabitT
         </DialogHeader>
         <div className="flex items-center justify-between rounded-md border bg-gray-50 px-3 py-2 text-sm">
           <span className="font-medium text-gray-700">Completed</span>
-          <span className="font-semibold text-blue-700">{checkedCount}/{targetCount}</span>
+          <span className="font-semibold text-primary">{checkedCount}/{targetCount}</span>
         </div>
         <div className="space-y-3 py-2">
           {Array.from({ length: targetCount }).map((_, i) => (

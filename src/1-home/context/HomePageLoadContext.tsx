@@ -7,6 +7,8 @@ import React, {
   useState,
 } from "react";
 
+const SKELETON_HIDE_DEBOUNCE_MS = 200;
+
 export type HomeSectionId =
   | "motivation"
   | "profile"
@@ -41,6 +43,26 @@ export function HomePageLoadProvider({ children }: { children: React.ReactNode }
   const [sections, setSections] =
     useState<Record<HomeSectionId, HomeSectionStatus>>(INITIAL);
 
+  const rawPendingLoad = useMemo(
+    () => Object.values(sections).some((s) => s.loading),
+    [sections],
+  );
+
+  const [showFullPageSkeleton, setShowFullPageSkeleton] = useState(true);
+
+  useEffect(() => {
+    if (rawPendingLoad) {
+      setShowFullPageSkeleton(true);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        setShowFullPageSkeleton(false);
+      });
+    }, SKELETON_HIDE_DEBOUNCE_MS);
+    return () => window.clearTimeout(id);
+  }, [rawPendingLoad]);
+
   const updateSection = useCallback(
     (id: HomeSectionId, status: HomeSectionStatus) => {
       setSections((prev) => {
@@ -54,11 +76,6 @@ export function HomePageLoadProvider({ children }: { children: React.ReactNode }
       });
     },
     [],
-  );
-
-  const showFullPageSkeleton = useMemo(
-    () => Object.values(sections).some((s) => s.loading),
-    [sections],
   );
 
   const value = useMemo(

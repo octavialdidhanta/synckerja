@@ -1030,7 +1030,7 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
                       </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         {component.is_taxable && (
-                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">Taxable</span>
+                          <span className="px-2 py-1 bg-primary/10 text-primary rounded">Taxable</span>
                         )}
                         {component.is_recurring ? (
                           <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded">Recurring</span>

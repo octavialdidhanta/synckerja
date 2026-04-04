@@ -11,9 +11,12 @@ import { AppShellLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { ForgotPasswordPage, GoogleOAuthCallbackPage, LoginPage, ResetPasswordPage } from "@/0-auth";
 import { OKRPage } from "@/1-OKR";
+import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
 import { ModernHomePage, SettingsPage, TransferOwnershipPage } from "@/1-home";
+import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import { ProfileSettings, SecuritySettings } from "@/1-home/settings";
 import { RegisterPage, VerifyEmailPage, EmailVerifiedPage } from "@/0-register/index.ts";
+import { AccountDeletionPage, PrivacyPolicyPage, TermsOfServicePage } from "@/policy";
 import {
   CreateOrganizationPage,
   CreatePlanPage,
@@ -84,6 +87,16 @@ import { CalculatorPageSkeleton } from "@/8-3-calculator/skeletons/CalculatorPag
 import { PricingToolsPageSkeleton } from "@/8-2-pricing-tools/skeletons/PricingToolsPageSkeleton";
 import { PromoSimulationPageSkeleton } from "@/8-2-promo-simulation/skeletons/PromoSimulationPageSkeleton";
 import { DefaultPricesPageSkeleton } from "@/8-2-1-default-prices/skeletons/DefaultPricesPageSkeleton";
+import { DailyTaskProvider } from "@/8-2-DailyTask/context/DailyTaskContext";
+import { WhatsAppLivechatPageSkeleton } from "@/5-3-whatsapp/skeletons/WhatsAppLivechatPageSkeleton";
+import { LeadsManagementPageSkeleton } from "@/5-1-leads-management/skeletons/LeadsManagementPageSkeleton";
+import { InstagramConnectPageSkeleton } from "@/5-3-whatsapp/skeletons/InstagramConnectPageSkeleton";
+import { ConsultantCrmDashboardPageSkeleton } from "@/5-3-dashboard/skeletons/ConsultantCrmDashboardPageSkeleton";
+import { EmailConnectPageSkeleton } from "@/5-3-whatsapp/pages/EmailConnectPageSkeleton";
+import { SalesActivitiesPageSkeleton } from "@/5-2-activities/skeletons/SalesActivitiesPageSkeleton";
+import { VisitSchedulingPageSkeleton } from "@/5-2-jadwal-kunjungan";
+import { ClientVisitsPageSkeleton } from "@/5-2-client_visits/skeletons/ClientVisitsPageSkeleton";
+import { WhatsAppConnectPageSkeleton } from "@/5-3-whatsapp/skeletons/WhatsAppConnectPageSkeleton";
 import { KolManagementRouteLoadingShell } from "@/6-2-1-dashboard/kol-management/components/KolManagementRouteLoadingShell";
 import { KolManagementDashboardPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementDashboardPageSkeleton";
 import { KolManagementKolManagementPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementKolManagementPageSkeleton";
@@ -166,6 +179,177 @@ const SocialMediaScriptGeneratorPage = lazy(() => import("@/6-1-script-generator
 const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings/SettingsPage"));
 const ReviewRouteGate = lazy(() =>
   import("@/6-1-dashboard/routes/ReviewRouteGate").then((m) => ({ default: m.ReviewRouteGate })),
+);
+
+const ConsultantDashboardPage = lazy(() =>
+  import("@/5-1-leads-management/pages/ConsultantDashboardPage").then((m) => ({
+    default: m.ConsultantDashboardPage,
+  })),
+);
+const CRMDashboardPage = lazy(() =>
+  import("@/5-3-dashboard/pages/CRMDashboardPage").then((m) => ({ default: m.CRMDashboardPage })),
+);
+const SalesOperationsPage = lazy(() =>
+  import("@/5-2-activities/pages/SalesOperationsPage").then((m) => ({ default: m.SalesOperationsPage })),
+);
+const WhatsAppConnectPage = lazy(() =>
+  import("@/5-3-whatsapp/pages/WhatsAppConnectPage").then((m) => ({ default: m.WhatsAppConnectPage })),
+);
+const InstagramConnectPage = lazy(() =>
+  import("@/5-3-whatsapp/pages/InstagramConnectPage").then((m) => ({
+    default: m.InstagramConnectPage,
+  })),
+);
+const EmailConnectPage = lazy(() =>
+  import("@/5-3-whatsapp/pages/EmailConnectPage").then((m) => ({ default: m.EmailConnectPage })),
+);
+const WhatsAppInboxPage = lazy(() =>
+  import("@/5-3-whatsapp/pages/WhatsAppInboxPage").then((m) => ({ default: m.WhatsAppInboxPage })),
+);
+
+const LivechatOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading live chat"
+      >
+        <WhatsAppLivechatPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const LeadsManagementOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading leads management"
+      >
+        <LeadsManagementPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const InstagramConnectOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading Connect Instagram"
+      >
+        <span className="sr-only">Loading Connect Instagram</span>
+        <InstagramConnectPageSkeleton mode="route" />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const ConsultantCrmDashboardSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading CRM dashboard"
+      >
+        <ConsultantCrmDashboardPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const EmailConnectOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading connect email"
+      >
+        <EmailConnectPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const WhatsAppConnectSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading"
+      >
+        <WhatsAppConnectPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const SalesActivitiesOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading sales activities"
+      >
+        <SalesActivitiesPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const JadwalKunjunganOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading jadwal kunjungan"
+      >
+        <VisitSchedulingPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const ClientVisitsOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading client visits"
+      >
+        <ClientVisitsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
 );
 
 const IncomeDashboardSuspense = ({ children }: { children: ReactNode }) => (
@@ -576,6 +760,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <AuthProvider>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CentralizedUserDataProvider>
             <PermissionConfigurationProvider>
               <CurrentOrgProvider>
@@ -595,6 +780,9 @@ const App = () => (
                   <Route path="/verify-email" element={<VerifyEmailPage />} />
                   <Route path="/email-verified" element={<EmailVerifiedPage />} />
                   <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+                  <Route path="/policy/privacy" element={<PrivacyPolicyPage />} />
+                  <Route path="/policy/terms" element={<TermsOfServicePage />} />
+                  <Route path="/policy/account-deletion" element={<AccountDeletionPage />} />
 
                   <Route
                     path="/candidate/apply"
@@ -657,7 +845,14 @@ const App = () => (
                   <Route element={<RequireAuth />}>
                     <Route element={<SubscriptionExpiryGuard />}>
                       <Route element={<AppShellLayout />}>
-                        <Route path="/" element={<ModernHomePage />} />
+                        <Route
+                          path="/"
+                          element={
+                            <PageAccessGuard pagePath="/" requiresPermissions={false} loadingShell={<HomePageSkeleton />}>
+                              <ModernHomePage />
+                            </PageAccessGuard>
+                          }
+                        />
                         <Route path="/settings" element={<SettingsPage />}>
                           <Route index element={<ProfileSettings />} />
                           <Route path="profile" element={<ProfileSettings />} />
@@ -665,7 +860,17 @@ const App = () => (
                         </Route>
                         <Route path="/transfer-ownership" element={<TransferOwnershipPage />} />
                         <Route path="/okr" element={<Navigate to="/okr/company-objective" replace />} />
-                        <Route path="/okr/*" element={<OKRPage />} />
+                        <Route
+                          path="/okr/*"
+                          element={
+                            <PageAccessGuard
+                              loadingShell={<OkrRouteAccessLoadingShell />}
+                              loadingShellWrapperClassName="bg-gray-100 dark:bg-muted/30"
+                            >
+                              <OKRPage />
+                            </PageAccessGuard>
+                          }
+                        />
                         <Route path="/employees" element={<EmployeePage />} />
                         <Route
                           path="/employees/reprimand"
@@ -1069,6 +1274,164 @@ const App = () => (
                           }
                         />
                         <Route
+                          path="/operations/customer-service/dashboard"
+                          element={<Navigate to="/operations/consultant/leads-management" replace />}
+                        />
+                        <Route
+                          path="/operations/customer-service/tickets"
+                          element={<Navigate to="/operations/consultant/leads-management" replace />}
+                        />
+                        <Route
+                          path="/operations/customer-service"
+                          element={<Navigate to="/operations/consultant/leads-management" replace />}
+                        />
+                        <Route
+                          path="/operations/consultant/sales-consultant"
+                          element={<Navigate to="/operations/consultant/leads-management" replace />}
+                        />
+                        <Route path="/operations/sales" element={<Navigate to="/operations/sales/activities" replace />} />
+                        <Route
+                          path="/operations/sales/activities"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/sales"
+                              loadingShell={<SalesActivitiesPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <SalesActivitiesOperationsSuspense>
+                                <DailyTaskProvider>
+                                  <SalesOperationsPage />
+                                </DailyTaskProvider>
+                              </SalesActivitiesOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/sales/jadwal-kunjungan"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/sales"
+                              loadingShell={<VisitSchedulingPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <JadwalKunjunganOperationsSuspense>
+                                <DailyTaskProvider>
+                                  <SalesOperationsPage />
+                                </DailyTaskProvider>
+                              </JadwalKunjunganOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/sales/client-visits"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/sales"
+                              loadingShell={<ClientVisitsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <ClientVisitsOperationsSuspense>
+                                <DailyTaskProvider>
+                                  <SalesOperationsPage />
+                                </DailyTaskProvider>
+                              </ClientVisitsOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/consultant/dashboard"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/consultant/dashboard"
+                              loadingShell={<ConsultantCrmDashboardPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <ConsultantCrmDashboardSuspense>
+                                <CRMDashboardPage />
+                              </ConsultantCrmDashboardSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/consultant/leads-management"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/consultant/leads-management"
+                              loadingShell={<LeadsManagementPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <LeadsManagementOperationsSuspense>
+                                <ConsultantDashboardPage />
+                              </LeadsManagementOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/consultant/whatsapp/connect"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/consultant/whatsapp/connect"
+                              loadingShell={<WhatsAppConnectPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <WhatsAppConnectSuspense>
+                                <WhatsAppConnectPage />
+                              </WhatsAppConnectSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/consultant/instagram/connect"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/consultant/instagram/connect"
+                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={
+                                <div
+                                  className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
+                                  aria-busy
+                                  aria-label="Loading Connect Instagram"
+                                >
+                                  <span className="sr-only">Loading Connect Instagram</span>
+                                  <InstagramConnectPageSkeleton mode="route" />
+                                </div>
+                              }
+                            >
+                              <InstagramConnectOperationsSuspense>
+                                <InstagramConnectPage />
+                              </InstagramConnectOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/consultant/email/connect"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/consultant/email/connect"
+                              loadingShell={<EmailConnectPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <EmailConnectOperationsSuspense>
+                                <EmailConnectPage />
+                              </EmailConnectOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/consultant/all/livechat"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/consultant/all/livechat"
+                              loadingShell={<WhatsAppLivechatPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <LivechatOperationsSuspense>
+                                <WhatsAppInboxPage />
+                              </LivechatOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
                           path="/kol-management/dashboard"
                           element={
                             <PageAccessGuard
@@ -1304,6 +1667,7 @@ const App = () => (
               </CurrentOrgProvider>
             </PermissionConfigurationProvider>
           </CentralizedUserDataProvider>
+          </div>
         </AuthProvider>
       </div>
     </TooltipProvider>

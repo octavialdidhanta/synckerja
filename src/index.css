@@ -277,7 +277,7 @@ All colors MUST be HSL.
     scrollbar-color: hsl(var(--muted-foreground) / 0.22) transparent;
   }
 
-  /* Scrollbar fully hidden; keep overflow-y-auto + seamless-scroll for smooth inertial scroll. */
+  /* Scrollbar fully hidden. Avoid combining with `seamless-scroll` on the same node unless the compound rules below apply. */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -287,6 +287,17 @@ All colors MUST be HSL.
     display: none;
     width: 0;
     height: 0;
+  }
+
+  /* `seamless-scroll` sets a thin visible WebKit scrollbar; if both utilities are on one node, hide must win. */
+  .scrollbar-hide.seamless-scroll {
+    scrollbar-width: none !important;
+  }
+
+  .scrollbar-hide.seamless-scroll::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
   }
 
   /* Scroll chaining: inner area scrolls first; at edges, parent can scroll (touch / wheel). */

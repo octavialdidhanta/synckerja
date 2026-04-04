@@ -71,7 +71,7 @@ export const EmployeeDetailSidebar = ({
   const displayPhotoUrl = getPhotoUrl(currentPhotoUrl || employee.photo_url);
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-blue-50 to-white">
+    <div className="h-full flex flex-col bg-gradient-to-b from-primary/5 to-white">
       {/* Employee Profile */}
       <div className="p-6 text-center border-b border-gray-200">
         <div className="relative mb-4">
@@ -84,17 +84,17 @@ export const EmployeeDetailSidebar = ({
                 key={currentPhotoUrl || employee.photo_url} // Force re-render when photo changes
               />
             ) : null}
-            <AvatarFallback className="bg-blue-600 text-white font-semibold text-lg">
+            <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-lg">
               {getInitials(employee.full_name)}
             </AvatarFallback>
           </Avatar>
           <Button
             size="sm"
             variant="outline"
-            className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white border-2 border-blue-200 hover:bg-blue-50 rounded-full p-2"
+            className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white border-2 border-primary/20 hover:bg-primary/5 rounded-full p-2"
             onClick={() => setShowPhotoUpload(!showPhotoUpload)}
           >
-            <Camera className="h-3 w-3 text-blue-600" />
+            <Camera className="h-3 w-3 text-primary" />
           </Button>
         </div>
 

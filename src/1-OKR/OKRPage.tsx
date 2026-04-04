@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -24,50 +24,33 @@ import { OKRSectionVisibilityProvider } from "@/1-home/components/HomeOKRDashboa
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { cn } from "@/shared/lib/utils";
 import { useCurrentEmployee } from "@/shared/hooks/useCurrentEmployee";
-import { OkrPageSkeleton } from "./components/OkrPageSkeleton";
-import {
-  OkrPageDetailLoadProvider,
-  useOkrPageDetailTabs,
-  type OkrPageDetailTabId,
-} from "./context/OkrPageDetailLoadContext";
+import { CompanyObjectivePageSkeleton } from "./components/CompanyObjectivePageSkeleton";
+import { DepartmentObjectivePageSkeleton } from "./components/DepartmentObjectivePageSkeleton";
+import { IndividualObjectivePageSkeleton } from "./components/IndividualObjectivePageSkeleton";
+import { useOkrPageSkeletonGate } from "./hooks/useOkrPageSkeletonGate";
+import { getOkrActiveTabFromPath } from "./utils/okrPaths";
+import { OkrPageDetailLoadProvider, useOkrPageDetailTabs } from "./context/OkrPageDetailLoadContext";
 import { HeaderAndTab, OKRSidebar, OKRSidebarFooter } from "./section";
-
-function getActiveTabFromPath(pathname: string): string {
-  if (pathname.includes("/department-objective")) return "department-objectives";
-  if (pathname.includes("/individual-objective")) return "individual-objectives";
-  return "company-objectives";
-}
-
-/** Match home OKR: stagger department / individual stats fetches. */
-function useDeferredReady(delayMs: number): boolean {
-  const [ready, setReady] = useState(delayMs <= 0);
-  useEffect(() => {
-    if (delayMs <= 0) return;
-    const t = setTimeout(() => setReady(true), delayMs);
-    return () => clearTimeout(t);
-  }, [delayMs]);
-  return ready;
-}
 
 function OKRPageContent() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { organizationId, loading: orgLoading } = useCurrentOrg();
-  const { data: currentEmployee } = useCurrentEmployee();
+  const { data: currentEmployee, isPending: currentEmployeePending } = useCurrentEmployee();
   const { data: cycles = [], isLoading: isLoadingCycles } = useOkrCycles(organizationId);
   const { isLoading: attendanceLoading } = useAttendanceStatus();
   const detailTabs = useOkrPageDetailTabs();
 
-  const [activeTab, setActiveTab] = useState(() => getActiveTabFromPath(location.pathname));
+  const activeTab = useMemo(
+    () => getOkrActiveTabFromPath(location.pathname),
+    [location.pathname],
+  );
+
   const [yearQuarterSelection, setYearQuarterSelection] = useState<YearQuarterSelection>(() =>
     getDefaultYearQuarterSelection(),
   );
   const [sidebarQueriesLoading, setSidebarQueriesLoading] = useState(false);
-
-  useEffect(() => {
-    setActiveTab(getActiveTabFromPath(location.pathname));
-  }, [location.pathname]);
 
   useEffect(() => {
     if (!organizationId) {
@@ -102,46 +85,72 @@ function OKRPageContent() {
         : undefined;
   const statsEnabled = !!organizationId && !isLoadingCycles;
 
-  const readyDepartmentStats = useDeferredReady(350);
-  const readyIndividualStats = useDeferredReady(700);
-
   const companyStats = useObjectiveStats(organizationId, "company", cycleIdsForStats, statsEnabled);
   const departmentStats = useObjectiveStats(
     organizationId,
     "department",
     cycleIdsForStats,
-    statsEnabled && readyDepartmentStats,
+    statsEnabled,
   );
   const individualStats = useObjectiveStats(
     organizationId,
     "individual",
     cycleIdsForStats,
-    statsEnabled && readyIndividualStats,
+    statsEnabled,
   );
 
-  const detailTabKey: OkrPageDetailTabId =
-    activeTab === "department-objectives"
-      ? "department"
-      : activeTab === "individual-objectives"
-        ? "individual"
-        : "company";
+  const rawPageLoadPending = useMemo(() => {
+    if (orgLoading) return true;
+    if (!organizationId) return false;
+    if (isLoadingCycles || attendanceLoading) return true;
 
-  const detailLoading = organizationId ? detailTabs[detailTabKey].loading : false;
+    if (activeTab === "company-objectives") {
+      return (
+        companyStats.isLoading ||
+        detailTabs.company.loading ||
+        sidebarQueriesLoading
+      );
+    }
+    if (activeTab === "department-objectives") {
+      return (
+        departmentStats.isLoading ||
+        detailTabs.department.loading ||
+        sidebarQueriesLoading ||
+        currentEmployeePending
+      );
+    }
+    return (
+      individualStats.isLoading ||
+      detailTabs.individual.loading ||
+      sidebarQueriesLoading
+    );
+  }, [
+    orgLoading,
+    organizationId,
+    isLoadingCycles,
+    attendanceLoading,
+    activeTab,
+    companyStats.isLoading,
+    departmentStats.isLoading,
+    individualStats.isLoading,
+    detailTabs.company.loading,
+    detailTabs.department.loading,
+    detailTabs.individual.loading,
+    sidebarQueriesLoading,
+    currentEmployeePending,
+  ]);
 
-  const statsLoading =
-    companyStats.isLoading || departmentStats.isLoading || individualStats.isLoading;
+  const showLoadOverlay = useOkrPageSkeletonGate(rawPageLoadPending);
 
-  const showFullPageSkeleton =
-    orgLoading ||
-    isLoadingCycles ||
-    statsLoading ||
-    detailLoading ||
-    attendanceLoading ||
-    (!!organizationId && sidebarQueriesLoading);
+  const PageSkeleton =
+    activeTab === "company-objectives"
+      ? CompanyObjectivePageSkeleton
+      : activeTab === "department-objectives"
+        ? DepartmentObjectivePageSkeleton
+        : IndividualObjectivePageSkeleton;
 
   const handleTabChange = useCallback(
     (tab: string) => {
-      setActiveTab(tab);
       if (tab === "department-objectives") {
         navigate("/okr/department-objective");
       } else if (tab === "individual-objectives") {
@@ -158,7 +167,7 @@ function OKRPageContent() {
       <div
         className={cn(
           "flex min-h-0 w-full min-w-0 flex-1",
-          showFullPageSkeleton && "invisible pointer-events-none",
+          showLoadOverlay && "invisible pointer-events-none",
         )}
       >
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
@@ -303,9 +312,9 @@ function OKRPageContent() {
           </div>
       </div>
 
-      {showFullPageSkeleton ? (
-        <div className="absolute inset-0 z-10 overflow-auto">
-          <OkrPageSkeleton />
+      {showLoadOverlay ? (
+        <div className="absolute inset-0 z-10 overflow-auto bg-gray-100 dark:bg-muted/30">
+          <PageSkeleton />
         </div>
       ) : null}
     </div>

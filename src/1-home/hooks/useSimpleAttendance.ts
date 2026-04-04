@@ -1,11 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { useLocationServices } from './useLocationServices';
+import { useLocationServices, type LocationData } from './useLocationServices';
 import { findNearestOfficeLocation } from '../utils/officeLocationUtils';
 import { hasOfficeLocations } from '../utils/officeLocationValidation';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { logger } from '@/shared/lib/logger';
+import { attendanceInstantToIso, dateToPostgresTimeUtc } from '@/1-home/utils/attendanceDateTime';
 
 export interface PhotoUploadResult {
   url: string;
@@ -36,6 +37,29 @@ interface AttendanceValidationResult {
   can_attend: boolean;
 }
 
+/** Pending late check-in: no row in attendance_records until user submits reason in modal. */
+interface PendingLateCheckIn {
+  imageDataUrl: string;
+  validation: AttendanceValidationResult;
+  location: LocationData;
+}
+
+function formatLocalCheckinTimeString(d: Date): string {
+  return (
+    d.getFullYear() +
+    '-' +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    '-' +
+    String(d.getDate()).padStart(2, '0') +
+    ' ' +
+    String(d.getHours()).padStart(2, '0') +
+    ':' +
+    String(d.getMinutes()).padStart(2, '0') +
+    ':' +
+    String(d.getSeconds()).padStart(2, '0')
+  );
+}
+
 export const useSimpleAttendance = () => {
   const [loading, setLoading] = useState(false);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
@@ -43,8 +67,8 @@ export const useSimpleAttendance = () => {
   const [lastCheckIn, setLastCheckIn] = useState<string | null>(null);
   const [lastCheckOut, setLastCheckOut] = useState<string | null>(null);
   const [showLateReasonModal, setShowLateReasonModal] = useState(false);
-  const [lateAttendanceId, setLateAttendanceId] = useState<string | null>(null);
   const [lateMinutes, setLateMinutes] = useState<number>(0);
+  const pendingLateCheckInRef = useRef<PendingLateCheckIn | null>(null);
   
   const { getCurrentLocation, validateLocationForAttendance } = useLocationServices();
   const { data: employee } = useCurrentEmployee();
@@ -59,7 +83,7 @@ export const useSimpleAttendance = () => {
     
     const { data: record, error } = await supabase
       .from('attendance_records')
-      .select('check_in_time, check_out_time, id, attendance_date')
+      .select('check_in_time, check_out_time, check_in_at, check_out_at, id, attendance_date')
       .eq('employee_id', employee.id)
       .eq('attendance_date', today)
       .maybeSingle();
@@ -67,14 +91,20 @@ export const useSimpleAttendance = () => {
     logger.debug('📋 Today attendance status:', { record, error });
 
     if (!error && record) {
-      setHasCheckedIn(!!record.check_in_time);
-      setHasCheckedOut(!!record.check_out_time);
-      setLastCheckIn(record.check_in_time);
-      setLastCheckOut(record.check_out_time);
-      
+      const hasIn = !!(record.check_in_at || record.check_in_time);
+      const hasOut = !!(record.check_out_at || record.check_out_time);
+      setHasCheckedIn(hasIn);
+      setHasCheckedOut(hasOut);
+      setLastCheckIn(
+        attendanceInstantToIso(record.attendance_date, record.check_in_time, record.check_in_at)
+      );
+      setLastCheckOut(
+        attendanceInstantToIso(record.attendance_date, record.check_out_time, record.check_out_at)
+      );
+
       logger.debug('📋 Local state updated:', {
-        hasCheckedIn: !!record.check_in_time,
-        hasCheckedOut: !!record.check_out_time,
+        hasCheckedIn: hasIn,
+        hasCheckedOut: hasOut,
         lastCheckIn: record.check_in_time,
         lastCheckOut: record.check_out_time
       });
@@ -144,6 +174,124 @@ export const useSimpleAttendance = () => {
       path: filePath
     };
   }, [employee?.id]);
+
+  const finalizeCheckIn = useCallback(
+    async (
+      imageDataUrl: string,
+      validation: AttendanceValidationResult,
+      location: LocationData,
+      localTimeString: string,
+      notes: string | null,
+    ) => {
+      if (!employee) {
+        throw new Error('Employee not found');
+      }
+
+      const photoResult = await uploadPhoto(imageDataUrl, 'check_in');
+
+      const { data: attendanceResult, error: attendanceError } = await supabase.rpc(
+        'record_attendance_with_timezone',
+        {
+          employee_id_param: employee.id,
+          organization_id_param: employee.organization_id,
+          local_checkin_time: localTimeString,
+          latitude_param: parseFloat(location.latitude.toString()),
+          longitude_param: parseFloat(location.longitude.toString()),
+          timezone_param: 'Asia/Jakarta',
+          photo_path_param: photoResult.path,
+          location_data: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            address: location.address || 'Unknown',
+            formatted_address: location.formatted_address || 'Unknown',
+          },
+          notes_param: notes?.trim() ? notes.trim() : null,
+        },
+      );
+
+      if (attendanceError) {
+        console.error('❌ Database insert error:', attendanceError);
+        if (attendanceError.code === '23502') {
+          throw new Error(
+            'Lokasi kantor belum dikonfigurasi. Silakan hubungi admin untuk mengatur lokasi kantor terlebih dahulu.',
+          );
+        } else if (attendanceError.message.includes('Office location required')) {
+          throw new Error(
+            'Lokasi kantor diperlukan untuk absensi. Silakan hubungi admin untuk mengatur lokasi kantor terlebih dahulu.',
+          );
+        } else {
+          throw new Error(`Gagal menyimpan data absensi: ${attendanceError.message}`);
+        }
+      }
+
+      logger.debug('✅ Attendance recorded successfully:', attendanceResult);
+
+      const attendanceData = {
+        id: attendanceResult[0]?.attendance_id,
+        is_late: attendanceResult[0]?.is_late,
+        late_minutes: attendanceResult[0]?.late_minutes,
+        status: attendanceResult[0]?.status,
+      };
+
+      const validationRecords = [
+        {
+          attendance_record_id: attendanceData.id,
+          organization_id: employee.organization_id,
+          validation_type: 'location',
+          validation_status: validation.location_valid ? 'valid' : 'invalid',
+          validation_details: {
+            distance_meters: validation.distance_meters,
+            allowed_radius: validation.allowed_radius,
+            office_location_id: validation.office_location_id || null,
+            office_location_name: validation.office_location_name || null,
+          } as Record<string, unknown>,
+        },
+        {
+          attendance_record_id: attendanceData.id,
+          organization_id: employee.organization_id,
+          validation_type: 'face',
+          validation_status: validation.face_valid ? 'valid' : 'invalid',
+          validation_details: {
+            face_registered: validation.face_registered,
+          } as Record<string, unknown>,
+        },
+        {
+          attendance_record_id: attendanceData.id,
+          organization_id: employee.organization_id,
+          validation_type: 'schedule',
+          validation_status: validation.schedule_valid ? 'valid' : 'invalid',
+          validation_details: {
+            is_holiday: validation.is_holiday,
+            is_late: validation.is_late,
+            late_minutes: validation.late_minutes,
+          } as Record<string, unknown>,
+        },
+        {
+          attendance_record_id: attendanceData.id,
+          organization_id: employee.organization_id,
+          validation_type: 'overall',
+          validation_status: validation.can_attend ? 'valid' : 'invalid',
+          validation_details: validation as unknown as Record<string, unknown>,
+        },
+      ];
+
+      const { error: validationInsertError } = await supabase
+        .from('attendance_validations')
+        .insert(validationRecords);
+
+      if (validationInsertError) {
+        console.error('⚠️ Warning: Failed to save validation records:', validationInsertError);
+      } else {
+        logger.debug('✅ Validation records saved successfully');
+      }
+
+      setHasCheckedIn(true);
+      await checkTodayStatus();
+
+      return attendanceData;
+    },
+    [employee, uploadPhoto, checkTodayStatus],
+  );
 
   const getWorkSchedule = useCallback(async (): Promise<WorkSchedule | null> => {
     if (!employee?.organization_id) return null;
@@ -496,151 +644,49 @@ export const useSimpleAttendance = () => {
         throw new Error('No office locations found for your organization');
       }
 
-      // Upload photo
-      const photoResult = await uploadPhoto(imageDataUrl, 'check_in');
-
-      // STEP 3: Use new timezone-aware function for attendance recording
-      const localCheckInTime = new Date();
-      
-      // Create a local timezone timestamp (without timezone conversion)
-      const localTimeString = localCheckInTime.getFullYear() + '-' +
-        String(localCheckInTime.getMonth() + 1).padStart(2, '0') + '-' +
-        String(localCheckInTime.getDate()).padStart(2, '0') + ' ' +
-        String(localCheckInTime.getHours()).padStart(2, '0') + ':' +
-        String(localCheckInTime.getMinutes()).padStart(2, '0') + ':' +
-        String(localCheckInTime.getSeconds()).padStart(2, '0');
-
-      logger.debug('💾 Recording attendance with local time:', localTimeString);
-
-      // STEP 4: Use the new timezone-aware database function
-      // Use Asia/Jakarta timezone for proper calculation
-      // Cast the text parameter explicitly to avoid function overloading conflict
-      const { data: attendanceResult, error: attendanceError } = await supabase
-        .rpc('record_attendance_with_timezone', {
-          employee_id_param: employee.id,
-          organization_id_param: employee.organization_id,
-          local_checkin_time: localTimeString,
-          latitude_param: parseFloat(location.latitude.toString()),
-          longitude_param: parseFloat(location.longitude.toString()),
-          timezone_param: 'Asia/Jakarta',
-          photo_path_param: photoResult.path,
-          location_data: {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            address: location.address || 'Unknown',
-            formatted_address: location.formatted_address || 'Unknown'
-          }
+      // Terlambat: tidak upload / tidak INSERT sampai user isi alasan dan ketuk Simpan
+      if (validation.is_late) {
+        pendingLateCheckInRef.current = {
+          imageDataUrl,
+          validation,
+          location,
+        };
+        setLateMinutes(validation.late_minutes);
+        setShowLateReasonModal(true);
+        toast({
+          title: 'Clock In Terlambat',
+          description: `Anda terlambat ${validation.late_minutes} menit. Isi alasan lalu ketuk Simpan untuk mencatat absensi. Batal = tidak ada data absensi.`,
+          variant: 'destructive',
         });
-
-      if (attendanceError) {
-        console.error('❌ Database insert error:', attendanceError);
-        
-        // Handle specific database constraint violations with user-friendly messages
-        if (attendanceError.code === '23502') {
-          // Not-null constraint violation for office_location_id
-          throw new Error('Lokasi kantor belum dikonfigurasi. Silakan hubungi admin untuk mengatur lokasi kantor terlebih dahulu.');
-        } else if (attendanceError.message.includes('Office location required')) {
-          // Custom error from stored procedure
-          throw new Error('Lokasi kantor diperlukan untuk absensi. Silakan hubungi admin untuk mengatur lokasi kantor terlebih dahulu.');
-        } else {
-          throw new Error(`Gagal menyimpan data absensi: ${attendanceError.message}`);
-        }
+        return {
+          id: undefined,
+          is_late: true,
+          late_minutes: validation.late_minutes,
+          status: 'pending_reason',
+        };
       }
 
-      logger.debug('✅ Attendance recorded successfully:', attendanceResult);
+      const localTimeString = formatLocalCheckinTimeString(new Date());
+      logger.debug('💾 Recording attendance with local time:', localTimeString);
 
-      // Get the attendance record data for validation records
-      const attendanceData = { 
-        id: attendanceResult[0]?.attendance_id,
-        is_late: attendanceResult[0]?.is_late,
-        late_minutes: attendanceResult[0]?.late_minutes,
-        status: attendanceResult[0]?.status
-      };
+      const attendanceData = await finalizeCheckIn(
+        imageDataUrl,
+        validation,
+        location,
+        localTimeString,
+        null,
+      );
 
       logger.debug('✅ Attendance record saved:', attendanceData);
 
-      // STEP 5: Save validation records to attendance_validations table
-      const validationRecords = [
-        {
-          attendance_record_id: attendanceData.id,
-          organization_id: employee.organization_id,
-          validation_type: 'location',
-          validation_status: validation.location_valid ? 'valid' : 'invalid',
-          validation_details: {
-            distance_meters: validation.distance_meters,
-            allowed_radius: validation.allowed_radius,
-            office_location_id: validation.office_location_id || null,
-            office_location_name: validation.office_location_name || null
-          } as any
-        },
-        {
-          attendance_record_id: attendanceData.id,
-          organization_id: employee.organization_id,
-          validation_type: 'face',
-          validation_status: validation.face_valid ? 'valid' : 'invalid',
-          validation_details: {
-            face_registered: validation.face_registered
-          } as any
-        },
-        {
-          attendance_record_id: attendanceData.id,
-          organization_id: employee.organization_id,
-          validation_type: 'schedule',
-          validation_status: validation.schedule_valid ? 'valid' : 'invalid',
-          validation_details: {
-            is_holiday: validation.is_holiday,
-            is_late: validation.is_late,
-            late_minutes: validation.late_minutes
-          } as any
-        },
-        {
-          attendance_record_id: attendanceData.id,
-          organization_id: employee.organization_id,
-          validation_type: 'overall',
-          validation_status: validation.can_attend ? 'valid' : 'invalid',
-          validation_details: validation as any
-        }
-      ];
+      const message = validation.location_valid
+        ? 'Clock in berhasil! ✅ Lokasi valid'
+        : `Clock in berhasil! ⚠️ Jarak dari kantor: ${Math.round(validation.distance_meters)}m`;
 
-      // Insert validation records
-      const { error: validationInsertError } = await supabase
-        .from('attendance_validations')
-        .insert(validationRecords);
-
-      if (validationInsertError) {
-        console.error('⚠️ Warning: Failed to save validation records:', validationInsertError);
-        // Don't throw error here as attendance was successful
-      } else {
-        logger.debug('✅ Validation records saved successfully');
-      }
-
-      // Update local state
-      setHasCheckedIn(true);
-      // Refresh attendance status to get actual check_in_time from database
-      await checkTodayStatus();
-
-      // Check if late and show modal for reason
-      if (attendanceData.is_late) {
-        setLateAttendanceId(attendanceData.id);
-        setLateMinutes(attendanceData.late_minutes || 0);
-        setShowLateReasonModal(true);
-        
-        toast({
-          title: "Clock In Terlambat",
-          description: `Anda terlambat ${attendanceData.late_minutes} menit. Silakan berikan alasan keterlambatan.`,
-          variant: "destructive"
-        });
-      } else {
-        // Show success message with validation status
-        let message = validation.location_valid 
-          ? 'Clock in berhasil! ✅ Lokasi valid'
-          : `Clock in berhasil! ⚠️ Jarak dari kantor: ${Math.round(validation.distance_meters)}m`;
-
-        toast({
-          title: "Clock In Berhasil",
-          description: message,
-        });
-      }
+      toast({
+        title: 'Clock In Berhasil',
+        description: message,
+      });
 
       return attendanceData;
     } catch (error) {
@@ -654,7 +700,7 @@ export const useSimpleAttendance = () => {
     } finally {
       setLoading(false);
     }
-  }, [employee, getCurrentLocation, uploadPhoto, toast]);
+  }, [employee, getCurrentLocation, toast, finalizeCheckIn]);
 
   const checkOut = useCallback(async (imageDataUrl: string) => {
     if (!employee) {
@@ -673,7 +719,7 @@ export const useSimpleAttendance = () => {
       const today = new Date().toISOString().split('T')[0];
       const { data: existingRecord, error: fetchError } = await supabase
         .from('attendance_records')
-        .select('*')
+        .select('id, check_in_at, attendance_date, check_in_time, check_out_time')
         .eq('employee_id', employee.id)
         .eq('attendance_date', today)
         .single();
@@ -682,8 +728,18 @@ export const useSimpleAttendance = () => {
         throw new Error('No check-in record found for today');
       }
 
-      // Calculate working hours
-      const checkInTime = new Date(existingRecord.check_in_time!);
+      // Prefer timestamptz from RPC; fall back to date + time columns
+      const rec = existingRecord as {
+        check_in_at?: string | null;
+        attendance_date?: string | null;
+        check_in_time?: string | null;
+      };
+      const checkInTime =
+        rec.check_in_at != null && String(rec.check_in_at).trim() !== ''
+          ? new Date(rec.check_in_at)
+          : rec.attendance_date && rec.check_in_time
+            ? new Date(`${rec.attendance_date}T${String(rec.check_in_time)}`)
+            : new Date(existingRecord.check_in_time as string);
       const checkOutTime = new Date();
       const workingMinutes = Math.floor((checkOutTime.getTime() - checkInTime.getTime()) / (1000 * 60));
 
@@ -691,7 +747,8 @@ export const useSimpleAttendance = () => {
       const { data, error } = await supabase
         .from('attendance_records')
         .update({
-          check_out_time: checkOutTime.toISOString(),
+          check_out_time: dateToPostgresTimeUtc(checkOutTime),
+          check_out_at: checkOutTime.toISOString(),
           check_out_location: {
             latitude: location.latitude,
             longitude: location.longitude,
@@ -748,31 +805,35 @@ export const useSimpleAttendance = () => {
     }
   }, [checkIn, checkOut]);
 
-  // Function to save late reason
-  const saveLateReason = useCallback(async (reason: string) => {
-    if (!lateAttendanceId) {
-      throw new Error('No late attendance record found');
-    }
+  /** After user confirms late reason: create attendance row (with notes) — waktu check-in = saat Simpan. */
+  const saveLateReason = useCallback(
+    async (reason: string) => {
+      const pending = pendingLateCheckInRef.current;
+      if (!pending) {
+        throw new Error('Tidak ada absensi terlambat yang menunggu konfirmasi');
+      }
 
-    const { error } = await supabase
-      .from('attendance_records')
-      .update({ notes: reason })
-      .eq('id', lateAttendanceId);
+      const localTimeString = formatLocalCheckinTimeString(new Date());
 
-    if (error) {
-      throw new Error(`Failed to save late reason: ${error.message}`);
-    }
+      await finalizeCheckIn(
+        pending.imageDataUrl,
+        pending.validation,
+        pending.location,
+        localTimeString,
+        reason,
+      );
 
-    // Close modal and reset state
-    setShowLateReasonModal(false);
-    setLateAttendanceId(null);
-    setLateMinutes(0);
+      pendingLateCheckInRef.current = null;
+      setShowLateReasonModal(false);
+      setLateMinutes(0);
 
-    toast({
-      title: "Alasan Tersimpan",
-      description: "Alasan keterlambatan berhasil disimpan.",
-    });
-  }, [lateAttendanceId, toast]);
+      toast({
+        title: 'Absensi tersimpan',
+        description: 'Alasan keterlambatan dan clock in berhasil dicatat.',
+      });
+    },
+    [finalizeCheckIn, toast],
+  );
 
   return {
     loading,
@@ -787,10 +848,10 @@ export const useSimpleAttendance = () => {
     checkOut,
     saveLateReason,
     closeLateReasonModal: () => {
+      pendingLateCheckInRef.current = null;
       setShowLateReasonModal(false);
-      setLateAttendanceId(null);
       setLateMinutes(0);
-    }
+    },
   };
 };
 

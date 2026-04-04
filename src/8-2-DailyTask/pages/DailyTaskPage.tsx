@@ -194,7 +194,7 @@ const DailyTaskContent = () => {
               </div>
 
               {/* Scrollable Sidebar Content */}
-              <div className="flex min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-gradient-to-b from-brand-blue/[0.04] to-transparent px-4 py-4 [scrollbar-gutter:stable] seamless-scroll nested-scroll-touch-chain">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto bg-gradient-to-b from-brand-blue/[0.04] to-transparent px-4 py-4 [scrollbar-gutter:stable] seamless-scroll nested-scroll-touch-chain">
                 {sidebarTab === 'summary' && (
                   <TaskSummaryCards
                     onOpenPreview={(planId, callbacks) => {

@@ -9,6 +9,7 @@ import { useUnifiedProfile } from '@/shared/hooks/useUnifiedProfile';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from "date-fns";
+import { parseAttendanceInstant } from '@/1-home/utils/attendanceDateTime';
 
 interface SectionGreetingsProps {
   currentTime: Date;
@@ -33,13 +34,17 @@ export const SectionGreetings = ({ currentTime, greeting }: SectionGreetingsProp
 
   // Calculate working time if checked in
   const calculateWorkingTime = () => {
-    if (!todayRecord?.check_in_time) {
+    const checkIn = parseAttendanceInstant(
+      todayRecord?.attendance_date,
+      todayRecord?.check_in_time,
+      todayRecord?.check_in_at
+    );
+    if (!checkIn) {
       return t('greeting.workingTimeZero', '0 hours 0 minutes');
     }
-    
-    const checkIn = new Date(todayRecord.check_in_time);
+
     const now = new Date();
-    
+
     const diffMs = now.getTime() - checkIn.getTime();
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));

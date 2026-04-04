@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { dateToPostgresTimeUtc } from '@/1-home/utils/attendanceDateTime';
 import { toast } from 'sonner';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 
@@ -159,7 +160,9 @@ export const useAttendanceRecords = (organizationId?: string) => {
       const { data, error } = await supabase
         .from('attendance_records')
         .update({
-          check_out_time: checkOutTime,
+          check_out_time: checkOutTime.includes('T')
+            ? dateToPostgresTimeUtc(new Date(checkOutTime))
+            : checkOutTime,
           check_out_location: checkOutLocation,
           check_out_photo_path: checkOutPhotoPath,
           working_hours_minutes: workingHoursMinutes || 0,
@@ -201,7 +204,7 @@ export const useAttendanceRecords = (organizationId?: string) => {
 
       const attendanceData = {
         attendance_date: new Date().toISOString().split('T')[0],
-        check_in_time: new Date().toISOString(),
+        check_in_time: dateToPostgresTimeUtc(new Date()),
         check_in_location: {
           latitude: location.latitude,
           longitude: location.longitude,

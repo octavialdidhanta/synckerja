@@ -1,6 +1,6 @@
-
 import { useState } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { dateToPostgresTimeUtc } from '@/1-home/utils/attendanceDateTime';
 import { toast } from 'sonner';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -157,7 +157,7 @@ export const useAttendanceOperations = () => {
           employee_id: currentEmployee.id,
           organization_id: organizationId,
           attendance_date: currentTime.toISOString().split('T')[0],
-          check_in_time: currentTime.toISOString(),
+          check_in_time: dateToPostgresTimeUtc(currentTime),
           check_in_location: {
             latitude: attendanceData.latitude,
             longitude: attendanceData.longitude
@@ -239,7 +239,7 @@ export const useAttendanceOperations = () => {
       const { error: updateError } = await supabase
         .from('attendance_records')
         .update({
-          check_out_time: currentTime.toISOString(),
+          check_out_time: dateToPostgresTimeUtc(currentTime),
           check_out_location: {
             latitude: attendanceData.latitude,
             longitude: attendanceData.longitude

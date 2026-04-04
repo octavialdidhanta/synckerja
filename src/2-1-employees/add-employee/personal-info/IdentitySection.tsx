@@ -61,7 +61,7 @@ export const IdentitySection = ({ formData, handleInputChange }: PersonalDataSte
   }, [formData.nik]);
 
   const getInputClassName = () => {
-    let baseClass = "border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm";
+    let baseClass = "border-gray-300 focus-visible:border-primary focus-visible:ring-primary text-sm";
 
     if (nikValidation.isChecking) {
       return `${baseClass} border-yellow-300`;

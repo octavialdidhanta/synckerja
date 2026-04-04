@@ -25,7 +25,7 @@ export const AccessPermissionsSection = ({ formData, handleInputChange }: Employ
             value={formData.role || 'employee'} 
             onValueChange={(value) => handleInputChange('role', value)}
           >
-            <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+            <SelectTrigger className="border-gray-300 focus:border-primary focus:ring-primary">
               <SelectValue placeholder="Select user role" />
             </SelectTrigger>
             <SelectContent>
