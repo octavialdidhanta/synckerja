@@ -8,6 +8,8 @@ import { Label } from '@/shared/components/ui/label';
 import { Separator } from '@/shared/components/ui/separator';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useEmployeeAssignments } from './hooks/useEmployeeAssignments';
 import { JobDescTimeframe, DateRangeValue, JobDescAssignment } from '@/8-2-DailyTask/section/JobDescTracker/types';
 import { useDailyTaskOptional } from '@/8-2-DailyTask/context/DailyTaskContext';
@@ -59,15 +61,19 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
   const [selectedType, setSelectedType] = useState<'all' | 'task' | 'step' | 'subStep'>('all');
   const [showCompleted, setShowCompleted] = useState(false);
   
-  const { data: summary, isLoading, error, range } = useEmployeeAssignments({
+  const { loading: orgLoading } = useCurrentOrg();
+  const { isLoading: employeeLoading } = useCurrentEmployee();
+  const { data: summary, isLoading, error } = useEmployeeAssignments({
     timeframe,
     customRange,
     includeOverdue: true,
   });
 
+  const activitySectionLoading = orgLoading || employeeLoading || isLoading;
+
   const activityError =
     error instanceof Error ? error : error ? new Error(String(error)) : null;
-  useReportHomeSectionStatus('activity', isLoading, activityError);
+  useReportHomeSectionStatus('activity', activitySectionLoading, activityError);
     
   const useNavigateOnly = standalone || !dailyTask;
 
@@ -243,7 +249,7 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
     { id: 'subStep', label: t('dailyTask.jobDesc.assignment.type.subStep', 'Sub-step'), count: filteredActiveAssignments.filter(t => t.type === 'subStep').length + filteredCompletedAssignments.filter(t => t.type === 'subStep').length },
   ];
 
-  if (isLoading) {
+  if (activitySectionLoading) {
     return null;
   }
 

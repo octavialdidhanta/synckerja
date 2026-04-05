@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useEffect, useState, useCallback, type ReactNode } from 'react';
+import React, { createContext, useContext, useRef, useEffect, useState, type ReactNode } from 'react';
 
 type OKRSectionVisibilityContextValue = {
   isVisible: boolean;
