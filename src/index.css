@@ -292,6 +292,14 @@ All colors MUST be HSL.
   /* `seamless-scroll` sets a thin visible WebKit scrollbar; if both utilities are on one node, hide must win. */
   .scrollbar-hide.seamless-scroll {
     scrollbar-width: none !important;
+    /*
+      `seamless-scroll` alone uses overscroll-behavior: contain, which stops wheel/touch scroll from
+      chaining to the parent. For nodes that are only horizontally scrollable (wide tables inside a
+      vertically scrolling page), that traps vertical wheel — e.g. /expenses/payment-process table body.
+      Allow vertical chaining; keep horizontal edge behavior contained.
+    */
+    overscroll-behavior-y: auto;
+    overscroll-behavior-x: contain;
   }
 
   .scrollbar-hide.seamless-scroll::-webkit-scrollbar {

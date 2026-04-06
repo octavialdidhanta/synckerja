@@ -26,7 +26,7 @@ interface ScheduleStepWizardProps {
 
 export const ScheduleStepWizard = ({ visitData, updateVisitData }: ScheduleStepWizardProps) => {
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6">
       {/* Instructions */}
       <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border border-purple-200">
         <div className="flex items-start gap-3">

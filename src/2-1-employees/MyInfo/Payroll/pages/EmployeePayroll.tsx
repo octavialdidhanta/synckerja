@@ -203,7 +203,7 @@ const EmployeePayroll = () => {
                       </div>
 
                       {/* Navigation Menu */}
-                      <div className="flex-1 overflow-y-auto seamless-scroll p-4">
+                      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         <h4 className="font-semibold text-gray-900 mb-3 text-sm">Quick Navigation</h4>
                         <div className="space-y-1">
                           {navigationItems.map((item) => {
@@ -250,7 +250,7 @@ const EmployeePayroll = () => {
                         
                         {/* Scrollable Content */}
                         <div className="flex-1 min-h-0 overflow-hidden">
-                          <div className="h-full overflow-y-auto seamless-scroll">
+                          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             <div className="p-4">
                               <PayrollInfoTab employee={employee} isEditMode={isEditMode} onUpdate={() => {}} />
                             </div>

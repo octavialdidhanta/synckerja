@@ -46,8 +46,8 @@ function KolManagementCampaignsSkeletonMain() {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white shadow-sm shadow-brand-blue/5">
+          <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
+            <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white shadow-sm shadow-brand-blue/5">
               <div className="sticky top-0 z-10 border-b border-brand-blue/15 bg-brand-blue-soft px-3 py-2">
                 <div className="flex min-w-0 gap-1.5 overflow-hidden">
                   {Array.from({ length: 10 }).map((_, i) => (
@@ -55,7 +55,7 @@ function KolManagementCampaignsSkeletonMain() {
                   ))}
                 </div>
               </div>
-              <div className="flex-1 space-y-3 p-3">
+              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 space-y-3 overflow-x-hidden overflow-y-auto p-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {Array.from({ length: 7 }).map((_, r) => (
                   <div key={r} className="flex gap-2 border-b border-gray-50 pb-3 last:border-0">
                     <Skeleton className="h-10 w-44 shrink-0 rounded-md" />

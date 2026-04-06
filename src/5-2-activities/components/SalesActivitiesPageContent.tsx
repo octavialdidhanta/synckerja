@@ -12,7 +12,6 @@ import { useSalesActivities, type SalesActivity } from '@/shared/hooks/organized
 import { useDailyTask } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { Button } from '@/shared/components/ui/button';
 import { Alert, AlertDescription } from '@/shared/components/ui/alert';
-import { Plus } from 'lucide-react';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { devLog } from '@/shared/lib/logger';
 
@@ -62,11 +61,6 @@ export const SalesActivitiesPageContent = () => {
     if (!open) {
       setEditingActivity(null);
     }
-  };
-
-  const handleAddActivity = () => {
-    setEditingActivity(null);
-    setShowDialog(true);
   };
 
   const handleUpdatePayment = (activity: SalesActivity) => {
@@ -211,7 +205,11 @@ export const SalesActivitiesPageContent = () => {
           <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
             <div className="mb-2 flex-shrink-0">
               <div className="rounded-md border bg-white p-2">
-                <SalesActivitiesFilters filters={filters} onFiltersChange={setFilters} />
+                <SalesActivitiesFilters
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  onCreateSuccess={() => refetch()}
+                />
               </div>
             </div>
 
@@ -254,18 +252,9 @@ export const SalesActivitiesPageContent = () => {
           <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
             <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
               <div className="flex-shrink-0 border-b px-4 py-1.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">Sales Activities Overview</h3>
-                    <p className="mt-1 text-xs text-gray-500">Summary of sales activities</p>
-                  </div>
-                  <Button
-                    onClick={handleAddActivity}
-                    className="flex h-8 flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    New Activity
-                  </Button>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Sales Activities Overview</h3>
+                  <p className="mt-1 text-xs text-gray-500">Summary of sales activities</p>
                 </div>
               </div>
 

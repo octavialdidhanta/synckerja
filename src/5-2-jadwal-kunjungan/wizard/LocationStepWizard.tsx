@@ -41,7 +41,7 @@ export const LocationStepWizard = ({ visitData, updateVisitData }: LocationStepW
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="mx-auto w-full min-w-0 max-w-5xl space-y-6">
       {/* Instructions */}
       <div className="bg-gradient-to-r from-brand-blue-soft to-brand-blue-soft/80 p-4 rounded-xl border border-brand-blue/25">
         <div className="flex items-start gap-3">
@@ -57,15 +57,15 @@ export const LocationStepWizard = ({ visitData, updateVisitData }: LocationStepW
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Map Section */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <h3 className="font-semibold text-slate-800 flex items-center gap-2">
             <MapPin className="h-5 w-5 text-brand-blue" />
             Peta Interaktif
           </h3>
           
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <GoogleMapsLocationSelector 
               onLocationSelect={handleLocationSelect} 
               initialCenter={{
@@ -79,7 +79,7 @@ export const LocationStepWizard = ({ visitData, updateVisitData }: LocationStepW
         </div>
 
         {/* Form Section */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <h3 className="font-semibold text-slate-800">Detail Lokasi</h3>
           
           <div className="space-y-4">

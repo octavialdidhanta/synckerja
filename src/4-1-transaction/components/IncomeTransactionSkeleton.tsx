@@ -66,7 +66,7 @@ export function IncomeTransactionSkeleton() {
                         <Skeleton className="h-4 w-40" />
                         <Skeleton className="h-8 w-24" />
                       </div>
-                      <div className="min-w-0 overflow-x-auto p-2">
+                      <div className="scrollbar-hide seamless-scroll min-w-0 overflow-x-auto p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         <div className="min-w-[640px] space-y-2">
                           <Skeleton className="h-8 w-full" />
                           {Array.from({ length: 6 }).map((_, i) => (

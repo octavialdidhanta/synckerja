@@ -328,7 +328,7 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
       </div>
 
       {/* Calendar */}
-      <div className="flex-1 overflow-auto max-h-[900px]">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[900px] overflow-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-b-lg overflow-hidden min-w-[280px]">
           {/* Days of week header */}
           {getDayNames().map((day, index) => (
@@ -375,7 +375,7 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
         </div>
         
         {/* Summary section */}
-        <div className="bg-gray-50 p-4 border-t space-y-4 overflow-y-auto max-h-[500px]">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain max-h-[500px] space-y-4 overflow-x-hidden overflow-y-auto border-t bg-gray-50 p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Attendance Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-4 text-center">
             <div className="bg-emerald-50 p-2 sm:p-3 rounded border">

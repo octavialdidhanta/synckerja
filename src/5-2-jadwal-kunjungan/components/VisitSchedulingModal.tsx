@@ -94,9 +94,9 @@ export const VisitSchedulingModal = ({
   
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl border border-slate-200">
+      <div className="flex h-[90vh] min-h-0 w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-200 bg-gradient-to-r from-brand-blue-soft via-white to-brand-blue-soft/50">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-brand-blue-soft via-white to-brand-blue-soft/50 px-8 py-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-brand-blue-soft rounded-xl">
               <MapPin className="h-6 w-6 text-brand-blue" />
@@ -117,10 +117,10 @@ export const VisitSchedulingModal = ({
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {/* Tab Navigation */}
-            <div className="px-8 py-4 bg-slate-50/50 border-b border-slate-200">
+            <div className="shrink-0 border-b border-slate-200 bg-slate-50/50 px-8 py-4">
               <TabsList className="grid w-full max-w-lg mx-auto grid-cols-2 h-12 bg-white border border-slate-200 shadow-sm">
                 <TabsTrigger 
                   value="peta-interaktif" 
@@ -143,10 +143,13 @@ export const VisitSchedulingModal = ({
             </div>
 
             {/* Tab Content */}
-            <div className="flex-1 overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-hidden">
               {/* Peta Interaktif Tab */}
-              <TabsContent value="peta-interaktif" className="h-full px-8 py-6 overflow-y-auto">
-                <div className="max-w-5xl mx-auto space-y-6">
+              <TabsContent
+                value="peta-interaktif"
+                className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-full min-h-0 overflow-y-auto overflow-x-hidden px-8 py-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <div className="mx-auto w-full min-w-0 max-w-5xl space-y-6">
                   {/* Search Instructions */}
                   <div className="bg-gradient-to-r from-brand-blue-soft to-brand-blue-soft/80 p-6 rounded-xl border border-brand-blue/25">
                     <div className="flex items-start gap-4">
@@ -164,7 +167,7 @@ export const VisitSchedulingModal = ({
                   </div>
 
                   {/* Google Maps Container */}
-                  <div className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden shadow-lg">
+                  <div className="min-w-0 overflow-hidden rounded-2xl border-2 border-slate-200 bg-white shadow-lg">
                     <div className="p-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
                       <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                         <MapPin className="h-5 w-5 text-brand-blue" />
@@ -255,8 +258,11 @@ export const VisitSchedulingModal = ({
               </TabsContent>
 
               {/* Detail Lokasi Tab */}
-              <TabsContent value="detail-lokasi" className="h-full px-8 py-6 overflow-y-auto">
-                <div className="max-w-5xl mx-auto">
+              <TabsContent
+                value="detail-lokasi"
+                className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-full min-h-0 overflow-y-auto overflow-x-hidden px-8 py-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <div className="mx-auto w-full min-w-0 max-w-5xl">
                   {selectedLocation || formData.locationName ? (
                     <div className="space-y-8">
                       {/* Selected Location Summary */}

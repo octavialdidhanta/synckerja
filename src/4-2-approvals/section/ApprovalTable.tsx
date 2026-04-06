@@ -88,8 +88,8 @@ export const ApprovalTable = ({
         <h2 className="text-sm font-semibold text-gray-900">Approval Requests</h2>
       </div>
 
-      {/* Horizontal scroll only; vertikal mengikuti scroll halaman (tanpa wrapper overflow-auto Table shadcn) */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto">
+      {/* Horizontal scroll only; scrollbar disembunyikan (selaras Income Transactions / ui Table containerClassName) */}
+      <div className="scrollbar-hide seamless-scroll min-h-0 min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <table className="w-full min-w-[1300px] caption-bottom text-sm">
             <TableHeader className="sticky top-0 z-10 bg-gray-50 shadow-sm">
               <TableRow className="border-b bg-gray-50">

@@ -199,7 +199,7 @@ export const KOLCampaignsTable = memo(
     return (
       <>
         <div className="flex h-full flex-col">
-          <div className="seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <table className="kol-campaigns-table w-full caption-bottom text-sm">
               <TableHeader className="sticky top-0 z-20 bg-brand-blue-soft shadow-sm shadow-brand-blue/10">
                 <TableRow className="hover:bg-transparent">

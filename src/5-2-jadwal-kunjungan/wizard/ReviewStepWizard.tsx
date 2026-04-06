@@ -51,7 +51,7 @@ export const ReviewStepWizard = ({ visitData }: ReviewStepWizardProps) => {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
         <div className="flex items-start gap-3">
@@ -67,9 +67,9 @@ export const ReviewStepWizard = ({ visitData }: ReviewStepWizardProps) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Location Information */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-3">
             <div className="p-2 bg-brand-blue-soft rounded-lg">
               <MapPin className="h-5 w-5 text-brand-blue" />
@@ -109,7 +109,7 @@ export const ReviewStepWizard = ({ visitData }: ReviewStepWizardProps) => {
         </div>
 
         {/* Contact Information */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-lg">
               <User className="h-5 w-5 text-green-600" />
@@ -141,7 +141,7 @@ export const ReviewStepWizard = ({ visitData }: ReviewStepWizardProps) => {
         </div>
 
         {/* Schedule Information */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-3">
             <div className="p-2 bg-purple-100 rounded-lg">
               <Calendar className="h-5 w-5 text-purple-600" />
@@ -169,7 +169,7 @@ export const ReviewStepWizard = ({ visitData }: ReviewStepWizardProps) => {
         </div>
 
         {/* Visit Purpose */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-3">
             <div className="p-2 bg-orange-100 rounded-lg">
               <FileText className="h-5 w-5 text-orange-600" />

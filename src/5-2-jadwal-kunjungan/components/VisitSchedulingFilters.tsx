@@ -144,13 +144,9 @@ export const VisitSchedulingFilters = ({ filters, onFiltersChange, onNewVisit }:
         <RefreshCw className="w-4 h-4 text-gray-500" />
       </button>
 
-      {/* New Visit Button */}
       {onNewVisit && (
-        <Button 
-          onClick={onNewVisit}
-          className="h-9 px-3 text-sm"
-        >
-          <Plus className="h-4 w-4 mr-1" />
+        <Button onClick={onNewVisit} className="h-9 px-3 text-sm">
+          <Plus className="mr-1 h-4 w-4" />
           New Visit
         </Button>
       )}

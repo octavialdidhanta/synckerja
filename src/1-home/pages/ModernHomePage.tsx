@@ -12,7 +12,7 @@ function ModernHomePageInner() {
   const { showFullPageSkeleton } = useHomePageLoad();
 
   return (
-    <div className="relative flex min-h-full min-h-0 flex-1 flex-col">
+    <div className="relative flex h-full min-h-0 min-w-0 w-full flex-1 flex-col bg-background">
       <div
         className={cn(
           "flex min-h-full min-h-0 flex-col bg-background font-sans text-foreground",
@@ -59,11 +59,17 @@ function ModernHomePageInner() {
         </div>
       </div>
 
-      {showFullPageSkeleton ? (
-        <div className="absolute inset-0 z-10 flex min-h-0 flex-col overflow-auto bg-background">
-          <HomePageSkeleton />
-        </div>
-      ) : null}
+      <div
+        className={cn(
+          "absolute inset-0 z-10 flex min-h-0 flex-col overflow-hidden bg-background transition-opacity duration-200 ease-out",
+          showFullPageSkeleton
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0",
+        )}
+        aria-hidden={!showFullPageSkeleton}
+      >
+        <HomePageSkeleton />
+      </div>
     </div>
   );
 }

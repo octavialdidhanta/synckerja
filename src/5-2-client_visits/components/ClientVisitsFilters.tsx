@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Input } from '@/shared/components/ui/input';
-import { Search, RefreshCw, Plus } from 'lucide-react';
+import { Search, RefreshCw } from 'lucide-react';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/shared/components/ui/command';
@@ -15,10 +15,9 @@ interface ClientVisitsFiltersProps {
     status: string;
   };
   onFiltersChange: (filters: any) => void;
-  onNewVisit?: () => void;
 }
 
-export const ClientVisitsFilters = ({ filters, onFiltersChange, onNewVisit }: ClientVisitsFiltersProps) => {
+export const ClientVisitsFilters = ({ filters, onFiltersChange }: ClientVisitsFiltersProps) => {
   const { data: employees = [], isLoading: isLoadingEmployees } = useAvailableEmployees();
   const [employeeOpen, setEmployeeOpen] = React.useState(false);
 
@@ -140,17 +139,6 @@ export const ClientVisitsFilters = ({ filters, onFiltersChange, onNewVisit }: Cl
       >
         <RefreshCw className="w-4 h-4 text-gray-500" />
       </button>
-
-      {/* New Visit Button */}
-      {onNewVisit && (
-        <Button 
-          onClick={onNewVisit}
-          className="h-9 px-3 text-sm"
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          New Visit
-        </Button>
-      )}
     </div>
   );
 };

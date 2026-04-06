@@ -201,7 +201,7 @@ const EmployeePersonalInfo = () => {
                     </div>
 
                     {/* Navigation Menu */}
-                    <div className="flex-1 overflow-y-auto seamless-scroll p-4">
+                    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <h4 className="font-semibold text-gray-900 mb-3 text-sm">Quick Navigation</h4>
                       <div className="space-y-1">
                         {navigationItems.map((item) => {
@@ -239,7 +239,7 @@ const EmployeePersonalInfo = () => {
                   {/* Main Content Section */}
                   <div className="flex-1 min-h-0">
                     <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col h-full">
-                      <div className="flex-1 overflow-y-auto seamless-scroll min-h-0">
+                      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         <div className="p-6">
                           {/* Header with Edit Button */}
                           <div className="flex items-center justify-between mb-6">

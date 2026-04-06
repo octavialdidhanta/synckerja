@@ -14,9 +14,15 @@ interface SalesActivitiesFiltersProps {
     date: string;
   };
   onFiltersChange: (filters: any) => void;
+  /** Called after a new activity is saved from the filter-bar dialog (keeps list in sync). */
+  onCreateSuccess?: () => void;
 }
 
-export const SalesActivitiesFilters = ({ filters, onFiltersChange }: SalesActivitiesFiltersProps) => {
+export const SalesActivitiesFilters = ({
+  filters,
+  onFiltersChange,
+  onCreateSuccess,
+}: SalesActivitiesFiltersProps) => {
   const [showDialog, setShowDialog] = React.useState(false);
 
   const handleFilterChange = (key: string, value: string) => {
@@ -35,6 +41,7 @@ export const SalesActivitiesFilters = ({ filters, onFiltersChange }: SalesActivi
 
   const handleDialogSuccess = () => {
     setShowDialog(false);
+    onCreateSuccess?.();
   };
 
   return (

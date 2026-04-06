@@ -150,12 +150,9 @@ export function VisitSchedulingPageSkeleton() {
                       <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
                         <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
                           <div className="flex-shrink-0 border-b px-4 py-1.5">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0 flex-1 space-y-2">
-                                <Skeleton className="h-4 w-52 max-w-full rounded-sm" />
-                                <Skeleton className="h-3 w-44 max-w-full rounded-sm" />
-                              </div>
-                              <Skeleton className="h-8 w-24 shrink-0 rounded-md" />
+                            <div className="min-w-0 space-y-2">
+                              <Skeleton className="h-4 w-52 max-w-full rounded-sm" />
+                              <Skeleton className="h-3 w-44 max-w-full rounded-sm" />
                             </div>
                           </div>
                           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4">

@@ -3,7 +3,9 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -49,15 +51,20 @@ export function HomePageLoadProvider({ children }: { children: React.ReactNode }
   );
 
   const [showFullPageSkeleton, setShowFullPageSkeleton] = useState(true);
+  /** After first successful reveal, ignore brief `loading` blips (refetch) — avoids full-page skeleton flicker. */
+  const hasRevealedContentRef = useRef(false);
 
   useEffect(() => {
     if (rawPendingLoad) {
-      setShowFullPageSkeleton(true);
+      if (!hasRevealedContentRef.current) {
+        setShowFullPageSkeleton(true);
+      }
       return;
     }
     const id = window.setTimeout(() => {
       requestAnimationFrame(() => {
         setShowFullPageSkeleton(false);
+        hasRevealedContentRef.current = true;
       });
     }, SKELETON_HIDE_DEBOUNCE_MS);
     return () => window.clearTimeout(id);
@@ -116,7 +123,7 @@ export function useReportHomeSectionStatus(
   const updateSection = ctx?.updateSection;
   const errMsg = error?.message ?? "";
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!updateSection) return;
     updateSection(id, { loading, error });
   }, [id, loading, errMsg, updateSection]);

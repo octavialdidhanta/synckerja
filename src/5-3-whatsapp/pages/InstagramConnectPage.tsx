@@ -251,7 +251,7 @@ export function InstagramConnectPage() {
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="relative flex min-h-full min-w-0 flex-1 flex-col">
               <div
                 className={
@@ -270,7 +270,7 @@ export function InstagramConnectPage() {
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                     <div className="flex min-h-0 flex-1 flex-col gap-6">
                       <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 md:grid-cols-[1fr_3fr] md:grid-rows-1 md:items-stretch">
-                      <Card className="flex h-full min-h-0 flex-col">
+                      <Card className="flex h-full min-h-0 min-w-0 flex-col">
                         <CardHeader className="shrink-0 space-y-3">
                           <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center shrink-0">
@@ -282,7 +282,7 @@ export function InstagramConnectPage() {
                             </div>
                           </div>
                         </CardHeader>
-                        <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto">
+                        <CardContent className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col space-y-6 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           {!hasMetaConfig ? (
                             <div className="space-y-3">
                               {hasOAuth && (
@@ -387,7 +387,7 @@ export function InstagramConnectPage() {
                         </CardContent>
                       </Card>
 
-                      <Card className="flex h-full min-h-0 flex-col">
+                      <Card className="flex h-full min-h-0 min-w-0 flex-col">
                         <CardHeader className="shrink-0">
                           <CardTitle>{t('instagramConnect.rightTitle', 'Connected accounts')}</CardTitle>
                           <CardDescription>{t('instagramConnect.rightDescription', 'List of connected Instagram Business accounts.')}</CardDescription>

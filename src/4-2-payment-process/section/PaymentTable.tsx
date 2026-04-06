@@ -384,8 +384,8 @@ export const PaymentTable = ({
         <h2 className="text-sm font-semibold text-foreground">Payment Requests</h2>
       </div>
 
-      {/* Horizontal scroll only; vertikal mengikuti scroll halaman */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto">
+      {/* Horizontal scroll; scrollbar disembunyikan. Vertikal filter/metrik + grid tetap lewat scroll utama `PaymentProcessModuleShell`. */}
+      <div className="scrollbar-hide seamless-scroll min-h-0 min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <table className="w-full min-w-[1400px] caption-bottom text-sm">
           <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
             <TableRow className="border-b bg-card">

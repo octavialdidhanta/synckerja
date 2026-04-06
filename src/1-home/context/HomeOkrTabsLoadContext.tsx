@@ -2,7 +2,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -65,7 +65,7 @@ export function useReportOkrTabStatus(
   const setTab = ctx?.setTab;
   const errMsg = error?.message ?? "";
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!setTab) return;
     setTab(id, { loading, error });
   }, [id, loading, errMsg, setTab]);

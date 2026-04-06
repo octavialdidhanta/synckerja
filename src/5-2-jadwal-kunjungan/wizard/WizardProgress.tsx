@@ -13,7 +13,7 @@ interface WizardProgressProps {
 
 export const WizardProgress = ({ steps, currentStep }: WizardProgressProps) => {
   return (
-    <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-200">
+    <div className="shrink-0 border-b border-slate-200 bg-slate-50/50 px-6 py-4">
       <div className="flex items-center justify-between max-w-2xl mx-auto">
         {steps.map((step, index) => (
           <div key={step.id} className="flex items-center">

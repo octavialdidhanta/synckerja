@@ -278,7 +278,7 @@ export const EmployeePageLayout: React.FC<EmployeePageLayoutProps> = ({
             <div className="flex flex-1 min-h-0">
               {/* Information Sidebar */}
               {!hasError && employee && (
-                <div className="hidden lg:block w-64 bg-white border-r border-gray-200 overflow-y-auto">
+                <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain hidden min-h-0 w-64 overflow-y-auto overflow-x-hidden border-r border-gray-200 bg-white lg:block [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {/* Employee Profile Section */}
                   <div className="p-6 text-center border-b border-gray-200">
                     <div className="mb-4 flex justify-center">
@@ -359,7 +359,7 @@ export const EmployeePageLayout: React.FC<EmployeePageLayoutProps> = ({
               )}
 
               {/* Main Content Area */}
-              <div className="flex-1 bg-white overflow-y-auto min-h-0">
+              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-white [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div className="p-4 sm:p-6 pb-20">
                   {children}
                 </div>

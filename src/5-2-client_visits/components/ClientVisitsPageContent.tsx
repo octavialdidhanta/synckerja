@@ -7,7 +7,6 @@ import { ClientVisitsSidebarFooter } from './ClientVisitsSidebarFooter';
 import { useClientVisits } from '@/shared/hooks/organized/sales';
 import { Button } from '@/shared/components/ui/button';
 import { Alert, AlertDescription } from '@/shared/components/ui/alert';
-import { Plus } from 'lucide-react';
 
 /** Grid + sidebar rhythm matches `VisitSchedulingPageContent` (jadwal-kunjungan). */
 export const ClientVisitsPageContent = () => {
@@ -22,10 +21,6 @@ export const ClientVisitsPageContent = () => {
   const handleEdit = (visit: any) => {
     console.log('Edit visit:', visit);
     refetch();
-  };
-
-  const handleNewVisit = () => {
-    console.log('New visit');
   };
 
   const filteredVisits = visits.filter(visit => {
@@ -81,11 +76,7 @@ export const ClientVisitsPageContent = () => {
           <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
             <div className="mb-2 flex-shrink-0">
               <div className="rounded-md border bg-white p-2">
-                <ClientVisitsFilters 
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  onNewVisit={handleNewVisit}
-                />
+                <ClientVisitsFilters filters={filters} onFiltersChange={setFilters} />
               </div>
             </div>
 
@@ -124,18 +115,9 @@ export const ClientVisitsPageContent = () => {
           <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
             <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
               <div className="flex-shrink-0 border-b px-4 py-1.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">Client Visits Overview</h3>
-                    <p className="mt-1 text-xs text-gray-500">Summary of client visits</p>
-                  </div>
-                  <Button
-                    onClick={handleNewVisit}
-                    className="flex h-8 flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    New Visit
-                  </Button>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Client Visits Overview</h3>
+                  <p className="mt-1 text-xs text-gray-500">Summary of client visits</p>
                 </div>
               </div>
 

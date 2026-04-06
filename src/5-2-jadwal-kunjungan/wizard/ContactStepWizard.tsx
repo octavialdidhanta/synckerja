@@ -34,7 +34,7 @@ export const ContactStepWizard = ({ visitData, updateVisitData }: ContactStepWiz
   const selectedEmployee = employees.find(emp => emp.id === visitData.salesPerson);
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6">
       {/* Instructions */}
       <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
         <div className="flex items-start gap-3">

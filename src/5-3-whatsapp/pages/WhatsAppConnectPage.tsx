@@ -303,7 +303,7 @@ export function WhatsAppConnectPage() {
                             </div>
                           </div>
                         </CardHeader>
-                        <CardContent className="flex min-h-0 flex-1 flex-col space-y-6 overflow-y-auto">
+                        <CardContent className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col space-y-6 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           <WhatsAppConnectForm
                             editingAccount={editingAccount}
                             onClearEdit={() => setEditingAccount(null)}
@@ -364,7 +364,7 @@ export function WhatsAppConnectPage() {
                               </p>
                             </div>
                           ) : (
-                            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+                            <div className="scrollbar-hide nested-scroll-touch-chain seamless-scroll min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                               {accounts.map((account) => (
                                 <AccountCard
                                   key={account.id}

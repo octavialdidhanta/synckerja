@@ -97,6 +97,13 @@ const HomeOKRDashboardContent = () => {
   const departmentStats = useObjectiveStats(organizationId, 'department', getFilteredCycleIds(yearQuarterSelection), readyDepartmentStats);
   const individualStats = useObjectiveStats(organizationId, 'individual', getFilteredCycleIds(yearQuarterSelection), readyIndividualStats);
 
+  // While `enabled` is false, `isLoading` is false — treat pre-defer window as pending so the home
+  // page skeleton does not clear then re-open when staggered stats queries start (reload flicker).
+  const departmentStatsPending =
+    !readyDepartmentStats || departmentStats.isLoading;
+  const individualStatsPending =
+    !readyIndividualStats || individualStats.isLoading;
+
   const { isLoading: attendanceLoading } = useAttendanceStatus();
   const { isPending: greetingEmployeeLoading } = useCurrentUserEmployee();
   const { isPending: unifiedProfileLoading } = useUnifiedProfile();
@@ -106,8 +113,8 @@ const HomeOKRDashboardContent = () => {
     orgLoading ||
     isLoadingCycles ||
     companyStats.isLoading ||
-    departmentStats.isLoading ||
-    individualStats.isLoading ||
+    departmentStatsPending ||
+    individualStatsPending ||
     attendanceLoading ||
     greetingEmployeeLoading ||
     unifiedProfileLoading ||

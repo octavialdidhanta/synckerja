@@ -45,7 +45,7 @@ import { cn } from '@/shared/lib/utils';
 
 /** Judul di trigger: hilang halus saat expand (diganti bar primary di dalam konten). */
 const SCRIPT_GEN_ACCORDION_TRIGGER_TITLE_CLASS =
-  'block min-w-0 truncate text-left overflow-hidden transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none motion-reduce:duration-0 group-data-[state=closed]:max-w-full group-data-[state=closed]:opacity-100 group-data-[state=closed]:translate-x-0 group-data-[state=open]:max-w-0 group-data-[state=open]:opacity-0 group-data-[state=open]:-translate-x-1';
+  'block min-w-0 truncate text-left overflow-hidden transition-[max-width,opacity,transform] duration-300 ease-smooth motion-reduce:transition-none motion-reduce:duration-0 group-data-[state=closed]:max-w-full group-data-[state=closed]:opacity-100 group-data-[state=closed]:translate-x-0 group-data-[state=open]:max-w-0 group-data-[state=open]:opacity-0 group-data-[state=open]:-translate-x-1';
 
 interface ScriptGeneratorFormProps {
   onGenerate: (data: ScriptGeneratorRequest) => Promise<void>;

@@ -111,8 +111,10 @@ export const IncomeTransactionTable = ({
         </Dialog>
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto">
-        <Table>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Table
+          containerClassName="scrollbar-hide seamless-scroll min-h-0 min-w-0 flex-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <TableHeader className="sticky top-0 z-20">
             <TableRow className="bg-gray-50">
               <TableHead className="h-8 w-[200px] min-w-[200px] px-3 text-xs font-medium bg-gray-50">Transaction</TableHead>

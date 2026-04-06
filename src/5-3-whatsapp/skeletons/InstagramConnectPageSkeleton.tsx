@@ -40,7 +40,7 @@ function InstagramConnectMainSkeleton() {
             <div className="flex min-h-0 flex-1 flex-col gap-6">
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 md:grid-cols-[1fr_3fr] md:grid-rows-1 md:items-stretch">
                 {/* Left column — mirror Connect Instagram card + webhook block */}
-                <Card className="flex h-full min-h-0 flex-col">
+                <Card className="flex h-full min-h-0 min-w-0 flex-col">
                   <CardHeader className="shrink-0 space-y-3">
                     <div className="flex items-center gap-3">
                       <Skeleton className="h-12 w-12 shrink-0 rounded-lg" />
@@ -50,7 +50,7 @@ function InstagramConnectMainSkeleton() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto">
+                  <CardContent className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col space-y-6 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <Skeleton className="h-10 w-full rounded-md" />
                     <Skeleton className="h-3 w-full max-w-xs rounded-sm" />
                     <Skeleton className="h-24 w-full rounded-lg" />
@@ -76,7 +76,7 @@ function InstagramConnectMainSkeleton() {
                 </Card>
 
                 {/* Right column — Connected accounts */}
-                <Card className="flex h-full min-h-0 flex-col">
+                <Card className="flex h-full min-h-0 min-w-0 flex-col">
                   <CardHeader className="shrink-0 space-y-2">
                     <Skeleton className="h-7 w-48 max-w-full rounded-md" />
                     <Skeleton className="h-4 w-full max-w-lg rounded-sm" />
@@ -128,7 +128,7 @@ function InstagramConnectMainSkeleton() {
  */
 export function InstagramConnectPageSkeleton({ mode = 'route' }: { mode?: InstagramConnectPageSkeletonMode }) {
   const scrollInner = (
-    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="relative flex min-h-full min-w-0 flex-1 flex-col">
         <InstagramConnectMainSkeleton />
       </div>

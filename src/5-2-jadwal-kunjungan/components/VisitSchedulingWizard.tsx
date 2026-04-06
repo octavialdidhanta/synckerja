@@ -135,9 +135,9 @@ export const VisitSchedulingWizard = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl border border-slate-200">
+      <div className="flex max-h-[95vh] min-h-0 w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-brand-blue-soft via-white to-brand-blue-soft/50">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-brand-blue-soft via-white to-brand-blue-soft/50 px-6 py-4">
           <div>
             <h1 className="text-xl font-bold text-slate-900">Jadwalkan Kunjungan Baru</h1>
             <p className="text-sm text-slate-600 mt-1">{steps[currentStep - 1].subtitle}</p>
@@ -155,8 +155,8 @@ export const VisitSchedulingWizard = ({
         {/* Progress */}
         <WizardProgress steps={steps} currentStep={currentStep} />
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Content — scroll vertikal tersembunyi; min-h-0 agar flex tidak overflow ke footer */}
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6 py-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {currentStep === 1 && (
             <LocationStepWizard
               visitData={visitData}
@@ -184,7 +184,7 @@ export const VisitSchedulingWizard = ({
         </div>
 
         {/* Footer Navigation */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50/50">
+        <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-slate-50/50 px-6 py-4">
           <Button
             variant="outline"
             onClick={handlePrevious}

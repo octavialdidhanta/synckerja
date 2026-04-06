@@ -6,8 +6,6 @@ import { UpcomingVisitsOverview } from './UpcomingVisitsOverview';
 import { VisitSchedulingSidebarFooter } from './VisitSchedulingSidebarFooter';
 import { VisitSchedulingWizard } from './VisitSchedulingWizard';
 import { useVisitScheduling } from '@/shared/hooks/organized/sales';
-import { Button } from '@/shared/components/ui/button';
-import { Plus } from 'lucide-react';
 import { useOfficeLocations } from '@/shared/hooks/organized/sales';
 
 export const VisitSchedulingPageContent = () => {
@@ -108,7 +106,7 @@ export const VisitSchedulingPageContent = () => {
             {/* Filter Section */}
             <div className="flex-shrink-0 mb-2">
               <div className="bg-white border rounded-md p-2">
-                <VisitSchedulingFilters 
+                <VisitSchedulingFilters
                   filters={filters}
                   onFiltersChange={setFilters}
                   onNewVisit={() => setIsModalOpen(true)}
@@ -141,19 +139,10 @@ export const VisitSchedulingPageContent = () => {
           <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
             <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
               {/* Sidebar Header */}
-              <div className="px-4 py-1.5 border-b flex-shrink-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-gray-900">Visit Scheduling Overview</h3>
-                    <p className="text-xs text-gray-500 mt-1">Summary of scheduled visits</p>
-                  </div>
-                  <Button
-                    onClick={() => setIsModalOpen(true)}
-                    className="h-8 px-3 text-xs flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    New Visit
-                  </Button>
+              <div className="flex-shrink-0 border-b px-4 py-1.5">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Visit Scheduling Overview</h3>
+                  <p className="mt-1 text-xs text-gray-500">Summary of scheduled visits</p>
                 </div>
               </div>
 
