@@ -1,3 +1,5 @@
+import { supabase } from "@/shared/lib/supabaseClient";
+
 /** CSRF `state` for Google OAuth — stored in localStorage so a new tab/window can read it (sessionStorage is per-tab). */
 export const GOOGLE_OAUTH_STATE_STORAGE_KEY = "google_oauth_state";
 
@@ -18,14 +20,7 @@ export type StartGoogleDriveOAuthResult =
   | { ok: true }
   | { ok: false; reason: "missing_client_id" | "popup_blocked" };
 
-/**
- * Opens Google OAuth in a new window so the current page (e.g. preview modal) stays open.
- * Requires `VITE_GOOGLE_CLIENT_ID`. If the browser blocks the popup, state is cleared and `popup_blocked` is returned.
- */
-export function startGoogleDriveOAuth(): StartGoogleDriveOAuthResult {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
-  if (!clientId) return { ok: false, reason: "missing_client_id" };
-
+function startGoogleDriveOAuthWithClientId(clientId: string): StartGoogleDriveOAuthResult {
   const state = crypto.randomUUID();
   try {
     localStorage.setItem(GOOGLE_OAUTH_STATE_STORAGE_KEY, state);
@@ -67,4 +62,38 @@ export function startGoogleDriveOAuth(): StartGoogleDriveOAuthResult {
   }
 
   return { ok: true };
+}
+
+async function fetchGoogleOAuthClientIdFromEdge(): Promise<string | undefined> {
+  const { data, error } = await supabase.functions.invoke<{
+    clientId?: string;
+    error?: string;
+  }>("google-oauth-manage", { body: { action: "oauth_client_config" } });
+  if (error || data?.error) return undefined;
+  const id = typeof data?.clientId === "string" ? data.clientId.trim() : "";
+  return id || undefined;
+}
+
+/**
+ * Opens Google OAuth in a new window (e.g. from preview modal).
+ * Uses `VITE_GOOGLE_CLIENT_ID` from the build only (sync). Prefer `startGoogleDriveOAuthAsync` in production
+ * when the client id was not inlined at build time but `GOOGLE_CLIENT_ID` is set on Supabase Edge Functions.
+ */
+export function startGoogleDriveOAuth(): StartGoogleDriveOAuthResult {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
+  if (!clientId) return { ok: false, reason: "missing_client_id" };
+  return startGoogleDriveOAuthWithClientId(clientId);
+}
+
+/**
+ * Same as `startGoogleDriveOAuth`, but if `VITE_GOOGLE_CLIENT_ID` is empty (common when `.env` was not
+ * available during CI build), loads the web client id from Edge Function `google-oauth-manage` (`GOOGLE_CLIENT_ID` secret).
+ */
+export async function startGoogleDriveOAuthAsync(): Promise<StartGoogleDriveOAuthResult> {
+  let clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
+  if (!clientId) {
+    clientId = (await fetchGoogleOAuthClientIdFromEdge()) ?? "";
+  }
+  if (!clientId) return { ok: false, reason: "missing_client_id" };
+  return startGoogleDriveOAuthWithClientId(clientId);
 }

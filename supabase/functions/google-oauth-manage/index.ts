@@ -57,6 +57,12 @@ Deno.serve(async (req: Request) => {
 
     const action = body.action != null ? String(body.action).trim() : "";
 
+    if (action === "oauth_client_config") {
+      /** Public OAuth web client id (same as Google Cloud). Lets production work when VITE_GOOGLE_CLIENT_ID was missing at build time but GOOGLE_CLIENT_ID is set on Edge Functions. */
+      const clientId = (Deno.env.get("GOOGLE_CLIENT_ID") ?? "").trim();
+      return json({ clientId }, 200);
+    }
+
     if (action === "status") {
       const { data, error } = await supabaseAdmin
         .from("user_google_oauth_credentials")

@@ -24,7 +24,7 @@ import { setGoogleDriveModalOpenPlanId } from '../hook/briefModalOpenRef';
 import { GoogleDriveFilePreview } from './GoogleDriveInAppFilePreview';
 import { GoogleDriveIframeFilePreview } from './GoogleDriveIframeFilePreview';
 import { useGoogleDriveOAuthConnection } from '../hook/useGoogleDriveOAuthConnection';
-import { startGoogleDriveOAuth } from '@/shared/lib/googleDriveOAuth';
+import { startGoogleDriveOAuthAsync } from '@/shared/lib/googleDriveOAuth';
 
 const CAROUSEL_MAX_IMAGES = 10;
 
@@ -696,8 +696,8 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                         size="sm"
                         className="h-7 text-xs"
                         title={t('googleDrivePreview.connectGoogleHint')}
-                        onClick={() => {
-                          const r = startGoogleDriveOAuth();
+                        onClick={async () => {
+                          const r = await startGoogleDriveOAuthAsync();
                           if (!r.ok) {
                             if (r.reason === 'missing_client_id') {
                               toast.error(t('googleDrivePreview.connectGoogleMissingClientId'));

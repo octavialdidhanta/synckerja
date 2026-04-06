@@ -3662,7 +3662,7 @@ const idTranslations: TranslationDictionary = {
   "googleDrivePreview.connectGoogleHint":
     "Izinkan akses Drive (baca) untuk integrasi Synckerja. Anda akan login Google lalu kembali ke aplikasi.",
   "googleDrivePreview.connectGoogleMissingClientId":
-    "VITE_GOOGLE_CLIENT_ID belum diset. Tambahkan di .env (sama dengan Client ID di Google Cloud) lalu restart dev server.",
+    "Client ID Google belum tersedia. Lokal: set VITE_GOOGLE_CLIENT_ID di .env lalu restart dev server. Production: set variabel itu di environment saat build, atau set GOOGLE_CLIENT_ID di secrets Supabase Edge Function (sama dengan Client ID di Google Cloud) lalu deploy ulang fungsi.",
   "googleDrivePreview.connectGooglePopupBlocked":
     "Izinkan pop-up untuk jendela ini agar login Google bisa dibuka. Modal pratinjau tetap terbuka di tab ini.",
   "googleDrivePreview.useConnectInPreviewHeader":
@@ -8049,7 +8049,7 @@ const enTranslations: TranslationDictionary = {
   "googleDrivePreview.connectGoogleHint":
     "Allow read-only Drive access for Synckerja integration. You will sign in with Google and return to the app.",
   "googleDrivePreview.connectGoogleMissingClientId":
-    "VITE_GOOGLE_CLIENT_ID is not set. Add it to .env (same as Google Cloud Client ID) and restart the dev server.",
+    "Google OAuth client ID is missing. Local: add VITE_GOOGLE_CLIENT_ID to .env and restart the dev server. Production: set that variable in your frontend build environment (Vite inlines it at build time), or set GOOGLE_CLIENT_ID in Supabase Edge Function secrets (same as Google Cloud Client ID) and redeploy the function.",
   "googleDrivePreview.connectGooglePopupBlocked":
     "Allow pop-ups for this site to open Google sign-in. Your preview tab stays open.",
   "googleDrivePreview.useConnectInPreviewHeader":
