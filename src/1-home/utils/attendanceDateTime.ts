@@ -1,3 +1,11 @@
+/** Calendar YYYY-MM-DD in the user's local timezone (not `toISOString()` UTC date). */
+export function formatLocalDateYmd(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /**
  * attendance_records may expose check_in_time / check_out_time as PostgreSQL "time"
  * (e.g. "14:28:54") while check_in_at / check_out_at are timestamptz ISO strings.

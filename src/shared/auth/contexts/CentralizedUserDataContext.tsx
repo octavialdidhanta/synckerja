@@ -380,15 +380,9 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       };
       
       setUserData(userData);
-      
-      // Update cache with initial user data (will be updated later with employee data)
-      userDataCacheRef.current = {
-        data: userData,
-        organization: null,
-        userRole: null,
-        employee: null,
-        timestamp: Date.now()
-      };
+
+      // Jangan tulis userDataCacheRef di sini: cache parsial (userRole null) bisa terbaca oleh
+      // refresh berikutnya (<60s) dan menimpa state — UI profil menampilkan "—" sampai force refresh (ganti org).
 
       // Get employee record, role, and organization if organization exists (with timeout)
       if (organizationId) {
@@ -633,6 +627,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           logger.error('❌ Error fetching user data:', err);
         }
         setError(err as Error);
+        lastUserIdRef.current = '';
+        userDataCacheRef.current = null;
       }
     } finally {
       setLoading(false);

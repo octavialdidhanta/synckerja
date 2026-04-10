@@ -12,6 +12,7 @@ import {
   useExpenseTabs,
 } from "@/mobile/2-expense/shared/ExpenseTabs";
 import { ExpenseDashboardRefreshContext } from "@/mobile/2-expense/ExpenseDashboardRefreshContext";
+import { useNativeViewportNoPinchZoom } from "@/shared/hooks/useNativeViewportNoPinchZoom";
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -37,6 +38,7 @@ export function MobileExpensesShell({
   initialTab = "dashboard",
   children,
 }: MobileExpensesShellProps) {
+  useNativeViewportNoPinchZoom();
   useStatusBarStyle("light");
   const { t } = useAppTranslation();
   const { mainFixedStyle } = useVisualViewport();

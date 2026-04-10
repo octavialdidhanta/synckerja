@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { logger } from "@/shared/lib/logger";
 import { useRealtimeAttendance } from "@/mobile-app/hooks/useRealtimeData";
+import { formatLocalDateYmd } from "@/1-home/utils/attendanceDateTime";
 
 export const useAttendanceData = () => {
   const [todayAttendance, setTodayAttendance] = useState<any>(null);
@@ -90,8 +91,8 @@ export const useAttendanceData = () => {
         return;
       }
 
-      // Get today's attendance
-      const today = new Date().toISOString().split('T')[0];
+      // Today's row by local calendar (UTC date breaks clock-out updates near midnight in non-UTC zones)
+      const today = formatLocalDateYmd(new Date());
       const { data: attendanceRaw } = await supabase
         .from('attendance_records')
         .select('*')

@@ -4,9 +4,18 @@ import { useUpdatePurchaseRequestStatus } from '@/9-request-form/hooks/usePurcha
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Badge } from '@/shared/components/ui/badge';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
+import { Skeleton } from '@/shared/components/ui/skeleton';
+import { cn } from '@/shared/lib/utils';
 import { CreditCard, User, Building, Calendar, FileText, DollarSign, Target, Zap, TrendingUp, Upload, X, CheckCircle, Lock, Key } from 'lucide-react';
 import { format } from 'date-fns';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Separator } from '@/shared/components/ui/separator';
 import { Button } from '@/shared/components/ui/button';
@@ -25,18 +34,26 @@ import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBal
 import { openSupabaseSignedFile } from '@/shared/utils/openSupabaseSignedFile';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 
+const SCROLL_HIDE =
+  'scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+
+export type PaymentTableVariant = 'module' | 'mobileCard';
+
 interface PaymentTableProps {
   requests: PurchaseRequest[];
   isLoading?: boolean;
   onRefresh?: () => void;
+  variant?: PaymentTableVariant;
 }
 
 export const PaymentTable = ({ 
   requests, 
   isLoading = false,
-  onRefresh 
+  onRefresh,
+  variant = 'module',
 }: PaymentTableProps) => {
   const isMobile = useIsMobile();
+  const isMobileCard = variant === 'mobileCard';
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
@@ -352,7 +369,20 @@ export const PaymentTable = ({
     });
   };
 
-  if (isLoading) {
+  const fullscreenDialog = isMobile || isMobileCard;
+  const cellPx = isMobileCard ? 'px-2 py-2' : 'px-3 py-2';
+
+  const skeletonRows = Array.from({ length: 6 }).map((_, rowIndex) => (
+    <TableRow key={rowIndex} className="border-b">
+      {Array.from({ length: 11 }).map((__, ci) => (
+        <TableCell key={ci} className={cellPx}>
+          <Skeleton className="h-4 w-full max-w-[100px]" />
+        </TableCell>
+      ))}
+    </TableRow>
+  ));
+
+  if (isLoading && !isMobileCard) {
     return (
       <div className="p-4">
         <div className="animate-pulse space-y-2">
@@ -368,17 +398,60 @@ export const PaymentTable = ({
     );
   }
 
-  return (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      {/* Header */}
-      <div className="flex flex-shrink-0 items-center justify-between border-b px-4 py-2">
-        <h2 className="text-sm font-semibold text-foreground">Payment Requests</h2>
-      </div>
+  const scrollWrapClass = cn(
+    'scrollbar-hide seamless-scroll min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+    isMobileCard
+      ? 'nested-scroll-touch-chain-xy max-h-[50vh] min-h-0 flex-1 touch-pan-x overflow-y-auto'
+      : 'min-h-0 flex-1',
+    isMobileCard && SCROLL_HIDE,
+  );
 
-      {/* Horizontal scroll; scrollbar disembunyikan. Vertikal filter/metrik + grid tetap lewat scroll utama `PaymentProcessModuleShell`. */}
-      <div className="scrollbar-hide seamless-scroll min-h-0 min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <table className="w-full min-w-[1400px] caption-bottom text-sm">
-          <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
+  const tableSection = (
+    <div className={scrollWrapClass}>
+      <table className="w-full min-w-[1400px] caption-bottom text-sm">
+        <TableHeader
+          className={cn(
+            'sticky top-0 z-10',
+            isMobileCard ? 'border-b border-white/20 bg-brand-blue' : 'bg-card shadow-sm',
+          )}
+        >
+          {isMobileCard ? (
+            <TableRow className="border-b border-white/20 bg-brand-blue hover:bg-brand-blue">
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.request', 'Request')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.requester', 'Requester')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.department', 'Department')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.amount', 'Amount')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.type', 'Type')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.status', 'Status')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.recurring', 'Recurring')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.approvalDate', 'Approval Date')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.paidDate', 'Paid Date')}
+              </TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.paidBy', 'Paid By')}
+              </TableHead>
+              <TableHead className="h-8 w-16 whitespace-nowrap bg-brand-blue px-2 py-2 text-left text-xs font-medium text-white">
+                {t('payments.table.actions', 'Actions')}
+              </TableHead>
+            </TableRow>
+          ) : (
             <TableRow className="border-b bg-card">
               <TableHead className="h-8 px-3 text-xs font-medium whitespace-nowrap">Request</TableHead>
               <TableHead className="h-8 px-3 text-xs font-medium whitespace-nowrap">Requester</TableHead>
@@ -392,130 +465,122 @@ export const PaymentTable = ({
               <TableHead className="h-8 px-3 text-xs font-medium whitespace-nowrap">Paid By</TableHead>
               <TableHead className="h-8 px-3 text-xs font-medium w-16 whitespace-nowrap">Actions</TableHead>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paymentRequests.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={11} className="h-16 text-center">
-                  <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 mb-1">No payment requests found</p>
-                  <p className="text-xs text-gray-400">Approved requests will appear here</p>
+          )}
+        </TableHeader>
+        <TableBody>
+          {isLoading && isMobileCard ? (
+            skeletonRows
+          ) : paymentRequests.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={11} className={cn('h-16 text-center', isMobileCard && 'py-8')}>
+                <CreditCard className="mx-auto mb-2 h-12 w-12 text-gray-300" />
+                <p className="mb-1 text-sm text-gray-500">
+                  {t('payments.table.emptyTitle', 'No payment requests found')}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {t('payments.table.emptyHint', 'Approved requests will appear here')}
+                </p>
+              </TableCell>
+            </TableRow>
+          ) : (
+            paymentRequests.map((request) => (
+              <TableRow key={request.id} className="hover:bg-muted/40">
+                <TableCell className={cn(cellPx, 'text-xs')}>
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 rounded-md bg-brand-blue/10 p-1.5">
+                      <CreditCard className="h-3.5 w-3.5 text-brand-blue" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium text-gray-900">{request.request_title}</div>
+                      <div className="mt-0.5 truncate text-xs text-gray-500">
+                        {request.description || t('payments.table.noDescription', 'No description')}
+                      </div>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs')}>
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-md bg-muted/40 p-1">
+                      <User className="h-3 w-3 text-gray-600" />
+                    </div>
+                    <span className="font-medium text-gray-700">{request.requester_name}</span>
+                  </div>
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs text-gray-600')}>
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-md bg-muted/40 p-1">
+                      <Building className="h-3 w-3 text-gray-600" />
+                    </div>
+                    <span>{request.department_name || t('payments.table.notSpecified', 'Not specified')}</span>
+                  </div>
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs')}>
+                  <div className="font-bold text-gray-900">{formatToRupiah(request.amount_idr)}</div>
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs')}>
+                  <Badge variant="outline" className="text-xs">
+                    {getTypeDisplay(request)}
+                  </Badge>
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs')}>{getStatusBadge(request)}</TableCell>
+                <TableCell className={cn(cellPx, 'whitespace-nowrap text-xs')}>
+                  <Badge variant={request.is_recurring ? 'default' : 'secondary'}>
+                    {request.is_recurring
+                      ? t('payments.recurring.yes', 'Recurring')
+                      : t('payments.recurring.no', 'One-time')}
+                  </Badge>
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs text-gray-600')}>
+                  {request.approved_at ? (
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-md bg-muted/40 p-1">
+                        <Calendar className="h-3 w-3 text-gray-600" />
+                      </div>
+                      <span>{format(new Date(request.approved_at), 'MMM dd, yyyy')}</span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs text-gray-600')}>
+                  {request.paid_at ? (
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-md bg-muted/40 p-1">
+                        <Calendar className="h-3 w-3 text-gray-600" />
+                      </div>
+                      <span>{format(new Date(request.paid_at), 'MMM dd, yyyy')}</span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs text-gray-600')}>
+                  {request.paid_by_name ? (
+                    <span className="font-medium">{request.paid_by_name}</span>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </TableCell>
+                <TableCell className={cn(cellPx, 'text-xs')}>
+                  <button
+                    type="button"
+                    onClick={() => handleViewDetails(request)}
+                    className="text-xs font-medium text-brand-blue hover:text-brand-blue-deep"
+                  >
+                    {t('payments.table.view', 'View')}
+                  </button>
                 </TableCell>
               </TableRow>
-            ) : (
-              paymentRequests.map((request) => (
-                <TableRow key={request.id} className="hover:bg-muted/40">
-                  <TableCell className="px-3 py-2 text-xs">
-                    <div className="flex items-start gap-2">
-                      <div className="p-1.5 rounded-md bg-brand-blue/10 flex-shrink-0">
-                        <CreditCard className="h-3.5 w-3.5 text-brand-blue" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-gray-900 truncate">
-                          {request.request_title}
-                        </div>
-                        <div className="text-xs text-gray-500 truncate mt-0.5">
-                          {request.description || 'No description'}
-                        </div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1 rounded-md bg-muted/40">
-                        <User className="h-3 w-3 text-gray-600" />
-                      </div>
-                      <span className="font-medium text-gray-700">{request.requester_name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1 rounded-md bg-muted/40">
-                        <Building className="h-3 w-3 text-gray-600" />
-                      </div>
-                      <span>{request.department_name || 'Not specified'}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs">
-                    <div className="font-bold text-gray-900">{formatToRupiah(request.amount_idr)}</div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs">
-                    <Badge variant="outline" className="text-xs">
-                      {getTypeDisplay(request)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs">
-                    {getStatusBadge(request)}
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs whitespace-nowrap">
-                    <Badge variant={request.is_recurring ? 'default' : 'secondary'}>
-                      {request.is_recurring ? 'Recurring' : 'One-time'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs text-gray-600">
-                    {request.approved_at ? (
-                      <div className="flex items-center gap-2">
-                        <div className="p-1 rounded-md bg-muted/40">
-                          <Calendar className="h-3 w-3 text-gray-600" />
-                        </div>
-                        <span>{format(new Date(request.approved_at), 'MMM dd, yyyy')}</span>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs text-gray-600">
-                    {request.paid_at ? (
-                      <div className="flex items-center gap-2">
-                        <div className="p-1 rounded-md bg-muted/40">
-                          <Calendar className="h-3 w-3 text-gray-600" />
-                        </div>
-                        <span>{format(new Date(request.paid_at), 'MMM dd, yyyy')}</span>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs text-gray-600">
-                    {request.paid_by_name ? (
-                      <span className="font-medium">{request.paid_by_name}</span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-xs">
-                    <button
-                      onClick={() => handleViewDetails(request)}
-                      className="text-brand-blue hover:text-brand-blue-deep text-xs font-medium"
-                    >
-                      View
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </table>
-      </div>
+            ))
+          )}
+        </TableBody>
+      </table>
+    </div>
+  );
 
-      {/* Payment Request Detail Dialog */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent
-          className={
-            isMobile
-              ? "modal-above-safe-area fixed left-0 right-0 top-0 max-h-none w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0"
-              : "max-w-2xl max-h-[80vh] overflow-y-auto"
-          }
-          fullscreenAnimation={isMobile}
-        >
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Payment Request Details</span>
-              {selectedRequest && getStatusBadge(selectedRequest)}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedRequest && (
-            <div className="space-y-4">
+  const dialogBody =
+    selectedRequest != null ? (
+      <div className={cn('space-y-4', fullscreenDialog && 'min-h-0 flex-1 overflow-y-auto px-4 py-4 seamless-scroll', fullscreenDialog && SCROLL_HIDE)}>
               {/* Basic Information */}
               <Card className="border-slate-200">
                 <CardHeader className="px-4 py-3 pb-2">
@@ -952,9 +1017,80 @@ export const PaymentTable = ({
                 </>
               )}
             </div>
+    ) : null;
+
+  return (
+    <>
+      {isMobileCard ? (
+        <div className="min-w-0 w-full">{tableSection}</div>
+      ) : (
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex flex-shrink-0 items-center justify-between border-b px-4 py-2">
+            <h2 className="text-sm font-semibold text-foreground">
+              {t('payments.table.sectionTitle', 'Payment Requests')}
+            </h2>
+          </div>
+          {tableSection}
+        </div>
+      )}
+
+      <Dialog
+        open={isModalOpen}
+        onOpenChange={(open) => {
+          setIsModalOpen(open);
+          if (!open) {
+            setSelectedRequest(null);
+            setInvoiceFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }
+        }}
+      >
+        <DialogContent
+          className={
+            fullscreenDialog
+              ? 'modal-above-safe-area fixed left-0 right-0 top-0 flex max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0'
+              : 'max-h-[80vh] max-w-2xl overflow-y-auto'
+          }
+          fullscreenAnimation={fullscreenDialog}
+          hideCloseButton={fullscreenDialog}
+        >
+          {fullscreenDialog ? (
+            <>
+              <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-2 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
+                <DialogDescription className="sr-only">
+                  {t('payments.dialog.description', 'Payment request details and processing')}
+                </DialogDescription>
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-2 pr-1">
+                  <DialogTitle className="truncate text-left text-base font-semibold leading-tight">
+                    {t('payments.dialog.title', 'Payment Request Details')}
+                  </DialogTitle>
+                  <span className="shrink-0">
+                    {selectedRequest ? getStatusBadge(selectedRequest) : null}
+                  </span>
+                </div>
+                <DialogClose
+                  type="button"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <X className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="sr-only">{t('common.close', 'Close')}</span>
+                </DialogClose>
+              </DialogHeader>
+              {dialogBody}
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center justify-between">
+                  <span>{t('payments.dialog.title', 'Payment Request Details')}</span>
+                  {selectedRequest ? getStatusBadge(selectedRequest) : null}
+                </DialogTitle>
+              </DialogHeader>
+              {dialogBody}
+            </>
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 };

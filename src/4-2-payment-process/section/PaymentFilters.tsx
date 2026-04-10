@@ -8,6 +8,8 @@ export interface PaymentFiltersType {
   status: string;
   type: string;
   department: string;
+  /** `all` | `this_month` | `last_month` | `this_year` — disaring di `filterPaymentRequests` (tanggal acuan: `approved_at` lalu `created_at`). */
+  period: string;
 }
 
 interface PaymentFiltersProps {
@@ -21,11 +23,12 @@ export const PaymentFilters = ({
   onFilterChange,
   onClearFilters
 }: PaymentFiltersProps) => {
-  const hasActiveFilters = 
+  const hasActiveFilters =
     filters.search ||
     filters.status !== 'all' ||
     filters.type !== 'all' ||
-    filters.department !== 'all';
+    filters.department !== 'all' ||
+    (filters.period && filters.period !== 'all');
 
   return (
     <div>
@@ -41,6 +44,22 @@ export const PaymentFilters = ({
             className="w-full pl-4 pr-10 h-9 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-sm"
           />
         </div>
+
+        {/* Period (desktop; mobile memakai drawer di shell khusus) */}
+        <Select
+          value={filters.period || 'all'}
+          onValueChange={(value) => onFilterChange('period', value)}
+        >
+          <SelectTrigger className="w-full sm:w-36 lg:w-40 h-9 text-sm">
+            <SelectValue placeholder="Period" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All time</SelectItem>
+            <SelectItem value="this_month">This month</SelectItem>
+            <SelectItem value="last_month">Last month</SelectItem>
+            <SelectItem value="this_year">This year</SelectItem>
+          </SelectContent>
+        </Select>
 
         {/* Status Filter */}
         <Select

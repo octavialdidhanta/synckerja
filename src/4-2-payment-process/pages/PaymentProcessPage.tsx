@@ -31,7 +31,8 @@ export const PaymentProcessPage = () => {
     search: '',
     status: 'all',
     type: 'all',
-    department: 'all'
+    department: 'all',
+    period: 'all',
   });
   
   const { data: requests = [], isLoading, isPending, refetch, isFetched } = usePurchaseRequests();
@@ -75,7 +76,8 @@ export const PaymentProcessPage = () => {
       search: '',
       status: 'all',
       type: 'all',
-      department: 'all'
+      department: 'all',
+      period: 'all',
     });
   }, []);
 

@@ -20,6 +20,7 @@ import { useOrganizationSwitchCallback } from "@/mobile-app/hooks/useOrganizatio
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { useUserOrganizations } from "@/shared/hooks/useUserOrganizations";
 import type { AppLanguage } from "@/shared/i18n/translations";
 import {
   Drawer,
@@ -56,6 +57,7 @@ const Profile = () => {
   const [languageDrawerOpen, setLanguageDrawerOpen] = useState(false);
   const {
     organizations,
+    activeOrganizationId,
     activeOrganization,
     loading: organizationsLoading,
     switchingOrganization,
@@ -66,6 +68,12 @@ const Profile = () => {
   const { language, setLanguage } = useLanguage();
   const { t } = useAppTranslation();
   const { userRole } = useCentralizedUserData();
+  const { data: userOrgsData } = useUserOrganizations();
+  const roleFromMembership =
+    activeOrganizationId && userOrgsData?.memberships.length
+      ? userOrgsData.memberships.find((m) => m.organizationId === activeOrganizationId)?.role
+      : undefined;
+  const organizationRoleForUi = userRole ?? roleFromMembership ?? null;
 
   const getRoleDisplayText = (role: string | null) => {
     if (!role) return "—";
@@ -74,9 +82,19 @@ const Profile = () => {
       case "admin": return t("profile.role.admin", "Admin");
       case "employee": return t("profile.role.employee", "Employee");
       case "hr": return t("profile.role.hr", "HR");
+      case "manager": return t("profile.role.manager", "Manager");
+      case "member": return t("profile.role.member", "Member");
       default: return role;
     }
   };
+
+  /** Selaraskan dengan kartu organisasi: posisi kerja jika ada, lalu role org (bukan fallback "Employee" saat user Owner/admin). */
+  const profileHeroSubtitle =
+    profile?.job_position_name?.trim() ||
+    (organizationRoleForUi
+      ? getRoleDisplayText(organizationRoleForUi)
+      : "") ||
+    t("profile.employee", "Karyawan");
   const handleLogout = async () => {
     try {
       await logout();
@@ -291,7 +309,7 @@ const Profile = () => {
                       <div className="p-4 text-center">
                         <ProfilePhotoUpload profile={profile} />
                         <h2 className="text-xl font-semibold text-foreground mb-1 mt-3">{profile.full_name}</h2>
-                        <p className="text-sm text-muted-foreground">{profile.job_position_name || t("profile.employee", "Karyawan")}</p>
+                        <p className="text-sm text-muted-foreground">{profileHeroSubtitle}</p>
                       </div>
                     </Card>
                   </div>
@@ -418,7 +436,7 @@ const Profile = () => {
                         <p className="text-sm font-medium text-foreground truncate">
                           {organizationsLoading ? t("profile.loading", "Memuat...") : switchingOrganization ? t("profile.switchingOrg", "Beralih organisasi...") : activeOrganization?.company_name || t("profile.selectOrganization", "Pilih Organisasi")}
                         </p>
-                        <p className="text-xs text-muted-foreground">{getRoleDisplayText(userRole)}</p>
+                        <p className="text-xs text-muted-foreground">{getRoleDisplayText(organizationRoleForUi)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

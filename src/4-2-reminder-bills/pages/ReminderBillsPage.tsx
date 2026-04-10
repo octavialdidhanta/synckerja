@@ -19,8 +19,9 @@ import {
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { ReminderBillDetailDialog, ReminderBillDeleteDialog } from '../components/ReminderBillsActionModals';
 import { ReminderBillPayNowModal } from '../components/ReminderBillPayNowModal';
-import { usePurchaseRequests, PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
-import { filterReminderBills, calculateNextPaymentDate } from '../utils/reminderBillsUtils';
+import { usePurchaseRequests } from '@/9-request-form/hooks/usePurchaseRequests';
+import { filterReminderBills } from '../utils/reminderBillsUtils';
+import { buildAllReminderBills } from '../utils/buildAllReminderBills';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { ReminderBillsModuleShell } from '../layout/ReminderBillsModuleShell';
@@ -43,7 +44,8 @@ export const ReminderBillsPage = () => {
     search: '',
     status: 'all',
     category: 'all',
-    department: 'all'
+    department: 'all',
+    period: 'all',
   });
 
   const {
@@ -100,110 +102,10 @@ export const ReminderBillsPage = () => {
     refetch();
   }, [refetch]);
 
-  const paidRecurringPurchaseRequests = useMemo(() => {
-    return purchaseRequests.filter(req =>
-      req.status === 'approved' &&
-      (req.paid_at || req.payment_status === 'paid') &&
-      req.is_recurring === true &&
-      req.recurring_frequency
-    );
-  }, [purchaseRequests]);
-
-  const getExpenseTypeName = (pr: PurchaseRequest): string => {
-    if (pr.expense_types?.name) {
-      return pr.expense_types.name;
-    }
-    if (pr.expense_type_id && expenseTypes.length > 0) {
-      const expenseType = expenseTypes.find(et => et.id === pr.expense_type_id);
-      if (expenseType) return expenseType.name;
-    }
-    return 'Uncategorized';
-  };
-
-  const getExpenseCategoryName = (pr: PurchaseRequest): string => {
-    if (pr.expense_categories?.name) {
-      return pr.expense_categories.name;
-    }
-    if (pr.expense_category_id && allExpenseCategories.length > 0) {
-      const expenseCategory = allExpenseCategories.find(ec => ec.id === pr.expense_category_id);
-      if (expenseCategory) return expenseCategory.name;
-    }
-    return pr.request_type || 'Purchase';
-  };
-
-  const expensesWithNextPayment = useMemo(() => {
-    return expenses
-      .filter((expense) => !expense.exclude_from_reminder_bills)
-      .map(expense => {
-        if (expense.is_recurring && expense.recurring_frequency && !expense.next_payment_date) {
-          const nextPaymentDate = calculateNextPaymentDate(expense.create_date, expense.recurring_frequency);
-          return {
-            ...expense,
-            next_payment_date: nextPaymentDate || expense.next_payment_date,
-          };
-        }
-
-        if (expense.is_recurring && expense.recurring_frequency && expense.next_payment_date) {
-          const nextPayment = new Date(expense.next_payment_date);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          if (nextPayment < today) {
-            const nextPaymentDate = calculateNextPaymentDate(expense.next_payment_date, expense.recurring_frequency);
-            return {
-              ...expense,
-              next_payment_date: nextPaymentDate || expense.next_payment_date,
-            };
-          }
-        }
-
-        return expense;
-      });
-  }, [expenses]);
-
-  const allBills = useMemo(() => {
-    const combined: Expense[] = expensesWithNextPayment.map((e) => ({
-      ...e,
-      bill_source: e.bill_source ?? 'expense',
-    }));
-
-    paidRecurringPurchaseRequests.forEach(pr => {
-      const expenseTypeName = getExpenseTypeName(pr);
-      const expenseCategoryName = getExpenseCategoryName(pr);
-      const lastPaymentDate = pr.paid_at || pr.approved_at || pr.created_at;
-      const nextPaymentDate = calculateNextPaymentDate(lastPaymentDate, pr.recurring_frequency || undefined);
-
-      combined.push({
-        id: pr.id,
-        organization_id: pr.organization_id,
-        expense_name: pr.request_title,
-        amount: pr.amount_idr,
-        expense_type: expenseTypeName,
-        expense_type_id: pr.expense_type_id || undefined,
-        category: expenseCategoryName,
-        expense_category_id: pr.expense_category_id || undefined,
-        department: pr.department_name || undefined,
-        create_date: lastPaymentDate,
-        is_recurring: true,
-        recurring_frequency: pr.recurring_frequency || undefined,
-        first_payment_date: undefined,
-        next_payment_date: nextPaymentDate,
-        description: pr.description,
-        receipt_url: pr.invoice_file_path || undefined,
-        status: 'active',
-        created_by: pr.created_by,
-        created_at: pr.created_at,
-        updated_at: pr.updated_at,
-        bill_source: 'purchase_request',
-      } as Expense);
-    });
-
-    return combined.sort((a, b) => {
-      const dateA = a.next_payment_date ? new Date(a.next_payment_date).getTime() : new Date(a.create_date).getTime();
-      const dateB = b.next_payment_date ? new Date(b.next_payment_date).getTime() : new Date(b.create_date).getTime();
-      return dateA - dateB;
-    });
-  }, [expensesWithNextPayment, paidRecurringPurchaseRequests, expenseTypes, allExpenseCategories]);
+  const allBills = useMemo(
+    () => buildAllReminderBills(expenses, purchaseRequests, expenseTypes, allExpenseCategories),
+    [expenses, purchaseRequests, expenseTypes, allExpenseCategories],
+  );
 
   const recurringBills = useMemo(() => {
     return allBills.filter(expense => expense.is_recurring);
@@ -222,7 +124,8 @@ export const ReminderBillsPage = () => {
       search: '',
       status: 'all',
       category: 'all',
-      department: 'all'
+      department: 'all',
+      period: 'all',
     });
   }, []);
 

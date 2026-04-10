@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useToast } from "@/shared/hooks/use-toast";
 import { clearCurrentOrgCacheForUser, setCurrentOrgCacheForUser } from "@/shared/auth/hooks/useCurrentOrgCache";
+import { userOrganizationsQueryKey } from "@/shared/hooks/useUserOrganizations";
 import { logger } from "@/shared/lib/logger";
 
 export interface OrganizationItem {
@@ -112,6 +113,7 @@ export function useOrganizationList() {
         window.dispatchEvent(new CustomEvent("organization-switched", { detail: { organizationId } }));
 
         await queryClient.invalidateQueries({ queryKey });
+        await queryClient.invalidateQueries({ queryKey: userOrganizationsQueryKey });
 
         toast({
           title: "Berhasil",

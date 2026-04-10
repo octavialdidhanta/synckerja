@@ -3,12 +3,15 @@ import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/shared/components/ui/dialog';
+import { X } from 'lucide-react';
+import { cn } from '@/shared/lib/utils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { format } from 'date-fns';
 import { Receipt } from 'lucide-react';
@@ -57,19 +60,44 @@ export function ReminderBillDetailDialog({ bill, open, onOpenChange }: ReminderB
       <DialogContent
         className={
           isMobile
-            ? "modal-above-safe-area fixed left-0 right-0 top-0 max-h-none w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0"
-            : "w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto min-w-0"
+            ? 'modal-above-safe-area fixed left-0 right-0 top-0 flex max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0'
+            : 'max-h-[90vh] min-w-0 w-[95vw] overflow-y-auto sm:max-w-2xl'
         }
         fullscreenAnimation={isMobile}
+        hideCloseButton={isMobile}
       >
-        <DialogHeader>
-          <DialogTitle>{t('reminderBills.billDetailsTitle', 'Bill details')}</DialogTitle>
-          <DialogDescription>
-            {t('reminderBills.billDetailsDescription', 'Summary of this recurring bill.')}
-          </DialogDescription>
-        </DialogHeader>
+        {isMobile ? (
+          <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-2 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
+            <DialogDescription className="sr-only">
+              {t('reminderBills.billDetailsDescription', 'Summary of this recurring bill.')}
+            </DialogDescription>
+            <DialogTitle className="min-w-0 flex-1 truncate text-left text-base font-semibold leading-tight">
+              {t('reminderBills.billDetailsTitle', 'Bill details')}
+            </DialogTitle>
+            <DialogClose
+              type="button"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <X className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="sr-only">{t('common.close', 'Close')}</span>
+            </DialogClose>
+          </DialogHeader>
+        ) : (
+          <DialogHeader>
+            <DialogTitle>{t('reminderBills.billDetailsTitle', 'Bill details')}</DialogTitle>
+            <DialogDescription>
+              {t('reminderBills.billDetailsDescription', 'Summary of this recurring bill.')}
+            </DialogDescription>
+          </DialogHeader>
+        )}
         {bill && (
-          <div className="space-y-4">
+          <div
+            className={cn(
+              'space-y-4',
+              isMobile &&
+                'min-h-0 flex-1 overflow-y-auto px-4 py-4 seamless-scroll scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            )}
+          >
             {bill.bill_source === 'purchase_request' && (
               <Badge variant="secondary" className="text-xs">
                 {t('reminderBills.fromPurchaseRequest', 'From purchase request')}

@@ -29,10 +29,12 @@ import { useProfile } from "@/mobile-app/hooks/useProfile";
 import { NotificationsModal } from "@/mobile-app/components/NotificationsModal";
 import { useNotificationBadgeCount } from "@/mobile-app/hooks/useNotificationBadgeCount";
 import confetti from "canvas-confetti";
+import { formatAttendanceTimeWithSeconds } from "@/mobile-app/utils/postgresAttendanceTime";
 import {
-  combineAttendanceDateAndTime,
-  formatAttendanceTimeWithSeconds,
-} from "@/mobile-app/utils/postgresAttendanceTime";
+  dateToPostgresTimeUtc,
+  formatLocalDateYmd,
+  parseAttendanceInstant,
+} from "@/1-home/utils/attendanceDateTime";
 
 function getGreetingKey(hour: number): 'morning' | 'noon' | 'afternoon' | 'night' {
   if (hour >= 18) return 'night';
@@ -252,12 +254,17 @@ const Absensi = () => {
     if (!todayAttendance?.check_in_time) {
       return t("mobileHome.zeroHoursMinutes", "0 jam 0 menit");
     }
-    const checkInTime = combineAttendanceDateAndTime(
+    const checkInTime = parseAttendanceInstant(
       todayAttendance.attendance_date,
       todayAttendance.check_in_time,
+      todayAttendance.check_in_at,
     );
     const endTime = todayAttendance.check_out_time
-      ? combineAttendanceDateAndTime(todayAttendance.attendance_date, todayAttendance.check_out_time)
+      ? parseAttendanceInstant(
+          todayAttendance.attendance_date,
+          todayAttendance.check_out_time,
+          todayAttendance.check_out_at,
+        )
       : new Date();
     if (!checkInTime || !endTime) {
       return t("mobileHome.zeroHoursMinutes", "0 jam 0 menit");
@@ -359,18 +366,18 @@ const Absensi = () => {
       return;
     }
 
-    // Check if it's too early to clock out (minimum work hours check)
+    // Minimum work hours (same row as desktop: prefer check_in_at / full ISO check_in_time)
     if (workSchedule && todayAttendance?.check_in_time) {
-      const checkInTime = combineAttendanceDateAndTime(
+      const checkInInstant = parseAttendanceInstant(
         todayAttendance.attendance_date,
         todayAttendance.check_in_time,
+        todayAttendance.check_in_at,
       );
       const now = new Date();
       const workedHours =
-        checkInTime != null ? (now.getTime() - checkInTime.getTime()) / (1000 * 60 * 60) : 0;
+        checkInInstant != null ? (now.getTime() - checkInInstant.getTime()) / (1000 * 60 * 60) : 0;
 
-      // Minimum 4 hours work before allowing clock out
-      if (workedHours < 4) {
+      if (workedHours >= 0 && workedHours < 4) {
         toast({
           title: t("mobileHome.notEnoughWorkTime", "Belum Cukup Waktu Kerja"),
           description: t("mobileHome.notEnoughWorkTimeDesc", "Anda baru bekerja {{hours}} jam {{minutes}} menit. Minimal 4 jam kerja.", {
@@ -609,7 +616,7 @@ const Absensi = () => {
         const attendanceData = {
           employee_id: employee.id,
           organization_id: employee.organization_id,
-          attendance_date: new Date().toISOString().split('T')[0],
+          attendance_date: formatLocalDateYmd(new Date()),
           check_in_time: new Date().toISOString(),
           check_in_location: {
             latitude: currentLocation.latitude,
@@ -688,32 +695,42 @@ const Absensi = () => {
         }, 500);
 
       } else if (cameraModal.type === 'clockout') {
-        // Clock Out Logic - use ref so working_hours_minutes is correct even before refetch
         const checkInTimeStr = lastCheckInTimeRef.current ?? todayAttendance?.check_in_time;
-        const checkInDate = combineAttendanceDateAndTime(
+        const checkInDate = parseAttendanceInstant(
           todayAttendance?.attendance_date,
           checkInTimeStr ?? null,
+          todayAttendance?.check_in_at,
         );
+        const checkOutTime = new Date();
         const working_hours_minutes = checkInDate
-          ? Math.floor((Date.now() - checkInDate.getTime()) / (1000 * 60))
+          ? Math.floor((checkOutTime.getTime() - checkInDate.getTime()) / (1000 * 60))
           : 0;
 
-        const { error: updateError } = await supabase
+        const recordId = (todayAttendance as { id?: string } | null)?.id;
+        const attendanceDateKey =
+          (todayAttendance?.attendance_date as string | undefined)?.trim() || formatLocalDateYmd(new Date());
+
+        let checkoutQuery = supabase
           .from('attendance_records')
           .update({
-            check_out_time: new Date().toISOString(),
+            check_out_time: dateToPostgresTimeUtc(checkOutTime),
+            check_out_at: checkOutTime.toISOString(),
             check_out_location: {
               latitude: currentLocation.latitude,
               longitude: currentLocation.longitude,
               address: "Location captured"
             },
-            // Fitur upload foto attendance belum diimplementasi; path saat ini placeholder. TODO: upload imageData ke Supabase Storage dan gunakan path/URL yang dikembalikan.
             check_out_photo_path: `attendance/${user.id}/${Date.now()}_checkout.jpg`,
             working_hours_minutes
           })
           .eq('employee_id', employee.id)
-          .eq('attendance_date', new Date().toISOString().split('T')[0])
           .is('check_out_time', null);
+
+        checkoutQuery = recordId
+          ? checkoutQuery.eq('id', recordId)
+          : checkoutQuery.eq('attendance_date', attendanceDateKey);
+
+        const { error: updateError } = await checkoutQuery;
 
         if (updateError) {
           logger.error('Clock out error:', updateError);

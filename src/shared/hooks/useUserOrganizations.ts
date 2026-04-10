@@ -93,13 +93,13 @@ async function fetchUserOrganizations(): Promise<UserOrganizationsData | null> {
   };
 }
 
-const QUERY_KEY = ["user-organizations"] as const;
+export const userOrganizationsQueryKey = ["user-organizations"] as const;
 
 export function useUserOrganizations() {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: QUERY_KEY,
+    queryKey: userOrganizationsQueryKey,
     queryFn: fetchUserOrganizations,
     staleTime: 30_000,
   });
@@ -131,7 +131,7 @@ export function useUserOrganizations() {
       return organizationId;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: userOrganizationsQueryKey });
     },
   });
 

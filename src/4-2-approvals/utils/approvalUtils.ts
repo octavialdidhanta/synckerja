@@ -1,6 +1,35 @@
 import { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { ApprovalFiltersType } from '../section/ApprovalFilters';
 
+/** Shared counts for dashboard metrics + mobile carousel (keep in sync with `ApprovalMetricsCards`). */
+export function computeApprovalsMetricCounts(requests: PurchaseRequest[]) {
+  return {
+    totalRequests: requests.length,
+    pendingReview: requests.filter(
+      (req) => req.status === 'pending_approval' || req.status === 'submitted',
+    ).length,
+    approved: requests.filter((req) => req.status === 'approved').length,
+    recurring: requests.filter((req) => req.is_recurring).length,
+  };
+}
+
+/** Amount totals aligned with `computeApprovalsMetricCounts` (shared desktop metrics + mobile carousel). */
+export function computeApprovalsMetricAmounts(requests: PurchaseRequest[]) {
+  const sumAmount = (list: PurchaseRequest[]) =>
+    list.reduce((s, r) => s + (r.amount_idr || 0), 0);
+  const pendingList = requests.filter(
+    (r) => r.status === 'pending_approval' || r.status === 'submitted',
+  );
+  const approvedList = requests.filter((r) => r.status === 'approved');
+  const recurringList = requests.filter((r) => r.is_recurring);
+  return {
+    totalAmount: sumAmount(requests),
+    pendingAmount: sumAmount(pendingList),
+    approvedAmount: sumAmount(approvedList),
+    recurringAmount: sumAmount(recurringList),
+  };
+}
+
 export const filterRequests = (
   requests: PurchaseRequest[],
   filters: ApprovalFiltersType

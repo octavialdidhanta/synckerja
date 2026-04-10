@@ -1,6 +1,13 @@
 
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/components/ui/dialog';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
@@ -20,9 +27,25 @@ import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBal
 import { useCurrentUserRole } from '@/shared/hooks/useCurrentUserRole';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { Calendar, User, Building, DollarSign, FileText, Target, Zap, TrendingUp, ThumbsUp, ThumbsDown } from 'lucide-react';
+import {
+  Calendar,
+  User,
+  Building,
+  DollarSign,
+  FileText,
+  Target,
+  Zap,
+  TrendingUp,
+  ThumbsUp,
+  ThumbsDown,
+  X,
+} from 'lucide-react';
 import { PurchaseRequestPDFViewer } from './PurchaseRequestPDFViewer';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
+import { cn } from '@/shared/lib/utils';
+
+const SCROLL_HIDE =
+  'scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 interface PurchaseRequestDetailsModalProps {
   request: PurchaseRequest | null;
@@ -164,29 +187,60 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={
           isMobile
-            ? "modal-above-safe-area fixed left-0 right-0 top-0 flex max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0"
-            : "max-w-4xl max-h-[85vh] flex flex-col"
+            ? 'modal-above-safe-area fixed left-0 right-0 top-0 flex max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0'
+            : 'max-w-4xl max-h-[85vh] flex flex-col'
         }
         fullscreenAnimation={isMobile}
+        hideCloseButton={isMobile}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Request Details</span>
-            {getStatusBadge(request.status)}
-          </DialogTitle>
-        </DialogHeader>
+        {isMobile ? (
+          <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-2 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
+            <DialogDescription className="sr-only">
+              {t('approvals.requestDetailsDescription', 'Request details and approval actions')}
+            </DialogDescription>
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-2 pr-1">
+              <DialogTitle className="truncate text-left text-base font-semibold leading-tight">
+                {t('approvals.requestDetails', 'Request Details')}
+              </DialogTitle>
+              <span className="shrink-0">{getStatusBadge(request.status)}</span>
+            </div>
+            <DialogClose
+              type="button"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <X className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="sr-only">{t('common.close', 'Close')}</span>
+            </DialogClose>
+          </DialogHeader>
+        ) : (
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{t('approvals.requestDetails', 'Request Details')}</span>
+              {getStatusBadge(request.status)}
+            </DialogTitle>
+          </DialogHeader>
+        )}
 
-        <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="details">Detail</TabsTrigger>
-            <TabsTrigger value="pdf">PDF</TabsTrigger>
+        <Tabs
+          defaultValue="details"
+          className={cn('flex min-h-0 flex-1 flex-col', isMobile && 'min-h-0 px-4 py-3')}
+        >
+          <TabsList className="grid w-full shrink-0 grid-cols-2">
+            <TabsTrigger value="details">{t('approvals.tabDetail', 'Detail')}</TabsTrigger>
+            <TabsTrigger value="pdf">{t('approvals.tabPdf', 'PDF')}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="flex-1 overflow-y-auto mt-4 seamless-scroll">
+          <TabsContent
+            value="details"
+            className={cn(
+              'mt-4 min-h-0 flex-1 overflow-y-auto seamless-scroll data-[state=inactive]:hidden',
+              SCROLL_HIDE,
+            )}
+          >
             <div className="space-y-4">
           {/* Basic Information */}
           <Card className="border-slate-200">
@@ -668,8 +722,14 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
             </div>
           </TabsContent>
 
-          <TabsContent value="pdf" className="flex-1 overflow-hidden mt-4">
-            <div className="h-full min-h-[600px]">
+          <TabsContent
+            value="pdf"
+            className={cn(
+              'mt-4 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden',
+              isMobile && 'min-h-[50vh]',
+            )}
+          >
+            <div className={cn('h-full', isMobile ? 'min-h-[50vh]' : 'min-h-[600px]')}>
               <PurchaseRequestPDFViewer request={request} />
             </div>
           </TabsContent>

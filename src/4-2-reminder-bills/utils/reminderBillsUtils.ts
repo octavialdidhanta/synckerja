@@ -1,5 +1,61 @@
+import { isSameMonth, isSameYear, subMonths } from 'date-fns';
 import { Expense } from '@/shared/hooks/finance/useExpenses';
 import { ReminderBillsFiltersType } from '../section/ReminderBillsFilters';
+
+function matchesReminderBillPeriod(bill: Expense, period: string | undefined): boolean {
+  if (!period || period === 'all') return true;
+  const raw = bill.next_payment_date || bill.create_date;
+  if (!raw) return false;
+  const date = new Date(raw);
+  const now = new Date();
+  if (period === 'this_month') return isSameMonth(date, now) && isSameYear(date, now);
+  if (period === 'last_month') {
+    const ref = subMonths(now, 1);
+    return isSameMonth(date, ref) && isSameYear(date, ref);
+  }
+  if (period === 'this_year') return isSameYear(date, now);
+  return true;
+}
+
+/** Metrik kartu dashboard (desktop + mobile carousel) — selaras `ReminderBillsMetricsCards`. */
+export function computeReminderBillsMetricStats(expenses: Expense[]) {
+  const recurringExpenses = expenses.filter(
+    (expense) =>
+      expense.is_recurring &&
+      !expense.recurring_settlement_for_expense_id &&
+      !expense.exclude_from_reminder_bills,
+  );
+
+  const dueThisWeekList = recurringExpenses.filter((expense) => {
+    if (!expense.next_payment_date) return false;
+    const nextDate = new Date(expense.next_payment_date);
+    const today = new Date();
+    const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays <= 7 && diffDays >= 0;
+  });
+
+  const overdueList = recurringExpenses.filter((expense) => {
+    if (!expense.next_payment_date) return false;
+    const nextDate = new Date(expense.next_payment_date);
+    const today = new Date();
+    return nextDate < today;
+  });
+
+  const completedList = recurringExpenses.filter((expense) => expense.status === 'paid');
+
+  const sum = (list: Expense[]) => list.reduce((s, e) => s + e.amount, 0);
+
+  return {
+    total: recurringExpenses.length,
+    totalAmount: sum(recurringExpenses),
+    dueThisWeek: dueThisWeekList.length,
+    dueThisWeekAmount: sum(dueThisWeekList),
+    overdue: overdueList.length,
+    overdueAmount: sum(overdueList),
+    completed: completedList.length,
+    completedAmount: sum(completedList),
+  };
+}
 
 /** For Paynow / recurring-link dropdown: expense-origin bills only, overdue or due within 7 days. */
 export type RecurringBillPayNowEligibilityInput = {
@@ -78,6 +134,10 @@ export const filterReminderBills = (
   );
   
   return recurringBills.filter((bill) => {
+    if (!matchesReminderBillPeriod(bill, filters.period)) {
+      return false;
+    }
+
     // Search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();

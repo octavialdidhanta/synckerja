@@ -8,6 +8,8 @@ export interface ReminderBillsFiltersType {
   status: string;
   category: string;
   department: string;
+  /** `all` | `this_month` | `last_month` | `this_year` — `next_payment_date` lalu `create_date`. */
+  period: string;
 }
 
 interface ReminderBillsFiltersProps {
@@ -21,11 +23,12 @@ export const ReminderBillsFilters = ({
   onFilterChange,
   onClearFilters
 }: ReminderBillsFiltersProps) => {
-  const hasActiveFilters = 
+  const hasActiveFilters =
     filters.search ||
     filters.status !== 'all' ||
     filters.category !== 'all' ||
-    filters.department !== 'all';
+    filters.department !== 'all' ||
+    (filters.period && filters.period !== 'all');
 
   return (
     <div>
@@ -41,6 +44,21 @@ export const ReminderBillsFilters = ({
             className="w-full pl-4 pr-10 h-9 text-sm"
           />
         </div>
+
+        <Select
+          value={filters.period || 'all'}
+          onValueChange={(value) => onFilterChange('period', value)}
+        >
+          <SelectTrigger className="w-full sm:w-36 lg:w-40 h-9 text-sm">
+            <SelectValue placeholder="Period" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All time</SelectItem>
+            <SelectItem value="this_month">This month</SelectItem>
+            <SelectItem value="last_month">Last month</SelectItem>
+            <SelectItem value="this_year">This year</SelectItem>
+          </SelectContent>
+        </Select>
 
         {/* Status Filter */}
         <Select

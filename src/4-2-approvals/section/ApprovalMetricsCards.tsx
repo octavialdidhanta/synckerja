@@ -1,14 +1,18 @@
 import { usePurchaseRequests } from '@/9-request-form/hooks/usePurchaseRequests';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { TrendingUp, Clock, CheckCircle, RotateCcw } from 'lucide-react';
+import { computeApprovalsMetricAmounts, computeApprovalsMetricCounts } from '../utils/approvalUtils';
 
 export const ApprovalMetricsCards = () => {
   const { data: requests = [] } = usePurchaseRequests();
+  const { totalRequests, pendingReview, approved, recurring } = computeApprovalsMetricCounts(requests);
+  const { totalAmount, pendingAmount, approvedAmount, recurringAmount } =
+    computeApprovalsMetricAmounts(requests);
 
   const metrics = {
     total: {
-      count: requests.length,
-      amount: requests.reduce((sum, req) => sum + (req.amount_idr || 0), 0),
+      count: totalRequests,
+      amount: totalAmount,
       icon: TrendingUp,
       color: 'text-brand-blue',
       bgColor: 'bg-brand-blue/10',
@@ -16,10 +20,8 @@ export const ApprovalMetricsCards = () => {
       label: 'Total Requests'
     },
     pending: {
-      count: requests.filter(req => req.status === 'pending_approval' || req.status === 'submitted').length,
-      amount: requests
-        .filter(req => req.status === 'pending_approval' || req.status === 'submitted')
-        .reduce((sum, req) => sum + (req.amount_idr || 0), 0),
+      count: pendingReview,
+      amount: pendingAmount,
       icon: Clock,
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
@@ -27,10 +29,8 @@ export const ApprovalMetricsCards = () => {
       label: 'Pending Review'
     },
     approved: {
-      count: requests.filter(req => req.status === 'approved').length,
-      amount: requests
-        .filter(req => req.status === 'approved')
-        .reduce((sum, req) => sum + (req.amount_idr || 0), 0),
+      count: approved,
+      amount: approvedAmount,
       icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
@@ -38,10 +38,8 @@ export const ApprovalMetricsCards = () => {
       label: 'Approved'
     },
     recurring: {
-      count: requests.filter(req => req.is_recurring).length,
-      amount: requests
-        .filter(req => req.is_recurring)
-        .reduce((sum, req) => sum + (req.amount_idr || 0), 0),
+      count: recurring,
+      amount: recurringAmount,
       icon: RotateCcw,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',

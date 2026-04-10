@@ -1,18 +1,19 @@
 import type { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { TrendingUp, Clock, CheckCircle, CreditCard } from 'lucide-react';
+import { computePaymentMetricStats } from '../utils/paymentUtils';
 
 type PaymentMetricsCardsProps = {
   requests: PurchaseRequest[];
 };
 
 export const PaymentMetricsCards = ({ requests }: PaymentMetricsCardsProps) => {
+  const s = computePaymentMetricStats(requests);
+
   const metrics = {
     readyToPay: {
-      count: requests.filter(req => req.status === 'approved' && !req.paid_at).length,
-      amount: requests
-        .filter(req => req.status === 'approved' && !req.paid_at)
-        .reduce((sum, req) => sum + (req.amount_idr || 0), 0),
+      count: s.readyToPay,
+      amount: s.readyToPayAmount,
       icon: TrendingUp,
       color: 'text-brand-blue',
       bgColor: 'bg-brand-blue/10',
@@ -20,10 +21,8 @@ export const PaymentMetricsCards = ({ requests }: PaymentMetricsCardsProps) => {
       label: 'Ready to Pay'
     },
     pending: {
-      count: requests.filter(req => req.status === 'approved' && !req.paid_at && req.payment_status !== 'processing').length,
-      amount: requests
-        .filter(req => req.status === 'approved' && !req.paid_at && req.payment_status !== 'processing')
-        .reduce((sum, req) => sum + (req.amount_idr || 0), 0),
+      count: s.pendingPayment,
+      amount: s.pendingPaymentAmount,
       icon: Clock,
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
@@ -31,10 +30,8 @@ export const PaymentMetricsCards = ({ requests }: PaymentMetricsCardsProps) => {
       label: 'Pending Payment'
     },
     paid: {
-      count: requests.filter(req => req.paid_at).length,
-      amount: requests
-        .filter(req => req.paid_at)
-        .reduce((sum, req) => sum + (req.amount_idr || 0), 0),
+      count: s.paid,
+      amount: s.paidAmount,
       icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
@@ -42,10 +39,8 @@ export const PaymentMetricsCards = ({ requests }: PaymentMetricsCardsProps) => {
       label: 'Paid'
     },
     processing: {
-      count: requests.filter(req => req.status === 'approved' && req.payment_status === 'processing').length,
-      amount: requests
-        .filter(req => req.status === 'approved' && req.payment_status === 'processing')
-        .reduce((sum, req) => sum + (req.amount_idr || 0), 0),
+      count: s.processing,
+      amount: s.processingAmount,
       icon: CreditCard,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',

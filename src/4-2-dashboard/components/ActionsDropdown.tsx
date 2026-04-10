@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 import { Button } from '@/shared/components/ui/button';
+import { cn } from '@/shared/lib/utils';
 
 interface ActionsDropdownProps {
   onViewDetails: () => void;
@@ -16,6 +17,8 @@ interface ActionsDropdownProps {
   /** Recurring bill Pay now (parity with mobile reminder bills). */
   showPayNow?: boolean;
   onPayNow?: () => void;
+  /** e.g. mobile table: `h-10 w-10 touch-manipulation p-0` */
+  triggerButtonClassName?: string;
 }
 
 export const ActionsDropdown = ({
@@ -24,6 +27,7 @@ export const ActionsDropdown = ({
   onDelete,
   showPayNow = false,
   onPayNow,
+  triggerButtonClassName,
 }: ActionsDropdownProps) => {
   const [open, setOpen] = useState(false);
 
@@ -50,8 +54,8 @@ export const ActionsDropdown = ({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-          <MoreHorizontal className="h-3 w-3" />
+        <Button variant="ghost" size="sm" className={cn('h-6 w-6 p-0', triggerButtonClassName)}>
+          <MoreHorizontal className={triggerButtonClassName ? 'h-4 w-4' : 'h-3 w-3'} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40 bg-white border shadow-lg">
