@@ -17,7 +17,7 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
     {
       id: 'dashboard',
       labelKey: 'expenses.tabs.dashboard',
-      labelFallback: 'Expense Dashboard',
+      labelFallback: 'Dashboard',
       icon: BarChart3,
       route: '/expenses/dashboard',
     },

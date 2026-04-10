@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +39,7 @@ import {
 import { useToast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { StepDependencyModal } from './StepDependencyModal';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 
 interface StepHistory {

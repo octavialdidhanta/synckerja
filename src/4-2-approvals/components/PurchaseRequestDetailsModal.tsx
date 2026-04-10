@@ -22,6 +22,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { Calendar, User, Building, DollarSign, FileText, Target, Zap, TrendingUp, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { PurchaseRequestPDFViewer } from './PurchaseRequestPDFViewer';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 
 interface PurchaseRequestDetailsModalProps {
   request: PurchaseRequest | null;
@@ -47,6 +48,7 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
   const { t } = useAppTranslation();
   const updateStatus = useUpdatePurchaseRequestStatus();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (request?.expense_type_id) {
@@ -163,7 +165,14 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+      <DialogContent
+        className={
+          isMobile
+            ? "modal-above-safe-area fixed left-0 right-0 top-0 flex max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0"
+            : "max-w-4xl max-h-[85vh] flex flex-col"
+        }
+        fullscreenAnimation={isMobile}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Request Details</span>

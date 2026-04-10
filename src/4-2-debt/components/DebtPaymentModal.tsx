@@ -1,6 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { Alert, AlertDescription } from '@/shared/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/shared/components/ui/dialog';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -8,10 +16,10 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Calendar } from '@/shared/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
-import { AlertCircle, CalendarIcon, Check, ChevronDown, Camera, FileText, Images } from 'lucide-react';
+import { AlertCircle, CalendarIcon, Check, ChevronDown, Camera, FileText, Images, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/shared/lib/utils';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/shared/components/ui/drawer';
 import {
   AlertDialog,
@@ -23,8 +31,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/components/ui/alert-dialog';
-import { CameraModal } from '@/mobile/components/CameraModal';
-import { pickReceiptImageFiles } from '@/mobile/utils/pickReceiptFromGallery';
+import { CameraModal } from '@/mobile/shared/components/CameraModal';
+import { pickReceiptImageFiles } from '@/mobile/shared/utils/pickReceiptFromGallery';
 import { Debt } from '../types';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { formatInputNumber, parseInputNumber } from '../utils/numberFormat';
@@ -33,7 +41,7 @@ import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { toast } from 'sonner';
 import { getPayableDebts } from '../utils/payableDebts';
-import type { ExpenseReceiptAutofillData } from '@/mobile/pages/expenses/services/analyzeExpenseReceiptWithAI';
+import type { ExpenseReceiptAutofillData } from '@/mobile/shared/services/analyzeExpenseReceiptWithAI';
 import { isValidDebtPaymentBankAccountId, type DebtPaymentModalSubmitPayload } from '../services/submitDebtPayment';
 import { IncomeAllocationOptionalSection } from '@/4-1-dashboard/components/IncomeAllocationOptionalSection';
 
@@ -460,17 +468,32 @@ export const DebtPaymentModal = ({
               : 'w-[95vw] sm:w-[500px] max-w-[500px]'
           )}
           fullscreenAnimation={isMobile}
+          hideCloseButton={isMobile}
         >
-          <DialogHeader
-            className={cn(
-              isMobile
-              ? 'flex-shrink-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 dark:from-brand-blue/20 dark:to-brand-blue/10 text-left safe-area-top px-4 pt-4 pb-3'
-                : ''
-            )}
-          >
-            <DialogTitle className="text-lg font-semibold">{t('debt.payment.title', 'Pay Debt')}</DialogTitle>
-            <DialogDescription>{t('debt.payment.noPayableDebts', 'No debts available for payment')}</DialogDescription>
-          </DialogHeader>
+          {isMobile ? (
+            <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 text-left safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-left text-base font-semibold leading-tight">
+                  {t('debt.payment.title', 'Pay Debt')}
+                </DialogTitle>
+                <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
+                  {t('debt.payment.noPayableDebts', 'No debts available for payment')}
+                </DialogDescription>
+              </div>
+              <DialogClose
+                type="button"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="sr-only">{t('common.close', 'Close')}</span>
+              </DialogClose>
+            </DialogHeader>
+          ) : (
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold">{t('debt.payment.title', 'Pay Debt')}</DialogTitle>
+              <DialogDescription>{t('debt.payment.noPayableDebts', 'No debts available for payment')}</DialogDescription>
+            </DialogHeader>
+          )}
           <DialogFooter className={cn('flex-shrink-0 border-t', isMobile ? 'px-4 pt-3 pb-3 bg-muted/30' : '')}>
             <div className="flex items-center justify-end gap-2 w-full">
               <Button type="button" variant="outline" size="sm" onClick={handleRequestClose}>
@@ -515,24 +538,41 @@ export const DebtPaymentModal = ({
           onEscapeKeyDown={(e) => {
             if (shareFlowLocked) e.preventDefault();
           }}
+          hideCloseButton={isMobile}
         >
-          <DialogHeader
-            className={cn(
-              'flex-shrink-0 border-b',
-              isMobile
-              ? 'bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 dark:from-brand-blue/20 dark:to-brand-blue/10 text-left safe-area-top px-4 pt-4 pb-3'
-                : 'p-4 pb-2'
-            )}
-          >
-            <DialogTitle className="text-lg font-semibold">{t('debt.payment.title', 'Pay Debt')}</DialogTitle>
-            <DialogDescription>
-              {shareFlowLocked
-                ? t('debt.payment.shareDescription', 'Record a debt payment using your shared receipt.')
-                : t('debt.payment.description', 'Record a payment for this debt')}
-            </DialogDescription>
-          </DialogHeader>
+          {isMobile ? (
+            <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 text-left safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-left text-base font-semibold leading-tight">
+                  {t('debt.payment.title', 'Pay Debt')}
+                </DialogTitle>
+                <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
+                  {shareFlowLocked
+                    ? t('debt.payment.shareDescription', 'Record a debt payment using your shared receipt.')
+                    : t('debt.payment.description', 'Record a payment for this debt')}
+                </DialogDescription>
+              </div>
+              <DialogClose
+                type="button"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+                disabled={shareFlowLocked}
+              >
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="sr-only">{t('common.close', 'Close')}</span>
+              </DialogClose>
+            </DialogHeader>
+          ) : (
+            <DialogHeader className={cn('flex-shrink-0 border-b', 'p-4 pb-2')}>
+              <DialogTitle className="text-lg font-semibold">{t('debt.payment.title', 'Pay Debt')}</DialogTitle>
+              <DialogDescription>
+                {shareFlowLocked
+                  ? t('debt.payment.shareDescription', 'Record a debt payment using your shared receipt.')
+                  : t('debt.payment.description', 'Record a payment for this debt')}
+              </DialogDescription>
+            </DialogHeader>
+          )}
 
-          <div className="flex-1 min-h-0 overflow-y-auto seamless-scroll px-4 py-4 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto seamless-scroll px-4 py-4 space-y-4 [-ms-overflow-style:none] [scrollbar-width:none] scrollbar-hide [&::-webkit-scrollbar]:hidden">
             {shareFlowLocked && aiAutofillStatus === 'loading' ? (
               <div className="rounded-md border border-brand-blue/30 bg-brand-blue/10 dark:bg-brand-blue/15 px-3 py-2 text-xs text-brand-blue dark:text-brand-blue/90 flex items-center gap-2">
                 <div className="w-3.5 h-3.5 border-2 border-brand-blue border-t-transparent rounded-full animate-spin shrink-0" />

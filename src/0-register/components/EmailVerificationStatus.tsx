@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/shared/lib/supabaseClient";
@@ -8,8 +8,20 @@ import { OnboardingSplitLayout } from "@/0-onboarding/components/OnboardingSplit
 
 const brandRed = "hsl(var(--brand-red))";
 
+const defaultBrandMark = (
+  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
+);
+
+function defaultEmailVerifiedShell(body: ReactNode) {
+  return (
+    <OnboardingSplitLayout scrollClassName="items-center justify-center">{body}</OnboardingSplitLayout>
+  );
+}
+
 interface EmailVerificationStatusProps {
   token?: string;
+  renderShell?: (body: ReactNode) => ReactNode;
+  brandMark?: ReactNode;
 }
 
 type TokenSnapshot = {
@@ -37,7 +49,11 @@ async function pollEmailVerification(
   return false;
 }
 
-export function EmailVerificationStatus({ token }: EmailVerificationStatusProps) {
+export function EmailVerificationStatus({
+  token,
+  renderShell = defaultEmailVerifiedShell,
+  brandMark = defaultBrandMark,
+}: EmailVerificationStatusProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -49,9 +65,7 @@ export function EmailVerificationStatus({ token }: EmailVerificationStatusProps)
   const [verified, setVerified] = useState(verifiedByPolling);
   const [error, setError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(verifiedByPolling);
-  const [verificationStatus, setVerificationStatus] = useState(
-    t("auth.emailVerified.verifying"),
-  );
+  const [verificationStatus, setVerificationStatus] = useState(t("auth.emailVerified.verifying"));
 
   useEffect(() => {
     if (verifiedByPolling) {
@@ -145,7 +159,9 @@ export function EmailVerificationStatus({ token }: EmailVerificationStatusProps)
           return;
         }
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) {
           setError(t("auth.emailVerified.loginFirst"));
           setLoading(false);
@@ -182,70 +198,60 @@ export function EmailVerificationStatus({ token }: EmailVerificationStatusProps)
   };
 
   if (loading) {
-    return (
-      <OnboardingSplitLayout scrollClassName="items-center justify-center">
-        <div className="flex w-full max-w-md flex-col items-center space-y-4 text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-[hsl(var(--brand-blue))]" />
-          <h1 className="text-xl font-semibold text-slate-900">{verificationStatus}</h1>
-        </div>
-      </OnboardingSplitLayout>
+    return renderShell(
+      <div className="flex w-full max-w-md flex-col items-center space-y-4 text-center">
+        <Loader2 className="mx-auto h-12 w-12 animate-spin text-[hsl(var(--brand-blue))]" />
+        <h1 className="text-xl font-semibold text-slate-900">{verificationStatus}</h1>
+      </div>,
     );
   }
 
   if (error) {
-    return (
-      <OnboardingSplitLayout scrollClassName="items-center justify-center">
-        <div className="w-full max-w-md space-y-8">
-          <div className="flex w-full justify-center">
-            <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-          </div>
-          <div className="space-y-6 text-center">
-            <XCircle className="mx-auto h-16 w-16 text-destructive" />
-            <h2 className="text-xl font-semibold text-destructive">{t("auth.emailVerified.failTitle")}</h2>
-            <p className="text-sm text-slate-600">{error}</p>
-            <div className="flex flex-col gap-3">
-              <Button
-                variant="outline"
-                className="h-12 border-2 border-[hsl(var(--brand-blue))] font-semibold text-[hsl(var(--brand-blue))] hover:bg-[hsl(var(--brand-blue))]/10"
-                onClick={() => navigate("/verify-email")}
-              >
-                {t("auth.emailVerified.retry")}
-              </Button>
-              <Button
-                className="h-12 font-semibold text-white shadow-md hover:opacity-[0.92]"
-                style={{ backgroundColor: brandRed }}
-                onClick={goLogin}
-              >
-                {t("auth.emailVerified.backLogin")}
-              </Button>
-            </div>
+    return renderShell(
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex w-full justify-center">{brandMark}</div>
+        <div className="space-y-6 text-center">
+          <XCircle className="mx-auto h-16 w-16 text-destructive" />
+          <h2 className="text-xl font-semibold text-destructive">{t("auth.emailVerified.failTitle")}</h2>
+          <p className="text-sm text-slate-600">{error}</p>
+          <div className="flex flex-col gap-3">
+            <Button
+              variant="outline"
+              className="h-12 border-2 border-[hsl(var(--brand-blue))] font-semibold text-[hsl(var(--brand-blue))] hover:bg-[hsl(var(--brand-blue))]/10"
+              onClick={() => navigate("/verify-email")}
+            >
+              {t("auth.emailVerified.retry")}
+            </Button>
+            <Button
+              className="h-12 font-semibold text-white shadow-md hover:opacity-[0.92]"
+              style={{ backgroundColor: brandRed }}
+              onClick={goLogin}
+            >
+              {t("auth.emailVerified.backLogin")}
+            </Button>
           </div>
         </div>
-      </OnboardingSplitLayout>
+      </div>,
     );
   }
 
   if (verified && showSuccess) {
-    return (
-      <OnboardingSplitLayout scrollClassName="items-center justify-center">
-        <div className="w-full max-w-md space-y-8">
-          <div className="flex w-full justify-center">
-            <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-          </div>
-          <div className="space-y-6 text-center">
-            <CheckCircle className="mx-auto h-16 w-16 text-[hsl(var(--brand-blue))]" />
-            <h2 className="text-xl font-semibold text-slate-900">{t("auth.emailVerified.successTitle")}</h2>
-            <p className="text-sm text-slate-600">{t("auth.emailVerified.successBody")}</p>
-            <Button
-              className="h-12 w-full font-semibold text-white shadow-md hover:opacity-[0.92]"
-              style={{ backgroundColor: brandRed }}
-              onClick={goLogin}
-            >
-              {t("auth.emailVerified.goLogin")}
-            </Button>
-          </div>
+    return renderShell(
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex w-full justify-center">{brandMark}</div>
+        <div className="space-y-6 text-center">
+          <CheckCircle className="mx-auto h-16 w-16 text-[hsl(var(--brand-blue))]" />
+          <h2 className="text-xl font-semibold text-slate-900">{t("auth.emailVerified.successTitle")}</h2>
+          <p className="text-sm text-slate-600">{t("auth.emailVerified.successBody")}</p>
+          <Button
+            className="h-12 w-full font-semibold text-white shadow-md hover:opacity-[0.92]"
+            style={{ backgroundColor: brandRed }}
+            onClick={goLogin}
+          >
+            {t("auth.emailVerified.goLogin")}
+          </Button>
         </div>
-      </OnboardingSplitLayout>
+      </div>,
     );
   }
 

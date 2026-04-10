@@ -41,44 +41,27 @@ import { ExpenseCategoryCrudModal } from './ExpenseCategoryCrudModal';
 import { usePurchaseRequests, PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { ExpenseTableFooter } from './ExpenseTableFooter';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { openSupabaseSignedFile } from '@/shared/utils/openSupabaseSignedFile';
 import { AttendanceDateRangePicker } from '@/shared/calendar/AttendanceDateRangePicker';
 import { Link } from 'react-router-dom';
 import { IncomeAllocationOptionalSection } from '@/4-1-dashboard/components/IncomeAllocationOptionalSection';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { ExpenseDashboardModuleShell } from '../layout/ExpenseDashboardModuleShell';
 
-// Helper function to handle invoice file viewing (same as payment-process page)
-// Uses createSignedUrl instead of getPublicUrl because the bucket may not be public
-const handleViewInvoice = async (filePath: string | null | undefined) => {
-  if (!filePath) {
+async function handleViewInvoice(filePath: string | null | undefined) {
+  const result = await openSupabaseSignedFile({
+    bucket: 'purchase-documents',
+    filePath,
+    expiresInSeconds: 3600,
+  });
+  if (result.ok) return;
+  if (result.reason === 'missing_path') {
     toast.error('Invoice file path not found');
     return;
   }
-  
-  // If already a full URL, open directly
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    window.open(filePath, '_blank');
-    return;
-  }
-  
-  try {
-    // Use purchase-documents bucket (same as PaymentTable.tsx)
-    const { data, error } = await supabase.storage
-      .from('purchase-documents')
-      .createSignedUrl(filePath, 3600); // 1 hour expiry
-
-    if (error) {
-      console.error('Error creating signed URL:', error);
-      toast.error('Failed to generate invoice URL. Please try again.');
-      return;
-    }
-
-    window.open(data.signedUrl, '_blank');
-  } catch (error: any) {
-    console.error('Error viewing invoice:', error);
-    toast.error('Failed to open invoice. Please try again.');
-  }
-};
+  console.error('Error creating signed URL:', result.error);
+  toast.error('Failed to open invoice. Please try again.');
+}
 
 function matchesWithdrawalFilter(expense: Expense, withdrawalFilter: string): boolean {
   if (!withdrawalFilter || withdrawalFilter === 'all-withdrawal') return true;

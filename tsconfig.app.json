@@ -34,6 +34,15 @@
       "@/features/*": [
         "./src/*"
       ],
+      "@/mobile/*": [
+        "./android-mobile/*"
+      ],
+      "@/mobile-app/*": [
+        "./android-mobile/main-app-port/*"
+      ],
+      "@/ios-mobile/*": [
+        "./IOS-mobile/*"
+      ],
       "@/*": [
         "./src/*"
       ]
@@ -50,6 +59,8 @@
   },
   "include": [
     "src",
+    "android-mobile",
+    "IOS-mobile",
     "supabase/types.ts",
     "vite-env.d.ts"
   ]

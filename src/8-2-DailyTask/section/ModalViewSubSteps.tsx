@@ -27,7 +27,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { logger } from '@/shared/lib/logger';
 import { createCompletionApprovalIfAssignee } from '../services/completionApprovalService';
 import { useDailyTaskOptional } from '../context/DailyTaskContext';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 
 interface SubStep {

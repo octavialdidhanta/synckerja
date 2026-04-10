@@ -12,7 +12,7 @@ import { Separator } from '@/shared/components/ui/separator';
 import { ListChecks } from 'lucide-react';
 import { useDailyTask } from '../context/DailyTaskContext';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 // import { useTranslation } from 'react-i18next';
 

@@ -7,7 +7,7 @@ import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Paperclip, Send, X, FileText } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 
 /** Same accept as WhatsApp ChatThread for consistency. */
 const ACCEPT_ATTACHMENTS = 'image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip';

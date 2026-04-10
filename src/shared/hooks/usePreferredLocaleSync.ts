@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { setAppLanguage, supportedLanguages, type SupportedLanguage } from "@/shared/i18n";
 import { resolveUiLanguage } from "@/shared/i18n/resolveUiLanguage";
+import { APP_LANGUAGE_DEVICE_OVERRIDE_KEY } from "@/shared/i18n/translations";
 
 export { resolveUiLanguage };
 
@@ -41,6 +42,9 @@ export function usePreferredLocaleSync(userId: string | null | undefined) {
    */
   useEffect(() => {
     if (!userId || query.isLoading || query.isError) return;
+    if (typeof window !== "undefined" && window.localStorage.getItem(APP_LANGUAGE_DEVICE_OVERRIDE_KEY) === "true") {
+      return;
+    }
     const fromDb = query.data;
     if (fromDb !== "en" && fromDb !== "id") return;
     const current = resolveUiLanguage(i18n.language);

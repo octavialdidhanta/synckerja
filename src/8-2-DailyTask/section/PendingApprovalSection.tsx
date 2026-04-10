@@ -18,7 +18,7 @@ import { useToast } from '@/shared/components/ui/use-toast';
 import type { CompletionApprovalRow } from '../services/completionApprovalService';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { usePublicReviewToken } from '@/6-1-dashboard/hook/usePublicReviewToken';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 
 function getDisplayTitle(row: CompletionApprovalRow): string {
   const taskTitle = row.daily_tasks?.title ?? 'Task';

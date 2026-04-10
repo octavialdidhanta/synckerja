@@ -24,6 +24,10 @@ export default defineConfig({
         find: /^@\/register\/(.*)$/,
         replacement: `${path.resolve(__dirname, "src/0-register")}/$1`,
       },
+      {
+        find: /^@\/mobile\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "android-mobile")}/$1`,
+      },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
     ],
   },

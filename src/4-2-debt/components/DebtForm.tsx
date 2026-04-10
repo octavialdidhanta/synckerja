@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/shared/components/ui/dialog';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -10,10 +18,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Calendar } from '@/shared/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
-import { CalendarIcon, Check, ChevronDown } from 'lucide-react';
+import { CalendarIcon, Check, ChevronDown, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/shared/lib/utils';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/shared/components/ui/drawer';
 import { Debt, CreateDebtData, DEBT_TYPES } from '../types';
 import { formatInputNumber, parseInputNumber } from '../utils/numberFormat';
@@ -340,27 +348,43 @@ export const DebtForm = ({
             : "w-[95vw] sm:w-[600px] sm:h-[600px] max-w-[600px] max-h-[90vh] p-0 overflow-hidden flex flex-col min-w-0"
         )}
         fullscreenAnimation={isMobile}
+        hideCloseButton={isMobile}
       >
-        <DialogHeader
-          className={cn(
-            "flex-shrink-0 border-b",
-            isMobile
-              ? "bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 dark:from-brand-blue/20 dark:to-brand-blue/10 text-left safe-area-top px-4 pt-4 pb-3"
-              : "p-4 pb-2"
-          )}
-        >
-          <DialogTitle className="text-lg font-semibold">
-            {isEditMode ? t('debt.form.editTitle', 'Edit Debt') : t('debt.form.addTitle', 'Add New Debt')}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditMode 
-              ? t('debt.form.editDescription', 'Update your debt information')
-              : t('debt.form.addDescription', 'Enter debt details to be added')}
-          </DialogDescription>
-        </DialogHeader>
+        {isMobile ? (
+          <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 text-left safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-left text-base font-semibold leading-tight">
+                {isEditMode ? t('debt.form.editTitle', 'Edit Debt') : t('debt.form.addTitle', 'Add New Debt')}
+              </DialogTitle>
+              <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
+                {isEditMode
+                  ? t('debt.form.editDescription', 'Update your debt information')
+                  : t('debt.form.addDescription', 'Enter debt details to be added')}
+              </DialogDescription>
+            </div>
+            <DialogClose
+              type="button"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <X className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="sr-only">{t('common.close', 'Close')}</span>
+            </DialogClose>
+          </DialogHeader>
+        ) : (
+          <DialogHeader className="flex-shrink-0 border-b p-4 pb-2">
+            <DialogTitle className="text-lg font-semibold">
+              {isEditMode ? t('debt.form.editTitle', 'Edit Debt') : t('debt.form.addTitle', 'Add New Debt')}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditMode
+                ? t('debt.form.editDescription', 'Update your debt information')
+                : t('debt.form.addDescription', 'Enter debt details to be added')}
+            </DialogDescription>
+          </DialogHeader>
+        )}
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 min-h-0 overflow-y-auto seamless-scroll px-4 py-4 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto seamless-scroll px-4 py-4 space-y-4 [-ms-overflow-style:none] [scrollbar-width:none] scrollbar-hide [&::-webkit-scrollbar]:hidden">
             <div>
               <Label htmlFor="debt_name">
                 {t('debt.form.debtName', 'Debt Name')} <span className="text-brand-red">*</span>

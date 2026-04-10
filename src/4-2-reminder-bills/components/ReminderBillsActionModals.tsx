@@ -10,27 +10,21 @@ import {
   DialogTitle,
 } from '@/shared/components/ui/dialog';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { supabase } from '@/shared/lib/supabaseClient';
 import { format } from 'date-fns';
 import { Receipt } from 'lucide-react';
 import { toast } from 'sonner';
+import { openSupabaseSignedFile } from '@/shared/utils/openSupabaseSignedFile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 
 async function openReceiptOrInvoice(
   filePath: string,
   t: (key: string, defaultValue?: string) => string
 ) {
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    window.open(filePath, '_blank');
-    return;
-  }
   const tryBuckets = ['purchase-documents', 'expense-receipts'] as const;
   for (const bucket of tryBuckets) {
     try {
-      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(filePath, 3600);
-      if (!error && data?.signedUrl) {
-        window.open(data.signedUrl, '_blank');
-        return;
-      }
+      const result = await openSupabaseSignedFile({ bucket, filePath, expiresInSeconds: 3600 });
+      if (result.ok) return;
     } catch {
       /* try next bucket */
     }
@@ -46,6 +40,7 @@ interface ReminderBillDetailDialogProps {
 
 export function ReminderBillDetailDialog({ bill, open, onOpenChange }: ReminderBillDetailDialogProps) {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
 
   const onViewFile = (path: string | null | undefined) => {
     if (!path) {
@@ -59,7 +54,14 @@ export function ReminderBillDetailDialog({ bill, open, onOpenChange }: ReminderB
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto min-w-0">
+      <DialogContent
+        className={
+          isMobile
+            ? "modal-above-safe-area fixed left-0 right-0 top-0 max-h-none w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0"
+            : "w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto min-w-0"
+        }
+        fullscreenAnimation={isMobile}
+      >
         <DialogHeader>
           <DialogTitle>{t('reminderBills.billDetailsTitle', 'Bill details')}</DialogTitle>
           <DialogDescription>

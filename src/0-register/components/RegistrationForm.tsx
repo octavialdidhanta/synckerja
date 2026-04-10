@@ -1,4 +1,4 @@
-import { useState, useEffect, type RefObject } from "react";
+import { useState, useEffect, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -13,10 +13,16 @@ export type RegistrationFormKeyboardProps = {
   submitButtonRef?: RefObject<HTMLButtonElement | null>;
   onKeyboardInputFocus?: () => void;
   onKeyboardInputBlur?: () => void;
+  /** When set, replaces the default favicon header mark. */
+  brandMark?: ReactNode;
 };
 
+const defaultRegistrationBrand = (
+  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
+);
+
 export function RegistrationForm(props: RegistrationFormKeyboardProps) {
-  const { submitButtonRef, onKeyboardInputFocus, onKeyboardInputBlur } = props;
+  const { submitButtonRef, onKeyboardInputFocus, onKeyboardInputBlur, brandMark = defaultRegistrationBrand } = props;
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState(searchParams.get("email") || "");
@@ -98,9 +104,7 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
   return (
     <div className="space-y-8">
       <div className="flex flex-col">
-        <div className="mb-5 flex w-full justify-center">
-          <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-        </div>
+        <div className="mb-2 flex w-full justify-center">{brandMark}</div>
         <div className="text-center">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
             {t("auth.register.title")}
@@ -264,24 +268,25 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
         >
           {loading ? t("auth.register.submitting") : t("auth.register.submit")}
         </Button>
-        <p className="text-center text-xs text-slate-600">
-          {t("auth.register.termsPrefix")}{" "}
-          <a href="#" className="font-semibold hover:underline" style={{ color: brandBlue }}>
-            {t("auth.register.terms")}
-          </a>{" "}
-          {t("auth.register.termsAnd")}{" "}
-          <a href="#" className="font-semibold hover:underline" style={{ color: brandBlue }}>
-            {t("auth.register.privacy")}
-          </a>
-        </p>
+        <div className="space-y-2">
+          <p className="text-center text-xs text-slate-600">
+            {t("auth.register.termsPrefix")}{" "}
+            <a href="#" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+              {t("auth.register.terms")}
+            </a>{" "}
+            {t("auth.register.termsAnd")}{" "}
+            <a href="#" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+              {t("auth.register.privacy")}
+            </a>
+          </p>
+          <p className="text-center text-sm text-slate-600">
+            {t("auth.register.hasAccount")}{" "}
+            <Link to="/login" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+              {t("auth.register.login")}
+            </Link>
+          </p>
+        </div>
       </form>
-
-      <p className="text-center text-sm text-slate-600">
-        {t("auth.register.hasAccount")}{" "}
-        <Link to="/login" className="font-semibold hover:underline" style={{ color: brandBlue }}>
-          {t("auth.register.login")}
-        </Link>
-      </p>
     </div>
   );
 }

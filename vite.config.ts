@@ -42,6 +42,7 @@ export default defineConfig(({ mode }) => {
         "robots.txt",
         "placeholder.svg",
         "brand/synckerja-logo.png",
+        "brand/synckerja-logo.svg",
       ],
       manifest: {
         name: "Synckerja Office",
@@ -98,6 +99,18 @@ export default defineConfig(({ mode }) => {
       {
         find: /^@\/features\/(.*)$/,
         replacement: `${path.resolve(__dirname, "src")}/$1`,
+      },
+      {
+        find: /^@\/mobile\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "android-mobile")}/$1`,
+      },
+      {
+        find: /^@\/mobile-app\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "android-mobile/main-app-port")}/$1`,
+      },
+      {
+        find: /^@\/ios-mobile\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "IOS-mobile")}/$1`,
       },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
     ],

@@ -4,7 +4,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { logger } from '@/shared/lib/logger';
 import { LoadingDots } from '@/shared/components/LoadingDots';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import PublicContentReviewPage from '../pages/PublicContentReviewPage';
 
 /**

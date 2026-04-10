@@ -36,7 +36,7 @@ import { useIndividualObjectives } from '@/1-home/components/HomeOKRDashboard/mo
 import { ObjectiveHierarchyDialog } from '@/8-2-DailyTask/section/ObjectiveHierarchyDialog';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 
 interface EditTaskDialogProps {
   isOpen: boolean;

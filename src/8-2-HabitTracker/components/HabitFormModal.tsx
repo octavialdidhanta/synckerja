@@ -20,7 +20,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Label } from "@/shared/components/ui/label";
 import { useToast } from "@/shared/hooks/use-toast";
-import { useIsMobile } from "@/mobile/hooks/use-mobile";
+import { useIsMobile } from "@/mobile/shared/hooks/use-mobile";
 import { startOfMonth, getDaysInMonth, getDay, format } from "date-fns";
 import { id } from "date-fns/locale";
 

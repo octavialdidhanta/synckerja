@@ -8,7 +8,7 @@ import { DueDatePicker } from './DueDatePicker';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 
 interface AssignTaskModalProps {

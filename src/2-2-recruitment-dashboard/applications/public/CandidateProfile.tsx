@@ -7,7 +7,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { Dialog, DialogContent, DialogTitle } from '@/shared/components/ui/dialog';
 import { CandidateProfileTabs, CandidateProfileSidebar } from '@/2-2-recruitment-dashboard/applications/candidate-form';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Loader2, User, CheckCircle, ArrowLeft, UserPlus, Monitor } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';

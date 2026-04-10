@@ -20,7 +20,7 @@ import { useDailyTask } from '../context/DailyTaskContext';
 import { useActiveEmployeeIds } from '../hooks/useActiveEmployeeIds';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { CustomDatePicker } from '@/mobile/components/CustomDatePicker';
+import { CustomDatePicker } from '@/mobile-app/components/CustomDatePicker';
 import { format, startOfMonth } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';

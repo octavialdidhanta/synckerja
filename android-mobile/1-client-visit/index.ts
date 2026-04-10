@@ -1,0 +1,11 @@
+export { default as MobileClientVisitPage } from "./pages/MobileClientVisitPage";
+export { default as ClientVisit } from "./pages/ClientVisit";
+export { MobileClientVisitShell } from "./views/MobileClientVisitShell";
+export { ClientVisitActions } from "./components/ClientVisitActions";
+export { TodayVisitSchedule } from "./components/TodayVisitSchedule";
+export { VisitAnalyticsCard } from "./components/VisitAnalyticsCard";
+export { VisitNotifications } from "./components/VisitNotifications";
+export { SalesActivityModal, type SalesActivityData } from "./components/SalesActivityModal";
+export { useClientVisitData } from "./hooks/useClientVisitData";
+export type { ClientVisit as ClientVisitRecord } from "./hooks/useClientVisitData";
+export { useClientLocations } from "./hooks/useClientLocations";

@@ -102,8 +102,7 @@
       "goLogin": "Continue to login"
     },
     "login": {
-      "welcomeTitle": "Welcome to Synckerja Office",
-      "welcomeSubtitle": "To get started, please sign in.",
+      "welcomeTitle": "Synckerja Office",
       "email": "Email address *",
       "password": "Password *",
       "forgotPassword": "Forgot password?",

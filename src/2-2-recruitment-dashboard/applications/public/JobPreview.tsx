@@ -11,7 +11,7 @@ import { ApplicationForm } from '@/2-2-recruitment-dashboard/applications/public
 import { getJobByToken, checkRecruitmentHealth } from '@/2-2-recruitment-dashboard/job-openings/hooks/optimizedRecruitmentLinkUtils';
 import { RecruitmentLink } from '@/2-2-recruitment-dashboard/job-openings/hooks/recruitmentLinkTypes';
 import { JobBenefit } from '@/2-2-recruitment-dashboard/job-openings/hooks/jobOpeningTypes';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { useCompanyLogo } from '@/shared/hooks/useCompanyLogo';
 import { supabase } from '@/shared/lib/supabaseClient';
 

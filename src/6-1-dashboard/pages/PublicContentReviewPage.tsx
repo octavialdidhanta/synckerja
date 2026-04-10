@@ -18,8 +18,8 @@ import GoogleDriveFolderCarousel from '../modal/GoogleDriveFolderCarousel';
 import { useProdApprovalAccess } from '../hook/useProdApprovalAccess';
 import { useAuth } from '@/shared/auth/contexts/AuthContext';
 import { useUnifiedProfile } from '@/shared/hooks/useUnifiedProfile';
-import { useSafeAreaInsets } from '@/mobile/contexts/SafeAreaInsetsContext';
-import { useIsMobile } from '@/mobile/hooks/use-mobile';
+import { useSafeAreaInsets } from '@/mobile/shared/contexts/SafeAreaInsetsContext';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { revertStepCompletionFromDriveLinkRemovalWithRpc } from '@/8-2-DailyTask/services/completionApprovalService';
 
 const REVIEW_COMMENTER_STORAGE_KEY = 'review_commenter_';

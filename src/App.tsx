@@ -7,22 +7,43 @@ import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { Toaster } from "@/shared/components/ui/toaster";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { RequireAuth } from "@/shared/components/RequireAuth";
-import { AppShellLayout } from "@/shared/layouts";
+import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
-import { ForgotPasswordPage, GoogleOAuthCallbackPage, LoginPage, ResetPasswordPage } from "@/0-auth";
 import { OKRPage } from "@/1-OKR";
 import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
-import { ModernHomePage, SettingsPage, TransferOwnershipPage } from "@/1-home";
+import { SettingsPage, TransferOwnershipPage } from "@/1-home";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
-import { ProfileSettings, SecuritySettings } from "@/1-home/settings";
-import { RegisterPage, VerifyEmailPage, EmailVerifiedPage } from "@/0-register/index.ts";
+import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
+import { SecuritySettings } from "@/1-home/settings";
 import { AccountDeletionPage, PrivacyPolicyPage, TermsOfServicePage } from "@/policy";
 import {
-  CreateOrganizationPage,
-  CreatePlanPage,
-  EmployeeWelcomePage,
-  TermsAndConditionsPage,
-} from "@/0-onboarding/index.ts";
+  CreateOrganizationRouteElement,
+  CreatePlanRouteElement,
+  EmailVerifiedRouteElement,
+  EmployeeWelcomeRouteElement,
+  ForgotPasswordRouteElement,
+  GoogleOAuthCallbackRouteElement,
+  LoginRouteElement,
+  RegisterRouteElement,
+  ResetPasswordRouteElement,
+  TermsAndConditionsRouteElement,
+  VerifyEmailRouteElement,
+} from "@/shared/components/mobile/authOnboardingRouteElements";
+import {
+  HomeRouteElement,
+  ProfileRouteElement,
+  ScheduleRouteElement,
+  ClientVisitRouteElement,
+  MobileAttendanceReportsRouteElement,
+  ProfileTabRouteElement,
+} from "@/shared/components/mobile/mainAppMobileRouteElements";
+import {
+  ExpensesApprovalsRouteElement,
+  ExpensesDashboardRouteElement,
+  ExpensesDebtRouteElement,
+  ExpensesPaymentProcessRouteElement,
+  ExpensesReminderBillsRouteElement,
+} from "@/shared/components/mobile/expensesMobileRouteElements";
 import {
   ManagementPage,
   OverviewPage,
@@ -31,6 +52,7 @@ import {
   SubscriptionRoleGuard,
 } from "@/10-subscription";
 import { AuthProvider } from "@/shared/auth/contexts/AuthContext";
+import { LanguageProvider } from "@/shared/i18n/LanguageProvider";
 import { CentralizedUserDataProvider } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { CurrentOrgProvider } from "@/shared/auth/contexts/CurrentOrgContext";
 import { PermissionConfigurationProvider } from "@/shared/auth/page-access/usePermissionConfiguration";
@@ -72,7 +94,7 @@ import { CompanyRouteSkeleton } from "@/2-8-dashboard/skeletons/CompanyRouteSkel
 import { AccessPermissionsPageSkeleton } from "@/2-9-PageAccess/skeletons/AccessPermissionsPageSkeleton";
 import { IncomeDashboardSkeleton } from "@/4-1-dashboard/skeletons/IncomeDashboardSkeleton";
 import { IncomeTransactionSkeleton } from "@/4-1-transaction/components/IncomeTransactionSkeleton";
-import { ExpenseDashboardSkeleton } from "@/4-2-dashboard/skeletons/ExpenseDashboardSkeleton";
+import { ExpenseDashboardRouteLoadingShell } from "@/shared/components/mobile/ExpenseDashboardRouteLoadingShell";
 import { DebtPageSkeleton } from "@/4-2-debt/skeletons/DebtPageSkeleton";
 import { ApprovalsPageSkeleton } from "@/4-2-approvals/skeletons/ApprovalsPageSkeleton";
 import { PaymentProcessPageSkeleton } from "@/4-2-payment-process/skeletons/PaymentProcessPageSkeleton";
@@ -149,12 +171,6 @@ const RequestFormLoanPage = lazy(() => import("@/9-request-form/pages/Loan/Loan"
 
 const IncomeDashboardPage = lazy(() => import("@/4-1-dashboard/pages/IncomeDashboardPage"));
 const IncomeTransactionShellPage = lazy(() => import("@/4-1-transaction/pages/IncomeTransactionShellPage"));
-
-const ExpenseDashboardPage = lazy(() => import("@/4-2-dashboard/pages/ExpenseDashboardPage"));
-const ExpenseDebtPage = lazy(() => import("@/4-2-debt/pages/DebtPage"));
-const ExpenseApprovalsPage = lazy(() => import("@/4-2-approvals/pages/ApprovalsPage"));
-const ExpensePaymentProcessPage = lazy(() => import("@/4-2-payment-process/pages/PaymentProcessPage"));
-const ExpenseReminderBillsPage = lazy(() => import("@/4-2-reminder-bills/pages/ReminderBillsPage"));
 
 const DailyTaskPage = lazy(() => import("@/8-2-DailyTask/pages/DailyTaskPage"));
 const DailyTaskReportPage = lazy(() => import("@/8-2-DailyTaskReport/pages/DailyTaskReportPage"));
@@ -369,66 +385,6 @@ const IncomeTransactionSuspense = ({ children }: { children: ReactNode }) => (
     fallback={
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100" aria-busy>
         <IncomeTransactionSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const ExpenseDashboardSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <ExpenseDashboardSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const ExpenseDebtSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <DebtPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const ExpenseApprovalsSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <ApprovalsPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const ExpensePaymentProcessSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <PaymentProcessPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const ExpenseReminderBillsSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <ReminderBillsPageSkeleton />
       </div>
     }
   >
@@ -764,6 +720,7 @@ const App = () => (
           <CentralizedUserDataProvider>
             <PermissionConfigurationProvider>
               <CurrentOrgProvider>
+              <LanguageProvider>
               <BrowserRouter
                 future={{
                   v7_relativeSplatPath: true,
@@ -772,14 +729,14 @@ const App = () => (
               >
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <Routes>
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/auth/google/callback" element={<GoogleOAuthCallbackPage />} />
-                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                  <Route path="/reset-password" element={<ResetPasswordPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
-                  <Route path="/verify-email" element={<VerifyEmailPage />} />
-                  <Route path="/email-verified" element={<EmailVerifiedPage />} />
-                  <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+                  <Route path="/login" element={<LoginRouteElement />} />
+                  <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
+                  <Route path="/reset-password" element={<ResetPasswordRouteElement />} />
+                  <Route path="/register" element={<RegisterRouteElement />} />
+                  <Route path="/verify-email" element={<VerifyEmailRouteElement />} />
+                  <Route path="/email-verified" element={<EmailVerifiedRouteElement />} />
+                  <Route path="/terms-and-conditions" element={<TermsAndConditionsRouteElement />} />
                   <Route path="/policy/privacy" element={<PrivacyPolicyPage />} />
                   <Route path="/policy/terms" element={<TermsOfServicePage />} />
                   <Route path="/policy/account-deletion" element={<AccountDeletionPage />} />
@@ -844,18 +801,58 @@ const App = () => (
 
                   <Route element={<RequireAuth />}>
                     <Route element={<SubscriptionExpiryGuard />}>
-                      <Route element={<AppShellLayout />}>
+                      <Route element={<AdaptiveAppLayout />}>
                         <Route
                           path="/"
                           element={
-                            <PageAccessGuard pagePath="/" requiresPermissions={false} loadingShell={<HomePageSkeleton />}>
-                              <ModernHomePage />
+                            <PageAccessGuard pagePath="/" requiresPermissions={false} loadingShell={<HomePageRouteLoadingShell />}>
+                              <HomeRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/schedule"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/sales"
+                              loadingShell={<VisitSchedulingPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <ScheduleRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/client-visit"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/sales"
+                              loadingShell={<ClientVisitsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <ClientVisitRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/reports"
+                          element={
+                            <PageAccessGuard requiresPermissions={false} loadingShell={<AttendanceGuardLoadingShell />}>
+                              <MobileAttendanceReportsRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/profile"
+                          element={
+                            <PageAccessGuard pagePath="/settings" requiresPermissions={false} loadingShell={<HomePageSkeleton />}>
+                              <ProfileTabRouteElement />
                             </PageAccessGuard>
                           }
                         />
                         <Route path="/settings" element={<SettingsPage />}>
-                          <Route index element={<ProfileSettings />} />
-                          <Route path="profile" element={<ProfileSettings />} />
+                          <Route index element={<ProfileRouteElement />} />
+                          <Route path="profile" element={<ProfileRouteElement />} />
                           <Route path="security" element={<SecuritySettings />} />
                         </Route>
                         <Route path="/transfer-ownership" element={<TransferOwnershipPage />} />
@@ -1042,11 +1039,9 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/dashboard"
-                              loadingShell={<ExpenseDashboardSkeleton />}
+                              loadingShell={<ExpenseDashboardRouteLoadingShell />}
                             >
-                              <ExpenseDashboardSuspense>
-                                <ExpenseDashboardPage />
-                              </ExpenseDashboardSuspense>
+                              <ExpensesDashboardRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1057,9 +1052,7 @@ const App = () => (
                               pagePath="/expenses/debt"
                               loadingShell={<DebtPageSkeleton />}
                             >
-                              <ExpenseDebtSuspense>
-                                <ExpenseDebtPage />
-                              </ExpenseDebtSuspense>
+                              <ExpensesDebtRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1070,9 +1063,7 @@ const App = () => (
                               pagePath="/expenses/approvals"
                               loadingShell={<ApprovalsPageSkeleton />}
                             >
-                              <ExpenseApprovalsSuspense>
-                                <ExpenseApprovalsPage />
-                              </ExpenseApprovalsSuspense>
+                              <ExpensesApprovalsRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1083,9 +1074,7 @@ const App = () => (
                               pagePath="/expenses/payment-process"
                               loadingShell={<PaymentProcessPageSkeleton />}
                             >
-                              <ExpensePaymentProcessSuspense>
-                                <ExpensePaymentProcessPage />
-                              </ExpensePaymentProcessSuspense>
+                              <ExpensesPaymentProcessRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1096,9 +1085,7 @@ const App = () => (
                               pagePath="/expenses/reminder-bills"
                               loadingShell={<ReminderBillsPageSkeleton />}
                             >
-                              <ExpenseReminderBillsSuspense>
-                                <ExpenseReminderBillsPage />
-                              </ExpenseReminderBillsSuspense>
+                              <ExpensesReminderBillsRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1654,9 +1641,9 @@ const App = () => (
                         </Route>
                       </Route>
                       <Route path="/employees/add" element={<AddEmployeePage />} />
-                      <Route path="/create-organization" element={<CreateOrganizationPage />} />
-                      <Route path="/create-plan" element={<CreatePlanPage />} />
-                      <Route path="/employee-welcome" element={<EmployeeWelcomePage />} />
+                      <Route path="/create-organization" element={<CreateOrganizationRouteElement />} />
+                      <Route path="/create-plan" element={<CreatePlanRouteElement />} />
+                      <Route path="/employee-welcome" element={<EmployeeWelcomeRouteElement />} />
                     </Route>
                   </Route>
 
@@ -1664,6 +1651,7 @@ const App = () => (
                   </Routes>
                 </div>
               </BrowserRouter>
+              </LanguageProvider>
               </CurrentOrgProvider>
             </PermissionConfigurationProvider>
           </CentralizedUserDataProvider>

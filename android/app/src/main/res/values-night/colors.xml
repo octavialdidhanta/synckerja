@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Warna tint ikon notifikasi di status bar: background gelap → ikon putih (kontras) -->
+    <color name="notification_icon_tint">#FFFFFFFF</color>
+</resources>

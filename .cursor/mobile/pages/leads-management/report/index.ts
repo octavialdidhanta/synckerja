@@ -1,0 +1,1 @@
+export { LeadsReportSummaryView } from './LeadsReportSummaryView';

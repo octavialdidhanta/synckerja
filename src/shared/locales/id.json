@@ -102,8 +102,7 @@
       "goLogin": "Lanjut ke login"
     },
     "login": {
-      "welcomeTitle": "Selamat datang di Synckerja Office",
-      "welcomeSubtitle": "Untuk memulai, silakan masuk.",
+      "welcomeTitle": "Synckerja Office",
       "email": "Alamat email *",
       "password": "Kata sandi *",
       "forgotPassword": "Lupa kata sandi?",

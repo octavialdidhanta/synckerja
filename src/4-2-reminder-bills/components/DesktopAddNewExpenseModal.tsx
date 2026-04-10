@@ -1,6 +1,6 @@
 /**
  * Desktop entry: same behavior as base modal, with square viewport (w≈h) + sharp corners on desktop.
- * Mobile routes should import `@/mobile/pages/expenses/modal/AddNewExpenseModal` (no square shell).
+ * Mobile routes should import `@/4-2-reminder-bills/modal/AddNewExpenseModal` (no square shell).
  */
 import {
   AddNewExpenseModal as BaseAddNewExpenseModal,

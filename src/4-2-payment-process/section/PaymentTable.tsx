@@ -22,6 +22,8 @@ import { useExpenses } from '@/shared/hooks/finance/useExpenses';
 import { useDebtsForExpense } from '@/shared/hooks/finance/useDebtsForExpense';
 import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
+import { openSupabaseSignedFile } from '@/shared/utils/openSupabaseSignedFile';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 
 interface PaymentTableProps {
   requests: PurchaseRequest[];
@@ -34,6 +36,7 @@ export const PaymentTable = ({
   isLoading = false,
   onRefresh 
 }: PaymentTableProps) => {
+  const isMobile = useIsMobile();
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
@@ -335,30 +338,18 @@ export const PaymentTable = ({
 
   const handleViewInvoice = async (e: React.MouseEvent, filePath: string) => {
     e.preventDefault();
-    try {
-      const { data, error } = await supabase.storage
-        .from('purchase-documents')
-        .createSignedUrl(filePath, 3600); // 1 hour expiry
-
-      if (error) {
-        console.error('Error creating signed URL:', error);
-        toast({
-          title: "Error",
-          description: "Failed to generate invoice URL. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      window.open(data.signedUrl, '_blank');
-    } catch (error: any) {
-      console.error('Error viewing invoice:', error);
-      toast({
-        title: "Error",
-        description: "Failed to open invoice. Please try again.",
-        variant: "destructive",
-      });
-    }
+    const result = await openSupabaseSignedFile({
+      bucket: 'purchase-documents',
+      filePath,
+      expiresInSeconds: 3600,
+    });
+    if (result.ok) return;
+    console.error('Error creating signed URL:', result.error);
+    toast({
+      title: 'Error',
+      description: 'Failed to open invoice. Please try again.',
+      variant: 'destructive',
+    });
   };
 
   if (isLoading) {
@@ -509,7 +500,14 @@ export const PaymentTable = ({
 
       {/* Payment Request Detail Dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent
+          className={
+            isMobile
+              ? "modal-above-safe-area fixed left-0 right-0 top-0 max-h-none w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0"
+              : "max-w-2xl max-h-[80vh] overflow-y-auto"
+          }
+          fullscreenAnimation={isMobile}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Payment Request Details</span>

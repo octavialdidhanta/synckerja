@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -26,7 +26,17 @@ export type ProfileFormState = {
   preferred_locale: SupportedLanguage;
 };
 
-export function ProfileSettings() {
+export type ProfileSettingsProps = {
+  onFieldFocus?: () => void;
+  onFieldBlur?: () => void;
+  saveButtonRef?: RefObject<HTMLButtonElement | null>;
+};
+
+export function ProfileSettings({
+  onFieldFocus,
+  onFieldBlur,
+  saveButtonRef,
+}: ProfileSettingsProps = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { data: profile, isLoading, error, refetch } = useProfile();
@@ -155,7 +165,12 @@ export function ProfileSettings() {
           <div className="max-w-xs space-y-2">
             <Label htmlFor="settings-language">{t("settings.profile.language.label")}</Label>
             <Select value={formData.preferred_locale} onValueChange={(v) => handleLocaleChange(v as SupportedLanguage)}>
-              <SelectTrigger id="settings-language" className="w-full">
+              <SelectTrigger
+                id="settings-language"
+                className="w-full"
+                onFocus={() => onFieldFocus?.()}
+                onBlur={() => onFieldBlur?.()}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -196,6 +211,8 @@ export function ProfileSettings() {
                 value={formData.full_name}
                 onChange={(e) => handleInputChange("full_name", e.target.value)}
                 placeholder={t("settings.profile.form.fullNamePlaceholder")}
+                onFocus={() => onFieldFocus?.()}
+                onBlur={() => onFieldBlur?.()}
               />
             </div>
             <div className="space-y-2">
@@ -205,6 +222,8 @@ export function ProfileSettings() {
                 value={formData.phone}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
                 placeholder={t("settings.profile.form.phonePlaceholder")}
+                onFocus={() => onFieldFocus?.()}
+                onBlur={() => onFieldBlur?.()}
               />
             </div>
             <div className="space-y-2">
@@ -214,6 +233,8 @@ export function ProfileSettings() {
                 value={formData.job_title}
                 onChange={(e) => handleInputChange("job_title", e.target.value)}
                 placeholder={t("settings.profile.form.jobTitlePlaceholder")}
+                onFocus={() => onFieldFocus?.()}
+                onBlur={() => onFieldBlur?.()}
               />
             </div>
             <div className="space-y-2">
@@ -223,6 +244,8 @@ export function ProfileSettings() {
                 value={formData.location}
                 onChange={(e) => handleInputChange("location", e.target.value)}
                 placeholder={t("settings.profile.form.locationPlaceholder")}
+                onFocus={() => onFieldFocus?.()}
+                onBlur={() => onFieldBlur?.()}
               />
             </div>
             <div className="space-y-2 md:col-span-2">
@@ -232,6 +255,8 @@ export function ProfileSettings() {
                 value={formData.website}
                 onChange={(e) => handleInputChange("website", e.target.value)}
                 placeholder={t("settings.profile.form.websitePlaceholder")}
+                onFocus={() => onFieldFocus?.()}
+                onBlur={() => onFieldBlur?.()}
               />
             </div>
           </div>
@@ -243,6 +268,8 @@ export function ProfileSettings() {
               onChange={(e) => handleInputChange("bio", e.target.value)}
               placeholder={t("settings.profile.form.bioPlaceholder")}
               rows={4}
+              onFocus={() => onFieldFocus?.()}
+              onBlur={() => onFieldBlur?.()}
             />
           </div>
 
@@ -258,7 +285,12 @@ export function ProfileSettings() {
                   {t("settings.profile.actions.reset")}
                 </Button>
               ) : null}
-              <Button type="button" onClick={() => void handleSave()} disabled={!hasChanges || updateProfile.isPending}>
+              <Button
+                ref={saveButtonRef}
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={!hasChanges || updateProfile.isPending}
+              >
                 {updateProfile.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

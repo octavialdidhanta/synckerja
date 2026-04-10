@@ -1,5 +1,6 @@
 // Visit Scheduling (Jadwal Kunjungan) Module
 export { VisitSchedulingRoute } from './pages/VisitSchedulingRoute';
+export { VisitSchedulingScreen } from './pages/VisitSchedulingScreen';
 export { VisitSchedulingPage } from './pages/VisitSchedulingPage';
 export { VisitSchedulingPageSkeleton } from './skeletons/VisitSchedulingPageSkeleton';
 export { VisitSchedulingPageContent } from './components/VisitSchedulingPageContent';

@@ -1,0 +1,39 @@
+Google Play Console — teks siap tempel (sesuaikan dengan bahasa form)
+=======================================================================
+
+Sebelum mengisi form "Izin foto dan video":
+- Unggah AAB terbaru yang manifest gabungannya TIDAK memakai READ_MEDIA_IMAGES / READ_MEDIA_VIDEO.
+- Jalankan: npm run android:prepare (atau: npm run build && npx cap sync android) lalu bundleRelease
+- Verifikasi merged manifest (lihat build output) bebas izin media lebar.
+
+-----------------------------------------------------------------------
+1) Form: Jelaskan penggunaan izin READ_MEDIA_IMAGES (jika masih muncul)
+-----------------------------------------------------------------------
+
+Jika Console masih meminta penjelasan sementara bundle lama terdeteksi,
+setelah AAB baru aktif di semua track, bagian ini biasanya tidak relevan.
+
+Bahasa Indonesia (maks. ~250 karakter, selaras Photo Picker):
+
+Pemilihan gambar struk memakai Android Photo Picker: pengguna hanya memberi akses ke file yang dipilih, tanpa izin READ_MEDIA_IMAGES. Foto baru memakai kamera. Tidak ada pemindaian galeri penuh.
+
+English:
+
+Receipt images use the Android Photo Picker: users grant access only to chosen files, without READ_MEDIA_IMAGES. New photos use the camera. No full-gallery scanning.
+
+-----------------------------------------------------------------------
+2) Setelah migrasi Photo Picker (disarankan)
+-----------------------------------------------------------------------
+
+Di Play Console, pilih alur yang menyatakan aplikasi tidak memerlukan
+akses persisten ke semua foto/video, atau bahwa pemilihan media memakai
+photo picker / pemilih sistem — ikuti opsi yang ditawarkan form terbaru.
+
+-----------------------------------------------------------------------
+3) URL terkait kebijakan (Synckerja Office / office.synckerja.com)
+-----------------------------------------------------------------------
+
+Kebijakan privasi:     https://office.synckerja.com/policy/privacy
+Penghapusan akun:      https://office.synckerja.com/policy/account-deletion
+
+Pastikan halaman di atas dapat dibuka di incognito (tanpa login).

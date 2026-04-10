@@ -19,14 +19,14 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Checkbox } from "@/shared/components/ui/checkbox";
-import { useIsMobile } from "@/mobile/hooks/use-mobile";
+import { useIsMobile } from "@/mobile/shared/hooks/use-mobile";
 import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { AlertCircle, Camera, FileText, Upload, X } from "lucide-react";
-import { CameraModal } from "@/mobile/components/CameraModal";
-import { pickReceiptImageFiles } from "@/mobile/utils/pickReceiptFromGallery";
+import { CameraModal } from "@/mobile/shared/components/CameraModal";
+import { pickReceiptImageFiles } from "@/mobile/shared/utils/pickReceiptFromGallery";
 import {
   addExpenseSchema,
   type AddExpenseFormData,
@@ -64,8 +64,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
-import { setShareBackGuard } from "@/mobile/shareIntent/shareBackGuard";
-import type { ExpenseReceiptAutofillData } from "@/mobile/pages/expenses/services/analyzeExpenseReceiptWithAI";
+import { setShareBackGuard } from "@/mobile/4-2-reminder-bills/lib/shareBackGuard";
+import type { ExpenseReceiptAutofillData } from "@/mobile/shared/services/analyzeExpenseReceiptWithAI";
 import { IncomeAllocationOptionalSection } from "@/4-1-dashboard/components/IncomeAllocationOptionalSection";
 
 export interface AddNewExpenseModalProps {
@@ -734,14 +734,16 @@ export function AddNewExpenseModal({
       >
         <DialogHeader
           className={cn(
-            "flex-shrink-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 dark:from-brand-blue/20 dark:to-brand-blue/10 text-left",
-            isMobile ? "safe-area-top px-4 pt-4 pb-3" : "px-4 pt-4 pb-3"
+            "flex-shrink-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 text-left dark:from-brand-blue/20 dark:to-brand-blue/10",
+            isMobile
+              ? "safe-area-top space-y-0.5 px-4 py-2"
+              : "space-y-1 px-4 py-3",
           )}
         >
-          <DialogTitle className="text-lg font-semibold">
+          <DialogTitle className={cn("font-semibold leading-tight", isMobile ? "text-base" : "text-lg")}>
             {t("expenses.addNewExpenseTitle", "Add New Expense")}
           </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className={cn("text-muted-foreground", isMobile ? "text-xs leading-snug" : "text-sm")}>
             {t("expenses.addNewExpenseSubtitle", "Enter the details for your new expense entry.")}
           </p>
         </DialogHeader>

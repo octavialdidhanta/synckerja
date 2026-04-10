@@ -207,8 +207,48 @@ All colors MUST be HSL.
   .auth-form-panel-mobile {
     @apply overflow-y-auto seamless-scroll;
   }
+  /* Mobile Android shell (synckerja-reference mobile-tools-layout-android): inset + 4px */
   .safe-area-top {
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: calc(max(var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)) + 4px);
+  }
+
+  /**
+   * Fullscreen dialog shells (modal-android-fullscreen): pair with `fixed left-0 right-0 top-0`
+   * (and typical `flex min-h-0 flex-col overflow-hidden`). Without `bottom`, height collapses to
+   * content — modals look centered and inner `overflow-y-auto` never scrolls.
+   */
+  .modal-above-safe-area {
+    bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Nav footer: sit above gesture bar; inset - 4px per reference rule */
+  .safe-area-bottom-lower {
+    padding-bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - 4px));
+  }
+
+  .safe-area-padding-bottom {
+    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Kartu terakhir → di atas bottom nav (tinggi nav ~52px + safe area) */
+  .content-padding-above-nav-home {
+    padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .content-padding-above-nav-default {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .content-padding-above-nav-client-visit {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .content-padding-above-nav-daily-task {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .content-padding-above-nav-daily-task-report {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
   .auth-input-scroll-margin {
     scroll-margin-bottom: 6rem;
