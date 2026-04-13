@@ -626,7 +626,7 @@ export function ConversationList({
                 onTouchEnd={onTouchEnd}
                 onTouchCancel={onTouchEnd}
                 className={`flex gap-3 items-start px-4 py-3 cursor-pointer hover:bg-gray-50 select-none ${
-                  selectedId === conv.id ? (isEmail ? 'bg-blue-50 border-l-2 border-blue-500' : 'bg-[#25D366]/10 border-l-2 border-[#25D366]') : 'bg-white'
+                  selectedId === conv.id ? (isEmail ? 'bg-blue-50 border-l-2 border-blue-500' : 'bg-[#d6ebe1] border-l-2 border-[#25D366]') : 'bg-white'
                 }`}
                 style={{
                   ...(useDomTransform

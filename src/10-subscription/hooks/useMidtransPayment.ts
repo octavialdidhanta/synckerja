@@ -58,6 +58,39 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
   const onPaymentClose = options?.onPaymentClose;
   const onPaymentStatusChange = options?.onPaymentStatusChange;
 
+  const ensureMidtransDesktopZIndex = () => {
+    if (typeof document === "undefined") return;
+
+    const styleId = "midtrans-desktop-zindex-fix";
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement("style");
+      style.id = styleId;
+      style.textContent = `
+        @media (min-width: 1024px) {
+          #snap-midtrans,
+          .snap-midtrans,
+          .snap-container,
+          .snap-embed,
+          .snap-popup,
+          .snap-overlay,
+          .midtrans-overlay,
+          iframe[src*="midtrans"] {
+            z-index: 2147483000 !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document
+      .querySelectorAll<HTMLElement>(
+        '#snap-midtrans, .snap-midtrans, .snap-container, .snap-embed, .snap-popup, .snap-overlay, .midtrans-overlay, iframe[src*="midtrans"]',
+      )
+      .forEach((element) => {
+        element.style.setProperty("z-index", "2147483000", "important");
+      });
+  };
+
   const loadMidtransScript = async (): Promise<void> => {
     if (window.snap) return;
 
@@ -140,6 +173,7 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
       }
 
       await new Promise((r) => setTimeout(r, 200));
+      ensureMidtransDesktopZIndex();
 
       const successPath = "/subscription/overview";
       const fallbackPath = "/subscription/plans";
@@ -224,6 +258,8 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
 
       try {
         window.snap?.pay(data.token, snapConfig);
+        setTimeout(() => ensureMidtransDesktopZIndex(), 0);
+        setTimeout(() => ensureMidtransDesktopZIndex(), 250);
       } catch (snapError: unknown) {
         const msg = snapError instanceof Error ? snapError.message : "";
         if (msg && !msg.includes("postMessage")) throw snapError;
@@ -292,6 +328,7 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
         /* ignore */
       }
       await new Promise((r) => setTimeout(r, 200));
+      ensureMidtransDesktopZIndex();
 
       const successPath = "/subscription/overview";
       const fallbackPath = "/subscription/plans";
@@ -372,6 +409,8 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
 
       try {
         window.snap?.pay(snapData.token, snapConfig);
+        setTimeout(() => ensureMidtransDesktopZIndex(), 0);
+        setTimeout(() => ensureMidtransDesktopZIndex(), 250);
       } catch (snapError: unknown) {
         const msg = snapError instanceof Error ? snapError.message : "";
         if (msg && !msg.includes("postMessage")) throw snapError;
