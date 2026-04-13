@@ -9,7 +9,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Separator } from '@/shared/components/ui/separator';
-import { ListChecks } from 'lucide-react';
+import { ListChecks, X } from 'lucide-react';
 import { useDailyTask } from '../context/DailyTaskContext';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
@@ -148,24 +148,39 @@ export const ModalAddTaskStep = ({
         <DialogHeader
           className={cn(
             'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left',
-            isMobile ? 'safe-area-top px-4 pt-4 pb-3' : 'px-6 pt-6 pb-4'
+            isMobile
+              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0'
+              : 'px-6 pt-6 pb-4'
           )}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30 flex-shrink-0">
-              <ListChecks className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          <div className={cn('flex items-center gap-3', isMobile ? 'w-full min-w-0 gap-1.5 px-3 py-2' : '')}>
+            <div className={cn('flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 flex-shrink-0', isMobile ? 'h-9 w-9 rounded-md' : 'w-10 h-10 rounded-lg')}>
+              <ListChecks className={cn('text-blue-600 dark:text-blue-400', isMobile ? 'h-4 w-4' : 'h-5 w-5')} />
             </div>
-            <div className="min-w-0">
-              <DialogTitle className={cn('text-lg font-semibold', !isMobile && 'md:text-xl')}>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className={cn(isMobile ? 'm-0 truncate py-0 pr-1 text-base font-semibold leading-tight' : 'text-lg font-semibold md:text-xl')}>
                 {isEditMode ? 'Edit Step' : 'Add New Step'}
               </DialogTitle>
             </div>
+            {isMobile ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                onClick={handleCancel}
+                disabled={isSubmitting}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : null}
           </div>
         </DialogHeader>
 
         <div
           className={cn(
-            'flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll',
+            'scrollbar-hide seamless-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             isMobile ? 'px-6 pt-4 pb-6' : 'px-6 py-6'
           )}
           style={

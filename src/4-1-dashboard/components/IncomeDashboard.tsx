@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
@@ -9,6 +9,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tool
 import { useIncomeMetrics, useIncomeTransactions, useMonthlyIncomeData } from '../hooks';
 import { useIncomeMasterData } from '../hooks/useIncomeMasterData';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
+import { formatBankInstitutionAccountLine } from '@/4-1-dashboard/utils/formatBankInstitutionAccountLine';
 import { IncomeVsExpensesChart } from './IncomeVsExpensesChart';
 import { RecentIncomeOverview } from './RecentIncomeOverview';
 import { IncomeTransactionWithRelations } from '../types';
@@ -772,12 +773,6 @@ export function IncomeDashboard() {
                   <Card className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
                     <CardHeader className="flex-shrink-0 px-3 pb-2 pt-3">
                       <CardTitle className="text-base font-semibold sm:text-lg">Net Income per Bank Account</CardTitle>
-                      <CardDescription className="mt-1 text-xs leading-snug text-muted-foreground">
-                        {t(
-                          'incomes.netPerBankCardHint',
-                          'Balance = all-time net from Income and Expense rows for this account (same as transfer logic). Net = income − expense for the filtered period only.'
-                        )}
-                      </CardDescription>
                     </CardHeader>
                     <CardContent className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden px-3 pb-2 pt-0">
                       <div className="scrollbar-hide min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -796,6 +791,7 @@ export function IncomeDashboard() {
                             const estimatedPeriodOpening = currentBalance - net;
                             const otherAccounts = bankAccounts.filter((a) => a.id !== bankAccount.id);
                             const canTransfer = otherAccounts.length > 0 && currentBalance > 0;
+                            const bankInstitutionLine = formatBankInstitutionAccountLine(bankAccount);
 
                             return (
                               <NetBankAccountSwipeRow
@@ -817,8 +813,8 @@ export function IncomeDashboard() {
                                 <div className="flex items-center justify-between p-2">
                                   <div className="flex-1 min-w-0">
                                     <div className="font-medium text-sm text-gray-900 truncate">{bankAccount.name}</div>
-                                    {bankAccount.account_number ? (
-                                      <div className="text-xs text-gray-700 truncate">No. Rek: {bankAccount.account_number}</div>
+                                    {bankInstitutionLine ? (
+                                      <div className="text-xs leading-snug text-gray-700 truncate">{bankInstitutionLine}</div>
                                     ) : null}
                                     <div className="text-xs text-gray-700">
                                       Income: {formatToRupiah(income)} | Expense: {formatToRupiah(expense)}

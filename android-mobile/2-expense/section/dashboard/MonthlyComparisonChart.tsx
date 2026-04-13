@@ -40,7 +40,7 @@ export function MonthlyComparisonChart({ monthlyData, isEmpty }: MonthlyComparis
   return (
     <div className="flex min-w-0 w-full flex-col gap-1">
       <div
-        className="scrollbar-hide nested-scroll-touch-chain-x seamless-scroll overflow-x-auto overflow-y-hidden"
+        className="scrollbar-hide seamless-scroll overflow-x-auto overflow-y-hidden [touch-action:pan-x_pan-y]"
         style={{ scrollBehavior: "smooth", WebkitOverflowScrolling: "touch" }}
       >
         <div

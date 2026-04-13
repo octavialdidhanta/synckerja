@@ -3,7 +3,6 @@ import { Navigate } from "react-router-dom";
 import { ModernHomePage } from "@/1-home";
 import { ProfileSettings } from "@/1-home/settings";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
-import { useNativeViewportNoPinchZoom } from "@/shared/hooks/useNativeViewportNoPinchZoom";
 import { AbsensiPageSkeleton } from "@/mobile/1-home/pages/AbsensiPageSkeleton";
 
 const MobileAbsensi = lazy(() => import("@/mobile/1-home/pages/Absensi"));
@@ -33,7 +32,6 @@ function MobileHomeSuspense({ children }: { children: ReactNode }) {
 }
 
 export function HomeRouteElement() {
-  useNativeViewportNoPinchZoom();
   const { isDesktop } = useAuthSurface();
   if (isDesktop) return <ModernHomePage />;
   return (
@@ -44,7 +42,6 @@ export function HomeRouteElement() {
 }
 
 export function ScheduleRouteElement() {
-  useNativeViewportNoPinchZoom();
   const { isDesktop } = useAuthSurface();
   if (isDesktop) return <Navigate to="/operations/sales/jadwal-kunjungan" replace />;
   return (
@@ -55,7 +52,6 @@ export function ScheduleRouteElement() {
 }
 
 export function ClientVisitRouteElement() {
-  useNativeViewportNoPinchZoom();
   const { isDesktop } = useAuthSurface();
   if (isDesktop) return <Navigate to="/operations/sales/client-visits" replace />;
   return (
@@ -67,7 +63,6 @@ export function ClientVisitRouteElement() {
 
 /** Bottom nav "Reports" — attendance (reference mobile), not Daily Task Report. */
 export function MobileAttendanceReportsRouteElement() {
-  useNativeViewportNoPinchZoom();
   const { isDesktop } = useAuthSurface();
   if (isDesktop) return <Navigate to="/attendance" replace />;
   return (
@@ -89,7 +84,6 @@ export function ProfileRouteElement() {
 
 /** Canonical `/profile` for bottom nav; desktop users go to settings profile. */
 export function ProfileTabRouteElement() {
-  useNativeViewportNoPinchZoom();
   const { isDesktop } = useAuthSurface();
   if (isDesktop) return <Navigate to="/settings/profile" replace />;
   return (

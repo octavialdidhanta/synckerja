@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/mobile-app/components/ui/button";
 import { Textarea } from "@/mobile-app/components/ui/textarea";
 import { AlertTriangle } from "lucide-react";
-import { useIsMobile } from "@/mobile-app/hooks/use-mobile";
+import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { cn } from "@/shared/lib/utils";
 
 interface LateAttendanceModalProps {

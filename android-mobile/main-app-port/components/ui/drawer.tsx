@@ -2,6 +2,8 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/shared/lib/utils"
+import { useMobileChromeReflowOnForeground } from "@/shared/mobile/useMobileChromeReflowOnForeground"
+import { useRegisterMobileAppNavSuppression } from "@/shared/mobile/MobileAppNavSuppressionContext"
 
 const Drawer = ({
   shouldScaleBackground = true,
@@ -35,27 +37,61 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 interface DrawerContentProps extends React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> {
   /** Use higher z-index when drawer is opened inside another modal (e.g. z-[60]) */
   overlayClassName?: string;
+  /** When false, hide the default drag handle bar (e.g. full-width form sheets). Default true. */
+  showDragHandle?: boolean;
 }
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
->(({ className, overlayClassName, children, ...props }, ref) => (
-  <DrawerPortal>
-    <DrawerOverlay className={overlayClassName} />
-    <DrawerPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-20 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background safe-area-bottom",
-        className
-      )}
-      {...props}
-    >
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
-    </DrawerPrimitive.Content>
-  </DrawerPortal>
-))
+>(({ className, overlayClassName, showDragHandle = true, children, ...props }, ref) => {
+  const mergedClassName = cn(
+    "fixed inset-x-0 z-20 mt-24 flex h-auto min-w-0 w-full max-w-none flex-col rounded-t-[10px] border bg-background modal-above-safe-area",
+    className
+  )
+  useMobileChromeReflowOnForeground()
+  const shell = mergedClassName.includes("modal-above-safe-area")
+  const [drawerSurfaceOpen, setDrawerSurfaceOpen] = React.useState(false)
+  const moRef = React.useRef<MutationObserver | null>(null)
+
+  const setContentNode = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      moRef.current?.disconnect()
+      moRef.current = null
+      if (typeof ref === "function") {
+        ref(node)
+      } else if (ref) {
+        (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+      }
+      if (!node || !shell) {
+        setDrawerSurfaceOpen(false)
+        return
+      }
+      const sync = () => {
+        setDrawerSurfaceOpen(node.getAttribute("data-state") === "open")
+      }
+      sync()
+      const mo = new MutationObserver(sync)
+      mo.observe(node, { attributes: true, attributeFilter: ["data-state"] })
+      moRef.current = mo
+    },
+    [ref, shell],
+  )
+
+  useRegisterMobileAppNavSuppression(shell && drawerSurfaceOpen)
+
+  return (
+    <DrawerPortal>
+      <DrawerOverlay className={overlayClassName} />
+      <DrawerPrimitive.Content ref={setContentNode} className={mergedClassName} {...props}>
+        {showDragHandle ? (
+          <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+        ) : null}
+        {children}
+      </DrawerPrimitive.Content>
+    </DrawerPortal>
+  )
+})
 DrawerContent.displayName = "DrawerContent"
 
 const DrawerHeader = ({
@@ -63,7 +99,7 @@ const DrawerHeader = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("grid gap-1.5 p-4 text-center sm:text-left", className)}
+    className={cn("grid gap-1.5 p-4 text-left", className)}
     {...props}
   />
 )

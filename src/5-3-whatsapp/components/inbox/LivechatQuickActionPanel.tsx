@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
@@ -310,8 +310,8 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     }
   }, [leadRow?.id, organizationId, ticketId, deleteLead, queryClient, t]);
 
-  // Opsi dropdown Status = dari DB (lead_statuses) untuk org aktif; tampilan pakai getLeadStatusDisplayName (Open→Unread, In Progress→On going, Closed→Resolve)
-  const { data: leadStatuses = [] } = useQuery({
+  // Query org-scoped (sesuai referensi), lalu fallback ke query global livechat saat org belum siap.
+  const { data: orgScopedLeadStatuses = [] } = useQuery({
     queryKey: ['lead-statuses', organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
@@ -329,6 +329,23 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
       return (data ?? []) as LeadStatus[];
     },
   });
+  const { data: globalLeadStatuses = [] } = useQuery({
+    queryKey: ['lead-statuses'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lead_statuses')
+        .select('id, name, color')
+        .eq('is_active', true)
+        .order('sort_order');
+      if (error) throw error;
+      return (data ?? []) as LeadStatus[];
+    },
+    staleTime: 60_000,
+  });
+  const leadStatuses = useMemo(
+    () => (orgScopedLeadStatuses.length > 0 ? orgScopedLeadStatuses : globalLeadStatuses),
+    [orgScopedLeadStatuses, globalLeadStatuses]
+  );
 
   const isEmail = conversation?.source === 'email';
   const isInstagram = conversation?.source === 'instagram';

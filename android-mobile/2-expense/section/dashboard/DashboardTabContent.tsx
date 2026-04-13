@@ -34,6 +34,7 @@ export function DashboardTabContent() {
   const isRefreshing = refreshContext?.isRefreshing ?? false;
   const { t } = useAppTranslation();
   const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const hasOrg = Boolean(organizationId);
   const { loading: bankBalancesLoading } = useBankAccountBalances();
   const expenseTable = useExpenseTable();
   const {
@@ -48,15 +49,46 @@ export function DashboardTabContent() {
   const prevPending = useRef(false);
   const didRecoveryRefetch = useRef(false);
 
-  const dataPending =
-    orgLoading ||
-    (Boolean(organizationId) &&
-      (expenseTable.isLoading ||
-        expenseTable.departmentsLoading ||
-        expenseTable.debtsLoading ||
-        expenseTable.bankAccountsLoading ||
-        bankBalancesLoading ||
-        dashboardStatsLoading));
+  const queriesPending =
+    hasOrg &&
+    (expenseTable.isLoading ||
+      expenseTable.departmentsLoading ||
+      expenseTable.debtsLoading ||
+      expenseTable.bankAccountsLoading ||
+      bankBalancesLoading ||
+      dashboardStatsLoading);
+
+  /**
+   * Keep dashboard skeleton until first fetch cycle for active organization is fully settled.
+   * Prevents early skeleton hide while org bootstrap/queries are still converging.
+   */
+  const [initialOrgSettled, setInitialOrgSettled] = useState(false);
+  const settledOrgIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (orgLoading) return;
+
+    if (!hasOrg) {
+      settledOrgIdRef.current = null;
+      setInitialOrgSettled(true);
+      return;
+    }
+
+    if (settledOrgIdRef.current !== organizationId) {
+      settledOrgIdRef.current = null;
+      setInitialOrgSettled(false);
+    }
+  }, [hasOrg, organizationId, orgLoading]);
+
+  useEffect(() => {
+    if (orgLoading || !hasOrg) return;
+    if (queriesPending) return;
+
+    settledOrgIdRef.current = organizationId;
+    setInitialOrgSettled(true);
+  }, [hasOrg, organizationId, orgLoading, queriesPending]);
+
+  const dataPending = orgLoading || !initialOrgSettled || queriesPending;
 
   useEffect(() => {
     if (didRecoveryRefetch.current || expenseTable.isLoading || expenseTable.allExpenses.length > 0) return;
@@ -105,32 +137,38 @@ export function DashboardTabContent() {
   const showPageSkeleton = (dataPending || !minSettleDone) && !isRefreshing;
 
   return (
-    <div className="relative min-w-0">
+    <>
       <div
         className={cn(
-          "min-w-0 space-y-1",
+          "relative flex min-h-0 min-w-0 flex-1 flex-col gap-1",
           showPageSkeleton && "pointer-events-none invisible",
         )}
       >
-        <ExpenseDashboardCarousel
-          currentMonthTotal={expenseTable.currentMonthTotal}
-          highestExpense={expenseTable.highestExpense}
-          latestExpense={expenseTable.latestExpense}
-          totalExpensesYTD={totalExpensesYTD}
-          ytdTransactionCount={ytdTransactionCount}
-        />
-        <ExpenseBreakdownSection
-          allExpenses={expenseTable.allExpenses}
-          allExpensesForCategoryBreakdown={expenseTable.allExpensesForCategoryBreakdown}
-          totalExpenses={expenseTable.totalExpenses}
-          periodLabel={periodLabel}
-        />
-        <ExpenseTableSection expenseTable={{ ...expenseTable, isLoading: false }} />
+        <div className="shrink-0">
+          <ExpenseDashboardCarousel
+            currentMonthTotal={expenseTable.currentMonthTotal}
+            highestExpense={expenseTable.highestExpense}
+            latestExpense={expenseTable.latestExpense}
+            totalExpensesYTD={totalExpensesYTD}
+            ytdTransactionCount={ytdTransactionCount}
+          />
+        </div>
+        <div className="shrink-0">
+          <ExpenseBreakdownSection
+            allExpenses={expenseTable.allExpenses}
+            allExpensesForCategoryBreakdown={expenseTable.allExpensesForCategoryBreakdown}
+            totalExpenses={expenseTable.totalExpenses}
+            periodLabel={periodLabel}
+          />
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <ExpenseTableSection expenseTable={{ ...expenseTable, isLoading: false }} />
+        </div>
       </div>
 
       {showPageSkeleton &&
         typeof document !== "undefined" &&
         createPortal(<MobileExpenseDashboardFullViewportOverlay />, document.body)}
-    </div>
+    </>
   );
 }

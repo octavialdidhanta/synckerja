@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/shared/components/ui/dialog';
@@ -34,7 +35,8 @@ import {
   Info,
   XCircle,
   CheckSquare,
-  GitBranch
+  GitBranch,
+  X,
 } from 'lucide-react';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -425,9 +427,9 @@ export const StepHistoryModal: React.FC<StepHistoryModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         className={cn(
-          'p-0 flex flex-col gap-0',
+          'p-0 flex flex-col gap-0 min-h-0 overflow-hidden',
           isMobile
-            ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area'
+            ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none h-dvh min-h-0 rounded-none modal-above-safe-area'
             : 'w-[720px] h-[720px] max-w-[95vw] max-h-[95vh]'
         )}
         hideCloseButton={isMobile}
@@ -436,18 +438,35 @@ export const StepHistoryModal: React.FC<StepHistoryModalProps> = ({
         <DialogHeader
           className={cn(
             'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left',
-            isMobile ? 'safe-area-top px-4 pt-4 pb-3' : 'px-6 pt-6 pb-4'
+            isMobile
+              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0'
+              : 'px-6 pt-6 pb-4'
           )}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30 flex-shrink-0">
-              <History className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <div className={cn('flex items-center gap-3', isMobile ? 'w-full min-w-0 gap-1.5 px-3 py-2' : '')}>
+            <div className={cn('flex items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/30 flex-shrink-0', isMobile ? 'h-9 w-9' : 'w-10 h-10 rounded-lg')}>
+              <History className={cn('text-blue-600 dark:text-blue-400', isMobile ? 'h-4 w-4' : 'w-5 h-5')} />
             </div>
-            <div className="min-w-0">
-              <DialogTitle className={cn('text-lg font-semibold truncate', !isMobile && 'sm:text-xl')}>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className={cn(isMobile ? 'm-0 truncate py-0 pr-1 text-base font-semibold leading-tight' : 'text-lg font-semibold truncate sm:text-xl')}>
                 Step History & Updates
               </DialogTitle>
+              <DialogDescription className={cn('text-muted-foreground truncate', isMobile ? 'mt-0.5 text-xs leading-tight' : 'text-sm sm:max-w-lg')}>
+                {stepTitle}
+              </DialogDescription>
             </div>
+            {isMobile ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : null}
           </div>
         </DialogHeader>
 
@@ -512,7 +531,7 @@ export const StepHistoryModal: React.FC<StepHistoryModalProps> = ({
               </TabsList>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll">
+            <div className="scrollbar-hide seamless-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <TabsContent value="blocker" className="space-y-4 pb-4">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <h3 className="font-semibold text-red-900 mb-3 flex items-center gap-2">

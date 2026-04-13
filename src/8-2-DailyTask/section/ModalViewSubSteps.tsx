@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/components/ui/alert-dialog';
-import { Plus, Edit, Trash2, History, Users, ArrowLeft } from 'lucide-react';
+import { Plus, Edit, Trash2, History, Users, ArrowLeft, X } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -66,12 +66,18 @@ interface ModalViewSubStepsProps {
   preferSwipeLayout?: boolean;
 }
 
-/** Slide-to-reveal constants (same pattern as MobileTaskStep) */
+/** Slide-to-reveal constants (same pattern as `TaskCard` / `MobileTaskStep`) */
 const SUBSTEP_ACTION_STRIP_WIDTH = 200;
-const SWIPE_THRESHOLD = 28;
-const DIRECTION_LOCK_PX = 8;
+const SWIPE_THRESHOLD = 36;
+const SWIPE_OPEN_COMMIT_PX = 52;
+const DIRECTION_LOCK_PX = 10;
 const DIRECTION_LOCK_PX_WHEN_OPEN = 4;
-const MIN_SWIPE_MOVEMENT = 24;
+/** Minimum deliberate leftward movement (px) to count as open-swipe */
+const MIN_SWIPE_MOVEMENT = 36;
+const TAP_MOVE_MAX = 14;
+const MIN_HORIZONTAL_MOVES_TO_OPEN = 5;
+const MIN_GESTURE_MS_TO_OPEN = 140;
+const TOUCH_IGNORE_SWIPE = 'button, a, input, textarea, label, [role="checkbox"]';
 const SNAP_TRANSITION = 'transform 0.25s cubic-bezier(0.33, 1, 0.68, 1)';
 
 interface MobileSubStepRowProps {
@@ -128,10 +134,12 @@ const MobileSubStepRow: React.FC<MobileSubStepRowProps> = ({
     startTranslateX: number;
     lockHorizontal: boolean | null;
     didSwipe: boolean;
+    startedAt: number;
   } | null>(null);
   const translateXRef = useRef(0);
   const slidingRef = useRef<HTMLDivElement>(null);
   const lockHorizontalRef = useRef(false);
+  const horizontalMoveFramesRef = useRef(0);
 
   if (touchStartRef.current == null) translateXRef.current = translateX;
   lockHorizontalRef.current = touchStartRef.current?.lockHorizontal === true;
@@ -175,6 +183,12 @@ const MobileSubStepRow: React.FC<MobileSubStepRowProps> = ({
   }, [cardExpanded]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    const elTarget = e.target;
+    if (elTarget instanceof Element && elTarget.closest(TOUCH_IGNORE_SWIPE)) {
+      touchStartRef.current = null;
+      return;
+    }
+    horizontalMoveFramesRef.current = 0;
     setIsDragging(true);
     touchStartRef.current = {
       startX: e.touches[0].clientX,
@@ -182,6 +196,7 @@ const MobileSubStepRow: React.FC<MobileSubStepRowProps> = ({
       startTranslateX: translateX,
       lockHorizontal: null,
       didSwipe: false,
+      startedAt: Date.now(),
     };
     const el = slidingRef.current;
     if (el) {
@@ -219,24 +234,59 @@ const MobileSubStepRow: React.FC<MobileSubStepRowProps> = ({
     }
 
     if (start.lockHorizontal === true) {
+      horizontalMoveFramesRef.current += 1;
       const next = Math.min(0, Math.max(-SUBSTEP_ACTION_STRIP_WIDTH, start.startTranslateX + deltaX));
-      if (Math.abs(deltaX) >= MIN_SWIPE_MOVEMENT) start.didSwipe = true;
+      if (deltaX <= -MIN_SWIPE_MOVEMENT) start.didSwipe = true;
       translateXRef.current = next;
       const el = slidingRef.current;
       if (el) el.style.transform = `translateX(${next}px)`;
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
     const start = touchStartRef.current;
     const el = slidingRef.current;
     lockHorizontalRef.current = false;
+    if (!start) {
+      horizontalMoveFramesRef.current = 0;
+      setIsDragging(false);
+      return;
+    }
     touchStartRef.current = null;
+    const horizontalMoves = horizontalMoveFramesRef.current;
+    horizontalMoveFramesRef.current = 0;
+
+    let endX = start.startX;
+    let endY = start.startY;
+    const ct = e.changedTouches?.[0];
+    if (ct) {
+      endX = ct.clientX;
+      endY = ct.clientY;
+    }
+    const totalDx = endX - start.startX;
+    const totalDy = endY - start.startY;
+    const isTapLike =
+      Math.abs(totalDx) < TAP_MOVE_MAX && Math.abs(totalDy) < TAP_MOVE_MAX;
+
     const current = translateXRef.current;
-    const wasOpen = start != null && start.startTranslateX < -SWIPE_THRESHOLD;
+    const wasOpen = start.startTranslateX < -SWIPE_THRESHOLD;
     const closedBySwipe = wasOpen && current > -SWIPE_THRESHOLD;
-    const openedBySwipe = start?.didSwipe === true && current < -SWIPE_THRESHOLD && !closedBySwipe;
-    const targetX = openedBySwipe ? -SUBSTEP_ACTION_STRIP_WIDTH : 0;
+    const gestureMs = Date.now() - start.startedAt;
+    let openedBySwipe =
+      start.didSwipe === true && current <= -SWIPE_OPEN_COMMIT_PX && !closedBySwipe;
+    if (isTapLike) openedBySwipe = false;
+    if (!wasOpen && horizontalMoves < MIN_HORIZONTAL_MOVES_TO_OPEN) openedBySwipe = false;
+    if (!wasOpen && gestureMs < MIN_GESTURE_MS_TO_OPEN) openedBySwipe = false;
+
+    let targetX = 0;
+    if (openedBySwipe) {
+      targetX = -SUBSTEP_ACTION_STRIP_WIDTH;
+    } else if (wasOpen) {
+      if (closedBySwipe || isTapLike) targetX = 0;
+      else targetX = -SUBSTEP_ACTION_STRIP_WIDTH;
+    } else {
+      targetX = 0;
+    }
 
     if (el) {
       el.style.transition = SNAP_TRANSITION;
@@ -246,7 +296,7 @@ const MobileSubStepRow: React.FC<MobileSubStepRowProps> = ({
     setIsDragging(false);
     setTranslateX(targetX);
     if (openedBySwipe) onReveal();
-    else onClose();
+    else if (targetX === 0) onClose();
   };
 
   const actionStrip = (
@@ -980,46 +1030,63 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
             : 'w-[620px] max-w-[90vw] max-h-[90vh] h-[600px] rounded-lg'
         )}
         fullscreenAnimation={isMobile}
+        hideCloseButton={isMobile}
       >
         <DialogHeader
           className={cn(
-            'flex-shrink-0 border-b bg-gradient-to-r from-primary/10 to-primary/5 text-left safe-area-top',
-            'pr-14 sm:pr-16',
-            isMobile ? 'pl-4 pt-4 pb-3' : 'pl-6 pt-6 pb-4'
+            'flex-shrink-0 border-b bg-gradient-to-r from-primary/10 to-primary/5 text-left',
+            isMobile
+              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0'
+              : 'pl-6 pr-14 pt-6 pb-4'
           )}
         >
-          <div className="flex items-start gap-3">
+          <div className={cn('flex items-start gap-3', isMobile ? 'w-full min-w-0 items-center gap-1.5 px-3 py-2' : '')}>
             <Button
               variant="ghost"
-              size="sm"
+              size={isMobile ? "icon" : "sm"}
               onClick={() => onOpenChange(false)}
-              className="h-8 w-8 shrink-0 p-0 hover:bg-primary/10"
+              className={cn(
+                'shrink-0 p-0 hover:bg-primary/10',
+                isMobile ? '-ml-0.5 h-9 w-9 rounded-full' : 'h-8 w-8'
+              )}
               aria-label="Back"
             >
-              <ArrowLeft className="h-5 w-5 text-primary" />
+              <ArrowLeft className={cn('text-primary', isMobile ? 'h-4 w-4 translate-y-px' : 'h-5 w-5')} />
             </Button>
-            <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="min-w-0 flex-1">
               <DialogTitle
                 className={cn(
-                  'text-lg font-semibold leading-tight flex flex-wrap items-center gap-x-2 gap-y-1',
-                  !isMobile && 'md:text-xl'
+                  'flex flex-wrap items-center gap-x-2 gap-y-1 leading-tight',
+                  isMobile ? 'm-0 truncate py-0 pr-1 text-base font-semibold' : 'text-lg font-semibold md:text-xl'
                 )}
               >
-                <span>Steps</span>
+                <span className="truncate">Steps</span>
                 <Badge variant="secondary" className="shrink-0">
                   {completedCount}/{visibleSubSteps.length}
                 </Badge>
               </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground break-words line-clamp-4 text-left">
+              <DialogDescription className={cn('break-words text-left text-muted-foreground', isMobile ? 'mt-0.5 line-clamp-1 text-xs leading-tight' : 'line-clamp-4 text-sm')}>
                 {parentStepTitle}
               </DialogDescription>
             </div>
+            {isMobile ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                onClick={() => onOpenChange(false)}
+                aria-label={t('layout.sheetClose', 'Close')}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : null}
           </div>
         </DialogHeader>
 
         <div
           className={cn(
-            'flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll',
+            'scrollbar-hide seamless-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             isMobile ? 'px-2 pt-2 pb-2 space-y-4' : 'px-6 py-6 space-y-4'
           )}
           style={
@@ -1265,6 +1332,7 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
         <DialogContent
           className="max-w-[90vw] w-[320px] h-[320px] max-h-[85vh] gap-4 z-[60] flex flex-col"
           overlayClassName="z-[60]"
+          aria-describedby={undefined}
         >
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>{t('dailyTask.editSubStep.title', 'Edit sub-step')}</DialogTitle>

@@ -1082,13 +1082,14 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
     </>
   );
 
+  /** contentOnly + MobileTaskStep: keep row fully opaque so swipe strip never shows through */
   const rowClass = contentOnly
     ? `flex flex-col gap-0 px-3 py-2 rounded-lg shadow-sm transition-colors border ${
         isHighlightedFromPendingApproval
           ? 'bg-amber-50 border-amber-300 hover:bg-amber-100'
           : sortableIsDragging
-            ? 'shadow-lg border-primary/25 bg-primary/10'
-            : 'border-primary/15 bg-white hover:bg-primary/5'
+            ? 'shadow-lg border-primary/25 bg-white'
+            : 'border-primary/15 bg-white hover:bg-gray-50'
       }`
     : `flex flex-col gap-0 px-2 py-1.5 rounded-md transition-colors border ${
         isHighlightedFromPendingApproval
@@ -1212,6 +1213,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                         <DialogContent
                           className="w-[80vmin] max-w-[calc(100vw-2rem)] aspect-square max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden"
                           hideCloseButton={false}
+                          aria-describedby={undefined}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <DialogTitle className="sr-only">Description</DialogTitle>
@@ -1457,6 +1459,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
           <DialogContent
             className="max-w-[min(96vw,24rem)] max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden"
             hideCloseButton={false}
+            aria-describedby={undefined}
           >
             <DialogTitle className="sr-only">Files</DialogTitle>
             <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-border">
@@ -1601,6 +1604,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
           <DialogContent
             className="max-w-[min(96vw,24rem)] max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden"
             hideCloseButton={false}
+            aria-describedby={undefined}
           >
             <DialogTitle className="sr-only">Links</DialogTitle>
             <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-border">

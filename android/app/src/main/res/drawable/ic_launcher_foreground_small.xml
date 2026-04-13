@@ -5,4 +5,4 @@
     android:insetTop="8dp"
     android:insetRight="8dp"
     android:insetBottom="8dp"
-    android:drawable="@drawable/splash_logo" />
+    android:drawable="@drawable/app_brand_logo" />

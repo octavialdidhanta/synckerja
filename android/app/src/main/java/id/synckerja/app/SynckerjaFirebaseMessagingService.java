@@ -61,7 +61,7 @@ public class SynckerjaFirebaseMessagingService extends FirebaseMessagingService 
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, flags);
 
         NotificationCompat.Builder builder =
-            new NotificationCompat.Builder(this, channelId).setSmallIcon(R.drawable.splash_white_logo);
+            new NotificationCompat.Builder(this, channelId).setSmallIcon(R.drawable.app_brand_logo);
 
         Bitmap largeIconBitmap = drawableToBitmap(R.drawable.ic_notification_large);
         if (largeIconBitmap != null) {

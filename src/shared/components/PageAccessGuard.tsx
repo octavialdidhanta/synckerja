@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, type ReactNode, useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { XCircle } from "lucide-react";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
@@ -8,6 +8,11 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
+
+const MobileAccessDeniedPage = lazy(() =>
+  import("@/mobile/pages/access-denied/AccessDeniedPage").then((m) => ({ default: m.AccessDeniedPage })),
+);
 
 export type PageAccessGuardProps = {
   children: ReactNode;
@@ -43,6 +48,7 @@ export function PageAccessGuard({
 }: PageAccessGuardProps) {
   const { user, loading } = useAuth();
   const { t } = useAppTranslation();
+  const { isMobile } = useAuthSurface();
   const location = useLocation();
   const {
     canAccessPage,
@@ -174,6 +180,24 @@ export function PageAccessGuard({
     const isTerminatedOrInactive = statusLower === "terminated" || statusLower === "inactive";
 
     if (isTerminatedOrInactive && !isOwner) {
+      if (isMobile) {
+        return (
+          <Suspense
+            fallback={
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6" aria-busy>
+                <span className="sr-only">{t("pageAccess.loading", "Loading…")}</span>
+              </div>
+            }
+          >
+            <MobileAccessDeniedPage
+              deniedReason={t(
+                "accessDenied.terminatedMessage",
+                "Your employee status is terminated or inactive.",
+              )}
+            />
+          </Suspense>
+        );
+      }
       return (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6">
           <div className="mx-auto max-w-md text-center">
@@ -202,6 +226,19 @@ export function PageAccessGuard({
     const hasPageAccess = canAccessPage(pathToCheck);
     if (!hasPageAccess) {
       if (showAccessDeniedPage) {
+        if (isMobile) {
+          return (
+            <Suspense
+              fallback={
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6" aria-busy>
+                  <span className="sr-only">{t("pageAccess.loading", "Loading…")}</span>
+                </div>
+              }
+            >
+              <MobileAccessDeniedPage />
+            </Suspense>
+          );
+        }
         return (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6">
             <div className="mx-auto max-w-md text-center">

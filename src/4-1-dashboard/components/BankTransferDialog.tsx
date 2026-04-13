@@ -25,6 +25,7 @@ import { formatInputNumber, parseInputNumber } from '@/shared/lib/pricingInputUt
 import { toast } from 'sonner';
 import type { BankAccount } from '@/shared/hooks/finance/useBankAccounts';
 import { useCreateBankTransfer } from '@/shared/hooks/finance/useCreateBankTransfer';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { AlertCircle, FileText, Upload, X } from 'lucide-react';
 
 export interface BankTransferDialogProps {
@@ -62,6 +63,7 @@ export function BankTransferDialog({
   sourceBalance,
 }: BankTransferDialogProps) {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const { mutateAsync, isPending } = useCreateBankTransfer();
   const confirmLockRef = useRef(false);
 
@@ -183,13 +185,19 @@ export function BankTransferDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        hideCloseButton={isMobile}
+        fullscreenAnimation={isMobile}
         className={cn(
-          'flex max-h-[90vh] max-w-[640px] flex-col gap-0 p-0 sm:max-w-[640px]'
+          'flex min-h-0 min-w-0 flex-col gap-0 overflow-hidden p-0',
+          isMobile
+            ? 'modal-above-safe-area overscroll-y-contain fixed left-0 right-0 top-0 max-h-none w-full max-w-none translate-x-0 translate-y-0 rounded-none sm:max-w-none'
+            : 'max-h-[90vh] max-w-[640px] sm:max-w-[640px]',
         )}
       >
         <DialogHeader
           className={cn(
-            'flex-shrink-0 border-b bg-gradient-to-r from-primary/10 to-primary/5 px-4 pb-3 pt-4 text-left'
+            'flex-shrink-0 border-b bg-gradient-to-r from-primary/10 to-primary/5 px-4 pb-3 pt-4 text-left',
+            isMobile && 'safe-area-top',
           )}
         >
           <DialogTitle className="text-lg font-semibold">

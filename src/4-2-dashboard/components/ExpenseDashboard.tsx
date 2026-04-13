@@ -1285,9 +1285,9 @@ export function ExpenseDashboard() {
                 </div>
               </div>
 
-              {/* Table: luar flex-1 + min-h baseline; dalam h-full min-h-0 agar footer ke bawah kartu (selaras Income Transaction) */}
-              <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
-                <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+              {/* Tabel: viewport tinggi tetap (~10 baris) + scroll; kartu tidak memaksa min-h besar ke bawah halaman */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         {/* Table Header with Search and Filters */}
         <div className="flex-shrink-0 border-b border-border bg-muted/40 px-2 py-2 sm:px-3 min-w-0">
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 min-w-0">
@@ -1485,7 +1485,7 @@ export function ExpenseDashboard() {
           </div>
         </div>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+        <div className="h-[min(32rem,calc(100vh-18rem))] max-h-[32rem] min-h-[14rem] min-w-0 shrink-0 overflow-auto">
             <table className="w-full min-w-[1400px]">
               <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 shadow-sm">
                 <tr>

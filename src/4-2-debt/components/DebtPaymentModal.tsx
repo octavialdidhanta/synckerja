@@ -471,22 +471,24 @@ export const DebtPaymentModal = ({
           hideCloseButton={isMobile}
         >
           {isMobile ? (
-            <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 text-left safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
-              <div className="min-w-0 flex-1">
-                <DialogTitle className="text-left text-base font-semibold leading-tight">
-                  {t('debt.payment.title', 'Pay Debt')}
-                </DialogTitle>
-                <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
-                  {t('debt.payment.noPayableDebts', 'No debts available for payment')}
-                </DialogDescription>
+            <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+              <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center text-left text-base font-semibold leading-tight">
+                    {t('debt.payment.title', 'Pay Debt')}
+                  </DialogTitle>
+                  <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
+                    {t('debt.payment.noPayableDebts', 'No debts available for payment')}
+                  </DialogDescription>
+                </div>
+                <DialogClose
+                  type="button"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-blue/50 bg-background/80 p-0 text-muted-foreground ring-offset-background transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <X className="block h-4 w-4 shrink-0" aria-hidden />
+                  <span className="sr-only">{t('common.close', 'Close')}</span>
+                </DialogClose>
               </div>
-              <DialogClose
-                type="button"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              >
-                <X className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="sr-only">{t('common.close', 'Close')}</span>
-              </DialogClose>
             </DialogHeader>
           ) : (
             <DialogHeader>
@@ -541,25 +543,27 @@ export const DebtPaymentModal = ({
           hideCloseButton={isMobile}
         >
           {isMobile ? (
-            <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 text-left safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
-              <div className="min-w-0 flex-1">
-                <DialogTitle className="text-left text-base font-semibold leading-tight">
-                  {t('debt.payment.title', 'Pay Debt')}
-                </DialogTitle>
-                <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
-                  {shareFlowLocked
-                    ? t('debt.payment.shareDescription', 'Record a debt payment using your shared receipt.')
-                    : t('debt.payment.description', 'Record a payment for this debt')}
-                </DialogDescription>
+            <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+              <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center text-left text-base font-semibold leading-tight">
+                    {t('debt.payment.title', 'Pay Debt')}
+                  </DialogTitle>
+                  <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
+                    {shareFlowLocked
+                      ? t('debt.payment.shareDescription', 'Record a debt payment using your shared receipt.')
+                      : t('debt.payment.description', 'Record a payment for this debt')}
+                  </DialogDescription>
+                </div>
+                <DialogClose
+                  type="button"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-blue/50 bg-background/80 p-0 text-muted-foreground ring-offset-background transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+                  disabled={shareFlowLocked}
+                >
+                  <X className="block h-4 w-4 shrink-0" aria-hidden />
+                  <span className="sr-only">{t('common.close', 'Close')}</span>
+                </DialogClose>
               </div>
-              <DialogClose
-                type="button"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
-                disabled={shareFlowLocked}
-              >
-                <X className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="sr-only">{t('common.close', 'Close')}</span>
-              </DialogClose>
             </DialogHeader>
           ) : (
             <DialogHeader className={cn('flex-shrink-0 border-b', 'p-4 pb-2')}>

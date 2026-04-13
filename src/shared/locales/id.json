@@ -419,6 +419,44 @@
   "common": {
     "cancel": "Batal"
   },
+  "debt": {
+    "route": {
+      "loadingAria": "Memuat data utang"
+    }
+  },
+  "approvals": {
+    "route": {
+      "loadingAria": "Memuat persetujuan"
+    },
+    "table": {
+      "showing": "Menampilkan",
+      "of": "dari",
+      "requests": "permintaan",
+      "totalFilteredAmount": "Total nominal"
+    }
+  },
+  "payments": {
+    "route": {
+      "loadingAria": "Memuat proses pembayaran"
+    },
+    "table": {
+      "showing": "Menampilkan",
+      "of": "dari",
+      "approvedLabel": "disetujui",
+      "totalFilteredAmount": "Total nominal"
+    }
+  },
+  "reminderBills": {
+    "route": {
+      "loadingAria": "Memuat tagihan pengingat"
+    },
+    "table": {
+      "showing": "Menampilkan",
+      "of": "dari",
+      "bills": "tagihan",
+      "totalFilteredAmount": "Total nominal"
+    }
+  },
   "subscription": {
     "roleGuard": {
       "loading": "Memuat…"
@@ -1043,6 +1081,12 @@
         "incidentDateRequired": "Incident date is required",
         "violationDescriptionRequired": "Violation description is required"
       }
+    }
+  },
+  "jobDesc": {
+    "page": {
+      "title": "Job Desc",
+      "subtitle": "Pantau beban kerja aktif per karyawan"
     }
   }
 }

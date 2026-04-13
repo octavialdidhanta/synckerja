@@ -198,23 +198,25 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
         hideCloseButton={isMobile}
       >
         {isMobile ? (
-          <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-2 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
-            <DialogDescription className="sr-only">
-              {t('approvals.requestDetailsDescription', 'Request details and approval actions')}
-            </DialogDescription>
-            <div className="flex min-w-0 flex-1 items-center justify-between gap-2 pr-1">
-              <DialogTitle className="truncate text-left text-base font-semibold leading-tight">
-                {t('approvals.requestDetails', 'Request Details')}
-              </DialogTitle>
-              <span className="shrink-0">{getStatusBadge(request.status)}</span>
+          <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+              <DialogDescription className="sr-only">
+                {t('approvals.requestDetailsDescription', 'Request details and approval actions')}
+              </DialogDescription>
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-2 pr-1">
+                <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center truncate text-left text-base font-semibold leading-tight">
+                  {t('approvals.requestDetails', 'Request Details')}
+                </DialogTitle>
+                <span className="shrink-0">{getStatusBadge(request.status)}</span>
+              </div>
+              <DialogClose
+                type="button"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-blue/50 bg-background/80 p-0 text-muted-foreground ring-offset-background transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <X className="block h-4 w-4 shrink-0" aria-hidden />
+                <span className="sr-only">{t('common.close', 'Close')}</span>
+              </DialogClose>
             </div>
-            <DialogClose
-              type="button"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            >
-              <X className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="sr-only">{t('common.close', 'Close')}</span>
-            </DialogClose>
           </DialogHeader>
         ) : (
           <DialogHeader>

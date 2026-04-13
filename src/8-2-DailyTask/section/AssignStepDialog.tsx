@@ -7,6 +7,12 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
+import { cn } from '@/shared/lib/utils';
+import { Calendar } from '@/shared/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
+import { format } from 'date-fns';
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -37,9 +43,11 @@ export const AssignStepDialog = ({ step, onAssign, onUnassign, onClose }: Assign
   const [dueDate, setDueDate] = useState<string>('');
   const [savingDue, setSavingDue] = useState<boolean>(false);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
+  const [isDueDatePickerOpen, setIsDueDatePickerOpen] = useState(false);
   const { toast } = useToast();
   const { organizationId } = useCurrentOrg();
   const { data: employees = [], isLoading: loading } = useAvailableEmployees();
+  const isMobile = useIsMobile();
 
   // Load current assignment and due date (if any)
   useEffect(() => {
@@ -117,26 +125,52 @@ export const AssignStepDialog = ({ step, onAssign, onUnassign, onClose }: Assign
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent
-        className="w-[620px] max-w-[90vw] max-h-[90vh] h-[600px] p-0 flex flex-col"
+        className={cn(
+          'p-0 flex flex-col gap-0 min-h-0 overflow-hidden',
+          isMobile
+            ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none h-dvh min-h-0 rounded-none modal-above-safe-area'
+            : 'w-[620px] max-w-[90vw] max-h-[90vh] h-[600px] rounded-lg'
+        )}
         aria-describedby="assign-step-description"
+        hideCloseButton={isMobile}
+        fullscreenAnimation={isMobile}
       >
-        <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+        <DialogHeader
+          className={cn(
+            'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 text-left dark:from-blue-950/20 dark:to-indigo-950/20',
+            isMobile
+              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0'
+              : 'px-6 pt-6 pb-4'
+          )}
+        >
+          <div className={cn('flex items-center gap-3', isMobile ? 'w-full min-w-0 gap-1.5 px-3 py-2' : '')}>
+            <div className={cn('flex items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/30', isMobile ? 'h-9 w-9 shrink-0' : 'h-10 w-10')}>
+              <Users className={cn('text-blue-600 dark:text-blue-400', isMobile ? 'h-4 w-4' : 'h-5 w-5')} />
             </div>
-            <div className="min-w-0">
-              <DialogTitle className="text-xl font-semibold truncate">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className={cn(isMobile ? 'm-0 truncate py-0 pr-1 text-base font-semibold leading-tight' : 'text-xl font-semibold truncate')}>
                 Assign Step
               </DialogTitle>
-              <DialogDescription id="assign-step-description" className="text-sm text-muted-foreground mt-1 truncate">
+              <DialogDescription id="assign-step-description" className={cn('text-muted-foreground truncate', isMobile ? 'mt-0.5 text-xs leading-tight' : 'mt-1 text-sm')}>
                 {step.title}
               </DialogDescription>
             </div>
+            {isMobile ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : null}
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5 seamless-scroll max-h-[calc(100vh-120px)]">
+        <div className={cn('scrollbar-hide seamless-scroll flex-1 overflow-y-auto overflow-x-hidden space-y-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', isMobile ? 'px-3 py-3' : 'px-6 py-6 max-h-[calc(100vh-120px)]')}>
           {/* Current Assignment */}
           {step.assigned_to && step.assigned_employee ? (
             <div className="p-3 bg-green-50 border border-green-200 rounded-md">
@@ -188,38 +222,45 @@ export const AssignStepDialog = ({ step, onAssign, onUnassign, onClose }: Assign
             <label htmlFor="assign-step-due-date" className="text-sm font-medium text-gray-700">
               Due date <span className="text-red-500">*</span>
             </label>
-            <Input
-              id="assign-step-due-date"
-              name="assign-step-due-date"
-              type="date"
-              className="h-10 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={dueDate}
-              onChange={async (e) => {
-                const val = e.target.value;
-                setDueDate(val);
-                // autosave only if an active assignment exists
-                if (!activeAssignmentId) return;
-                try {
-                  setSavingDue(true);
-                  // store as append-only (latest wins)
-                  const iso = val ? new Date(val).toISOString() : null;
-                  if (iso) {
-                    await supabase
-                      .from('task_steps_assigned_duedate')
-                      .insert({
+            <Popover open={isDueDatePickerOpen} onOpenChange={setIsDueDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  id="assign-step-due-date"
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full justify-start border border-gray-200 rounded-lg text-left font-normal"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dueDate ? format(new Date(dueDate), 'MM/dd/yyyy') : 'mm/dd/yyyy'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dueDate ? new Date(dueDate) : undefined}
+                  onSelect={async (date) => {
+                    const val = date ? format(date, 'yyyy-MM-dd') : '';
+                    setDueDate(val);
+                    setIsDueDatePickerOpen(false);
+                    if (!val || !activeAssignmentId) return;
+                    try {
+                      setSavingDue(true);
+                      await supabase.from('task_steps_assigned_duedate').insert({
                         organization_id: organizationId,
                         task_steps_assigned_id: activeAssignmentId,
-                        due_date: iso,
+                        due_date: new Date(val).toISOString(),
                       });
-                  }
-                } catch (err) {
-                  console.error('Autosave due date failed', err);
-                  toast({ title: 'Error', description: 'Failed to save due date', variant: 'destructive' });
-                } finally {
-                  setSavingDue(false);
-                }
-              }}
-            />
+                    } catch (err) {
+                      console.error('Autosave due date failed', err);
+                      toast({ title: 'Error', description: 'Failed to save due date', variant: 'destructive' });
+                    } finally {
+                      setSavingDue(false);
+                    }
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
             {savingDue && <div className="text-[10px] text-gray-400 mt-1">Saving…</div>}
             {!dueDate && (
               <p className="text-xs text-amber-600 mt-1">
@@ -277,7 +318,7 @@ export const AssignStepDialog = ({ step, onAssign, onUnassign, onClose }: Assign
           </div>
         </div>
 
-        <div className="px-6 pb-6 pt-4 flex-shrink-0 border-t bg-muted/30 flex items-center justify-end gap-3">
+        <div className={cn('flex-shrink-0 border-t bg-muted/30 flex items-center justify-end gap-3', isMobile ? 'px-4 pb-3 pt-3' : 'px-6 pb-6 pt-4')}>
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>

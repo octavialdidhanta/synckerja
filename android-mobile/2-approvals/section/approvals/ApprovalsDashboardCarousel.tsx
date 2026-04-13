@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Skeleton } from "@/mobile-app/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
+import { MobileApprovalsCarouselSkeleton } from "@/mobile/2-approvals/pages/MobileApprovalsPageSkeleton";
 import { ApprovalsTotalRequestsCard } from "@/mobile/2-approvals/section/approvals/ApprovalsTotalRequestsCard";
 import { ApprovalsPendingReviewCard } from "@/mobile/2-approvals/section/approvals/ApprovalsPendingReviewCard";
 import { ApprovalsApprovedCard } from "@/mobile/2-approvals/section/approvals/ApprovalsApprovedCard";
@@ -91,27 +91,7 @@ export function ApprovalsDashboardCarousel({
   const logicalIndex = index === 0 ? 3 : index === 5 ? 0 : index - 1;
 
   if (isLoading) {
-    return (
-      <div className="w-full min-w-0 overflow-hidden">
-        <div className="w-full">
-          <div className="min-h-[7.25rem] w-full overflow-hidden rounded-lg border border-border bg-card">
-            <div className="space-y-3 p-3">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
-                <Skeleton className="h-4 max-w-[180px] flex-1" />
-              </div>
-              <Skeleton className="h-8 w-3/4 max-w-[140px]" />
-              <Skeleton className="h-3 w-1/2 max-w-[100px]" />
-            </div>
-          </div>
-        </div>
-        <div className="flex justify-center gap-1.5 pb-1 pt-1">
-          {Array.from({ length: LOGICAL_SLIDE_COUNT }).map((_, i) => (
-            <Skeleton key={i} className={cn("h-2 rounded-full", i === 0 ? "w-5" : "w-2")} />
-          ))}
-        </div>
-      </div>
-    );
+    return <MobileApprovalsCarouselSkeleton />;
   }
 
   const slideWidthPercent = 100 / TRACK_LENGTH;

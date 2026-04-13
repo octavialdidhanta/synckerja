@@ -13,16 +13,21 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
-        <!-- System nav bar: black strip + non-light nav (icons stay visible) -->
-        <item name="android:navigationBarColor">@android:color/black</item>
+        <!-- Status bar dingin: paksa terang + ikon gelap sebelum JS (DayNight bisa status gelap). -->
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <!-- System nav bar: solid dark + non-light nav (ikon tombol terang) -->
+        <item name="android:navigationBarColor">@color/system_navigation_bar_background</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
-        <item name="android:windowSplashScreenBackground">#f5f5f5</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_screen_background</item>
         <!-- Status bar: ikon gelap di cold start agar kontras dengan background terang -->
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@color/system_navigation_bar_background</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

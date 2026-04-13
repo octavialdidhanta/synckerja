@@ -1,0 +1,52 @@
+---
+description: Standar vertical touch-chain untuk container tabel/list scroll di mobile agar swipe jari vertikal responsif dan bisa chaining ke parent saat mentok.
+globs:
+  - android-mobile/**/*.tsx
+  - src/**/*.tsx
+---
+
+# Vertical Touch-Chain (Mobile)
+
+Gunakan rule ini untuk section yang punya scroll vertikal di dalam card/panel pada halaman mobile (contoh: table utama di expenses/debt/approvals/payment-process/reminder-bills).
+
+## Tujuan
+
+- Swipe jari vertikal di area list/table selalu responsif.
+- Saat inner scroll mentok atas/bawah, scroll lanjut ke parent/page (chaining).
+- Hindari area yang terasa "dead" saat user swipe dari atas tabel/list.
+
+## Aturan Wajib
+
+Pada container scroll utama section (elemen yang punya `overflow-y-auto`), gunakan:
+
+- `nested-scroll-touch-chain`
+- `overflow-y-auto` (dan `overflow-x-auto` jika tabel lebar)
+- `min-h-0`
+- `seamless-scroll`
+- `scrollbar-hide` + fallback hide scrollbar jika diperlukan
+
+Contoh:
+
+```tsx
+<div className="nested-scroll-touch-chain min-h-0 overflow-x-auto overflow-y-auto seamless-scroll scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+  {/* table / list */}
+</div>
+```
+
+## Anti-Pattern (Hindari)
+
+- Jangan pakai `touch-pan-x` pada container yang harus responsif untuk swipe vertikal.
+- Jangan pakai `nested-scroll-touch-chain-xy` untuk kasus table/list vertikal utama.
+- Jangan buat 2 layer `overflow-y-auto` dalam satu panel (parent + child), kecuali memang ada alasan khusus yang tervalidasi.
+
+## Kapan Pakai `touch-pan-x`
+
+Hanya untuk komponen yang memang fokus geser horizontal (misalnya carousel murni horizontal), bukan untuk table/list utama dengan vertical scroll.
+
+## Checklist Sebelum Merge
+
+- [ ] Swipe vertikal di area table/list bergerak mulus.
+- [ ] Saat mentok, scroll lanjut ke parent/page.
+- [ ] Tidak ada `touch-pan-x` di scroll container vertikal utama.
+- [ ] Hanya satu container `overflow-y-auto` per panel utama.
+- [ ] Lint bersih.

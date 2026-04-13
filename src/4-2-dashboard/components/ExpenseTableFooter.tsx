@@ -1,32 +1,61 @@
-import React from 'react';
-import { Receipt } from 'lucide-react';
-import { formatToRupiah } from '@/shared/utils/formatCurrency';
+import { Receipt } from "lucide-react";
+import { formatToRupiah } from "@/shared/utils/formatCurrency";
+import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 
-interface ExpenseTableFooterProps {
+export type ExpenseTableFooterVariant = "default" | "debt-strip";
+
+export interface ExpenseTableFooterProps {
   totalExpenses: number;
   totalCount: number;
+  /** Untuk `debt-strip`: baris terlihat (setelah pencarian). */
+  filteredCount?: number;
+  variant?: ExpenseTableFooterVariant;
   isLoading?: boolean;
+  className?: string;
 }
 
 /**
- * ExpenseTableFooter Component
- * 
- * Footer untuk expense table yang menampilkan:
- * - Total expenses count
- * - Total amount
- * 
- * @component
+ * Ringkasan bawah tabel pengeluaran.
+ * - `default`: desktop / fallback (ikon + ringkas).
+ * - `debt-strip`: selaras strip `DebtTableSection` mobile (scroll bersama konten, bukan sticky).
  */
-export const ExpenseTableFooter = ({ 
-  totalExpenses, 
-  totalCount, 
-  isLoading = false 
+export const ExpenseTableFooter = ({
+  totalExpenses,
+  totalCount,
+  filteredCount,
+  variant = "default",
+  isLoading = false,
+  className,
 }: ExpenseTableFooterProps) => {
+  const { t } = useAppTranslation();
+
   if (isLoading) {
     return (
-      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-        <div className="flex items-center justify-center text-xs text-gray-400">
-          <span>Loading statistics...</span>
+      <div
+        className={cn(
+          "flex flex-shrink-0 items-center justify-center border-t border-border bg-muted/50 px-2 py-2 text-xs text-muted-foreground",
+          className,
+        )}
+      >
+        <span>{t("expenses.tableFooter.loading", "Memuat ringkasan…")}</span>
+      </div>
+    );
+  }
+
+  if (variant === "debt-strip") {
+    const shown = filteredCount ?? totalCount;
+    return (
+      <div className={cn("flex-shrink-0 border-t bg-muted/50 px-2 py-2", className)}>
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate">
+            {t("expenses.tableFooter.showing", "Showing")} {shown} {t("expenses.tableFooter.of", "of")} {totalCount}{" "}
+            {t("expenses.tableFooter.expensesLabel", "expenses")}
+          </span>
+          <span className="shrink-0 text-right">
+            {t("expenses.tableFooter.totalAmountLabel", "Total nominal")}:{" "}
+            <span className="font-bold text-red-600">{formatToRupiah(totalExpenses)}</span>
+          </span>
         </div>
       </div>
     );
@@ -34,27 +63,21 @@ export const ExpenseTableFooter = ({
 
   return (
     <div
-      className="px-2 sm:px-4 py-3 flex-shrink-0 relative z-10 min-w-0"
-      style={{
-        backgroundColor: '#ffffff',
-        borderTop: '1px solid #e5e7eb',
-        boxShadow: '0 -1px 3px 0 rgba(0, 0, 0, 0.1)',
-      }}
+      className={cn(
+        "flex flex-shrink-0 border-t border-border bg-card px-2 py-2 shadow-[0_-1px_3px_0_rgba(0,0,0,0.06)]",
+        className,
+      )}
     >
-      <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 min-w-0">
-        {/* Left: Total Count */}
-        <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-          <Receipt className="w-4 h-4 text-gray-500 flex-shrink-0" />
-          <span className="text-xs font-semibold text-gray-800 truncate">
-            Total: {totalCount}
+      <div className="flex min-w-0 flex-row items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
+          <Receipt className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="truncate text-xs font-medium text-foreground">
+            {t("expenses.tableFooter.totalRecords", "Total")}: {totalCount}
           </span>
         </div>
-
-        {/* Right: Total Amount */}
-        <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-          <span className="text-xs text-gray-700 truncate">
-            Total Amount: <span className="font-semibold">{formatToRupiah(totalExpenses)}</span>
-          </span>
+        <div className="min-w-0 shrink-0 text-right text-xs text-muted-foreground">
+          {t("expenses.tableFooter.totalAmountLabel", "Total nominal")}:{" "}
+          <span className="font-bold text-red-600">{formatToRupiah(totalExpenses)}</span>
         </div>
       </div>
     </div>

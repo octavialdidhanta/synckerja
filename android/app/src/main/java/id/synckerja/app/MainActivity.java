@@ -17,9 +17,13 @@ import android.view.WindowManager;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.ContextCompat;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.core.os.BundleCompat;
+import androidx.core.splashscreen.SplashScreen;
 import com.getcapacitor.BridgeActivity;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -38,9 +42,12 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Edge-to-edge MUST be set before super.onCreate() so the window is configured
-        // before the WebView is added. Otherwise WindowInsets stay 0 and content is covered.
+        // Android 12+ SplashScreen API + compat: pastikan cold start tema SplashScreen terpasang.
+        SplashScreen.installSplashScreen(this);
+        // Edge-to-edge (synckerja-reference): sebelum super.onCreate agar WebView + insets konsisten.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        /** Referensi: status bar transparan di native; warna/ikon di-set @capacitor/status-bar dari JS — hindari
+         * dobel inset (spasi header–status bar) saat Activity putih opaque + `safe-area-top` + plugin. */
         setStatusBarColorCompat(Color.TRANSPARENT);
         // Custom plugins MUST register before super.onCreate() so Capacitor bridge exposes them
         // to JS (PluginHeaders). Otherwise: "ShareIntent plugin is not implemented on android".
@@ -56,10 +63,12 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ShareIntentPlugin.class);
         registerPlugin(PhotoPickerPlugin.class);
         registerPlugin(NotificationLaunchPlugin.class);
+        // Sebelum Bridge/WebView: paksa nav bar opaque hitam (cold start / API 35 edge-to-edge).
+        applyBlackSystemNavigationBar();
         super.onCreate(savedInstanceState);
         // Solid black system navigation bar (3-button / gesture strip) + light icons — re-apply after Bridge.
         applyBlackSystemNavigationBar();
-        scheduleNavigationBarReapply();
+        scheduleSystemBarReapply();
         createLiveChatNotificationChannel();
         createAppNotificationsChannel();
         NotificationLaunchStore.captureFromIntent(getIntent());
@@ -78,11 +87,15 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         applyBlackSystemNavigationBar();
-        scheduleNavigationBarReapply();
+        scheduleSystemBarReapply();
     }
 
-    /** WebView / splash sometimes reset nav bar; re-apply after layout. */
-    private void scheduleNavigationBarReapply() {
+    /**
+     * WebView / splash sometimes reset nav bar; re-apply after layout.
+     * Status bar diserahkan ke JS ({@code @capacitor/status-bar}) setelah route aktif agar halaman
+     * ber-tema gelap (mis. Live Chat) tidak tertimpa putih setiap resume.
+     */
+    private void scheduleSystemBarReapply() {
         View decor = getWindow().getDecorView();
         decor.post(this::applyBlackSystemNavigationBar);
         decor.postDelayed(this::applyBlackSystemNavigationBar, 100);
@@ -102,17 +115,39 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * Opaque black navigation bar app-wide (not transparent over WebView, which reads as white).
-     * Clears APPEARANCE_LIGHT_NAVIGATION_BARS so system buttons stay white/light on black.
+     * Opaque dark navigation bar (back / home / recent): solid background, not translucent over WebView.
+     * {@code setAppearanceLightNavigationBars(false)} → ikon sistem terang di atas latar gelap.
+     * Selalu batalkan immersive / hide-navigation (splash plugin atau WebView) agar bilah sistem tetap ada.
      */
+    @SuppressWarnings("deprecation")
     private void applyBlackSystemNavigationBar() {
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        setNavigationBarColorCompat(Color.BLACK);
-        WindowInsetsControllerCompat controller =
-            WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        int navColor = ContextCompat.getColor(this, R.color.system_navigation_bar_background);
+        setNavigationBarColorCompat(navColor);
+        /**
+         * false: di beberapa perangkat + WebView edge-to-edge, contrast enforced menambah lapisan inset
+         * mandatory yang tidak selalu selaras dengan env(safe-area) setelah resume → spasi bawah ganjil.
+         */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+        View decor = getWindow().getDecorView();
+        int vis = decor.getSystemUiVisibility();
+        vis &= ~(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            | View.SYSTEM_UI_FLAG_IMMERSIVE
+            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            | View.SYSTEM_UI_FLAG_FULLSCREEN
+            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        decor.setSystemUiVisibility(vis);
+
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), decor);
         if (controller != null) {
+            controller.show(WindowInsetsCompat.Type.navigationBars());
             controller.setAppearanceLightNavigationBars(false);
         }
+        ViewCompat.requestApplyInsets(decor);
     }
 
     private void createLiveChatNotificationChannel() {

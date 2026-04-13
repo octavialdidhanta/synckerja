@@ -284,7 +284,7 @@ Deno.serve(async (req: Request) => {
 
     const waMessageId = metaData.messages?.[0]?.id ?? null;
 
-    if (conversationId && waMessageId) {
+    if (conversationId) {
       const storedBody = hasMedia ? (caption || `[${mediaType}]`) : text;
       const lastBody = storedBody.slice(0, 200);
       const now = new Date().toISOString();
@@ -304,11 +304,42 @@ Deno.serve(async (req: Request) => {
         reply_to_sender: replyToSender ?? null,
       };
       if (hasMedia && mediaLink) insertPayload.media_url = mediaLink;
-      const { data: insertedMessage, error: insertError } = await supabaseAdmin
-        .from("whatsapp_messages")
-        .insert(insertPayload)
-        .select()
-        .single();
+      const compatibilityPayload: Record<string, unknown> = { ...insertPayload };
+      const dropColumnsInOrder = [
+        "reply_to_message_type",
+        "reply_to_sender",
+        "reply_to_body",
+        "reply_to_wa_message_id",
+        "status",
+        "platform_message_id",
+        "channel",
+      ] as const;
+
+      let insertedMessage: Record<string, unknown> | null = null;
+      let insertError: { code?: string; message?: string } | null = null;
+
+      for (const col of [null, ...dropColumnsInOrder]) {
+        if (col) delete compatibilityPayload[col];
+        const attempt = await supabaseAdmin
+          .from("whatsapp_messages")
+          .insert(compatibilityPayload)
+          .select()
+          .single();
+
+        if (!attempt.error) {
+          insertedMessage = (attempt.data as Record<string, unknown> | null) ?? null;
+          insertError = null;
+          break;
+        }
+
+        insertError = {
+          code: (attempt.error as { code?: string }).code,
+          message: (attempt.error as { message?: string }).message,
+        };
+        const isMissingColumn = insertError.code === "PGRST204";
+        if (!isMissingColumn) break;
+      }
+
       if (insertError) {
         console.error("whatsapp_messages insert error:", insertError);
       }

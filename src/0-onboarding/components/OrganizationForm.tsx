@@ -12,6 +12,8 @@ import { toast } from "@/shared/hooks/use-toast";
 export interface OrganizationFormProps {
   formId?: string;
   hideSubmitButton?: boolean;
+  /** Mobile shell: 4px between section cards (space-y-1), tighter card padding — matches android-mobile layout rules. */
+  compactMobileSections?: boolean;
   onLoadingChange?: (loading: boolean) => void;
   onAcceptTermsChange?: (accepted: boolean) => void;
 }
@@ -44,6 +46,7 @@ const inputClass =
 export default function OrganizationForm({
   formId,
   hideSubmitButton,
+  compactMobileSections = false,
   onLoadingChange,
   onAcceptTermsChange,
 }: OrganizationFormProps) {
@@ -236,13 +239,19 @@ export default function OrganizationForm({
     await createOrganization(formData);
   };
 
-  const sectionClass =
-    "space-y-4 rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6 sm:space-y-5";
+  const sectionClass = compactMobileSections
+    ? "space-y-2 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm"
+    : "space-y-4 rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6 sm:space-y-5";
+
+  const formGapClass = compactMobileSections ? "space-y-1" : "space-y-5 sm:space-y-6";
+  const sectionHeadingClass = compactMobileSections
+    ? "text-base font-semibold leading-none text-slate-900"
+    : "text-base font-semibold text-slate-900 sm:text-lg";
 
   return (
-    <form id={formId} onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+    <form id={formId} onSubmit={handleSubmit} className={formGapClass}>
       <section className={sectionClass}>
-        <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
+        <h2 className={sectionHeadingClass}>
           {t("onboarding.org.basicSection")}
         </h2>
         <div className="space-y-2">
@@ -290,7 +299,7 @@ export default function OrganizationForm({
       </section>
 
       <section className={sectionClass}>
-        <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
+        <h2 className={sectionHeadingClass}>
           {t("onboarding.org.extraSection")}
         </h2>
         <div className="space-y-2">

@@ -118,7 +118,7 @@ const Schedule = () => {
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
 
-        {/* Layout per .cursor/rules/mobile-tools-layout-android.mdc */}
+        {/* Layout per android-mobile/rules/mobile-tools-layout-android.mdc */}
         <main className="flex flex-col bg-background fixed inset-x-0 z-0" style={mainFixedStyle}>
           <header className="flex-shrink-0 sticky top-0 z-30 flex items-center justify-between p-3 bg-card border-b border-border safe-area-top">
             <div className="flex items-center gap-2">
@@ -131,10 +131,10 @@ const Schedule = () => {
             <div></div>
           </header>
 
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div
               ref={listScrollRef}
-              className="scrollbar-hide flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col"
+              className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}

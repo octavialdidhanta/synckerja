@@ -1,0 +1,299 @@
+---
+description: Standar layout semua halaman mobile (Android native): ukuran header, nav footer, safe area, spasi konten, lebar kartu, jarak antar section. WAJIB diterapkan saat membuat halaman mobile baru. 
+
+# Mobile Layout Android — Standarisasi (Semua Halaman)
+
+Berlaku untuk **semua halaman full-screen mobile** di Android:
+Tujuan: konsistensi header, nav footer, safe area (status bar + pita hitam device), spasi konten, lebar kartu, dan jarak antar section. Acuan: `DailyTaskPage`, `Absensi` (home), `ToolsNavigationFooter`, `NavigationFooter`, `TaskList`, class safe area di `src/index.css`.
+
+---
+
+## ⚠️ PENTING: Saat membuat halaman mobile baru
+
+**Setiap kali membuat atau mengubah halaman full-screen mobile (Android), WAJIB menerapkan rule ini secara default — tanpa perlu diingatkan user.**
+
+### Checklist wajib (halaman baru / refactor halaman mobile)
+
+1. **Layout shell**
+   - **Wrapper luar** (sibling `AppSidebar` + `main`): **`min-h-screen flex w-full bg-background`** — sama seperti **Schedule, Reports, Absensi (home)**. Hindari pola `relative min-h-[100dvh]` tanpa `flex` untuk shell bottom-nav agar posisi header selaras antar tab.
+   - `const { mainFixedStyle } = useVisualViewport();` (atau tambahkan `height` / `offsetTop` bila perlu).
+   - **`main`:** **`className="flex flex-col bg-background fixed inset-x-0 z-0"`** + **`style={mainFixedStyle}`** — **tanpa** wrapper `<div className="flex min-h-0 flex-1 flex-col">` di luar header; anak langsung `main`: header → kolom scroll → footer (lihat contoh §1).
+   - `mainFixedStyle` memakai `top` + `bottom: 0` saat keyboard tertutup (Android), dan `top` + `height` saat keyboard terbuka — **bukan** `height: visualViewport.height` mentah (menghindari kolom pendek / celah putih).
+   - **Keyboard terbuka + fokus field (Android native):** `NavigationFooter` / `ToolsNavigationFooter` disembunyikan (`isKeyboardShellOpen`); modal fullscreen seperti **Add New Expense** mengikat `DialogContent` ke `top`/`height` dari `useVisualViewport()` supaya tidak ada celah di atas keyboard.
+   - Urutan: **header** (`flex-shrink-0 sticky top-0 z-30` + `safe-area-top`) → **area scroll** (`flex-1 min-h-0 overflow-hidden flex flex-col` → dalamnya `flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col`) → **NavigationFooter** atau **ToolsNavigationFooter** dengan **`className="safe-area-bottom-lower"`**.
+   - **Pengecualian (scroll dalam):** Jika halaman punya komponen dengan scroll dalam (mis. tab berisi `overflow-y-auto`), pakai pola **scroll-dalam saja** — area tengah tanpa overflow-y-auto, wrapper konten + komponen anak rantai `flex-1 min-h-0` sampai ke elemen scroll. Lihat **§1.1**.
+
+2. **Header**
+   - Class: `p-3`, `bg-card`, `border-b border-border`, `safe-area-top`.
+   - Judul: `text-base font-semibold text-foreground`. Subtitle: `text-xs text-muted-foreground`. SidebarTrigger pakai `className="md:hidden"`.
+
+3. **Konten**
+   - Satu wrapper: **`mx-auto w-full max-w-md px-2`** + **padding vertikal** sesuai halaman (lihat **§5.1** dan tabel §8). Halaman **Home** memakai class tunggal `.content-padding-above-nav-home` (sudah berisi `padding-top` + `padding-bawah`); **jangan** tambah `pt-2` di JSX agar tidak dobel. Halaman lain: **`pt-2`** + class **`content-padding-above-nav-*`** yang sesuai. Jangan tambah `px-2`/`px-3` di child.
+   - Jarak antar section/kartu: **`space-y-1`** pada container konten.
+
+4. **Lain-lain**
+   - Panggil **`useStatusBarStyle('light')`** di komponen (stack lengkap status bar + overlay: **§7**).
+   - Tambahkan key terjemahan untuk judul/subtitle halaman (i18n) agar bisa ganti bahasa dari Settings.
+
+5. **Halaman baru yang belum ada di tabel padding bawah**
+   - Pakai **`content-padding-above-nav-default`** (formula di `src/index.css`: `0.75rem + 3.25rem + env` bawah; Android native tanpa inset ganda) agar section terakhir **tidak menempel** ke nav footer, atau buat class baru dan **update daftar + tabel** di rule ini.
+
+**Skeleton / loading state:** Gunakan container yang sama seperti halaman live (`max-w-md px-2` + class padding yang identik, termasuk Home tanpa `pt-2` terpisah jika sudah memakai `.content-padding-above-nav-home`) agar tidak ada container ganda atau lebar beda.
+
+---
+
+## 1. Struktur halaman (layout shell)
+
+- **Container utama:** Elemen `main` dengan `flex flex-col`, **position fixed** (`fixed inset-x-0 z-0`), mengisi viewport.
+- **Viewport:** Wajib **`useVisualViewport()`** — untuk `main` pakai **`mainFixedStyle`**. Di **Android native**, saat keyboard tertutup shell memakai **`top: 0; bottom: 0`**; deteksi keyboard ~**65%** tinggi layar (`KEYBOARD_VIEWPORT_MAX_HEIGHT_RATIO` — WebView sering melaporkan `visualViewport` terlalu pendek). **Tinggi shell halaman:** **`min-h-screen`** pada wrapper luar (`min-h-screen flex w-full`), bukan `min-h-svh` saja, agar tidak letterbox.
+- **Urutan vertikal (wajib):**
+  1. **Header** — `flex-shrink-0`, `sticky top-0`, `z-30`
+  2. **Area konten scroll** — wrapper `flex-1 min-h-0 overflow-hidden flex flex-col`, dalamnya `flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col`
+  3. **Nav footer aplikasi** — `fixed left-0 right-0 bottom-0`, `z-30` (NavigationFooter atau ToolsNavigationFooter)
+
+Contoh struktur:
+
+```tsx
+<main
+  className="flex flex-col bg-background fixed inset-x-0 z-0"
+  style={mainFixedStyle}
+>
+  <header className="flex-shrink-0 sticky top-0 z-30 ... safe-area-top">...</header>
+  <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col">
+      {/* Konten halaman */}
+    </div>
+  </div>
+  <ToolsNavigationFooter className="safe-area-bottom-lower" />
+</main>
+```
+
+### 1.1 Halaman dengan scroll dalam (contoh: Job Desc)
+
+Jika halaman berisi komponen yang **punya scroll dalam** (mis. tab dengan `overflow-y-auto` di TabsContent), gunakan **satu scroll saja** — scroll dalam — agar jari di atas konten (kartu, list) bisa scroll. Jangan pakai scroll luar + scroll dalam sekaligus; scroll luar harus **dimatikan**.
+
+- **Area bawah header:** Div tengah **tanpa** `overflow-y-auto`; hanya pembagi tinggi: `flex-1 min-h-0 flex flex-col`.
+- **Wrapper konten:** Tambah **`flex-1 min-h-0 flex flex-col`** agar tinggi terkunci dan diteruskan ke komponen anak.
+- **Komponen dengan scroll dalam (mis. Card → CardContent → Tabs → TabsContent):** Rantai **`flex-1 min-h-0`** dari root komponen sampai ke elemen yang punya **`overflow-y-auto`** (mis. TabsContent). Contoh: Card `flex-1 min-h-0 flex flex-col`, CardContent `flex-1 min-h-0 flex flex-col p-0`, Tabs `flex flex-col flex-1 min-h-0`, TabsContent `flex-1 min-h-0 overflow-y-auto ...`.
+- **Jangan duplikasi class di wrapper halaman:** Pada pola scroll dalam, **padding bawah** (class `content-padding-above-nav-*`) dan **jarak antar section** (`space-y-1`) wajib dipakai **di dalam** container scroll (mis. wrapper konten di dalam TabsContent), bukan di wrapper halaman (div dengan `max-w-md px-2 pt-2`). Wrapper halaman cukup: **`mx-auto w-full max-w-md px-2 pt-2 flex-1 min-h-0 flex flex-col`** — tanpa `content-padding-above-nav-*` dan tanpa `space-y-1`. (**Home** full-page scroll bukan pola ini; vertikal Home = **§5.1**.) Ini menghindari class redundan dan konsisten dengan halaman lain.
+
+Alur tinggi: Header → div tengah (no scroll) → wrapper konten (flex-1 min-h-0) → Card → CardContent → Tabs → **TabsContent** (satu-satunya scroll). Acuan implementasi: [JobDescPage](android-mobile/5-job-desc/JobDescPage.tsx) dan [JobDescTracker](android-mobile/5-job-desc/section/JobDescTracker.tsx).
+
+## 2. Header
+
+- **Struktur halaman:** Header harus **anak langsung** `<main>` (setelah `useVisualViewport` + class `main` seperti §1), **bukan** dibungkus `div.flex-1.flex-col` tambahan — agar **posisi vertikal sama** dengan Schedule, Reports, Client Visit, Profile, Home (Absensi).
+- **Safe area:** Selalu class **`safe-area-top`** pada header. Bekerja bersama **§7** (`overlaysWebView: false`): tidak ada gap putih ganda antara status bar sistem dan header.
+- **Padding isi:** **`p-3`** = **12px (0.75rem)** di keempat sisi. Jangan pakai `px-3 py-2` atau **`min-h-[3.25rem]`** khusus untuk “memaksa” tinggi — biarkan tinggi mengikuti konten + `p-3` seperti tab lain (kecuali kebutuhan desain khusus yang didokumentasikan).
+- **Background & border:** **`bg-card`**, **`border-b border-border`**.
+- **Layout:** **`flex items-center justify-between`**. Kiri: trigger sidebar + blok judul/subtitle (atau konten khusus Home: salam + nama); kanan: kosong atau aksi (notifikasi, indikator realtime, dll.).
+- **Typografi (halaman dengan judul + subtitle standar):**
+  - Judul: **`text-base font-semibold text-foreground`** (16px, font-weight 600)
+  - Subtitle: **`text-xs text-muted-foreground`** (12px)
+- **Home (Absensi):** Boleh **dua baris** (salam + nama) dengan tipografi sedikit berbeda; tetap **class header + `safe-area-top` + struktur `main`** sama seperti tab lain agar posisi konsisten.
+- **Subtitle:** Halaman Tools **wajib** punya subtitle, **kecuali** halaman yang membutuhkan tinggi header berbeda (mis. search bar).
+- **Z-index:** **`z-30`** agar header di atas konten scroll.
+
+Contoh:
+
+```tsx
+<header className="flex-shrink-0 sticky top-0 z-30 flex items-center justify-between p-3 bg-card border-b border-border safe-area-top">
+  <div className="flex items-center gap-2">
+    <SidebarTrigger className="md:hidden" />
+    <div>
+      <h1 className="text-base font-semibold text-foreground">{title}</h1>
+      <p className="text-xs text-muted-foreground">{subtitle}</p>
+    </div>
+  </div>
+  <div></div>
+</header>
+```
+
+## 3. Nav footer aplikasi
+
+Ada dua tipe: **NavigationFooter** (area Home: 5 item) dan **ToolsNavigationFooter** (area Tools: 4 item). Keduanya mengikuti ukuran dan safe area yang sama.
+
+- **Posisi:** **`fixed left-0 right-0 bottom-0`**, **`z-30`**.
+- **Style strip:** **`bg-card`**, **`border-t border-border`**.
+- **Posisi vs pita hitam device:** Inner container **wajib** pakai **`safe-area-bottom-lower`** sehingga nav footer tetap di atas pita hitam. Padding bawah = **`var(--footer-bottom-inset)`** (di-set `useNativeSafeAreaCssVars` dari plugin di cold start; 0 setelah resume dari background). Semua halaman pass **`className="safe-area-bottom-lower"`** ke komponen footer.
+- **Layout item:** **`grid grid-cols-4`** (Tools 4 item) atau **`grid-cols-5`** (Tools 5 item atau Home). Maksimal **5 item**; boleh kurang (4). **`max-w-md mx-auto`**.
+- **Ukuran tiap item:** **`py-2`** (8px atas/bawah), **`px-1`** (4px kiri/kanan). Ikon **`h-5 w-5`** = **20px**. **`mb-1`** (4px) antara ikon dan label. Label **`text-xs font-medium`** (12px).
+- **Warna:** Item aktif **`text-primary`**, tidak aktif **`text-muted-foreground`**.
+
+Contoh:
+
+```tsx
+<nav className="fixed left-0 right-0 bottom-0 bg-card border-t border-border z-30">
+  <div className={`grid grid-cols-4 max-w-md mx-auto ${className ?? 'safe-area-padding-bottom'}`.trim()}>
+    {items.map(({ icon: Icon, label, path }) => (
+      <button key={path} className="flex flex-col items-center py-2 px-1 ...">
+        <Icon className="h-5 w-5 mb-1" />
+        <span className="text-xs font-medium text-center leading-tight">{label}</span>
+      </button>
+    ))}
+  </div>
+</nav>
+```
+
+## 4. Safe area (status bar dan pita hitam device)
+
+- **Top (header vs status bar):** Header wajib **`safe-area-top`** (`src/index.css`: `max(var(--safe-area-inset-top), env(safe-area-inset-top)) + 4px`). Dengan **`StatusBar.overlaysWebView: false`** (lihat **§7**), WebView sudah ditempatkan **di bawah** status bar sistem; biasanya `env(safe-area-inset-top)` ≈ **0** sehingga inset efektif hanya **+4px** — header **selaras** antar tab (Home, Schedule, dll.) tanpa gap putih ganda. Jika memakai **NativeSafeAreaWrapper**, **`--safe-area-inset-top`** juga di-set ke `documentElement`; tetap gunakan class **`safe-area-top`** di header agar satu sumber kebenaran visual.
+- **Bottom (footer tab):** **`--footer-bottom-inset`** (plugin **SafeAreaInsets** + hook; bukan `--safe-area-inset-bottom` global) + class **`safe-area-bottom-lower`** pada **NavigationFooter**. Modal/sheet tetap pakai **`safe-area-bottom`** / env terpisah.
+- **Konsistensi:** Semua halaman full-screen mobile harus mematuhi safe area atas dan bawah; jangan menimpa atau mengabaikan.
+
+### 4.1 System navigation bar — Back, Home, Recent (native Android)
+
+**Tujuan:** Strip sistem di bawah layar **gelap (hitam opak)** dan **ikon tombol** navigasi sistem **terang** (putih/abu terang), bukan strip putih/transparan dengan ikon tidak kontras.
+
+**Perilaku yang disepakati (target SDK 35 / edge-to-edge):**
+
+| Aspek | Nilai / perilaku |
+|--------|-------------------|
+| Warna latar strip sistem | Hitam opak `#000000` |
+| Ikon Back / Home / Recent (atau gesture pill) | Varian **terang** di atas latar gelap |
+| Transparansi | Hindari `FLAG_TRANSLUCENT_NAVIGATION`; pakai warna opak + tema |
+
+**Referensi implementasi (jangan dihapus tanpa mengganti pola setara):**
+
+- **`android/app/src/main/java/id/synckerja/app/MainActivity.java`** — `applyBlackSystemNavigationBar()`: `clearFlags(FLAG_TRANSLUCENT_NAVIGATION)`, `setNavigationBarColor(0xFF000000)`, divider transparan, `WindowInsetsController` / compat **bukan** “light navigation bar”.
+- **Tema:** `android:navigationBarColor` hitam + `android:windowLightNavigationBar` false di `values/`, `values-v27`, `values-v31`, `values-night`; **`values-v35/styles.xml`**: `android:windowOptOutEdgeToEdgeEnforcement` untuk menghindari nav bar transparan + konten WebView putih “menembus”.
+- **Cold start / splash:** `AppTheme.NoActionBarLaunch` + `postSplashScreenTheme` selaras dengan nav hitam.
+
+Halaman **React tidak mengatur** warna tombol sistem ini; konsistensi 100% dari **native + tema**.
+
+## 5. Spasi konten
+
+- **Jarak antar section/kartu:** Untuk halaman dengan beberapa kartu (mis. Home: Check In, Schedule, Lokasi; Daily task: list task card), gunakan **`space-y-1`** (4px) pada container supaya jarak antar section **sama dengan halaman daily task**. Jangan campur `mb-2`/`mt-2` per-section; satu container dengan **`space-y-1`** saja. Section dalam satu blok (mis. beberapa kartu di `LocationChecker`) pakai **`gap-1`** / **`space-y-1`** di wrapper, bukan **`mb-4`** pada kartu terakhir (menghindari celah ekstra di atas padding scroll).
+- **Kartu terakhir ke nav footer (standarisasi — halaman selain Home):**
+  - **Prinsip:** Section atau kartu terakhir **tidak boleh menempel** ke nav footer. Dalam **segala situasi** pakai salah satu class padding bawah yang terdaftar di bawah; jangan pakai nilai di bawah minimum.
+  - **Minimum:** **3.5rem** (56px) + suku `--content-scroll-extra-bottom` (fallback `env` di non-Android). Lihat override Android native untuk beberapa class di `src/index.css`.
+  - **Disarankan untuk halaman dengan banyak kartu/section:** **4rem** (64px) + suku yang sama agar section terakhir (mis. Visit Analysis, Blockers, daftar) punya napas dan tidak terasa menempel.
+  - **Daftar per halaman** — semua class di `src/index.css`:
+  - **Home (/):** lihat **§5.1** — class **`content-padding-above-nav-home`** (bukan pola 3rem + `--content-scroll-extra-bottom` pada scroll).
+  - **Default halaman biasa:** **`0.75rem + 3.25rem + env`** (Android native: tanpa `--content-scroll-extra-bottom` di scroll) — `content-padding-above-nav-default`.
+  - **Daily task** (termasuk tab **Initiative** `?view=initiative` dalam shell yang sama): **4rem** — `content-padding-above-nav-daily-task` (Android native: **`4rem` saja** di `src/index.css`, tanpa `--content-scroll-extra-bottom`)
+  - **Daily task report:** **4rem** — `content-padding-above-nav-daily-task-report` (Android native: **`4rem` saja** di `src/index.css`, tanpa `--content-scroll-extra-bottom`)
+  - **Job Desc:** **4rem** — `content-padding-above-nav-job-desc`
+  - **Meeting notes:** **4rem** — `content-padding-above-nav-meeting-notes` (Android native: **`4rem` saja** di `src/index.css`, tanpa `--content-scroll-extra-bottom` — selaras §5 inset ganda)
+  - **Schedule:** **`content-padding-above-nav-default`** (sama seperti Reports).
+  - **Client Visit:** **`content-padding-above-nav-client-visit`** (formula sama dengan default; class terpisah untuk kebutuhan khusus).
+  - **Leads Management (mobile):** **4rem** — `content-padding-above-nav-leads-management`
+  - **Habits (mobile):** **4rem** — `content-padding-above-nav-habits`
+  - **Expenses (mobile — dashboard, debt, approvals, payment, bills):** **`content-padding-above-nav-default`** via `MobileExpensesShell`; section anak **tanpa** `px-2`/`px-3` tambahan (satu wrapper `max-w-md px-2 pt-2 space-y-1`). Di dalam area scroll, bungkus pull-to-refresh + konten dengan kolom **`flex min-h-full min-w-0 flex-1 flex-col`**, lalu wrapper yang memakai `content-padding-above-nav-default` beri **`flex flex-1 min-h-0 flex-col`** — supaya tidak ada **celah putih tambahan** antara kartu terakhir dan tab `ExpenseBottomTabs` (**`fixed`**); jarak ke nav tetap hanya formula class (§5, `0.75rem + 3.25rem` + env di non-native).
+  - **Subscription overview / plans / management:** **`content-padding-above-nav-default`**
+- **Tujuan (halaman standar):** Kartu terakhir **tidak tertutup** nav footer; jarak atas konten ke header = **`pt-2`** (8px / 0.5rem) kecuali Home (§5.1).
+
+### 5.1 Home (`/`) — jarak kartu pertama ↔ header dan kartu terakhir ↔ nav (acuan `src/index.css`)
+
+Implementasi aktual **Absensi / Home** memakai **satu** class **`.content-padding-above-nav-home`** pada wrapper konten scroll (**`mx-auto w-full max-w-md px-2`**, tanpa `pt-2` tambahan di JSX).
+
+| Sisi | Nilai | Keterangan |
+|------|--------|------------|
+| **Atas** (garis bawah header → tepi atas kartu/section pertama) | **`padding-top: 0.5rem`** (8px) | Setara **`pt-2`**, cukup rapat ke header. |
+| **Bawah** (tepi bawah kartu terakhir → tepi atas strip nav putih) | **`0.75rem` + `3.25rem` + `env(safe-area-inset-bottom, 0px)`** | **`0.75rem`** = napas di atas nav; **`3.25rem`** = tinggi baris tab nav (setara `min-h-[52px]` grid footer); **`env`** untuk home indicator **iOS / PWA** (bukan Android native di bawah). |
+| **Android native** (`html[data-synckerja-android-native]`) | **Bawah:** `calc(0.75rem + 3.25rem)` saja | Tanpa `--content-scroll-extra-bottom` pada area scroll Home: di native, `.mobile-app-bottom-nav` sudah **`padding-bottom: 0`** — menambahkan inset plugin lagi di scroll membuat **gap abu besar** antara konten dan tab. |
+
+**Menerapkan pola yang sama di halaman lain (konsistensi):**
+
+- **Jangan** menyalin angka acak di inline style. Untuk halaman **selain Home**, tetap **`pt-2`** + class **`content-padding-above-nav-*`** dari tabel §5/§8.
+- Jika suatu route baru perlu **persis** ritme vertikal Home (atas rapat 8px, bawah 12px + clearance tab 52px): **(1)** pertimbangkan reuse class yang sama hanya jika layout nav identik (5 tab `NavigationFooter`), atau **(2)** tambahkan class baru di **`src/index.css`** (mis. duplikat formula dengan nama route) dan **catat di rule ini** — **jangan mengubah** `.content-padding-above-nav-home` tanpa menyelaraskan Home + skeleton + dokumen ini.
+- **Skeleton Home:** wrapper sama persis (`content-padding-above-nav-home`, tanpa `pt-2` ganda).
+
+## 6. Lebar konten dan kartu
+
+- **Container konten utama:** **`max-w-md mx-auto w-full`**. **max-w-md** = 28rem = **448px**. Konten di-center dengan **`mx-auto`**.
+- **Padding horizontal container:** **8px (0.5rem)** — **`px-2`** dari tepi layar. Hanya di **satu** wrapper; jangan tambah **`px-2`** atau **`px-3`** di komponen anak (section/kartu) agar lebar semua section **sama**. Contoh: komponen seperti LocationChecker tidak boleh punya root dengan `px-2` jika sudah berada di dalam container yang sudah `px-2`.
+- **Kartu/section:** Lebar 100% dari container; tidak set width eksplisit. Semua kartu dalam satu halaman harus **lebar sama** (satu container `max-w-md px-2`, isi full width).
+
+## 7. Status bar (sistem), overlay WebView, dan `useStatusBarStyle`
+
+### 7.1 Tampilan yang disepakati
+
+| Aspek | Perilaku |
+|--------|-----------|
+| Latar status bar (jam, baterai, sinyal) | **Putih** opak |
+| Ikon status bar | **Gelap** (kontras di atas putih) |
+| `theme-color` (PWA / WebView) | **`#ffffff`** — `index.html` selaras dengan strip putih |
+
+### 7.2 Konfigurasi Capacitor (`capacitor.config.ts`)
+
+Plugin **StatusBar** (wajib disinkronkan dengan `npx cap sync android` setelah ubah config):
+
+```ts
+StatusBar: {
+  overlaysWebView: false,
+  backgroundColor: "#ffffff",
+  style: "LIGHT",
+},
+```
+
+- **`overlaysWebView: false`** — WebView diletakkan **di bawah** status bar sistem; header dengan **`safe-area-top`** **selaras** dengan tab lain **tanpa** celah putih ekstra (berbeda dari default `true` yang fullscreen di bawah status bar).
+- **`backgroundColor` / `style`** — strip putih + ikon gelap di Android.
+
+### 7.3 Hook `src/shared/hooks/useStatusBarStyle.ts`
+
+- **Halaman terang (mayoritas):** `useStatusBarStyle('light')` — di Android: `setOverlaysWebView({ overlay: false })`, lalu `setBackgroundColor('#FFFFFFFF')`, lalu `setStyle(Style.Light)`.
+- **Halaman gelap (contoh: Live Chat):** `useStatusBarStyle('dark')` — di Android: `setOverlaysWebView({ overlay: true })`, lalu background transparan, lalu `Style.Dark` (ikon terang).
+
+Panggil hook di **setiap** halaman full-screen native yang perlu konsistensi; jangan mengandalkan default saja setelah navigasi antar layar gelap/terang.
+
+### 7.4 Native (`MainActivity.java`)
+
+- Sebelum/bersamaan bridge: status bar **putih** + **`setAppearanceLightStatusBars(true)`** (ikon gelap) di `applyLightStatusBarAppearance()`.
+- **Activity label kosong** + sembunyikan `ActionBar` jika ada — hindari caption “Synckerja Office” di atas header app (`strings.xml` `title_activity_main`, manifest).
+- Tema `AppTheme`: `android:statusBarColor` putih + `android:windowLightStatusBar` true di `values/`, `values-v27`, `values-v31`, `values-night` — selaras dengan §7.1.
+
+### 7.5 Ringkas untuk halaman baru
+
+1. Tambahkan **`useStatusBarStyle('light')`** (atau **`'dark'`** jika UI header/status area gelap).
+2. Ikuti **§1** + **§2** ( **`safe-area-top`** pada header).
+3. Jangan mengubah **`overlaysWebView`** secara ad hoc di halaman lain tanpa memperbarui hook/config — satu pola lewat **`useStatusBarStyle`** + **`capacitor.config.ts`**.
+
+## 8. Ringkasan nilai (tabel acuan)
+
+| Item | Nilai | Implementasi |
+|------|--------|--------------|
+| **Header** | | |
+| Header padding (isi) | 12px (0.75rem) | `p-3` |
+| Header safe area top | inset + 4px | `safe-area-top` |
+| Judul header | 16px, semibold | `text-base font-semibold text-foreground` |
+| Subtitle header | 12px | `text-xs text-muted-foreground` |
+| **Konten** | | |
+| Spasi konten pertama ke header (halaman standar) | 8px (0.5rem) | `pt-2` pada wrapper + class padding bawah |
+| Spasi pertama ke header (Home saja) | 8px (0.5rem) | `.content-padding-above-nav-home` (`padding-top`, tanpa `pt-2` di JSX) |
+| Jarak antar section/kartu | 4px (0.25rem) | `space-y-1` |
+| Container konten max width | 28rem (448px) | `max-w-md` |
+| Container horizontal padding | 8px (0.5rem) | `px-2` (hanya di satu wrapper) |
+| **Padding bawah (kartu terakhir → nav footer)** | | |
+| Suku tambahan bawah scroll | Di **Capacitor Android**, mirror inset plugin dengan `--footer-bottom-inset` saat cold; `0px` pasca-resume; browser/PWA non-native: fallback `env` di CSS. | `--content-scroll-extra-bottom` — `useNativeSafeAreaCssVars` (kecuali Home — lihat baris Home) |
+| Home (/) — atas header | 0.5rem | bagian dari `content-padding-above-nav-home` |
+| Home (/) — bawah (non-native) | `0.75rem + 3.25rem + env(safe-area-inset-bottom, 0px)` | `content-padding-above-nav-home` |
+| Home (/) — bawah (Android native) | `0.75rem + 3.25rem` | override `html[data-synckerja-android-native]` di `src/index.css` |
+| Default (halaman biasa) | `0.75rem + 3.25rem + env(safe-area-inset-bottom)`; Android native: `+` tanpa `--content-scroll-extra-bottom` | `content-padding-above-nav-default` |
+| Daily task + Initiative (`?view=initiative`) | 4rem + scroll-extra | `content-padding-above-nav-daily-task` (Android native: **`4rem` saja**) |
+| Daily task report | 4rem + scroll-extra | `content-padding-above-nav-daily-task-report` |
+| Job Desc | 4rem + scroll-extra | `content-padding-above-nav-job-desc` |
+| Meeting notes | 4rem + scroll-extra | `content-padding-above-nav-meeting-notes` |
+| Schedule | sama default | `content-padding-above-nav-default` |
+| Client Visit | sama default (class khusus) | `content-padding-above-nav-client-visit` |
+| Leads Management (mobile) | 4rem + scroll-extra | `content-padding-above-nav-leads-management` |
+| Habits (mobile) | 4rem + scroll-extra | `content-padding-above-nav-habits` |
+| Expenses (mobile, semua tab) | sama default | `content-padding-above-nav-default` (`MobileExpensesShell`) |
+| Subscription overview / plans / management | sama default | `content-padding-above-nav-default` |
+| **Standar minimum** | 3.5rem (halaman banyak section: 4rem) | Jangan kurang; section terakhir jangan menempel |
+| **Nav footer** | | |
+| Nav footer safe area | `--footer-bottom-inset` (JS) | `safe-area-bottom-lower` (pass ke footer) |
+| Nav footer item padding | py-2 (8px), px-1 (4px) | per item |
+| Ikon footer | 20px | `h-5 w-5`, `mb-1` ke label |
+| Label footer | 12px, medium | `text-xs font-medium` |
+| Jumlah item | max 5, min 4 | `grid-cols-4` (Tools 4 item) atau `grid-cols-5` (Tools 5 item / Home) |
+| **Safe area / native** | | |
+| Fallback inset native (jika 0) | top 24px, bottom 48px | `SafeAreaInsetsContext` |
+| Strip hitam bawah (native) | tinggi = inset bottom, z-40 | `NativeSafeAreaWrapper` |
+| **Status bar sistem (§7)** | | |
+| Latar status bar | putih | `capacitor.config` StatusBar + `MainActivity` + tema |
+| Ikon status bar | gelap | `style: LIGHT` + `windowLightStatusBar` |
+| WebView vs status bar | di bawah status bar | `overlaysWebView: false` |
+| **System navigation bar (§4.1)** | | |
+| Latar tombol Back/Home/Recent | hitam opak | `MainActivity` + tema `navigationBarColor` |
+| Ikon navigasi sistem | terang | `windowLightNavigationBar: false` + insets controller |
+| Edge-to-edge SDK 35+ | opt-out tema v35 | `values-v35/styles.xml` |

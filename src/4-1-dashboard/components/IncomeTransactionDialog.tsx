@@ -14,7 +14,7 @@ import { useIncomeTransactions } from '../hooks';
 import { IncomeTransactionWithRelations, CreateIncomeTransactionData } from '../types';
 import { useIncomeMasterData } from '../hooks';
 import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
-import { CalendarIcon, Upload } from 'lucide-react';
+import { X } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/shared/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
@@ -23,6 +23,7 @@ import { useEffect, useMemo } from 'react';
 import { Alert, AlertDescription } from '@/shared/components/ui/alert';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { isOtherIncomeType } from '@/4-1-dashboard/utils/incomeOtherType';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 
 const formSchema = z.object({
   transaction_date: z.string().min(1, 'Transaction date is required'),
@@ -64,6 +65,7 @@ export const IncomeTransactionDialog = ({
   onOpenChange 
 }: IncomeTransactionDialogProps) => {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const {
     createIncomeTransactionAsync,
     updateIncomeTransactionAsync,
@@ -230,27 +232,66 @@ export const IncomeTransactionDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {income ? 'Edit Income Transaction' : 'Add Income Transaction'}
-          </DialogTitle>
+      <DialogContent
+        className={cn(
+          isMobile
+            ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 h-dvh min-h-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area flex flex-col p-0 gap-0 overflow-hidden'
+            : 'max-w-2xl max-h-[90vh] w-full flex flex-col p-0 gap-0 overflow-hidden sm:rounded-lg',
+        )}
+        fullscreenAnimation={isMobile}
+        hideCloseButton={isMobile}
+      >
+        <DialogHeader
+          className={cn(
+            'flex-shrink-0 border-b text-left',
+            isMobile
+              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 dark:from-blue-950/20 dark:to-indigo-950/20'
+              : 'px-6 pt-6 pb-4',
+          )}
+        >
+          {isMobile ? (
+            <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+              <DialogTitle className="m-0 min-w-0 flex-1 truncate py-0 pr-1 text-base font-semibold leading-tight">
+                {income ? 'Edit Income Transaction' : 'Add Income Transaction'}
+              </DialogTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                onClick={() => onOpenChange(false)}
+                aria-label={t('layout.sheetClose', 'Close')}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <DialogTitle>
+              {income ? 'Edit Income Transaction' : 'Add Income Transaction'}
+            </DialogTitle>
+          )}
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {lockFinancial ? (
-              <Alert>
-                <AlertDescription className="text-sm">
-                  {t(
-                    'incomes.edit.lockedFinancialHint',
-                    'This income is linked to an expense or debt payment. Amount, account, and classification fields are locked until that payment is removed or changed.'
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {/* Basic Information */}
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div
+              className={cn(
+                'scrollbar-hide seamless-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                isMobile ? 'px-4 py-4' : 'px-6 py-4',
+              )}
+            >
+              {lockFinancial ? (
+                <Alert>
+                  <AlertDescription className="text-sm">
+                    {t(
+                      'incomes.edit.lockedFinancialHint',
+                      'This income is linked to an expense or debt payment. Amount, account, and classification fields are locked until that payment is removed or changed.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {/* Basic Information */}
+              <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="transaction_date"
@@ -611,8 +652,16 @@ export const IncomeTransactionDialog = ({
               )}
             />
 
+            </div>
+
             {/* Form Actions */}
-            <div className="flex justify-end gap-4">
+            <div
+              className={cn(
+                'flex-shrink-0 border-t bg-muted/30',
+                isMobile ? 'px-4 py-3' : 'px-6 py-3',
+              )}
+            >
+              <div className="flex justify-end gap-4">
               <Button
                 type="button"
                 variant="outline"
@@ -626,6 +675,7 @@ export const IncomeTransactionDialog = ({
               >
                 {isCreating || isUpdating ? 'Saving...' : (income ? 'Update' : 'Create')}
               </Button>
+              </div>
             </div>
           </form>
         </Form>

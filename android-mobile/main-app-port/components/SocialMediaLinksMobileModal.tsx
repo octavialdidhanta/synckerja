@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Button } from "@/mobile-app/components/ui/button";
-import { useIsMobile } from "@/mobile-app/hooks/use-mobile";
+import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useSocialMediaLinks } from "@/6-1-dashboard/hook/useSocialMediaLinks";
 import { cn } from "@/shared/lib/utils";

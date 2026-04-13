@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { ScreenOrientation } from "@capacitor/screen-orientation";
 
-const DEFAULT_VIEWPORT = "width=device-width, initial-scale=1.0";
+/** Selaras synckerja-reference: tanpa `viewport-fit=cover` (hindari env inset ganda di WebView). */
 const LOCKED_VIEWPORT =
   "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no";
 
@@ -12,15 +13,18 @@ interface ZoomDisablePlugin {
 const ZoomDisable = registerPlugin<ZoomDisablePlugin>("ZoomDisable");
 
 /**
- * Capacitor only: lock meta viewport + WebView zoom so pinch zoom is off.
- * Restores previous viewport on unmount (e.g. when leaving the screen).
+ * Capacitor only: lock meta viewport, disable WebView zoom, and lock portrait.
+ * Applied once per app session (no cleanup) so navigation does not re-enable zoom.
  */
 export function useNativeViewportNoPinchZoom(): void {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
+    if (Capacitor.getPlatform() === "android") {
+      document.documentElement.setAttribute("data-synckerja-android-native", "true");
+    }
+
     const meta = document.querySelector('meta[name="viewport"]');
-    const previous = meta?.getAttribute("content") ?? DEFAULT_VIEWPORT;
     if (meta) {
       meta.setAttribute("content", LOCKED_VIEWPORT);
     }
@@ -29,8 +33,6 @@ export function useNativeViewportNoPinchZoom(): void {
       void ZoomDisable.ensureZoomDisabled().catch(() => {});
     }
 
-    return () => {
-      if (meta) meta.setAttribute("content", previous);
-    };
+    void ScreenOrientation.lock({ orientation: "portrait-primary" }).catch(() => {});
   }, []);
 }

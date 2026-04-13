@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/mobile-app/components/ui/card";
 import { Input } from "@/mobile-app/components/ui/input";
@@ -61,6 +61,16 @@ import type { ExpenseTableItem, UseExpenseTableReturn } from "@/shared/hooks/fin
 import { AddNewExpenseModal } from "@/4-2-reminder-bills/modal/AddNewExpenseModal";
 import { supabase } from "@/shared/lib/supabaseClient";
 
+const SCROLL_HIDE =
+  "scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+/** ~1 baris thead + maks. ~10 baris tbody (py-2, text-xs); selebihnya scroll di dalam area ini */
+const MOBILE_EXPENSE_TABLE_VIEWPORT_CLASS =
+  "h-[min(28rem,calc(100dvh-14rem))] max-h-[28rem] min-h-[11rem] shrink-0";
+/** Versi non-mobile hook: baris sedikit lebih tinggi (sm breakpoint tidak dipakai di sini, cadangan) */
+const NARROW_EXPENSE_TABLE_VIEWPORT_CLASS =
+  "h-[min(32rem,calc(100vh-18rem))] max-h-[32rem] min-h-[14rem] shrink-0";
+
 function formatCurrency(amount: number) {
   return `Rp ${amount.toLocaleString("id-ID")}`;
 }
@@ -106,6 +116,7 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
   const { deleteExpense } = useExpenses();
   const {
     filteredBySearch,
+    allExpenses,
     totalExpenses,
     totalCount,
     searchQuery,
@@ -199,10 +210,20 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
 
   const isAddDisabled = false;
 
+  const filteredFooterAmount = useMemo(
+    () => filteredBySearch.reduce((sum, e) => sum + (e.amount ?? 0), 0),
+    [filteredBySearch],
+  );
+
   return (
-    <div className="min-w-0">
-      <Card className="w-full min-w-0 border border-border bg-card overflow-hidden">
-        <CardContent className="p-0 flex flex-col min-w-0">
+    <div className={cn("min-w-0 w-full", isMobile && "flex min-h-0 min-w-0 flex-col")}>
+      <Card
+        className={cn(
+          "w-full min-w-0 overflow-hidden border border-border bg-card",
+          isMobile && "flex min-h-0 min-w-0 flex-col",
+        )}
+      >
+        <CardContent className={cn("flex min-w-0 flex-col p-0", isMobile && "min-h-0 min-w-0 flex-col")}>
           {/* Table Header: Search (expands on focus, hides other filters) + Filter + Reset + Add */}
           <div className="px-1.5 py-1.5 border-b bg-muted/50 flex-shrink-0 min-w-0">
             <div className="flex flex-nowrap items-center gap-1 min-w-0">
@@ -525,57 +546,141 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
             </div>
           </div>
 
-          {/* Table - nested scroll with chaining: table scroll dulu, saat mentok scroll lanjut ke halaman (scroll-chaining rule) */}
-          <div className="scrollbar-hide flex-1 min-h-0 min-w-0 max-h-[50vh] overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain-xy">
-            <table className="w-full min-w-[1400px]">
-              <thead className="sticky top-0 z-10 border-b border-primary-foreground/20 bg-primary">
+          {/* Viewport tetap ~10 baris; halaman tidak memanjang — scroll horizontal + vertikal di dalam. */}
+          <div
+            className={cn(
+              "nested-scroll-touch-chain min-h-0 min-w-0 overflow-x-auto overflow-y-auto seamless-scroll [touch-action:pan-x_pan-y]",
+              SCROLL_HIDE,
+              isMobile ? MOBILE_EXPENSE_TABLE_VIEWPORT_CLASS : NARROW_EXPENSE_TABLE_VIEWPORT_CLASS,
+            )}
+          >
+            <table className="w-full min-w-[1400px] border-collapse">
+              <thead
+                className={cn(
+                  "sticky top-0 z-10 border-b",
+                  isMobile ? "border-white/20 bg-brand-blue" : "border-primary-foreground/20 bg-primary",
+                )}
+              >
                 <tr>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableExpense", "Expense")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableAmount", "Amount")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableWithdrawalFromBalance", "Withdrawal")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tablePaymentDate", "Payment Date")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableTransactionId", "Transaction ID")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableType", "Type")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableCategory", "Category")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableDepartment", "Department")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableDescription", "Description")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableRecurring", "Recurring")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableStatus", "Status")}
                   </th>
                   <th
-                    className="whitespace-nowrap bg-primary px-2 py-2 text-center text-xs font-medium text-primary-foreground"
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-center text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
                     title={t("expenses.receipt", "Receipt")}
                   >
                     {t("expenses.receipt", "Receipt")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableRequestBy", "Request By")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableNextPayment", "Next Payment")}
                   </th>
-                  <th className="whitespace-nowrap bg-primary px-2 py-2 text-left text-xs font-medium text-primary-foreground">
+                  <th
+                    className={cn(
+                      "whitespace-nowrap px-2 py-2 text-left text-xs font-medium",
+                      isMobile ? "bg-brand-blue text-white" : "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {t("expenses.tableActions", "Actions")}
                   </th>
                 </tr>
@@ -583,7 +688,7 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
               <tbody>
                 {filteredBySearch.length === 0 ? (
                   <tr>
-                    <td colSpan={15} className="py-6 text-center text-muted-foreground text-sm">
+                    <td colSpan={15} className="py-8 text-center text-sm text-muted-foreground">
                       {t("expenses.noExpensesInTable", "No expenses found. Use filters or add an expense.")}
                     </td>
                   </tr>
@@ -726,7 +831,17 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
             </table>
           </div>
 
-          <ExpenseTableFooter totalExpenses={totalExpenses} totalCount={totalCount} isLoading={false} />
+          {isMobile ? (
+            <ExpenseTableFooter
+              variant="debt-strip"
+              totalExpenses={filteredFooterAmount}
+              totalCount={allExpenses.length}
+              filteredCount={filteredBySearch.length}
+              isLoading={false}
+            />
+          ) : (
+            <ExpenseTableFooter totalExpenses={totalExpenses} totalCount={totalCount} isLoading={false} />
+          )}
         </CardContent>
       </Card>
 
@@ -735,7 +850,7 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
         <DialogContent
           className={cn(
             isMobile
-              ? "fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area flex flex-col p-0 gap-0 overflow-hidden"
+              ? "fixed left-0 right-0 top-0 translate-x-0 translate-y-0 h-dvh min-h-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area flex flex-col p-0 gap-0 overflow-hidden"
               : "w-[95vw] max-w-md max-h-[90vh] grid gap-4 p-6"
           )}
           fullscreenAnimation={isMobile}
@@ -743,23 +858,25 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
         >
           {isMobile ? (
             <>
-              <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 text-left safe-area-top dark:from-blue-950/20 dark:to-indigo-950/20">
-                <DialogDescription className="sr-only">
-                  {t("expenses.expenseDetailsDescription", "View detailed information about this expense")}
-                </DialogDescription>
-                <DialogTitle className="min-w-0 flex-1 text-left text-lg font-semibold leading-none">
-                  {t("expenses.expenseDetails", "Expense Details")}
-                </DialogTitle>
-                <DialogClose
-                  type="button"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <X className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="sr-only">{t("common.close", "Close")}</span>
-                </DialogClose>
+              <DialogHeader className="safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+                <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+                  <DialogDescription className="sr-only">
+                    {t("expenses.expenseDetailsDescription", "View detailed information about this expense")}
+                  </DialogDescription>
+                  <DialogTitle className="m-0 min-w-0 flex-1 truncate py-0 pr-1 text-base font-semibold leading-tight">
+                    {t("expenses.expenseDetails", "Expense Details")}
+                  </DialogTitle>
+                  <DialogClose
+                    type="button"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0 opacity-80 transition-opacity hover:opacity-100 focus:outline-none"
+                  >
+                    <X className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="sr-only">{t("common.close", "Close")}</span>
+                  </DialogClose>
+                </div>
               </DialogHeader>
 
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll px-4 py-4">
+              <div className="scrollbar-hide seamless-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {selectedExpense && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">

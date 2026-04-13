@@ -16,7 +16,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { ProfilePhotoUpload } from "@/mobile/1-profile/components/ProfilePhotoUpload";
 import { useOrganizationList } from "@/mobile-app/hooks/useOrganizationList";
 import { OrganizationSelectDrawer } from "@/mobile-app/components/OrganizationSelectDrawer";
-import { useOrganizationSwitchCallback } from "@/mobile-app/hooks/useOrganizationSwitchCallback";
+import { useOrganizationSwitchCallback } from "@/shared/hooks/useOrganizationSwitchCallback";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
@@ -206,8 +206,8 @@ const Profile = () => {
                 </div>
                 <div></div>
               </header>
-              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                <div className="scrollbar-hide flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <div className="mx-auto w-full max-w-md px-2 pt-2 content-padding-above-nav-default">
                     <ProfileSkeleton />
                   </div>
@@ -237,11 +237,13 @@ const Profile = () => {
                 </div>
                 <div></div>
               </header>
-              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                <div className="scrollbar-hide flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col items-center justify-center">
-                  <div className="text-center p-4">
-                    <p className="text-destructive mb-4">{t("profile.loadFailed", "Gagal memuat profil")}</p>
-                    <Button onClick={() => refetch()}>{t("profile.tryAgain", "Coba Lagi")}</Button>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="mx-auto flex w-full min-h-0 max-w-md flex-1 flex-col items-center justify-center px-2 pt-2 content-padding-above-nav-default">
+                    <div className="p-4 text-center">
+                      <p className="mb-4 text-destructive">{t("profile.loadFailed", "Gagal memuat profil")}</p>
+                      <Button onClick={() => refetch()}>{t("profile.tryAgain", "Coba Lagi")}</Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -257,7 +259,7 @@ const Profile = () => {
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background">
           <AppSidebar />
-          {/* Layout per .cursor/rules/mobile-tools-layout-android.mdc */}
+          {/* Layout per android-mobile/rules/mobile-tools-layout-android.mdc */}
           <main className="flex flex-col bg-background fixed inset-x-0 z-0" style={mainFixedStyle}>
             <header className="flex-shrink-0 sticky top-0 z-30 flex items-center justify-between p-3 bg-card border-b border-border safe-area-top">
               <div className="flex items-center gap-2">
@@ -270,10 +272,10 @@ const Profile = () => {
               <div></div>
             </header>
 
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div
                 ref={listScrollRef}
-                className="scrollbar-hide flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col"
+                className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 onTouchStart={onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}

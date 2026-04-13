@@ -11,6 +11,10 @@ export type UseMobileKeyboardViewportOptions = {
   submitAnchorRef?: React.RefObject<HTMLButtonElement | null>;
 };
 
+/**
+ * Selaras synckerja-reference/src/shared/hooks/useMobileKeyboardViewport.ts
+ * (tanpa useCapacitorKeyboardInset / App.resume — hindari state keyboard ganda dengan adjustResize).
+ */
 export function useMobileKeyboardViewport(options: UseMobileKeyboardViewportOptions = {}) {
   const { submitAnchorRef: submitAnchorRefOption } = options;
   const internalSubmitRef = useRef<HTMLButtonElement | null>(null);
@@ -72,7 +76,7 @@ export function useMobileKeyboardViewport(options: UseMobileKeyboardViewportOpti
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    const showHandler = (info: { keyboardHeight: number }) => {
+    const showHandler = (info: { keyboardHeight?: number }) => {
       setKeyboardHeight(info.keyboardHeight ?? 0);
       if (inputFocusedRef.current) {
         setTimeout(scrollPanelToAnchor, 100);

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { cn } from "@/shared/lib/utils";
+import { useIsMobile } from "@/mobile/shared/hooks/use-mobile";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { PaymentFiltersType } from "@/4-2-payment-process/section/PaymentFilters";
 import {
@@ -7,6 +8,7 @@ import {
   getUniquePaymentDepartments,
 } from "@/4-2-payment-process/utils/paymentUtils";
 import { PaymentTable } from "@/4-2-payment-process/section/PaymentTable";
+import { PaymentTableFooter } from "@/mobile/2-payment/section/payment/PaymentTableFooter";
 import type { PurchaseRequest } from "@/9-request-form/hooks/usePurchaseRequests";
 import { Card, CardContent } from "@/mobile-app/components/ui/card";
 import { Button } from "@/mobile-app/components/ui/button";
@@ -64,6 +66,7 @@ export function PaymentTableSection({
   onRefresh,
 }: PaymentTableSectionProps) {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
 
   const departmentOptions = useMemo(
@@ -76,6 +79,18 @@ export function PaymentTableSection({
     [requests, filters],
   );
 
+  const approvedAll = useMemo(() => requests.filter((r) => r.status === "approved"), [requests]);
+
+  const approvedFiltered = useMemo(
+    () => filteredRequests.filter((r) => r.status === "approved"),
+    [filteredRequests],
+  );
+
+  const filteredApprovedTotalAmount = useMemo(
+    () => approvedFiltered.reduce((sum, r) => sum + (Number(r.amount_idr) || 0), 0),
+    [approvedFiltered],
+  );
+
   const isDefaultMobileFilters = (f: PaymentFiltersType) =>
     f.search === MOBILE_DEFAULT_FILTERS.search &&
     f.status === MOBILE_DEFAULT_FILTERS.status &&
@@ -86,9 +101,14 @@ export function PaymentTableSection({
   const hasActiveFilters = !isDefaultMobileFilters(filters);
 
   return (
-    <div className="min-w-0 w-full">
-      <Card className="w-full min-w-0 overflow-hidden border border-border bg-card">
-        <CardContent className="flex min-w-0 flex-col p-0">
+    <div className={cn("min-w-0 w-full", isMobile && "flex min-h-0 min-w-0 flex-1 flex-col")}>
+      <Card
+        className={cn(
+          "w-full min-w-0 overflow-hidden border border-border bg-card",
+          isMobile && "flex min-h-0 min-w-0 flex-1 flex-col",
+        )}
+      >
+        <CardContent className={cn("flex min-w-0 flex-col p-0", isMobile && "min-h-0 min-w-0 flex-1")}>
           <div className="min-w-0 flex-shrink-0 border-b bg-muted/50 px-1.5 py-1.5">
             <div className="flex w-full min-w-0 items-center gap-1">
               <div className="relative min-h-9 min-w-0 flex-1">
@@ -291,14 +311,22 @@ export function PaymentTableSection({
             </div>
           </div>
 
-          <div className="min-h-0 min-w-0 flex-1">
+          <div className={cn("min-h-0 min-w-0", !isMobile && "flex-1")}>
             <PaymentTable
               requests={filteredRequests}
               isLoading={isLoading}
               variant="mobileCard"
               onRefresh={onRefresh}
+              fillScrollHeight={false}
+              fixedMobileViewport={isMobile}
             />
           </div>
+
+          <PaymentTableFooter
+            shownApprovedCount={approvedFiltered.length}
+            totalApprovedCount={approvedAll.length}
+            filteredTotalAmount={filteredApprovedTotalAmount}
+          />
         </CardContent>
       </Card>
     </div>

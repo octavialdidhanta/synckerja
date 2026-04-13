@@ -1,0 +1,205 @@
+---
+description: Standar pull-to-refresh (usap ke bawah untuk refresh) pada halaman mobile. Data harus load otomatis saat halaman dibuka; pull-to-refresh hanya untuk refresh, bukan pengganti load awal. Saat refresh, skeleton tidak boleh tampil (lihat juga perbaiki-halaman-flicker.mdc). Berlaku untuk halaman yang punya daftar/list yang perlu di-refresh.
+globs: src/mobile/**/*.tsx
+---
+
+# Pull-to-Refresh — Standar untuk Halaman Mobile
+
+Rule ini **wajib diacu** ketika menambah **pull-to-refresh** (usap ke bawah untuk refresh) pada halaman mobile. Tujuan: perilaku dan animasi konsisten — user bisa mengusap ke bawah di area scroll untuk me-refresh data, dengan indikator dan transisi yang halus.
+
+**Terkait:** Untuk menghindari flicker (skeleton muncul saat pull-to-refresh), ikuti juga rule **`perbaiki-halaman-flicker.mdc`** — skeleton hanya tampil saat load awal, **bukan** saat refresh. Kedua rule ini saling melengkapi; bisa memilih salah satu sebagai acuan utama sesuai konteks (tambah fitur pull-to-refresh vs perbaiki flicker).
+
+**File acuan implementasi:** `@/mobile/5-daily-task/section/DailyTaskLayout.tsx`, `@/mobile/5-initiative/InitiativePage.tsx`.
+
+---
+
+## 0. Prinsip: Halaman tidak mengandalkan pull-to-refresh untuk menampilkan data
+
+**Data harus tampil otomatis** saat user membuka atau berpindah ke halaman. Pull-to-refresh **bukan** pengganti load awal.
+
+- **Load awal:** Saat halaman/list view mount, data harus di-fetch oleh provider atau effect (initial fetch on mount). Tampilkan skeleton/loading sampai data selesai; jangan biarkan halaman kosong dengan harapan user pull-to-refresh.
+- **Recovery:** Jika setelah load awal daftar masih kosong dan tidak loading (mis. gagal diam-diam atau race condition), lakukan **recovery refetch** sekali saat list view mount: jika `tasks.length === 0` dan `!isLoading`, panggil `refetchTasks()` / `refreshData()` sekali (pakai ref agar tidak berulang).
+- **Pull-to-refresh** hanya untuk **refresh** data yang sudah tampil (update terbaru), bukan untuk “memunculkan” data pertama kali.
+
+Contoh pola recovery di layout (referensi DailyTaskLayout):
+
+```ts
+const didRecoveryRefetch = useRef(false);
+
+useEffect(() => {
+  if (didRecoveryRefetch.current || isLoading || tasks.length > 0) return;
+  didRecoveryRefetch.current = true;
+  refetchTasks().catch(() => {});
+}, [isLoading, tasks.length, refetchTasks]);
+```
+
+---
+
+## 1. Kapan pakai rule ini
+
+- Halaman mobile punya **satu area scroll utama** (mis. daftar task, list report, daftar notifikasi).
+- Data di halaman **perlu bisa di-refresh** (fetch ulang dari server/context).
+- Diinginkan **pull-to-refresh**: user mengusap ke bawah dari atas list untuk memicu refresh.
+
+Saat **membuat halaman baru** yang memenuhi kriteria di atas, tambahkan pull-to-refresh mengikuti pola di bawah.
+
+---
+
+## 2. Konstanta standar
+
+Gunakan nilai berikut agar perilaku dan feel konsisten di semua halaman:
+
+| Konstanta | Nilai | Keterangan |
+|-----------|--------|-------------|
+| `PULL_THRESHOLD` | `52` | Jarak pull (px) minimal agar saat lepas dianggap "release to refresh". |
+| `MAX_PULL` | `72` | Jarak pull maksimal (px) untuk indikator. |
+| `INDICATOR_HEIGHT` | `56` | Tinggi area indikator saat sedang refreshing (px). |
+| `PULL_RESISTANCE` | `0.55` | Faktor damping: `delta * PULL_RESISTANCE` agar gerakan tidak terlalu keras (0.5–0.6 disarankan). |
+
+---
+
+## 3. State dan ref yang diperlukan
+
+```ts
+const [isRefreshing, setIsRefreshing] = useState(false);
+const [pullDistance, setPullDistance] = useState(0);
+const [isPulling, setIsPulling] = useState(false);  // true saat jari masih menyeret
+const touchStartY = useRef(0);
+const pullDistanceRef = useRef(0);   // agar onTouchEnd baca nilai terbaru
+const listScrollRef = useRef<HTMLDivElement>(null); // ref pada elemen scroll
+```
+
+- Sync `pullDistanceRef` dengan `pullDistance`: `useEffect(() => { pullDistanceRef.current = pullDistance; }, [pullDistance]);`
+
+---
+
+## 4. Handler pull-to-refresh
+
+### 4.1 Handler refresh (dipanggil saat release di atas threshold)
+
+- Set `isRefreshing(true)` dan `setPullDistance(0)`.
+- Panggil fungsi fetch/refetch (mis. `refetchTasks()`, `refreshData()`). **Jangan** reset filter di sini kecuali memang diinginkan (pull-to-refresh = refetch saja).
+- Di `finally`: `setIsRefreshing(false)`.
+- On error: tampilkan toast.
+
+### 4.2 onTouchStart
+
+- Simpan `touchStartY.current = e.touches[0].clientY`.
+- Jika elemen scroll ada dan `scrollTop <= 2`, set `setIsPulling(true)`.
+
+### 4.3 onTouchMove
+
+- Jika tidak ada ref scroll atau `isRefreshing`, return.
+- Jika `scrollTop > 2`: set `isPulling(false)`, `pullDistance(0)`, return (user tidak di atas list).
+- Hitung `delta = e.touches[0].clientY - touchStartY.current`.
+- Jika `delta > 0`: `setPullDistance(Math.min(delta * PULL_RESISTANCE, MAX_PULL))` dan update `pullDistanceRef.current`.
+- Jika `delta <= 0`: set `pullDistance(0)` dan `pullDistanceRef.current = 0`.
+
+### 4.4 onTouchEnd
+
+- Set `isPulling(false)`.
+- Baca `pullDistanceRef.current`; lalu set `pullDistance(0)` dan `pullDistanceRef.current = 0`.
+- Jika nilai tadi `>= PULL_THRESHOLD`, panggil handler refresh.
+
+---
+
+## 5. Elemen scroll dan indikator UI
+
+### 5.1 Elemen scroll
+
+- Pasang **ref** (`listScrollRef`) pada **satu** elemen scroll (biasanya div dengan `overflow-y-auto`).
+- Pasang handler: `onTouchStart`, `onTouchMove`, `onTouchEnd` pada elemen yang sama.
+- Tetap gunakan class scroll standar (mis. `seamless-scroll`, `nested-scroll-touch-chain` jika berlaku).
+
+### 5.2 Indikator pull (di dalam scroll, sebagai anak pertama)
+
+- Satu div wrapper indikator dengan:
+  - `height`: `pullDistance > 0 ? Math.min(pullDistance, MAX_PULL) : isRefreshing ? INDICATOR_HEIGHT : 0`
+  - `overflow: hidden`, `minHeight: 0`
+  - **Transition**: hanya saat **tidak** pulling agar animasi halus saat lepas:
+    - `transition: isPulling ? 'none' : 'height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)'`
+
+- Isi indikator:
+  - **Saat `isRefreshing`**: spinner (mis. `<Loader2 className="h-5 w-5 animate-spin text-primary" />`).
+  - **Saat `pullDistance >= PULL_THRESHOLD`**: teks "Lepas untuk refresh" (pakai i18n, mis. `t('dailyTask.pullToRefresh.release', 'Lepas untuk refresh')`).
+  - **Saat pull < threshold**: ikon refresh (mis. `<RefreshCw />`) dengan rotasi: `transform: rotate(${Math.min((pullDistance / PULL_THRESHOLD) * 180, 180)}deg)`, dan `transition: isPulling ? 'none' : 'transform 0.2s ease-out'`.
+
+- Styling: flex center, `text-muted-foreground`, `text-sm`; teks release bisa `text-primary`, `text-xs font-medium`.
+
+### 5.3 Skeleton tidak tampil saat pull-to-refresh (anti-flicker)
+
+Saat user pull-to-refresh, **konten yang sudah tampil harus tetap terlihat**. Jangan tampilkan skeleton selama `isRefreshing === true`.
+
+- **Pola benar:** Tampilkan skeleton hanya saat **load awal**, bukan saat refresh:
+  - `{isLoading && !isRefreshing ? <Skeleton /> : <ListContent />}`
+- Jika konten punya **child loading** (komponen yang memanggil `onLoadingChange(true/false)`), oper **`isRefreshing`** ke konten dan gunakan `childLoading && !isRefreshing` untuk menampilkan skeleton dan menyembunyikan konten (detail di **`perbaiki-halaman-flicker.mdc`** Section 4).
+
+Ini memastikan perilaku sama di semua halaman: saat pull-to-refresh hanya indikator di atas yang berputar; daftar/konten tetap tampil sampai data selesai dimuat.
+
+---
+
+## 6. Pola struktur (ringkas)
+
+```tsx
+<div
+  ref={listScrollRef}
+  className="flex-1 overflow-y-auto ... seamless-scroll ..."
+  onTouchStart={onTouchStart}
+  onTouchMove={onTouchMove}
+  onTouchEnd={onTouchEnd}
+>
+  {/* Indikator pull-to-refresh (anak pertama) */}
+  <div
+    className="shrink-0 overflow-hidden flex items-center justify-center text-muted-foreground text-sm"
+    style={{
+      height: pullDistance > 0 ? Math.min(pullDistance, MAX_PULL) : isRefreshing ? INDICATOR_HEIGHT : 0,
+      minHeight: 0,
+      transition: isPulling ? 'none' : 'height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+    }}
+  >
+    {/* isRefreshing ? spinner : pullDistance >= PULL_THRESHOLD ? "Lepas untuk refresh" : <RefreshCw style rotate /> */}
+  </div>
+  {/* Konten list/halaman */}
+  <div className="...">
+    {/* Skeleton hanya saat load awal; saat pull-to-refresh konten tetap tampil (lihat perbaiki-halaman-flicker.mdc) */}
+    {isLoading && !isRefreshing ? <Skeleton /> : <ListContent />}
+  </div>
+</div>
+```
+
+---
+
+## 7. Checklist saat menambah pull-to-refresh di halaman baru
+
+- [ ] **Load awal:** Data di-fetch otomatis saat halaman/list view mount (provider/context atau effect); halaman tidak mengandalkan pull-to-refresh untuk menampilkan data pertama kali.
+- [ ] **Recovery:** Jika setelah load daftar masih kosong dan `!isLoading`, ada recovery refetch sekali (ref agar tidak loop). Recovery hanya bila belum ada data (`hasData`); lihat **perbaiki-halaman-flicker.mdc** Section 3.
+- [ ] **Tanpa flicker saat refresh:** Skeleton hanya bila **`isLoading && !isRefreshing`** (bukan sekadar `isLoading`). Jika ada child loading, oper `isRefreshing` dan pakai `childLoading && !isRefreshing` — lihat **perbaiki-halaman-flicker.mdc** Section 4.
+- [ ] Konstanta `PULL_THRESHOLD`, `MAX_PULL`, `INDICATOR_HEIGHT`, `PULL_RESISTANCE` dipakai (atau sama nilainya).
+- [ ] State `isRefreshing`, `pullDistance`, `isPulling` dan ref `touchStartY`, `pullDistanceRef`, scroll ref ada.
+- [ ] `pullDistanceRef` di-sync dengan `pullDistance` di `useEffect`.
+- [ ] onTouchStart hanya set `isPulling(true)` bila scroll di atas (`scrollTop <= 2`).
+- [ ] onTouchMove mengabaikan pull bila `scrollTop > 2`; hitung pull dengan `delta * PULL_RESISTANCE` dan cap `MAX_PULL`.
+- [ ] onTouchEnd baca dari `pullDistanceRef.current`; trigger refresh hanya jika `>= PULL_THRESHOLD`.
+- [ ] Indikator punya transition **hanya saat `!isPulling`** (supaya mengikuti jari tanpa delay, halus saat lepas).
+- [ ] Tiga keadaan indikator: refreshing (spinner), release (teks), pull (ikon berputar).
+- [ ] Teks pakai i18n; fallback teks Indonesia/Inggris sesuai konteks halaman.
+
+---
+
+## 8. Ringkasan
+
+| Item | Nilai |
+|------|--------|
+| Prinsip | Data load otomatis saat halaman dibuka; **pull-to-refresh hanya untuk refresh**, bukan pengganti load awal |
+| Anti-flicker | Saat refresh **jangan** tampilkan skeleton; hanya indikator pull di atas. Gunakan `isLoading && !isRefreshing` untuk skeleton. Lihat **perbaiki-halaman-flicker.mdc** |
+| Cakupan | Halaman mobile dengan daftar/list yang perlu di-refresh |
+| File acuan | `DailyTaskLayout.tsx`, `InitiativePage.tsx` |
+| Rule terkait | **perbaiki-halaman-flicker.mdc** — recovery `hasData` + no skeleton on refresh; pilih salah satu rules sesuai konteks (tambah pull-to-refresh vs perbaiki flicker) |
+| Trigger | Usap ke bawah dari atas area scroll (`scrollTop <= 2`) |
+| Animasi | Transition hanya saat lepas (`!isPulling`); resistance 0.55 |
+| I18n | Pakai key mis. `dailyTask.pullToRefresh.release` atau `common.pullToRefresh.release` |
+
+**PENTING:**  
+- **Jangan** membuat halaman yang hanya menampilkan data setelah user pull-to-refresh. Data harus tampil dari load awal (provider/effect) atau recovery refetch.  
+- **Jangan** menampilkan skeleton saat pull-to-refresh — konten tetap tampil; hanya indikator refresh yang berputar.  
+- Setiap kali menambah halaman baru yang membutuhkan pull-to-refresh, ikuti pola state, handler, dan UI di atas agar perilaku dan animasi konsisten di seluruh app.

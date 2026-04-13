@@ -1,0 +1,138 @@
+---
+description: Standar scroll chaining untuk section yang punya scroll di dalam (nested scroll). Berlaku untuk semua halaman (desktop dan mobile). Gunakan class yang tepat agar scroll daftar/list di dalam section tidak "mencuri" scroll halaman, dan setelah list mentok scroll lanjut ke halaman utama.
+---
+
+# Scroll Chaining — Standar untuk Semua Halaman
+
+Rule ini **wajib dipakai di semua halaman** (desktop dan mobile) yang punya **section dengan scroll di dalam** (mis. daftar/list dalam kotak dengan `max-h` dan `overflow-y-auto`). Tujuan: perilaku scroll konsisten — list bisa di-scroll dengan jari/mouse, dan **setelah list mentok (atas/bawah), scroll lanjut ke halaman utama** (scroll chaining).
+
+**File acuan:** Class didefinisikan di `src/index.css`.
+
+**Contoh implementasi:**  
+`android-mobile/5-meeting-notes/section/MeetingNotesContent.tsx`, `src/features/8-2-DailyTask/section/PendingApprovalSection.tsx`, Home OKR tab (`src/features/1_home/components/HomeOKRDashboard/`, `CompanyObjectivesDetailView.tsx`, `SectionActiveObjectives.tsx`).
+
+---
+
+## 1. Kapan pakai rule ini
+
+**Berlaku untuk semua halaman** (termasuk halaman baru): gunakan sebagai standar begitu ada section dengan scroll di dalam.
+
+- Halaman punya **satu area scroll utama** (halaman/page scroll), atau satu scroll per panel/kolom.
+- Di dalam halaman ada **section** (card, panel, tabel) yang **sendiri punya scroll** (daftar, list, tabel dengan `overflow-y-auto` dan tinggi dibatasi mis. `max-h-[...]`).
+- Di **mobile/touch**: scroll jari di area list harus menggerakkan list dulu; **setelah list mentok**, scroll harus bisa menggerakkan halaman utama (scroll chaining).
+- Di **desktop**: scroll mouse di area list menggerakkan list; saat list mentok, scroll wheel menggerakkan halaman.
+
+Jika section **tidak** punya scroll di dalam (seluruh konten di satu scroll halaman), rule ini tidak dipakai.
+
+---
+
+## 2. Dua pola perilaku
+
+Tersedia dua class di `src/index.css`:
+
+| Pola | Class | Perilaku | Kapan dipakai |
+|------|--------|----------|-------------------|
+| **Scroll chaining** | `nested-scroll-touch-chain` | List scroll dulu; **setelah list mentok (atas/bawah), scroll lanjut ke halaman utama**. | **Standar** untuk section list/daftar di dalam halaman scroll (mis. daftar meeting points, tabel report, list item, card list—di halaman mana pun, desktop atau mobile). |
+| **Scroll contained** | `nested-scroll-touch` | List scroll hanya di dalam kotak; **scroll tidak lanjut ke halaman** saat list mentok. | Hanya jika sengaja ingin scroll list dan halaman benar-benar terpisah (mis. Pending Approval di Job Desc Overview). |
+
+**Standar default:** Untuk section dengan scroll di dalam, pakai **`nested-scroll-touch-chain`** agar setelah daftar mentok, halaman utama ikut bisa di-scroll.
+
+---
+
+## 3. Implementasi (wajib)
+
+### 3.1 Container scroll di dalam section
+
+Pada **elemen yang punya scroll di dalam** (bukan scroll halaman), gabungkan:
+
+- `overflow-y-auto overflow-x-hidden`
+- `seamless-scroll` (sembunyikan scrollbar, tetap bisa scroll)
+- **`nested-scroll-touch-chain`** (scroll chaining: list dulu, lalu halaman saat mentok)
+- Tinggi dibatasi: `max-h-[...]` (mis. `max-h-[calc(100vh-420px)]` atau `max-h-[min(40vh,320px)]`)
+- `min-h-0` (penting di layout flex agar tinggi terbatas berlaku)
+
+Contoh:
+
+```tsx
+<div className="overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain max-h-[calc(100vh-420px)] min-h-0">
+  {/* isi daftar/list */}
+</div>
+```
+
+### 3.2 Kapan pakai `nested-scroll-touch` (contained)
+
+Hanya jika **secara sengaja** diinginkan scroll list **tidak** lanjut ke halaman (scroll 100% terpisah). Contoh: Pending Approval di Job Desc Overview. Tetap pakai `min-h-0` dan `max-h-[...]`.
+
+```tsx
+<div className="... seamless-scroll nested-scroll-touch max-h-[min(40vh,320px)] min-h-0">
+```
+
+### 3.3 Jangan ubah definisi CSS
+
+- **Jangan** menghapus atau mengubah `overscroll-behavior` di `src/index.css` untuk `.nested-scroll-touch` dan `.nested-scroll-touch-chain`.
+- **nested-scroll-touch-chain:** `overscroll-behavior: auto` — agar scroll chain ke parent saat inner mentok.
+- **nested-scroll-touch:** `overscroll-behavior: contain` — agar scroll tidak chain.
+
+### 3.4 Anti-pattern (hindari)
+
+- **Jangan buat nested scroll ganda** dalam satu area: hanya **satu** elemen scroll (`overflow-y-auto` / `overflow-auto`) per panel/kolom. Jika parent sudah scroll, anak (mis. wrapper Accordion, wrapper list) **jangan** pakai `overflow-y-auto` — biarkan konten mengalir agar scroll satu layer.
+- **Jangan** pakai `max-h-[...]` + `overflow-hidden` di root view jika tujuannya satu scroll seperti tab lain; itu membuat scroll ganda dan perilaku “scroll ke atas lalu tidak bisa ke bawah”. Root cukup `h-full w-full flex flex-col`, scroll hanya di satu wrapper `flex-1 w-full overflow-auto`.
+- **Jangan** tambah `overflow-y-auto` pada wrapper header/list (mis. div pembungkus Accordion) di dalam section yang sudah ada di dalam container scroll; itu membuat hanya header yang ikut scroll, daftar tidak.
+
+### 3.5 Pola standar untuk halaman baru
+
+Saat menambah halaman yang punya daftar/list di dalam panel:
+
+1. **Satu scroll container per panel:** Satu elemen dengan `overflow-y-auto` (atau `overflow-auto`) + `max-h-[...]` atau tinggi dari flex (`flex-1 min-h-0`), plus `seamless-scroll` dan `nested-scroll-touch-chain`.
+2. **Struktur konsisten:** Root: `h-full w-full flex flex-col`. Isi: satu div scroll `flex-1 w-full overflow-auto`, di dalamnya div konten (mis. `space-y-4 h-full`) **tanpa** `overflow-y-auto` lagi.
+3. **Section berisi list/accordion:** Header section + daftar (Accordion, list) **tanpa** wrapper `overflow-y-auto` di sekitar daftar; biarkan satu scroll di parent (view atau tab).
+
+Rujuk struktur: `CompanyObjectivesDetailView.tsx` (root → scroll wrapper → content) dan `SectionActiveObjectives.tsx` (header + div konten tanpa overflow di wrapper Accordion).
+
+---
+
+## 4. Definisi di `src/index.css` (referensi)
+
+```css
+/* Nested scroll container: scroll tidak lanjut ke halaman */
+.nested-scroll-touch {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* Nested scroll dengan chaining: list scroll dulu; saat list mentok, scroll lanjut ke halaman */
+.nested-scroll-touch-chain {
+  overscroll-behavior: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+```
+
+---
+
+## 5. Checklist saat menambah/ubah section dengan scroll di dalam
+
+- [ ] Hanya **satu** container scroll per panel/kolom? (tidak ada `overflow-y-auto` ganda di parent dan anak)
+- [ ] Section punya elemen dengan `overflow-y-auto` dan `max-h-[...]` atau tinggi dari flex (`flex-1 min-h-0`)?
+- [ ] Sudah tambah **`nested-scroll-touch-chain`** (atau `nested-scroll-touch` jika memang ingin contained)?
+- [ ] Sudah tambah **`min-h-0`** pada container scroll tersebut (jika dalam flex)?
+- [ ] Sudah pakai **`seamless-scroll`** agar scrollbar tersembunyi?
+- [ ] Wrapper list/accordion **tidak** pakai `overflow-y-auto` (kecuali itu memang satu-satunya scroll container)?
+- [ ] Di mobile: setelah list mentok, halaman utama ikut bisa di-scroll (jika pakai chain)?
+
+---
+
+## 6. Ringkasan
+
+| Item | Nilai |
+|------|--------|
+| Cakupan | **Semua halaman** (desktop dan mobile); standar wajib untuk halaman dengan section scroll |
+| Standar section dengan scroll di dalam | Pakai **`nested-scroll-touch-chain`** |
+| Scroll chaining | List scroll dulu → saat mentok, scroll lanjut ke halaman |
+| Class alternatif (scroll tidak chain) | `nested-scroll-touch` |
+| File CSS | `src/index.css` |
+
+**PENTING:**  
+- Setiap kali **membuat halaman baru** atau mengubah halaman yang punya section dengan daftar/list scroll, ikuti rule ini: satu scroll container per panel, class `nested-scroll-touch-chain` (atau `nested-scroll-touch` jika dibutuhkan), `min-h-0` dan `max-h`/flex agar tinggi terbatas.  
+- Jangan buat nested scroll ganda: satu area = satu elemen scroll; anak (header, list, accordion) jangan pakai `overflow-y-auto` jika parent sudah scroll.

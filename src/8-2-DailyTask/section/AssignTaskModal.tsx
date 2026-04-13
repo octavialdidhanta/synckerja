@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface AssignTaskModalProps {
   open: boolean;
@@ -24,6 +25,7 @@ export const AssignTaskModal: React.FC<AssignTaskModalProps> = ({
   onAssign,
   currentAssignment
 }) => {
+  const { t } = useAppTranslation();
   const { data: employees = [] } = useAvailableEmployees();
   const { organizationId } = useCurrentOrg();
   const isMobile = useIsMobile();
@@ -110,17 +112,35 @@ export const AssignTaskModal: React.FC<AssignTaskModalProps> = ({
         hideCloseButton={isMobile}
         fullscreenAnimation={isMobile}
       >
-        <DialogHeader
-          className={cn(
-            'relative z-10 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 text-left dark:from-blue-950/20 dark:to-indigo-950/20 safe-area-top',
-            isMobile ? 'px-4 pb-3 pt-4' : 'px-6 pb-4 pt-6'
-          )}
-        >
-          <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-            <User className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-            Assign Task
-          </DialogTitle>
-        </DialogHeader>
+        {isMobile ? (
+          <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <User className="block h-4 w-4 shrink-0" />
+              </div>
+              <DialogTitle className="m-0 flex min-h-0 min-w-0 flex-1 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
+                {t('dailyTask.assignTask.title', 'Assign Task')}
+              </DialogTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                onClick={() => onOpenChange(false)}
+                aria-label={t('common.close', 'Close')}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+        ) : (
+          <DialogHeader className="relative z-10 flex-shrink-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-6 pb-4 pt-6 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <DialogTitle className="flex items-center gap-2 text-lg font-semibold leading-tight">
+              <User className="h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+              {t('dailyTask.assignTask.title', 'Assign Task')}
+            </DialogTitle>
+          </DialogHeader>
+        )}
 
         <div
           className={cn(

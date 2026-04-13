@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { NewLead } from '@/shared/types/leads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Progress } from '@/shared/components/ui/progress';
@@ -10,8 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TrendingUp, Users, Calendar, Target, Download, FileText, BarChart3, MapPin, Loader2, User2, LineChart, ChevronDown } from 'lucide-react';
 import { generateLeadsPDF } from "@/5-3-dashboard/lib/LeadsPDFGenerator";
 import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
-import { supabase } from '@/shared/lib/supabaseClient';
-import { LeadStatusHistoryEntry } from '@/shared/hooks/organized/sales';
+import { useLeadsInsightsSupplementalQueries } from '@/5-3-dashboard/hooks/useLeadsInsightsSupplementalQueries';
 
 function formatDurationMs(ms: number): string {
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
@@ -69,35 +67,7 @@ export const LeadsInsights = ({
 
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
-  const { data: cycleRows = [], isError: isCycleMetricsError } = useQuery({
-    queryKey: ['whatsapp-cycle-metrics', organizationId],
-    enabled: !!organizationId,
-    queryFn: async () => {
-      if (!organizationId) return [];
-      const { data, error } = await supabase.rpc('get_whatsapp_cycle_metrics', { p_organization_id: organizationId });
-      if (error) throw error;
-      return (data ?? []) as Array<{ conversation_id: string; assignee_id: string | null; cycle_started_at: string; first_response_at: string | null; resolved_at: string | null }>;
-    },
-  });
-
-  // Status list sama dengan sidebar quick action & tabel leads: dari lead_statuses (is_active, sort_order)
-  const { data: leadStatusesFromDb = [] } = useQuery({
-    queryKey: ['lead-statuses', organizationId],
-    enabled: !!organizationId,
-    queryFn: async () => {
-      let q = supabase
-        .from('lead_statuses')
-        .select('id, name, color')
-        .eq('is_active', true)
-        .order('sort_order');
-      if (organizationId) {
-        q = q.or(`organization_id.eq.${organizationId},organization_id.is.null`);
-      }
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; name: string; color: string }>;
-    },
-  });
+  const { cycleRows, leadStatusesFromDb, isCycleMetricsError } = useLeadsInsightsSupplementalQueries(organizationId);
 
   const totalLeads = leads.length;
 

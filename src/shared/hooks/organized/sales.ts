@@ -1122,7 +1122,13 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
     !isOwner &&
     (!employeeFetched || employeeLoading);
 
-  const { data: rawLeadsList = [], isLoading: loading, refetch } = useQuery({
+  const {
+    data: rawLeadsList = [],
+    isLoading: loading,
+    isFetching,
+    dataUpdatedAt,
+    refetch,
+  } = useQuery({
     queryKey: ['leads', organizationId, effectiveScope, currentEmployeeId, isOwner],
     queryFn: async () => {
       if (!organizationId) return [];
@@ -1889,7 +1895,12 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
     },
   });
 
-  const initialLoadPending = employeeWait || (!!organizationId && queryEnabled && loading);
+  /** First successful response sets `dataUpdatedAt`; refetch/interval keeps it >0 so UI does not flash skeleton on background refresh. */
+  const initialLoadPending =
+    employeeWait ||
+    (!!organizationId &&
+      queryEnabled &&
+      (loading || (isFetching && dataUpdatedAt === 0)));
 
   return {
     leads: leads as any[],

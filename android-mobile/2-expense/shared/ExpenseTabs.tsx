@@ -14,6 +14,9 @@ const TABS: Record<ExpenseTabKey, string> = {
   bills: "/expenses/reminder-bills",
 };
 
+const expenseTabPressable =
+  "touch-manipulation select-none rounded-md transition-[color,transform,background-color] duration-150 ease-out active:scale-[0.96] active:bg-muted/80";
+
 const tabItems: { key: ExpenseTabKey; icon: typeof LayoutDashboard }[] = [
   { key: "dashboard", icon: LayoutDashboard },
   { key: "debt", icon: Wallet },
@@ -34,6 +37,12 @@ const ExpenseBottomTabsComponent = ({
   className,
 }: ExpenseBottomTabsProps) => {
   const { t } = useAppTranslation();
+
+  /**
+   * Selalu render: `useRegisterMobileAppNavSuppression` + depth bisa tertinggal (dialog/portal),
+   * yang sebelumnya membuat `return null` dan footer hilang permanen. Modal fullscreen (z-50)
+   * tetap menutupi tab (z-30); `html[data-mobile-shell-nav-suppressed]` hanya untuk CSS modal.
+   */
   const labels: Record<ExpenseTabKey, string> = {
     dashboard: t("expenses.tabs.dashboard", "Dashboard"),
     debt: t("expenses.tabs.debt", "Debt"),
@@ -42,11 +51,16 @@ const ExpenseBottomTabsComponent = ({
     bills: t("expenses.tabs.bills", "Bills"),
   };
 
+  /**
+   * `mobile-app-bottom-nav`: di Android native `index.css` memaksa `padding-bottom: 0` pada nav + anak
+   * (selaras `IncomeBottomTabs` / Home) agar tidak strip putih ganda di atas bilah navigasi sistem.
+   * Di web/non-native, `safe-area-bottom-lower` pada grid tetap memberi inset bila perlu.
+   */
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
+    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
       <div
         className={cn(
-          "mx-auto grid w-full max-w-md grid-cols-5",
+          "mx-auto grid min-h-[52px] w-full max-w-md grid-cols-5",
           className ?? "safe-area-bottom-lower",
         )}
       >
@@ -58,7 +72,8 @@ const ExpenseBottomTabsComponent = ({
               type="button"
               onClick={() => onTabChange(key)}
               className={cn(
-                "flex flex-col items-center px-1 py-2 transition-colors",
+                "flex flex-col items-center px-1 py-2",
+                expenseTabPressable,
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >

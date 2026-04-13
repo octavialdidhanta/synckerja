@@ -20,13 +20,16 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { useIsMobile } from "@/mobile/shared/hooks/use-mobile";
+import { Capacitor } from "@capacitor/core";
+import { useVisualViewport } from "@/shared/hooks/useVisualViewport";
+import { useCapacitorKeyboardInset } from "@/shared/native/useCapacitorKeyboardInset";
 import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { AlertCircle, Camera, FileText, Upload, X } from "lucide-react";
-import { CameraModal } from "@/mobile/shared/components/CameraModal";
-import { pickReceiptImageFiles } from "@/mobile/shared/utils/pickReceiptFromGallery";
+import { CameraModal } from "@/mobile-app/components/CameraModal";
+import { pickReceiptImageFiles } from "@/mobile-app/utils/pickReceiptFromGallery";
 import {
   addExpenseSchema,
   type AddExpenseFormData,
@@ -179,6 +182,41 @@ export function AddNewExpenseModal({
 }: AddNewExpenseModalProps) {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
+  const { height: visualViewportHeight, offsetTop: visualViewportOffsetTop, isKeyboardShellOpen } =
+    useVisualViewport();
+  const { keyboardHeightPx } = useCapacitorKeyboardInset();
+  /** Tanpa `keyboardHeightPx > 0` dari plugin, jangan pakai mode anchored (sering stale pasca-background). */
+  const androidKeyboardAnchoredModal =
+    isMobile &&
+    Capacitor.isNativePlatform() &&
+    Capacitor.getPlatform() === "android" &&
+    isKeyboardShellOpen &&
+    keyboardHeightPx > 0;
+
+  /**
+   * Android `adjustResize`: `window.innerHeight` sudah mengecualikan keyboard — jangan kurangi
+   * `keyboardHeightPx` lagi (menghasilkan tinggi terlalu pendek + celah di atas keyboard).
+   * Tanpa resize: `innerHeight - keyboardHeight` tetap dipakai sebagai cadangan saat vv ketinggalan.
+   */
+  const anchoredModalHeight = useMemo(() => {
+    if (typeof window === "undefined" || !androidKeyboardAnchoredModal) {
+      return visualViewportHeight;
+    }
+    const innerH = window.innerHeight;
+    const vvH = visualViewportHeight;
+    if (keyboardHeightPx <= 0) {
+      return Math.max(vvH, innerH);
+    }
+    const fromPlugin = innerH - keyboardHeightPx;
+    const insetLooksDoubleSubtracted =
+      fromPlugin < innerH * 0.55 ||
+      (Math.abs(vvH - innerH) <= 56 && fromPlugin < vvH * 0.82);
+    if (insetLooksDoubleSubtracted) {
+      return Math.max(vvH, innerH);
+    }
+    return Math.max(vvH, fromPlugin);
+  }, [androidKeyboardAnchoredModal, keyboardHeightPx, visualViewportHeight]);
+
   const { organizationId } = useCurrentOrg();
   const { createExpense, isCreating, expenses } = useExpenses();
   const { expenseTypes, isLoading: expenseTypesLoading } = useExpenseTypes();
@@ -710,7 +748,11 @@ export function AddNewExpenseModal({
         className={cn(
           "w-full max-w-none m-0 rounded-none translate-x-0 translate-y-0 flex flex-col p-0 gap-0 border-none bg-background shadow-xl focus:outline-none overflow-hidden",
           isMobile
-            ? "fixed left-0 right-0 top-0 modal-above-safe-area h-screen"
+            ? cn(
+                /* Jangan pakai h-screen; tanpa keyboard: bottom inset. Dengan keyboard Android: ikut visualViewport (tanpa modal-above-safe-area). */
+                "fixed left-0 right-0 top-0 max-h-none min-h-0 w-full overscroll-y-contain translate-x-0 translate-y-0",
+                !androidKeyboardAnchoredModal && "modal-above-safe-area",
+              )
             : cn(
                 "sm:translate-x-[-50%] sm:translate-y-[-50%] sm:left-[50%] sm:top-[50%] sm:flex sm:flex-col sm:overflow-hidden",
                 desktopSquareCorners
@@ -718,7 +760,18 @@ export function AddNewExpenseModal({
                   : "sm:max-w-lg sm:h-auto sm:max-h-[90vh] sm:rounded-lg"
               )
         )}
+        style={
+          androidKeyboardAnchoredModal
+            ? {
+                top: visualViewportOffsetTop,
+                height: anchoredModalHeight,
+                bottom: "auto",
+                maxHeight: "none",
+              }
+            : undefined
+        }
         fullscreenAnimation={isMobile}
+        hideCloseButton={isMobile}
         onInteractOutside={(e) => {
           if (shareFlowLocked || isReceiptInteractionRef.current) e.preventDefault();
         }}
@@ -732,27 +785,45 @@ export function AddNewExpenseModal({
           if (shareFlowLocked) e.preventDefault();
         }}
       >
-        <DialogHeader
-          className={cn(
-            "flex-shrink-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 text-left dark:from-brand-blue/20 dark:to-brand-blue/10",
-            isMobile
-              ? "safe-area-top space-y-0.5 px-4 py-2"
-              : "space-y-1 px-4 py-3",
-          )}
-        >
-          <DialogTitle className={cn("font-semibold leading-tight", isMobile ? "text-base" : "text-lg")}>
-            {t("expenses.addNewExpenseTitle", "Add New Expense")}
-          </DialogTitle>
-          <p className={cn("text-muted-foreground", isMobile ? "text-xs leading-snug" : "text-sm")}>
-            {t("expenses.addNewExpenseSubtitle", "Enter the details for your new expense entry.")}
-          </p>
-        </DialogHeader>
+        {isMobile ? (
+          <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
+                  {t("expenses.addNewExpenseTitle", "Add New Expense")}
+                </DialogTitle>
+                <p className="mt-0.5 truncate text-xs leading-snug text-muted-foreground">
+                  {t("expenses.addNewExpenseSubtitle", "Enter the details for your new expense entry.")}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                onClick={() => handleOpenChange(false)}
+                aria-label={t("common.close", "Close")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+        ) : (
+          <DialogHeader className="flex-shrink-0 space-y-1 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-3 text-left dark:from-brand-blue/20 dark:to-brand-blue/10">
+            <DialogTitle className="text-lg font-semibold leading-tight">
+              {t("expenses.addNewExpenseTitle", "Add New Expense")}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {t("expenses.addNewExpenseSubtitle", "Enter the details for your new expense entry.")}
+            </p>
+          </DialogHeader>
+        )}
 
         <form
           onSubmit={form.handleSubmit(handleSubmit)}
           className="flex-1 flex flex-col min-h-0"
         >
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain px-4 py-4 space-y-4">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {shareFlowLocked && aiAutofillStatus === "loading" ? (
               <div className="rounded-md border border-brand-blue/30 bg-brand-blue/10 px-3 py-2 text-xs text-brand-blue flex items-center gap-2">
                 <div className="w-3.5 h-3.5 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />

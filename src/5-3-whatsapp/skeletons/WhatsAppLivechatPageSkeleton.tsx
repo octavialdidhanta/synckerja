@@ -18,8 +18,8 @@ export function WhatsAppLivechatPageSkeleton() {
                 </div>
                 <div className="-mb-3 min-w-0 overflow-x-hidden">
                   <div className="flex min-w-0 flex-nowrap gap-x-6">
-                    {['w-24', 'w-32', 'w-36', 'w-36', 'w-28', 'w-20'].map((w) => (
-                      <Skeleton key={w} className={`h-8 shrink-0 ${w} rounded-none`} />
+                    {['w-24', 'w-32', 'w-36', 'w-36', 'w-28', 'w-20'].map((w, i) => (
+                      <Skeleton key={`livechat-tab-skel-${i}`} className={`h-8 shrink-0 ${w} rounded-none`} />
                     ))}
                   </div>
                 </div>

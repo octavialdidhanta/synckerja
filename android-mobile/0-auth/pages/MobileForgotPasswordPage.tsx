@@ -4,7 +4,7 @@ import { WithMobileAuthShell } from "@/shared/components/mobile/withMobileAuthSh
 
 export default function MobileForgotPasswordPage() {
   return (
-    <WithMobileAuthShell>
+    <WithMobileAuthShell keyboardOpenInnerClassName="!pt-14">
       {({ submitAnchorRef, onFieldFocus, onFieldBlur }) => (
         <ForgotPasswordScreen
           brandMark={<SynckerjaBrandMark />}

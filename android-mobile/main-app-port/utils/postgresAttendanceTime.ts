@@ -23,6 +23,29 @@ export function formatAttendanceTimeShort(value: string | null | undefined): str
   return isValid(d) ? format(d, "HH:mm") : "-";
 }
 
+/**
+ * Prefer `*_at` (timestamptz) for display so UI matches device clock even if `*_time` was stored as UTC wall clock.
+ */
+export function formatAttendanceClockFromRecord(
+  timeColumn: string | null | undefined,
+  atColumn: string | null | undefined,
+  locale: string,
+): string | undefined {
+  const at = atColumn?.trim();
+  if (at) {
+    const d = new Date(at);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleTimeString(locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+    }
+  }
+  return formatAttendanceTimeWithSeconds(timeColumn, locale);
+}
+
 /** Same as short but with seconds (for AttendanceStatus). Returns undefined when unparseable. */
 export function formatAttendanceTimeWithSeconds(
   value: string | null | undefined,

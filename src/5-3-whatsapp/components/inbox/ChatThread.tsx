@@ -25,6 +25,8 @@ import { isLikelyInstagramId } from '../../constants/instagramId';
 import { isResolvedStatus, isOutside24hWindow } from '../../constants/leadStatus';
 import { format } from 'date-fns';
 import type { Locale } from 'date-fns';
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 /** Bucket yang sama dipakai untuk kirim (outbound) dan terima (webhook/resolve) media */
 const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
@@ -455,8 +457,10 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
   const hasScrollTargetRef = useRef(false);
 
   /** Threshold (px) to lock direction: one decision only — scroll OR reply (no diagonal). Same as ConversationList. */
-  const DIRECTION_LOCK_PX = 8;
-  const DIRECTION_LOCK_MARGIN_PX = 10;
+  const DIRECTION_LOCK_PX = 4;
+  const DIRECTION_LOCK_MARGIN_PX = 6;
+  const SWIPE_REPLY_TRIGGER_PX = 42;
+  const SWIPE_REPLY_MAX_TRANSLATE_PX = 92;
   const SNAP_TRANSITION = 'transform 0.25s cubic-bezier(0.33, 1, 0.68, 1)';
 
   /** Decide once: reply-swipe OR scroll. Lock vertical scroll only when intent is reply (mobile). Needs passive: false so preventDefault works. */
@@ -587,6 +591,15 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
   const vibrate = useCallback((ms = 50) => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(ms);
   }, []);
+  const triggerReplyHaptic = useCallback(async () => {
+    vibrate(30);
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      await Haptics.impact({ style: ImpactStyle.Light });
+    } catch {
+      // fallback already handled by navigator.vibrate
+    }
+  }, [vibrate]);
 
   const focusInputToKeepKeyboard = useCallback(() => {
     setTimeout(() => textareaRef.current?.focus(), 0);
@@ -1146,7 +1159,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
       <div className="relative flex-1 min-h-0 flex flex-col">
         {stickyDateVisible && (
           <div
-            className="absolute top-2 left-0 right-0 z-20 flex justify-center items-center pointer-events-none transition-all duration-200 ease-out pl-4 pr-2"
+            className="absolute top-2 left-0 right-0 z-20 flex justify-center items-center pointer-events-none transition-all duration-200 ease-out pl-2 pr-2"
             style={{
               opacity: stickyDateExiting || !stickyDateAnimateIn ? 0 : 1,
               transform: stickyDateExiting || !stickyDateAnimateIn ? 'translateY(-6px)' : 'translateY(0)',
@@ -1159,7 +1172,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
         )}
       <div
         ref={messagesScrollRef}
-        className={`flex-1 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain pl-4 pr-2 pt-6 min-h-0 bg-[#efeae2] flex flex-col-reverse gap-y-1 ${
+        className={`flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pl-2 pr-2 pt-6 min-h-0 bg-[#efeae2] flex flex-col-reverse gap-y-1 ${
           replyTo
             ? hideHeader
               ? keyboardOpen
@@ -1430,7 +1443,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                           }
                         }
                         if (start.intent !== 'reply') return;
-                        const translateX = Math.min(Math.max(0, deltaX), 80);
+                        const translateX = Math.min(Math.max(0, deltaX), SWIPE_REPLY_MAX_TRANSLATE_PX);
                         const el = swipeBubbleElRef.current;
                         if (el) {
                           el.style.transition = 'none';
@@ -1443,9 +1456,9 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                         if (start.intent === 'scroll') return;
                         const endX = e.changedTouches[0].clientX;
                         const swipeDistance = endX - start.startX;
-                        const triggeredReply = swipeDistance > 50;
+                        const triggeredReply = swipeDistance > SWIPE_REPLY_TRIGGER_PX;
                         if (triggeredReply) {
-                          vibrate(30);
+                          void triggerReplyHaptic();
                           setReplyTo({
                             id: msg.id,
                             body: getMessageCaptionForReply(msg) ?? msg.body ?? null,
@@ -1485,6 +1498,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                         }
                       },
                       onPointerDown: (e: React.PointerEvent) => {
+                        if (e.pointerType === 'touch') return;
                         e.stopPropagation();
                         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
                         touchStartRef.current = { msgId: msg.id, startX: e.clientX, startY: e.clientY };
@@ -1493,6 +1507,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                         setSwipeOffset({ msgId: msg.id, translateX: 0 });
                       },
                       onPointerMove: (e: React.PointerEvent) => {
+                        if (e.pointerType === 'touch') return;
                         const start = touchStartRef.current;
                         if (!start || start.msgId !== msg.id) return;
                         const deltaX = e.clientX - start.startX;
@@ -1518,7 +1533,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                           }
                         }
                         if (start.intent !== 'reply') return;
-                        const translateX = Math.min(Math.max(0, deltaX), 80);
+                        const translateX = Math.min(Math.max(0, deltaX), SWIPE_REPLY_MAX_TRANSLATE_PX);
                         const el = swipeBubbleElRef.current;
                         if (el) {
                           el.style.transition = 'none';
@@ -1526,13 +1541,14 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                         }
                       },
                       onPointerUp: (e: React.PointerEvent) => {
+                        if (e.pointerType === 'touch') return;
                         const start = touchStartRef.current;
                         if (!start || start.msgId !== msg.id) return;
                         if (start.intent === 'scroll') return;
                         const swipeDistance = e.clientX - start.startX;
-                        const triggeredReply = swipeDistance > 50;
+                        const triggeredReply = swipeDistance > SWIPE_REPLY_TRIGGER_PX;
                         if (triggeredReply) {
-                          vibrate(30);
+                          void triggerReplyHaptic();
                           setReplyTo({
                             id: msg.id,
                             body: getMessageCaptionForReply(msg) ?? msg.body ?? null,
@@ -1555,7 +1571,8 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                         }, 250);
                         touchStartRef.current = null;
                       },
-                      onPointerLeave: () => {
+                      onPointerLeave: (e: React.PointerEvent) => {
+                        if (e.pointerType === 'touch') return;
                         if (touchStartRef.current?.msgId === msg.id) {
                           const el = swipeBubbleElRef.current;
                           if (el) {
@@ -1572,6 +1589,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                         }
                       },
                       onPointerCancel: (e: React.PointerEvent) => {
+                        if (e.pointerType === 'touch') return;
                         (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
                         if (touchStartRef.current?.msgId === msg.id) {
                           const el = swipeBubbleElRef.current;

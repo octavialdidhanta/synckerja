@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { DollarSign, Calendar, Receipt, Building2 } from 'lucide-react';
+import { MOBILE_INCOMES_BANK_ACCOUNT_PATH } from '@/mobile/3-dashboard/shared/mobileIncomesNavPaths';
 import { useIncomeTransactions } from '@/4-1-dashboard/hooks';
 import { useIncomeMetrics } from '@/4-1-dashboard/hooks';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
@@ -110,10 +112,29 @@ const OverviewContent = ({ transactions = [] }: { transactions?: any[] }) => {
   );
 };
 
-export const IncomeTransactionOverview = ({ transactions = [] }: IncomeTransactionOverviewProps) => {
-  const [activeTab, setActiveTab] = useState('overview');
+function isBankAccountRoutePath(pathname: string) {
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 w-full flex-1 flex-col">
+    pathname === MOBILE_INCOMES_BANK_ACCOUNT_PATH ||
+    pathname.startsWith(`${MOBILE_INCOMES_BANK_ACCOUNT_PATH}/`)
+  );
+}
+
+export const IncomeTransactionOverview = ({ transactions = [] }: IncomeTransactionOverviewProps) => {
+  const { pathname } = useLocation();
+  const [activeTab, setActiveTab] = useState<'overview' | 'bank-accounts'>(() =>
+    isBankAccountRoutePath(pathname) ? 'bank-accounts' : 'overview',
+  );
+
+  useEffect(() => {
+    setActiveTab(isBankAccountRoutePath(pathname) ? 'bank-accounts' : 'overview');
+  }, [pathname]);
+
+  return (
+    <Tabs
+      value={activeTab}
+      onValueChange={(v) => setActiveTab(v as "overview" | "bank-accounts")}
+      className="flex h-full min-h-0 w-full flex-1 flex-col"
+    >
       <TabsList className="grid h-9 w-full flex-shrink-0 grid-cols-2 bg-gray-100 mb-3">
         <TabsTrigger 
           value="overview" 

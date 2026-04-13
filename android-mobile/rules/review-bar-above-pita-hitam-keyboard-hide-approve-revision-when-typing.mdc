@@ -1,0 +1,172 @@
+---
+description: Standar layout halaman Public Content Review (/review) di Android native—bar komentar tepat di atas pita hitam (nav) dan di atas keyboard; tombol Approve/Request Revision disembunyikan saat mengetik; Request Revision hanya enable setelah kirim komentar berhasil. WAJIB dipakai saat mengubah atau membuat halaman serupa.
+globs: **/PublicContentReviewPage.tsx,**/review*
+---
+
+# Review Page: Bar di Atas Pita Hitam & Keyboard, Sembunyikan Approve/Revision Saat Mengetik
+
+Berlaku untuk **halaman Public Content Review** (`/review`) saat dibuka dari native/Android (`showBackToHome === true`). Dokumen ini menjadi acuan baku agar pengaturan header, spasi, bar komentar, dan interaksi keyboard tidak berubah tanpa sengaja.
+
+**Perilaku yang diperbaiki berkali-kali (jangan diubah tanpa mengacu rule ini):**
+- Bar komentar (textarea + tombol) **tepat di atas pita hitam** saat keyboard tertutup, dan **tepat di atas keyboard** saat keyboard terbuka.
+- Bar **bukan** `position: fixed` — bar adalah anak terakhir wrapper flex agar section preview tidak tertutup.
+- Saat **keyboard terbuka** (user mengetik komentar): **sembunyikan** tombol Approve Content dan Request Revision; yang tampil hanya textarea + tombol kirim.
+- Tombol **Request Revision** hanya **enable** setelah user **berhasil mengirim minimal satu komentar** di session ini.
+
+**File acuan:** `src/features/6-1-dashboard/pages/PublicContentReviewPage.tsx`
+
+---
+
+## 1. Root container
+
+- **Class:** `min-h-screen h-screen max-h-screen bg-gray-50 flex flex-col min-w-0`
+- **Native:** `overflow-hidden` (scroll hanya di area konten, bukan di root).
+- **Style (native):**
+  - **Keyboard tertutup:**  
+    `minHeight: '100dvh'`, `height: '100dvh'`, `maxHeight: '100dvh'`,  
+    `marginTop: safeArea.top > 0 ? -safeArea.top : 0`
+  - **Keyboard terbuka (headerFixed):**  
+    `position: 'fixed'`, `left: 0`, `right: 0`,  
+    `top: viewportOffsetTop`,  
+    `height: viewportHeight`, `minHeight: viewportHeight`, `maxHeight: viewportHeight`
+- **Viewport:** Wajib pakai `window.visualViewport` untuk `viewportOffsetTop` dan `viewportHeight`; root mengikuti nilai ini saat keyboard terbuka.
+
+---
+
+## 2. Header
+
+- **Posisi:** `position: fixed`, `left: 0`, `right: 0`, `z-30`
+- **Top:**
+  - Keyboard tertutup: `top: 0`
+  - Keyboard terbuka atau input komentar fokus: `top: viewportOffsetTop` (agar header ikut naik di atas keyboard)
+- **Padding:**
+  - **Atas:** `paddingTop: safeArea.top + 16` (isi header di bawah status bar; background header menutupi area status bar)
+  - **Bawah:** `paddingBottom: 12`
+- **Layout:** `flex items-center gap-2 px-3 pb-2`
+- **Style:** `bg-card border-b border-border min-w-0`
+- **Judul:** `text-base font-semibold text-foreground truncate min-w-0`
+- **Tombol back:** `p-1 -m-1`, ikon `h-5 w-5`, `touch-manipulation`
+
+**Kapan header "fixed" (mengikuti viewport keyboard):**  
+`headerFixed = showBackToHome && (keyboardOpen || commentInputFocused)`
+
+---
+
+## 3. Jarak antara header dan section pertama (area scroll)
+
+Area scroll **bukan** anak langsung header; ia anak dari wrapper flex. Jarak ke konten pertama dicapai dengan **padding atas area scroll**:
+
+- **Keyboard tertutup:**  
+  `paddingTop: safeArea.top + 68`  
+  (68px ≈ tinggi header visual + jarak konsisten)
+- **Keyboard terbuka (header fixed):**  
+  `paddingTop: viewportOffsetTop + safeArea.top + 68`  
+  (header pindah ke `viewportOffsetTop`, area scroll tetap di bawah header)
+
+**Padding bawah area scroll (native):** `paddingBottom: '0.25rem'`  
+— kecil agar bar komentar (sibling di bawah) bisa menempel di bawah layar tanpa "gap" besar.
+
+---
+
+## 4. Struktur: wrapper + area scroll + bar
+
+- **Wrapper (hanya native):**  
+  Satu `div` dengan `flex-1 min-h-0 flex flex-col min-w-0` (dan saat non-native hanya `flex: 1, minHeight: 0`).  
+  Anaknya: (1) area scroll, (2) bar komentar.
+- **Area scroll:**  
+  `flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll`,  
+  `max-w-2xl w-full mx-auto`, padding horizontal `pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]`.
+- **Bar komentar:**  
+  **Bukan** `position: fixed`. Bar adalah **anak terakhir** wrapper (flex-shrink: 0), sehingga:
+  - Keyboard tertutup: bar menempel di bawah layar (tepat di atas pita hitam).
+  - Keyboard terbuka: root pakai `viewportHeight` + `top: viewportOffsetTop`, sehingga bar ikut naik dan menempel di atas keyboard.
+
+Ini memastikan section preview tidak tertutup overlay dan tidak menyempit karena bar ikut layout.
+
+---
+
+## 5. Bar komentar (textarea + tombol)
+
+- **Container bar:**  
+  `flex-shrink-0`, `max-w-2xl mx-auto`, `bg-gray-50 border-t border-gray-200`,  
+  `px-3 sm:p-4`, `pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]`
+
+- **Padding bawah bar (penting):**
+  - **Keyboard tertutup:**  
+    `paddingBottom: safeArea.bottom > 0 ? safeArea.bottom + 'px' : '0.125rem'`  
+    — bar tepat di atas pita hitam, tanpa tambahan jarak besar.
+  - **Keyboard terbuka:**  
+    `paddingBottom: '0.5rem'`  
+    — jarak kecil antara bar dan keyboard agar tidak terlalu menempel.
+
+- **Isi bar:**
+  - Selalu: textarea komentar + tombol kirim (icon).
+  - Hanya saat **keyboard tertutup:** tampilkan juga tombol **Approve Content** dan **Request Revision** (dalam satu row, `gap-3`, `pt-2 border-t`, `pb-2`).
+
+---
+
+## 6. Perilaku keyboard dan komponen lain
+
+- **Deteksi keyboard:**  
+  `window.visualViewport`: jika `height < window.innerHeight * 0.8` → anggap keyboard terbuka (`keyboardOpen`).  
+  Juga set `viewportOffsetTop` dan `viewportHeight` dari `visualViewport` (event `resize` dan `scroll`).
+
+- **Root:**  
+  Saat `headerFixed` (keyboard terbuka / input fokus), root pakai `top: viewportOffsetTop` dan `height: viewportHeight` agar seluruh layout (termasuk bar) naik di atas keyboard.
+
+- **Header:**  
+  Saat `headerFixed`, `top: viewportOffsetTop` agar tetap terlihat di atas keyboard.
+
+- **Area scroll:**  
+  Saat `headerFixed`, `paddingTop: viewportOffsetTop + safeArea.top + 68` agar konten tidak tertutup header.
+
+- **Bar:**
+  - Tetap anak terakhir dari root (bukan fixed), sehingga posisinya alami di bawah viewport (keyboard tertutup) atau di atas keyboard (keyboard terbuka).
+  - Saat keyboard terbuka: **sembunyikan** tombol Approve Content dan Request Revision; yang tampil hanya textarea + tombol kirim.
+  - Saat keyboard terbuka: `paddingBottom: 0.5rem` agar bar tidak terlalu menempel ke keyboard.
+
+- **Fokus textarea:**  
+  On focus set `commentInputFocused` dan `keyboardOpen`; optional `scrollIntoView({ behavior: 'smooth', block: 'nearest' })` untuk textarea.  
+  On blur set `commentInputFocused = false`; setelah delay 300ms, jika `visualViewport.height >= window.innerHeight * 0.8` set `keyboardOpen = false`.
+
+---
+
+## 7. Tombol Approve Content dan Request Revision
+
+- **Visibilitas:**  
+  Keduanya **hanya tampil saat keyboard tertutup** (`canShowApprovalButtons && !keyboardOpen`). Saat user mengetik komentar (keyboard terbuka), bar hanya menampilkan textarea + tombol kirim.
+
+- **Request Revision — kapan enabled:**  
+  Hanya setelah user **berhasil mengirim minimal satu komentar di session ini** (`hasSuccessfullySentCommentThisSession`).  
+  State ini di-set `true` hanya setelah RPC `insert_public_review_comment` sukses dan `loadComments()` selesai (di `handleSubmitComment` dan di alur simpan nama + kirim di `handleSaveCommenterName`).  
+  Jangan mengandalkan hanya `comments.some(isOwnComment)` untuk enable tombol; gunakan flag "successfully sent this session" agar tombol benar-benar enable hanya setelah kirim berhasil.
+
+- **Ukuran tombol:**  
+  `h-9`, `min-h-[44px]`, `gap-2`, `px-3`, `rounded-lg`, `touch-manipulation`; teks dengan `truncate`.
+
+---
+
+## 8. Ringkasan nilai numerik (referensi cepat)
+
+| Elemen | Nilai |
+|--------|--------|
+| Header padding top | `safeArea.top + 16` |
+| Header padding bottom | `12` |
+| Jarak header → konten (padding top scroll) | `safeArea.top + 68` (keyboard tertutup) atau `viewportOffsetTop + safeArea.top + 68` (keyboard terbuka) |
+| Padding bawah area scroll (native) | `0.25rem` |
+| Padding bawah bar — keyboard tertutup | `safeArea.bottom` px (atau `0.125rem` jika safe area 0) |
+| Padding bawah bar — keyboard terbuka | `0.5rem` |
+| Threshold keyboard | `visualViewport.height < window.innerHeight * 0.8` |
+| Delay blur → update keyboardOpen | 300 ms |
+
+---
+
+## 9. Checklist saat mengubah halaman /review atau membuat halaman serupa
+
+- [ ] Root pakai `visualViewport` untuk `viewportOffsetTop` dan `viewportHeight` saat native.
+- [ ] Header fixed dengan `paddingTop: safeArea.top + 16`, `paddingBottom: 12`, dan `top: viewportOffsetTop` saat keyboard terbuka.
+- [ ] Area scroll dapat `paddingTop` sesuai §3 dan `paddingBottom: 0.25rem` (native).
+- [ ] Bar komentar sebagai anak terakhir wrapper (bukan `position: fixed`).
+- [ ] Bar `paddingBottom`: keyboard tertutup = safe area bottom; keyboard terbuka = `0.5rem`.
+- [ ] Tombol Approve dan Request Revision disembunyikan saat `keyboardOpen`.
+- [ ] Request Revision enabled hanya setelah `hasSuccessfullySentCommentThisSession` (setelah kirim komentar berhasil).

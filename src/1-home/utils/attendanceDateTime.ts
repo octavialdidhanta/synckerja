@@ -41,6 +41,7 @@ export function attendanceInstantToIso(
 
 /**
  * PostgreSQL `time` / `time without time zone` from a JS Date: UTC clock (HH:mm:ss[.fractional]).
+ * Use only when `attendance_date` is also derived in UTC; otherwise use `dateToPostgresLocalWallTime`.
  * Do not pass a full ISO string here — use `check_in_at` / `check_out_at` for timestamptz.
  */
 export function dateToPostgresTimeUtc(d: Date): string {
@@ -51,4 +52,18 @@ export function dateToPostgresTimeUtc(d: Date): string {
   let rest = iso.slice(i + 1);
   if (rest.endsWith("Z")) rest = rest.slice(0, -1);
   return rest;
+}
+
+/**
+ * Local wall-clock time for PostgreSQL `time without time zone`, aligned with `formatLocalDateYmd(d)`.
+ * Use for mobile/home check-in when the row's calendar day is the user's local date (WIB, etc.).
+ */
+export function dateToPostgresLocalWallTime(d: Date): string {
+  if (Number.isNaN(d.getTime())) return "00:00:00";
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const s = String(d.getSeconds()).padStart(2, "0");
+  const ms = d.getMilliseconds();
+  if (ms === 0) return `${h}:${m}:${s}`;
+  return `${h}:${m}:${s}.${String(ms).padStart(3, "0")}`;
 }

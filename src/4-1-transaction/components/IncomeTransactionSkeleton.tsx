@@ -11,7 +11,7 @@ const MAIN_SCROLL =
 
 export function IncomeTransactionSkeleton() {
   const { t } = useAppTranslation();
-  const aria = t("incomes.transaction.loadingAria", "Loading income transactions");
+  const aria = t("incomes.incomeTransactionList.loadingAria", "Loading income transactions");
   return (
     <div
       className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans"

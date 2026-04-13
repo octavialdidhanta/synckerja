@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Flag, User, Target, UserPlus, ArrowLeft, Calendar } from 'lucide-react';
+import { Plus, Flag, User, Target, UserPlus, Calendar, X } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -313,9 +313,32 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             if (!dismissible) e.preventDefault();
           }}
         >
-          <DialogHeader className="relative z-10 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left safe-area-top px-4 pt-4 pb-3">
-            <DialogTitle className="text-lg font-semibold">{t('dailyTask.createTask.title', 'Create New Task')}</DialogTitle>
-          </DialogHeader>
+          {isMobile ? (
+            <DialogHeader className="safe-area-top relative z-10 flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+              <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+                <DialogTitle className="m-0 flex min-h-0 min-w-0 flex-1 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
+                  {t('dailyTask.createTask.title', 'Create New Task')}
+                </DialogTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                  onClick={handleClose}
+                  disabled={isSubmitting}
+                  aria-label={t('layout.sheetClose', 'Close')}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </DialogHeader>
+          ) : (
+            <DialogHeader className="relative z-10 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-4 pb-3 pt-4 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+              <DialogTitle className="text-lg font-semibold">
+                {t('dailyTask.createTask.title', 'Create New Task')}
+              </DialogTitle>
+            </DialogHeader>
+          )}
 
           <form
             id="create-task-form"
@@ -324,12 +347,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           >
             {/* Scrollable body: on input focus, consider scrollIntoView({ behavior: 'smooth', block: 'nearest' }) so the field stays visible when soft keyboard opens on Android. */}
             <div
-              className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-6 pb-8 pt-4"
-              style={{
-                scrollbarWidth: 'thin',
-                scrollBehavior: 'smooth',
-                scrollbarColor: '#d1d5db transparent',
-              }}
+              className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain scroll-smooth px-6 pb-8 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <div className="min-w-0 space-y-6">
                 {/* Task Title & Description */}

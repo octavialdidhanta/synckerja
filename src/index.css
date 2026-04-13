@@ -207,9 +207,29 @@ All colors MUST be HSL.
   .auth-form-panel-mobile {
     @apply overflow-y-auto seamless-scroll;
   }
-  /* Mobile Android shell (synckerja-reference mobile-tools-layout-android): inset + 4px */
+  /** Hanya inset sistem dari plugin (`--safe-area-inset-top`); tanpa pengurangan manual. */
   .safe-area-top {
-    padding-top: calc(max(var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)) + 4px);
+    padding-top: var(--safe-area-inset-top, 0px) !important;
+  }
+
+  /**
+   * Android native + tab `NavigationFooter`: sama seperti Home — jangan tambahkan
+   * `--content-scroll-extra-bottom` di area scroll (nav `.mobile-app-bottom-nav` sudah padding 0;
+   * inset plugin + 4rem membuat gap abu besar). Pakai clearance bar tab + napas saja.
+   */
+  html[data-synckerja-android-native] .content-padding-above-nav-default,
+  html[data-synckerja-android-native] .content-padding-above-nav-client-visit {
+    padding-bottom: calc(0.75rem + 3.25rem);
+  }
+
+  /**
+   * Daily task list, Initiative (`?view=initiative`), meeting notes, daily task report (Tools footer):
+   * di native jangan tambah `--content-scroll-extra-bottom` pada area scroll (nav inner sudah 0; 4rem + inset = gap abu besar).
+   */
+  html[data-synckerja-android-native] .content-padding-above-nav-daily-task,
+  html[data-synckerja-android-native] .content-padding-above-nav-meeting-notes,
+  html[data-synckerja-android-native] .content-padding-above-nav-daily-task-report {
+    padding-bottom: 4rem;
   }
 
   /**
@@ -218,38 +238,108 @@ All colors MUST be HSL.
    * content — modals look centered and inner `overflow-y-auto` never scrolls.
    */
   .modal-above-safe-area {
+    /* Fallback 3rem: Android WebView sering lapor inset bawah = 0 sementara tombol nav sistem ~48dp masih menimpa konten. */
+    bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px), 3rem);
+  }
+
+  /**
+   * Saat tab bar aplikasi disembunyikan (`MobileAppNavSuppressionProvider`), modal fullscreen
+   * cukup menjaga safe area sistem — tanpa fallback 3rem (menghindari celah putih di atas nav/keyboard).
+   */
+  html[data-mobile-shell-nav-suppressed="true"] .modal-above-safe-area {
     bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
   }
 
-  /* Nav footer: sit above gesture bar; inset - 4px per reference rule */
+  /** Padding bawah untuk konten yang full-tinggi (bukan offset `bottom`); gunakan jika perlu teks di atas area nav */
+  .safe-area-bottom {
+    padding-bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  }
+
+  /**
+   * Footer tab: hanya `--footer-bottom-inset` (dikendalikan JS; cold = plugin, setelah resume dari
+   * background = 0). Tanpa env di sini agar tidak strip abu ganda pasca-resume.
+   */
   .safe-area-bottom-lower {
-    padding-bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - 4px));
+    padding-bottom: var(--footer-bottom-inset, 0px);
   }
 
   .safe-area-padding-bottom {
     padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
   }
 
-  /* Kartu terakhir → di atas bottom nav (tinggi nav ~52px + safe area) */
-  .content-padding-above-nav-home {
-    padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0px));
+  /** Sama seperti env bawah, dengan cap agar WebView Android tidak membuat padding besar pasca-resume. */
+  .safe-area-padding-bottom-capped {
+    padding-bottom: min(40px, max(8px, env(safe-area-inset-bottom, 0px)));
   }
 
+  /**
+   * Android Capacitor + edge-to-edge: `env(safe-area-inset-bottom)` / var inset sering **tidak selaras**
+   * dengan bilah sistem yang sudah opaque — strip di atas nav setelah resume.
+   * `data-synckerja-android-native` di-set dari `useNativeViewportNoPinchZoom`.
+   * Padding bisa di `<nav>` (NavigationFooter) atau di anak `<div>` (ExpenseTabs, Tools).
+   */
+  html[data-synckerja-android-native] .mobile-app-bottom-nav,
+  html[data-synckerja-android-native] .mobile-app-bottom-nav > div {
+    padding-bottom: 0 !important;
+  }
+
+  /**
+   * Expense mobile — hindari **ganda** inset bawah:
+   * - Area scroll: cukup ruang untuk **tinggi bar tab** (rem). Jangan tambah `env` di sini — inset sistem
+   *   sudah diterapkan sekali di `.expense-mobile-tabbar-inner` (di atas bilah navigasi sistem).
+   * - Tanpa env di scroll: setelah resume, WebView tidak menumpuk `env` + padding scroll + padding tab.
+   */
+  .expense-mobile-scroll-padding {
+    padding-bottom: 3.5rem;
+  }
+
+  /*
+   * Home (/): atas lebih rapat (pt-2); bawah tetap literal — jangan ubah calc bawah kecuali sengaja
+   * menyesuaikan tinggi nav. Android native: tanpa inset plugin di scroll.
+   * iOS/PWA: `env(safe-area-inset-bottom)` pada padding bawah saja.
+   */
+  .content-padding-above-nav-home {
+    padding-top: 0.5rem;
+    padding-bottom: calc(0.75rem + 3.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  html[data-synckerja-android-native] .content-padding-above-nav-home {
+    padding-bottom: calc(0.75rem + 3.25rem);
+  }
+
+  /* Schedule, Reports, Profile, Subscription, Expenses shell, dll.: selaraskan dengan Home — tanpa var inset ganda. */
   .content-padding-above-nav-default {
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(0.75rem + 3.25rem + env(safe-area-inset-bottom, 0px));
   }
 
   .content-padding-above-nav-client-visit {
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(0.75rem + 3.25rem + env(safe-area-inset-bottom, 0px));
   }
 
   .content-padding-above-nav-daily-task {
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4rem + var(--content-scroll-extra-bottom, env(safe-area-inset-bottom, 0px)));
   }
 
   .content-padding-above-nav-daily-task-report {
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4rem + var(--content-scroll-extra-bottom, env(safe-area-inset-bottom, 0px)));
   }
+
+  .content-padding-above-nav-meeting-notes {
+    padding-bottom: calc(4rem + var(--content-scroll-extra-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+
+  .content-padding-above-nav-leads-management {
+    padding-bottom: calc(4rem + var(--content-scroll-extra-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+
+  .content-padding-above-nav-job-desc {
+    padding-bottom: calc(4rem + var(--content-scroll-extra-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+
+  .content-padding-above-nav-habits {
+    padding-bottom: calc(4rem + var(--content-scroll-extra-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+
   .auth-input-scroll-margin {
     scroll-margin-bottom: 6rem;
   }
@@ -368,4 +458,21 @@ All colors MUST be HSL.
     overscroll-behavior: auto;
     touch-action: pan-y;
   }
+}
+
+/**
+ * Midtrans Snap.js (`snap.js` `showPopup`): injects `iframe#snap-midtrans` with `position:fixed` + `height:100%`,
+ * which otherwise extends under Android gesture / 3-button nav. Pin the iframe bottom to safe area so the
+ * Snap UI footer (e.g. language + “Powered by midtrans”) sits above system chrome. Embed mode uses `height:inherit`
+ * and no fixed positioning, so these selectors do not apply there.
+ */
+iframe#snap-midtrans[style*="position: fixed"],
+iframe#snap-midtrans[style*="position:fixed"] {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px)) !important;
+  height: auto !important;
+  max-height: 100dvh !important;
 }

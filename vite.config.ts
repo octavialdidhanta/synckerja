@@ -1,8 +1,30 @@
 import { defineConfig, loadEnv } from "vite";
+import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 import { componentTagger } from "lovable-tagger";
+
+/** Must run before default resolve: legacy `@/features/share/*` meant `src/shared/*` (not `src/features/share/*`). */
+function legacyFeaturesShareResolve(): Plugin {
+  const sharePrefix = "@/features/share/";
+  const uiPrefix = "@/features/ui/";
+  return {
+    name: "legacy-features-share-resolve",
+    enforce: "pre",
+    resolveId(id) {
+      if (id.startsWith(sharePrefix)) {
+        const rest = id.slice(sharePrefix.length);
+        return path.resolve(__dirname, "src/shared", rest);
+      }
+      if (id.startsWith(uiPrefix)) {
+        const rest = id.slice(uiPrefix.length);
+        return path.resolve(__dirname, "src/shared/components/ui", rest);
+      }
+      return undefined;
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -34,6 +56,7 @@ export default defineConfig(({ mode }) => {
     },
   },
   plugins: [
+    legacyFeaturesShareResolve(),
     react(),
     VitePWA({
       registerType: "autoUpdate",
@@ -51,7 +74,7 @@ export default defineConfig(({ mode }) => {
         theme_color: "#f3f4f6",
         background_color: "#ffffff",
         display: "standalone",
-        orientation: "any",
+        orientation: "portrait",
         start_url: "/",
         scope: "/",
         lang: "id",
@@ -95,6 +118,36 @@ export default defineConfig(({ mode }) => {
       {
         find: /^@\/register\/(.*)$/,
         replacement: `${path.resolve(__dirname, "src/0-register")}/$1`,
+      },
+      // Legacy android-mobile paths: `@/features/share/*` → `src/shared/*`, `@/features/ui/*` → shadcn under shared
+      {
+        find: "@/features/share/i18n/useAppTranslation",
+        replacement: path.resolve(__dirname, "src/shared/i18n/useAppTranslation"),
+      },
+      {
+        find: /^@\/features\/share\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/shared")}/$1`,
+      },
+      {
+        find: /^@\/features\/ui\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/shared/components/ui")}/$1`,
+      },
+      // Legacy subscription splits (`10-Plans`, `10-management`, `10-overview`) → unified `src/10-subscription`
+      {
+        find: /^@\/features\/10-overview\/hooks\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/10-subscription/hooks")}/$1`,
+      },
+      {
+        find: /^@\/features\/10-overview\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/10-subscription/overview")}/$1`,
+      },
+      {
+        find: /^@\/features\/10-Plans\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/10-subscription")}/$1`,
+      },
+      {
+        find: /^@\/features\/10-management\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "src/10-subscription")}/$1`,
       },
       {
         find: /^@\/features\/(.*)$/,

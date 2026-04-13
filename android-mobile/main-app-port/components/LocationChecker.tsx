@@ -143,10 +143,10 @@ export const LocationChecker = ({ officeLocation }: LocationCheckerProps) => {
   const displayOffice = nearestOffice || officeLocation;
 
   return (
-    <div>
+    <div className="flex flex-col gap-1">
       {/* Office Info - no extra px here; parent (Absensi) already provides container px-2 so card width matches other sections */}
       {displayOffice && (
-        <div className="bg-card rounded-lg p-4 mb-4 border border-border">
+        <div className="bg-card rounded-lg border border-border p-4">
           <div className="flex items-start gap-3">
             <MapPin className="h-5 w-5 text-primary mt-1" />
             <div className="flex-1">
@@ -161,7 +161,7 @@ export const LocationChecker = ({ officeLocation }: LocationCheckerProps) => {
       )}
 
       {currentLocation && nearestOffice && (
-        <div className="bg-card rounded-lg p-3 mb-4 border border-border">
+        <div className="bg-card rounded-lg border border-border p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {isInOfficeArea ? (

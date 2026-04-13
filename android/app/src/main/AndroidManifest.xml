@@ -11,10 +11,10 @@
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/AppTheme.NoActionBar">
 
-        <!-- Ikon kecil (status bar): splash_white_logo, putih, ukuran tetap. -->
+        <!-- Ikon kecil (status bar): `app_brand_logo` = `public/pwa-512.png` (hi-res, diskalakan sistem). -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/splash_white_logo" />
+            android:resource="@drawable/app_brand_logo" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_icon_tint" />
@@ -43,6 +43,7 @@
             android:launchMode="singleTask"
             android:exported="true"
             android:resizeableActivity="true"
+            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize">
 
             <intent-filter>

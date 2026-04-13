@@ -1,6 +1,10 @@
 import { Home, Calendar, BarChart3, User, MapPin, MessageCircle, UserPlus, FileBarChart } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import {
+  CONSULTANT_LEADS_MANAGEMENT_PATH,
+  CONSULTANT_LIVECHAT_PATH,
+} from "@/mobile/4-leads-management/shared/consultantCrmNavPaths";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
@@ -11,7 +15,7 @@ const navItems = [
 ];
 
 interface NavigationFooterProps {
-  /** Optional class to e.g. reduce bottom padding (safe-area-bottom-lower) on specific pages */
+  /** Optional class; default `safe-area-padding-bottom-capped`. Legacy: `safe-area-bottom-lower`, `safe-area-padding-bottom`. */
   className?: string;
   /** When true, render only the footer bar (no nav icons). Use e.g. on livechat to reserve space for custom nav. */
   hideItems?: boolean;
@@ -26,8 +30,8 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
     navigate(search ? { pathname: path, search } : path);
   };
 
-  const isLiveChatPage = location.pathname.includes("/operations/consultant/all/livechat");
-  const isLeadsManagementPath = location.pathname.includes("/operations/consultant/leads-management");
+  const isLiveChatPage = location.pathname.includes(CONSULTANT_LIVECHAT_PATH);
+  const isLeadsManagementPath = location.pathname.includes(CONSULTANT_LEADS_MANAGEMENT_PATH);
   const viewParam = new URLSearchParams(location.search).get("view");
   const isReportView = isLeadsManagementPath && viewParam === "report";
   const isLeadsListView = isLeadsManagementPath && !isReportView;
@@ -35,16 +39,16 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
 
   return (
     <nav
-      className="fixed left-0 right-0 bottom-0 bg-card border-t border-border z-30"
+      className={`mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card ${className ?? "safe-area-padding-bottom-capped"}`.trim()}
     >
       <div
-        className={`grid max-w-md mx-auto ${showThreeItemBar ? "min-h-[52px] grid-cols-3" : hideItems ? "min-h-[52px] grid-cols-1 place-items-center" : "grid-cols-5"} ${className ?? "safe-area-bottom-lower"}`.trim()}
+        className={`mx-auto grid max-w-md ${showThreeItemBar ? "min-h-[52px] grid-cols-3" : hideItems ? "min-h-[52px] grid-cols-1 place-items-center" : "grid-cols-5"}`.trim()}
       >
         {showThreeItemBar ? (
           <>
             <button
               type="button"
-              onClick={() => !isLiveChatPage && handleNavClick("/operations/consultant/all/livechat")}
+              onClick={() => !isLiveChatPage && handleNavClick(CONSULTANT_LIVECHAT_PATH)}
               className={`flex flex-col items-center justify-center py-2 transition-colors ${
                 isLiveChatPage ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -55,7 +59,7 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
             </button>
             <button
               type="button"
-              onClick={() => !isLeadsListView && handleNavClick("/operations/consultant/leads-management")}
+              onClick={() => !isLeadsListView && handleNavClick(CONSULTANT_LEADS_MANAGEMENT_PATH)}
               className={`flex flex-col items-center justify-center py-2 transition-colors ${
                 isLeadsListView ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -66,7 +70,9 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
             </button>
             <button
               type="button"
-              onClick={() => !isReportView && handleNavClick("/operations/consultant/leads-management", "?view=report")}
+              onClick={() =>
+                !isReportView && handleNavClick(CONSULTANT_LEADS_MANAGEMENT_PATH, "?view=report")
+              }
               className={`flex flex-col items-center justify-center py-2 transition-colors ${
                 isReportView ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}

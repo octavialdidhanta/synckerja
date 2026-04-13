@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Clock, CreditCard, Home, MessageCircle, Receipt, Wallet } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Clock, CreditCard, Home, MessageCircle, Receipt, UserPlus, Wallet } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import {
@@ -10,24 +11,53 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
+  useSidebar,
 } from "@/mobile-app/components/ui/sidebar";
+import { MOBILE_INCOMES_DASHBOARD_PATH } from "@/mobile/3-dashboard/shared/mobileIncomesNavPaths";
 import { Separator } from "@/mobile-app/components/ui/separator";
-import { useIsMobile } from "@/mobile-app/hooks/use-mobile";
+import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useOrganizationList } from "@/mobile-app/hooks/useOrganizationList";
-import { useOrganizationSwitchCallback } from "@/mobile-app/hooks/useOrganizationSwitchCallback";
+import { useOrganizationSwitchCallback } from "@/shared/hooks/useOrganizationSwitchCallback";
 import { OrganizationSelectDrawer } from "@/mobile-app/components/OrganizationSelectDrawer";
+import { TOOLS_DAILY_TASK_PATH } from "@/mobile/5-daily-task/shared/toolsDailyTaskPath";
+import {
+  CONSULTANT_LEADS_MANAGEMENT_PATH,
+  CONSULTANT_LIVECHAT_PATH,
+} from "@/mobile/4-leads-management/shared/consultantCrmNavPaths";
+import { SUBSCRIPTION_OVERVIEW_PATH } from "@/mobile/6-subscription/shared/mobileSubscriptionNavPaths";
+import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
-const menuItems = [
+type SidebarNavItem = {
+  url: string;
+  icon: LucideIcon;
+} & (
+  | { title: string }
+  | { titleKey: string; titleDefault: string }
+);
+
+const menuItems: SidebarNavItem[] = [
   { title: "Home", url: "/", icon: Home },
   { title: "Expense", url: "/expenses/dashboard", icon: Receipt },
-  { title: "Incomes", url: "/incomes/dashboard", icon: Wallet },
-  { title: "CRM", url: "/operations/consultant/all/livechat", icon: MessageCircle },
-  { title: "Daily Task", url: "/tools/daily-task", icon: Clock },
-  { title: "Subscription", url: "/subscription/overview", icon: CreditCard },
+  { title: "Incomes", url: MOBILE_INCOMES_DASHBOARD_PATH, icon: Wallet },
+  { title: "CRM", url: CONSULTANT_LIVECHAT_PATH, icon: MessageCircle },
+  {
+    titleKey: "sidebar.operations.leadsManagement.title",
+    titleDefault: "Leads",
+    url: CONSULTANT_LEADS_MANAGEMENT_PATH,
+    icon: UserPlus,
+  },
+  { title: "Daily Task", url: TOOLS_DAILY_TASK_PATH, icon: Clock },
+  { title: "Subscription", url: SUBSCRIPTION_OVERVIEW_PATH, icon: CreditCard },
 ];
 
+function itemLabel(item: SidebarNavItem, t: ReturnType<typeof useAppTranslation>["t"]) {
+  return "title" in item ? item.title : t(item.titleKey, item.titleDefault);
+}
+
 export function AppSidebar() {
+  const { t } = useAppTranslation();
   const isMobile = useIsMobile();
+  const { isMobile: sidebarMobile, setOpenMobile } = useSidebar();
   const { organizations, activeOrganization } = useOrganizationList();
   const onOrganizationSwitched = useOrganizationSwitchCallback();
   const [orgDrawerOpen, setOrgDrawerOpen] = useState(false);
@@ -74,10 +104,13 @@ export function AppSidebar() {
           <SidebarGroupContent className="px-2 pb-2">
             <SidebarMenu className="space-y-0.5">
               {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.url}>
                   <NavLink
                     to={item.url}
                     end
+                    onClick={() => {
+                      if (sidebarMobile) setOpenMobile(false);
+                    }}
                     className={({ isActive }) =>
                       [
                         "flex items-center gap-3 px-3 py-2 rounded-lg w-full min-w-0 transition-colors",
@@ -88,7 +121,7 @@ export function AppSidebar() {
                     {({ isActive }) => (
                       <>
                         <item.icon className="h-4 w-4 flex-shrink-0" />
-                        <span className="font-medium truncate min-w-0 flex-1">{item.title}</span>
+                        <span className="font-medium truncate min-w-0 flex-1">{itemLabel(item, t)}</span>
                         <span
                           className={`flex-shrink-0 flex items-center justify-center rounded-full p-1 transition-colors ${
                             isActive ? "bg-primary/10 ring-1 ring-primary/20" : "bg-muted/40 ring-1 ring-border/50"

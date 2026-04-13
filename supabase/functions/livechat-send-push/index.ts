@@ -120,7 +120,7 @@ async function sendFcmMessage(
       notification,
       data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
       android: {
-        notification: { channel_id: "livechat", sound: "default", icon: "splash_white_logo" },
+        notification: { channel_id: "livechat", sound: "default", icon: "app_brand_logo" },
       },
       apns: {
         payload: { aps: { sound: "default" } },

@@ -7,7 +7,7 @@ import { Key, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-re
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { useIsMobile } from '@/mobile-app/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 
 type TranslateFn = ReturnType<typeof useAppTranslation>['t'];
@@ -183,8 +183,8 @@ export const ChangePasswordModal = ({ open, onOpenChange }: ChangePasswordModalP
         className={cn(
           'm-0 flex w-full max-w-none flex-col gap-0 p-0',
           isMobile
-            ? 'fixed left-0 right-0 top-0 max-h-none min-h-0 translate-x-0 translate-y-0 overflow-hidden rounded-none border bg-background modal-above-safe-area'
-            : 'left-[50%] top-[50%] max-h-[90vh] min-h-0 max-w-md translate-x-[-50%] translate-y-[-50%] rounded-lg sm:max-w-md',
+            ? 'fixed left-0 right-0 top-0 max-h-none min-h-0 translate-x-0 translate-y-0 overflow-hidden rounded-none border border-brand-blue/20 bg-gradient-to-b from-brand-blue-soft/55 via-gray-100 to-gray-100 modal-above-safe-area dark:from-brand-blue/20 dark:via-background dark:to-muted/80'
+            : 'left-[50%] top-[50%] max-h-[90vh] min-h-0 max-w-md translate-x-[-50%] translate-y-[-50%] rounded-lg border-border bg-background sm:max-w-md',
         )}
         fullscreenAnimation={isMobile}
         hideCloseButton={isMobile}
@@ -193,31 +193,33 @@ export const ChangePasswordModal = ({ open, onOpenChange }: ChangePasswordModalP
           className={cn(
             'flex-shrink-0 border-b text-left',
             isMobile
-              ? 'safe-area-top bg-gradient-to-r from-blue-50 to-indigo-50 px-4 pb-3 pt-4 dark:from-blue-950/20 dark:to-indigo-950/20'
+              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 border-brand-blue/20 bg-gradient-to-r from-brand-blue-soft via-background to-brand-blue-soft/70 px-0 py-0 dark:from-brand-blue/15 dark:via-background dark:to-brand-blue/10'
               : 'border-border bg-background px-6 pb-4 pt-6',
           )}
         >
           {isMobile ? (
-            <div className="flex items-center gap-3">
-              <Button
+            <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+              <button
                 type="button"
-                variant="ghost"
-                size="icon"
-                className="-ml-1 h-9 w-9 shrink-0 rounded-full"
+                className="-ml-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0 text-brand-blue-deep ring-offset-background transition-colors hover:bg-brand-blue/10 hover:text-brand-blue-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                 onClick={handleClose}
                 disabled={isLoading}
-                aria-label={t('common.cancel', 'Cancel')}
+                aria-label={t('layout.sheetClose', 'Close')}
               >
-                <ArrowLeft className="h-5 w-5 text-foreground" />
-              </Button>
-              <DialogTitle className="flex min-w-0 flex-1 items-center gap-2 text-lg font-semibold">
-                <Key className="h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-                <span className="truncate">{t('settings.security.changePassword.title', 'Change Password')}</span>
+                <ArrowLeft className="block h-4 w-4 shrink-0 translate-y-px" aria-hidden />
+              </button>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand-blue/10 text-brand-blue">
+                <Key className="block h-4 w-4 shrink-0" aria-hidden />
+              </div>
+              <DialogTitle className="m-0 flex min-h-0 min-w-0 flex-1 items-center truncate py-0 pr-1 text-left text-base font-semibold leading-tight tracking-tight text-brand-blue-deep">
+                {t('settings.security.changePassword.title', 'Change Password')}
               </DialogTitle>
             </div>
           ) : (
             <DialogTitle className="flex items-center gap-2 pr-8 text-xl font-semibold">
-              <Key className="h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue">
+                <Key className="h-5 w-5 shrink-0" />
+              </div>
               {t('settings.security.changePassword.title', 'Change Password')}
             </DialogTitle>
           )}
@@ -330,7 +332,14 @@ export const ChangePasswordModal = ({ open, onOpenChange }: ChangePasswordModalP
             </div>
           </div>
 
-          <div className="flex-shrink-0 border-t bg-muted/30 px-4 pb-3 pt-3">
+          <div
+            className={cn(
+              'flex-shrink-0 border-t px-4 pb-3 pt-3',
+              isMobile
+                ? 'border-brand-blue/15 bg-brand-blue-soft/25 dark:border-brand-blue/25 dark:bg-brand-blue/10'
+                : 'border-border bg-muted/30',
+            )}
+          >
             <div className="flex items-center justify-end gap-2">
               <Button type="button" variant="outline" size="sm" onClick={handleClose} disabled={isLoading}>
                 {t('settings.security.actions.cancel', 'Cancel')}

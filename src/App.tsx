@@ -7,6 +7,15 @@ import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { Toaster } from "@/shared/components/ui/toaster";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { RequireAuth } from "@/shared/components/RequireAuth";
+import {
+  MOBILE_INCOMES_BANK_ACCOUNT_PATH,
+  MOBILE_INCOMES_DASHBOARD_PATH,
+} from "@/mobile/3-dashboard/shared/mobileIncomesNavPaths";
+import { MobileAppNavSuppressionProvider } from "@/shared/mobile/MobileAppNavSuppressionContext";
+import { CapacitorKeyboardInsetProvider } from "@/shared/native/useCapacitorKeyboardInset";
+import { NativeAppDisplayInit } from "@/shared/components/mobile/NativeAppDisplayInit";
+import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVars";
+import { NativeBootstrapSplashGate } from "@/shared/components/mobile/NativeBootstrapSplashGate";
 import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { OKRPage } from "@/1-OKR";
@@ -45,9 +54,23 @@ import {
   ExpensesReminderBillsRouteElement,
 } from "@/shared/components/mobile/expensesMobileRouteElements";
 import {
-  ManagementPage,
-  OverviewPage,
-  PlansPage,
+  IncomeBankAccountRouteElement,
+  IncomeDashboardRouteElement,
+  IncomeTransactionRouteElement,
+} from "@/shared/components/mobile/incomesMobileRouteElements";
+import { HabitTrackerRouteElement } from "@/shared/components/mobile/habitTrackerRouteElement";
+import { DailyTaskRouteElement } from "@/shared/components/mobile/dailyTaskRouteElement";
+import { MeetingNotesRouteElement } from "@/shared/components/mobile/meetingNotesRouteElement";
+import { ConsultantLivechatRouteElement } from "@/shared/components/mobile/consultantLivechatRouteElement";
+import { ConsultantLeadsManagementRouteElement } from "@/shared/components/mobile/consultantLeadsManagementRouteElement";
+import {
+  SubscriptionManagementRouteElement,
+  SubscriptionOverviewRouteElement,
+  SubscriptionPlansRouteElement,
+} from "@/shared/components/mobile/subscriptionMobileRouteElements";
+import { DailyTaskReportRouteElement } from "@/shared/components/mobile/dailyTaskReportRouteElement";
+import { ShareReceiptValidationRouteElement } from "@/shared/components/mobile/shareReceiptValidationRouteElement";
+import {
   SubscriptionExpiryGuard,
   SubscriptionRoleGuard,
 } from "@/10-subscription";
@@ -92,17 +115,18 @@ import {
 } from "@/2-8-dashboard/skeletons/CompanyPageSkeletons";
 import { CompanyRouteSkeleton } from "@/2-8-dashboard/skeletons/CompanyRouteSkeleton";
 import { AccessPermissionsPageSkeleton } from "@/2-9-PageAccess/skeletons/AccessPermissionsPageSkeleton";
-import { IncomeDashboardSkeleton } from "@/4-1-dashboard/skeletons/IncomeDashboardSkeleton";
-import { IncomeTransactionSkeleton } from "@/4-1-transaction/components/IncomeTransactionSkeleton";
 import { ExpenseDashboardRouteLoadingShell } from "@/shared/components/mobile/ExpenseDashboardRouteLoadingShell";
-import { DebtPageSkeleton } from "@/4-2-debt/skeletons/DebtPageSkeleton";
-import { ApprovalsPageSkeleton } from "@/4-2-approvals/skeletons/ApprovalsPageSkeleton";
-import { PaymentProcessPageSkeleton } from "@/4-2-payment-process/skeletons/PaymentProcessPageSkeleton";
-import { ReminderBillsPageSkeleton } from "@/4-2-reminder-bills/skeletons/ReminderBillsPageSkeleton";
-import { DailyTaskPageSkeleton } from "@/8-2-DailyTask/skeletons/DailyTaskPageSkeleton";
-import { DailyTaskReportPageSkeleton } from "@/8-2-DailyTaskReport/skeletons/DailyTaskReportPageSkeleton";
+import { IncomeBankAccountRouteLoadingShell } from "@/shared/components/mobile/IncomeBankAccountRouteLoadingShell";
+import { IncomeDashboardRouteLoadingShell } from "@/shared/components/mobile/IncomeDashboardRouteLoadingShell";
+import { IncomeTransactionRouteLoadingShell } from "@/shared/components/mobile/IncomeTransactionRouteLoadingShell";
+import { DebtRouteLoadingShell } from "@/shared/components/mobile/DebtRouteLoadingShell";
+import { ApprovalsRouteLoadingShell } from "@/shared/components/mobile/ApprovalsRouteLoadingShell";
+import { PaymentProcessRouteLoadingShell } from "@/shared/components/mobile/PaymentProcessRouteLoadingShell";
+import { ReminderBillsRouteLoadingShell } from "@/shared/components/mobile/ReminderBillsRouteLoadingShell";
+import { DailyTaskRouteLoadingShell } from "@/shared/components/mobile/DailyTaskRouteLoadingShell";
+import { DailyTaskReportRouteLoadingShell } from "@/shared/components/mobile/DailyTaskReportRouteLoadingShell";
 import { HabitTrackerPageSkeleton } from "@/8-2-HabitTracker/skeletons/HabitTrackerPageSkeleton";
-import { MeetingNotesPageSkeleton } from "@/8-1-meeting-notes/skeletons/MeetingNotesPageSkeleton";
+import { MeetingNotesRouteLoadingShell } from "@/shared/components/mobile/MeetingNotesRouteLoadingShell";
 import { PasswordManagerPageSkeleton } from "@/8-PasswordManager/skeletons/PasswordManagerPageSkeleton";
 import { PPh21PageSkeleton } from "@/8-4-pph-21/skeletons/PPh21PageSkeleton";
 import { CalculatorPageSkeleton } from "@/8-3-calculator/skeletons/CalculatorPageSkeleton";
@@ -110,8 +134,8 @@ import { PricingToolsPageSkeleton } from "@/8-2-pricing-tools/skeletons/PricingT
 import { PromoSimulationPageSkeleton } from "@/8-2-promo-simulation/skeletons/PromoSimulationPageSkeleton";
 import { DefaultPricesPageSkeleton } from "@/8-2-1-default-prices/skeletons/DefaultPricesPageSkeleton";
 import { DailyTaskProvider } from "@/8-2-DailyTask/context/DailyTaskContext";
-import { WhatsAppLivechatPageSkeleton } from "@/5-3-whatsapp/skeletons/WhatsAppLivechatPageSkeleton";
-import { LeadsManagementPageSkeleton } from "@/5-1-leads-management/skeletons/LeadsManagementPageSkeleton";
+import { ConsultantLivechatRouteLoadingShell } from "@/shared/components/mobile/ConsultantLivechatRouteLoadingShell";
+import { ConsultantLeadsManagementRouteLoadingShell } from "@/shared/components/mobile/ConsultantLeadsManagementRouteLoadingShell";
 import { InstagramConnectPageSkeleton } from "@/5-3-whatsapp/skeletons/InstagramConnectPageSkeleton";
 import { ConsultantCrmDashboardPageSkeleton } from "@/5-3-dashboard/skeletons/ConsultantCrmDashboardPageSkeleton";
 import { EmailConnectPageSkeleton } from "@/5-3-whatsapp/pages/EmailConnectPageSkeleton";
@@ -169,13 +193,7 @@ const RequestFormReimbursementPage = lazy(() => import("@/9-request-form/pages/R
 const RequestFormCashAdvancePage = lazy(() => import("@/9-request-form/pages/CashAdvance/CashAdvance"));
 const RequestFormLoanPage = lazy(() => import("@/9-request-form/pages/Loan/Loan"));
 
-const IncomeDashboardPage = lazy(() => import("@/4-1-dashboard/pages/IncomeDashboardPage"));
-const IncomeTransactionShellPage = lazy(() => import("@/4-1-transaction/pages/IncomeTransactionShellPage"));
-
-const DailyTaskPage = lazy(() => import("@/8-2-DailyTask/pages/DailyTaskPage"));
 const DailyTaskReportPage = lazy(() => import("@/8-2-DailyTaskReport/pages/DailyTaskReportPage"));
-const HabitTrackerPage = lazy(() => import("@/8-2-HabitTracker/pages/HabitTrackerPage"));
-const MeetingNotesToolPage = lazy(() => import("@/8-1-meeting-notes/pages/MeetingNotesPage"));
 const PasswordManagerPage = lazy(() => import("@/8-PasswordManager/pages/PasswordManagerPage"));
 const PPh21CalculatorPage = lazy(() => import("@/8-4-pph-21/pages/PPh21CalculatorPage"));
 const DefaultPricesPage = lazy(() => import("@/8-2-1-default-prices/pages/DefaultPricesPage"));
@@ -197,11 +215,6 @@ const ReviewRouteGate = lazy(() =>
   import("@/6-1-dashboard/routes/ReviewRouteGate").then((m) => ({ default: m.ReviewRouteGate })),
 );
 
-const ConsultantDashboardPage = lazy(() =>
-  import("@/5-1-leads-management/pages/ConsultantDashboardPage").then((m) => ({
-    default: m.ConsultantDashboardPage,
-  })),
-);
 const CRMDashboardPage = lazy(() =>
   import("@/5-3-dashboard/pages/CRMDashboardPage").then((m) => ({ default: m.CRMDashboardPage })),
 );
@@ -219,42 +232,6 @@ const InstagramConnectPage = lazy(() =>
 const EmailConnectPage = lazy(() =>
   import("@/5-3-whatsapp/pages/EmailConnectPage").then((m) => ({ default: m.EmailConnectPage })),
 );
-const WhatsAppInboxPage = lazy(() =>
-  import("@/5-3-whatsapp/pages/WhatsAppInboxPage").then((m) => ({ default: m.WhatsAppInboxPage })),
-);
-
-const LivechatOperationsSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
-        aria-busy
-        aria-label="Loading live chat"
-      >
-        <WhatsAppLivechatPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const LeadsManagementOperationsSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
-        aria-busy
-        aria-label="Loading leads management"
-      >
-        <LeadsManagementPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
 const InstagramConnectOperationsSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -361,78 +338,6 @@ const ClientVisitsOperationsSuspense = ({ children }: { children: ReactNode }) =
         aria-label="Loading client visits"
       >
         <ClientVisitsPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const IncomeDashboardSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <IncomeDashboardSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const IncomeTransactionSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100" aria-busy>
-        <IncomeTransactionSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const DailyTaskSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <DailyTaskPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const DailyTaskReportSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <DailyTaskReportPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const MeetingNotesSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <MeetingNotesPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const HabitTrackerSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <HabitTrackerPageSkeleton />
       </div>
     }
   >
@@ -712,6 +617,10 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <CapacitorKeyboardInsetProvider>
+      <MobileAppNavSuppressionProvider>
+      <NativeAppDisplayInit />
+      <NativeSafeAreaCssVarsInit />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         <Toaster />
         <Sonner />
@@ -720,6 +629,7 @@ const App = () => (
           <CentralizedUserDataProvider>
             <PermissionConfigurationProvider>
               <CurrentOrgProvider>
+              <NativeBootstrapSplashGate />
               <LanguageProvider>
               <BrowserRouter
                 future={{
@@ -847,6 +757,14 @@ const App = () => (
                           element={
                             <PageAccessGuard pagePath="/settings" requiresPermissions={false} loadingShell={<HomePageSkeleton />}>
                               <ProfileTabRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/share/receipt-validation"
+                          element={
+                            <PageAccessGuard requiresPermissions={false}>
+                              <ShareReceiptValidationRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1005,15 +923,28 @@ const App = () => (
                           }
                         />
                         <Route
+                          path="/incomes"
+                          element={<Navigate to={MOBILE_INCOMES_DASHBOARD_PATH} replace />}
+                        />
+                        <Route
                           path="/incomes/dashboard"
                           element={
                             <PageAccessGuard
                               pagePath="/incomes/dashboard"
-                              loadingShell={<IncomeDashboardSkeleton />}
+                              loadingShell={<IncomeDashboardRouteLoadingShell />}
                             >
-                              <IncomeDashboardSuspense>
-                                <IncomeDashboardPage />
-                              </IncomeDashboardSuspense>
+                              <IncomeDashboardRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/incomes/transaction/bank-account"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/incomes/transaction"
+                              loadingShell={<IncomeBankAccountRouteLoadingShell />}
+                            >
+                              <IncomeBankAccountRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1022,13 +953,15 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/incomes/transaction"
-                              loadingShell={<IncomeTransactionSkeleton />}
+                              loadingShell={<IncomeTransactionRouteLoadingShell />}
                             >
-                              <IncomeTransactionSuspense>
-                                <IncomeTransactionShellPage />
-                              </IncomeTransactionSuspense>
+                              <IncomeTransactionRouteElement />
                             </PageAccessGuard>
                           }
+                        />
+                        <Route
+                          path="/incomes/bank-accounts"
+                          element={<Navigate to={MOBILE_INCOMES_BANK_ACCOUNT_PATH} replace />}
                         />
                         <Route
                           path="/expenses"
@@ -1050,7 +983,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/debt"
-                              loadingShell={<DebtPageSkeleton />}
+                              loadingShell={<DebtRouteLoadingShell />}
                             >
                               <ExpensesDebtRouteElement />
                             </PageAccessGuard>
@@ -1061,7 +994,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/approvals"
-                              loadingShell={<ApprovalsPageSkeleton />}
+                              loadingShell={<ApprovalsRouteLoadingShell />}
                             >
                               <ExpensesApprovalsRouteElement />
                             </PageAccessGuard>
@@ -1072,7 +1005,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/payment-process"
-                              loadingShell={<PaymentProcessPageSkeleton />}
+                              loadingShell={<PaymentProcessRouteLoadingShell />}
                             >
                               <ExpensesPaymentProcessRouteElement />
                             </PageAccessGuard>
@@ -1083,7 +1016,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/reminder-bills"
-                              loadingShell={<ReminderBillsPageSkeleton />}
+                              loadingShell={<ReminderBillsRouteLoadingShell />}
                             >
                               <ExpensesReminderBillsRouteElement />
                             </PageAccessGuard>
@@ -1128,30 +1061,24 @@ const App = () => (
                         <Route
                           path="/tools/daily-task"
                           element={
-                            <PageAccessGuard pagePath="/tools/daily-task" loadingShell={<DailyTaskPageSkeleton />}>
-                              <DailyTaskSuspense>
-                                <DailyTaskPage />
-                              </DailyTaskSuspense>
+                            <PageAccessGuard pagePath="/tools/daily-task" loadingShell={<DailyTaskRouteLoadingShell />}>
+                              <DailyTaskRouteElement />
                             </PageAccessGuard>
                           }
                         />
                         <Route
                           path="/tools/daily-task-report"
                           element={
-                            <PageAccessGuard pagePath="/tools/daily-task-report" loadingShell={<DailyTaskReportPageSkeleton />}>
-                              <DailyTaskReportSuspense>
-                                <DailyTaskReportPage />
-                              </DailyTaskReportSuspense>
+                            <PageAccessGuard pagePath="/tools/daily-task-report" loadingShell={<DailyTaskReportRouteLoadingShell />}>
+                              <DailyTaskReportRouteElement />
                             </PageAccessGuard>
                           }
                         />
                         <Route
                           path="/tools/meeting-notes"
                           element={
-                            <PageAccessGuard pagePath="/tools/meeting-notes" loadingShell={<MeetingNotesPageSkeleton />}>
-                              <MeetingNotesSuspense>
-                                <MeetingNotesToolPage />
-                              </MeetingNotesSuspense>
+                            <PageAccessGuard pagePath="/tools/meeting-notes" loadingShell={<MeetingNotesRouteLoadingShell />}>
+                              <MeetingNotesRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1159,9 +1086,7 @@ const App = () => (
                           path="/tools/habits-tracker"
                           element={
                             <PageAccessGuard pagePath="/tools/habits-tracker" loadingShell={<HabitTrackerPageSkeleton />}>
-                              <HabitTrackerSuspense>
-                                <HabitTrackerPage />
-                              </HabitTrackerSuspense>
+                              <HabitTrackerRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1344,12 +1269,10 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/consultant/leads-management"
-                              loadingShell={<LeadsManagementPageSkeleton />}
+                              loadingShell={<ConsultantLeadsManagementRouteLoadingShell />}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
-                              <LeadsManagementOperationsSuspense>
-                                <ConsultantDashboardPage />
-                              </LeadsManagementOperationsSuspense>
+                              <ConsultantLeadsManagementRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1409,12 +1332,10 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/consultant/all/livechat"
-                              loadingShell={<WhatsAppLivechatPageSkeleton />}
+                              loadingShell={<ConsultantLivechatRouteLoadingShell />}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
-                              <LivechatOperationsSuspense>
-                                <WhatsAppInboxPage />
-                              </LivechatOperationsSuspense>
+                              <ConsultantLivechatRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -1635,9 +1556,9 @@ const App = () => (
                         />
                         <Route element={<SubscriptionRoleGuard />}>
                           <Route path="/subscription" element={<Navigate to="/subscription/overview" replace />} />
-                          <Route path="/subscription/overview" element={<OverviewPage />} />
-                          <Route path="/subscription/plans" element={<PlansPage />} />
-                          <Route path="/subscription/management" element={<ManagementPage />} />
+                          <Route path="/subscription/overview" element={<SubscriptionOverviewRouteElement />} />
+                          <Route path="/subscription/plans" element={<SubscriptionPlansRouteElement />} />
+                          <Route path="/subscription/management" element={<SubscriptionManagementRouteElement />} />
                         </Route>
                       </Route>
                       <Route path="/employees/add" element={<AddEmployeePage />} />
@@ -1658,6 +1579,8 @@ const App = () => (
           </div>
         </AuthProvider>
       </div>
+      </MobileAppNavSuppressionProvider>
+      </CapacitorKeyboardInsetProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

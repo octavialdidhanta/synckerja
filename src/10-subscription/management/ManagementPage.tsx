@@ -70,7 +70,7 @@ export default function ManagementPage() {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div
           className={cn(
-            "seamless-scroll max-h-[calc(100vh-120px)] overflow-y-auto p-6",
+            "scrollbar-hide seamless-scroll nested-scroll-touch-chain max-h-[calc(100vh-120px)] overflow-x-hidden overflow-y-auto p-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
             showShellSkeleton && "pointer-events-none invisible",
           )}
         >
@@ -79,7 +79,10 @@ export default function ManagementPage() {
           </div>
         </div>
         {showShellSkeleton ? (
-          <div className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden bg-background p-6" aria-busy="true">
+          <div
+            className="absolute inset-0 z-10 scrollbar-hide seamless-scroll nested-scroll-touch-chain overflow-y-auto overflow-x-hidden bg-background p-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            aria-busy="true"
+          >
             <div className="mx-auto max-w-4xl">
               <ManagementPageSkeleton />
             </div>

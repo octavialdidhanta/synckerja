@@ -1,3 +1,19 @@
+/** Format ISO/subscription date strings for mobile + shared UI (replaces legacy `@/features/10-management/utils/dateUtils`). */
+export function formatSubscriptionDate(
+  input: string | null | undefined,
+  options?: { month?: "long" | "short" | "numeric" },
+): string {
+  if (!input || typeof input !== "string") return "—";
+  const date = new Date(input);
+  if (!Number.isFinite(date.getTime())) return "—";
+  const month = options?.month ?? "long";
+  return date.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month,
+    year: "numeric",
+  });
+}
+
 export function formatIDR(amount: number): string {
   const n = Number(amount);
   if (!Number.isFinite(n)) return "Rp 0";

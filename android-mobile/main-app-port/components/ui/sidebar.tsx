@@ -3,7 +3,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
 
-import { useIsMobile } from "@/mobile-app/hooks/use-mobile"
+import { useIsMobile } from "@/shared/hooks/use-mobile"
 import { cn } from "@/shared/lib/utils"
 import { Button } from "@/mobile-app/components/ui/button"
 import { Input } from "@/mobile-app/components/ui/input"
@@ -217,7 +217,7 @@ const Sidebar = React.forwardRef<
                 Use this sidebar to browse the application sections
               </SheetDescription>
             </SheetHeader>
-            <div className="flex h-full w-full flex-col safe-area-top safe-area-bottom">
+            <div className="flex h-full w-full flex-col safe-area-bottom">
               {children}
             </div>
           </SheetContent>

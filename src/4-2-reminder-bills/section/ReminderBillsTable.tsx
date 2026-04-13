@@ -10,9 +10,6 @@ import { ActionsDropdown } from '@/4-2-dashboard/components/ActionsDropdown';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 
-const SCROLL_HIDE =
-  'scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
-
 export type ReminderBillsTableVariant = 'module' | 'mobileCard';
 
 interface ReminderBillsTableProps {
@@ -24,6 +21,10 @@ interface ReminderBillsTableProps {
   onDelete: (bill: Expense) => void;
   onPayNow?: (bill: Expense) => void;
   variant?: ReminderBillsTableVariant;
+  /** Mobile tab dengan rantai flex tinggi: scroll mengisi parent, bukan `max-h-[50vh]`. */
+  fillScrollHeight?: boolean;
+  /** Native mobile reminder-bills: viewport ~10 baris, scroll di dalam (selaras expense / approvals). */
+  fixedMobileViewport?: boolean;
 }
 
 export const ReminderBillsTable = ({
@@ -35,6 +36,8 @@ export const ReminderBillsTable = ({
   onDelete,
   onPayNow,
   variant = 'module',
+  fillScrollHeight = false,
+  fixedMobileViewport = false,
 }: ReminderBillsTableProps) => {
   const { t } = useAppTranslation();
   const isMobileCard = variant === 'mobileCard';
@@ -104,7 +107,7 @@ export const ReminderBillsTable = ({
 
   const cellPx = isMobileCard ? 'px-2 py-2' : 'px-3 py-2';
 
-  const skeletonRows = Array.from({ length: 6 }).map((_, rowIndex) => (
+  const skeletonRows = Array.from({ length: 10 }).map((_, rowIndex) => (
     <TableRow key={rowIndex} className="border-b">
       {Array.from({ length: 8 }).map((__, ci) => (
         <TableCell key={ci} className={cellPx}>
@@ -133,9 +136,17 @@ export const ReminderBillsTable = ({
   const scrollWrapClass = cn(
     'min-w-0 overflow-x-auto',
     isMobileCard
-      ? 'nested-scroll-touch-chain-xy scrollbar-hide seamless-scroll max-h-[50vh] min-h-0 flex-1 touch-pan-x overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+      ? fixedMobileViewport
+        ? cn(
+            'nested-scroll-touch-chain scrollbar-hide seamless-scroll min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            'h-[min(28rem,calc(100dvh-14rem))] max-h-[28rem] min-h-[11rem] shrink-0',
+          )
+        : cn(
+            'nested-scroll-touch-chain scrollbar-hide seamless-scroll min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            fillScrollHeight && 'flex-1',
+            !fillScrollHeight && 'max-h-[50vh]',
+          )
       : 'min-h-0 flex-1',
-    isMobileCard && SCROLL_HIDE,
   );
 
   const tableSection = (
@@ -283,7 +294,16 @@ export const ReminderBillsTable = ({
   );
 
   if (isMobileCard) {
-    return <div className="min-w-0 w-full">{tableSection}</div>;
+    return (
+      <div
+        className={cn(
+          'min-w-0 w-full',
+          fillScrollHeight && !fixedMobileViewport && 'flex min-h-0 min-w-0 flex-1 flex-col',
+        )}
+      >
+        {tableSection}
+      </div>
+    );
   }
 
   return (

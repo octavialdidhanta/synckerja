@@ -427,7 +427,6 @@ Deno.serve(async (req: Request) => {
                 const convPayload: Record<string, unknown> = {
                   organization_id: orgId,
                   customer_wa_id: customerWaId,
-                  customer_external_id: customerWaId,
                   channel: "whatsapp",
                   phone_number_id: phoneNumberId,
                   last_message_at: timestamp,

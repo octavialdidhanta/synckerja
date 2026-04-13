@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { cn } from "@/shared/lib/utils";
+import { useIsMobile } from "@/mobile/shared/hooks/use-mobile";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { Expense } from "@/shared/hooks/finance/useExpenses";
 import type { ReminderBillsFiltersType } from "@/4-2-reminder-bills/section/ReminderBillsFilters";
@@ -9,6 +10,7 @@ import {
   getUniqueBillDepartments,
 } from "@/4-2-reminder-bills/utils/reminderBillsUtils";
 import { ReminderBillsTable } from "@/4-2-reminder-bills/section/ReminderBillsTable";
+import { BillsTableFooter } from "@/mobile/2-bills/section/bills/BillsTableFooter";
 import { Card, CardContent } from "@/mobile-app/components/ui/card";
 import { Button } from "@/mobile-app/components/ui/button";
 import { Input } from "@/mobile-app/components/ui/input";
@@ -73,12 +75,18 @@ export function BillsTableSection({
   onRefresh,
 }: BillsTableSectionProps) {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
 
   const categoryOptions = useMemo(() => getUniqueBillCategories(allBills), [allBills]);
   const departmentOptions = useMemo(() => getUniqueBillDepartments(allBills), [allBills]);
 
   const filteredBills = useMemo(() => filterReminderBills(allBills, filters), [allBills, filters]);
+
+  const filteredTotalAmount = useMemo(
+    () => filteredBills.reduce((sum, b) => sum + (Number(b.amount) || 0), 0),
+    [filteredBills],
+  );
 
   const isDefaultMobileFilters = (f: ReminderBillsFiltersType) =>
     f.search === MOBILE_BILLS_DEFAULT_FILTERS.search &&
@@ -90,9 +98,14 @@ export function BillsTableSection({
   const hasActiveFilters = !isDefaultMobileFilters(filters);
 
   return (
-    <div className="min-w-0 w-full">
-      <Card className="w-full min-w-0 overflow-hidden border border-border bg-card">
-        <CardContent className="flex min-w-0 flex-col p-0">
+    <div className={cn("min-w-0 w-full", isMobile && "flex min-h-0 min-w-0 flex-1 flex-col")}>
+      <Card
+        className={cn(
+          "w-full min-w-0 overflow-hidden border border-border bg-card",
+          isMobile && "flex min-h-0 min-w-0 flex-1 flex-col",
+        )}
+      >
+        <CardContent className={cn("flex min-w-0 flex-col p-0", isMobile && "min-h-0 min-w-0 flex-1")}>
           <div className="min-w-0 flex-shrink-0 border-b bg-muted/50 px-1.5 py-1.5">
             <div className="flex w-full min-w-0 items-center gap-1">
               <div className="relative min-h-9 min-w-0 flex-1">
@@ -305,7 +318,7 @@ export function BillsTableSection({
             </div>
           </div>
 
-          <div className="min-h-0 min-w-0 flex-1">
+          <div className={cn("min-h-0 min-w-0", !isMobile && "flex-1")}>
             <ReminderBillsTable
               bills={filteredBills}
               isLoading={isLoading}
@@ -315,8 +328,16 @@ export function BillsTableSection({
               onEdit={onEdit}
               onDelete={onDelete}
               onPayNow={onPayNow}
+              fillScrollHeight={false}
+              fixedMobileViewport={isMobile}
             />
           </div>
+
+          <BillsTableFooter
+            filteredCount={filteredBills.length}
+            totalCount={allBills.length}
+            filteredTotalAmount={filteredTotalAmount}
+          />
         </CardContent>
       </Card>
     </div>

@@ -21,12 +21,18 @@ interface ApprovalTableProps {
   isLoading?: boolean;
   onRefresh?: () => void;
   variant?: ApprovalTableVariant;
+  /** Mobile tab dengan rantai flex tinggi: isi scroll mengisi parent, bukan `max-h-[50vh]`. */
+  fillScrollHeight?: boolean;
+  /** Native mobile approvals: viewport ~10 baris, scroll di dalam (selaras expense dashboard). */
+  fixedMobileViewport?: boolean;
 }
 
 export const ApprovalTable = ({
   requests,
   isLoading = false,
   variant = 'module',
+  fillScrollHeight = false,
+  fixedMobileViewport = false,
 }: ApprovalTableProps) => {
   const { t } = useAppTranslation();
   const isMobileCard = variant === 'mobileCard';
@@ -127,7 +133,7 @@ export const ApprovalTable = ({
   const cellPx = isMobileCard ? 'px-2 py-2' : 'px-3 py-2';
   const requestCellMax = isMobileCard ? 'max-w-[200px] min-w-0' : 'max-w-[280px] w-[280px]';
 
-  const skeletonRows = Array.from({ length: 6 }).map((_, rowIndex) => (
+  const skeletonRows = Array.from({ length: 10 }).map((_, rowIndex) => (
     <TableRow key={rowIndex} className="border-b">
       {Array.from({ length: 11 }).map((__, ci) => (
         <TableCell key={ci} className={cellPx}>
@@ -267,9 +273,19 @@ export const ApprovalTable = ({
   const scrollWrapClass = cn(
     'scrollbar-hide seamless-scroll min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
     isMobileCard
-      ? 'nested-scroll-touch-chain-xy max-h-[50vh] min-h-0 flex-1 touch-pan-x overflow-y-auto'
+      ? fixedMobileViewport
+        ? cn(
+            'nested-scroll-touch-chain min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y]',
+            'h-[min(28rem,calc(100dvh-14rem))] max-h-[28rem] min-h-[11rem] shrink-0',
+            SCROLL_HIDE,
+          )
+        : cn(
+            'nested-scroll-touch-chain min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y]',
+            fillScrollHeight && 'flex-1',
+            !fillScrollHeight && 'max-h-[50vh]',
+            SCROLL_HIDE,
+          )
       : 'min-h-0 flex-1',
-    isMobileCard && SCROLL_HIDE,
   );
 
   if (isLoading && !isMobileCard) {
@@ -290,7 +306,12 @@ export const ApprovalTable = ({
 
   if (isMobileCard) {
     return (
-      <div className="min-w-0 w-full">
+      <div
+        className={cn(
+          'min-w-0 w-full',
+          fillScrollHeight && !fixedMobileViewport && 'flex min-h-0 min-w-0 flex-1 flex-col',
+        )}
+      >
         <div className={scrollWrapClass}>{tableEl}</div>
       </div>
     );

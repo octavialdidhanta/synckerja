@@ -1,0 +1,187 @@
+---
+description: Standar perbaikan flicker pada halaman mobile (skeleton → konten sebentar → skeleton lagi) saat pindah halaman atau saat pull-to-refresh. Penyebab umum: recovery refetch memicu loading lagi setelah data sudah tampil; atau skeleton tampil saat pull-to-refresh. Berlaku untuk halaman yang punya recovery refetch, loading/skeleton state, dan/atau pull-to-refresh.
+globs: src/mobile/**/*.tsx
+---
+
+# Perbaiki Halaman Flicker — Standar untuk Mobile
+
+Rule ini **wajib diacu** ketika ada **flicker** pada halaman mobile: halaman muncul beberapa milidetik di antara skeleton saat perpindahan dari halaman lain **atau saat pull-to-refresh** (urutan: skeleton → konten sebentar → skeleton lagi). Tujuan: satu transisi bersih (skeleton → konten) tanpa flash konten di tengah.
+
+**Penyebab umum:**
+1. Efek **recovery refetch** jalan setelah data sudah load, lalu memanggil `refetch()`. Refetch meng-set `loading` kembali `true` → UI kembali ke skeleton → flicker.
+2. **Pull-to-refresh** memicu refetch yang set `loading = true` → skeleton tampil sebentar padahal konten sudah ada → flicker.
+
+---
+
+## 1. Kapan pakai rule ini
+
+- User melaporkan flicker saat **navigasi ke halaman** (mis. dari Home ke Reports, dari Schedule ke Client Visit).
+- User melaporkan flicker saat **pull-to-refresh**: skeleton muncul sebentar padahal konten sudah tampil.
+- Urutan yang terlihat: **skeleton → konten sangat sebentar → skeleton lagi** (atau sebaliknya).
+- Halaman punya **recovery refetch** di `useEffect` yang memanggil `refetch()` / `refetchStats()` saat `!loading` (dan sejenisnya).
+- Halaman punya **pull-to-refresh** dan menampilkan skeleton berdasarkan `loading` tanpa memeriksa `isRefreshing`.
+
+Saat mendeteksi atau memperbaiki flicker seperti ini, terapkan standar di bawah.
+
+---
+
+## 2. Penyebab: Recovery refetch saat data sudah ada
+
+Pola bermasalah:
+
+```ts
+useEffect(() => {
+  if (didRecoveryRefetch.current || loading || statsLoading) return;
+  didRecoveryRefetch.current = true;
+  Promise.all([refetch(), refetchStats()]).catch(() => {});
+}, [loading, statsLoading, refetch, refetchStats]);
+```
+
+Yang terjadi:
+
+1. Load awal selesai → `loading` dan `statsLoading` jadi `false` → konten tampil.
+2. Effect jalan (karena dependency berubah) → panggil `refetch()` dan `refetchStats()`.
+3. Di dalam hook, refetch meng-set `loading`/`statsLoading` kembali `true` → UI tampilkan skeleton lagi.
+4. Setelah refetch selesai → loading false → konten tampil lagi.
+
+Hasil: **skeleton → konten → skeleton → konten** (flicker).
+
+---
+
+## 3. Perbaikan standar: Recovery hanya bila belum ada data
+
+**Prinsip:** Jalankan recovery refetch **hanya** ketika load sudah selesai **dan** data memang belum ada (list kosong / stats null). Jika sudah ada data, **jangan** panggil refetch agar loading tidak nyala lagi.
+
+### 3.1 Tambah pengecekan `hasData`
+
+Sebelum panggil refetch di effect recovery, tambah:
+
+```ts
+const hasData = /* kondisi: apakah halaman sudah punya data yang relevan */;
+if (hasData) return;
+```
+
+Baru setelah itu set `didRecoveryRefetch.current = true` dan panggil refetch.
+
+### 3.2 Contoh per halaman
+
+| Halaman   | Sumber data                                      | `hasData` (contoh) |
+|-----------|---------------------------------------------------|----------------------------------------|
+| Reports   | `attendanceHistory`, `attendanceStats`            | `(attendanceHistory?.length ?? 0) > 0 \|\| attendanceStats != null` |
+| Schedule  | `workSchedule`, `scheduleData`, `stats`            | `workSchedule != null \|\| (scheduleData?.length ?? 0) > 0 \|\| stats != null` |
+| Client Visit | `todayVisits`, `todaySchedule`                 | `(todayVisits?.length ?? 0) > 0 \|\| todaySchedule != null` |
+
+### 3.3 Contoh kode (Reports)
+
+```ts
+useEffect(() => {
+  if (didRecoveryRefetch.current || loading || statsLoading) return;
+  const hasData = (attendanceHistory?.length ?? 0) > 0 || attendanceStats != null;
+  if (hasData) return;
+  didRecoveryRefetch.current = true;
+  Promise.all([refetch(), refetchStats()]).catch(() => {});
+}, [loading, statsLoading, attendanceHistory, attendanceStats, refetch, refetchStats]);
+```
+
+### 3.4 Contoh kode (Schedule)
+
+```ts
+useEffect(() => {
+  if (didRecoveryRefetch.current || scheduleLoading || statsLoading) return;
+  const hasData = workSchedule != null || (scheduleData?.length ?? 0) > 0 || stats != null;
+  if (hasData) return;
+  didRecoveryRefetch.current = true;
+  Promise.all([refetchSchedule(), refetchStats()]).catch(() => {});
+}, [scheduleLoading, statsLoading, workSchedule, scheduleData, stats, refetchSchedule, refetchStats]);
+```
+
+### 3.5 Contoh kode (Client Visit)
+
+```ts
+useEffect(() => {
+  if (didRecoveryRefetch.current || loading || error) return;
+  const hasData = (todayVisits?.length ?? 0) > 0 || todaySchedule != null;
+  if (hasData) return;
+  didRecoveryRefetch.current = true;
+  refetch().catch(() => {});
+}, [loading, error, todayVisits, todaySchedule, refetch]);
+```
+
+---
+
+## 4. Pull-to-refresh: jangan tampilkan skeleton saat refresh
+
+**Prinsip:** Saat user **pull-to-refresh**, konten yang sudah tampil harus **tetap terlihat**. Hanya indikator refresh (spinner) di atas yang tampil. Skeleton **tidak** boleh muncul saat pull-to-refresh.
+
+### 4.1 Pola bermasalah
+
+```tsx
+{isLoading ? <PageSkeleton /> : <Content />}
+```
+
+Saat pull-to-refresh, `refetch()` dipanggil → hook set `isLoading = true` → skeleton tampil → flicker.
+
+### 4.2 Perbaikan: skeleton hanya saat load awal
+
+Gunakan state **`isRefreshing`** (dari pull-to-refresh). Tampilkan skeleton **hanya** ketika loading **dan** bukan sedang refresh:
+
+```tsx
+{/* Skeleton only on initial load; during pull-to-refresh keep showing content */}
+{isLoading && !isRefreshing ? <PageSkeleton /> : <Content />}
+```
+
+### 4.3 Jika konten punya child loading (skeleton + display:none)
+
+Halaman yang punya child yang memanggil `onLoadingChange(true/false)` (mis. Initiative):
+
+- Oper **`isRefreshing`** ke komponen konten.
+- Tampilkan skeleton hanya bila **child loading dan bukan refresh**: `showSkeleton = childLoading && !isRefreshing`.
+- Sembunyikan konten hanya bila **child loading dan bukan refresh**: `hideContent = childLoading && !isRefreshing` (agar saat refresh konten tidak hilang).
+
+```tsx
+// Di layout: oper isRefreshing ke content
+<Content isRefreshing={isRefreshing} />
+
+// Di content:
+const showSkeleton = childLoading && !isRefreshing;
+const hideContent = childLoading && !isRefreshing;
+return (
+  <>
+    {showSkeleton && <PageSkeleton />}
+    <div style={hideContent ? { display: 'none' } : undefined}>
+      <ChildComponent onLoadingChange={setChildLoading} />
+    </div>
+  </>
+);
+```
+
+### 4.4 Contoh halaman acuan
+
+| Halaman | Perilaku |
+|--------|----------|
+| Initiative | `InitiativeContent` terima `isRefreshing`; skeleton & hide content hanya bila `childLoading && !isRefreshing`. |
+| Daily Task | `isLoading && !isRefreshing ? <DailyTaskPageSkeleton /> : <TaskList />`. |
+
+---
+
+## 5. Checklist saat perbaiki flicker
+
+- [ ] Ada **recovery refetch** di `useEffect` yang dipicu saat `!loading` (atau serupa)?
+- [ ] Sudah tambah **`hasData`** sesuai sumber data halaman (list length, stats, schedule, dll.)?
+- [ ] Sudah **`if (hasData) return;`** sebelum set `didRecoveryRefetch.current = true` dan panggil refetch?
+- [ ] Dependency array effect sudah **termasuk** variabel yang dipakai di `hasData` (agar effect tidak jalan lagi setelah data terisi)?
+- [ ] Halaman punya **pull-to-refresh**? Jika ya: tampilkan skeleton hanya bila **`isLoading && !isRefreshing`** (bukan sekadar `isLoading`).
+- [ ] Jika konten punya child loading: sudah oper **`isRefreshing`** ke konten dan pakai **`childLoading && !isRefreshing`** untuk skeleton dan hide content?
+
+---
+
+## 6. Ringkasan
+
+| Item | Nilai |
+|------|--------|
+| Gejala | Skeleton → konten sebentar → skeleton (flicker) saat pindah halaman **atau** saat pull-to-refresh |
+| Penyebab | (1) Recovery refetch jalan setelah data ada, lalu refetch set loading true lagi. (2) Pull-to-refresh set loading true → skeleton tampil. |
+| Perbaikan | (1) Recovery refetch **hanya** bila belum ada data: tambah `hasData` dan `if (hasData) return`. (2) Pull-to-refresh: skeleton hanya bila **`isLoading && !isRefreshing`**; oper `isRefreshing` ke konten jika ada child loading. |
+| File acuan | `Reports.tsx`, `Schedule.tsx`, `ClientVisit.tsx`, `InitiativePage.tsx`, `DailyTaskLayout.tsx` |
+
+**PENTING:** Setiap halaman yang punya recovery refetch dan loading/skeleton harus memastikan recovery **tidak** dipanggil ketika data sudah tersedia. Setiap halaman yang punya pull-to-refresh **tidak** boleh menampilkan skeleton saat refresh — hanya indikator pull di atas; konten tetap tampil sampai data selesai dimuat.

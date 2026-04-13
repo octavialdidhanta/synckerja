@@ -32,7 +32,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import { Skeleton } from "@/mobile-app/components/ui/skeleton";
+import { MobileDebtTableBodyRows } from "@/mobile/2-debt/pages/MobileDebtPageSkeleton";
+import { MOBILE_WIDE_FINANCE_TABLE_VIEWPORT_CLASS } from "@/mobile/shared/mobileWideFinanceTableViewport";
 import {
   Activity,
   Building,
@@ -168,9 +169,14 @@ export function DebtTableSection({
     ) : null;
 
   return (
-    <div className="min-w-0 w-full">
-      <Card className="w-full min-w-0 overflow-hidden border border-border bg-card">
-        <CardContent className="flex min-w-0 flex-col p-0">
+    <div className={cn("min-w-0 w-full", isMobile && "flex min-h-0 min-w-0 flex-col")}>
+      <Card
+        className={cn(
+          "w-full min-w-0 overflow-hidden border border-border bg-card",
+          isMobile && "flex min-h-0 min-w-0 flex-col",
+        )}
+      >
+        <CardContent className={cn("flex min-w-0 flex-col p-0", isMobile && "min-h-0 min-w-0 flex-col")}>
           <div className="min-w-0 flex-shrink-0 border-b bg-muted/50 px-1.5 py-1.5">
             <div className="flex w-full min-w-0 items-center gap-1">
               <Button
@@ -306,8 +312,9 @@ export function DebtTableSection({
 
           <div
             className={cn(
-              "nested-scroll-touch-chain-xy max-h-[50vh] min-h-0 min-w-0 flex-1 touch-pan-x overflow-x-auto overflow-y-auto seamless-scroll",
+              "nested-scroll-touch-chain min-h-0 min-w-0 overflow-x-auto overflow-y-auto seamless-scroll [touch-action:pan-x_pan-y]",
               SCROLL_HIDE,
+              isMobile ? MOBILE_WIDE_FINANCE_TABLE_VIEWPORT_CLASS : "max-h-[50vh] flex-1",
             )}
           >
             <table className="min-w-[1600px] w-full">
@@ -356,49 +363,7 @@ export function DebtTableSection({
               </thead>
               <tbody>
                 {isLoading ? (
-                  Array.from({ length: 6 }).map((_, rowIndex) => (
-                    <tr key={rowIndex} className="border-b">
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-full max-w-[120px]" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-20" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-20" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-16" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-16" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-16" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-16" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-16" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-20" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-16" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-4 w-16" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-5 w-16 rounded-full" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Skeleton className="h-8 w-8 rounded" />
-                      </td>
-                    </tr>
-                  ))
+                  <MobileDebtTableBodyRows />
                 ) : filteredDebts.length === 0 ? (
                   <tr>
                     <td colSpan={13} className="py-8 text-center text-gray-500">
@@ -566,22 +531,24 @@ export function DebtTableSection({
         >
           {isMobile ? (
             <>
-              <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 text-left safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
-                <div className="min-w-0 flex-1">
-                  <DialogTitle className="text-left text-base font-semibold leading-tight">
-                    {t("debt.detail.title", "Debt Details")}
-                  </DialogTitle>
-                  <DialogDescription className="sr-only">
-                    {t("debt.detail.description", "Complete information about this debt")}
-                  </DialogDescription>
+              <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+                <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center text-left text-base font-semibold leading-tight">
+                      {t("debt.detail.title", "Debt Details")}
+                    </DialogTitle>
+                    <DialogDescription className="sr-only">
+                      {t("debt.detail.description", "Complete information about this debt")}
+                    </DialogDescription>
+                  </div>
+                  <DialogClose
+                    type="button"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-blue/50 bg-background/80 p-0 text-muted-foreground ring-offset-background transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <X className="block h-4 w-4 shrink-0" aria-hidden />
+                    <span className="sr-only">{t("common.close", "Close")}</span>
+                  </DialogClose>
                 </div>
-                <DialogClose
-                  type="button"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <X className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="sr-only">{t("common.close", "Close")}</span>
-                </DialogClose>
               </DialogHeader>
               <div
                 className={cn(

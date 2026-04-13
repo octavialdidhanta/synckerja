@@ -11,7 +11,7 @@ function LeadsManagementHeaderTabSkeleton() {
       </div>
       <div className="-mb-3 min-w-0 overflow-x-auto seamless-scroll">
         <nav className="flex min-w-0 flex-nowrap gap-x-6" aria-hidden>
-          {Array.from({ length: 6 }).map((i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
               className="flex cursor-default items-center space-x-1.5 border-b-2 border-transparent py-1.5 px-1"
@@ -47,7 +47,7 @@ function LeadsManagementFiltersRowSkeleton() {
 function LeadsManagementMetricsSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
-      {Array.from({ length: 4 }).map((i) => (
+      {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="rounded-md border border-gray-200 bg-gray-50/90 p-4">
           <div className="mb-3 flex items-center justify-between">
             <Skeleton className="h-4 w-28 rounded-sm" />
@@ -73,7 +73,7 @@ function LeadsManagementTableSkeleton() {
         <table className="w-full min-w-max caption-bottom text-sm">
           <thead className="sticky top-0 z-20 bg-gray-50 shadow-sm">
             <tr className="hover:bg-transparent">
-              {Array.from({ length: TABLE_COLS }).map((i) => (
+              {Array.from({ length: TABLE_COLS }).map((_, i) => (
                 <th key={i} className="bg-gray-50 px-3 py-2.5 text-left">
                   <Skeleton className="h-3 w-[70%] rounded-sm" />
                 </th>
@@ -81,9 +81,9 @@ function LeadsManagementTableSkeleton() {
             </tr>
           </thead>
           <tbody>
-            {Array.from({ length: TABLE_ROWS }).map((r) => (
+            {Array.from({ length: TABLE_ROWS }).map((_, r) => (
               <tr key={r} className="h-12 border-b border-gray-100">
-                {Array.from({ length: TABLE_COLS }).map((c) => (
+                {Array.from({ length: TABLE_COLS }).map((_, c) => (
                   <td key={c} className="px-3 py-2">
                     <Skeleton className="h-4 w-[85%] rounded-sm" />
                   </td>
@@ -107,7 +107,7 @@ function LeadsManagementTableSkeleton() {
 function LeadsManagementSidebarSkeleton() {
   return (
     <div className="space-y-4">
-      {Array.from({ length: 4 }).map((i) => (
+      {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="rounded-lg border border-gray-100 bg-gray-50/80 p-3">
           <div className="mb-2 flex items-center gap-2">
             <Skeleton className="h-8 w-8 shrink-0 rounded-md" />

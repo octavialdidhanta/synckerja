@@ -419,6 +419,44 @@
   "common": {
     "cancel": "Cancel"
   },
+  "debt": {
+    "route": {
+      "loadingAria": "Loading debt"
+    }
+  },
+  "approvals": {
+    "route": {
+      "loadingAria": "Loading approvals"
+    },
+    "table": {
+      "showing": "Showing",
+      "of": "of",
+      "requests": "requests",
+      "totalFilteredAmount": "Total (filtered)"
+    }
+  },
+  "payments": {
+    "route": {
+      "loadingAria": "Loading payment process"
+    },
+    "table": {
+      "showing": "Showing",
+      "of": "of",
+      "approvedLabel": "approved",
+      "totalFilteredAmount": "Total (filtered)"
+    }
+  },
+  "reminderBills": {
+    "route": {
+      "loadingAria": "Loading reminder bills"
+    },
+    "table": {
+      "showing": "Showing",
+      "of": "of",
+      "bills": "bills",
+      "totalFilteredAmount": "Total (filtered)"
+    }
+  },
   "subscription": {
     "roleGuard": {
       "loading": "Loading…"
@@ -1043,6 +1081,12 @@
         "incidentDateRequired": "Incident date is required",
         "violationDescriptionRequired": "Violation description is required"
       }
+    }
+  },
+  "jobDesc": {
+    "page": {
+      "title": "Job Desc",
+      "subtitle": "See active workload per employee"
     }
   }
 }

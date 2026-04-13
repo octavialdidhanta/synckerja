@@ -44,6 +44,10 @@ interface PaymentTableProps {
   isLoading?: boolean;
   onRefresh?: () => void;
   variant?: PaymentTableVariant;
+  /** Mobile tab dengan rantai flex tinggi: scroll mengisi parent, bukan `max-h-[50vh]`. */
+  fillScrollHeight?: boolean;
+  /** Native mobile payment-process: viewport ~10 baris, scroll di dalam (selaras approvals / expense). */
+  fixedMobileViewport?: boolean;
 }
 
 export const PaymentTable = ({ 
@@ -51,6 +55,8 @@ export const PaymentTable = ({
   isLoading = false,
   onRefresh,
   variant = 'module',
+  fillScrollHeight = false,
+  fixedMobileViewport = false,
 }: PaymentTableProps) => {
   const isMobile = useIsMobile();
   const isMobileCard = variant === 'mobileCard';
@@ -372,7 +378,7 @@ export const PaymentTable = ({
   const fullscreenDialog = isMobile || isMobileCard;
   const cellPx = isMobileCard ? 'px-2 py-2' : 'px-3 py-2';
 
-  const skeletonRows = Array.from({ length: 6 }).map((_, rowIndex) => (
+  const skeletonRows = Array.from({ length: 10 }).map((_, rowIndex) => (
     <TableRow key={rowIndex} className="border-b">
       {Array.from({ length: 11 }).map((__, ci) => (
         <TableCell key={ci} className={cellPx}>
@@ -401,9 +407,19 @@ export const PaymentTable = ({
   const scrollWrapClass = cn(
     'scrollbar-hide seamless-scroll min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
     isMobileCard
-      ? 'nested-scroll-touch-chain-xy max-h-[50vh] min-h-0 flex-1 touch-pan-x overflow-y-auto'
+      ? fixedMobileViewport
+        ? cn(
+            'nested-scroll-touch-chain min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y]',
+            'h-[min(28rem,calc(100dvh-14rem))] max-h-[28rem] min-h-[11rem] shrink-0',
+            SCROLL_HIDE,
+          )
+        : cn(
+            'nested-scroll-touch-chain min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y]',
+            fillScrollHeight && 'flex-1',
+            !fillScrollHeight && 'max-h-[50vh]',
+            SCROLL_HIDE,
+          )
       : 'min-h-0 flex-1',
-    isMobileCard && SCROLL_HIDE,
   );
 
   const tableSection = (
@@ -1022,7 +1038,14 @@ export const PaymentTable = ({
   return (
     <>
       {isMobileCard ? (
-        <div className="min-w-0 w-full">{tableSection}</div>
+        <div
+          className={cn(
+            'min-w-0 w-full',
+            fillScrollHeight && !fixedMobileViewport && 'flex min-h-0 min-w-0 flex-1 flex-col',
+          )}
+        >
+          {tableSection}
+        </div>
       ) : (
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex flex-shrink-0 items-center justify-between border-b px-4 py-2">
@@ -1056,25 +1079,27 @@ export const PaymentTable = ({
         >
           {fullscreenDialog ? (
             <>
-              <DialogHeader className="flex min-h-[3.25rem] flex-shrink-0 flex-row items-center justify-between gap-2 space-y-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-2 safe-area-top dark:from-brand-blue/20 dark:to-brand-blue/10">
-                <DialogDescription className="sr-only">
-                  {t('payments.dialog.description', 'Payment request details and processing')}
-                </DialogDescription>
-                <div className="flex min-w-0 flex-1 items-center justify-between gap-2 pr-1">
-                  <DialogTitle className="truncate text-left text-base font-semibold leading-tight">
-                    {t('payments.dialog.title', 'Payment Request Details')}
-                  </DialogTitle>
-                  <span className="shrink-0">
-                    {selectedRequest ? getStatusBadge(selectedRequest) : null}
-                  </span>
+              <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+                <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+                  <DialogDescription className="sr-only">
+                    {t('payments.dialog.description', 'Payment request details and processing')}
+                  </DialogDescription>
+                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2 pr-1">
+                    <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center truncate text-left text-base font-semibold leading-tight">
+                      {t('payments.dialog.title', 'Payment Request Details')}
+                    </DialogTitle>
+                    <span className="shrink-0">
+                      {selectedRequest ? getStatusBadge(selectedRequest) : null}
+                    </span>
+                  </div>
+                  <DialogClose
+                    type="button"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-blue/50 bg-background/80 p-0 text-muted-foreground ring-offset-background transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <X className="block h-4 w-4 shrink-0" aria-hidden />
+                    <span className="sr-only">{t('common.close', 'Close')}</span>
+                  </DialogClose>
                 </div>
-                <DialogClose
-                  type="button"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <X className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="sr-only">{t('common.close', 'Close')}</span>
-                </DialogClose>
               </DialogHeader>
               {dialogBody}
             </>

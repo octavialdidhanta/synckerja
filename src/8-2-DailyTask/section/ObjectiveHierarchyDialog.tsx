@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Badge } from "@/shared/components/ui/badge";
@@ -303,26 +303,56 @@ export const ObjectiveHierarchyDialog: React.FC<ObjectiveHierarchyDialogProps> =
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        fullscreenAnimation={isMobile}
         className={cn(
           "[&>button:last-child]:hidden max-w-none w-screen border-none md:border bg-card p-0 md:p-6 shadow-xl focus:outline-none flex flex-col gap-0 m-0 md:m-auto rounded-none md:rounded-lg translate-x-0 md:translate-x-[-50%] translate-y-0 md:translate-y-[-50%] left-0 md:left-[50%] top-0 md:top-[50%] overflow-hidden",
           isMobile ? "fixed left-0 right-0 top-0 modal-above-safe-area" : "h-screen",
+          isMobile
+            ? "data-[state=open]:[animation-timing-function:ease-in-out] data-[state=closed]:[animation-timing-function:ease-in-out]"
+            : "",
           "md:w-[70vmin] md:h-[70vmin] md:max-w-[70vmin] md:max-h-[70vmin]",
         )}
       >
-        <DialogHeader className="flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left safe-area-top px-4 pt-4 pb-3 md:px-0 md:pt-0 md:pb-0">
-          <DialogTitle className="text-lg font-semibold flex items-center gap-2 md:text-xl">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              className="h-8 w-8 p-0 -ml-2 md:ml-0 hover:bg-gray-100 flex-shrink-0"
-              aria-label="Close"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <span>Select Individual Objective</span>
-          </DialogTitle>
-        </DialogHeader>
+        {isMobile ? (
+          <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onOpenChange(false)}
+                className="-ml-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0 hover:bg-gray-100"
+                aria-label="Close"
+              >
+                <ArrowLeft className="block h-4 w-4 shrink-0 translate-y-px" />
+              </Button>
+              <DialogTitle className="m-0 flex min-h-0 min-w-0 flex-1 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
+                Select Individual Objective
+              </DialogTitle>
+            </div>
+            <DialogDescription className="sr-only">
+              Search and select an individual objective to link to this task.
+            </DialogDescription>
+          </DialogHeader>
+        ) : (
+          <DialogHeader className="flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 pb-0 pt-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <DialogTitle className="flex items-center gap-2 text-lg font-semibold md:text-xl">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                className="h-8 w-8 p-0 hover:bg-gray-100 flex-shrink-0"
+                aria-label="Close"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <span>Select Individual Objective</span>
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Search and select an individual objective to link to this task.
+            </DialogDescription>
+          </DialogHeader>
+        )}
 
         <div className="px-4 md:px-0 flex-shrink-0 pt-3 pb-3 shadow-[0_2px_6px_rgba(0,0,0,0.06)] bg-card z-10 relative">
           <div className="relative">

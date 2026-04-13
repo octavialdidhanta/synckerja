@@ -20,18 +20,19 @@ import { useAttendanceData } from "@/mobile/1-home/hooks/useAttendanceData";
 import { AbsensiPageSkeleton } from "@/mobile/1-home/pages/AbsensiPageSkeleton";
 import { RealtimeStatusIndicator } from "@/mobile-app/components/RealtimeStatusIndicator";
 import { useRealtimePresence } from "@/mobile-app/hooks/useRealtimePresence";
-import { useVisualViewport } from "@/shared/hooks/useVisualViewport";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
+import { useVisualViewport } from "@/shared/hooks/useVisualViewport";
+import { cn } from "@/shared/lib/utils";
 import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
 import { getCurrentPosition } from "@/mobile-app/utils/geolocation";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useProfile } from "@/mobile-app/hooks/useProfile";
 import { NotificationsModal } from "@/mobile-app/components/NotificationsModal";
-import { useNotificationBadgeCount } from "@/mobile-app/hooks/useNotificationBadgeCount";
+import { useNotificationBadgeCount } from "@/shared/hooks/useNotificationBadgeCount";
 import confetti from "canvas-confetti";
-import { formatAttendanceTimeWithSeconds } from "@/mobile-app/utils/postgresAttendanceTime";
+import { formatAttendanceClockFromRecord } from "@/mobile-app/utils/postgresAttendanceTime";
 import {
-  dateToPostgresTimeUtc,
+  dateToPostgresLocalWallTime,
   formatLocalDateYmd,
   parseAttendanceInstant,
 } from "@/1-home/utils/attendanceDateTime";
@@ -59,6 +60,7 @@ const PULL_RESISTANCE = 0.55;
 
 const Absensi = () => {
   useStatusBarStyle('light');
+  const { mainFixedStyle } = useVisualViewport();
   const { toast } = useToast();
   const { t, language } = useAppTranslation();
   const timeLocale = language === "id" ? "id-ID" : "en-US";
@@ -612,19 +614,21 @@ const Absensi = () => {
           isLate
         });
 
-        // Clock In Logic - sanitize all values to prevent UUID null errors
+        // Clock In: `time` column = local wall clock (same calendar day as attendance_date); `*_at` = real instant.
         const attendanceData = {
           employee_id: employee.id,
           organization_id: employee.organization_id,
-          attendance_date: formatLocalDateYmd(new Date()),
-          check_in_time: new Date().toISOString(),
+          attendance_date: formatLocalDateYmd(checkInTime),
+          check_in_time: dateToPostgresLocalWallTime(checkInTime),
+          check_in_at: checkInTime.toISOString(),
           check_in_location: {
             latitude: currentLocation.latitude,
             longitude: currentLocation.longitude,
             address: "Location captured"
           },
           office_location_id: validOffice.id,
-          work_schedule_id: scheduleId || null, // Ensure no undefined values
+          work_schedule_id: scheduleId || null,
+          status: "present",
           is_late: isLate,
           late_minutes: isLate ? actualLateMinutes : 0,
           // Fitur upload foto attendance belum diimplementasi; path saat ini placeholder. TODO: upload imageData ke Supabase Storage dan gunakan path/URL yang dikembalikan.
@@ -713,7 +717,7 @@ const Absensi = () => {
         let checkoutQuery = supabase
           .from('attendance_records')
           .update({
-            check_out_time: dateToPostgresTimeUtc(checkOutTime),
+            check_out_time: dateToPostgresLocalWallTime(checkOutTime),
             check_out_at: checkOutTime.toISOString(),
             check_out_location: {
               latitude: currentLocation.latitude,
@@ -836,40 +840,34 @@ const Absensi = () => {
   const currentOfficeLocation = officeLocation;
   const currentSchedule = todaySchedule;
 
-  const { mainFixedStyle } = useVisualViewport();
-
   return (
     <DesktopWarning>
       <LiveChatAppBadgeSync />
       <SidebarProvider>
-      {/* Block wrapper (bukan flex row): hindari `main` ter-shrink sebagai flex item jika `fixed` kalah dari `relative` di build CSS. */}
-      <div className="relative min-h-[100dvh] min-w-0 w-full bg-background">
+      {/* Layout per android-mobile/rules/mobile-tools-layout-android.mdc — selaras Schedule, Reports */}
+      <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
 
         {showPageSkeleton ? (
           <AbsensiPageSkeleton />
         ) : (
         <main
-          className="fixed inset-x-0 z-0 flex min-h-0 w-full max-w-none min-w-0 flex-col bg-background"
+          className="flex flex-col bg-background fixed inset-x-0 z-0"
           style={mainFixedStyle}
         >
-          <div className="flex min-h-0 flex-1 flex-col">
-          <>
-          <header
-            className="flex-shrink-0 sticky top-0 z-30 flex items-center justify-between p-3 bg-card border-b border-border safe-area-top min-h-[3.25rem]"
-          >
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+          <header className="flex-shrink-0 sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card p-3 safe-area-top">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <SidebarTrigger className="md:hidden shrink-0" />
               <div className="min-w-0">
-                <p className="text-base font-bold text-foreground truncate leading-tight">
+                <p className="truncate text-base font-semibold leading-tight text-foreground">
                   {greeting}
                 </p>
-                <p className="text-base font-light text-foreground truncate leading-tight">
+                <p className="truncate text-xs leading-tight text-muted-foreground">
                   {displayName}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex shrink-0 items-center gap-1">
               <RealtimeStatusIndicator
                 isConnected={realtimeConnected}
                 onlineUsers={totalOnline}
@@ -891,10 +889,10 @@ const Absensi = () => {
             </div>
           </header>
 
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div
               ref={listScrollRef}
-              className="scrollbar-hide flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col"
+              className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll"
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
@@ -925,7 +923,7 @@ const Absensi = () => {
                 )}
               </div>
               {error ? (
-                <div className="mx-auto w-full max-w-md px-2 pt-2 content-padding-above-nav-home">
+                <div className="mx-auto w-full max-w-md px-2 content-padding-above-nav-home">
                   <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
                     <p className="text-sm text-destructive font-medium mb-1">{t('mobileHome.error', 'Error')}</p>
                     <p className="text-sm text-muted-foreground mb-3">
@@ -949,8 +947,8 @@ const Absensi = () => {
                   </div>
                 </div>
               ) : (
-                <div className="mx-auto w-full max-w-md px-2 pt-2 content-padding-above-nav-home space-y-1">
-                  {/* pt-2 = spasi ke header; space-y-1 = jarak antar section sama seperti daily task */}
+                <div className="mx-auto w-full max-w-md space-y-1 px-2 content-padding-above-nav-home">
+                  {/* padding atas/bawah simetris lewat .content-padding-above-nav-home; space-y-1 = antar section */}
                   <div>
                     <div className="bg-card rounded-lg border border-border overflow-hidden">
                       <TimeDisplay />
@@ -959,8 +957,16 @@ const Absensi = () => {
                       {currentOfficeLocation && <LocationButton officeLocation={currentOfficeLocation} />}
 
                       <AttendanceStatus
-                        checkIn={formatAttendanceTimeWithSeconds(todayAttendance?.check_in_time, timeLocale)}
-                        checkOut={formatAttendanceTimeWithSeconds(todayAttendance?.check_out_time, timeLocale)}
+                        checkIn={formatAttendanceClockFromRecord(
+                          todayAttendance?.check_in_time,
+                          todayAttendance?.check_in_at,
+                          timeLocale,
+                        )}
+                        checkOut={formatAttendanceClockFromRecord(
+                          todayAttendance?.check_out_time,
+                          todayAttendance?.check_out_at,
+                          timeLocale,
+                        )}
                         workingHours={calculateWorkingHours()}
                       />
 
@@ -1021,11 +1027,8 @@ const Absensi = () => {
               )}
             </div>
           </div>
-          </>
 
-          {/* Spacer so content doesn't scroll under the fixed footer; same as LiveChatListView */}
           <NavigationFooter className="safe-area-bottom-lower" />
-          </div>
         </main>
         )}
 
@@ -1033,7 +1036,11 @@ const Absensi = () => {
           isOpen={cameraModal.isOpen}
           onClose={handleCameraClose}
           onCapture={handleCameraCapture}
-          title={cameraModal.type === 'clockin' ? 'Foto Clock In' : 'Foto Clock Out'}
+          title={
+            cameraModal.type === "clockin"
+              ? t("mobileHome.cameraClockInTitle", "Foto Clock In")
+              : t("mobileHome.cameraClockOutTitle", "Foto Clock Out")
+          }
         />
 
         <LateAttendanceModal

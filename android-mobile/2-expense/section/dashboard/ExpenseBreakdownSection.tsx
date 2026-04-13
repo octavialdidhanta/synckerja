@@ -95,7 +95,7 @@ export function ExpenseBreakdownSection(props: ExpenseBreakdownSectionProps = {}
           <TabsContent value="overview" className="mt-0">
             {allExpenses.length > 0 ? (
               <div
-                className="-mx-1 overflow-x-auto overflow-y-hidden px-1 seamless-scroll"
+                className="-mx-1 overflow-x-auto overflow-y-hidden px-1 scrollbar-hide seamless-scroll [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 style={{ scrollBehavior: "smooth" }}
               >
                 <div className="flex min-h-0 flex-nowrap items-end justify-start gap-3 pb-0 pt-2">
@@ -154,7 +154,7 @@ export function ExpenseBreakdownSection(props: ExpenseBreakdownSectionProps = {}
           <TabsContent value="category" className="mt-0">
             {allExpensesForCategoryBreakdown.length > 0 ? (
               <div
-                className="-mx-1 overflow-x-auto overflow-y-hidden px-1 seamless-scroll"
+                className="-mx-1 overflow-x-auto overflow-y-hidden px-1 scrollbar-hide seamless-scroll [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 style={{ scrollBehavior: "smooth" }}
               >
                 <div className="flex min-h-0 flex-nowrap items-end justify-start gap-3 pb-0 pt-2">

@@ -12,7 +12,7 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Button } from "@/mobile-app/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/mobile-app/components/ui/tabs";
-import { useIsMobile } from "@/mobile-app/hooks/use-mobile";
+import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { useReviewCommentNotifications, type ReviewCommentNotificationRow } from "@/6-1-dashboard/hook/useReviewCommentNotifications";
@@ -21,7 +21,7 @@ import { useCompletionApprovals } from "@/8-2-DailyTask/hooks/useCompletionAppro
 import { useDailyTaskNotifications, type DailyTaskNotificationRow } from "@/mobile-app/hooks/useDailyTaskNotifications";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useCurrentEmployee } from "@/shared/hooks/useCurrentEmployee";
-import { getCompletionApprovalCountQueryKey } from "@/mobile-app/hooks/useNotificationBadgeCount";
+import { getCompletionApprovalCountQueryKey } from "@/shared/hooks/useNotificationBadgeCount";
 import { usePublicReviewToken } from "@/6-1-dashboard/hook/usePublicReviewToken";
 import { useToast } from "@/shared/hooks/use-toast";
 import type { CompletionApprovalRow } from "@/8-2-DailyTask/services/completionApprovalService";

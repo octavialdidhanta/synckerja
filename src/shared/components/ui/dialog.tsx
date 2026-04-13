@@ -4,6 +4,8 @@ import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/shared/lib/utils";
+import { useMobileChromeReflowOnForeground } from "@/shared/mobile/useMobileChromeReflowOnForeground";
+import { useRegisterMobileAppNavSuppression } from "@/shared/mobile/MobileAppNavSuppressionContext";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -54,19 +56,25 @@ const DialogContent = React.forwardRef<
     ref,
   ) => {
     const { t } = useTranslation();
+    const mergedClassName = cn(
+      "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
+      fullscreenAnimation
+        ? "data-[state=open]:animate-dialog-content-in-fs data-[state=closed]:animate-dialog-content-out-fs"
+        : "data-[state=open]:animate-dialog-content-in data-[state=closed]:animate-dialog-content-out",
+      className,
+    );
+    useMobileChromeReflowOnForeground();
+    const shouldSuppressAppNav =
+      fullscreenAnimation === true || mergedClassName.includes("modal-above-safe-area");
+    useRegisterMobileAppNavSuppression(shouldSuppressAppNav);
+
     return (
       <DialogPortal>
         <DialogOverlay className={overlayClassName} />
         <DialogPrimitive.Content
           ref={ref}
           data-fullscreen-animation={fullscreenAnimation ? "true" : undefined}
-          className={cn(
-            "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
-            fullscreenAnimation
-              ? "data-[state=open]:animate-dialog-content-in-fs data-[state=closed]:animate-dialog-content-out-fs"
-              : "data-[state=open]:animate-dialog-content-in data-[state=closed]:animate-dialog-content-out",
-            className,
-          )}
+          className={mergedClassName}
           {...props}
         >
           {children}
@@ -121,6 +129,21 @@ const DialogDescription = React.forwardRef<
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
+/** Scrollable body inside `DialogContent` for long forms (mobile full-screen + desktop). */
+const DialogFormScrollArea = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(
+        "scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
+DialogFormScrollArea.displayName = "DialogFormScrollArea";
+
 export {
   Dialog,
   DialogPortal,
@@ -132,4 +155,5 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
+  DialogFormScrollArea,
 };

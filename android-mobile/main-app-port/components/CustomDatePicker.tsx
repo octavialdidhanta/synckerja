@@ -113,16 +113,16 @@ export const CustomDatePicker = ({
             mode="single"
             selected={selectingStart ? startDate : endDate}
             onSelect={handleDateSelect}
-            className={cn("p-0 pointer-events-auto w-full")}
+            className={cn("p-0 pointer-events-auto w-full -ml-px")}
             classNames={{
               months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
               month: "space-y-4 w-full",
-              caption: "flex justify-center pt-1 relative items-center",
+              caption: "relative flex items-center justify-center pt-1",
               caption_label: "text-sm font-medium",
-              nav: "space-x-1 flex items-center",
-              nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
-              nav_button_previous: "absolute left-1",
-              nav_button_next: "absolute right-1",
+              nav: "pointer-events-none absolute inset-x-0 top-1 flex items-center justify-between px-1",
+              nav_button: "pointer-events-auto h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+              nav_button_previous: "",
+              nav_button_next: "",
               table: "w-full border-collapse space-y-1",
               head_row: "flex w-full",
               head_cell: "text-muted-foreground rounded-md w-8 font-normal text-[0.8rem] flex-1 text-center",

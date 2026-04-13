@@ -10,13 +10,21 @@ const config: CapacitorConfig = {
   },
   plugins: {
     LocalNotifications: {
-      smallIcon: "splash_white_logo",
+      smallIcon: "app_brand_logo",
     },
     PushNotifications: {
-      smallIcon: "splash_white_logo",
+      smallIcon: "app_brand_logo",
     },
     SplashScreen: {
-      launchAutoHide: true,
+      /** Disembunyikan dari JS (`NativeBootstrapSplashGate`) setelah bootstrap data siap. */
+      launchAutoHide: false,
+      backgroundColor: "#f5f5f5",
+      androidSplashResourceName: "splash",
+      androidScaleType: "CENTER_INSIDE",
+      /** Referensi: fullscreen splash sering mengacaukan inset bilah sistem setelah hide/resume. */
+      splashFullScreen: false,
+      /** false = bilah sistem (back/home/recent) tetap terlihat; true menyembunyikannya sampai gesture. */
+      splashImmersive: false,
     },
   },
 };

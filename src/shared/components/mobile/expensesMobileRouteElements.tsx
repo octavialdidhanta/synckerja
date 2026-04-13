@@ -2,10 +2,10 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
 import { ExpenseDashboardSkeleton } from "@/4-2-dashboard/skeletons/ExpenseDashboardSkeleton";
 import { MobileExpenseDashboardShellSkeleton } from "@/mobile/2-expense/pages/MobileExpenseDashboardPageSkeleton";
-import { DebtPageSkeleton } from "@/4-2-debt/skeletons/DebtPageSkeleton";
-import { ApprovalsPageSkeleton } from "@/4-2-approvals/skeletons/ApprovalsPageSkeleton";
-import { PaymentProcessPageSkeleton } from "@/4-2-payment-process/skeletons/PaymentProcessPageSkeleton";
-import { ReminderBillsPageSkeleton } from "@/4-2-reminder-bills/skeletons/ReminderBillsPageSkeleton";
+import { DebtRouteLoadingShell } from "@/shared/components/mobile/DebtRouteLoadingShell";
+import { ApprovalsRouteLoadingShell } from "@/shared/components/mobile/ApprovalsRouteLoadingShell";
+import { PaymentProcessRouteLoadingShell } from "@/shared/components/mobile/PaymentProcessRouteLoadingShell";
+import { ReminderBillsRouteLoadingShell } from "@/shared/components/mobile/ReminderBillsRouteLoadingShell";
 
 const ExpenseDashboardPage = lazy(() => import("@/4-2-dashboard/pages/ExpenseDashboardPage"));
 const ExpenseDebtPage = lazy(() => import("@/4-2-debt/pages/DebtPage"));
@@ -54,7 +54,7 @@ export function ExpensesDashboardRouteElement() {
 export function ExpensesDebtRouteElement() {
   const { isDesktop } = useAuthSurface();
   return (
-    <ShellSuspense fallback={<DebtPageSkeleton />}>
+    <ShellSuspense fallback={<DebtRouteLoadingShell />}>
       {isDesktop ? <ExpenseDebtPage /> : <MobileDebtPage />}
     </ShellSuspense>
   );
@@ -63,7 +63,7 @@ export function ExpensesDebtRouteElement() {
 export function ExpensesApprovalsRouteElement() {
   const { isDesktop } = useAuthSurface();
   return (
-    <ShellSuspense fallback={<ApprovalsPageSkeleton />}>
+    <ShellSuspense fallback={<ApprovalsRouteLoadingShell />}>
       {isDesktop ? <ExpenseApprovalsPage /> : <MobileApprovalsPage />}
     </ShellSuspense>
   );
@@ -72,7 +72,7 @@ export function ExpensesApprovalsRouteElement() {
 export function ExpensesPaymentProcessRouteElement() {
   const { isDesktop } = useAuthSurface();
   return (
-    <ShellSuspense fallback={<PaymentProcessPageSkeleton />}>
+    <ShellSuspense fallback={<PaymentProcessRouteLoadingShell />}>
       {isDesktop ? <ExpensePaymentProcessPage /> : <MobilePaymentProcessPage />}
     </ShellSuspense>
   );
@@ -81,7 +81,7 @@ export function ExpensesPaymentProcessRouteElement() {
 export function ExpensesReminderBillsRouteElement() {
   const { isDesktop } = useAuthSurface();
   return (
-    <ShellSuspense fallback={<ReminderBillsPageSkeleton />}>
+    <ShellSuspense fallback={<ReminderBillsRouteLoadingShell />}>
       {isDesktop ? <ExpenseReminderBillsPage /> : <MobileReminderBillsPage />}
     </ShellSuspense>
   );

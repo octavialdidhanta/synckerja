@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { cn } from "@/shared/lib/utils";
+import { useIsMobile } from "@/mobile/shared/hooks/use-mobile";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { PurchaseRequest } from "@/9-request-form/hooks/usePurchaseRequests";
 import type { ApprovalFiltersType } from "@/4-2-approvals/section/ApprovalFilters";
 import { filterRequests, getUniqueDepartments } from "@/4-2-approvals/utils/approvalUtils";
 import { ApprovalTable } from "@/4-2-approvals/section/ApprovalTable";
+import { ApprovalsTableFooter } from "@/mobile/2-approvals/section/approvals/ApprovalsTableFooter";
 import { Card, CardContent } from "@/mobile-app/components/ui/card";
 import { Button } from "@/mobile-app/components/ui/button";
 import { Input } from "@/mobile-app/components/ui/input";
@@ -37,11 +39,17 @@ export function ApprovalsTableSection({
   onClearFilters,
 }: ApprovalsTableSectionProps) {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
 
   const departmentOptions = useMemo(() => getUniqueDepartments(requests), [requests]);
 
   const filteredRequests = useMemo(() => filterRequests(requests, filters), [requests, filters]);
+
+  const filteredTotalAmount = useMemo(
+    () => filteredRequests.reduce((sum, r) => sum + (Number(r.amount_idr) || 0), 0),
+    [filteredRequests],
+  );
 
   const hasActiveFilters =
     Boolean(filters.search) ||
@@ -59,9 +67,14 @@ export function ApprovalsTableSection({
           : t("expenses.filtersDrawerTitle", "Filter");
 
   return (
-    <div className="min-w-0 w-full">
-      <Card className="w-full min-w-0 overflow-hidden border border-border bg-card">
-        <CardContent className="flex min-w-0 flex-col p-0">
+    <div className={cn("min-w-0 w-full", isMobile && "flex min-h-0 min-w-0 flex-1 flex-col")}>
+      <Card
+        className={cn(
+          "w-full min-w-0 overflow-hidden border border-border bg-card",
+          isMobile && "flex min-h-0 min-w-0 flex-1 flex-col",
+        )}
+      >
+        <CardContent className={cn("flex min-w-0 flex-col p-0", isMobile && "min-h-0 min-w-0 flex-1")}>
           <div className="min-w-0 flex-shrink-0 border-b bg-muted/50 px-1.5 py-1.5">
             <div className="flex w-full min-w-0 items-center gap-1">
               <div className="relative min-h-9 min-w-0 flex-1">
@@ -239,13 +252,21 @@ export function ApprovalsTableSection({
             ) : null}
           </div>
 
-          <div className="min-h-0 min-w-0 flex-1">
+          <div className={cn("min-h-0 min-w-0", !isMobile && "flex-1")}>
             <ApprovalTable
               requests={filteredRequests}
               isLoading={isLoading}
               variant="mobileCard"
+              fillScrollHeight={false}
+              fixedMobileViewport={isMobile}
             />
           </div>
+
+          <ApprovalsTableFooter
+            filteredCount={filteredRequests.length}
+            totalCount={requests.length}
+            filteredTotalAmount={filteredTotalAmount}
+          />
         </CardContent>
       </Card>
     </div>
