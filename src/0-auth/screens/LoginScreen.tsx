@@ -27,7 +27,14 @@ function messageForAuthError(error: AuthError, t: (key: string) => string): stri
 }
 
 const defaultBrandMark = (
-  <img src="/pwa-512.png" alt="Synckerja" className="h-14 w-auto" width={512} height={512} />
+  <img
+    src="/pwa-512.png"
+    alt="Synckerja"
+    className="h-14 w-auto"
+    width={512}
+    height={512}
+    decoding="async"
+  />
 );
 
 export type LoginScreenProps = {

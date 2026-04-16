@@ -55,6 +55,33 @@ export default defineConfig(({ mode }) => {
       overlay: false,
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          // Keep React runtime isolated for better long-term caching.
+          if (id.includes("/react/") || id.includes("/react-dom/")) return "react-vendor";
+
+          // Router + state/query libs are common across routes.
+          if (id.includes("react-router")) return "router";
+          if (id.includes("@tanstack/react-query")) return "query";
+
+          // Auth/client SDK.
+          if (id.includes("@supabase/")) return "supabase";
+
+          // Radix UI tends to be sizable; split it out.
+          if (id.includes("@radix-ui/")) return "radix";
+
+          // Date-fns can be moderately big.
+          if (id.includes("date-fns")) return "date";
+
+          return "vendor";
+        },
+      },
+    },
+  },
   plugins: [
     legacyFeaturesShareResolve(),
     react(),

@@ -2,7 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { RequestFormPageSkeleton } from "@/9-request-form/components/RequestFormPageSkeleton";
 import { PageAccessGuard } from "@/shared/components/PageAccessGuard";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { Toaster } from "@/shared/components/ui/toaster";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
@@ -18,58 +18,10 @@ import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVa
 import { NativeBootstrapSplashGate } from "@/shared/components/mobile/NativeBootstrapSplashGate";
 import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
-import { OKRPage } from "@/1-OKR";
 import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
-import { SettingsPage, TransferOwnershipPage } from "@/1-home";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
-import { SecuritySettings } from "@/1-home/settings";
-import { AccountDeletionPage, PrivacyPolicyPage, TermsOfServicePage } from "@/policy";
-import {
-  CreateOrganizationRouteElement,
-  CreatePlanRouteElement,
-  EmailVerifiedRouteElement,
-  EmployeeWelcomeRouteElement,
-  ForgotPasswordRouteElement,
-  GoogleOAuthCallbackRouteElement,
-  LoginRouteElement,
-  RegisterRouteElement,
-  ResetPasswordRouteElement,
-  TermsAndConditionsRouteElement,
-  VerifyEmailRouteElement,
-} from "@/shared/components/mobile/authOnboardingRouteElements";
-import {
-  HomeRouteElement,
-  ProfileRouteElement,
-  ScheduleRouteElement,
-  ClientVisitRouteElement,
-  MobileAttendanceReportsRouteElement,
-  ProfileTabRouteElement,
-} from "@/shared/components/mobile/mainAppMobileRouteElements";
-import {
-  ExpensesApprovalsRouteElement,
-  ExpensesDashboardRouteElement,
-  ExpensesDebtRouteElement,
-  ExpensesPaymentProcessRouteElement,
-  ExpensesReminderBillsRouteElement,
-} from "@/shared/components/mobile/expensesMobileRouteElements";
-import {
-  IncomeBankAccountRouteElement,
-  IncomeDashboardRouteElement,
-  IncomeTransactionRouteElement,
-} from "@/shared/components/mobile/incomesMobileRouteElements";
-import { HabitTrackerRouteElement } from "@/shared/components/mobile/habitTrackerRouteElement";
-import { DailyTaskRouteElement } from "@/shared/components/mobile/dailyTaskRouteElement";
-import { MeetingNotesRouteElement } from "@/shared/components/mobile/meetingNotesRouteElement";
-import { ConsultantLivechatRouteElement } from "@/shared/components/mobile/consultantLivechatRouteElement";
-import { ConsultantLeadsManagementRouteElement } from "@/shared/components/mobile/consultantLeadsManagementRouteElement";
-import {
-  SubscriptionManagementRouteElement,
-  SubscriptionOverviewRouteElement,
-  SubscriptionPlansRouteElement,
-} from "@/shared/components/mobile/subscriptionMobileRouteElements";
-import { DailyTaskReportRouteElement } from "@/shared/components/mobile/dailyTaskReportRouteElement";
-import { ShareReceiptValidationRouteElement } from "@/shared/components/mobile/shareReceiptValidationRouteElement";
+// Route elements are lazy-loaded below to keep the initial JS small.
 import {
   SubscriptionExpiryGuard,
   SubscriptionRoleGuard,
@@ -79,36 +31,11 @@ import { LanguageProvider } from "@/shared/i18n/LanguageProvider";
 import { CentralizedUserDataProvider } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { CurrentOrgProvider } from "@/shared/auth/contexts/CurrentOrgContext";
 import { PermissionConfigurationProvider } from "@/shared/auth/page-access/usePermissionConfiguration";
-import EmployeePage from "@/2-1-employees/EmployeePage";
-import { ReprimandManagementPage } from "@/2-1-reprimand";
 import { HrManagementRoleGuard } from "@/shared/components/HrManagementRoleGuard";
-import AddEmployeePage from "@/2-1-employees/add-employee/AddEmployeePage";
-import EmployeePersonalInfo from "@/2-1-employees/MyInfo/PersonalInformation/pages/EmployeePersonalInfo";
-import EmployeeAddressInfo from "@/2-1-employees/MyInfo/AddressInformation/pages/EmployeeAddressInfo";
-import EmployeeEmploymentInfo from "@/2-1-employees/MyInfo/Employment/pages/EmployeeEmploymentInfo";
-import EmployeeEducationFormal from "@/2-1-employees/MyInfo/Education/pages/EmployeeEducationFormal";
-import EmployeeEducationInformal from "@/2-1-employees/MyInfo/InformalEducation/pages/EmployeeEducationInformal";
-import EmployeeWork from "@/2-1-employees/MyInfo/WorkExperience/pages/EmployeeWork";
-import EmployeeFamily from "@/2-1-employees/MyInfo/FamilyMembers/pages/EmployeeFamily";
-import EmployeeAttendance from "@/2-1-employees/MyInfo/Attendance/pages/EmployeeAttendance";
-import EmployeeLeavePermit from "@/2-1-employees/MyInfo/LeavePermit/pages/EmployeeLeavePermit";
-import EmployeeDocuments from "@/2-1-employees/MyInfo/Documents/pages/EmployeeDocuments";
-import EmployeePayroll from "@/2-1-employees/MyInfo/Payroll/pages/EmployeePayroll";
-import {
-  ApplicationsPageWrapper as RecruitmentApplicationsPageWrapper,
-  DashboardOverview as RecruitmentDashboardOverviewPage,
-  IntervieweesPage as RecruitmentIntervieweesPage,
-  JobOpeningsPage as RecruitmentJobOpeningsPage,
-} from "@/2-2-recruitment-dashboard";
 import { RecruitmentRouteSkeleton } from "@/2-2-recruitment-dashboard/components/RecruitmentSkeletons";
-import { AttendancePage } from "@/2-3-attendance/AttendancePage";
 import { AttendanceGuardLoadingShell } from "@/2-3-attendance/components/AttendanceSkeletons";
 import { PayrollRouteSkeleton } from "@/2-4-payroll/components/PayrollRouteSkeleton";
-import CompanyCompanyAssetsPage from "@/2-8-company-assets/pages/CompanyCompanyAssetsPage";
-import CompanyFilesPage from "@/2-8-files/pages/CompanyFilesPage";
-import CompanyOrganizationPage from "@/2-8-organization/pages/CompanyOrganizationPage";
 import { OrganizationGuardLoadingShell } from "@/2-8-organization/components/OrganizationPageSkeleton";
-import PayrollCalculationsPage from "@/2-4-payroll/pages/PayrollCalculationsPageWrapper";
 import {
   CompanyAssetsGuardLoadingShell,
   CompanyFilesGuardLoadingShell,
@@ -232,6 +159,871 @@ const InstagramConnectPage = lazy(() =>
 const EmailConnectPage = lazy(() =>
   import("@/5-3-whatsapp/pages/EmailConnectPage").then((m) => ({ default: m.EmailConnectPage })),
 );
+
+// Keep initial bundle small: lazy-load large desktop modules/pages.
+const OKRPage = lazy(() => import("@/1-OKR").then((m) => ({ default: m.OKRPage })));
+const SettingsPage = lazy(() => import("@/1-home").then((m) => ({ default: m.SettingsPage })));
+const TransferOwnershipPage = lazy(() =>
+  import("@/1-home").then((m) => ({ default: m.TransferOwnershipPage })),
+);
+const SecuritySettings = lazy(() => import("@/1-home/settings").then((m) => ({ default: m.SecuritySettings })));
+
+const PrivacyPolicyPage = lazy(() => import("@/policy").then((m) => ({ default: m.PrivacyPolicyPage })));
+const TermsOfServicePage = lazy(() => import("@/policy").then((m) => ({ default: m.TermsOfServicePage })));
+const AccountDeletionPage = lazy(() => import("@/policy").then((m) => ({ default: m.AccountDeletionPage })));
+
+const EmployeePage = lazy(() => import("@/2-1-employees/EmployeePage"));
+const ReprimandManagementPage = lazy(() => import("@/2-1-reprimand").then((m) => ({ default: m.ReprimandManagementPage })));
+const AddEmployeePage = lazy(() => import("@/2-1-employees/add-employee/AddEmployeePage"));
+const EmployeePersonalInfo = lazy(() => import("@/2-1-employees/MyInfo/PersonalInformation/pages/EmployeePersonalInfo"));
+const EmployeeAddressInfo = lazy(() => import("@/2-1-employees/MyInfo/AddressInformation/pages/EmployeeAddressInfo"));
+const EmployeeEmploymentInfo = lazy(() => import("@/2-1-employees/MyInfo/Employment/pages/EmployeeEmploymentInfo"));
+const EmployeeEducationFormal = lazy(() => import("@/2-1-employees/MyInfo/Education/pages/EmployeeEducationFormal"));
+const EmployeeEducationInformal = lazy(
+  () => import("@/2-1-employees/MyInfo/InformalEducation/pages/EmployeeEducationInformal"),
+);
+const EmployeeWork = lazy(() => import("@/2-1-employees/MyInfo/WorkExperience/pages/EmployeeWork"));
+const EmployeeFamily = lazy(() => import("@/2-1-employees/MyInfo/FamilyMembers/pages/EmployeeFamily"));
+const EmployeeAttendance = lazy(() => import("@/2-1-employees/MyInfo/Attendance/pages/EmployeeAttendance"));
+const EmployeeLeavePermit = lazy(() => import("@/2-1-employees/MyInfo/LeavePermit/pages/EmployeeLeavePermit"));
+const EmployeeDocuments = lazy(() => import("@/2-1-employees/MyInfo/Documents/pages/EmployeeDocuments"));
+const EmployeePayroll = lazy(() => import("@/2-1-employees/MyInfo/Payroll/pages/EmployeePayroll"));
+
+const RecruitmentApplicationsPageWrapper = lazy(() =>
+  import("@/2-2-recruitment-dashboard").then((m) => ({ default: m.ApplicationsPageWrapper })),
+);
+const RecruitmentDashboardOverviewPage = lazy(() =>
+  import("@/2-2-recruitment-dashboard").then((m) => ({ default: m.DashboardOverview })),
+);
+const RecruitmentIntervieweesPage = lazy(() =>
+  import("@/2-2-recruitment-dashboard").then((m) => ({ default: m.IntervieweesPage })),
+);
+const RecruitmentJobOpeningsPage = lazy(() =>
+  import("@/2-2-recruitment-dashboard").then((m) => ({ default: m.JobOpeningsPage })),
+);
+
+const AttendancePage = lazy(() => import("@/2-3-attendance/AttendancePage").then((m) => ({ default: m.AttendancePage })));
+const PayrollCalculationsPage = lazy(() => import("@/2-4-payroll/pages/PayrollCalculationsPageWrapper"));
+const CompanyCompanyAssetsPage = lazy(() => import("@/2-8-company-assets/pages/CompanyCompanyAssetsPage"));
+const CompanyFilesPage = lazy(() => import("@/2-8-files/pages/CompanyFilesPage"));
+const CompanyOrganizationPage = lazy(() => import("@/2-8-organization/pages/CompanyOrganizationPage"));
+
+const LoginRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.LoginRouteElement })),
+);
+const GoogleOAuthCallbackRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
+    default: m.GoogleOAuthCallbackRouteElement,
+  })),
+);
+const ForgotPasswordRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
+    default: m.ForgotPasswordRouteElement,
+  })),
+);
+const ResetPasswordRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
+    default: m.ResetPasswordRouteElement,
+  })),
+);
+const RegisterRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.RegisterRouteElement })),
+);
+const VerifyEmailRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.VerifyEmailRouteElement })),
+);
+const EmailVerifiedRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.EmailVerifiedRouteElement })),
+);
+const TermsAndConditionsRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
+    default: m.TermsAndConditionsRouteElement,
+  })),
+);
+const CreateOrganizationRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
+    default: m.CreateOrganizationRouteElement,
+  })),
+);
+const CreatePlanRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.CreatePlanRouteElement })),
+);
+const EmployeeWelcomeRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
+    default: m.EmployeeWelcomeRouteElement,
+  })),
+);
+
+const HomeRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({ default: m.HomeRouteElement })),
+);
+const ProfileRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({ default: m.ProfileRouteElement })),
+);
+const ScheduleRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({ default: m.ScheduleRouteElement })),
+);
+const ClientVisitRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({ default: m.ClientVisitRouteElement })),
+);
+const MobileAttendanceReportsRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({
+    default: m.MobileAttendanceReportsRouteElement,
+  })),
+);
+const ProfileTabRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({ default: m.ProfileTabRouteElement })),
+);
+
+const ExpensesDashboardRouteElement = lazy(() =>
+  import("@/shared/components/mobile/expensesMobileRouteElements").then((m) => ({ default: m.ExpensesDashboardRouteElement })),
+);
+const ExpensesDebtRouteElement = lazy(() =>
+  import("@/shared/components/mobile/expensesMobileRouteElements").then((m) => ({ default: m.ExpensesDebtRouteElement })),
+);
+const ExpensesApprovalsRouteElement = lazy(() =>
+  import("@/shared/components/mobile/expensesMobileRouteElements").then((m) => ({ default: m.ExpensesApprovalsRouteElement })),
+);
+const ExpensesPaymentProcessRouteElement = lazy(() =>
+  import("@/shared/components/mobile/expensesMobileRouteElements").then((m) => ({
+    default: m.ExpensesPaymentProcessRouteElement,
+  })),
+);
+const ExpensesReminderBillsRouteElement = lazy(() =>
+  import("@/shared/components/mobile/expensesMobileRouteElements").then((m) => ({
+    default: m.ExpensesReminderBillsRouteElement,
+  })),
+);
+
+const IncomeDashboardRouteElement = lazy(() =>
+  import("@/shared/components/mobile/incomesMobileRouteElements").then((m) => ({ default: m.IncomeDashboardRouteElement })),
+);
+const IncomeTransactionRouteElement = lazy(() =>
+  import("@/shared/components/mobile/incomesMobileRouteElements").then((m) => ({
+    default: m.IncomeTransactionRouteElement,
+  })),
+);
+const IncomeBankAccountRouteElement = lazy(() =>
+  import("@/shared/components/mobile/incomesMobileRouteElements").then((m) => ({
+    default: m.IncomeBankAccountRouteElement,
+  })),
+);
+
+const HabitTrackerRouteElement = lazy(() =>
+  import("@/shared/components/mobile/habitTrackerRouteElement").then((m) => ({ default: m.HabitTrackerRouteElement })),
+);
+const DailyTaskRouteElement = lazy(() =>
+  import("@/shared/components/mobile/dailyTaskRouteElement").then((m) => ({ default: m.DailyTaskRouteElement })),
+);
+const MeetingNotesRouteElement = lazy(() =>
+  import("@/shared/components/mobile/meetingNotesRouteElement").then((m) => ({ default: m.MeetingNotesRouteElement })),
+);
+const ConsultantLivechatRouteElement = lazy(() =>
+  import("@/shared/components/mobile/consultantLivechatRouteElement").then((m) => ({
+    default: m.ConsultantLivechatRouteElement,
+  })),
+);
+const ConsultantLeadsManagementRouteElement = lazy(() =>
+  import("@/shared/components/mobile/consultantLeadsManagementRouteElement").then((m) => ({
+    default: m.ConsultantLeadsManagementRouteElement,
+  })),
+);
+
+const SubscriptionOverviewRouteElement = lazy(() =>
+  import("@/shared/components/mobile/subscriptionMobileRouteElements").then((m) => ({
+    default: m.SubscriptionOverviewRouteElement,
+  })),
+);
+const SubscriptionPlansRouteElement = lazy(() =>
+  import("@/shared/components/mobile/subscriptionMobileRouteElements").then((m) => ({
+    default: m.SubscriptionPlansRouteElement,
+  })),
+);
+const SubscriptionManagementRouteElement = lazy(() =>
+  import("@/shared/components/mobile/subscriptionMobileRouteElements").then((m) => ({
+    default: m.SubscriptionManagementRouteElement,
+  })),
+);
+
+const DailyTaskReportRouteElement = lazy(() =>
+  import("@/shared/components/mobile/dailyTaskReportRouteElement").then((m) => ({
+    default: m.DailyTaskReportRouteElement,
+  })),
+);
+const ShareReceiptValidationRouteElement = lazy(() =>
+  import("@/shared/components/mobile/shareReceiptValidationRouteElement").then((m) => ({
+    default: m.ShareReceiptValidationRouteElement,
+  })),
+);
+
+function AppRoutes() {
+  const location = useLocation();
+  const pathname = location.pathname || "/";
+  const isHome = pathname === "/";
+
+  const fallback = isHome ? (
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+      <HomePageRouteLoadingShell />
+      <span className="sr-only">Loading</span>
+    </div>
+  ) : (
+    <div className="flex min-h-[40vh] flex-1 items-center justify-center bg-gray-50" aria-busy>
+      <span className="sr-only">Loading</span>
+    </div>
+  );
+
+  return (
+    <Suspense fallback={fallback}>
+      <Routes>
+        <Route path="/login" element={<LoginRouteElement />} />
+        <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
+        <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
+        <Route path="/reset-password" element={<ResetPasswordRouteElement />} />
+        <Route path="/register" element={<RegisterRouteElement />} />
+        <Route path="/verify-email" element={<VerifyEmailRouteElement />} />
+        <Route path="/email-verified" element={<EmailVerifiedRouteElement />} />
+        <Route path="/terms-and-conditions" element={<TermsAndConditionsRouteElement />} />
+        <Route path="/policy/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/policy/terms" element={<TermsOfServicePage />} />
+        <Route path="/policy/account-deletion" element={<AccountDeletionPage />} />
+
+        <Route
+          path="/candidate/apply"
+          element={
+            <RecruitmentSuspense>
+              <PublicJobApplication />
+            </RecruitmentSuspense>
+          }
+        />
+        <Route
+          path="/apply/thank-you"
+          element={
+            <RecruitmentSuspense>
+              <PublicApplicationThankYou />
+            </RecruitmentSuspense>
+          }
+        />
+        <Route
+          path="/apply/preview/:token"
+          element={
+            <RecruitmentSuspense>
+              <PublicJobPreview />
+            </RecruitmentSuspense>
+          }
+        />
+        <Route
+          path="/candidate/profile/thank-you"
+          element={
+            <RecruitmentSuspense>
+              <PublicCandidateProfileThankYou />
+            </RecruitmentSuspense>
+          }
+        />
+        <Route
+          path="/candidate/profile"
+          element={
+            <RecruitmentSuspense>
+              <PublicCandidateProfile />
+            </RecruitmentSuspense>
+          }
+        />
+        <Route
+          path="/review/:token"
+          element={
+            <Suspense
+              fallback={
+                <div className="flex min-h-[40vh] flex-1 items-center justify-center bg-gray-50" aria-busy>
+                  <span className="sr-only">Loading</span>
+                </div>
+              }
+            >
+              <ReviewRouteGate />
+            </Suspense>
+          }
+        />
+
+        <Route element={<RequireAuth />}>
+          <Route element={<SubscriptionExpiryGuard />}>
+            <Route element={<AdaptiveAppLayout />}>
+              <Route
+                path="/"
+                element={
+                  <PageAccessGuard
+                    pagePath="/"
+                    requiresPermissions={false}
+                    loadingShell={<HomePageRouteLoadingShell />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <HomeRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/schedule"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/sales"
+                    loadingShell={<VisitSchedulingPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <ScheduleRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/client-visit"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/sales"
+                    loadingShell={<ClientVisitsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <ClientVisitRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <PageAccessGuard requiresPermissions={false} loadingShell={<AttendanceGuardLoadingShell />}>
+                    <MobileAttendanceReportsRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <PageAccessGuard pagePath="/settings" requiresPermissions={false} loadingShell={<HomePageSkeleton />}>
+                    <ProfileTabRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/share/receipt-validation"
+                element={
+                  <PageAccessGuard requiresPermissions={false}>
+                    <ShareReceiptValidationRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/settings" element={<SettingsPage />}>
+                <Route index element={<ProfileRouteElement />} />
+                <Route path="profile" element={<ProfileRouteElement />} />
+                <Route path="security" element={<SecuritySettings />} />
+              </Route>
+              <Route path="/transfer-ownership" element={<TransferOwnershipPage />} />
+              <Route path="/okr" element={<Navigate to="/okr/company-objective" replace />} />
+              <Route
+                path="/okr/*"
+                element={
+                  <PageAccessGuard
+                    loadingShell={<OkrRouteAccessLoadingShell />}
+                    loadingShellWrapperClassName="bg-gray-100 dark:bg-muted/30"
+                  >
+                    <OKRPage />
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/employees" element={<EmployeePage />} />
+              <Route
+                path="/employees/reprimand"
+                element={
+                  <HrManagementRoleGuard showPendingSkeleton={false}>
+                    <ReprimandManagementPage />
+                  </HrManagementRoleGuard>
+                }
+              />
+              <Route path="/my-info/personal" element={<EmployeePersonalInfo />} />
+              <Route path="/my-info/address" element={<EmployeeAddressInfo />} />
+              <Route path="/my-info/employment" element={<EmployeeEmploymentInfo />} />
+              <Route path="/my-info/education/formal" element={<EmployeeEducationFormal />} />
+              <Route path="/my-info/education/informal" element={<EmployeeEducationInformal />} />
+              <Route path="/my-info/work" element={<EmployeeWork />} />
+              <Route path="/my-info/family" element={<EmployeeFamily />} />
+              <Route path="/my-info/attendance" element={<EmployeeAttendance />} />
+              <Route path="/my-info/leave-permit" element={<EmployeeLeavePermit />} />
+              <Route path="/my-info/documents" element={<EmployeeDocuments />} />
+              <Route path="/my-info/payroll" element={<EmployeePayroll />} />
+              <Route
+                path="/attendance"
+                element={
+                  <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                    <AttendancePage />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/attendance/attendance"
+                element={
+                  <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                    <AttendancePage />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/attendance/settings"
+                element={
+                  <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                    <AttendancePage />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/access-permissions"
+                element={
+                  <PageAccessGuard requiresPermissions={false}>
+                    <AccessPermissionsSuspense>
+                      <AccessPermissionsConfig />
+                    </AccessPermissionsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/access-permissions/page-access"
+                element={
+                  <PageAccessGuard requiresPermissions={false}>
+                    <AccessPermissionsSuspense>
+                      <AccessPermissionsConfig />
+                    </AccessPermissionsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/access-permissions/overview"
+                element={
+                  <PageAccessGuard requiresPermissions={false}>
+                    <AccessPermissionsSuspense>
+                      <AccessPermissionsConfig />
+                    </AccessPermissionsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/access-permissions/roles"
+                element={
+                  <PageAccessGuard requiresPermissions={false}>
+                    <AccessPermissionsSuspense>
+                      <AccessPermissionsConfig />
+                    </AccessPermissionsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/access-permissions/pages"
+                element={
+                  <PageAccessGuard requiresPermissions={false}>
+                    <AccessPermissionsSuspense>
+                      <AccessPermissionsConfig />
+                    </AccessPermissionsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/payroll/calculations"
+                element={
+                  <PageAccessGuard loadingShell={<PayrollRouteSkeleton />}>
+                    <PayrollCalculationsPage />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/company/dashboard"
+                element={
+                  <PageAccessGuard>
+                    <CompanySuspense>
+                      <CompanyDashboardPage />
+                    </CompanySuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/company/company-assets"
+                element={
+                  <PageAccessGuard loadingShell={<CompanyAssetsGuardLoadingShell />}>
+                    <CompanyCompanyAssetsPage />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/company/files"
+                element={
+                  <PageAccessGuard loadingShell={<CompanyFilesGuardLoadingShell />}>
+                    <CompanyFilesPage />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/company/organization"
+                element={
+                  <PageAccessGuard loadingShell={<OrganizationGuardLoadingShell />}>
+                    <CompanyOrganizationPage />
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/incomes" element={<Navigate to={MOBILE_INCOMES_DASHBOARD_PATH} replace />} />
+              <Route
+                path="/incomes/dashboard"
+                element={
+                  <PageAccessGuard pagePath="/incomes/dashboard" loadingShell={<IncomeDashboardRouteLoadingShell />}>
+                    <IncomeDashboardRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/incomes/transaction/bank-account"
+                element={
+                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={<IncomeBankAccountRouteLoadingShell />}>
+                    <IncomeBankAccountRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/incomes/transaction"
+                element={
+                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={<IncomeTransactionRouteLoadingShell />}>
+                    <IncomeTransactionRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/incomes/bank-accounts" element={<Navigate to={MOBILE_INCOMES_BANK_ACCOUNT_PATH} replace />} />
+              <Route path="/expenses" element={<Navigate to="/expenses/dashboard" replace />} />
+              <Route
+                path="/expenses/dashboard"
+                element={
+                  <PageAccessGuard pagePath="/expenses/dashboard" loadingShell={<ExpenseDashboardRouteLoadingShell />}>
+                    <ExpensesDashboardRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/expenses/debt"
+                element={
+                  <PageAccessGuard pagePath="/expenses/debt" loadingShell={<DebtRouteLoadingShell />}>
+                    <ExpensesDebtRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/expenses/approvals"
+                element={
+                  <PageAccessGuard pagePath="/expenses/approvals" loadingShell={<ApprovalsRouteLoadingShell />}>
+                    <ExpensesApprovalsRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/expenses/payment-process"
+                element={
+                  <PageAccessGuard pagePath="/expenses/payment-process" loadingShell={<PaymentProcessRouteLoadingShell />}>
+                    <ExpensesPaymentProcessRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/expenses/reminder-bills"
+                element={
+                  <PageAccessGuard pagePath="/expenses/reminder-bills" loadingShell={<ReminderBillsRouteLoadingShell />}>
+                    <ExpensesReminderBillsRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/request-form" element={<Navigate to="/request-form/purchase" replace />} />
+              <Route
+                path="/request-form/purchase"
+                element={
+                  <RequestFormSuspense>
+                    <RequestFormPurchasePage />
+                  </RequestFormSuspense>
+                }
+              />
+              <Route
+                path="/request-form/reimbursement"
+                element={
+                  <RequestFormSuspense>
+                    <RequestFormReimbursementPage />
+                  </RequestFormSuspense>
+                }
+              />
+              <Route
+                path="/request-form/cash-advance"
+                element={
+                  <RequestFormSuspense>
+                    <RequestFormCashAdvancePage />
+                  </RequestFormSuspense>
+                }
+              />
+              <Route
+                path="/request-form/loan"
+                element={
+                  <RequestFormSuspense>
+                    <RequestFormLoanPage />
+                  </RequestFormSuspense>
+                }
+              />
+              <Route
+                path="/tools/daily-task"
+                element={
+                  <PageAccessGuard pagePath="/tools/daily-task" loadingShell={<DailyTaskRouteLoadingShell />}>
+                    <DailyTaskRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/daily-task-report"
+                element={
+                  <PageAccessGuard pagePath="/tools/daily-task-report" loadingShell={<DailyTaskReportRouteLoadingShell />}>
+                    <DailyTaskReportRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/meeting-notes"
+                element={
+                  <PageAccessGuard pagePath="/tools/meeting-notes" loadingShell={<MeetingNotesRouteLoadingShell />}>
+                    <MeetingNotesRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/habits-tracker"
+                element={
+                  <PageAccessGuard pagePath="/tools/habits-tracker" loadingShell={<HabitTrackerPageSkeleton />}>
+                    <HabitTrackerRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/password-manager"
+                element={
+                  <PageAccessGuard pagePath="/tools/password-manager" loadingShell={<PasswordManagerPageSkeleton />}>
+                    <PasswordManagerSuspense>
+                      <PasswordManagerPage />
+                    </PasswordManagerSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/pph21-calculator"
+                element={
+                  <PageAccessGuard pagePath="/tools/pph21-calculator" loadingShell={<PPh21PageSkeleton />}>
+                    <PPh21CalculatorSuspense>
+                      <PPh21CalculatorPage />
+                    </PPh21CalculatorSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/default-prices"
+                element={
+                  <PageAccessGuard pagePath="/tools/default-prices" loadingShell={<DefaultPricesPageSkeleton />}>
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/pricing-tools"
+                element={
+                  <PageAccessGuard pagePath="/tools/pricing-tools" loadingShell={<PricingToolsPageSkeleton />}>
+                    <PricingToolsSuspense>
+                      <PricingToolsPage />
+                    </PricingToolsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/promo-simulation"
+                element={
+                  <PageAccessGuard pagePath="/tools/promo-simulation" loadingShell={<PromoSimulationPageSkeleton />}>
+                    <PromoSimulationSuspense>
+                      <PromoSimulationPage />
+                    </PromoSimulationSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/tools/calculator" element={<Navigate to="/tools/calculator/services" replace />} />
+              <Route
+                path="/tools/calculator/services"
+                element={
+                  <PageAccessGuard pagePath="/tools/calculator" loadingShell={<CalculatorPageSkeleton />}>
+                    <CalculatorSuspense>
+                      <CalculatorServicesPage />
+                    </CalculatorSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/tools/calculator/sales"
+                element={
+                  <PageAccessGuard pagePath="/tools/calculator" loadingShell={<CalculatorPageSkeleton />}>
+                    <CalculatorSuspense>
+                      <CalculatorSalesPage />
+                    </CalculatorSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/operations/customer-service/dashboard" element={<Navigate to="/operations/consultant/leads-management" replace />} />
+              <Route path="/operations/customer-service/tickets" element={<Navigate to="/operations/consultant/leads-management" replace />} />
+              <Route path="/operations/customer-service" element={<Navigate to="/operations/consultant/leads-management" replace />} />
+              <Route path="/operations/consultant/sales-consultant" element={<Navigate to="/operations/consultant/leads-management" replace />} />
+              <Route path="/operations/sales" element={<Navigate to="/operations/sales/activities" replace />} />
+              <Route
+                path="/operations/sales/activities"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/sales"
+                    loadingShell={<SalesActivitiesPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <SalesActivitiesOperationsSuspense>
+                      <DailyTaskProvider>
+                        <SalesOperationsPage />
+                      </DailyTaskProvider>
+                    </SalesActivitiesOperationsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/sales/jadwal-kunjungan"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/sales"
+                    loadingShell={<VisitSchedulingPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <JadwalKunjunganOperationsSuspense>
+                      <DailyTaskProvider>
+                        <SalesOperationsPage />
+                      </DailyTaskProvider>
+                    </JadwalKunjunganOperationsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/sales/client-visits"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/sales"
+                    loadingShell={<ClientVisitsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <ClientVisitsOperationsSuspense>
+                      <DailyTaskProvider>
+                        <SalesOperationsPage />
+                      </DailyTaskProvider>
+                    </ClientVisitsOperationsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/consultant/dashboard"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/consultant/dashboard"
+                    loadingShell={<ConsultantCrmDashboardPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <ConsultantCrmDashboardSuspense>
+                      <CRMDashboardPage />
+                    </ConsultantCrmDashboardSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/consultant/leads-management"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/consultant/leads-management"
+                    loadingShell={<ConsultantLeadsManagementRouteLoadingShell />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <ConsultantLeadsManagementRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/consultant/whatsapp/connect"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/consultant/whatsapp/connect"
+                    loadingShell={<WhatsAppConnectPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <WhatsAppConnectSuspense>
+                      <WhatsAppConnectPage />
+                    </WhatsAppConnectSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/consultant/instagram/connect"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/consultant/instagram/connect"
+                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={
+                      <div
+                        className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
+                        aria-busy
+                        aria-label="Loading Connect Instagram"
+                      >
+                        <span className="sr-only">Loading Connect Instagram</span>
+                        <InstagramConnectPageSkeleton mode="route" />
+                      </div>
+                    }
+                  >
+                    <InstagramConnectOperationsSuspense>
+                      <InstagramConnectPage />
+                    </InstagramConnectOperationsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/consultant/email/connect"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/consultant/email/connect"
+                    loadingShell={<EmailConnectPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <EmailConnectOperationsSuspense>
+                      <EmailConnectPage />
+                    </EmailConnectOperationsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/consultant/all/livechat"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/consultant/all/livechat"
+                    loadingShell={<ConsultantLivechatRouteLoadingShell />}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <ConsultantLivechatRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route element={<SubscriptionRoleGuard />}>
+                <Route path="/subscription" element={<Navigate to="/subscription/overview" replace />} />
+                <Route path="/subscription/overview" element={<SubscriptionOverviewRouteElement />} />
+                <Route path="/subscription/plans" element={<SubscriptionPlansRouteElement />} />
+                <Route path="/subscription/management" element={<SubscriptionManagementRouteElement />} />
+              </Route>
+            </Route>
+            <Route path="/employees/add" element={<AddEmployeePage />} />
+            <Route path="/create-organization" element={<CreateOrganizationRouteElement />} />
+            <Route path="/create-plan" element={<CreatePlanRouteElement />} />
+            <Route path="/employee-welcome" element={<EmployeeWelcomeRouteElement />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
+  );
+}
 const InstagramConnectOperationsSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -638,7 +1430,24 @@ const App = () => (
                 }}
               >
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <Routes>
+                  <Suspense
+                    fallback={
+                      typeof window !== "undefined" && window.location.pathname === "/" ? (
+                        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+                          <HomePageRouteLoadingShell />
+                          <span className="sr-only">Loading</span>
+                        </div>
+                      ) : (
+                        <div
+                          className="flex min-h-[40vh] flex-1 items-center justify-center bg-gray-50"
+                          aria-busy
+                        >
+                          <span className="sr-only">Loading</span>
+                        </div>
+                      )
+                    }
+                  >
+                    <Routes>
                   <Route path="/login" element={<LoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
                   <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
@@ -715,7 +1524,12 @@ const App = () => (
                         <Route
                           path="/"
                           element={
-                            <PageAccessGuard pagePath="/" requiresPermissions={false} loadingShell={<HomePageRouteLoadingShell />}>
+                            <PageAccessGuard
+                              pagePath="/"
+                              requiresPermissions={false}
+                              loadingShell={<HomePageRouteLoadingShell />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
                               <HomeRouteElement />
                             </PageAccessGuard>
                           }
@@ -1569,7 +2383,8 @@ const App = () => (
                   </Route>
 
                   <Route path="*" element={<NotFound />} />
-                  </Routes>
+                    </Routes>
+                  </Suspense>
                 </div>
               </BrowserRouter>
               </LanguageProvider>

@@ -1,6 +1,5 @@
 import { cn } from "@/shared/lib/utils";
 
-/** App mark from PWA icons (`public/pwa-512.png`). */
 const LOGO_PNG = "/pwa-512.png";
 
 export type SynckerjaBrandMarkProps = {

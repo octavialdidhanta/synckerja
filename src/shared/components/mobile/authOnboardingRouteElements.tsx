@@ -1,120 +1,271 @@
-import { ForgotPasswordPage, GoogleOAuthCallbackPage, LoginPage, ResetPasswordPage } from "@/0-auth";
-import {
-  CreateOrganizationPage,
-  CreatePlanPage,
-  EmployeeWelcomePage,
-  TermsAndConditionsPage,
-} from "@/0-onboarding/index.ts";
-import { EmailVerifiedPage, RegisterPage, VerifyEmailPage } from "@/0-register/index.ts";
-import {
-  MobileForgotPasswordPage as AndroidMobileForgotPasswordPage,
-  MobileGoogleOAuthCallbackPage as AndroidMobileGoogleOAuthCallbackPage,
-  MobileLoginPage as AndroidMobileLoginPage,
-  MobileResetPasswordPage as AndroidMobileResetPasswordPage,
-} from "@/mobile/0-auth/index";
-import {
-  MobileCreateOrganizationPage as AndroidMobileCreateOrganizationPage,
-  MobileCreatePlanPage as AndroidMobileCreatePlanPage,
-  MobileEmployeeWelcomePage as AndroidMobileEmployeeWelcomePage,
-  MobileTermsAndConditionsPage as AndroidMobileTermsAndConditionsPage,
-} from "@/mobile/0-onboarding/index";
-import {
-  MobileEmailVerifiedPage as AndroidMobileEmailVerifiedPage,
-  MobileRegisterPage as AndroidMobileRegisterPage,
-  MobileVerifyEmailPage as AndroidMobileVerifyEmailPage,
-} from "@/mobile/0-register/index";
-import {
-  MobileForgotPasswordPage as IosMobileForgotPasswordPage,
-  MobileGoogleOAuthCallbackPage as IosMobileGoogleOAuthCallbackPage,
-  MobileLoginPage as IosMobileLoginPage,
-  MobileResetPasswordPage as IosMobileResetPasswordPage,
-} from "@/ios-mobile/0-auth/index";
-import {
-  MobileCreateOrganizationPage as IosMobileCreateOrganizationPage,
-  MobileCreatePlanPage as IosMobileCreatePlanPage,
-  MobileEmployeeWelcomePage as IosMobileEmployeeWelcomePage,
-  MobileTermsAndConditionsPage as IosMobileTermsAndConditionsPage,
-} from "@/ios-mobile/0-onboarding/index";
-import {
-  MobileEmailVerifiedPage as IosMobileEmailVerifiedPage,
-  MobileRegisterPage as IosMobileRegisterPage,
-  MobileVerifyEmailPage as IosMobileVerifyEmailPage,
-} from "@/ios-mobile/0-register/index";
+import { lazy, Suspense, type ReactNode } from "react";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
+
+function AuthSurfaceSuspense({ children }: { children: ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] w-full items-center justify-center bg-background" aria-busy>
+          <span className="sr-only">Loading</span>
+        </div>
+      }
+    >
+      {children}
+    </Suspense>
+  );
+}
+
+const DesktopLoginPage = lazy(() => import("@/0-auth").then((m) => ({ default: m.LoginPage })));
+const DesktopGoogleOAuthCallbackPage = lazy(() =>
+  import("@/0-auth").then((m) => ({ default: m.GoogleOAuthCallbackPage })),
+);
+const DesktopForgotPasswordPage = lazy(() =>
+  import("@/0-auth").then((m) => ({ default: m.ForgotPasswordPage })),
+);
+const DesktopResetPasswordPage = lazy(() =>
+  import("@/0-auth").then((m) => ({ default: m.ResetPasswordPage })),
+);
+
+const DesktopRegisterPage = lazy(() => import("@/0-register").then((m) => ({ default: m.RegisterPage })));
+const DesktopVerifyEmailPage = lazy(() =>
+  import("@/0-register").then((m) => ({ default: m.VerifyEmailPage })),
+);
+const DesktopEmailVerifiedPage = lazy(() =>
+  import("@/0-register").then((m) => ({ default: m.EmailVerifiedPage })),
+);
+
+const DesktopTermsAndConditionsPage = lazy(() =>
+  import("@/0-onboarding").then((m) => ({ default: m.TermsAndConditionsPage })),
+);
+const DesktopCreateOrganizationPage = lazy(() =>
+  import("@/0-onboarding").then((m) => ({ default: m.CreateOrganizationPage })),
+);
+const DesktopCreatePlanPage = lazy(() =>
+  import("@/0-onboarding").then((m) => ({ default: m.CreatePlanPage })),
+);
+const DesktopEmployeeWelcomePage = lazy(() =>
+  import("@/0-onboarding").then((m) => ({ default: m.EmployeeWelcomePage })),
+);
+
+const AndroidMobileLoginPage = lazy(() =>
+  import("@/mobile/0-auth").then((m) => ({ default: m.MobileLoginPage })),
+);
+const AndroidMobileGoogleOAuthCallbackPage = lazy(() =>
+  import("@/mobile/0-auth").then((m) => ({ default: m.MobileGoogleOAuthCallbackPage })),
+);
+const AndroidMobileForgotPasswordPage = lazy(() =>
+  import("@/mobile/0-auth").then((m) => ({ default: m.MobileForgotPasswordPage })),
+);
+const AndroidMobileResetPasswordPage = lazy(() =>
+  import("@/mobile/0-auth").then((m) => ({ default: m.MobileResetPasswordPage })),
+);
+
+const AndroidMobileRegisterPage = lazy(() =>
+  import("@/mobile/0-register").then((m) => ({ default: m.MobileRegisterPage })),
+);
+const AndroidMobileVerifyEmailPage = lazy(() =>
+  import("@/mobile/0-register").then((m) => ({ default: m.MobileVerifyEmailPage })),
+);
+const AndroidMobileEmailVerifiedPage = lazy(() =>
+  import("@/mobile/0-register").then((m) => ({ default: m.MobileEmailVerifiedPage })),
+);
+
+const AndroidMobileCreateOrganizationPage = lazy(() =>
+  import("@/mobile/0-onboarding").then((m) => ({ default: m.MobileCreateOrganizationPage })),
+);
+const AndroidMobileCreatePlanPage = lazy(() =>
+  import("@/mobile/0-onboarding").then((m) => ({ default: m.MobileCreatePlanPage })),
+);
+const AndroidMobileEmployeeWelcomePage = lazy(() =>
+  import("@/mobile/0-onboarding").then((m) => ({ default: m.MobileEmployeeWelcomePage })),
+);
+const AndroidMobileTermsAndConditionsPage = lazy(() =>
+  import("@/mobile/0-onboarding").then((m) => ({ default: m.MobileTermsAndConditionsPage })),
+);
+
+const IosMobileLoginPage = lazy(() => import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileLoginPage })));
+const IosMobileGoogleOAuthCallbackPage = lazy(() =>
+  import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileGoogleOAuthCallbackPage })),
+);
+const IosMobileForgotPasswordPage = lazy(() =>
+  import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileForgotPasswordPage })),
+);
+const IosMobileResetPasswordPage = lazy(() =>
+  import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileResetPasswordPage })),
+);
+
+const IosMobileRegisterPage = lazy(() =>
+  import("@/ios-mobile/0-register").then((m) => ({ default: m.MobileRegisterPage })),
+);
+const IosMobileVerifyEmailPage = lazy(() =>
+  import("@/ios-mobile/0-register").then((m) => ({ default: m.MobileVerifyEmailPage })),
+);
+const IosMobileEmailVerifiedPage = lazy(() =>
+  import("@/ios-mobile/0-register").then((m) => ({ default: m.MobileEmailVerifiedPage })),
+);
+
+const IosMobileCreateOrganizationPage = lazy(() =>
+  import("@/ios-mobile/0-onboarding").then((m) => ({ default: m.MobileCreateOrganizationPage })),
+);
+const IosMobileCreatePlanPage = lazy(() =>
+  import("@/ios-mobile/0-onboarding").then((m) => ({ default: m.MobileCreatePlanPage })),
+);
+const IosMobileEmployeeWelcomePage = lazy(() =>
+  import("@/ios-mobile/0-onboarding").then((m) => ({ default: m.MobileEmployeeWelcomePage })),
+);
+const IosMobileTermsAndConditionsPage = lazy(() =>
+  import("@/ios-mobile/0-onboarding").then((m) => ({ default: m.MobileTermsAndConditionsPage })),
+);
 
 export function LoginRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <LoginPage />;
-  if (isIosNative) return <IosMobileLoginPage />;
-  return <AndroidMobileLoginPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? <DesktopLoginPage /> : isIosNative ? <IosMobileLoginPage /> : <AndroidMobileLoginPage />}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function GoogleOAuthCallbackRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <GoogleOAuthCallbackPage />;
-  if (isIosNative) return <IosMobileGoogleOAuthCallbackPage />;
-  return <AndroidMobileGoogleOAuthCallbackPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopGoogleOAuthCallbackPage />
+      ) : isIosNative ? (
+        <IosMobileGoogleOAuthCallbackPage />
+      ) : (
+        <AndroidMobileGoogleOAuthCallbackPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function ForgotPasswordRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <ForgotPasswordPage />;
-  if (isIosNative) return <IosMobileForgotPasswordPage />;
-  return <AndroidMobileForgotPasswordPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopForgotPasswordPage />
+      ) : isIosNative ? (
+        <IosMobileForgotPasswordPage />
+      ) : (
+        <AndroidMobileForgotPasswordPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function ResetPasswordRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <ResetPasswordPage />;
-  if (isIosNative) return <IosMobileResetPasswordPage />;
-  return <AndroidMobileResetPasswordPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopResetPasswordPage />
+      ) : isIosNative ? (
+        <IosMobileResetPasswordPage />
+      ) : (
+        <AndroidMobileResetPasswordPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function RegisterRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <RegisterPage />;
-  if (isIosNative) return <IosMobileRegisterPage />;
-  return <AndroidMobileRegisterPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? <DesktopRegisterPage /> : isIosNative ? <IosMobileRegisterPage /> : <AndroidMobileRegisterPage />}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function VerifyEmailRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <VerifyEmailPage />;
-  if (isIosNative) return <IosMobileVerifyEmailPage />;
-  return <AndroidMobileVerifyEmailPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopVerifyEmailPage />
+      ) : isIosNative ? (
+        <IosMobileVerifyEmailPage />
+      ) : (
+        <AndroidMobileVerifyEmailPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function EmailVerifiedRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <EmailVerifiedPage />;
-  if (isIosNative) return <IosMobileEmailVerifiedPage />;
-  return <AndroidMobileEmailVerifiedPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopEmailVerifiedPage />
+      ) : isIosNative ? (
+        <IosMobileEmailVerifiedPage />
+      ) : (
+        <AndroidMobileEmailVerifiedPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function TermsAndConditionsRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <TermsAndConditionsPage />;
-  if (isIosNative) return <IosMobileTermsAndConditionsPage />;
-  return <AndroidMobileTermsAndConditionsPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopTermsAndConditionsPage />
+      ) : isIosNative ? (
+        <IosMobileTermsAndConditionsPage />
+      ) : (
+        <AndroidMobileTermsAndConditionsPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function CreateOrganizationRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <CreateOrganizationPage />;
-  if (isIosNative) return <IosMobileCreateOrganizationPage />;
-  return <AndroidMobileCreateOrganizationPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopCreateOrganizationPage />
+      ) : isIosNative ? (
+        <IosMobileCreateOrganizationPage />
+      ) : (
+        <AndroidMobileCreateOrganizationPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function CreatePlanRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <CreatePlanPage />;
-  if (isIosNative) return <IosMobileCreatePlanPage />;
-  return <AndroidMobileCreatePlanPage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopCreatePlanPage />
+      ) : isIosNative ? (
+        <IosMobileCreatePlanPage />
+      ) : (
+        <AndroidMobileCreatePlanPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }
 
 export function EmployeeWelcomeRouteElement() {
   const { isDesktop, isIosNative } = useAuthSurface();
-  if (isDesktop) return <EmployeeWelcomePage />;
-  if (isIosNative) return <IosMobileEmployeeWelcomePage />;
-  return <AndroidMobileEmployeeWelcomePage />;
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopEmployeeWelcomePage />
+      ) : isIosNative ? (
+        <IosMobileEmployeeWelcomePage />
+      ) : (
+        <AndroidMobileEmployeeWelcomePage />
+      )}
+    </AuthSurfaceSuspense>
+  );
 }

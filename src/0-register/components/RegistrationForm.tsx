@@ -18,7 +18,14 @@ export type RegistrationFormKeyboardProps = {
 };
 
 const defaultRegistrationBrand = (
-  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
+  <img
+    src="/pwa-512.png"
+    alt="Synckerja"
+    className="h-14 w-auto"
+    width={512}
+    height={512}
+    decoding="async"
+  />
 );
 
 export function RegistrationForm(props: RegistrationFormKeyboardProps) {
