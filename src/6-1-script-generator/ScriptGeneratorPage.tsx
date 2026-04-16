@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useScriptAIConfig } from './hooks/useScriptAIConfig';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { supabase } from '@/shared/lib/supabaseClient';
 import { useScriptGeneratorFormMasterData } from './hooks/useScriptGeneratorFormMasterData';
 import { useProductKnowledge } from '@/6-1-product-knowledge/hooks/useProductKnowledge';
 import { useProductKnowledgeStyle } from '@/6-1-product-knowledge/hooks/useProductKnowledgeStyle';
@@ -21,6 +22,7 @@ import { useProductKnowledgeHooks } from '@/6-1-product-knowledge/hooks/useProdu
 import { useKeywords } from '@/6-1-product-knowledge/hooks/useKeywords';
 import { ScriptGeneratorPageSkeleton } from './skeletons/ScriptGeneratorPageSkeleton';
 import { useScriptGeneratorPageSkeletonGate } from './hooks/useScriptGeneratorPageSkeletonGate';
+import { Switch } from '@/shared/components/ui/switch';
 
 const SCRIPT_GENERATOR_DRAFT_KEY_PREFIX = 'synckerja-script-generator-draft';
 
@@ -73,6 +75,7 @@ const ScriptGeneratorContent: React.FC = () => {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null);
   const [aiGeneratedScript, setAiGeneratedScript] = useState<string | null>(null);
+  const [isSwitchingToGemini, setIsSwitchingToGemini] = useState(false);
   const [lastFormDataForPlan, setLastFormDataForPlan] = useState<{
     content_type_id?: string;
     service_id?: string;
@@ -182,8 +185,12 @@ const ScriptGeneratorContent: React.FC = () => {
       toast.error('Prompt kosong');
       return;
     }
-    if (!aiConfig?.is_active || !aiConfig?.api_key_configured) {
-      toast.error(t('scriptGenerator.settings.configNotFound', 'Script AI belum dikonfigurasi. Buka Settings > Script AI Generator.'));
+    const useGroqForText = !!aiConfig?.is_active;
+    const isConfigured = useGroqForText || !!aiConfig?.api_key_configured;
+    if (!isConfigured) {
+      toast.error(
+        t('scriptGenerator.settings.configNotFound', 'Script AI belum dikonfigurasi. Buka Settings > Script AI Generator.')
+      );
       return;
     }
 
@@ -198,13 +205,48 @@ const ScriptGeneratorContent: React.FC = () => {
         setFormPanelHidden(true);
         toast.success('Script berhasil di-generate oleh AI!');
       } else {
-        toast.error(result.error || 'Gagal generate script dengan AI');
+        const msg = result.error || 'Gagal generate script dengan AI';
+        const shouldOfferSwitch =
+          !!aiConfig?.is_active &&
+          (msg.includes('Prompt terlalu besar untuk Groq') ||
+            msg.toLowerCase().includes('tpm') ||
+            msg.toLowerCase().includes('tokens per minute') ||
+            msg.includes('Request terlalu besar'));
+
+        if (shouldOfferSwitch) {
+          toast.error(msg);
+          return;
+        }
+        toast.error(msg);
       }
     } catch (error) {
       console.error('Error generating script with AI:', error);
       toast.error('Terjadi error saat generate script dengan AI');
     } finally {
       setIsGeneratingAI(false);
+    }
+  };
+
+  const handleToggleProvider = async (nextUseGroq: boolean) => {
+    if (!organizationId) return;
+    if (!aiConfig) return;
+    setIsSwitchingToGemini(true);
+    try {
+      const { error } = await supabase
+        .from('organization_script_ai_config')
+        .update({
+          is_active: nextUseGroq,
+          model: nextUseGroq ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash',
+        })
+        .eq('organization_id', organizationId);
+      if (error) throw error;
+      await refetchAiConfig();
+      toast.success(`Text AI Provider diubah ke ${nextUseGroq ? 'Groq' : 'Gemini'}.`);
+    } catch (e) {
+      console.error('switch to gemini:', e);
+      toast.error('Gagal mengubah provider. Coba lagi.');
+    } finally {
+      setIsSwitchingToGemini(false);
     }
   };
 
@@ -291,7 +333,27 @@ const ScriptGeneratorContent: React.FC = () => {
                       >
                         {effectiveGeneratedPrompt ? (
                           <div className="flex min-h-0 flex-1 flex-col gap-2">
-                            {!aiConfig?.is_active || !aiConfig?.api_key_configured ? (
+                            {aiConfig && (
+                              <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                <span className="text-sm text-gray-700">
+                                  Text AI Provider: <span className="font-medium">{aiConfig?.is_active ? 'Groq' : 'Gemini'}</span>
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-600">Gemini</span>
+                                  <Switch
+                                    checked={!!aiConfig?.is_active}
+                                    onCheckedChange={(checked) => handleToggleProvider(checked)}
+                                    disabled={isSwitchingToGemini}
+                                  />
+                                  <span className="text-xs text-gray-600">Groq</span>
+                                </div>
+                              </div>
+                            )}
+                            {(() => {
+                              const useGroqForText = !!aiConfig?.is_active;
+                              const isConfigured = useGroqForText || !!aiConfig?.api_key_configured;
+                              return !isConfigured;
+                            })() ? (
                               <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
                                 <span className="text-sm text-amber-800">
                                   {scriptAiPending && 'Memuat konfigurasi AI...'}
@@ -309,7 +371,11 @@ const ScriptGeneratorContent: React.FC = () => {
                                     </>
                                   )}
                                   {!scriptAiPending && !aiConfigError && aiConfig && !aiConfig.api_key_configured && 'API key belum dikonfigurasi di Settings.'}
-                                  {!scriptAiPending && !aiConfigError && aiConfig && !aiConfig.is_active && 'Enable AI dimatikan di Settings.'}
+                                  {!scriptAiPending && !aiConfigError && aiConfig && !aiConfig.api_key_configured && !aiConfig.is_active && (
+                                    <>
+                                      API key Gemini belum dikonfigurasi di Settings (dibutuhkan jika provider Text AI = Gemini).
+                                    </>
+                                  )}
                                 </span>
                                 {!scriptAiPending && (
                                   <button
@@ -327,7 +393,7 @@ const ScriptGeneratorContent: React.FC = () => {
                                 script={effectiveGeneratedPrompt}
                                 onGenerateWithAI={handleGenerateWithAI}
                                 isGeneratingAI={isGeneratingAI}
-                                isAIConfigured={!!(aiConfig?.is_active && aiConfig?.api_key_configured)}
+                                isAIConfigured={!!(aiConfig && (aiConfig.is_active || aiConfig.api_key_configured))}
                               />
                             </div>
                           </div>

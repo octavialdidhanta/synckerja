@@ -35,20 +35,42 @@ interface ScriptAIConfig {
   api_key_configured: boolean;
 }
 
-const DEPRECATED_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-exp'];
-const MODEL_OPTIONS = [
+type TextAIProvider = 'gemini' | 'groq';
+
+const DEPRECATED_GEMINI_MODELS = [
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-pro',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-exp',
+];
+
+const GEMINI_MODEL_OPTIONS = [
   { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+] as const;
+
+// Default list of common Groq chat models. Keep it permissive: stored values may vary by account availability.
+const GROQ_MODEL_OPTIONS = [
+  { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (instant)' },
+  { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (versatile)' },
 ] as const;
 
 const CONFIG_SELECT =
   'id, organization_id, daily_limit, model, is_active, api_key_configured' as const;
 
-function normalizeStoredModel(raw: string | null | undefined): string {
-  const s = String(raw ?? 'gemini-2.5-flash').trim().toLowerCase();
-  if (DEPRECATED_MODELS.includes(s)) return 'gemini-2.5-flash';
-  if (MODEL_OPTIONS.some((o) => o.value === s)) return s;
-  return 'gemini-2.5-flash';
+function normalizeStoredModel(raw: string | null | undefined, provider: TextAIProvider): string {
+  const fallback = provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash';
+  const s = String(raw ?? fallback).trim().toLowerCase();
+
+  if (provider === 'gemini') {
+    if (DEPRECATED_GEMINI_MODELS.includes(s)) return 'gemini-2.5-flash';
+    if (GEMINI_MODEL_OPTIONS.some((o) => o.value === s)) return s;
+    return 'gemini-2.5-flash';
+  }
+
+  if (GROQ_MODEL_OPTIONS.some((o) => o.value === s)) return s;
+  return 'llama-3.3-70b-versatile';
 }
 
 export const ScriptAIConfigSection: React.FC = () => {
@@ -57,21 +79,27 @@ export const ScriptAIConfigSection: React.FC = () => {
   const { data: configRow, isPending } = useScriptAIConfig();
   const [dailyLimit, setDailyLimit] = useState(50);
   const [model, setModel] = useState('gemini-2.5-flash');
-  const [isActive, setIsActive] = useState(false);
+  // is_active is repurposed as provider switch for TEXT AI:
+  // true = Groq, false = Gemini
+  const [useGroqForText, setUseGroqForText] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showRemoveApiKeyConfirm, setShowRemoveApiKeyConfirm] = useState(false);
   const [isRemovingApiKey, setIsRemovingApiKey] = useState(false);
 
+  const provider: TextAIProvider = useGroqForText ? 'groq' : 'gemini';
+  const modelOptions = provider === 'groq' ? GROQ_MODEL_OPTIONS : GEMINI_MODEL_OPTIONS;
+
   useEffect(() => {
     if (configRow) {
       setDailyLimit(configRow.daily_limit ?? 50);
-      setModel(normalizeStoredModel(configRow.model));
-      setIsActive(configRow.is_active ?? false);
+      setUseGroqForText(configRow.is_active ?? false);
+      const nextProvider: TextAIProvider = (configRow.is_active ?? false) ? 'groq' : 'gemini';
+      setModel(normalizeStoredModel(configRow.model, nextProvider));
     } else {
       setDailyLimit(50);
       setModel('gemini-2.5-flash');
-      setIsActive(false);
+      setUseGroqForText(false);
     }
   }, [configRow]);
 
@@ -81,8 +109,9 @@ export const ScriptAIConfigSection: React.FC = () => {
       return;
     }
 
-    if (isActive && !configRow?.api_key_configured && !apiKeyInput.trim()) {
-      toast.error('API key wajib diisi jika Enable AI aktif');
+    // If provider=Gemini, we must have a Gemini key before enabling text AI (image/vision also uses Gemini).
+    if (!useGroqForText && !configRow?.api_key_configured && !apiKeyInput.trim()) {
+      toast.error('Gemini API key wajib diisi jika provider Text AI adalah Gemini');
       return;
     }
 
@@ -91,7 +120,7 @@ export const ScriptAIConfigSection: React.FC = () => {
       const payload: Record<string, unknown> = {
         daily_limit: dailyLimit,
         model,
-        is_active: isActive,
+        is_active: useGroqForText,
       };
 
       if (apiKeyInput.trim()) {
@@ -110,8 +139,9 @@ export const ScriptAIConfigSection: React.FC = () => {
         if (error) throw error;
         if (saved) {
           setDailyLimit(saved.daily_limit ?? 50);
-          setModel(normalizeStoredModel(saved.model));
-          setIsActive(saved.is_active ?? false);
+          const nextProvider: TextAIProvider = (saved.is_active ?? false) ? 'groq' : 'gemini';
+          setModel(normalizeStoredModel(saved.model, nextProvider));
+          setUseGroqForText(saved.is_active ?? false);
         }
       } else {
         const insertPayload = {
@@ -128,8 +158,9 @@ export const ScriptAIConfigSection: React.FC = () => {
         if (error) throw error;
         if (saved) {
           setDailyLimit(saved.daily_limit ?? 50);
-          setModel(normalizeStoredModel(saved.model));
-          setIsActive(saved.is_active ?? false);
+          const nextProvider: TextAIProvider = (saved.is_active ?? false) ? 'groq' : 'gemini';
+          setModel(normalizeStoredModel(saved.model, nextProvider));
+          setUseGroqForText(saved.is_active ?? false);
         }
       }
 
@@ -153,13 +184,11 @@ export const ScriptAIConfigSection: React.FC = () => {
         .update({
           google_ai_api_key: null,
           api_key_configured: false,
-          is_active: false,
         })
         .eq('id', configRow.id);
 
       if (error) throw error;
 
-      setIsActive(false);
       setShowRemoveApiKeyConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['script-ai-config', organizationId] });
       toast.success('API key berhasil dihapus');
@@ -182,46 +211,75 @@ export const ScriptAIConfigSection: React.FC = () => {
   return (
     <div className="space-y-6 max-w-xl">
       <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="api-key">Google AI API Key</Label>
-          <div className="flex gap-2">
-            <Input
-              id="api-key"
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder={apiKeyPlaceholder}
-              autoComplete="off"
-              className="font-mono flex-1"
-            />
-            {configRow?.api_key_configured && (
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 shrink-0 px-4"
-                onClick={() => setShowRemoveApiKeyConfirm(true)}
-                disabled={isSaving}
-                title="Hapus API key dari database"
-              >
-                <Trash2 className="h-4 w-4 mr-1.5" />
-                Hapus API Key
-              </Button>
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div>
+            <Label htmlFor="ai-provider">Text AI Provider</Label>
+            <p className="text-xs text-gray-500">
+              Pilih provider untuk fitur AI berbasis teks (Script Generator & Product Knowledge).
+            </p>
+            <p className="mt-1 text-xs font-medium text-gray-700">
+              Provider aktif: {provider === 'groq' ? 'Groq' : 'Gemini'}
+            </p>
+            {provider === 'groq' && (
+              <p className="mt-1 text-xs text-gray-500">
+                Catatan: Fitur Image/Vision tetap menggunakan Gemini. Jika ingin mengatur API key Gemini, switch provider ke Gemini.
+              </p>
             )}
           </div>
-          <p className="text-xs text-gray-500">
-            Dapatkan API key gratis di{' '}
-            <a
-              href="https://aistudio.google.com/apikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline inline-flex items-center gap-1"
-            >
-              Google AI Studio
-              <ExternalLink className="h-3 w-3" />
-            </a>
-            . API key tidak pernah ditampilkan untuk keamanan.
-          </p>
+          <Switch
+            id="ai-provider"
+            checked={useGroqForText}
+            onCheckedChange={(checked) => {
+              setUseGroqForText(checked);
+              const nextProvider: TextAIProvider = checked ? 'groq' : 'gemini';
+              setModel((prev) => normalizeStoredModel(prev, nextProvider));
+            }}
+          />
         </div>
+
+        {provider === 'gemini' && (
+          <div className="space-y-2">
+            <Label htmlFor="api-key">Gemini API Key</Label>
+            <div className="flex gap-2">
+              <Input
+                id="api-key"
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder={apiKeyPlaceholder}
+                autoComplete="off"
+                className="font-mono flex-1"
+              />
+              {configRow?.api_key_configured && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 shrink-0 px-4"
+                  onClick={() => setShowRemoveApiKeyConfirm(true)}
+                  disabled={isSaving}
+                  title="Hapus API key dari database"
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Hapus API Key
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              Dibutuhkan untuk fitur Text AI saat provider adalah Gemini, dan juga untuk fitur Image/Vision (Detect from Image, Generate Design Image). Dapatkan API
+              key gratis di{' '}
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline inline-flex items-center gap-1"
+              >
+                Google AI Studio
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              . API key tidak pernah ditampilkan untuk keamanan.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="daily-limit">Daily Limit</Label>
@@ -243,25 +301,13 @@ export const ScriptAIConfigSection: React.FC = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {MODEL_OPTIONS.map((opt) => (
+              {modelOptions.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex items-center justify-between rounded-lg border p-4">
-          <div>
-            <Label htmlFor="enable-ai">Enable AI</Label>
-            <p className="text-xs text-gray-500">Aktifkan fitur Generate dengan AI di Script Generator.</p>
-          </div>
-          <Switch
-            id="enable-ai"
-            checked={isActive}
-            onCheckedChange={setIsActive}
-          />
         </div>
       </div>
 
@@ -276,25 +322,26 @@ export const ScriptAIConfigSection: React.FC = () => {
         )}
       </Button>
 
-      {/* Gemini API Spend - Link ke halaman resmi Google AI Studio */}
-      <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-gray-600" />
-          <h4 className="font-medium text-gray-900">Gemini API Spend</h4>
+      {provider === 'gemini' && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-gray-600" />
+            <h4 className="font-medium text-gray-900">Gemini API Spend</h4>
+          </div>
+          <p className="text-sm text-gray-600">
+            Lihat penggunaan dan biaya Gemini API di Google AI Studio. Login dengan akun Google yang digunakan untuk API key.
+          </p>
+          <a
+            href="https://aistudio.google.com/app/spend"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            Lihat Gemini API Spend
+            <ExternalLink className="h-4 w-4" />
+          </a>
         </div>
-        <p className="text-sm text-gray-600">
-          Lihat penggunaan dan biaya Gemini API di Google AI Studio. Login dengan akun Google yang digunakan untuk API key.
-        </p>
-        <a
-          href="https://aistudio.google.com/app/spend"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
-        >
-          Lihat Gemini API Spend
-          <ExternalLink className="h-4 w-4" />
-        </a>
-      </div>
+      )}
 
       {/* Konfirmasi hapus API key */}
       <AlertDialog open={showRemoveApiKeyConfirm} onOpenChange={setShowRemoveApiKeyConfirm}>
@@ -302,7 +349,7 @@ export const ScriptAIConfigSection: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus API Key?</AlertDialogTitle>
             <AlertDialogDescription>
-              API key akan dihapus dari database. Fitur Generate dengan AI akan dinonaktifkan. Anda dapat menambahkan API key baru kapan saja.
+              API key Gemini akan dihapus dari database. Fitur Image/Vision (Detect from Image, Generate Design Image) dan Text AI saat provider Gemini tidak akan bisa digunakan. Anda dapat menambahkan API key baru kapan saja.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -21,6 +21,9 @@ import type { ProductKnowledge } from '../hooks/useProductKnowledge';
 import { toast } from 'sonner';
 import { cn } from '@/shared/lib/utils';
 import { Sparkles, FileText, Loader2, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { supabase } from '@/shared/lib/supabaseClient';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { Switch } from '@/shared/components/ui/switch';
 
 interface ProductKnowledgeGeneratePanelProps {
   productKnowledgeData: ProductKnowledge[];
@@ -49,6 +52,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
   setDefaultRowIdForAdd,
 }) => {
   const { t } = useAppTranslation();
+  const { organizationId } = useCurrentOrg();
   const [industriInternal, setIndustriInternal] = useState('');
   const [segmenKonsumen, setSegmenKonsumen] = useState('');
   const [audienceMode, setAudienceMode] = useState<AudienceMode>('B2B');
@@ -65,6 +69,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
   const [parseError, setParseError] = useState<string | null>(null);
   const [rawResponse, setRawResponse] = useState<string | null>(null);
   const [showRawResponse, setShowRawResponse] = useState(false);
+  const [isTogglingProvider, setIsTogglingProvider] = useState(false);
 
   const { data: aiConfig, isLoading: aiConfigLoading, isError: aiConfigError, refetch: refetchAiConfig } = useScriptAIConfig();
 
@@ -73,8 +78,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
   );
   const canGenerateAI = Boolean(
     (audienceMode === 'B2B' ? industri.trim() : segmenKonsumen.trim()) &&
-    aiConfig?.is_active &&
-    aiConfig?.api_key_configured
+    (aiConfig?.is_active || aiConfig?.api_key_configured)
   );
 
   const handleGeneratePromptNoAI = () => {
@@ -106,8 +110,12 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
       );
       return;
     }
-    if (!aiConfig?.is_active || !aiConfig?.api_key_configured) {
-      toast.error(t('scriptGenerator.settings.configNotFound', 'Script AI belum dikonfigurasi. Buka Settings > Script AI Generator.'));
+    const useGroqForText = !!aiConfig?.is_active;
+    const isConfigured = useGroqForText || !!aiConfig?.api_key_configured;
+    if (!isConfigured) {
+      toast.error(
+        t('scriptGenerator.settings.configNotFound', 'Script AI belum dikonfigurasi. Buka Settings > Script AI Generator.')
+      );
       return;
     }
 
@@ -136,7 +144,8 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
           setAiResultRows([]);
         }
       } else {
-        setParseError(result.error || t('productKnowledge.generate.aiFailed', 'Gagal generate dengan AI.'));
+        const msg = result.error || t('productKnowledge.generate.aiFailed', 'Gagal generate dengan AI.');
+        setParseError(msg);
       }
     } catch (err) {
       console.error('Generate with AI error:', err);
@@ -144,6 +153,43 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
       toast.error(t('productKnowledge.generate.aiFailed', 'Gagal generate dengan AI.'));
     } finally {
       setIsGeneratingAI(false);
+    }
+  };
+
+  const shouldShowProviderToggle =
+    !!aiConfig &&
+    typeof parseError === 'string' &&
+    (parseError.includes('Prompt terlalu besar untuk Groq') ||
+      parseError.toLowerCase().includes('tpm') ||
+      parseError.toLowerCase().includes('tokens per minute') ||
+      parseError.includes('Request terlalu besar'));
+
+  const handleToggleProvider = async (nextUseGroq: boolean) => {
+    if (!organizationId) {
+      toast.error(t('common.error', 'Terjadi error.'));
+      return;
+    }
+    if (!aiConfig) return;
+    setIsTogglingProvider(true);
+    try {
+      const { error } = await supabase
+        .from('organization_script_ai_config')
+        .update({
+          is_active: nextUseGroq,
+          model: nextUseGroq ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash',
+        })
+        .eq('organization_id', organizationId);
+
+      if (error) throw error;
+      await refetchAiConfig();
+      toast.success(
+        t('productKnowledge.generate.switchedProvider', 'Text AI Provider berhasil diubah.')
+      );
+    } catch (e) {
+      console.error('switch to gemini:', e);
+      toast.error(t('productKnowledge.generate.switchFailed', 'Gagal mengubah provider. Coba lagi.'));
+    } finally {
+      setIsTogglingProvider(false);
     }
   };
 
@@ -182,7 +228,11 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
 
       <div className="p-4 pt-4 flex flex-col gap-4">
 
-        {(!aiConfig?.is_active || !aiConfig?.api_key_configured) && (
+        {(() => {
+          const useGroqForText = !!aiConfig?.is_active;
+          const isConfigured = useGroqForText || !!aiConfig?.api_key_configured;
+          return !isConfigured;
+        })() && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-2 flex-wrap">
             <span className="text-sm text-amber-800">
               {aiConfigLoading && t('productKnowledge.generate.loadingConfig', 'Memuat konfigurasi AI...')}
@@ -196,7 +246,6 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
                 </>
               )}
               {!aiConfigLoading && !aiConfigError && aiConfig && !aiConfig.api_key_configured && t('productKnowledge.generate.apiKeyNotSet', 'API key belum dikonfigurasi di Settings.')}
-              {!aiConfigLoading && !aiConfigError && aiConfig && !aiConfig.is_active && t('productKnowledge.generate.aiDisabled', 'Enable AI dimatikan di Settings.')}
             </span>
             {!aiConfigLoading && (
               <button
@@ -252,7 +301,20 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
 
       {parseError && (
         <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg mx-4 mb-4">
-          <p className="text-sm text-red-800">{parseError}</p>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <p className="text-sm text-red-800 flex-1 min-w-0">{parseError}</p>
+            {shouldShowProviderToggle && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-700">Gemini</span>
+                <Switch
+                  checked={!!aiConfig?.is_active}
+                  onCheckedChange={(checked) => handleToggleProvider(checked)}
+                  disabled={isTogglingProvider}
+                />
+                <span className="text-xs text-red-700">Groq</span>
+              </div>
+            )}
+          </div>
           {rawResponse && (
             <div className="mt-2">
               <button
@@ -284,6 +346,22 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
           <p className="text-xs text-gray-500">
             {t('productKnowledge.generate.promptModalHint', 'Edit prompt jika perlu, lalu klik "Generate dengan AI".')}
           </p>
+          {aiConfig && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 flex-shrink-0">
+              <span className="text-xs font-medium text-gray-700">
+                Text AI Provider: <span className="font-semibold">{aiConfig.is_active ? 'Groq' : 'Gemini'}</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600">Gemini</span>
+                <Switch
+                  checked={!!aiConfig.is_active}
+                  onCheckedChange={(checked) => handleToggleProvider(checked)}
+                  disabled={isTogglingProvider}
+                />
+                <span className="text-xs text-gray-600">Groq</span>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-xs font-medium text-gray-700">
               {t('productKnowledge.generate.audienceModeLabel', 'Target:')}
@@ -374,8 +452,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
               onClick={handleGenerateWithAI}
               disabled={
                 !(audienceMode === 'B2B' ? industri.trim() : segmenKonsumen.trim()) ||
-                !aiConfig?.is_active ||
-                !aiConfig?.api_key_configured ||
+                !(aiConfig && (aiConfig.is_active || aiConfig.api_key_configured)) ||
                 !editedPrompt.trim() ||
                 isGeneratingAI
               }

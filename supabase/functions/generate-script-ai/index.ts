@@ -97,26 +97,8 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "Script AI config not found. Configure at Settings > Script AI Generator." }, 400);
     }
 
-    if (!config.is_active) {
-      return jsonResponse({ error: "Script AI is disabled. Enable it in Settings > Script AI Generator." }, 400);
-    }
-
-    const apiKey = (config.google_ai_api_key ?? "").trim();
-    if (!apiKey) {
-      return jsonResponse({ error: "Google AI API key not configured. Add it in Settings > Script AI Generator." }, 400);
-    }
-
     const dailyLimit = Math.max(1, config.daily_limit ?? 50);
-    const rawModel = (config.model ?? "gemini-2.5-flash").trim() || "gemini-2.5-flash";
-    // Map deprecated models to current equivalents
-    const deprecatedModels: Record<string, string> = {
-      "gemini-1.5-flash": "gemini-2.5-flash",
-      "gemini-1.5-flash-latest": "gemini-2.5-flash",
-      "gemini-1.5-pro": "gemini-2.5-flash",
-      "gemini-2.0-flash": "gemini-2.5-flash",
-      "gemini-2.0-flash-exp": "gemini-2.5-flash",
-    };
-    const model = deprecatedModels[rawModel] ?? rawModel;
+    const useGroqForText = !!config.is_active;
 
     const today = new Date().toISOString().slice(0, 10);
     const { data: usageRow, error: usageError } = await supabaseAdmin
@@ -196,35 +178,173 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
       fullPrompt = prompt + BAHASA_INSTRUCTION + FORMAT_INSTRUCTION;
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
-    const geminiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: fullPrompt }] }],
-      }),
-    });
-
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      console.error("Gemini API error:", geminiRes.status, errText);
-      let errMsg = "Failed to generate script";
-      try {
-        const errJson = JSON.parse(errText);
-        errMsg = errJson.error?.message ?? errMsg;
-      } catch {
-        // use default
+    let script = "";
+    if (useGroqForText) {
+      const groqApiKey = (Deno.env.get("GROQ_API_KEY") ?? "").trim();
+      if (!groqApiKey) {
+        return jsonResponse({ error: 'Server missing GROQ_API_KEY secret. Configure it in Supabase Secrets.' }, 500);
       }
-      return jsonResponse({ error: errMsg }, 500);
-    }
 
-    const geminiData = await geminiRes.json();
-    const textPart = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-    const script = typeof textPart === "string" ? textPart.trim() : "";
+      // Guard against very large prompts: Groq on-demand/free tiers can have low TPM.
+      // Rough heuristic: ~4 chars/token (varies by language). Keep buffer for completion.
+      const approxInputTokens = Math.ceil(fullPrompt.length / 4);
+      const MAX_APPROX_INPUT_TOKENS = 5000;
+      if (approxInputTokens > MAX_APPROX_INPUT_TOKENS) {
+        return jsonResponse(
+          {
+            error:
+              `Prompt terlalu besar untuk Groq (perkiraan input ~${approxInputTokens} tokens). ` +
+              "Kurangi ukuran prompt/data, atau switch Text AI Provider ke Gemini untuk prompt yang panjang.",
+          },
+          413,
+        );
+      }
+
+      // Groq deprecates models over time; default to a current production model.
+      // Ref: https://console.groq.com/docs/models
+      const primaryGroqModel = (config.model ?? "llama-3.3-70b-versatile").trim() || "llama-3.3-70b-versatile";
+      const replacementGroqModel = "llama-3.3-70b-versatile";
+      const fallbackGroqModel = "llama-3.1-8b-instant";
+
+      const callGroq = async (model: string) => {
+        return await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${groqApiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: fullPrompt }],
+            temperature: 0.2,
+          }),
+        });
+      };
+
+      let groqRes = await callGroq(primaryGroqModel);
+
+      if (!groqRes.ok) {
+        const errText = await groqRes.text();
+        console.error("Groq API error:", groqRes.status, errText);
+        let errMsg = "Failed to generate script";
+        try {
+          const errJson = JSON.parse(errText);
+          errMsg = errJson.error?.message ?? errMsg;
+        } catch {
+          // use default
+        }
+        // Normalize token/rate errors into a friendly 413 for the client.
+        if (
+          groqRes.status === 413 ||
+          errText.includes("rate_limit_exceeded") ||
+          errText.includes("\"type\":\"tokens\"") ||
+          errText.toLowerCase().includes("tokens per minute")
+        ) {
+          return jsonResponse(
+            {
+              error:
+                "Request terlalu besar/terkena limit Groq (TPM). Kurangi ukuran prompt/data, atau switch Text AI Provider ke Gemini. " +
+                `Detail: ${errMsg}`,
+            },
+            413,
+          );
+        }
+        // If the selected model has been decommissioned, retry once with a known-good fallback model.
+        if (
+          groqRes.status === 400 &&
+          (errText.includes("model_decommissioned") || errText.toLowerCase().includes("decommissioned"))
+        ) {
+          const retryModel = primaryGroqModel === replacementGroqModel ? fallbackGroqModel : replacementGroqModel;
+          const retryRes = await callGroq(retryModel);
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            const retryContent = retryData?.choices?.[0]?.message?.content;
+            script = typeof retryContent === "string" ? retryContent.trim() : "";
+          } else {
+            const retryErrText = await retryRes.text();
+            console.error("Groq API retry error:", retryRes.status, retryErrText);
+            let retryMsg = errMsg;
+            try {
+              const retryJson = JSON.parse(retryErrText);
+              retryMsg = retryJson.error?.message ?? retryMsg;
+            } catch {
+              // keep retryMsg
+            }
+            if (
+              retryRes.status === 413 ||
+              retryErrText.includes("rate_limit_exceeded") ||
+              retryErrText.includes("\"type\":\"tokens\"") ||
+              retryErrText.toLowerCase().includes("tokens per minute")
+            ) {
+              return jsonResponse(
+                {
+                  error:
+                    "Request terlalu besar/terkena limit Groq (TPM). Kurangi ukuran prompt/data, atau switch Text AI Provider ke Gemini. " +
+                    `Detail: ${retryMsg}`,
+                },
+                413,
+              );
+            }
+            const status = retryRes.status === 429 ? 429 : 500;
+            return jsonResponse({ error: retryMsg }, status);
+          }
+        } else {
+          const status = groqRes.status === 429 ? 429 : 500;
+          return jsonResponse({ error: errMsg }, status);
+        }
+      }
+
+      if (!script) {
+        const groqData = await groqRes.json();
+        const content = groqData?.choices?.[0]?.message?.content;
+        script = typeof content === "string" ? content.trim() : "";
+      }
+    } else {
+      const apiKey = (config.google_ai_api_key ?? "").trim();
+      if (!apiKey) {
+        return jsonResponse({ error: "Google AI API key not configured. Add it in Settings > Script AI Generator." }, 400);
+      }
+
+      const rawModel = (config.model ?? "gemini-2.5-flash").trim() || "gemini-2.5-flash";
+      // Map deprecated models to current equivalents
+      const deprecatedModels: Record<string, string> = {
+        "gemini-1.5-flash": "gemini-2.5-flash",
+        "gemini-1.5-flash-latest": "gemini-2.5-flash",
+        "gemini-1.5-pro": "gemini-2.5-flash",
+        "gemini-2.0-flash": "gemini-2.5-flash",
+        "gemini-2.0-flash-exp": "gemini-2.5-flash",
+      };
+      const model = deprecatedModels[rawModel] ?? rawModel;
+
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const geminiRes = await fetch(geminiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: fullPrompt }] }],
+        }),
+      });
+
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        console.error("Gemini API error:", geminiRes.status, errText);
+        let errMsg = "Failed to generate script";
+        try {
+          const errJson = JSON.parse(errText);
+          errMsg = errJson.error?.message ?? errMsg;
+        } catch {
+          // use default
+        }
+        return jsonResponse({ error: errMsg }, 500);
+      }
+
+      const geminiData = await geminiRes.json();
+      const textPart = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+      script = typeof textPart === "string" ? textPart.trim() : "";
+    }
 
     if (!script) {
       return jsonResponse({ error: "No content generated from AI" }, 500);

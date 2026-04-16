@@ -121,10 +121,6 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "Script AI config not found. Configure at Settings > Script AI Generator." }, 400);
     }
 
-    if (!config.is_active) {
-      return jsonResponse({ error: "Script AI is disabled. Enable it in Settings > Script AI Generator." }, 400);
-    }
-
     const apiKey = (config.google_ai_api_key ?? "").trim();
     if (!apiKey) {
       return jsonResponse({ error: "Google AI API key not configured. Add it in Settings > Script AI Generator." }, 400);
