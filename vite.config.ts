@@ -62,7 +62,17 @@ export default defineConfig(({ mode }) => {
           if (!id.includes("node_modules")) return;
 
           // Keep React runtime isolated for better long-term caching.
-          if (id.includes("/react/") || id.includes("/react-dom/")) return "react-vendor";
+          if (
+            id.includes("/react/") ||
+            id.includes("/react-dom/") ||
+            // React depends on scheduler; keep it in the same chunk to avoid runtime mismatch.
+            id.includes("/scheduler/") ||
+            id.includes("/scheduler-tracing/") ||
+            id.includes("react/jsx-runtime") ||
+            id.includes("react/jsx-dev-runtime")
+          ) {
+            return "react-vendor";
+          }
 
           // Router + state/query libs are common across routes.
           if (id.includes("react-router")) return "router";
@@ -194,7 +204,7 @@ export default defineConfig(({ mode }) => {
       },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
     ],
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
+    dedupe: ["react", "react-dom", "scheduler", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
   };
 });
