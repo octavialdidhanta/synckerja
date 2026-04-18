@@ -13,6 +13,35 @@ const BAHASA_INSTRUCTION = "\n\nPENTING: Seluruh output script, caption, dan has
 const FORMAT_INSTRUCTION =
   "\n\nFORMAT OUTPUT: Gunakan Markdown dengan benar. Untuk tabel: gunakan format standar (| Kolom1 | Kolom2 | Kolom3 |) dengan baris pemisah (|---|---|---|), satu baris per row. Jangan wrap teks ke baris baru di dalam satu cell—gunakan satu baris per row tabel agar terbaca rapi. Untuk tabel breakdown script: header HARUS persis lima kolom | Timing | VO (Voice Over) | Visual | Element Lainnya | Tagging | — dilarang mengganti Element Lainnya jadi Text On Screen/Teks di Layar, dilarang menghilangkan Tagging, dilarang hanya empat kolom. Setiap baris data wajib isi kolom Tagging. WAJIB: Akhiri script dengan blok ## CAPTION ## (baris sendiri) lalu baris baru lalu teks caption agar bisa disimpan di Save to Plan. Jika ada konsep, awali dengan ## Konsep Konten ## atau ## Concept of Content ## (baris sendiri) lalu baris baru lalu paragraf konsep.";
 
+/** Shared DB column `model` holds the active provider's model id — reject Gemini/Groq leftovers when routing to Fireworks. */
+function resolveFireworksChatModelId(stored: string | null | undefined): string {
+  const fromEnv = (Deno.env.get("FIREWORKS_DEFAULT_MODEL") ?? "").trim();
+  const defaultServerless = "fireworks/llama-v3p3-70b-instruct";
+  const fallback = fromEnv || defaultServerless;
+  const m = (stored ?? "").trim();
+  if (!m) return fallback;
+  const lower = m.toLowerCase();
+  if (lower.includes("gemini")) return fallback;
+  if (lower.startsWith("gpt-") || lower.includes("openai/")) return fallback;
+  // Groq / OpenAI-style ids stored in same column (e.g. llama-3.3-70b-versatile)
+  if (!m.startsWith("accounts/") && !m.startsWith("fireworks/")) return fallback;
+  return m;
+}
+
+/** If Fireworks returns NOT_FOUND for one naming style, retry the other (catalog vs full path). */
+function alternateFireworksModelId(model: string): string | null {
+  const prefix = "accounts/fireworks/models/";
+  if (model.startsWith(prefix)) {
+    const slug = model.slice(prefix.length).replace(/\/+$/, "");
+    return slug ? `fireworks/${slug}` : null;
+  }
+  if (model.startsWith("fireworks/")) {
+    const slug = model.slice("fireworks/".length).replace(/\/+$/, "");
+    return slug ? `${prefix}${slug}` : null;
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -89,7 +118,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: config, error: configError } = await supabaseAdmin
       .from("organization_script_ai_config")
-      .select("google_ai_api_key, daily_limit, model, is_active")
+      .select("google_ai_api_key, daily_limit, model, is_active, text_ai_provider")
       .eq("organization_id", orgId)
       .maybeSingle();
 
@@ -98,7 +127,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const dailyLimit = Math.max(1, config.daily_limit ?? 50);
-    const useGroqForText = !!config.is_active;
+    const rawProvider = (config as { text_ai_provider?: unknown }).text_ai_provider;
+    const normalizedProvider =
+      typeof rawProvider === "string" && ["gemini", "groq", "fireworks"].includes(rawProvider.trim())
+        ? rawProvider.trim()
+        : (config.is_active ? "groq" : "gemini");
 
     const today = new Date().toISOString().slice(0, 10);
     const { data: usageRow, error: usageError } = await supabaseAdmin
@@ -179,39 +212,26 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
     }
 
     let script = "";
-    if (useGroqForText) {
-      const groqApiKey = (Deno.env.get("GROQ_API_KEY") ?? "").trim();
-      if (!groqApiKey) {
-        return jsonResponse({ error: 'Server missing GROQ_API_KEY secret. Configure it in Supabase Secrets.' }, 500);
-      }
-
-      // Guard against very large prompts: Groq on-demand/free tiers can have low TPM.
-      // Rough heuristic: ~4 chars/token (varies by language). Keep buffer for completion.
+    if (normalizedProvider === "groq" || normalizedProvider === "fireworks") {
       const approxInputTokens = Math.ceil(fullPrompt.length / 4);
       const MAX_APPROX_INPUT_TOKENS = 5000;
       if (approxInputTokens > MAX_APPROX_INPUT_TOKENS) {
         return jsonResponse(
           {
             error:
-              `Prompt terlalu besar untuk Groq (perkiraan input ~${approxInputTokens} tokens). ` +
-              "Kurangi ukuran prompt/data, atau switch Text AI Provider ke Gemini untuk prompt yang panjang.",
+              `Prompt terlalu besar untuk provider Text AI ini (perkiraan input ~${approxInputTokens} tokens). ` +
+              "Kurangi ukuran prompt/data, atau pilih provider lain (mis. Gemini) untuk prompt yang panjang.",
           },
           413,
         );
       }
 
-      // Groq deprecates models over time; default to a current production model.
-      // Ref: https://console.groq.com/docs/models
-      const primaryGroqModel = (config.model ?? "llama-3.3-70b-versatile").trim() || "llama-3.3-70b-versatile";
-      const replacementGroqModel = "llama-3.3-70b-versatile";
-      const fallbackGroqModel = "llama-3.1-8b-instant";
-
-      const callGroq = async (model: string) => {
-        return await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const callOpenAICompatibleChat = async (url: string, apiKey: string, model: string) => {
+        return await fetch(`${url.replace(/\/+$/, "")}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${groqApiKey}`,
+            "Authorization": `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
             model,
@@ -221,83 +241,145 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
         });
       };
 
-      let groqRes = await callGroq(primaryGroqModel);
+      const extractOpenAIChatText = (data: unknown): string => {
+        const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
+        return typeof content === "string" ? content.trim() : "";
+      };
 
-      if (!groqRes.ok) {
-        const errText = await groqRes.text();
-        console.error("Groq API error:", groqRes.status, errText);
-        let errMsg = "Failed to generate script";
-        try {
-          const errJson = JSON.parse(errText);
-          errMsg = errJson.error?.message ?? errMsg;
-        } catch {
-          // use default
+      if (normalizedProvider === "groq") {
+        const groqApiKey = (Deno.env.get("GROQ_API_KEY") ?? "").trim();
+        if (!groqApiKey) {
+          return jsonResponse({ error: 'Server missing GROQ_API_KEY secret. Configure it in Supabase Secrets.' }, 500);
         }
-        // Normalize token/rate errors into a friendly 413 for the client.
-        if (
-          groqRes.status === 413 ||
-          errText.includes("rate_limit_exceeded") ||
-          errText.includes("\"type\":\"tokens\"") ||
-          errText.toLowerCase().includes("tokens per minute")
-        ) {
+
+        // Groq deprecates models over time; default to a current production model.
+        // Ref: https://console.groq.com/docs/models
+        const primaryGroqModel = (config.model ?? "llama-3.3-70b-versatile").trim() || "llama-3.3-70b-versatile";
+        const replacementGroqModel = "llama-3.3-70b-versatile";
+        const fallbackGroqModel = "llama-3.1-8b-instant";
+
+        let groqRes = await callOpenAICompatibleChat("https://api.groq.com/openai/v1", groqApiKey, primaryGroqModel);
+
+        if (!groqRes.ok) {
+          const errText = await groqRes.text();
+          console.error("Groq API error:", groqRes.status, errText);
+          let errMsg = "Failed to generate script";
+          try {
+            const errJson = JSON.parse(errText);
+            errMsg = errJson.error?.message ?? errMsg;
+          } catch {
+            // use default
+          }
+          if (
+            groqRes.status === 413 ||
+            errText.includes("rate_limit_exceeded") ||
+            errText.includes("\"type\":\"tokens\"") ||
+            errText.toLowerCase().includes("tokens per minute")
+          ) {
+            return jsonResponse(
+              {
+                error:
+                  "Request terlalu besar/terkena limit Groq (TPM). Kurangi ukuran prompt/data, atau pilih provider lain. " +
+                  `Detail: ${errMsg}`,
+              },
+              413,
+            );
+          }
+          if (
+            groqRes.status === 400 &&
+            (errText.includes("model_decommissioned") || errText.toLowerCase().includes("decommissioned"))
+          ) {
+            const retryModel = primaryGroqModel === replacementGroqModel ? fallbackGroqModel : replacementGroqModel;
+            const retryRes = await callOpenAICompatibleChat("https://api.groq.com/openai/v1", groqApiKey, retryModel);
+            if (retryRes.ok) {
+              const retryData = await retryRes.json();
+              script = extractOpenAIChatText(retryData);
+            } else {
+              const retryErrText = await retryRes.text();
+              console.error("Groq API retry error:", retryRes.status, retryErrText);
+              let retryMsg = errMsg;
+              try {
+                const retryJson = JSON.parse(retryErrText);
+                retryMsg = retryJson.error?.message ?? retryMsg;
+              } catch {
+                // keep retryMsg
+              }
+              if (
+                retryRes.status === 413 ||
+                retryErrText.includes("rate_limit_exceeded") ||
+                retryErrText.includes("\"type\":\"tokens\"") ||
+                retryErrText.toLowerCase().includes("tokens per minute")
+              ) {
+                return jsonResponse(
+                  {
+                    error:
+                      "Request terlalu besar/terkena limit Groq (TPM). Kurangi ukuran prompt/data, atau pilih provider lain. " +
+                      `Detail: ${retryMsg}`,
+                  },
+                  413,
+                );
+              }
+              const status = retryRes.status === 429 ? 429 : 500;
+              return jsonResponse({ error: retryMsg }, status);
+            }
+          } else {
+            const status = groqRes.status === 429 ? 429 : 500;
+            return jsonResponse({ error: errMsg }, status);
+          }
+        }
+
+        if (!script) {
+          const groqData = await groqRes.json();
+          script = extractOpenAIChatText(groqData);
+        }
+      } else {
+        const fireworksApiKey = (Deno.env.get("FIREWORKS_API_KEY") ?? "").trim();
+        if (!fireworksApiKey) {
           return jsonResponse(
-            {
-              error:
-                "Request terlalu besar/terkena limit Groq (TPM). Kurangi ukuran prompt/data, atau switch Text AI Provider ke Gemini. " +
-                `Detail: ${errMsg}`,
-            },
-            413,
+            { error: 'Server missing FIREWORKS_API_KEY secret. Configure it in Supabase Secrets.' },
+            500,
           );
         }
-        // If the selected model has been decommissioned, retry once with a known-good fallback model.
-        if (
-          groqRes.status === 400 &&
-          (errText.includes("model_decommissioned") || errText.toLowerCase().includes("decommissioned"))
-        ) {
-          const retryModel = primaryGroqModel === replacementGroqModel ? fallbackGroqModel : replacementGroqModel;
-          const retryRes = await callGroq(retryModel);
-          if (retryRes.ok) {
-            const retryData = await retryRes.json();
-            const retryContent = retryData?.choices?.[0]?.message?.content;
-            script = typeof retryContent === "string" ? retryContent.trim() : "";
-          } else {
-            const retryErrText = await retryRes.text();
-            console.error("Groq API retry error:", retryRes.status, retryErrText);
-            let retryMsg = errMsg;
-            try {
-              const retryJson = JSON.parse(retryErrText);
-              retryMsg = retryJson.error?.message ?? retryMsg;
-            } catch {
-              // keep retryMsg
-            }
-            if (
-              retryRes.status === 413 ||
-              retryErrText.includes("rate_limit_exceeded") ||
-              retryErrText.includes("\"type\":\"tokens\"") ||
-              retryErrText.toLowerCase().includes("tokens per minute")
-            ) {
-              return jsonResponse(
-                {
-                  error:
-                    "Request terlalu besar/terkena limit Groq (TPM). Kurangi ukuran prompt/data, atau switch Text AI Provider ke Gemini. " +
-                    `Detail: ${retryMsg}`,
-                },
-                413,
-              );
-            }
-            const status = retryRes.status === 429 ? 429 : 500;
-            return jsonResponse({ error: retryMsg }, status);
+
+        const fireworksBase =
+          (Deno.env.get("FIREWORKS_BASE_URL") ?? "https://api.fireworks.ai/inference/v1").trim() ||
+          "https://api.fireworks.ai/inference/v1";
+
+        const fireworksModel = resolveFireworksChatModelId(config.model);
+
+        let fwRes = await callOpenAICompatibleChat(fireworksBase, fireworksApiKey, fireworksModel);
+        if (!fwRes.ok && fwRes.status === 404) {
+          const errText404 = await fwRes.text();
+          const alt = alternateFireworksModelId(fireworksModel);
+          if (alt && alt !== fireworksModel) {
+            console.warn("Fireworks 404 for model, retrying alternate id:", fireworksModel, "->", alt, errText404);
+            fwRes = await callOpenAICompatibleChat(fireworksBase, fireworksApiKey, alt);
           }
-        } else {
-          const status = groqRes.status === 429 ? 429 : 500;
+        }
+        if (!fwRes.ok && fwRes.status === 404) {
+          const docDefault = "accounts/fireworks/models/llama-v3p1-8b-instruct";
+          if (fireworksModel !== docDefault) {
+            console.warn("Fireworks 404, retrying documented small model:", docDefault);
+            fwRes = await callOpenAICompatibleChat(fireworksBase, fireworksApiKey, docDefault);
+          }
+        }
+
+        if (!fwRes.ok) {
+          const errText = await fwRes.text();
+          console.error("Fireworks API error:", fwRes.status, errText);
+          let errMsg = "Failed to generate script";
+          try {
+            const errJson = JSON.parse(errText);
+            errMsg = errJson.error?.message ?? errMsg;
+          } catch {
+            // use default
+          }
+          const status = fwRes.status === 429 ? 429 : fwRes.status === 413 ? 413 : 500;
           return jsonResponse({ error: errMsg }, status);
         }
-      }
 
-      if (!script) {
-        const groqData = await groqRes.json();
-        const content = groqData?.choices?.[0]?.message?.content;
-        script = typeof content === "string" ? content.trim() : "";
+        const fwData = await fwRes.json();
+        script = extractOpenAIChatText(fwData);
       }
     } else {
       const apiKey = (config.google_ai_api_key ?? "").trim();

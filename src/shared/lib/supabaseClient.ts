@@ -21,6 +21,9 @@ const anonKey = String(
     "",
 ).trim();
 
+/** Pass as `apikey` on direct `fetch` calls to Edge Functions (see Supabase invoke headers). */
+export const SUPABASE_ANON_KEY = anonKey;
+
 if (!url || !anonKey) {
   throw new Error(
     "Supabase env missing: set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the project root .env, then restart the dev server. For production, set the same VITE_* variables in your host/build environment (they are inlined at build time).",

@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { Switch } from '@/shared/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -14,6 +13,10 @@ import {
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useScriptAIConfig } from '@/6-1-script-generator/hooks/useScriptAIConfig';
+import {
+  resolveTextAIProvider,
+  type TextAIProvider,
+} from '@/6-1-script-generator/utils/scriptAiTextProvider';
 import { toast } from 'sonner';
 import { Loader2, ExternalLink, DollarSign, Trash2 } from 'lucide-react';
 import {
@@ -32,10 +35,9 @@ interface ScriptAIConfig {
   daily_limit: number;
   model: string;
   is_active: boolean;
+  text_ai_provider?: 'gemini' | 'groq' | 'fireworks';
   api_key_configured: boolean;
 }
-
-type TextAIProvider = 'gemini' | 'groq';
 
 const DEPRECATED_GEMINI_MODELS = [
   'gemini-1.5-flash',
@@ -56,12 +58,29 @@ const GROQ_MODEL_OPTIONS = [
   { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (versatile)' },
 ] as const;
 
+const FIREWORKS_MODEL_OPTIONS = [
+  {
+    value: 'fireworks/llama-v3p1-8b-instruct',
+    label: 'Llama 3.1 8B instruct (cepat / murah)',
+  },
+  {
+    value: 'fireworks/llama-v3p3-70b-instruct',
+    label: 'Llama 3.3 70B instruct (kualitas)',
+  },
+] as const;
+
 const CONFIG_SELECT =
-  'id, organization_id, daily_limit, model, is_active, api_key_configured' as const;
+  'id, organization_id, daily_limit, model, is_active, text_ai_provider, api_key_configured' as const;
 
 function normalizeStoredModel(raw: string | null | undefined, provider: TextAIProvider): string {
-  const fallback = provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash';
-  const s = String(raw ?? fallback).trim().toLowerCase();
+  const fallback =
+    provider === 'groq'
+      ? 'llama-3.3-70b-versatile'
+      : provider === 'fireworks'
+        ? 'fireworks/llama-v3p3-70b-instruct'
+        : 'gemini-2.5-flash';
+  const rawStr = String(raw ?? fallback).trim();
+  const s = rawStr.toLowerCase();
 
   if (provider === 'gemini') {
     if (DEPRECATED_GEMINI_MODELS.includes(s)) return 'gemini-2.5-flash';
@@ -69,8 +88,20 @@ function normalizeStoredModel(raw: string | null | undefined, provider: TextAIPr
     return 'gemini-2.5-flash';
   }
 
-  if (GROQ_MODEL_OPTIONS.some((o) => o.value === s)) return s;
-  return 'llama-3.3-70b-versatile';
+  if (provider === 'groq') {
+    if (GROQ_MODEL_OPTIONS.some((o) => o.value === s)) return s;
+    return 'llama-3.3-70b-versatile';
+  }
+
+  // Fireworks model ids are case-sensitive; match known options first, else keep trimmed raw.
+  if (FIREWORKS_MODEL_OPTIONS.some((o) => o.value === rawStr)) return rawStr;
+  const legacyFireworksToCatalog: Record<string, string> = {
+    'accounts/fireworks/models/llama-v3p1-8b-instruct': 'fireworks/llama-v3p1-8b-instruct',
+    'accounts/fireworks/models/llama-v3p3-70b-instruct': 'fireworks/llama-v3p3-70b-instruct',
+  };
+  if (legacyFireworksToCatalog[rawStr]) return legacyFireworksToCatalog[rawStr];
+  if (rawStr.startsWith('accounts/') || rawStr.startsWith('fireworks/')) return rawStr;
+  return fallback;
 }
 
 export const ScriptAIConfigSection: React.FC = () => {
@@ -79,27 +110,30 @@ export const ScriptAIConfigSection: React.FC = () => {
   const { data: configRow, isPending } = useScriptAIConfig();
   const [dailyLimit, setDailyLimit] = useState(50);
   const [model, setModel] = useState('gemini-2.5-flash');
-  // is_active is repurposed as provider switch for TEXT AI:
-  // true = Groq, false = Gemini
-  const [useGroqForText, setUseGroqForText] = useState(false);
+  const [textAiProvider, setTextAiProvider] = useState<TextAIProvider>('gemini');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showRemoveApiKeyConfirm, setShowRemoveApiKeyConfirm] = useState(false);
   const [isRemovingApiKey, setIsRemovingApiKey] = useState(false);
 
-  const provider: TextAIProvider = useGroqForText ? 'groq' : 'gemini';
-  const modelOptions = provider === 'groq' ? GROQ_MODEL_OPTIONS : GEMINI_MODEL_OPTIONS;
+  const provider: TextAIProvider = textAiProvider;
+  const modelOptions =
+    provider === 'groq'
+      ? GROQ_MODEL_OPTIONS
+      : provider === 'fireworks'
+        ? FIREWORKS_MODEL_OPTIONS
+        : GEMINI_MODEL_OPTIONS;
 
   useEffect(() => {
     if (configRow) {
       setDailyLimit(configRow.daily_limit ?? 50);
-      setUseGroqForText(configRow.is_active ?? false);
-      const nextProvider: TextAIProvider = (configRow.is_active ?? false) ? 'groq' : 'gemini';
+      const nextProvider = resolveTextAIProvider(configRow);
+      setTextAiProvider(nextProvider);
       setModel(normalizeStoredModel(configRow.model, nextProvider));
     } else {
       setDailyLimit(50);
       setModel('gemini-2.5-flash');
-      setUseGroqForText(false);
+      setTextAiProvider('gemini');
     }
   }, [configRow]);
 
@@ -110,7 +144,7 @@ export const ScriptAIConfigSection: React.FC = () => {
     }
 
     // If provider=Gemini, we must have a Gemini key before enabling text AI (image/vision also uses Gemini).
-    if (!useGroqForText && !configRow?.api_key_configured && !apiKeyInput.trim()) {
+    if (textAiProvider === 'gemini' && !configRow?.api_key_configured && !apiKeyInput.trim()) {
       toast.error('Gemini API key wajib diisi jika provider Text AI adalah Gemini');
       return;
     }
@@ -120,7 +154,9 @@ export const ScriptAIConfigSection: React.FC = () => {
       const payload: Record<string, unknown> = {
         daily_limit: dailyLimit,
         model,
-        is_active: useGroqForText,
+        text_ai_provider: textAiProvider,
+        // Legacy compatibility: Groq text routing historically used is_active=true.
+        is_active: textAiProvider === 'groq',
       };
 
       if (apiKeyInput.trim()) {
@@ -139,9 +175,9 @@ export const ScriptAIConfigSection: React.FC = () => {
         if (error) throw error;
         if (saved) {
           setDailyLimit(saved.daily_limit ?? 50);
-          const nextProvider: TextAIProvider = (saved.is_active ?? false) ? 'groq' : 'gemini';
+          const nextProvider = resolveTextAIProvider(saved);
+          setTextAiProvider(nextProvider);
           setModel(normalizeStoredModel(saved.model, nextProvider));
-          setUseGroqForText(saved.is_active ?? false);
         }
       } else {
         const insertPayload = {
@@ -158,9 +194,9 @@ export const ScriptAIConfigSection: React.FC = () => {
         if (error) throw error;
         if (saved) {
           setDailyLimit(saved.daily_limit ?? 50);
-          const nextProvider: TextAIProvider = (saved.is_active ?? false) ? 'groq' : 'gemini';
+          const nextProvider = resolveTextAIProvider(saved);
+          setTextAiProvider(nextProvider);
           setModel(normalizeStoredModel(saved.model, nextProvider));
-          setUseGroqForText(saved.is_active ?? false);
         }
       }
 
@@ -211,30 +247,47 @@ export const ScriptAIConfigSection: React.FC = () => {
   return (
     <div className="space-y-6 max-w-xl">
       <div className="space-y-4">
-        <div className="flex items-center justify-between rounded-lg border p-4">
+        <div className="rounded-lg border p-4 space-y-3">
           <div>
-            <Label htmlFor="ai-provider">Text AI Provider</Label>
+            <Label id="ai-provider-label">Text AI Provider</Label>
             <p className="text-xs text-gray-500">
-              Pilih provider untuk fitur AI berbasis teks (Script Generator & Product Knowledge).
+              Script Generator & Product Knowledge.
+              {(provider === 'groq' || provider === 'fireworks') && (
+                <span className="text-gray-600"> Image/Vision: Gemini — atur key di opsi Gemini.</span>
+              )}
             </p>
-            <p className="mt-1 text-xs font-medium text-gray-700">
-              Provider aktif: {provider === 'groq' ? 'Groq' : 'Gemini'}
-            </p>
-            {provider === 'groq' && (
-              <p className="mt-1 text-xs text-gray-500">
-                Catatan: Fitur Image/Vision tetap menggunakan Gemini. Jika ingin mengatur API key Gemini, switch provider ke Gemini.
-              </p>
-            )}
           </div>
-          <Switch
-            id="ai-provider"
-            checked={useGroqForText}
-            onCheckedChange={(checked) => {
-              setUseGroqForText(checked);
-              const nextProvider: TextAIProvider = checked ? 'groq' : 'gemini';
-              setModel((prev) => normalizeStoredModel(prev, nextProvider));
-            }}
-          />
+          <div
+            role="tablist"
+            aria-labelledby="ai-provider-label"
+            className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+          >
+            {(
+              [
+                { id: 'gemini' as const, label: 'Gemini' },
+                { id: 'groq' as const, label: 'Groq' },
+                { id: 'fireworks' as const, label: 'Fireworks' },
+              ] as const
+            ).map((opt) => {
+              const selected = textAiProvider === opt.id;
+              return (
+                <Button
+                  key={opt.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  variant={selected ? 'default' : 'outline'}
+                  className="h-auto min-h-10 whitespace-normal px-3 py-2 text-sm"
+                  onClick={() => {
+                    setTextAiProvider(opt.id);
+                    setModel((prev) => normalizeStoredModel(prev, opt.id));
+                  }}
+                >
+                  {opt.label}
+                </Button>
+              );
+            })}
+          </div>
         </div>
 
         {provider === 'gemini' && (
@@ -265,18 +318,17 @@ export const ScriptAIConfigSection: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-gray-500">
-              Dibutuhkan untuk fitur Text AI saat provider adalah Gemini, dan juga untuk fitur Image/Vision (Detect from Image, Generate Design Image). Dapatkan API
-              key gratis di{' '}
+              Text AI (Gemini) + Image/Vision.{' '}
               <a
                 href="https://aistudio.google.com/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline inline-flex items-center gap-1"
               >
-                Google AI Studio
+                Buat key
                 <ExternalLink className="h-3 w-3" />
               </a>
-              . API key tidak pernah ditampilkan untuk keamanan.
+              . Key tidak ditampilkan setelah disimpan.
             </p>
           </div>
         )}
@@ -291,7 +343,7 @@ export const ScriptAIConfigSection: React.FC = () => {
             value={dailyLimit}
             onChange={(e) => setDailyLimit(Math.max(1, parseInt(e.target.value) || 50))}
           />
-          <p className="text-xs text-gray-500">Maksimal generate per hari per tenant.</p>
+          <p className="text-xs text-gray-500">Maks. generate/hari untuk organisasi ini.</p>
         </div>
 
         <div className="space-y-2">
@@ -328,16 +380,14 @@ export const ScriptAIConfigSection: React.FC = () => {
             <DollarSign className="h-5 w-5 text-gray-600" />
             <h4 className="font-medium text-gray-900">Gemini API Spend</h4>
           </div>
-          <p className="text-sm text-gray-600">
-            Lihat penggunaan dan biaya Gemini API di Google AI Studio. Login dengan akun Google yang digunakan untuk API key.
-          </p>
+          <p className="text-sm text-gray-600">Usage & biaya di AI Studio (akun yang sama dengan key).</p>
           <a
             href="https://aistudio.google.com/app/spend"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
           >
-            Lihat Gemini API Spend
+            Buka Spend
             <ExternalLink className="h-4 w-4" />
           </a>
         </div>
@@ -349,7 +399,7 @@ export const ScriptAIConfigSection: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus API Key?</AlertDialogTitle>
             <AlertDialogDescription>
-              API key Gemini akan dihapus dari database. Fitur Image/Vision (Detect from Image, Generate Design Image) dan Text AI saat provider Gemini tidak akan bisa digunakan. Anda dapat menambahkan API key baru kapan saja.
+              Key dihapus dari database. Text AI (Gemini) dan Image/Vision nonaktif sampai key baru ditambahkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

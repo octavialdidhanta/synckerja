@@ -146,6 +146,51 @@ function parseFromDisplayName(from: string | undefined): string | null {
   return name;
 }
 
+/** Inline: deploy bundle — avoid separate module import. */
+type LivechatPushTable = "whatsapp_messages" | "instagram_messages" | "email_messages";
+
+function livechatPushUsesDatabaseWebhookOnly(): boolean {
+  return Deno.env.get("LIVECHAT_USE_DATABASE_WEBHOOK_FOR_PUSH") === "true";
+}
+
+async function notifyLivechatInboundPush(
+  table: LivechatPushTable,
+  record: Record<string, unknown>,
+): Promise<void> {
+  if (livechatPushUsesDatabaseWebhookOnly()) return;
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn("notifyLivechatInboundPush: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    return;
+  }
+
+  const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/livechat-send-push`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+      },
+      body: JSON.stringify({
+        type: "INSERT",
+        table,
+        schema: "public",
+        record,
+      }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      console.error("notifyLivechatInboundPush: livechat-send-push HTTP error", res.status, t.slice(0, 800));
+    }
+  } catch (e) {
+    console.error("notifyLivechatInboundPush: fetch failed", e);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: { ...corsHeaders, "Content-Length": "2" } });
@@ -276,21 +321,23 @@ Deno.serve(async (req: Request) => {
         conversationId = newConv.id;
       }
 
-      const { error: msgError } = await supabase.from("email_messages").insert({
+      const emailInsertPayload = {
         conversation_id: conversationId,
-        direction: "inbound",
+        direction: "inbound" as const,
         from_email: fromEmail ?? fromRaw,
         from_display_name: fromDisplayName || null,
         to_email: toNormalized,
         subject: subject || null,
         body: textBody || null,
         confirmation_code: confirmationCode,
-      });
+      };
+      const { error: msgError } = await supabase.from("email_messages").insert(emailInsertPayload);
 
       if (msgError) {
         console.error("email-inbound: insert message failed", msgError);
         continue;
       }
+      await notifyLivechatInboundPush("email_messages", emailInsertPayload as Record<string, unknown>);
 
       const nowIso = new Date().toISOString();
       await supabase

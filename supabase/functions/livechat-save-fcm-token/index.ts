@@ -76,20 +76,21 @@ Deno.serve(async (req: Request) => {
       .eq("token", fcmToken)
       .eq("context", context);
 
-    const { error: upsertError } = await supabaseWithUser
-      .from("fcm_tokens")
-      .upsert(
-        {
-          user_id: user.id,
-          token: fcmToken,
-          platform,
-          context,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,token,context" }
-      );
+    // Pakai service role: upsert dengan JWT user sering kena RLS / constraint mismatch → 400.
+    // User sudah diverifikasi lewat getUser(token) di atas.
+    const { error: upsertError } = await supabaseAdmin.from("fcm_tokens").upsert(
+      {
+        user_id: user.id,
+        token: fcmToken,
+        platform,
+        context,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,token,context" },
+    );
 
     if (upsertError) {
+      console.error("livechat-save-fcm-token: upsert failed", upsertError.message, upsertError);
       return new Response(
         JSON.stringify({ error: upsertError.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

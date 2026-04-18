@@ -74,3 +74,13 @@ verify_jwt = false
 
 [functions.google-drive-file-thumbnail]
 verify_jwt = false
+
+# Browser calls with user JWT (ES256); auth enforced inside (getUser + service role).
+[functions.whatsapp-message-templates]
+verify_jwt = false
+
+[functions.whatsapp-template-header-upload]
+verify_jwt = false
+
+[functions.whatsapp-flows]
+verify_jwt = false

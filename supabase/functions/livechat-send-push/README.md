@@ -32,6 +32,11 @@ In Supabase Dashboard → Database → Webhooks, create **3 webhooks**:
 
 Timeout: 30 seconds recommended.
 
+## Triggering the function (webhook vs edge)
+
+- **Default:** Inbound inserts are followed by a call to `livechat-send-push` from **`whatsapp-webhook`**, **`instagram-webhook`**, and **`email-inbound`**. The helper is **inlined in each `index.ts`** so the hosted bundler always includes it (separate `./notifyLivechatSendPush` modules were not resolved on deploy). Same JSON body shape as a Database Webhook. You should see logs after a real inbound message without configuring Dashboard webhooks.
+- **Optional:** If you use **Database Webhooks** on `whatsapp_messages` / `instagram_messages` / `email_messages` **and** want to avoid **double** notifications, set Edge secret **`LIVECHAT_USE_DATABASE_WEBHOOK_FOR_PUSH`** = `true` on those three functions (and keep the webhook). That disables the inline invoke only there; `livechat-send-push` itself does not read this variable.
+
 ## Frontend
 
 - Public key from the same VAPID pair must be set as `VITE_VAPID_PUBLIC_KEY` (base64url string). The generate script also prints "your application server key" — use that for the frontend env.

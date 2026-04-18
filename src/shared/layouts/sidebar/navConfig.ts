@@ -183,6 +183,11 @@ export const mainNavItems: MainNavItem[] = [
         path: "/operations/consultant/all/livechat",
         activePathPrefixes: ["/operations/consultant/all/livechat"],
       },
+      {
+        titleKey: "sidebar.operations.whatsappTemplates.title",
+        path: "/operations/consultant/whatsapp/templates",
+        activePathPrefixes: ["/operations/consultant/whatsapp/templates"],
+      },
     ],
   },
   {

@@ -1,7 +1,6 @@
 /**
  * Live Chat foreground notification presentation.
- * App-wide FCM registration (general + livechat tokens) should run from the app shell when wired;
- * this hook only handles Live Chat foreground presentation.
+ * Registrasi FCM + simpan token: `useNativeFcmRegistration` di `NativeFcmRegistration` (App shell).
  */
 import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";

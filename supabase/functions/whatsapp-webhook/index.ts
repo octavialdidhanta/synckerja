@@ -185,6 +185,51 @@ async function ensureLeadForNewConversation(
   console.log("ensureLeadForNewConversation: lead created", { ticket_id: ticketId, source });
 }
 
+/** Inline: Supabase deploy bundle resolves `index.ts` reliably; local `./notifyLivechatSendPush` import can fail to bundle. */
+type LivechatPushTable = "whatsapp_messages" | "instagram_messages" | "email_messages";
+
+function livechatPushUsesDatabaseWebhookOnly(): boolean {
+  return Deno.env.get("LIVECHAT_USE_DATABASE_WEBHOOK_FOR_PUSH") === "true";
+}
+
+async function notifyLivechatInboundPush(
+  table: LivechatPushTable,
+  record: Record<string, unknown>,
+): Promise<void> {
+  if (livechatPushUsesDatabaseWebhookOnly()) return;
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn("notifyLivechatInboundPush: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    return;
+  }
+
+  const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/livechat-send-push`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+      },
+      body: JSON.stringify({
+        type: "INSERT",
+        table,
+        schema: "public",
+        record,
+      }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      console.error("notifyLivechatInboundPush: livechat-send-push HTTP error", res.status, t.slice(0, 800));
+    }
+  } catch (e) {
+    console.error("notifyLivechatInboundPush: fetch failed", e);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const ts = new Date().toISOString();
@@ -427,6 +472,7 @@ Deno.serve(async (req: Request) => {
                 const convPayload: Record<string, unknown> = {
                   organization_id: orgId,
                   customer_wa_id: customerWaId,
+                  customer_external_id: customerWaId,
                   channel: "whatsapp",
                   phone_number_id: phoneNumberId,
                   last_message_at: timestamp,
@@ -551,7 +597,12 @@ Deno.serve(async (req: Request) => {
                   }
                 }
 
-                await supabase.from("whatsapp_messages").insert(insertPayload);
+                const { error: waInsertErr } = await supabase.from("whatsapp_messages").insert(insertPayload);
+                if (waInsertErr) {
+                  console.error("whatsapp_messages insert error", waInsertErr);
+                  continue;
+                }
+                await notifyLivechatInboundPush("whatsapp_messages", insertPayload);
                 // Sync last_message from actual latest message so preview is always correct
                 await supabase.rpc("sync_conversation_last_message", { p_conversation_id: conv.id });
 

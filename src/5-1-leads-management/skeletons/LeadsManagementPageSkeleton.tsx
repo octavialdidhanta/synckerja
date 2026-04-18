@@ -1,7 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
-/** Mirrors `HeaderAndTab.tsx`: `min-w-0 max-w-full px-1 py-3`, title, 6 CRM tabs. */
+/** Mirrors `HeaderAndTab.tsx`: `min-w-0 max-w-full px-1 py-3`, title, 7 CRM tabs. */
 function LeadsManagementHeaderTabSkeleton() {
   return (
     <div className="min-w-0 max-w-full px-1 py-3">
@@ -11,7 +11,7 @@ function LeadsManagementHeaderTabSkeleton() {
       </div>
       <div className="-mb-3 min-w-0 overflow-x-auto seamless-scroll">
         <nav className="flex min-w-0 flex-nowrap gap-x-6" aria-hidden>
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 7 }).map((_, i) => (
             <div
               key={i}
               className="flex cursor-default items-center space-x-1.5 border-b-2 border-transparent py-1.5 px-1"

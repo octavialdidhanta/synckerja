@@ -20,7 +20,7 @@ export function EmailConnectPageSkeleton() {
                   </div>
                   <div className="-mb-3 min-w-0">
                     <div className="flex min-w-0 flex-nowrap gap-x-6 border-b border-transparent pb-0">
-                      {Array.from({ length: 6 }).map((_, i) => (
+                      {Array.from({ length: 7 }).map((_, i) => (
                         <Skeleton key={i} className="h-9 w-[7.5rem] shrink-0 rounded-none" />
                       ))}
                     </div>

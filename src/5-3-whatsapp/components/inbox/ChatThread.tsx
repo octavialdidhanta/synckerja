@@ -112,7 +112,7 @@ function getDateKey(iso: string): string {
 function formatDateSeparator(
   iso: string,
   t: (key: string, fallback: string) => string,
-  dateLocale: Locale
+  locale: Locale
 ): string {
   const key = getDateKey(iso);
   const today = getDateKey(new Date().toISOString());
@@ -120,7 +120,7 @@ function formatDateSeparator(
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   if (key === getDateKey(yesterday.toISOString())) return t('whatsappInbox.yesterday', 'Kemarin');
-  return format(new Date(iso), 'd MMMM yyyy', { locale: dateLocale });
+  return format(new Date(iso), 'd MMMM yyyy', { locale });
 }
 
 function DateSeparator({ label }: { label: string }) {
@@ -617,7 +617,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
       return null;
     });
   }, []);
-  const { t, dateLocale } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const queryClient = useQueryClient();
   const isInstagram = (conversation as LiveChatConversation)?.source === 'instagram';
   const waMessagesQuery = useWhatsAppMessages(!isInstagram ? conversation?.id ?? null : null);
@@ -1719,7 +1719,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
               {msg.direction === 'outbound' && <CheckboxBtn />}
             </div>
               {showDateSeparatorAfter && (
-                <DateSeparator key={`date-${getDateKey(msg.created_at)}`} label={formatDateSeparator(msg.created_at, t, dateLocale)} />
+                <DateSeparator key={`date-${getDateKey(msg.created_at)}`} label={formatDateSeparator(msg.created_at, t, dateFnsLocale)} />
               )}
             </React.Fragment>
             );
@@ -1839,10 +1839,10 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
               </Button>
             </div>
           )}
-          <div className="flex min-h-[44px]">
+          <div className="flex min-h-[44px] items-center">
           <button
             type="button"
-            className={`shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50 self-end ${hideHeader ? 'p-2 pb-2.5' : 'p-2.5'}`}
+            className={`shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50 ${hideHeader ? 'p-2' : 'p-2.5'}`}
             disabled={isSending || isUploading || sendDisabled}
             onClick={() => !sendDisabled && fileInputRef.current?.click()}
             title={t('whatsappInbox.attachMedia', 'Attach image, video, or document')}
@@ -1865,7 +1865,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             }}
             rows={hideHeader ? 1 : 2}
             readOnly={sendDisabled}
-            className={`resize-none flex-1 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-transparent pr-1 pl-0 overflow-x-hidden seamless-scroll ${hideHeader ? 'min-h-[44px] max-h-[120px] py-2.5 text-base leading-normal' : 'min-h-[44px] py-2'}`}
+            className={`resize-none flex-1 self-center border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-transparent pr-1 pl-0 overflow-x-hidden seamless-scroll ${hideHeader ? 'min-h-[44px] max-h-[120px] py-2.5 text-base leading-normal' : 'min-h-[44px] py-2'}`}
           />
           <button
             type="button"
@@ -1877,7 +1877,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             disabled={sendDisabled || (!text.trim() && !pendingMedia) || isSending || isUploading}
             title={t('whatsappInbox.send', 'Send')}
             aria-label={t('whatsappInbox.send', 'Send')}
-            className={`shrink-0 self-end rounded-full bg-background border-2 border-border flex items-center justify-center text-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-background ${hideHeader ? 'mr-1.5 mb-1 w-9 h-9' : 'mr-1.5 w-9 h-9'}`}
+            className={`shrink-0 rounded-full bg-background border-2 border-border flex items-center justify-center text-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-background ${hideHeader ? 'mr-1.5 w-9 h-9' : 'mr-1.5 w-9 h-9'}`}
           >
             <Send className={hideHeader ? 'w-4 h-4' : 'w-4 h-4'} strokeWidth={2.5} />
           </button>

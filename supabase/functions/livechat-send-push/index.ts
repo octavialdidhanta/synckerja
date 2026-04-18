@@ -335,6 +335,13 @@ Deno.serve(async (req: Request) => {
       .in("user_id", userIds)
       .eq("context", "livechat");
     const fcmTokensList = (fcmRows ?? []) as { id: string; token: string }[];
+    console.log("livechat-send-push: targets", {
+      organizationId,
+      notifyUserCount: userIds.length,
+      pushSubscriptionCount: subs.length,
+      fcmLivechatTokenCount: fcmTokensList.length,
+      fcmSecretPresent: Boolean(fcmServiceAccountJson),
+    });
     if (fcmServiceAccountJson && fcmTokensList.length > 0) {
       try {
         const sa = JSON.parse(fcmServiceAccountJson) as { project_id?: string };
@@ -351,6 +358,13 @@ Deno.serve(async (req: Request) => {
             } else {
               if (result.status === 404 || result.status === 400) {
                 fcmToDelete.push(row.id);
+              } else {
+                console.error(
+                  "livechat-send-push: FCM send failed",
+                  row.id,
+                  result.status,
+                  (result.errorBody ?? "").slice(0, 400),
+                );
               }
             }
           }

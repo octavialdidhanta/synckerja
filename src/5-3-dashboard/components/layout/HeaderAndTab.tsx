@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, MessageCircle, Instagram, Mail, Inbox } from "lucide-react";
+import { LayoutDashboard, Users, MessageCircle, Instagram, Mail, Inbox, FileText } from "lucide-react";
 
 const tabs = [
   {
@@ -39,6 +39,12 @@ const tabs = [
     title: "Live Chat",
     icon: Inbox,
   },
+  {
+    key: "whatsapp-templates",
+    path: "/operations/consultant/whatsapp/templates",
+    title: "WhatsApp Template",
+    icon: FileText,
+  },
 ];
 
 export const HeaderAndTab = () => {
@@ -51,6 +57,7 @@ export const HeaderAndTab = () => {
     if (location.pathname.startsWith("/operations/consultant/instagram/connect")) return "instagram-connect";
     if (location.pathname.startsWith("/operations/consultant/email/connect")) return "email-connect";
     if (location.pathname.startsWith("/operations/consultant/all/livechat")) return "livechat";
+    if (location.pathname.startsWith("/operations/consultant/whatsapp/templates")) return "whatsapp-templates";
     const match = tabs.find((tab) => location.pathname.startsWith(tab.path));
     return match?.key ?? "leads-management";
   }, [location.pathname]);

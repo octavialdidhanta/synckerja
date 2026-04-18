@@ -23,7 +23,13 @@ import { cn } from '@/shared/lib/utils';
 import { Sparkles, FileText, Loader2, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { Switch } from '@/shared/components/ui/switch';
+import {
+  defaultModelForTextAIProvider,
+  isTextAIConfigured,
+  resolveTextAIProvider,
+  textAIProviderLabel,
+  type TextAIProvider,
+} from '@/6-1-script-generator/utils/scriptAiTextProvider';
 
 interface ProductKnowledgeGeneratePanelProps {
   productKnowledgeData: ProductKnowledge[];
@@ -77,8 +83,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
     (row) => row.feature_name?.trim() && row.feature_description?.trim()
   );
   const canGenerateAI = Boolean(
-    (audienceMode === 'B2B' ? industri.trim() : segmenKonsumen.trim()) &&
-    (aiConfig?.is_active || aiConfig?.api_key_configured)
+    (audienceMode === 'B2B' ? industri.trim() : segmenKonsumen.trim()) && isTextAIConfigured(aiConfig)
   );
 
   const handleGeneratePromptNoAI = () => {
@@ -110,8 +115,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
       );
       return;
     }
-    const useGroqForText = !!aiConfig?.is_active;
-    const isConfigured = useGroqForText || !!aiConfig?.api_key_configured;
+    const isConfigured = isTextAIConfigured(aiConfig);
     if (!isConfigured) {
       toast.error(
         t('scriptGenerator.settings.configNotFound', 'Script AI belum dikonfigurasi. Buka Settings > Script AI Generator.')
@@ -160,11 +164,12 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
     !!aiConfig &&
     typeof parseError === 'string' &&
     (parseError.includes('Prompt terlalu besar untuk Groq') ||
+      parseError.includes('Prompt terlalu besar') ||
       parseError.toLowerCase().includes('tpm') ||
       parseError.toLowerCase().includes('tokens per minute') ||
       parseError.includes('Request terlalu besar'));
 
-  const handleToggleProvider = async (nextUseGroq: boolean) => {
+  const handleSetTextAIProvider = async (next: TextAIProvider) => {
     if (!organizationId) {
       toast.error(t('common.error', 'Terjadi error.'));
       return;
@@ -175,8 +180,9 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
       const { error } = await supabase
         .from('organization_script_ai_config')
         .update({
-          is_active: nextUseGroq,
-          model: nextUseGroq ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash',
+          text_ai_provider: next,
+          is_active: next === 'groq',
+          model: defaultModelForTextAIProvider(next),
         })
         .eq('organization_id', organizationId);
 
@@ -186,7 +192,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
         t('productKnowledge.generate.switchedProvider', 'Text AI Provider berhasil diubah.')
       );
     } catch (e) {
-      console.error('switch to gemini:', e);
+      console.error('switch text ai provider:', e);
       toast.error(t('productKnowledge.generate.switchFailed', 'Gagal mengubah provider. Coba lagi.'));
     } finally {
       setIsTogglingProvider(false);
@@ -229,8 +235,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
       <div className="p-4 pt-4 flex flex-col gap-4">
 
         {(() => {
-          const useGroqForText = !!aiConfig?.is_active;
-          const isConfigured = useGroqForText || !!aiConfig?.api_key_configured;
+          const isConfigured = isTextAIConfigured(aiConfig);
           return !isConfigured;
         })() && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-2 flex-wrap">
@@ -245,7 +250,15 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
                   </Link>
                 </>
               )}
-              {!aiConfigLoading && !aiConfigError && aiConfig && !aiConfig.api_key_configured && t('productKnowledge.generate.apiKeyNotSet', 'API key belum dikonfigurasi di Settings.')}
+              {!aiConfigLoading &&
+                !aiConfigError &&
+                aiConfig &&
+                resolveTextAIProvider(aiConfig) === 'gemini' &&
+                !aiConfig.api_key_configured &&
+                t(
+                  'productKnowledge.generate.apiKeyNotSetGemini',
+                  'API key Gemini belum dikonfigurasi di Settings (dibutuhkan jika provider Text AI = Gemini).'
+                )}
             </span>
             {!aiConfigLoading && (
               <button
@@ -304,14 +317,26 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <p className="text-sm text-red-800 flex-1 min-w-0">{parseError}</p>
             {shouldShowProviderToggle && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-red-700">Gemini</span>
-                <Switch
-                  checked={!!aiConfig?.is_active}
-                  onCheckedChange={(checked) => handleToggleProvider(checked)}
-                  disabled={isTogglingProvider}
-                />
-                <span className="text-xs text-red-700">Groq</span>
+              <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                <span className="text-xs text-red-700">Ubah provider</span>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {(['gemini', 'groq', 'fireworks'] as const).map((p) => {
+                    const selected = resolveTextAIProvider(aiConfig) === p;
+                    return (
+                      <Button
+                        key={p}
+                        type="button"
+                        size="sm"
+                        variant={selected ? 'default' : 'outline'}
+                        className="h-8 px-3"
+                        disabled={isTogglingProvider}
+                        onClick={() => handleSetTextAIProvider(p)}
+                      >
+                        {textAIProviderLabel(p)}
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -347,18 +372,28 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
             {t('productKnowledge.generate.promptModalHint', 'Edit prompt jika perlu, lalu klik "Generate dengan AI".')}
           </p>
           {aiConfig && (
-            <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 flex-shrink-0">
+            <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 flex-shrink-0 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-xs font-medium text-gray-700">
-                Text AI Provider: <span className="font-semibold">{aiConfig.is_active ? 'Groq' : 'Gemini'}</span>
+                Text AI Provider:{' '}
+                <span className="font-semibold">{textAIProviderLabel(resolveTextAIProvider(aiConfig))}</span>
               </span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600">Gemini</span>
-                <Switch
-                  checked={!!aiConfig.is_active}
-                  onCheckedChange={(checked) => handleToggleProvider(checked)}
-                  disabled={isTogglingProvider}
-                />
-                <span className="text-xs text-gray-600">Groq</span>
+              <div className="flex flex-wrap gap-2">
+                {(['gemini', 'groq', 'fireworks'] as const).map((p) => {
+                  const selected = resolveTextAIProvider(aiConfig) === p;
+                  return (
+                    <Button
+                      key={p}
+                      type="button"
+                      size="sm"
+                      variant={selected ? 'default' : 'outline'}
+                      className="h-8 px-3"
+                      disabled={isTogglingProvider}
+                      onClick={() => handleSetTextAIProvider(p)}
+                    >
+                      {textAIProviderLabel(p)}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -452,7 +487,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
               onClick={handleGenerateWithAI}
               disabled={
                 !(audienceMode === 'B2B' ? industri.trim() : segmenKonsumen.trim()) ||
-                !(aiConfig && (aiConfig.is_active || aiConfig.api_key_configured)) ||
+                !isTextAIConfigured(aiConfig) ||
                 !editedPrompt.trim() ||
                 isGeneratingAI
               }

@@ -16,6 +16,7 @@ import { CapacitorKeyboardInsetProvider } from "@/shared/native/useCapacitorKeyb
 import { NativeAppDisplayInit } from "@/shared/components/mobile/NativeAppDisplayInit";
 import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVars";
 import { NativeBootstrapSplashGate } from "@/shared/components/mobile/NativeBootstrapSplashGate";
+import { NativeFcmRegistration } from "@/shared/native/NativeFcmRegistration";
 import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
@@ -70,6 +71,7 @@ import { SalesActivitiesPageSkeleton } from "@/5-2-activities/skeletons/SalesAct
 import { VisitSchedulingPageSkeleton } from "@/5-2-jadwal-kunjungan";
 import { ClientVisitsPageSkeleton } from "@/5-2-client_visits/skeletons/ClientVisitsPageSkeleton";
 import { WhatsAppConnectPageSkeleton } from "@/5-3-whatsapp/skeletons/WhatsAppConnectPageSkeleton";
+import { WhatsAppTemplatePageSkeleton } from "@/5-3-whatsapp-template/skeletons/WhatsAppTemplatePageSkeleton";
 import { KolManagementRouteLoadingShell } from "@/6-2-1-dashboard/kol-management/components/KolManagementRouteLoadingShell";
 import { KolManagementDashboardPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementDashboardPageSkeleton";
 import { KolManagementKolManagementPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementKolManagementPageSkeleton";
@@ -158,6 +160,9 @@ const InstagramConnectPage = lazy(() =>
 );
 const EmailConnectPage = lazy(() =>
   import("@/5-3-whatsapp/pages/EmailConnectPage").then((m) => ({ default: m.EmailConnectPage })),
+);
+const WhatsAppTemplatePage = lazy(() =>
+  import("@/5-3-whatsapp-template/pages/WhatsAppTemplatePage").then((m) => ({ default: m.WhatsAppTemplatePage })),
 );
 
 // Keep initial bundle small: lazy-load large desktop modules/pages.
@@ -1005,6 +1010,20 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
+              <Route
+                path="/operations/consultant/whatsapp/templates"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/consultant/whatsapp/templates"
+                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <WhatsAppTemplateSuspense>
+                      <WhatsAppTemplatePage />
+                    </WhatsAppTemplateSuspense>
+                  </PageAccessGuard>
+                }
+              />
               <Route element={<SubscriptionRoleGuard />}>
                 <Route path="/subscription" element={<Navigate to="/subscription/overview" replace />} />
                 <Route path="/subscription/overview" element={<SubscriptionOverviewRouteElement />} />
@@ -1082,6 +1101,22 @@ const WhatsAppConnectSuspense = ({ children }: { children: ReactNode }) => (
         aria-label="Loading"
       >
         <WhatsAppConnectPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const WhatsAppTemplateSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading WhatsApp templates"
+      >
+        <WhatsAppTemplatePageSkeleton />
       </div>
     }
   >
@@ -1422,6 +1457,7 @@ const App = () => (
             <PermissionConfigurationProvider>
               <CurrentOrgProvider>
               <NativeBootstrapSplashGate />
+              <NativeFcmRegistration />
               <LanguageProvider>
               <BrowserRouter
                 future={{
@@ -2150,6 +2186,20 @@ const App = () => (
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <ConsultantLivechatRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/consultant/whatsapp/templates"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/consultant/whatsapp/templates"
+                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <WhatsAppTemplateSuspense>
+                                <WhatsAppTemplatePage />
+                              </WhatsAppTemplateSuspense>
                             </PageAccessGuard>
                           }
                         />
