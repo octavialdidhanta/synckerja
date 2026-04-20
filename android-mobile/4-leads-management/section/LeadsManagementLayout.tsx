@@ -38,6 +38,13 @@ const defaultFilters: LeadsFilters = {
   source: 'all',
   dateRange: null,
   search: '',
+  utmSource: 'all',
+  utmMedium: 'all',
+  utmCampaign: 'all',
+  utmContent: 'all',
+  utmTerm: 'all',
+  attributionLabel: 'all',
+  landingUrlContains: '',
 };
 
 function hasActiveFilters(f: LeadsFilters): boolean {
@@ -46,6 +53,13 @@ function hasActiveFilters(f: LeadsFilters): boolean {
     f.services !== 'all' ||
     f.assignee !== 'all' ||
     f.status !== 'all' ||
+    f.utmSource !== 'all' ||
+    f.utmMedium !== 'all' ||
+    f.utmCampaign !== 'all' ||
+    f.utmContent !== 'all' ||
+    f.utmTerm !== 'all' ||
+    f.attributionLabel !== 'all' ||
+    (f.landingUrlContains ?? '').trim() !== '' ||
     (f.dateRange != null && (f.dateRange.from != null || f.dateRange.to != null))
   );
 }
@@ -124,6 +138,28 @@ export function LeadsManagementLayout() {
     if (filters.source !== 'all' && filters.source) {
       filtered = filtered.filter((lead) => lead.source === filters.source);
     }
+    if (filters.utmSource !== 'all' && filters.utmSource) {
+      filtered = filtered.filter((lead) => (lead.utm_source ?? '') === filters.utmSource);
+    }
+    if (filters.utmMedium !== 'all' && filters.utmMedium) {
+      filtered = filtered.filter((lead) => (lead.utm_medium ?? '') === filters.utmMedium);
+    }
+    if (filters.utmCampaign !== 'all' && filters.utmCampaign) {
+      filtered = filtered.filter((lead) => (lead.utm_campaign ?? '') === filters.utmCampaign);
+    }
+    if (filters.utmContent !== 'all' && filters.utmContent) {
+      filtered = filtered.filter((lead) => (lead.utm_content ?? '') === filters.utmContent);
+    }
+    if (filters.utmTerm !== 'all' && filters.utmTerm) {
+      filtered = filtered.filter((lead) => (lead.utm_term ?? '') === filters.utmTerm);
+    }
+    if (filters.attributionLabel !== 'all' && filters.attributionLabel) {
+      filtered = filtered.filter((lead) => (lead.attribution_label ?? '') === filters.attributionLabel);
+    }
+    const landingQ = (filters.landingUrlContains ?? '').trim().toLowerCase();
+    if (landingQ) {
+      filtered = filtered.filter((lead) => (lead.landing_url ?? '').toLowerCase().includes(landingQ));
+    }
     if (filters.dateRange?.from && filters.dateRange?.to) {
       const fromDate = new Date(filters.dateRange.from);
       const toDate = new Date(filters.dateRange.to);
@@ -149,7 +185,20 @@ export function LeadsManagementLayout() {
     if (listScrollRef.current) {
       listScrollRef.current.scrollTop = 0;
     }
-  }, [filters.dateRange, filters.source, filters.services, filters.assignee, filters.status]);
+  }, [
+    filters.dateRange,
+    filters.source,
+    filters.services,
+    filters.assignee,
+    filters.status,
+    filters.utmSource,
+    filters.utmMedium,
+    filters.utmCampaign,
+    filters.utmContent,
+    filters.utmTerm,
+    filters.attributionLabel,
+    filters.landingUrlContains,
+  ]);
 
   const handleRefresh = useCallback(async () => {
     setFilters(defaultFilters);
@@ -278,6 +327,7 @@ export function LeadsManagementLayout() {
                   filters={filters}
                   onFiltersChange={setFilters}
                   onAfterDateSelect={() => setDrawerOpen(false)}
+                  leadsForAttributionOptions={leads}
                 />
               </div>
             </DrawerContent>

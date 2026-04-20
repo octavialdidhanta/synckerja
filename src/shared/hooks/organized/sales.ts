@@ -9,6 +9,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentUserEmployee } from '@/1-home/components/HomeOKRDashboard/component/SectionGreetingsImport/useCurrentUserEmployee';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { isOutside24hWindow, isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
+import { emptyAttributionFlat, parseAttributionFields } from '@/shared/lib/leadAttribution';
 
 // Types
 export interface SalesActivity {
@@ -1035,6 +1036,33 @@ function filterLeadsByScope(
   return list.filter((item) => (item.assignee_id ?? null) == null);
 }
 
+function trimAttributionLabel(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
+
+/** Flatten `attribution` json for UI; virtual WA/IG rows have no marketing attribution. */
+function withLeadAttributionShape(lead: Record<string, unknown>): Record<string, unknown> {
+  const idStr = String(lead.id ?? '');
+  const fromWa = lead._fromWhatsApp === true || idStr.startsWith('wa-');
+  if (fromWa) {
+    const z = emptyAttributionFlat();
+    return {
+      ...lead,
+      attribution: null,
+      attribution_label: null,
+      ...z,
+    };
+  }
+  const flat = parseAttributionFields(lead.attribution);
+  return {
+    ...lead,
+    ...flat,
+    attribution_label: trimAttributionLabel(lead.attribution_label),
+  };
+}
+
 // Hook: useLeads
 export const useLeads = (options?: { scope?: LeadsScope }) => {
   const scope = options?.scope ?? 'mine';
@@ -1353,6 +1381,8 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       // Email: only show in leads list if they have a row in leads table (user clicked "Mark as lead" in livechat).
       // Do not merge email conversations without a lead as virtual leads.
+
+      leadsWithStatus = leadsWithStatus.map((row) => withLeadAttributionShape(row as Record<string, unknown>) as (typeof leadsWithStatus)[number]);
 
       return filterLeadsByScope(leadsWithStatus, effectiveScope, currentEmployeeId);
     },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { format, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import { RadioGroup, RadioGroupItem } from '@/shared/components/ui/radio-group';
@@ -12,6 +12,9 @@ import {
 } from '@/shared/components/ui/select';
 import { LeadsFilters } from '@/5-3-dashboard/components/leads/filters/LeadsFilters';
 import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
+import type { NewLead } from '@/types/leads';
+import { Input } from '@/shared/components/ui/input';
+import { distinctLeadAttributionValues } from '@/shared/lib/leadAttribution';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { CustomDatePicker } from '@/mobile-app/components/CustomDatePicker';
@@ -38,6 +41,7 @@ interface MobileLeadsFilterDrawerProps {
   filters: LeadsFilters;
   onFiltersChange: (filters: LeadsFilters) => void;
   onAfterDateSelect?: () => void;
+  leadsForAttributionOptions?: NewLead[];
 }
 
 const DATE_PRESET_VALUES = [
@@ -113,6 +117,7 @@ export function MobileLeadsFilterDrawer({
   filters,
   onFiltersChange,
   onAfterDateSelect,
+  leadsForAttributionOptions = [],
 }: MobileLeadsFilterDrawerProps) {
   const { t } = useAppTranslation();
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
@@ -182,6 +187,31 @@ export function MobileLeadsFilterDrawer({
       return true;
     });
   }, [leadStatuses]);
+
+  const utmSourceOptions = useMemo(
+    () => distinctLeadAttributionValues(leadsForAttributionOptions, 'utm_source'),
+    [leadsForAttributionOptions],
+  );
+  const utmMediumOptions = useMemo(
+    () => distinctLeadAttributionValues(leadsForAttributionOptions, 'utm_medium'),
+    [leadsForAttributionOptions],
+  );
+  const utmCampaignOptions = useMemo(
+    () => distinctLeadAttributionValues(leadsForAttributionOptions, 'utm_campaign'),
+    [leadsForAttributionOptions],
+  );
+  const utmContentOptions = useMemo(
+    () => distinctLeadAttributionValues(leadsForAttributionOptions, 'utm_content'),
+    [leadsForAttributionOptions],
+  );
+  const utmTermOptions = useMemo(
+    () => distinctLeadAttributionValues(leadsForAttributionOptions, 'utm_term'),
+    [leadsForAttributionOptions],
+  );
+  const attributionLabelOptions = useMemo(
+    () => distinctLeadAttributionValues(leadsForAttributionOptions, 'attribution_label'),
+    [leadsForAttributionOptions],
+  );
 
   return (
     <>
@@ -276,6 +306,117 @@ export function MobileLeadsFilterDrawer({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="border-t border-border pt-3 mt-1">
+          <p className="text-xs font-semibold text-muted-foreground mb-2">Attribution (UTM)</p>
+          <div className="grid gap-3">
+            <div className="grid gap-2">
+              <Label className="text-sm font-medium text-foreground">UTM Source</Label>
+              <Select value={filters.utmSource} onValueChange={(v) => updateFilters('utmSource', v)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="All UTM sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All UTM sources</SelectItem>
+                  {utmSourceOptions.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-sm font-medium text-foreground">UTM Campaign</Label>
+              <Select value={filters.utmCampaign} onValueChange={(v) => updateFilters('utmCampaign', v)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="All UTM campaigns" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All UTM campaigns</SelectItem>
+                  {utmCampaignOptions.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-sm font-medium text-foreground">UTM Medium</Label>
+              <Select value={filters.utmMedium} onValueChange={(v) => updateFilters('utmMedium', v)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="All UTM media" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All UTM media</SelectItem>
+                  {utmMediumOptions.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-sm font-medium text-foreground">UTM Content</Label>
+              <Select value={filters.utmContent} onValueChange={(v) => updateFilters('utmContent', v)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="All UTM content" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All UTM content</SelectItem>
+                  {utmContentOptions.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-sm font-medium text-foreground">UTM Term</Label>
+              <Select value={filters.utmTerm} onValueChange={(v) => updateFilters('utmTerm', v)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="All UTM terms" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All UTM terms</SelectItem>
+                  {utmTermOptions.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-sm font-medium text-foreground">Attribution label</Label>
+              <Select value={filters.attributionLabel} onValueChange={(v) => updateFilters('attributionLabel', v)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="All labels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All attribution labels</SelectItem>
+                  {attributionLabelOptions.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-sm font-medium text-foreground">Landing URL contains</Label>
+              <Input
+                className="h-10"
+                placeholder="Substring…"
+                value={filters.landingUrlContains}
+                onChange={(e) => updateFilters('landingUrlContains', e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { LeadsFilters, LeadsFilters as LeadsFiltersType } from '@/5-3-dashboard/components/leads/filters/LeadsFilters';
 import { LeadsMetricsCards } from '@/5-3-dashboard/components/leads/metrics/LeadsMetricsCards';
 import LeadsTableNew from '@/5-3-dashboard/components/leads/table/LeadsTableNew';
@@ -9,6 +9,8 @@ import { useLeads } from '@/shared/hooks/organized/sales';
 import { NewLead } from '@/types/leads';
 import { useClientProfileStatus } from '@/shared/hooks/organized/sales';
 import { supabase } from '@/shared/lib/supabaseClient';
+import type { LeadAttributionSortColumn } from '@/shared/lib/leadAttribution';
+import { defaultLeadAttributionSortState, sortLeadsByAttributionColumn } from '@/shared/lib/leadAttribution';
 
 interface ConsultantsTableViewContentProps {
   // No props needed now, using the hook
@@ -25,9 +27,25 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     fuPriority: 'all',
     status: 'all',
     source: 'all',
-    dateRange: null
+    dateRange: null,
+    search: '',
+    utmSource: 'all',
+    utmMedium: 'all',
+    utmCampaign: 'all',
+    utmContent: 'all',
+    utmTerm: 'all',
+    attributionLabel: 'all',
+    landingUrlContains: '',
   });
+  const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
+
+  const handleAttributionSort = useCallback((column: LeadAttributionSortColumn) => {
+    setAttributionSort((prev) => {
+      if (prev.column !== column) return { column, direction: 'asc' };
+      return { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+    });
+  }, []);
 
   const handleNewLeadClick = () => {
     setIsCreateDialogOpen(true);
@@ -166,6 +184,33 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
         return false;
       }
 
+      if (filters.utmSource !== 'all' && filters.utmSource && (lead.utm_source ?? '') !== filters.utmSource) {
+        return false;
+      }
+      if (filters.utmMedium !== 'all' && filters.utmMedium && (lead.utm_medium ?? '') !== filters.utmMedium) {
+        return false;
+      }
+      if (filters.utmCampaign !== 'all' && filters.utmCampaign && (lead.utm_campaign ?? '') !== filters.utmCampaign) {
+        return false;
+      }
+      if (filters.utmContent !== 'all' && filters.utmContent && (lead.utm_content ?? '') !== filters.utmContent) {
+        return false;
+      }
+      if (filters.utmTerm !== 'all' && filters.utmTerm && (lead.utm_term ?? '') !== filters.utmTerm) {
+        return false;
+      }
+      if (
+        filters.attributionLabel !== 'all' &&
+        filters.attributionLabel &&
+        (lead.attribution_label ?? '') !== filters.attributionLabel
+      ) {
+        return false;
+      }
+      const landingQ = (filters.landingUrlContains ?? '').trim().toLowerCase();
+      if (landingQ && !(lead.landing_url ?? '').toLowerCase().includes(landingQ)) {
+        return false;
+      }
+
       // Date range filter
       if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
         const leadDate = new Date(lead.created_at);
@@ -187,13 +232,23 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     return filtered;
   }, [leads, filters, clientStatuses]);
 
+  const sortedLeads = useMemo(
+    () => sortLeadsByAttributionColumn(filteredLeads, attributionSort),
+    [filteredLeads, attributionSort],
+  );
+
   return (
     <>
       <div className="p-2 flex flex-col xl:flex-row gap-2 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] overflow-hidden">
         {/* Main Content - Responsive layout */}
         <div className="flex-1 min-w-0" style={{ flex: '1.8' }}>
           {/* Compact Filter Section */}
-          <LeadsFilters onNewLeadClick={handleNewLeadClick} onFiltersChange={setFilters} filteredLeads={filteredLeads} />
+          <LeadsFilters
+            onNewLeadClick={handleNewLeadClick}
+            onFiltersChange={setFilters}
+            filteredLeads={filteredLeads}
+            leadsForAttributionOptions={leads}
+          />
           
           {/* Loading state */}
           {loading ? (
@@ -214,7 +269,14 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                 {/* Modern accent line */}
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500/60 via-indigo-500/40 to-purple-500/30"></div>
                 
-                <LeadsTableNew leads={filteredLeads} onUpdateLead={updateLead} onDeleteLead={deleteLead} onRefreshLeads={refetch} />
+                <LeadsTableNew
+                  leads={sortedLeads}
+                  onUpdateLead={updateLead}
+                  onDeleteLead={deleteLead}
+                  onRefreshLeads={refetch}
+                  attributionSort={attributionSort}
+                  onAttributionSort={handleAttributionSort}
+                />
               </div>
             </>
           )}

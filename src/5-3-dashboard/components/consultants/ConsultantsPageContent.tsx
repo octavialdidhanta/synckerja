@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LeadsFilters, LeadsFilters as LeadsFiltersType } from "@/5-3-dashboard/components/leads/filters/LeadsFilters";
@@ -16,6 +16,8 @@ import { Button } from '@/shared/components/ui/button';
 import { Download, Loader2 } from 'lucide-react';
 import { generateLeadsPDF } from "@/5-3-dashboard/lib/LeadsPDFGenerator";
 import { useToast } from '@/shared/components/ui/use-toast';
+import type { LeadAttributionSortColumn } from '@/shared/lib/leadAttribution';
+import { defaultLeadAttributionSortState, sortLeadsByAttributionColumn } from '@/shared/lib/leadAttribution';
 
 export const ConsultantsPageContent = () => {
   const { t } = useTranslation();
@@ -34,9 +36,24 @@ export const ConsultantsPageContent = () => {
     status: 'all',
     source: 'all',
     dateRange: null,
-    search: ''
+    search: '',
+    utmSource: 'all',
+    utmMedium: 'all',
+    utmCampaign: 'all',
+    utmContent: 'all',
+    utmTerm: 'all',
+    attributionLabel: 'all',
+    landingUrlContains: '',
   });
+  const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { leads, createLead, updateLead, deleteLead, refetch } = useLeads({ scope: 'all' });
+
+  const handleAttributionSort = useCallback((column: LeadAttributionSortColumn) => {
+    setAttributionSort((prev) => {
+      if (prev.column !== column) return { column, direction: 'asc' };
+      return { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+    });
+  }, []);
   const { data: employees = [] } = useAvailableEmployees();
   const { organizationId } = useCurrentOrg();
   const { clientStatuses, clientProfiles } = useLeadClientStatuses(leads);
@@ -119,6 +136,29 @@ export const ConsultantsPageContent = () => {
       filtered = filtered.filter(lead => lead.source === filters.source);
     }
 
+    if (filters.utmSource !== 'all' && filters.utmSource) {
+      filtered = filtered.filter((lead) => (lead.utm_source ?? '') === filters.utmSource);
+    }
+    if (filters.utmMedium !== 'all' && filters.utmMedium) {
+      filtered = filtered.filter((lead) => (lead.utm_medium ?? '') === filters.utmMedium);
+    }
+    if (filters.utmCampaign !== 'all' && filters.utmCampaign) {
+      filtered = filtered.filter((lead) => (lead.utm_campaign ?? '') === filters.utmCampaign);
+    }
+    if (filters.utmContent !== 'all' && filters.utmContent) {
+      filtered = filtered.filter((lead) => (lead.utm_content ?? '') === filters.utmContent);
+    }
+    if (filters.utmTerm !== 'all' && filters.utmTerm) {
+      filtered = filtered.filter((lead) => (lead.utm_term ?? '') === filters.utmTerm);
+    }
+    if (filters.attributionLabel !== 'all' && filters.attributionLabel) {
+      filtered = filtered.filter((lead) => (lead.attribution_label ?? '') === filters.attributionLabel);
+    }
+    const landingQ = (filters.landingUrlContains ?? '').trim().toLowerCase();
+    if (landingQ) {
+      filtered = filtered.filter((lead) => (lead.landing_url ?? '').toLowerCase().includes(landingQ));
+    }
+
     // Date range filter
     if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
       const fromDate = new Date(filters.dateRange.from);
@@ -134,6 +174,11 @@ export const ConsultantsPageContent = () => {
 
     return filtered;
   }, [leads, filters, clientStatuses]);
+
+  const sortedLeads = useMemo(
+    () => sortLeadsByAttributionColumn(filteredLeads, attributionSort),
+    [filteredLeads, attributionSort],
+  );
 
   const convertedLeads = filteredLeads.filter(lead => (lead.lead_status?.name?.trim().toLowerCase() ?? '') === 'converted').length;
 
@@ -185,6 +230,7 @@ export const ConsultantsPageContent = () => {
                 onFiltersChange={setFilters}
                 onNewLeadClick={handleNewLeadClick}
                 filteredLeads={filteredLeads}
+                leadsForAttributionOptions={leads}
               />
             </div>
             <div className="flex-shrink-0 px-2 pb-2">
@@ -246,6 +292,7 @@ export const ConsultantsPageContent = () => {
                   onFiltersChange={setFilters}
                   onNewLeadClick={handleNewLeadClick}
                   filteredLeads={filteredLeads}
+                  leadsForAttributionOptions={leads}
                 />
               </div>
             </div>
@@ -257,10 +304,12 @@ export const ConsultantsPageContent = () => {
                 {/* Area tabel saja yang scroll; footer tetap di bawah dan selalu terlihat */}
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <LeadsTableNew
-                    leads={filteredLeads}
+                    leads={sortedLeads}
                     onUpdateLead={updateLead}
                     onDeleteLead={deleteLead}
                     onRefreshLeads={refetch}
+                    attributionSort={attributionSort}
+                    onAttributionSort={handleAttributionSort}
                   />
                 </div>
                 <LeadsTableFooter 
@@ -298,7 +347,7 @@ export const ConsultantsPageContent = () => {
                 </Button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4">
+            <div className="scrollbar-hide flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <LeadsInsights 
                 leads={filteredLeads} 
                 filters={filters} 

@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/components/ui/select';
-import { X, User, Calendar, BarChart3, Activity, UserCheck, MessageCircle } from 'lucide-react';
+import { X, User, Calendar, BarChart3, Activity, UserCheck, MessageCircle, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { NewLead } from '@/types/leads';
@@ -71,6 +71,17 @@ export function ViewLeadDialogMobile({
     };
     return colors[status ?? ''] ?? colors.Open;
   };
+
+  const hasAttributionDetail =
+    Boolean(
+      (lead.utm_source ?? '').trim() ||
+        (lead.utm_medium ?? '').trim() ||
+        (lead.utm_campaign ?? '').trim() ||
+        (lead.utm_content ?? '').trim() ||
+        (lead.utm_term ?? '').trim() ||
+        (lead.landing_url ?? '').trim() ||
+        (lead.attribution_label ?? '').trim(),
+    );
 
   const getSourceColor = (source?: string) => {
     const colors: Record<string, string> = {
@@ -232,6 +243,61 @@ export function ViewLeadDialogMobile({
               </div>
             </div>
           </section>
+
+          {hasAttributionDetail && (
+            <section className="rounded-lg border border-border bg-muted/15 overflow-hidden">
+              <div className="p-2.5 space-y-2">
+                <h3 className="text-sm font-medium flex items-center gap-2 text-foreground">
+                  <Megaphone className="h-4 w-4 text-muted-foreground shrink-0" />
+                  Attribution
+                </h3>
+                <div className="space-y-2 text-sm">
+                  {lead.utm_source?.trim() && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">UTM Source</span>
+                      <p className="font-medium break-all">{lead.utm_source}</p>
+                    </div>
+                  )}
+                  {lead.utm_campaign?.trim() && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">UTM Campaign</span>
+                      <p className="font-medium break-all">{lead.utm_campaign}</p>
+                    </div>
+                  )}
+                  {lead.utm_medium?.trim() && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">UTM Medium</span>
+                      <p className="font-medium break-all">{lead.utm_medium}</p>
+                    </div>
+                  )}
+                  {lead.utm_content?.trim() && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">UTM Content</span>
+                      <p className="font-medium break-all">{lead.utm_content}</p>
+                    </div>
+                  )}
+                  {lead.utm_term?.trim() && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">UTM Term</span>
+                      <p className="font-medium break-all">{lead.utm_term}</p>
+                    </div>
+                  )}
+                  {lead.attribution_label?.trim() && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">Attribution label</span>
+                      <p className="font-medium break-all">{lead.attribution_label}</p>
+                    </div>
+                  )}
+                  {lead.landing_url?.trim() && (
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">Landing URL</span>
+                      <p className="font-medium break-all">{lead.landing_url}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Section: Follow-up */}
           <section className="rounded-lg border border-border bg-muted/15 overflow-hidden">

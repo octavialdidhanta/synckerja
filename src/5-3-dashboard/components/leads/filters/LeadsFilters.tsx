@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
 import { Search, Plus, MoreVertical, Download, RefreshCw, Loader2 } from 'lucide-react';
@@ -13,6 +13,7 @@ import { generateLeadsPDF } from "@/5-3-dashboard/lib/LeadsPDFGenerator";
 import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
 import { NewLead } from '@/shared/types/leads';
 import { useToast } from '@/shared/components/ui/use-toast';
+import { distinctLeadAttributionValues } from '@/shared/lib/leadAttribution';
 
 export interface LeadsFilters {
   dataCompleteness: 'all' | 'full' | 'partial' | 'empty';
@@ -24,6 +25,13 @@ export interface LeadsFilters {
   source: string;
   dateRange: DateRange | null;
   search?: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent: string;
+  utmTerm: string;
+  attributionLabel: string;
+  landingUrlContains: string;
 }
 
 interface LeadsFiltersProps {
@@ -31,9 +39,17 @@ interface LeadsFiltersProps {
   onFiltersChange: (filters: LeadsFilters) => void;
   filteredLeads?: NewLead[];
   filters?: LeadsFilters;
+  /** Prefer full `useLeads()` list so attribution dropdowns are not limited by other filters. */
+  leadsForAttributionOptions?: NewLead[];
 }
 
-export const LeadsFilters = ({ onNewLeadClick, onFiltersChange, filteredLeads = [], filters: externalFilters }: LeadsFiltersProps) => {
+export const LeadsFilters = ({
+  onNewLeadClick,
+  onFiltersChange,
+  filteredLeads = [],
+  filters: externalFilters,
+  leadsForAttributionOptions,
+}: LeadsFiltersProps) => {
   const { data: employees = [] } = useAvailableEmployees();
   const {
     leadStatuses,
@@ -54,8 +70,41 @@ export const LeadsFilters = ({ onNewLeadClick, onFiltersChange, filteredLeads = 
     status: 'all',
     source: 'all',
     dateRange: null,
-    search: ''
+    search: '',
+    utmSource: 'all',
+    utmMedium: 'all',
+    utmCampaign: 'all',
+    utmContent: 'all',
+    utmTerm: 'all',
+    attributionLabel: 'all',
+    landingUrlContains: '',
   });
+
+  const attributionOptionLeads = leadsForAttributionOptions ?? filteredLeads;
+  const utmSourceOptions = useMemo(
+    () => distinctLeadAttributionValues(attributionOptionLeads, 'utm_source'),
+    [attributionOptionLeads],
+  );
+  const utmMediumOptions = useMemo(
+    () => distinctLeadAttributionValues(attributionOptionLeads, 'utm_medium'),
+    [attributionOptionLeads],
+  );
+  const utmCampaignOptions = useMemo(
+    () => distinctLeadAttributionValues(attributionOptionLeads, 'utm_campaign'),
+    [attributionOptionLeads],
+  );
+  const utmContentOptions = useMemo(
+    () => distinctLeadAttributionValues(attributionOptionLeads, 'utm_content'),
+    [attributionOptionLeads],
+  );
+  const utmTermOptions = useMemo(
+    () => distinctLeadAttributionValues(attributionOptionLeads, 'utm_term'),
+    [attributionOptionLeads],
+  );
+  const attributionLabelOptions = useMemo(
+    () => distinctLeadAttributionValues(attributionOptionLeads, 'attribution_label'),
+    [attributionOptionLeads],
+  );
 
   const updateFilters = (key: keyof LeadsFilters, value: string | DateRange | null) => {
     const newFilters = { ...filters, [key]: value };
@@ -73,7 +122,14 @@ export const LeadsFilters = ({ onNewLeadClick, onFiltersChange, filteredLeads = 
       status: 'all',
       source: 'all',
       dateRange: null,
-      search: ''
+      search: '',
+      utmSource: 'all',
+      utmMedium: 'all',
+      utmCampaign: 'all',
+      utmContent: 'all',
+      utmTerm: 'all',
+      attributionLabel: 'all',
+      landingUrlContains: '',
     };
     setFilters(clearedFilters);
     onFiltersChange(clearedFilters);
@@ -121,6 +177,7 @@ export const LeadsFilters = ({ onNewLeadClick, onFiltersChange, filteredLeads = 
       {filtersLoadError && (
         <div className="w-full text-xs text-amber-600 mb-1.5">{filtersLoadError}</div>
       )}
+      <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap gap-1.5 items-center">
         {/* Search Input */}
         <div className="relative flex-1 min-w-[150px]">
@@ -313,6 +370,97 @@ export const LeadsFilters = ({ onNewLeadClick, onFiltersChange, filteredLeads = 
           <Plus className="h-4 w-4 mr-1" />
           New Lead
         </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 items-center">
+        <Select value={filters.utmSource} onValueChange={(value) => updateFilters('utmSource', value)}>
+          <SelectTrigger className="h-9 w-full min-w-[7rem] max-w-[11rem] shrink-0 text-sm sm:w-36">
+            <SelectValue placeholder="UTM Source" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All UTM sources</SelectItem>
+            {utmSourceOptions.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filters.utmCampaign} onValueChange={(value) => updateFilters('utmCampaign', value)}>
+          <SelectTrigger className="h-9 w-full min-w-[7rem] max-w-[11rem] shrink-0 text-sm sm:w-36">
+            <SelectValue placeholder="UTM Campaign" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All UTM campaigns</SelectItem>
+            {utmCampaignOptions.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filters.utmMedium} onValueChange={(value) => updateFilters('utmMedium', value)}>
+          <SelectTrigger className="h-9 w-full min-w-[7rem] max-w-[11rem] shrink-0 text-sm sm:w-36">
+            <SelectValue placeholder="UTM Medium" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All UTM media</SelectItem>
+            {utmMediumOptions.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filters.utmContent} onValueChange={(value) => updateFilters('utmContent', value)}>
+          <SelectTrigger className="h-9 w-full min-w-[7rem] max-w-[11rem] shrink-0 text-sm sm:w-36">
+            <SelectValue placeholder="UTM Content" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All UTM content</SelectItem>
+            {utmContentOptions.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filters.utmTerm} onValueChange={(value) => updateFilters('utmTerm', value)}>
+          <SelectTrigger className="h-9 w-full min-w-[7rem] max-w-[11rem] shrink-0 text-sm sm:w-36">
+            <SelectValue placeholder="UTM Term" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All UTM terms</SelectItem>
+            {utmTermOptions.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filters.attributionLabel} onValueChange={(value) => updateFilters('attributionLabel', value)}>
+          <SelectTrigger className="h-9 w-full min-w-[7rem] max-w-[11rem] shrink-0 text-sm sm:w-40">
+            <SelectValue placeholder="Attribution label" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All attribution labels</SelectItem>
+            {attributionLabelOptions.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="min-w-[10rem] flex-1">
+          <Input
+            type="text"
+            placeholder="Landing URL contains…"
+            value={filters.landingUrlContains}
+            onChange={(e) => updateFilters('landingUrlContains', e.target.value)}
+            className="h-9 border border-gray-300 text-sm"
+          />
+        </div>
+      </div>
       </div>
 
       <StatusManagement 

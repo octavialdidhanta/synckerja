@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { Globe, User, Calendar, Briefcase, Flag } from 'lucide-react';
+import { Globe, User, Calendar, Briefcase, Flag, Megaphone } from 'lucide-react';
 import { NewLead } from '@/types/leads';
 import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
 import { isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
@@ -34,6 +34,15 @@ export function LeadCard({ lead, onPress }: LeadCardProps) {
   const hasService = lead.services && lead.services.trim() !== '';
   const hasSource = lead.source && lead.source.trim() !== '';
   const hasAssignee = lead.assignee && lead.assignee.trim() !== '';
+  const attrRows: { label: string; value: string }[] = [];
+  if (lead.utm_source?.trim()) attrRows.push({ label: 'UTM Source', value: lead.utm_source.trim() });
+  if (lead.utm_campaign?.trim()) attrRows.push({ label: 'UTM Campaign', value: lead.utm_campaign.trim() });
+  if (lead.utm_medium?.trim()) attrRows.push({ label: 'UTM Medium', value: lead.utm_medium.trim() });
+  if (lead.utm_content?.trim()) attrRows.push({ label: 'UTM Content', value: lead.utm_content.trim() });
+  if (lead.utm_term?.trim()) attrRows.push({ label: 'UTM Term', value: lead.utm_term.trim() });
+  if (lead.attribution_label?.trim()) attrRows.push({ label: 'Label', value: lead.attribution_label.trim() });
+  if (lead.landing_url?.trim()) attrRows.push({ label: 'Landing', value: lead.landing_url.trim() });
+  const hasAttribution = attrRows.length > 0;
   const displayFuPriority = lead.followup === 0 ? 'Please Follow Up' : (lead.fu_priority || 'Medium');
 
   return (
@@ -79,6 +88,22 @@ export function LeadCard({ lead, onPress }: LeadCardProps) {
               <Globe className={ICON_CLASS} aria-hidden />
               <span className="shrink-0 font-medium text-foreground/70">{t('leadsManagement.filter.source', 'Sumber')}:</span>
               <span className="truncate" title={lead.source ?? undefined}>{lead.source}</span>
+            </div>
+          )}
+          {hasAttribution && (
+            <div className="mt-1.5 space-y-1 rounded-md border border-border/60 bg-muted/20 px-2 py-1.5">
+              <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <Megaphone className="h-3 w-3 shrink-0" aria-hidden />
+                Attribution
+              </div>
+              {attrRows.map((row) => (
+                <div key={row.label} className="flex items-start gap-1.5 text-xs text-muted-foreground min-w-0">
+                  <span className="shrink-0 font-medium text-foreground/70">{row.label}:</span>
+                  <span className="min-w-0 break-all" title={row.value}>
+                    {row.value}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
           {hasAssignee && (

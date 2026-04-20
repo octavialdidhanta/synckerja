@@ -247,8 +247,8 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
                 <TableHead className="w-[120px] font-semibold">Ticket ID</TableHead>
                 <TableHead className="w-[150px] font-semibold">Client</TableHead>
                 <TableHead className="w-[200px] font-semibold">Title</TableHead>
-                <TableHead className="w-[120px] font-semibold">Services</TableHead>
-                <TableHead className="w-[120px] font-semibold">Category</TableHead>
+                <TableHead className="w-[280px] max-w-[280px] font-semibold">Services</TableHead>
+                <TableHead className="w-[200px] max-w-[200px] font-semibold">Category</TableHead>
                 <TableHead className="w-[120px] font-semibold">Created By</TableHead>
                 <TableHead className="w-[100px] font-semibold">Source</TableHead>
                 <TableHead className="w-[120px] font-semibold">Assignee</TableHead>
@@ -282,11 +282,13 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
                     <TableCell className="w-[200px] max-w-[200px] min-w-0 overflow-hidden">
                       <span className="text-sm truncate block" title={lead.title ?? ''}>{lead.title}</span>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <span className="text-sm">{lead.services || '-'}</span>
+                    <TableCell className="w-[280px] max-w-[280px] min-w-0 overflow-hidden align-middle">
+                      <span className="text-sm leading-normal block truncate" title={(lead.services ?? '').trim() || undefined}>
+                        {lead.services?.trim() ? lead.services : '-'}
+                      </span>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <span className="text-sm">{lead.category}</span>
+                    <TableCell className="max-w-[200px] min-w-0 align-middle whitespace-nowrap">
+                      <span className="text-sm leading-normal block truncate" title={lead.category ?? ''}>{lead.category}</span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       <Badge

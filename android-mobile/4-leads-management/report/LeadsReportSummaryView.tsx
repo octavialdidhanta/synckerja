@@ -34,6 +34,13 @@ const defaultFilters: LeadsFilters = {
   source: 'all',
   dateRange: null,
   search: '',
+  utmSource: 'all',
+  utmMedium: 'all',
+  utmCampaign: 'all',
+  utmContent: 'all',
+  utmTerm: 'all',
+  attributionLabel: 'all',
+  landingUrlContains: '',
 };
 
 export function LeadsReportSummaryView() {
@@ -151,6 +158,28 @@ export function LeadsReportSummaryView() {
     }
     if (filters.source !== 'all' && filters.source) {
       filtered = filtered.filter((lead) => lead.source === filters.source);
+    }
+    if (filters.utmSource !== 'all' && filters.utmSource) {
+      filtered = filtered.filter((lead) => (lead.utm_source ?? '') === filters.utmSource);
+    }
+    if (filters.utmMedium !== 'all' && filters.utmMedium) {
+      filtered = filtered.filter((lead) => (lead.utm_medium ?? '') === filters.utmMedium);
+    }
+    if (filters.utmCampaign !== 'all' && filters.utmCampaign) {
+      filtered = filtered.filter((lead) => (lead.utm_campaign ?? '') === filters.utmCampaign);
+    }
+    if (filters.utmContent !== 'all' && filters.utmContent) {
+      filtered = filtered.filter((lead) => (lead.utm_content ?? '') === filters.utmContent);
+    }
+    if (filters.utmTerm !== 'all' && filters.utmTerm) {
+      filtered = filtered.filter((lead) => (lead.utm_term ?? '') === filters.utmTerm);
+    }
+    if (filters.attributionLabel !== 'all' && filters.attributionLabel) {
+      filtered = filtered.filter((lead) => (lead.attribution_label ?? '') === filters.attributionLabel);
+    }
+    const landingQ = (filters.landingUrlContains ?? '').trim().toLowerCase();
+    if (landingQ) {
+      filtered = filtered.filter((lead) => (lead.landing_url ?? '').toLowerCase().includes(landingQ));
     }
     if (filters.dateRange?.from && filters.dateRange?.to) {
       const fromDate = new Date(filters.dateRange.from);

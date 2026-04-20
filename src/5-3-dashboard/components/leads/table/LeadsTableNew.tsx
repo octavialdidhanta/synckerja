@@ -4,7 +4,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { History, Clock } from "lucide-react";
+import { History, Clock, ChevronDown, ChevronUp, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { NewLead } from '@/shared/types/leads';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -20,15 +20,35 @@ import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { useLeadStatusesActiveFull } from "@/5-3-dashboard/hooks/useLeadsManagementFilterQueries";
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useToast } from '@/shared/components/ui/use-toast';
+import type { LeadAttributionSortColumn, LeadAttributionSortState } from '@/shared/lib/leadAttribution';
+import { defaultLeadAttributionSortState } from '@/shared/lib/leadAttribution';
+
+type TableHeadCol = {
+  key: string;
+  label: string;
+  width: string;
+  sortKey?: LeadAttributionSortColumn;
+};
 
 interface LeadsTableNewProps {
   leads: NewLead[];
   onUpdateLead: (lead: NewLead) => void;
   onDeleteLead: (leadId: string) => void;
   onRefreshLeads?: () => void;
+  attributionSort?: LeadAttributionSortState;
+  onAttributionSort?: (column: LeadAttributionSortColumn) => void;
 }
 
-export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRefreshLeads }: LeadsTableNewProps) {
+const TABLE_COL_COUNT = 20;
+
+export default function LeadsTableNew({
+  leads,
+  onUpdateLead,
+  onDeleteLead,
+  onRefreshLeads,
+  attributionSort = defaultLeadAttributionSortState,
+  onAttributionSort,
+}: LeadsTableNewProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const { organizationId } = useCurrentOrg();
@@ -238,21 +258,48 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
     }
   };
 
-  const tableHeaders = useMemo(() => [
+  const tableHeaders = useMemo((): TableHeadCol[] => [
     { key: 'created', label: 'Created', width: 'w-[100px]' },
     { key: 'ticket', label: 'Ticket ID', width: 'w-[120px]' },
     { key: 'client', label: 'Client', width: 'w-[150px]' },
     { key: 'title', label: 'Title', width: 'w-[200px]' },
-    { key: 'services', label: 'Services', width: 'w-[120px]' },
-    { key: 'category', label: 'Category', width: 'w-[120px]' },
+    { key: 'services', label: 'Services', width: 'w-[280px] max-w-[280px]' },
+    { key: 'category', label: 'Category', width: 'w-[200px] max-w-[200px]' },
     { key: 'created_by', label: 'Created By', width: 'w-[120px]' },
     { key: 'source', label: 'Source', width: 'w-[100px]' },
+    { key: 'utm_source', label: 'UTM Source', width: 'w-[110px]', sortKey: 'utm_source' },
+    { key: 'utm_campaign', label: 'UTM Campaign', width: 'w-[130px]', sortKey: 'utm_campaign' },
+    { key: 'utm_medium', label: 'UTM Medium', width: 'w-[120px]', sortKey: 'utm_medium' },
+    { key: 'utm_content', label: 'UTM Content', width: 'w-[120px]', sortKey: 'utm_content' },
+    { key: 'utm_term', label: 'UTM Term', width: 'w-[110px]', sortKey: 'utm_term' },
+    { key: 'landing_url', label: 'Landing URL', width: 'w-[200px] max-w-[220px]', sortKey: 'landing_url' },
+    { key: 'attribution_label', label: 'Attribution label', width: 'w-[120px]', sortKey: 'attribution_label' },
     { key: 'assignee', label: 'Assignee', width: 'w-[120px]' },
     { key: 'followup', label: 'Follow Up', width: 'w-[100px]' },
     { key: 'fu_priority', label: 'FU Priority', width: 'w-[120px]' },
     { key: 'status', label: 'Status', width: 'w-[120px]' },
     { key: 'actions', label: 'Actions', width: 'w-[100px]' },
   ], []);
+
+  const renderAttributionSortHead = (header: TableHeadCol) => {
+    const sk = header.sortKey;
+    if (!sk || !onAttributionSort) {
+      return header.label;
+    }
+    const active = attributionSort.column === sk;
+    const Icon = !active ? ArrowUpDown : attributionSort.direction === 'asc' ? ChevronUp : ChevronDown;
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-0.5 text-left font-medium text-gray-700 hover:text-gray-900"
+        onClick={() => onAttributionSort(sk)}
+        aria-sort={active ? (attributionSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        <span>{header.label}</span>
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-gray-900' : 'text-gray-400'}`} aria-hidden />
+      </button>
+    );
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -263,7 +310,7 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
             <TableRow className="hover:bg-transparent">
               {tableHeaders.map((header) => (
                 <TableHead key={header.key} className={`text-xs font-medium text-gray-700 ${header.width} px-3 bg-gray-50 whitespace-nowrap`}>
-                  {header.label}
+                  {renderAttributionSortHead(header)}
                 </TableHead>
               ))}
             </TableRow>
@@ -271,7 +318,7 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
           <TableBody>
             {leads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-8 text-gray-500 text-sm">
+                <TableCell colSpan={TABLE_COL_COUNT} className="text-center py-8 text-gray-500 text-sm">
                   <div className="flex flex-col items-center space-y-2">
                     <div className="text-lg">📊</div>
                     <div>No leads found</div>
@@ -299,14 +346,16 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
                       <ClientStatusIcon leadId={lead.id} />
                     </div>
                   </TableCell>
-                  <TableCell className="w-[200px] max-w-[200px] min-w-0 overflow-hidden">
-                    <span className="text-sm truncate block" title={lead.title ?? ''}>{lead.title}</span>
+                  <TableCell className="w-[200px] max-w-[200px] min-w-0 overflow-hidden align-middle">
+                    <span className="text-sm leading-normal truncate block" title={lead.title ?? ''}>{lead.title}</span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <span className="text-sm">{lead.services || '-'}</span>
+                  <TableCell className="w-[280px] max-w-[280px] min-w-0 overflow-hidden align-middle">
+                    <span className="text-sm leading-normal block truncate" title={(lead.services ?? '').trim() || undefined}>
+                      {lead.services?.trim() ? lead.services : '-'}
+                    </span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <span className="text-sm">{lead.category}</span>
+                  <TableCell className="max-w-[200px] min-w-0 align-middle whitespace-nowrap">
+                    <span className="text-sm leading-normal block truncate" title={lead.category ?? ''}>{lead.category}</span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Badge
@@ -321,6 +370,31 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
                     <Badge className={`${getSourceColor(lead.source)} text-xs px-3 py-1 rounded-sm font-medium border w-32 justify-center`}>
                       {lead.source || 'Website'}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
+                    {lead.utm_source?.trim() ? <span title={lead.utm_source}>{lead.utm_source}</span> : null}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
+                    {lead.utm_campaign?.trim() ? <span title={lead.utm_campaign}>{lead.utm_campaign}</span> : null}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
+                    {lead.utm_medium?.trim() ? <span title={lead.utm_medium}>{lead.utm_medium}</span> : null}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
+                    {lead.utm_content?.trim() ? <span title={lead.utm_content}>{lead.utm_content}</span> : null}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
+                    {lead.utm_term?.trim() ? <span title={lead.utm_term}>{lead.utm_term}</span> : null}
+                  </TableCell>
+                  <TableCell className="min-w-0 max-w-[220px] text-xs text-gray-800">
+                    {lead.landing_url?.trim() ? (
+                      <span className="block truncate" title={lead.landing_url}>
+                        {lead.landing_url}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
+                    {lead.attribution_label?.trim() ? <span title={lead.attribution_label}>{lead.attribution_label}</span> : null}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Select

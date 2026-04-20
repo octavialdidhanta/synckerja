@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
-import { X, User, Calendar, Tag, UserCheck, BarChart3, Activity, Globe } from "lucide-react";
+import { X, User, Calendar, BarChart3, Activity, Megaphone } from "lucide-react";
 import { format } from "date-fns";
 import { NewLead } from '@/shared/types/leads';
 import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
@@ -44,6 +44,17 @@ export const ViewLeadDialog = ({
     };
     return colors[status as keyof typeof colors] || colors.Open;
   };
+
+  const hasAttributionDetail =
+    Boolean(
+      (lead.utm_source ?? '').trim() ||
+        (lead.utm_medium ?? '').trim() ||
+        (lead.utm_campaign ?? '').trim() ||
+        (lead.utm_content ?? '').trim() ||
+        (lead.utm_term ?? '').trim() ||
+        (lead.landing_url ?? '').trim() ||
+        (lead.attribution_label ?? '').trim(),
+    );
 
   const getSourceColor = (source?: string) => {
     const colors = {
@@ -132,6 +143,59 @@ export const ViewLeadDialog = ({
               </div>
             </div>
           </div>
+
+          {hasAttributionDetail && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-gray-500" />
+                Attribution
+              </h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {lead.utm_source?.trim() && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">UTM Source</label>
+                    <p className="text-sm font-medium mt-1 break-all">{lead.utm_source}</p>
+                  </div>
+                )}
+                {lead.utm_campaign?.trim() && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">UTM Campaign</label>
+                    <p className="text-sm font-medium mt-1 break-all">{lead.utm_campaign}</p>
+                  </div>
+                )}
+                {lead.utm_medium?.trim() && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">UTM Medium</label>
+                    <p className="text-sm font-medium mt-1 break-all">{lead.utm_medium}</p>
+                  </div>
+                )}
+                {lead.utm_content?.trim() && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">UTM Content</label>
+                    <p className="text-sm font-medium mt-1 break-all">{lead.utm_content}</p>
+                  </div>
+                )}
+                {lead.utm_term?.trim() && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">UTM Term</label>
+                    <p className="text-sm font-medium mt-1 break-all">{lead.utm_term}</p>
+                  </div>
+                )}
+                {lead.attribution_label?.trim() && (
+                  <div className="sm:col-span-2">
+                    <label className="text-sm font-medium text-gray-500">Attribution label</label>
+                    <p className="text-sm font-medium mt-1 break-all">{lead.attribution_label}</p>
+                  </div>
+                )}
+                {lead.landing_url?.trim() && (
+                  <div className="sm:col-span-2">
+                    <label className="text-sm font-medium text-gray-500">Landing URL</label>
+                    <p className="text-sm font-medium mt-1 break-all">{lead.landing_url}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Follow-up Information */}
           <div className="space-y-4">

@@ -9,50 +9,84 @@ import { useLeads } from "@/shared/hooks/organized/sales";
 import { LeadsManagementPageSkeleton } from "@/5-1-leads-management/skeletons/LeadsManagementPageSkeleton";
 import { cn } from "@/shared/lib/utils";
 
-const SKELETON_HIDE_DELAY_MS = 200;
-
 /**
  * /operations/consultant/leads-management — Seamless Page Scroll Layout
  * (`.cursor/rules/Seamless Page Scroll Layout.mdc`).
  * One layout-matched skeleton overlay until org + leads + employees + filter metadata are ready
  * (`.cursor/rules/Loading Skeleton.mdc`).
+ *
+ * Anti-flicker on reload:
+ * - Use `initialLoadPending` from leads (first fetch / employee gate), not only `isLoading`.
+ * - Reveal main content with `opacity: 0` under the overlay (compositing) then instant `opacity: 1` when ready (no fade that would flash empty).
+ * - Defer removing the overlay with double rAF after data is ready so the browser can commit layout first.
  */
 export const ConsultantDashboardPage = () => {
   const [searchParams] = useSearchParams();
   const isReportView = searchParams.get("view") === "report";
 
   const { loading: orgLoading, organizationId } = useCurrentOrg();
-  const { loading: leadsLoading } = useLeads({ scope: "all" });
+  const { initialLoadPending: leadsInitialPending } = useLeads({ scope: "all" });
   const employeesQuery = useAvailableEmployees();
   const { metadataPending } = useLeadsManagementFilterQueries();
 
-  const employeesPending = Boolean(organizationId) && employeesQuery.isPending;
+  const employeesInitialPending =
+    Boolean(organizationId) &&
+    (employeesQuery.isPending ||
+      (employeesQuery.isFetching && employeesQuery.dataUpdatedAt === 0));
 
   const rawPending =
     orgLoading ||
     (Boolean(organizationId) &&
-      (leadsLoading || employeesPending || metadataPending));
+      (leadsInitialPending || employeesInitialPending || metadataPending));
 
   const [showOverlay, setShowOverlay] = useState(true);
-  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealRafOuterRef = useRef<number | null>(null);
+  const revealRafInnerRef = useRef<number | null>(null);
+  const hideOverlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (rawPending) {
-      if (hideTimeoutRef.current) {
-        clearTimeout(hideTimeoutRef.current);
-        hideTimeoutRef.current = null;
+      if (revealRafOuterRef.current != null) {
+        cancelAnimationFrame(revealRafOuterRef.current);
+        revealRafOuterRef.current = null;
+      }
+      if (revealRafInnerRef.current != null) {
+        cancelAnimationFrame(revealRafInnerRef.current);
+        revealRafInnerRef.current = null;
+      }
+      if (hideOverlayTimeoutRef.current != null) {
+        clearTimeout(hideOverlayTimeoutRef.current);
+        hideOverlayTimeoutRef.current = null;
       }
       setShowOverlay(true);
       return;
     }
-    hideTimeoutRef.current = setTimeout(() => {
-      hideTimeoutRef.current = null;
-      requestAnimationFrame(() => setShowOverlay(false));
-    }, SKELETON_HIDE_DELAY_MS);
+
+    // Small debounce avoids 1-frame flash when multiple queries
+    // settle across adjacent ticks after a hard reload.
+    hideOverlayTimeoutRef.current = setTimeout(() => {
+      hideOverlayTimeoutRef.current = null;
+      revealRafOuterRef.current = requestAnimationFrame(() => {
+        revealRafInnerRef.current = requestAnimationFrame(() => {
+          revealRafOuterRef.current = null;
+          revealRafInnerRef.current = null;
+          setShowOverlay(false);
+        });
+      });
+    }, 200);
+
     return () => {
-      if (hideTimeoutRef.current) {
-        clearTimeout(hideTimeoutRef.current);
-        hideTimeoutRef.current = null;
+      if (hideOverlayTimeoutRef.current != null) {
+        clearTimeout(hideOverlayTimeoutRef.current);
+        hideOverlayTimeoutRef.current = null;
+      }
+      if (revealRafOuterRef.current != null) {
+        cancelAnimationFrame(revealRafOuterRef.current);
+        revealRafOuterRef.current = null;
+      }
+      if (revealRafInnerRef.current != null) {
+        cancelAnimationFrame(revealRafInnerRef.current);
+        revealRafInnerRef.current = null;
       }
     };
   }, [rawPending]);
@@ -65,7 +99,7 @@ export const ConsultantDashboardPage = () => {
             <div
               className={cn(
                 "flex min-h-full min-w-0 flex-col",
-                showOverlay && "invisible pointer-events-none",
+                showOverlay ? "pointer-events-none opacity-0" : "opacity-100",
               )}
             >
               <div className="mb-1 min-w-0 shrink-0">

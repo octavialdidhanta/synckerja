@@ -28,19 +28,27 @@ function LeadsManagementHeaderTabSkeleton() {
 
 function LeadsManagementFiltersRowSkeleton() {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <Skeleton className="h-9 min-w-[150px] flex-1 rounded-md" />
-      <Skeleton className="h-9 w-[180px] shrink-0 rounded-md" />
-      <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
-      <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
-      <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
-      <Skeleton className="h-9 w-[120px] shrink-0 rounded-md" />
-      <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
-      <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
-      <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
-      <Skeleton className="h-9 w-28 shrink-0 rounded-md" />
-      <Skeleton className="h-9 w-28 shrink-0 rounded-md" />
-    </div>
+    <>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Skeleton className="h-9 min-w-[150px] flex-1 rounded-md" />
+        <Skeleton className="h-9 w-[180px] shrink-0 rounded-md" />
+        <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
+        <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
+        <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
+        <Skeleton className="h-9 w-[120px] shrink-0 rounded-md" />
+        <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
+        <Skeleton className="h-9 w-36 shrink-0 rounded-md sm:w-40" />
+        <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+        <Skeleton className="h-9 w-28 shrink-0 rounded-md" />
+        <Skeleton className="h-9 w-28 shrink-0 rounded-md" />
+      </div>
+      <div className="flex w-full flex-wrap items-center gap-1.5">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-32 shrink-0 rounded-md sm:w-36" />
+        ))}
+        <Skeleton className="h-9 min-w-[140px] flex-1 rounded-md" />
+      </div>
+    </>
   );
 }
 
@@ -63,7 +71,7 @@ function LeadsManagementMetricsSkeleton() {
   );
 }
 
-const TABLE_COLS = 13;
+const TABLE_COLS = 20;
 const TABLE_ROWS = 8;
 
 function LeadsManagementTableSkeleton() {

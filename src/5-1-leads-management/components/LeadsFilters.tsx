@@ -47,6 +47,13 @@ export interface LeadsFilters {
   status: string;
   source: string;
   dateRange: DateRange | null;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent: string;
+  utmTerm: string;
+  attributionLabel: string;
+  landingUrlContains: string;
 }
 
 interface LeadsFiltersProps {
@@ -69,7 +76,14 @@ export const LeadsFilters = ({ onNewLeadClick, onFiltersChange, filteredLeads = 
     fuPriority: 'all',
     status: 'all',
     source: 'all',
-    dateRange: null
+    dateRange: null,
+    utmSource: 'all',
+    utmMedium: 'all',
+    utmCampaign: 'all',
+    utmContent: 'all',
+    utmTerm: 'all',
+    attributionLabel: 'all',
+    landingUrlContains: '',
   });
 
   const fetchLeadStatuses = async () => {

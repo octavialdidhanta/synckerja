@@ -131,6 +131,162 @@ async function resolveInboundMediaUrl(
   }
 }
 
+function digitsOnly(s: string | null | undefined): string {
+  return String(s ?? "").replace(/\D/g, "");
+}
+
+function normalizeClientKey(s: string | null | undefined): string {
+  return String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Recent LEAD-* rows considered for merge (form submit + first WA message). */
+const FORM_LEAD_MERGE_LOOKBACK_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * Find a contact-form lead (ticket_id LEAD-…) to merge into this WA thread:
+ * 1) same phone as WhatsApp `from`, or
+ * 2) same display name as WA profile (`leads.client` vs Meta contact name) when exactly one recent match.
+ */
+async function findMergeableFormLeadId(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  opts: { customerWaId: string; waProfileClientLabel: string },
+): Promise<string | null> {
+  const phone = String(opts.customerWaId ?? "").trim();
+  if (!phone) return null;
+
+  const since = new Date(Date.now() - FORM_LEAD_MERGE_LOOKBACK_MS).toISOString();
+  const { data: rows } = await supabase
+    .from("leads")
+    .select("id, phone_number, client, created_at")
+    .eq("organization_id", orgId)
+    .like("ticket_id", "LEAD-%")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(250);
+
+  const list = rows ?? [];
+
+  for (const r of list) {
+    if (r.phone_number != null && String(r.phone_number).trim() !== "" && waPhonesMatch(String(r.phone_number), phone)) {
+      return r.id;
+    }
+  }
+
+  // contact-lead may store E.164 on `leads.phone_number` but some pipelines only fill `lead_client_profiles.*_phone`.
+  const { data: profiles } = await supabase
+    .from("lead_client_profiles")
+    .select("lead_id, phone_number, contact_phone")
+    .eq("organization_id", orgId)
+    .gte("created_at", since)
+    .limit(400);
+
+  const checkedProfileLeads = new Set<string>();
+  for (const p of profiles ?? []) {
+    const ph = p.contact_phone ?? p.phone_number;
+    if (ph == null || String(ph).trim() === "") continue;
+    if (!waPhonesMatch(String(ph), phone)) continue;
+    const lid = String(p.lead_id ?? "");
+    if (!lid || checkedProfileLeads.has(lid)) continue;
+    checkedProfileLeads.add(lid);
+    const { data: leadRow } = await supabase
+      .from("leads")
+      .select("id, ticket_id")
+      .eq("id", lid)
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const tid = String(leadRow?.ticket_id ?? "");
+    if (leadRow?.id && tid.toUpperCase().startsWith("LEAD")) return leadRow.id as string;
+  }
+
+  const labelRaw = String(opts.waProfileClientLabel ?? "").trim();
+  const label = normalizeClientKey(labelRaw);
+  if (label.length < 3) return null;
+  if (label === "whatsapp") return null;
+  if (/^\d+$/.test(label.replace(/\s/g, ""))) return null;
+  if (digitsOnly(labelRaw) === digitsOnly(phone) && digitsOnly(phone).length >= 9) return null;
+
+  const nameMatches = list.filter((r) => {
+    const c = normalizeClientKey(r.client ?? "");
+    return c.length >= 3 && c === label;
+  });
+  if (nameMatches.length === 1) return nameMatches[0].id as string;
+
+  // Last resort: in this window, only one form lead has empty phone_number (common for Elementor → WA template flows).
+  const noPhoneLeads = list.filter((r) => !r.phone_number || String(r.phone_number).trim() === "");
+  if (noPhoneLeads.length === 1) return noPhoneLeads[0].id as string;
+
+  return null;
+}
+
+/** Match WhatsApp `from` to `leads.phone_number` (62 / 0 / missing country code). */
+function waPhonesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const da = digitsOnly(a);
+  const db = digitsOnly(b);
+  if (!da || !db) return false;
+  if (da === db) return true;
+  const tail = (x: string, n: number) => (x.length <= n ? x : x.slice(-n));
+  for (const n of [15, 12, 11, 10, 9]) {
+    const ta = tail(da, n);
+    const tb = tail(db, n);
+    if (ta.length >= 9 && ta === tb) return true;
+  }
+  return false;
+}
+
+const WA_TICKET_PREFIX = "WA-";
+
+/**
+ * When a website/contact-form lead (ticket_id LEAD-…) already exists for the same number,
+ * reuse that row: set ticket_id to WA-… so Leads shows one row with Open Chat + form fields.
+ * If an auto-generated WA-only lead already exists, delete it first (frees unique ticket_id).
+ */
+async function reconcileFormLeadWithWaTicket(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  convId: string,
+  customerWaId: string,
+  waProfileClientLabel: string,
+): Promise<void> {
+  const ticketId = WA_TICKET_PREFIX + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
+  const { data: waTicketLead } = await supabase
+    .from("leads")
+    .select("id, ticket_id")
+    .eq("organization_id", orgId)
+    .eq("ticket_id", ticketId)
+    .maybeSingle();
+
+  const formLeadId = await findMergeableFormLeadId(supabase, orgId, {
+    customerWaId,
+    waProfileClientLabel: waProfileClientLabel || customerWaId,
+  });
+  if (!formLeadId) return;
+
+  if (waTicketLead && waTicketLead.id !== formLeadId) {
+    const { error: delErr } = await supabase.from("leads").delete().eq("id", waTicketLead.id);
+    if (delErr) {
+      console.error("reconcileFormLeadWithWaTicket: delete duplicate WA lead failed", delErr);
+      return;
+    }
+  }
+
+  const now = new Date().toISOString();
+  const phone = String(customerWaId).trim();
+  const { error: upErr } = await supabase
+    .from("leads")
+    .update({
+      ticket_id: ticketId,
+      phone_number: phone || null,
+      updated_at: now,
+    })
+    .eq("id", formLeadId);
+  if (upErr) {
+    console.error("reconcileFormLeadWithWaTicket: update form lead failed", upErr);
+    return;
+  }
+  console.log("reconcileFormLeadWithWaTicket: merged into form lead", { lead_id: formLeadId, ticket_id: ticketId });
+}
+
 /** Insert a lead row when a new WhatsApp conversation is created. Link by ticket_id (WA-xxx). */
 async function ensureLeadForNewConversation(
   supabase: ReturnType<typeof createClient>,
@@ -142,7 +298,7 @@ async function ensureLeadForNewConversation(
   customerWaId: string | null | undefined,
   createdByDisplayName: string
 ): Promise<void> {
-  const ticketId = "WA-" + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
+  const ticketId = WA_TICKET_PREFIX + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
   const { data: existing } = await supabase.from("leads").select("id").eq("ticket_id", ticketId).maybeSingle();
   if (existing) return;
 
@@ -162,6 +318,33 @@ async function ensureLeadForNewConversation(
   const safeClient = (client && String(client).trim()) || source;
   const safeTitle = (title && String(title).trim().slice(0, 100)) || source;
   const phoneNumber = source === "WhatsApp" && customerWaId ? String(customerWaId).trim() || null : null;
+
+  if (phoneNumber) {
+    const formLeadId = await findMergeableFormLeadId(supabase, orgId, {
+      customerWaId: phoneNumber,
+      waProfileClientLabel: safeClient,
+    });
+    if (formLeadId) {
+      const now = new Date().toISOString();
+      const { error: mergeErr } = await supabase
+        .from("leads")
+        .update({
+          ticket_id: ticketId,
+          phone_number: phoneNumber,
+          updated_at: now,
+        })
+        .eq("id", formLeadId);
+      if (mergeErr) {
+        console.error("ensureLeadForNewConversation: merge into form lead failed", mergeErr);
+      } else {
+        console.log("ensureLeadForNewConversation: merged WA ticket into existing form lead", {
+          lead_id: formLeadId,
+          ticket_id: ticketId,
+        });
+      }
+      return;
+    }
+  }
 
   const { error } = await supabase.from("leads").insert({
     ticket_id: ticketId,
@@ -533,6 +716,14 @@ Deno.serve(async (req: Request) => {
                 if (!conv) {
                   continue;
                 }
+
+                await reconcileFormLeadWithWaTicket(
+                  supabase,
+                  orgId,
+                  conv.id,
+                  customerWaId,
+                  customerName ?? customerWaId ?? "",
+                );
 
                 let mediaUrl: string | null = null;
                 const mediaInfo = getMediaIdAndType(msg as Record<string, unknown>);

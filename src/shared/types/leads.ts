@@ -19,6 +19,16 @@ export interface NewLead {
   created_by_name: string;
   organization_id: string;
   ticket_id: string | null;
+  /** Raw JSON from `leads.attribution` (optional on virtual rows). */
+  attribution?: Record<string, unknown> | null;
+  /** From `leads.attribution_label`. */
+  attribution_label?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_content?: string | null;
+  utm_term?: string | null;
+  landing_url?: string | null;
   lead_status?: {
     id: string;
     name: string;

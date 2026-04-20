@@ -26,7 +26,14 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
     fuPriority: 'all',
     status: 'all',
     source: 'all',
-    dateRange: null
+    dateRange: null,
+    utmSource: 'all',
+    utmMedium: 'all',
+    utmCampaign: 'all',
+    utmContent: 'all',
+    utmTerm: 'all',
+    attributionLabel: 'all',
+    landingUrlContains: '',
   });
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
 
@@ -165,6 +172,33 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
 
       // Source filter
       if (filters.source !== 'all' && lead.source !== filters.source) {
+        return false;
+      }
+
+      if (filters.utmSource !== 'all' && filters.utmSource && (lead.utm_source ?? '') !== filters.utmSource) {
+        return false;
+      }
+      if (filters.utmMedium !== 'all' && filters.utmMedium && (lead.utm_medium ?? '') !== filters.utmMedium) {
+        return false;
+      }
+      if (filters.utmCampaign !== 'all' && filters.utmCampaign && (lead.utm_campaign ?? '') !== filters.utmCampaign) {
+        return false;
+      }
+      if (filters.utmContent !== 'all' && filters.utmContent && (lead.utm_content ?? '') !== filters.utmContent) {
+        return false;
+      }
+      if (filters.utmTerm !== 'all' && filters.utmTerm && (lead.utm_term ?? '') !== filters.utmTerm) {
+        return false;
+      }
+      if (
+        filters.attributionLabel !== 'all' &&
+        filters.attributionLabel &&
+        (lead.attribution_label ?? '') !== filters.attributionLabel
+      ) {
+        return false;
+      }
+      const landingQ = (filters.landingUrlContains ?? '').trim().toLowerCase();
+      if (landingQ && !(lead.landing_url ?? '').toLowerCase().includes(landingQ)) {
         return false;
       }
 
