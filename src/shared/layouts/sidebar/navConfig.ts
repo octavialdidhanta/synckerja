@@ -138,6 +138,11 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: ["/digital-marketing/social-media"],
       },
       {
+        titleKey: "sidebar.digitalMarketing.adsPerformance.title",
+        path: "/digital-marketing/traffic",
+        activePathPrefixes: ["/digital-marketing/traffic"],
+      },
+      {
         titleKey: "sidebar.digitalMarketing.kolManagement.title",
         path: "/kol-management/dashboard",
         activePathPrefixes: ["/kol-management"],

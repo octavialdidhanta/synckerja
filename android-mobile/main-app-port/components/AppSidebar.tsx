@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Clock, CreditCard, Home, MessageCircle, Receipt, UserPlus, Wallet } from "lucide-react";
+import { BarChart3, Clock, CreditCard, Home, MessageCircle, Receipt, UserPlus, Wallet } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import {
@@ -47,6 +47,7 @@ const menuItems: SidebarNavItem[] = [
     icon: UserPlus,
   },
   { title: "Daily Task", url: TOOLS_DAILY_TASK_PATH, icon: Clock },
+  { title: "Web Traffic", url: "/digital-marketing/traffic", icon: BarChart3 },
   { title: "Subscription", url: SUBSCRIPTION_OVERVIEW_PATH, icon: CreditCard },
 ];
 

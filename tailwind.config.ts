@@ -194,8 +194,9 @@ export default {
         "dialog-overlay-out": "dialog-overlay-out 0.2s cubic-bezier(0.22, 1, 0.36, 1)",
         "dialog-content-in": "dialog-content-in 0.4s cubic-bezier(0.22, 1, 0.36, 1)",
         "dialog-content-out": "dialog-content-out 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
-        "dialog-content-in-fs": "dialog-content-in-fs 0.4s cubic-bezier(0.22, 1, 0.36, 1)",
-        "dialog-content-out-fs": "dialog-content-out-fs 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+        // Fullscreen Android modals: explicit ease-in-out for a smoother feel.
+        "dialog-content-in-fs": "dialog-content-in-fs 0.42s ease-in-out",
+        "dialog-content-out-fs": "dialog-content-out-fs 0.32s ease-in-out",
       },
     },
   },

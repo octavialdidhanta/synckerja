@@ -113,10 +113,10 @@ export const CustomDatePicker = ({
             mode="single"
             selected={selectingStart ? startDate : endDate}
             onSelect={handleDateSelect}
-            className={cn("p-0 pointer-events-auto w-full -ml-px")}
+            className={cn("p-0 pointer-events-auto w-full")}
             classNames={{
               months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
-              month: "space-y-4 w-full",
+              month: "space-y-4 w-full -ml-4 sm:ml-0",
               caption: "relative flex items-center justify-center pt-1",
               caption_label: "text-sm font-medium",
               nav: "pointer-events-none absolute inset-x-0 top-1 flex items-center justify-between px-1",

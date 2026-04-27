@@ -84,6 +84,8 @@ import { ContentCalendarPageSkeleton } from "@/6-1-content-calendar/skeletons/Co
 import { ProductKnowledgePageSkeleton } from "@/6-1-product-knowledge/skeletons/ProductKnowledgePageSkeleton";
 import { ScriptGeneratorPageSkeleton } from "@/6-1-script-generator/skeletons/ScriptGeneratorPageSkeleton";
 import { SocialMediaSettingsPageSkeleton } from "@/6-1-social-media-settings/skeletons/SocialMediaSettingsPageSkeleton";
+import { TrafficPageSkeleton } from "@/6-0-traffic/skeletons/TrafficPageSkeleton";
+import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
 
 const RecruitmentSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
@@ -140,6 +142,11 @@ const SocialMediaContentCalendarPage = lazy(() => import("@/6-1-content-calendar
 const SocialMediaProductKnowledgePage = lazy(() => import("@/6-1-product-knowledge/ProductKnowledgePage"));
 const SocialMediaScriptGeneratorPage = lazy(() => import("@/6-1-script-generator/ScriptGeneratorPage"));
 const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings/SettingsPage"));
+const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
+const MobileWebTrafficPage = lazy(() => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPage"));
+const MobileWebTrafficPageSkeleton = lazy(
+  () => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPageSkeleton"),
+);
 const ReviewRouteGate = lazy(() =>
   import("@/6-1-dashboard/routes/ReviewRouteGate").then((m) => ({ default: m.ReviewRouteGate })),
 );
@@ -1348,6 +1355,43 @@ const SocialMediaDashboardSuspense = ({ children }: { children: ReactNode }) => 
   </Suspense>
 );
 
+const TrafficSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <TrafficPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+function TrafficMobileAwareLoadingShell() {
+  const { isDesktop } = useAuthSurface();
+  if (isDesktop) return <TrafficPageSkeleton />;
+  return (
+    <Suspense fallback={<TrafficPageSkeleton />}>
+      <MobileWebTrafficPageSkeleton />
+    </Suspense>
+  );
+}
+
+function TrafficMobileAwareRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <TrafficMobileAwareLoadingShell />
+        </div>
+      }
+    >
+      {isDesktop ? <TrafficPage /> : <MobileWebTrafficPage />}
+    </Suspense>
+  );
+}
+
 const SocialMediaProductKnowledgeSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -2344,6 +2388,21 @@ const App = () => (
                               <SocialMediaSettingsSuspense>
                                 <SocialMediaDmSettingsPage />
                               </SocialMediaSettingsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/traffic"
+                          element={
+                            <PageAccessGuard
+                              // Reuse Digital Marketing permission scope (prefix match).
+                              pagePath="/digital-marketing/social-media"
+                              loadingShell={
+                                <TrafficMobileAwareLoadingShell />
+                              }
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <TrafficMobileAwareRouteElement />
                             </PageAccessGuard>
                           }
                         />

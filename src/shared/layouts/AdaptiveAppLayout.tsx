@@ -22,6 +22,8 @@ export function AdaptiveAppLayout() {
   const isMobileIncomesPath = pathname === "/incomes" || pathname.startsWith("/incomes/");
   /** Habit tracker mobile (`android-mobile/1-habits`) uses fixed viewport shell + own header/footer — must not sit inside AppShell scroll/header. */
   const isMobileHabitsTrackerPath = pathname === "/tools/habits-tracker";
+  /** Web traffic mobile (`android-mobile/6-0-web-traffic`) brings its own header/footer — must bypass AppShellLayout header. */
+  const isMobileWebTrafficPath = pathname === "/digital-marketing/traffic";
   /**
    * Daily task / initiative / job desc mobile (`5-daily-task`) membawa `AppSidebar` + header sendiri.
    * Tanpa bypass ini, `AppShellLayout` tetap merender `AppHeader` (PT Synckerja, notifikasi, profil) di atas shell mobile.
@@ -45,7 +47,8 @@ export function AdaptiveAppLayout() {
     (MOBILE_MAIN_TAB_PATHS.has(pathname) ||
       isMobileExpensesPath ||
       isMobileIncomesPath ||
-      isMobileHabitsTrackerPath)
+      isMobileHabitsTrackerPath ||
+      isMobileWebTrafficPath)
   ) {
     return <Outlet />;
   }

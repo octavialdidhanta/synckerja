@@ -243,11 +243,23 @@ All colors MUST be HSL.
   }
 
   /**
+   * Fullscreen overlay should stop above Android system nav too.
+   * Needed because Radix `DialogOverlay` ships with `inset-0` (sets bottom:0) which can override normal utilities.
+   */
+  .modal-overlay-above-safe-area {
+    bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px), 3rem) !important;
+  }
+
+  /**
    * Saat tab bar aplikasi disembunyikan (`MobileAppNavSuppressionProvider`), modal fullscreen
    * cukup menjaga safe area sistem — tanpa fallback 3rem (menghindari celah putih di atas nav/keyboard).
    */
   html[data-mobile-shell-nav-suppressed="true"] .modal-above-safe-area {
     bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  }
+
+  html[data-mobile-shell-nav-suppressed="true"] .modal-overlay-above-safe-area {
+    bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px)) !important;
   }
 
   /** Padding bawah untuk konten yang full-tinggi (bukan offset `bottom`); gunakan jika perlu teks di atas area nav */
