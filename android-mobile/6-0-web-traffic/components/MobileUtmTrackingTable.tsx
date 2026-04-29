@@ -23,11 +23,20 @@ type UtmRow = {
   page_views: number;
   /** Click events attributed to sessions in this UTM bucket (rollup). */
   clicks: number;
+  max_deep_scroll_pct?: number | null;
+  avg_max_deep_scroll_pct?: number | null;
+  scroll_sessions?: number;
 };
 
 type UtmFilterKey = "route" | "utm_campaign" | "utm_source" | "utm_medium" | "utm_content" | "utm_term";
 
-type SortableColumn = UtmFilterKey | "sessions" | "page_views" | "clicks";
+type SortableColumn =
+  | UtmFilterKey
+  | "sessions"
+  | "page_views"
+  | "clicks"
+  | "max_deep_scroll_pct"
+  | "avg_max_deep_scroll_pct";
 
 type UtmFilters = Record<UtmFilterKey, string>;
 
@@ -84,9 +93,24 @@ function compareUtmRows(a: UtmRow, b: UtmRow, key: SortableColumn, dir: "asc" | 
   if (key === "clicks") {
     return (a.clicks - b.clicks) * m;
   }
+  if (key === "max_deep_scroll_pct") {
+    return (Number(a.max_deep_scroll_pct ?? -1) - Number(b.max_deep_scroll_pct ?? -1)) * m;
+  }
+  if (key === "avg_max_deep_scroll_pct") {
+    return (Number(a.avg_max_deep_scroll_pct ?? -1) - Number(b.avg_max_deep_scroll_pct ?? -1)) * m;
+  }
   const va = cellRaw(a[key]);
   const vb = cellRaw(b[key]);
   return va.localeCompare(vb, undefined, { sensitivity: "base", numeric: true }) * m;
+}
+
+function formatPct(v: unknown) {
+  if (v === null || v === undefined) return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  const rounded = Math.round(n);
+  const clamped = Math.max(0, Math.min(100, rounded));
+  return `${clamped}%`;
 }
 
 type SortableThProps = {
@@ -104,7 +128,7 @@ function SortableTh({ column, label, sortKey, sortDir, onSort, align = "left", c
   return (
     <th
       className={cn(
-        "border-b border-gray-200 bg-gray-50 font-medium",
+        "border-b border-primary/15 bg-gray-50 font-medium",
         align === "left" && "text-left",
         align === "right" && "text-right",
         className,
@@ -168,7 +192,7 @@ function UtmColumnSelect({ "aria-label": ariaLabel, value, onValueChange, option
       <DrawerTrigger asChild>
         <button
           type="button"
-          className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700"
+          className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-primary/25 bg-white px-2 text-xs text-gray-700"
           aria-label={ariaLabel}
         >
           <span className="truncate">{label}</span>
@@ -335,8 +359,8 @@ export function MobileUtmTrackingTable({
   const hasActiveFilters = Object.values(filters).some((v) => v !== FILTER_ALL);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="shrink-0 border-b border-gray-200 px-4 py-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-primary/35 bg-card shadow-sm">
+      <div className="shrink-0 border-b border-primary/25 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900">UTM tracking</h3>
@@ -368,11 +392,11 @@ export function MobileUtmTrackingTable({
 
       <div
         data-horizontal-scroll-zone
-        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain w-full overflow-x-auto overflow-y-hidden touch-pan-x overscroll-x-contain [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ touchAction: "pan-x" }}
+        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ touchAction: "pan-x pan-y" }}
       >
-        <table className="min-w-[1320px] w-full table-fixed border-separate border-spacing-0">
-          <thead className="sticky top-0 z-10 bg-white shadow-sm">
+        <table className="min-w-[1500px] w-full table-fixed border-separate border-spacing-0">
+          <thead className="sticky top-0 z-10 bg-card shadow-sm">
             <tr className="text-xs text-gray-600">
               <SortableTh
                 column="route"
@@ -429,7 +453,7 @@ export function MobileUtmTrackingTable({
                 sortDir={sortDir}
                 onSort={handleSort}
                 align="right"
-                className="w-[110px]"
+                className="w-[90px]"
               />
               <SortableTh
                 column="page_views"
@@ -438,7 +462,7 @@ export function MobileUtmTrackingTable({
                 sortDir={sortDir}
                 onSort={handleSort}
                 align="right"
-                className="w-[110px]"
+                className="w-[96px]"
               />
               <SortableTh
                 column="clicks"
@@ -447,11 +471,29 @@ export function MobileUtmTrackingTable({
                 sortDir={sortDir}
                 onSort={handleSort}
                 align="right"
-                className="w-[100px]"
+                className="w-[86px]"
+              />
+              <SortableTh
+                column="max_deep_scroll_pct"
+                label="max_deep_scroll"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                align="right"
+                className="w-[110px]"
+              />
+              <SortableTh
+                column="avg_max_deep_scroll_pct"
+                label="avg_max_deep_scroll"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                align="right"
+                className="w-[135px]"
               />
             </tr>
             <tr className="bg-gray-50/80">
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter route"
                   value={filters.route}
@@ -459,7 +501,7 @@ export function MobileUtmTrackingTable({
                   options={routeOptions}
                 />
               </th>
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_campaign"
                   value={filters.utm_campaign}
@@ -467,7 +509,7 @@ export function MobileUtmTrackingTable({
                   options={campaignOptions}
                 />
               </th>
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_source"
                   value={filters.utm_source}
@@ -475,7 +517,7 @@ export function MobileUtmTrackingTable({
                   options={sourceOptions}
                 />
               </th>
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_medium"
                   value={filters.utm_medium}
@@ -483,7 +525,7 @@ export function MobileUtmTrackingTable({
                   options={mediumOptions}
                 />
               </th>
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_content"
                   value={filters.utm_content}
@@ -491,7 +533,7 @@ export function MobileUtmTrackingTable({
                   options={contentOptions}
                 />
               </th>
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_term"
                   value={filters.utm_term}
@@ -499,21 +541,23 @@ export function MobileUtmTrackingTable({
                   options={termOptions}
                 />
               </th>
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom" aria-hidden />
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom" aria-hidden />
-              <th className="border-b border-gray-200 px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
             </tr>
           </thead>
           <tbody className="text-sm">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
+                <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
                   Belum ada data UTM.
                 </td>
               </tr>
             ) : sortedFilteredRows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
+                <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
                   Tidak ada baris yang cocok dengan filter.
                 </td>
               </tr>
@@ -575,6 +619,12 @@ export function MobileUtmTrackingTable({
                       >
                         {r.clicks.toLocaleString()}
                       </button>
+                    </td>
+                    <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums text-gray-700">
+                      {formatPct(r.max_deep_scroll_pct)}
+                    </td>
+                    <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums text-gray-700">
+                      {formatPct(r.avg_max_deep_scroll_pct)}
                     </td>
                   </tr>
                 );

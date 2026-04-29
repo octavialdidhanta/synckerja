@@ -1,5 +1,7 @@
--- get_traffic_dashboard: read `source_breakdown` from rollup table (analytics_daily_source_breakdown)
--- instead of scanning raw analytics tables.
+-- Re-apply get_traffic_dashboard: include deep scroll metrics on utm_table.
+-- Uses analytics_daily_utm rollup columns:
+-- - scroll_max_pct_max (daily max of session-max scroll)
+-- - scroll_max_pct_sum, scroll_sessions_count for fair average over sessions
 
 CREATE OR REPLACE FUNCTION public.get_traffic_dashboard(
   p_web_id text,
@@ -69,6 +71,7 @@ BEGIN
     RAISE EXCEPTION 'invalid range';
   END IF;
 
+  -- KPIs
   SELECT jsonb_build_object(
     'sessions', COALESCE(SUM(s.sessions_count), 0),
     'page_views', COALESCE(SUM(pv.page_views_count), 0),
@@ -90,6 +93,7 @@ BEGIN
   WHERE s.web_id = p_web_id
     AND s.day BETWEEN v_from AND v_to;
 
+  -- Series per day
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'day', d.day,
     'sessions', d.sessions_count,
@@ -113,6 +117,7 @@ BEGIN
     ORDER BY s.day
   ) d;
 
+  -- Top pages (range aggregate)
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'path', path,
     'page_views', page_views,
@@ -135,6 +140,7 @@ BEGIN
     LIMIT GREATEST(1, LEAST(p_top_pages_limit, 100))
   ) t;
 
+  -- Top clicks (range aggregate)
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'path', path,
     'track_key', NULLIF(track_key, ''),
@@ -158,6 +164,7 @@ BEGIN
     LIMIT GREATEST(1, LEAST(p_top_clicks_limit, 100))
   ) t;
 
+  -- UTM table (range aggregate)
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
     'route', NULLIF(route, ''),
     'utm_campaign', utm_campaign,
@@ -167,7 +174,10 @@ BEGIN
     'utm_term', utm_term,
     'sessions', sessions,
     'page_views', page_views,
-    'clicks', clicks
+    'clicks', clicks,
+    'max_deep_scroll_pct', max_deep_scroll_pct,
+    'avg_max_deep_scroll_pct', avg_max_deep_scroll_pct,
+    'scroll_sessions', scroll_sessions
   ) ORDER BY sessions DESC), '[]'::jsonb)
   INTO utm_table
   FROM (
@@ -180,7 +190,13 @@ BEGIN
       NULLIF(u.utm_term, '') AS utm_term,
       SUM(u.sessions_count)::bigint AS sessions,
       SUM(u.page_views_count)::bigint AS page_views,
-      SUM(u.clicks_count)::bigint AS clicks
+      SUM(u.clicks_count)::bigint AS clicks,
+      MAX(u.scroll_max_pct_max)::double precision AS max_deep_scroll_pct,
+      CASE
+        WHEN COALESCE(SUM(u.scroll_sessions_count), 0) = 0 THEN NULL
+        ELSE (SUM(u.scroll_max_pct_sum) / NULLIF(SUM(u.scroll_sessions_count), 0))::double precision
+      END AS avg_max_deep_scroll_pct,
+      SUM(u.scroll_sessions_count)::bigint AS scroll_sessions
     FROM public.analytics_daily_utm u
     WHERE u.web_id = p_web_id
       AND u.day BETWEEN v_from AND v_to
@@ -196,6 +212,7 @@ BEGIN
     LIMIT GREATEST(1, LEAST(p_utm_limit, 2000))
   ) t;
 
+  -- Source breakdown (kept; may be overwritten by later migrations)
   SELECT COALESCE(
     jsonb_agg(
       jsonb_build_object(

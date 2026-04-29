@@ -1,5 +1,8 @@
--- refresh_analytics_rollups: populate analytics_daily_source_breakdown (sessions / PV / clicks) per acquisition channel.
--- Attribution for PV/clicks follows event-day (UTC) to align with KPI daily rollups.
+-- Re-apply refresh_analytics_rollups: add deep scroll metrics to analytics_daily_utm.
+-- Notes:
+-- - UTM buckets are session-based (landing route + utm_* on analytics_sessions).
+-- - Deep scroll is computed "fairly" per session: each session contributes once with its max scroll pct for that day.
+-- - Attribution for scroll uses analytics_page_views.started_at (UTC date) = day.
 
 CREATE OR REPLACE FUNCTION public.refresh_analytics_rollups(
   p_web_id text,
@@ -150,8 +153,20 @@ BEGIN
     WHERE web_id = p_web_id AND day = d;
 
     INSERT INTO public.analytics_daily_utm (
-      web_id, day, route, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-      sessions_count, page_views_count, clicks_count
+      web_id,
+      day,
+      route,
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      utm_content,
+      utm_term,
+      sessions_count,
+      page_views_count,
+      clicks_count,
+      scroll_sessions_count,
+      scroll_max_pct_max,
+      scroll_max_pct_sum
     )
     SELECT
       p_web_id,
@@ -164,7 +179,10 @@ BEGIN
       ud.utm_term,
       COUNT(*)::bigint,
       SUM(COALESCE(pv.cnt, 0::bigint))::bigint,
-      SUM(COALESCE(ce.cnt, 0::bigint))::bigint
+      SUM(COALESCE(ce.cnt, 0::bigint))::bigint,
+      COUNT(*) FILTER (WHERE ss.session_max_scroll_pct IS NOT NULL)::bigint,
+      MAX(ss.session_max_scroll_pct)::double precision,
+      COALESCE(SUM(ss.session_max_scroll_pct), 0)::double precision
     FROM (
       SELECT
         u.session_id,
@@ -219,14 +237,26 @@ BEGIN
       SELECT pv2.session_id, COUNT(*)::bigint AS cnt
       FROM public.analytics_page_views pv2
       WHERE pv2.web_id = p_web_id
+        AND (pv2.started_at AT TIME ZONE 'UTC')::date = d
       GROUP BY pv2.session_id
     ) pv ON pv.session_id = ud.session_id
     LEFT JOIN (
       SELECT ce2.session_id, COUNT(*)::bigint AS cnt
       FROM public.analytics_click_events ce2
       WHERE ce2.web_id = p_web_id
+        AND (ce2.created_at AT TIME ZONE 'UTC')::date = d
       GROUP BY ce2.session_id
     ) ce ON ce.session_id = ud.session_id
+    LEFT JOIN (
+      SELECT
+        pv3.session_id,
+        MAX(pv3.scroll_max_pct)::double precision AS session_max_scroll_pct
+      FROM public.analytics_page_views pv3
+      WHERE pv3.web_id = p_web_id
+        AND (pv3.started_at AT TIME ZONE 'UTC')::date = d
+        AND pv3.scroll_max_pct IS NOT NULL
+      GROUP BY pv3.session_id
+    ) ss ON ss.session_id = ud.session_id
     GROUP BY
       ud.route_norm,
       ud.utm_source,

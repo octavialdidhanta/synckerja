@@ -8,6 +8,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { useTrafficDashboardController } from "@/6-0-traffic/hooks/useTrafficDashboardController";
 import { WebTrafficNavigationFooter } from "@/mobile/6-0-web-traffic/components/WebTrafficNavigationFooter";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
+import { supabase } from "@/shared/lib/supabaseClient";
 import { WebIdPicker } from "@/mobile/6-0-web-traffic/components/WebIdPicker";
 import { MobileSessionsBySourceCard } from "@/mobile/6-0-web-traffic/components/MobileSessionsBySourceCard";
 import { MobileSourceTrafficTableCard } from "@/mobile/6-0-web-traffic/components/MobileSourceTrafficTableCard";
@@ -17,6 +18,7 @@ import { MobileClickDetailsDialog } from "@/mobile/6-0-web-traffic/components/Mo
 import { MobileTopBlogPagesTableCard } from "@/mobile/6-0-web-traffic/components/MobileTopBlogPagesTableCard";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
+import { useToast } from "@/shared/components/ui/use-toast";
 import {
   Drawer,
   DrawerClose,
@@ -42,6 +44,7 @@ const PULL_RESISTANCE = 0.55;
 export default function MobileWebTrafficPage() {
   useStatusBarStyle("light");
   const { t } = useAppTranslation();
+  const { toast } = useToast();
   const { mainFixedStyle, isKeyboardShellOpen } = useVisualViewport();
   const {
     webId,
@@ -153,44 +156,100 @@ export default function MobileWebTrafficPage() {
   })();
 
   const syncRollups = useCallback(async () => {
-    if (!effectiveWebId) {
-      await dashboardQuery.refetch();
+    if (!effectiveWebId) return;
+    if (!rangeIsMaximum && (!fromDate || !toDate)) {
+      toast({
+        title: "Select date range",
+        description: "Pilih date range (preset atau custom) dulu untuk refresh rollup.",
+        variant: "destructive",
+      });
       return;
     }
 
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/traffic-refresh-rollups`, {
-      method: "POST",
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        web_id: effectiveWebId,
-        from: rangeIsMaximum ? null : fromDate,
-        to: rangeIsMaximum ? null : toDate,
-      }),
+    const { data: sessionRes, error: sessionErr } = await supabase.auth.getSession();
+    if (sessionErr) throw sessionErr;
+    const token = sessionRes.session?.access_token ?? "";
+    if (!token) {
+      toast({
+        title: "Sync failed",
+        description: "Sesi login tidak ditemukan. Silakan login ulang.",
+        variant: "headsUp",
+        duration: 2800,
+      });
+      return;
+    }
+
+    const url = `${SUPABASE_URL}/functions/v1/traffic-refresh-rollups`;
+    const body = rangeIsMaximum
+      ? { web_id: effectiveWebId, from: null as string | null, to: null as string | null }
+      : { web_id: effectiveWebId, from: fromDate, to: toDate };
+
+    const delaysMs = [0, 600, 1500, 3000];
+    let lastErr: { status: number; message: string } | null = null;
+
+    for (let attempt = 0; attempt < delaysMs.length; attempt++) {
+      if (delaysMs[attempt] > 0) {
+        await new Promise((r) => setTimeout(r, delaysMs[attempt]));
+      }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const text = await res.text();
+      let parsed: any = null;
+      try {
+        parsed = text ? (JSON.parse(text) as any) : null;
+      } catch {
+        parsed = null;
+      }
+
+      if (res.ok && parsed?.success) {
+        const desc = rangeIsMaximum
+          ? `Rollup refreshed for ${effectiveWebId} (Maximum: semua tanggal yang tersedia).`
+          : `Rollup refreshed for ${effectiveWebId} (${fromDate} → ${toDate}).`;
+        toast({ title: "Synced", description: desc, variant: "headsUp", duration: 2200 });
+        await dashboardQuery.refetch();
+        return;
+      }
+
+      if (res.status === 503 && attempt < delaysMs.length - 1) {
+        lastErr = { status: res.status, message: parsed?.error ?? text ?? "Edge runtime error" };
+        continue;
+      }
+
+      lastErr = { status: res.status, message: parsed?.error ?? text ?? res.statusText };
+      break;
+    }
+
+    toast({
+      title: "Sync failed",
+      description: lastErr ? `[${lastErr.status}] ${lastErr.message}` : "Unknown error",
+      variant: "headsUp",
+      duration: 3200,
     });
-
-    if (!res.ok) {
-      // Fallback: still refetch dashboard so user sees latest cached rollups if any.
-      await dashboardQuery.refetch();
-      return;
-    }
-
-    await dashboardQuery.refetch();
-  }, [dashboardQuery, effectiveWebId, fromDate, rangeIsMaximum, toDate]);
+  }, [dashboardQuery, effectiveWebId, fromDate, rangeIsMaximum, t, toast, toDate]);
 
   const handleSync = useCallback(async () => {
     if (isRefreshing || dashboardQuery.isFetching) return;
     setIsRefreshing(true);
     setPullDistance(0);
     try {
+      if (!effectiveWebId) {
+        await dashboardQuery.refetch();
+        return;
+      }
       await syncRollups();
     } finally {
       setIsRefreshing(false);
     }
-  }, [dashboardQuery.isFetching, isRefreshing, syncRollups]);
+  }, [dashboardQuery, effectiveWebId, isRefreshing, syncRollups]);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -259,13 +318,16 @@ export default function MobileWebTrafficPage() {
     median_active_ms: number;
     avg_active_ms: number;
     n: number;
+    max_deep_scroll_pct?: number | null;
+    avg_max_deep_scroll_pct?: number | null;
+    scroll_sessions?: number;
   }>;
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-screen flex w-full bg-muted/70">
         <AppSidebar />
-        <main className="fixed inset-x-0 z-0 flex flex-col bg-background" style={mainFixedStyle}>
+        <main className="fixed inset-x-0 z-0 flex flex-col bg-muted/70" style={mainFixedStyle}>
         <header className="safe-area-top sticky top-0 z-30 flex flex-shrink-0 items-center justify-between border-b border-border bg-card p-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <SidebarTrigger className="md:hidden shrink-0" />
@@ -329,12 +391,12 @@ export default function MobileWebTrafficPage() {
             </div>
             <div className="mx-auto w-full max-w-md space-y-1 px-2 pt-2 content-padding-above-nav-default">
               {webIdsQuery.isError ? (
-                <div className="rounded-lg border border-border bg-card p-3 text-sm text-destructive">
+                <div className="rounded-lg border border-primary/35 bg-card p-3 text-sm text-destructive">
                   {t("traffic.mobile.error.webIds", "Gagal memuat web id.")}
                 </div>
               ) : null}
 
-              <div className="rounded-lg border border-border bg-card p-3">
+              <div className="rounded-lg border border-primary/35 bg-card p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -402,25 +464,25 @@ export default function MobileWebTrafficPage() {
               </div>
 
               {dashboardQuery.isError ? (
-                <div className="rounded-lg border border-border bg-card p-3 text-sm text-destructive">
+                <div className="rounded-lg border border-primary/35 bg-card p-3 text-sm text-destructive">
                   {t("traffic.mobile.error.dashboard", "Gagal memuat dashboard.")}
                 </div>
               ) : null}
 
               <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg border border-border bg-card p-3">
+                <div className="rounded-lg border border-primary/35 bg-card p-3">
                   <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.sessions", "Sessions")}</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                     {formatCompactInt(dashboardQuery.data?.kpis.sessions ?? 0)}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-card p-3">
+                <div className="rounded-lg border border-primary/35 bg-card p-3">
                   <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.pageViews", "Page views")}</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                     {formatCompactInt(dashboardQuery.data?.kpis.page_views ?? 0)}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-card p-3">
+                <div className="rounded-lg border border-primary/35 bg-card p-3">
                   <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.clicks", "Clicks")}</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                     {formatCompactInt(dashboardQuery.data?.kpis.clicks ?? 0)}
@@ -437,22 +499,6 @@ export default function MobileWebTrafficPage() {
                 loading={dashboardQuery.isLoading}
               />
 
-              <MobileSourceTrafficTableCard
-                loading={dashboardQuery.isLoading}
-                error={dashboardQuery.isError}
-                rows={(dashboardQuery.data?.source_breakdown ?? []).map((r) => ({
-                  key: String((r as { key?: unknown }).key ?? ""),
-                  label: String((r as { label?: unknown }).label ?? ""),
-                  sessions: Number((r as { sessions?: unknown }).sessions ?? 0),
-                  page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
-                  clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
-                }))}
-                webId={effectiveWebId}
-                fromDate={fromDate}
-                toDate={toDate}
-                rangeIsMaximum={rangeIsMaximum}
-              />
-
               <MobileUtmTrackingTable
                 rows={(dashboardQuery.data?.utm_table ?? []).map((r) => ({
                   route: (r as { route?: string | null }).route ?? null,
@@ -464,6 +510,38 @@ export default function MobileWebTrafficPage() {
                   sessions: Number((r as { sessions?: unknown }).sessions ?? 0),
                   page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
                   clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
+                  max_deep_scroll_pct: (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null
+                    ? null
+                    : Number((r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct),
+                  avg_max_deep_scroll_pct: (r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct == null
+                    ? null
+                    : Number((r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct),
+                  scroll_sessions: Number((r as { scroll_sessions?: unknown }).scroll_sessions ?? 0),
+                }))}
+                webId={effectiveWebId}
+                fromDate={fromDate}
+                toDate={toDate}
+                rangeIsMaximum={rangeIsMaximum}
+              />
+
+              <MobileSourceTrafficTableCard
+                loading={dashboardQuery.isLoading}
+                error={dashboardQuery.isError}
+                rows={(dashboardQuery.data?.source_breakdown ?? []).map((r) => ({
+                  key: String((r as { key?: unknown }).key ?? ""),
+                  label: String((r as { label?: unknown }).label ?? ""),
+                  sessions: Number((r as { sessions?: unknown }).sessions ?? 0),
+                  page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
+                  clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
+                  max_deep_scroll_pct:
+                    (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null
+                      ? null
+                      : Number((r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct),
+                  avg_max_deep_scroll_pct:
+                    (r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct == null
+                      ? null
+                      : Number((r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct),
+                  scroll_sessions: Number((r as { scroll_sessions?: unknown }).scroll_sessions ?? 0),
                 }))}
                 webId={effectiveWebId}
                 fromDate={fromDate}

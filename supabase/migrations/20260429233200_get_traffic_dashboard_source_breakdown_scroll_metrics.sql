@@ -1,5 +1,5 @@
--- get_traffic_dashboard: read `source_breakdown` from rollup table (analytics_daily_source_breakdown)
--- instead of scanning raw analytics tables.
+-- Re-apply get_traffic_dashboard with source_breakdown deep scroll metrics
+-- Note: We use a new migration because editing old migrations won't affect already-migrated DBs.
 
 CREATE OR REPLACE FUNCTION public.get_traffic_dashboard(
   p_web_id text,

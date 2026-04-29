@@ -1,5 +1,5 @@
--- refresh_analytics_rollups: populate analytics_daily_source_breakdown (sessions / PV / clicks) per acquisition channel.
--- Attribution for PV/clicks follows event-day (UTC) to align with KPI daily rollups.
+-- Re-apply refresh_analytics_rollups with deep scroll metrics
+-- Note: We use a new migration because editing old migrations won't affect already-migrated DBs.
 
 CREATE OR REPLACE FUNCTION public.refresh_analytics_rollups(
   p_web_id text,

@@ -34,6 +34,9 @@ type TrafficDashboardPayload = {
     median_active_ms: number;
     avg_active_ms: number;
     n: number;
+    max_deep_scroll_pct?: number | null;
+    avg_max_deep_scroll_pct?: number | null;
+    scroll_sessions?: number;
     click_event_name?: string;
     click_track_key?: string | null;
     click_element_type?: string | null;
@@ -58,6 +61,9 @@ type TrafficDashboardPayload = {
     sessions: number;
     page_views?: number;
     clicks?: number;
+    max_deep_scroll_pct?: number | null;
+    avg_max_deep_scroll_pct?: number | null;
+    scroll_sessions?: number;
   }>;
   funnel: { sessions: number; page_views: number; clicks: number };
   /** Coarse acquisition mix; session counts sum to KPI sessions for the range. */
@@ -67,6 +73,9 @@ type TrafficDashboardPayload = {
     sessions: number;
     page_views: number;
     clicks: number;
+    max_deep_scroll_pct?: number | null;
+    avg_max_deep_scroll_pct?: number | null;
+    scroll_sessions?: number;
   }>;
 };
 
@@ -83,6 +92,15 @@ function formatDurationMsCompact(ms: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+}
+
+function formatPct(v: unknown) {
+  if (v === null || v === undefined) return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  const rounded = Math.round(n);
+  const clamped = Math.max(0, Math.min(100, rounded));
+  return `${clamped}%`;
 }
 
 export default function TrafficPage() {
@@ -141,6 +159,13 @@ export default function TrafficPage() {
       sessions: Number(r.sessions ?? 0),
       page_views: Number(r.page_views ?? 0),
       clicks: Number(r.clicks ?? 0),
+      max_deep_scroll_pct: (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null
+        ? null
+        : Number((r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct),
+      avg_max_deep_scroll_pct: (r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct == null
+        ? null
+        : Number((r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct),
+      scroll_sessions: Number((r as { scroll_sessions?: unknown }).scroll_sessions ?? 0),
     }));
   }, [dashboardQuery.data?.utm_table]);
 
@@ -153,17 +178,35 @@ export default function TrafficPage() {
       sessions: Number((r as { sessions?: unknown }).sessions ?? 0),
       page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
       clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
+      max_deep_scroll_pct: (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null
+        ? null
+        : Number((r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct),
+      avg_max_deep_scroll_pct: (r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct == null
+        ? null
+        : Number((r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct),
+      scroll_sessions: Number((r as { scroll_sessions?: unknown }).scroll_sessions ?? 0),
     }));
   }, [dashboardQuery.data?.source_breakdown]);
 
   const sourceBreakdownTotals = useMemo(() => {
     return sourceBreakdownRows.reduce(
-      (acc, r) => ({
-        sessions: acc.sessions + r.sessions,
-        page_views: acc.page_views + r.page_views,
-        clicks: acc.clicks + r.clicks,
-      }),
-      { sessions: 0, page_views: 0, clicks: 0 },
+      (acc, r) => {
+        const maxDeep = Number(r.max_deep_scroll_pct);
+        const avgDeep = Number(r.avg_max_deep_scroll_pct);
+        const scrollSessions = Number(r.scroll_sessions ?? 0);
+        return {
+          sessions: acc.sessions + r.sessions,
+          page_views: acc.page_views + r.page_views,
+          clicks: acc.clicks + r.clicks,
+          scroll_sessions: acc.scroll_sessions + (Number.isFinite(scrollSessions) ? scrollSessions : 0),
+          scroll_sum:
+            acc.scroll_sum +
+            (Number.isFinite(avgDeep) && Number.isFinite(scrollSessions) && scrollSessions > 0 ? avgDeep * scrollSessions : 0),
+          max_deep_scroll_pct:
+            Number.isFinite(maxDeep) ? Math.max(acc.max_deep_scroll_pct ?? 0, maxDeep) : acc.max_deep_scroll_pct,
+        };
+      },
+      { sessions: 0, page_views: 0, clicks: 0, scroll_sessions: 0, scroll_sum: 0, max_deep_scroll_pct: null as number | null },
     );
   }, [sourceBreakdownRows]);
 
@@ -364,32 +407,34 @@ export default function TrafficPage() {
                         </div>
                         <div className="grid grid-cols-12 gap-3 p-3">
                           <div className="col-span-12 lg:col-span-8 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            <table className="w-full min-w-[520px] border-separate border-spacing-0 text-sm">
+                            <table className="w-full min-w-[720px] table-fixed border-separate border-spacing-0 text-sm">
                             <thead>
                               <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs text-gray-600">
-                                <th className="px-4 py-2 font-medium">Sumber</th>
-                                <th className="px-4 py-2 text-right font-medium">Sessions</th>
-                                <th className="px-4 py-2 text-right font-medium">% of total</th>
-                                <th className="px-4 py-2 text-right font-medium">Page views</th>
-                                <th className="px-4 py-2 text-right font-medium">Clicks</th>
+                                <th className="w-[160px] px-4 py-2 font-medium">Sumber</th>
+                                <th className="w-[90px] px-4 py-2 text-right font-medium">Sessions</th>
+                                <th className="w-[90px] px-4 py-2 text-right font-medium">% of total</th>
+                                <th className="w-[96px] px-4 py-2 text-right font-medium">Page views</th>
+                                <th className="w-[86px] px-4 py-2 text-right font-medium">Clicks</th>
+                                <th className="w-[110px] px-4 py-2 text-right font-medium">Max deep</th>
+                                <th className="w-[135px] px-4 py-2 text-right font-medium">Avg max deep</th>
                               </tr>
                             </thead>
                             <tbody>
                               {dashboardQuery.isLoading ? (
                                 <tr>
-                                  <td colSpan={5} className="px-4 py-6 text-center text-xs text-gray-500">
+                                  <td colSpan={7} className="px-4 py-6 text-center text-xs text-gray-500">
                                     Memuat…
                                   </td>
                                 </tr>
                               ) : dashboardQuery.isError ? (
                                 <tr>
-                                  <td colSpan={5} className="px-4 py-6 text-center text-xs text-gray-500">
+                                  <td colSpan={7} className="px-4 py-6 text-center text-xs text-gray-500">
                                     Gagal memuat sumber traffic.
                                   </td>
                                 </tr>
                               ) : sourceBreakdownRows.length === 0 ? (
                                 <tr>
-                                  <td colSpan={5} className="px-4 py-6 text-center text-xs text-gray-500">
+                                  <td colSpan={7} className="px-4 py-6 text-center text-xs text-gray-500">
                                     —
                                   </td>
                                 </tr>
@@ -446,6 +491,12 @@ export default function TrafficPage() {
                                         {row.clicks.toLocaleString()}
                                       </button>
                                     </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-800">
+                                      {formatPct(row.max_deep_scroll_pct)}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-800">
+                                      {formatPct(row.avg_max_deep_scroll_pct)}
+                                    </td>
                                   </tr>
                                 ))
                               )}
@@ -465,6 +516,14 @@ export default function TrafficPage() {
                                     </td>
                                     <td className="px-4 py-2 text-right tabular-nums">
                                       {sourceBreakdownTotals.clicks.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-2 text-right tabular-nums">
+                                      {formatPct(sourceBreakdownTotals.max_deep_scroll_pct)}
+                                    </td>
+                                    <td className="px-4 py-2 text-right tabular-nums">
+                                      {sourceBreakdownTotals.scroll_sessions > 0
+                                        ? formatPct(sourceBreakdownTotals.scroll_sum / sourceBreakdownTotals.scroll_sessions)
+                                        : "—"}
                                     </td>
                                   </tr>
                                 </tfoot>
@@ -564,6 +623,8 @@ export default function TrafficPage() {
                                   <th className="w-[70px] pb-2 text-right font-medium">Klik</th>
                                   <th className="w-[110px] pb-2 text-right font-medium">Median aktif</th>
                                   <th className="w-[100px] pb-2 text-right font-medium">Rata-rata</th>
+                                  <th className="w-[110px] pb-2 text-right font-medium">Max deep</th>
+                                  <th className="w-[140px] pb-2 text-right font-medium">Avg max deep</th>
                                   <th className="w-[60px] pb-2 pr-4 text-right font-medium">n</th>
                                 </tr>
                               </thead>
@@ -603,6 +664,12 @@ export default function TrafficPage() {
                                     <td className="py-2 text-right tabular-nums text-gray-700">
                                       {formatDurationMsCompact(Number(p.avg_active_ms ?? 0))}
                                     </td>
+                                    <td className="py-2 text-right tabular-nums text-gray-700">
+                                      {formatPct((p as any).max_deep_scroll_pct)}
+                                    </td>
+                                    <td className="py-2 text-right tabular-nums text-gray-700">
+                                      {formatPct((p as any).avg_max_deep_scroll_pct)}
+                                    </td>
                                     <td className="py-2 pr-4 text-right tabular-nums text-gray-500">
                                       {Number(p.n ?? 0).toLocaleString()}
                                     </td>
@@ -635,6 +702,8 @@ export default function TrafficPage() {
                                   <th className="w-[70px] pb-2 text-right font-medium">Klik</th>
                                   <th className="w-[110px] pb-2 text-right font-medium">Median aktif</th>
                                   <th className="w-[100px] pb-2 text-right font-medium">Rata-rata</th>
+                                  <th className="w-[110px] pb-2 text-right font-medium">Max deep</th>
+                                  <th className="w-[140px] pb-2 text-right font-medium">Avg max deep</th>
                                   <th className="w-[60px] pb-2 pr-4 text-right font-medium">n</th>
                                 </tr>
                               </thead>
@@ -673,6 +742,12 @@ export default function TrafficPage() {
                                     </td>
                                     <td className="py-2 text-right tabular-nums text-gray-700">
                                       {formatDurationMsCompact(Number(p.avg_active_ms ?? 0))}
+                                    </td>
+                                    <td className="py-2 text-right tabular-nums text-gray-700">
+                                      {formatPct((p as any).max_deep_scroll_pct)}
+                                    </td>
+                                    <td className="py-2 text-right tabular-nums text-gray-700">
+                                      {formatPct((p as any).avg_max_deep_scroll_pct)}
                                     </td>
                                     <td className="py-2 pr-4 text-right tabular-nums text-gray-500">
                                       {Number(p.n ?? 0).toLocaleString()}

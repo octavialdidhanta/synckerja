@@ -50,6 +50,9 @@ export type TrafficDashboardPayload = {
     sessions: number;
     page_views?: number;
     clicks?: number;
+    max_deep_scroll_pct?: number | null;
+    avg_max_deep_scroll_pct?: number | null;
+    scroll_sessions?: number;
   }>;
   funnel: { sessions: number; page_views: number; clicks: number };
   source_breakdown?: Array<{
@@ -58,6 +61,9 @@ export type TrafficDashboardPayload = {
     sessions: number;
     page_views: number;
     clicks: number;
+    max_deep_scroll_pct?: number | null;
+    avg_max_deep_scroll_pct?: number | null;
+    scroll_sessions?: number;
   }>;
 };
 
