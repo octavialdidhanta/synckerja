@@ -143,9 +143,25 @@ export function MobileSourceTrafficTableCard({
                         <button
                           type="button"
                           onClick={() => {
-                            const key = row.key as "utm" | "paid_click_ids" | "referral" | "direct";
+                            const key: "utm" | "paid_click_ids" | "referral" | "direct" =
+                              row.key === "utm" ||
+                              row.key === "paid_click_ids" ||
+                              row.key === "referral" ||
+                              row.key === "direct"
+                                ? row.key
+                                : "utm";
+                            const label =
+                              row.key === "utm"
+                                ? "UTM"
+                                : row.key === "paid_click_ids"
+                                  ? "Paid ads"
+                                  : row.key === "referral"
+                                    ? "Referral"
+                                    : row.key === "direct"
+                                      ? "Direct"
+                                      : row.label || row.key;
                             setClickSourceKey(key);
-                            setClickSourceLabel(displaySource(row.key, row.label));
+                            setClickSourceLabel(label);
                             setClickDetailsOpen(true);
                           }}
                           className="w-full font-semibold text-primary hover:underline"

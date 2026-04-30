@@ -12,6 +12,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ClickDetailsDialog } from "../components/ClickDetailsDialog";
 import { useTrafficDashboardController } from "../hooks/useTrafficDashboardController";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 
 type TrafficDashboardPayload = {
   web_id: string;
@@ -107,11 +108,10 @@ export default function TrafficPage() {
   const { toast } = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [clickDetailsOpen, setClickDetailsOpen] = useState(false);
-  const [clickDetailsPath, setClickDetailsPath] = useState<string>("");
-  const [sourceClickDetailsOpen, setSourceClickDetailsOpen] = useState(false);
-  const [sourceClickKey, setSourceClickKey] = useState<"utm" | "paid_click_ids" | "referral" | "direct">("utm");
-  const [sourceClickLabel, setSourceClickLabel] = useState<string>("UTM");
+  type TrafficClickDetails =
+    | { kind: "path"; path: string }
+    | { kind: "source"; key: "utm" | "paid_click_ids" | "referral" | "direct"; label: string };
+  const [clickDetails, setClickDetails] = useState<TrafficClickDetails | null>(null);
   const [utmTableMetrics, setUtmTableMetrics] = useState<UtmTableMetricsSlice>({
     utmFiltersActive: false,
     filteredSessionsSum: 0,
@@ -131,6 +131,7 @@ export default function TrafficPage() {
     toDate,
     rangeIsMaximum,
     dashboardQuery,
+    ingestionQuery,
   } = useTrafficDashboardController();
 
   const accessibleWebIds = webIdsQuery.data ?? [];
@@ -217,6 +218,21 @@ export default function TrafficPage() {
   const clicksDisplay =
     kpis == null ? null : utmTableMetrics.utmFiltersActive ? utmTableMetrics.filteredClicksSum : kpis.clicks;
   const topPages = dashboardQuery.data?.top_pages ?? [];
+
+  const trafficFilterSkipsAggregates = useMemo(() => {
+    if (rangeIsMaximum) return false;
+    if (!fromDate || !toDate) return false;
+    const ing = ingestionQuery.data;
+    const dmin = ing?.aggregate_day_min;
+    const dmax = ing?.aggregate_day_max;
+    if (dmin == null || dmax == null || String(dmin) === "" || String(dmax) === "") return false;
+    if (ing?.daily_rollups_exist === false) return false;
+    const a = (v: string | null | undefined) => String(v ?? "").slice(0, 10);
+    const bmin = a(dmin);
+    const bmax = a(dmax);
+    if (bmin.length < 10 || bmax.length < 10) return false;
+    return toDate < bmin || fromDate > bmax;
+  }, [rangeIsMaximum, fromDate, toDate, ingestionQuery.data]);
   const topPagesBlog = useMemo(() => {
     return topPages.filter((p) => {
       const path = String((p as { path?: unknown }).path ?? "");
@@ -295,6 +311,7 @@ export default function TrafficPage() {
             title: "Synced",
             description: desc,
           });
+          void ingestionQuery.refetch();
           dashboardQuery.refetch();
           return;
         }
@@ -362,7 +379,11 @@ export default function TrafficPage() {
                             </>
                           )}
                         </select>
-                        <DateRangeFilter onDateRangeChange={setRange} className="w-auto" />
+                        <DateRangeFilter
+                          onDateRangeChange={setRange}
+                          defaultPreset="last30days"
+                          className="w-auto"
+                        />
                         <Button
                           variant="outline"
                           size="sm"
@@ -382,6 +403,50 @@ export default function TrafficPage() {
 
                   <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <div className="grid grid-cols-12 gap-3">
+                      {!ingestionQuery.isLoading && !ingestionQuery.isError && ingestionQuery.data?.data_status === "rollups_not_built" && (
+                        <div className="col-span-12">
+                          <Alert className="border-amber-200 bg-amber-50/90 text-amber-950">
+                            <AlertTitle className="text-amber-950">Perlu &quot;Sync data&quot;</AlertTitle>
+                            <AlertDescription className="text-sm text-amber-900/90">
+                              Event trafik sudah masuk ke tabel mentah, tetapi agregat harian belum dibuat—karena itulah grafik
+                              memuat nol. Klik <strong>Sync data</strong> (akun <strong>owner</strong> atau <strong>admin</strong>).
+                              Setelah selesai, data akan tampil untuk rentang tanggal yang dipilih.
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
+                      {!ingestionQuery.isLoading && !ingestionQuery.isError && ingestionQuery.data?.data_status === "no_ingested_data" && (
+                        <div className="col-span-12">
+                          <Alert>
+                            <AlertTitle>Belum ada event trafik di database</AlertTitle>
+                            <AlertDescription className="text-sm text-muted-foreground">
+                              Untuk properti <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">{effectiveWebId}</code>{" "}
+                              belum ada data sesi, page view, atau klik. Pastikan skrip / pixel di situs publik
+                              terhubung ke proyek Supabase ini dan mengirim <code className="rounded bg-muted px-1.5 py-0.5">web_id</code>{" "}
+                              yang sama, lalu ulangi &quot;Sync data&quot; bila perlu.
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
+                      {!ingestionQuery.isLoading && !ingestionQuery.isError && trafficFilterSkipsAggregates && (
+                        <div className="col-span-12">
+                          <Alert className="border-rose-200 bg-rose-50/90 text-rose-950">
+                            <AlertTitle className="text-rose-950">Filter tanggal tidak memotong agregat harian</AlertTitle>
+                            <AlertDescription className="text-sm text-rose-900/90">
+                              Dashboard membaca tabel <strong>agregat harian</strong> (bukan tabel saja tanpa memfilter). Untuk{" "}
+                              <code className="rounded bg-white/70 px-1 py-0.5 text-rose-900">{effectiveWebId}</code>, hari yang punya
+                              agregat adalah{" "}
+                              <strong>
+                                {ingestionQuery.data?.aggregate_day_min} s/d {ingestionQuery.data?.aggregate_day_max}
+                              </strong>{" "}
+                              (kalender hari <strong>WIB</strong> / <code className="rounded bg-white/70 px-1 py-0.5">Asia/Jakarta</code>
+                              , kolom <code className="rounded bg-white/70 px-1 py-0.5">day</code>). Perluas rentang atau
+                              pilih <strong>Maximum</strong> agar mencakup hari tersebut, jangan hanya tanggal di luar rentang
+                              tersedia.
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
                       <div className="col-span-12 lg:col-span-4 rounded-lg border border-gray-200 p-4">
                         <p className="text-xs text-gray-500">Total sessions</p>
                         <p className="mt-1 text-2xl font-bold text-gray-900">
@@ -471,8 +536,7 @@ export default function TrafficPage() {
                                             row.key === "utm" || row.key === "paid_click_ids" || row.key === "referral" || row.key === "direct"
                                               ? row.key
                                               : "utm";
-                                          setSourceClickKey(key);
-                                          setSourceClickLabel(
+                                          const label =
                                             row.key === "utm"
                                               ? "UTM"
                                               : row.key === "paid_click_ids"
@@ -481,9 +545,8 @@ export default function TrafficPage() {
                                                   ? "Referral"
                                                   : row.key === "direct"
                                                     ? "Direct"
-                                                    : row.label || row.key,
-                                          );
-                                          setSourceClickDetailsOpen(true);
+                                                    : row.label || row.key;
+                                          setClickDetails({ kind: "source", key, label });
                                         }}
                                         className="w-full text-right font-semibold text-primary hover:underline"
                                         aria-label={`Lihat detail klik untuk ${row.label || row.key}`}
@@ -576,19 +639,6 @@ export default function TrafficPage() {
                         </div>
                       </div>
 
-                      <ClickDetailsDialog
-                        open={sourceClickDetailsOpen}
-                        onOpenChange={(open) => {
-                          setSourceClickDetailsOpen(open);
-                        }}
-                        webId={effectiveWebId}
-                        fromDate={fromDate}
-                        toDate={toDate}
-                        rangeIsMaximum={rangeIsMaximum}
-                        path={sourceClickLabel}
-                        sourceKey={sourceClickKey}
-                      />
-
                       <div className="col-span-12 min-h-0">
                         <UtmTrackingTable
                           rows={utmRows}
@@ -648,8 +698,8 @@ export default function TrafficPage() {
                                           type="button"
                                           className="tabular-nums text-blue-600 hover:underline"
                                           onClick={() => {
-                                            setClickDetailsPath(String(p.path ?? ""));
-                                            setClickDetailsOpen(true);
+                                            const raw = String(p.path ?? "").trim();
+                                            setClickDetails({ kind: "path", path: raw || "/" });
                                           }}
                                         >
                                           {Number(p.clicks ?? 0).toLocaleString()}
@@ -665,10 +715,10 @@ export default function TrafficPage() {
                                       {formatDurationMsCompact(Number(p.avg_active_ms ?? 0))}
                                     </td>
                                     <td className="py-2 text-right tabular-nums text-gray-700">
-                                      {formatPct((p as any).max_deep_scroll_pct)}
+                                      {formatPct(p.max_deep_scroll_pct)}
                                     </td>
                                     <td className="py-2 text-right tabular-nums text-gray-700">
-                                      {formatPct((p as any).avg_max_deep_scroll_pct)}
+                                      {formatPct(p.avg_max_deep_scroll_pct)}
                                     </td>
                                     <td className="py-2 pr-4 text-right tabular-nums text-gray-500">
                                       {Number(p.n ?? 0).toLocaleString()}
@@ -727,8 +777,8 @@ export default function TrafficPage() {
                                           type="button"
                                           className="tabular-nums text-blue-600 hover:underline"
                                           onClick={() => {
-                                            setClickDetailsPath(String(p.path ?? ""));
-                                            setClickDetailsOpen(true);
+                                            const raw = String(p.path ?? "").trim();
+                                            setClickDetails({ kind: "path", path: raw || "/" });
                                           }}
                                         >
                                           {Number(p.clicks ?? 0).toLocaleString()}
@@ -744,10 +794,10 @@ export default function TrafficPage() {
                                       {formatDurationMsCompact(Number(p.avg_active_ms ?? 0))}
                                     </td>
                                     <td className="py-2 text-right tabular-nums text-gray-700">
-                                      {formatPct((p as any).max_deep_scroll_pct)}
+                                      {formatPct(p.max_deep_scroll_pct)}
                                     </td>
                                     <td className="py-2 text-right tabular-nums text-gray-700">
-                                      {formatPct((p as any).avg_max_deep_scroll_pct)}
+                                      {formatPct(p.avg_max_deep_scroll_pct)}
                                     </td>
                                     <td className="py-2 pr-4 text-right tabular-nums text-gray-500">
                                       {Number(p.n ?? 0).toLocaleString()}
@@ -787,16 +837,16 @@ export default function TrafficPage() {
       />
 
       <ClickDetailsDialog
-        open={clickDetailsOpen}
+        open={clickDetails != null}
         onOpenChange={(open) => {
-          setClickDetailsOpen(open);
-          if (!open) setClickDetailsPath("");
+          if (!open) setClickDetails(null);
         }}
         webId={effectiveWebId}
         fromDate={fromDate}
         toDate={toDate}
-        rangeIsMaximum={range === null}
-        path={clickDetailsPath}
+        rangeIsMaximum={rangeIsMaximum}
+        path={clickDetails?.kind === "path" ? clickDetails.path : clickDetails?.kind === "source" ? clickDetails.label : ""}
+        sourceKey={clickDetails?.kind === "source" ? clickDetails.key : undefined}
       />
     </div>
   );

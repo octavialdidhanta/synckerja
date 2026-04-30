@@ -2,16 +2,7 @@ import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
-
-type ClickTargetRow = {
-  clicks: number;
-  unique_sessions: number;
-  track_key: string | null;
-  element_type: string;
-  element_label: string;
-  target_url: string | null;
-  is_internal: boolean;
-};
+import { normalizeClickTargetRows } from "@/6-0-traffic/lib/normalizeClickTargetRows";
 
 export function ClickDetailsDialog({
   open,
@@ -41,9 +32,12 @@ export function ClickDetailsDialog({
   };
   sourceKey?: "utm" | "paid_click_ids" | "referral" | "direct";
 }) {
+  const hasPath = typeof path === "string" && path.trim() !== "";
+  const canFetch = Boolean(utm) || Boolean(sourceKey) || hasPath;
+
   const detailsQuery = useQuery({
     queryKey: ["traffic", "click-details", "desktop", webId, fromDate, toDate, path, utm ?? null, sourceKey ?? null],
-    enabled: Boolean(webId) && open && (Boolean(path) || Boolean(utm) || Boolean(sourceKey)),
+    enabled: Boolean(webId) && open && canFetch,
     queryFn: async () => {
       const common = {
         p_web_id: webId,
@@ -72,7 +66,7 @@ export function ClickDetailsDialog({
               p_path: path,
             });
       if (error) throw error;
-      return (Array.isArray(data) ? (data as ClickTargetRow[]) : []) satisfies ClickTargetRow[];
+      return normalizeClickTargetRows(data);
     },
   });
 

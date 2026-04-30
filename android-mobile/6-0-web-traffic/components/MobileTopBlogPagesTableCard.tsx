@@ -104,7 +104,10 @@ export function MobileTopBlogPagesTableCard({
                         <button
                           type="button"
                           className="tabular-nums text-blue-600 hover:underline"
-                          onClick={() => onClickClicks(String(p.path ?? ""))}
+                          onClick={() => {
+                            const raw = String(p.path ?? "").trim();
+                            onClickClicks(raw || "/");
+                          }}
                         >
                           {Number(p.clicks ?? 0).toLocaleString()}
                         </button>

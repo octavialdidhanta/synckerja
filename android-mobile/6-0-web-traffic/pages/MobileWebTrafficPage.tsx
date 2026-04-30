@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppSidebar } from "@/mobile-app/components/AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/mobile-app/components/ui/sidebar";
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport";
@@ -28,6 +28,7 @@ import {
   DrawerTrigger,
 } from "@/mobile-app/components/ui/drawer";
 import { ChevronDown } from "lucide-react";
+import { getLast30DaysDateRange } from "@/5-3-dashboard/components/leads/filters/dateRangePresets";
 import { endOfDay, endOfMonth, endOfWeek, startOfDay, startOfMonth, startOfWeek, subDays, subMonths } from "date-fns";
 
 function formatCompactInt(n: number) {
@@ -53,14 +54,15 @@ export default function MobileWebTrafficPage() {
     webIdsQuery,
     effectiveWebId,
     dashboardQuery,
+    ingestionQuery,
     fromDate,
     toDate,
     rangeIsMaximum,
   } = useTrafficDashboardController();
 
   const [dateFilter, setDateFilter] = useState<
-    "maximum" | "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "custom"
-  >("maximum");
+    "maximum" | "last_30" | "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "custom"
+  >("last_30");
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [periodDrawerOpen, setPeriodDrawerOpen] = useState(false);
@@ -72,8 +74,23 @@ export default function MobileWebTrafficPage() {
   const touchStartY = useRef(0);
   const touchStartX = useRef(0);
   const pullDistanceRef = useRef(0);
-  const [clickDetailsOpen, setClickDetailsOpen] = useState(false);
-  const [clickDetailsPath, setClickDetailsPath] = useState<string>("");
+  type TrafficPathClickDetails = { kind: "path"; path: string };
+  const [clickDetails, setClickDetails] = useState<TrafficPathClickDetails | null>(null);
+
+  const trafficFilterSkipsAggregates = useMemo(() => {
+    if (rangeIsMaximum) return false;
+    if (!fromDate || !toDate) return false;
+    const ing = ingestionQuery.data;
+    const dmin = ing?.aggregate_day_min;
+    const dmax = ing?.aggregate_day_max;
+    if (dmin == null || dmax == null || String(dmin) === "" || String(dmax) === "") return false;
+    if (ing?.daily_rollups_exist === false) return false;
+    const a = (v: string | null | undefined) => String(v ?? "").slice(0, 10);
+    const bmin = a(dmin);
+    const bmax = a(dmax);
+    if (bmin.length < 10 || bmax.length < 10) return false;
+    return toDate < bmin || fromDate > bmax;
+  }, [rangeIsMaximum, fromDate, toDate, ingestionQuery.data]);
 
   useEffect(() => {
     pullDistanceRef.current = pullDistance;
@@ -107,6 +124,8 @@ export default function MobileWebTrafficPage() {
 
       const range = (() => {
         switch (value) {
+          case "last_30":
+            return getLast30DaysDateRange(now);
           case "today":
             return { from: startOfDay(now), to: endOfDay(now) };
           case "yesterday": {
@@ -146,6 +165,7 @@ export default function MobileWebTrafficPage() {
 
   const periodLabel = (() => {
     if (dateFilter === "maximum") return t("traffic.mobile.dateRange.maximumShort", "Maximum");
+    if (dateFilter === "last_30") return t("reports.dateFilter.last30Days", "Last 30 days");
     if (dateFilter === "today") return t("reports.dateFilter.today", "Today");
     if (dateFilter === "yesterday") return t("reports.dateFilter.yesterday", "Yesterday");
     if (dateFilter === "this_week") return t("reports.dateFilter.thisWeek", "This Week");
@@ -215,6 +235,7 @@ export default function MobileWebTrafficPage() {
           ? `Rollup refreshed for ${effectiveWebId} (Maximum: semua tanggal yang tersedia).`
           : `Rollup refreshed for ${effectiveWebId} (${fromDate} → ${toDate}).`;
         toast({ title: "Synced", description: desc, variant: "headsUp", duration: 2200 });
+        void ingestionQuery.refetch();
         await dashboardQuery.refetch();
         return;
       }
@@ -234,7 +255,7 @@ export default function MobileWebTrafficPage() {
       variant: "headsUp",
       duration: 3200,
     });
-  }, [dashboardQuery, effectiveWebId, fromDate, rangeIsMaximum, t, toast, toDate]);
+  }, [dashboardQuery, effectiveWebId, fromDate, ingestionQuery, rangeIsMaximum, t, toast, toDate]);
 
   const handleSync = useCallback(async () => {
     if (isRefreshing || dashboardQuery.isFetching) return;
@@ -434,6 +455,7 @@ export default function MobileWebTrafficPage() {
                             {(
                               [
                                 { value: "maximum", label: t("traffic.mobile.dateRange.maximumShort", "Maximum") },
+                                { value: "last_30", label: t("reports.dateFilter.last30Days", "Last 30 days") },
                                 { value: "today", label: t("reports.dateFilter.today", "Today") },
                                 { value: "yesterday", label: t("reports.dateFilter.yesterday", "Yesterday") },
                                 { value: "this_week", label: t("reports.dateFilter.thisWeek", "This Week") },
@@ -466,6 +488,41 @@ export default function MobileWebTrafficPage() {
               {dashboardQuery.isError ? (
                 <div className="rounded-lg border border-primary/35 bg-card p-3 text-sm text-destructive">
                   {t("traffic.mobile.error.dashboard", "Gagal memuat dashboard.")}
+                </div>
+              ) : null}
+
+              {!ingestionQuery.isLoading && !ingestionQuery.isError && ingestionQuery.data?.data_status === "rollups_not_built" ? (
+                <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 p-3 text-xs text-amber-950">
+                  {t(
+                    "traffic.mobile.hintRollups",
+                    "Event trafik ada di database, tetapi agregat belum. Tarik ke bawah refresh atau buka Sync/refresh rollup (owner/admin) dari desktop.",
+                  )}
+                </div>
+              ) : null}
+              {!ingestionQuery.isLoading && !ingestionQuery.isError && ingestionQuery.data?.data_status === "no_ingested_data" ? (
+                <div className="rounded-lg border border-sky-200/80 bg-sky-50/60 p-3 text-xs text-slate-800">
+                  {t(
+                    "traffic.mobile.hintNoRaw",
+                    "Belum ada sesi / page view / klik tercatat. Pastikan pixel di situs terhubung ke proyek ini dan web_id cocok, lalu sync bila perlu.",
+                  )}
+                </div>
+              ) : null}
+              {!ingestionQuery.isLoading && !ingestionQuery.isError && trafficFilterSkipsAggregates ? (
+                <div className="rounded-lg border border-rose-200/80 bg-rose-50/90 p-3 text-xs text-rose-950">
+                  <p className="font-semibold text-rose-950">
+                    {t("traffic.mobile.hintDateFilterTitle", "Filter tanggal tidak memotong agregat harian")}
+                  </p>
+                  <p className="mt-1 text-rose-900/90">
+                    {t(
+                      "traffic.mobile.hintDateFilterSkipsAggregates",
+                      "Dashboard memakai tabel agregat harian. Untuk {{web}}, hari agregat tersedia {{min}} s/d {{max}} (kalender WIB / Asia/Jakarta, kolom day). Perluas rentang atau pilih Maximum.",
+                      {
+                        web: effectiveWebId,
+                        min: String(ingestionQuery.data?.aggregate_day_min ?? ""),
+                        max: String(ingestionQuery.data?.aggregate_day_max ?? ""),
+                      },
+                    )}
+                  </p>
                 </div>
               ) : null}
 
@@ -552,16 +609,16 @@ export default function MobileWebTrafficPage() {
               <MobileTopPagesTableCard
                 rows={topPages}
                 onClickClicks={(path) => {
-                  setClickDetailsPath(path);
-                  setClickDetailsOpen(true);
+                  const raw = String(path ?? "").trim();
+                  setClickDetails({ kind: "path", path: raw || "/" });
                 }}
               />
 
               <MobileTopBlogPagesTableCard
                 rows={topPages}
                 onClickClicks={(path) => {
-                  setClickDetailsPath(path);
-                  setClickDetailsOpen(true);
+                  const raw = String(path ?? "").trim();
+                  setClickDetails({ kind: "path", path: raw || "/" });
                 }}
               />
             </div>
@@ -583,16 +640,15 @@ export default function MobileWebTrafficPage() {
       </div>
 
       <MobileClickDetailsDialog
-        open={clickDetailsOpen}
+        open={clickDetails != null}
         onOpenChange={(open) => {
-          setClickDetailsOpen(open);
-          if (!open) setClickDetailsPath("");
+          if (!open) setClickDetails(null);
         }}
         webId={effectiveWebId}
         fromDate={fromDate}
         toDate={toDate}
         rangeIsMaximum={rangeIsMaximum}
-        path={clickDetailsPath}
+        path={clickDetails?.path ?? ""}
       />
     </SidebarProvider>
   );

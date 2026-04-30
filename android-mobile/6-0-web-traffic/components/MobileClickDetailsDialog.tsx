@@ -5,16 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/compo
 import { Button } from "@/shared/components/ui/button";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { ArrowLeft, MousePointerClick } from "lucide-react";
-
-type ClickTargetRow = {
-  clicks: number;
-  unique_sessions: number;
-  track_key: string | null;
-  element_type: string;
-  element_label: string;
-  target_url: string | null;
-  is_internal: boolean;
-};
+import { normalizeClickTargetRows } from "@/6-0-traffic/lib/normalizeClickTargetRows";
 
 export function MobileClickDetailsDialog({
   open,
@@ -45,10 +36,12 @@ export function MobileClickDetailsDialog({
   sourceKey?: "utm" | "paid_click_ids" | "referral" | "direct";
 }) {
   const isMobile = useIsMobile();
+  const hasPath = typeof path === "string" && path.trim() !== "";
+  const canFetch = Boolean(utm) || Boolean(sourceKey) || hasPath;
 
   const detailsQuery = useQuery({
     queryKey: ["traffic", "click-details", "mobile", webId, fromDate, toDate, path, utm ?? null, sourceKey ?? null],
-    enabled: Boolean(webId) && open && (Boolean(path) || Boolean(utm) || Boolean(sourceKey)),
+    enabled: Boolean(webId) && open && canFetch,
     queryFn: async () => {
       const common = {
         p_web_id: webId,
@@ -77,7 +70,7 @@ export function MobileClickDetailsDialog({
               p_path: path,
             });
       if (error) throw error;
-      return (Array.isArray(data) ? (data as ClickTargetRow[]) : []) satisfies ClickTargetRow[];
+      return normalizeClickTargetRows(data);
     },
   });
 

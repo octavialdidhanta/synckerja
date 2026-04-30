@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Calendar } from '@/shared/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
@@ -7,6 +7,7 @@ import { Label } from '@/shared/components/ui/label';
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
 import { format, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
+import { getLast30DaysDateRange } from '@/5-3-dashboard/components/leads/filters/dateRangePresets';
 
 export interface DateFilterOption {
   value: string;
@@ -17,13 +18,30 @@ export interface DateFilterOption {
 interface DateRangeFilterProps {
   onDateRangeChange: (range: DateRange | null) => void;
   className?: string;
+  /** Hanya dipakai saat init: selaraskan teks & radio ke "Last 30 days" bila parent sudah memakai rentang yang sama. */
+  defaultPreset?: 'maximum' | 'last30days';
 }
 
-export const DateRangeFilter = ({ onDateRangeChange, className }: DateRangeFilterProps) => {
+function formatRangeButtonLabel(r: DateRange) {
+  const formatStr = 'dd MMM yyyy';
+  if (!r.from || !r.to) return 'Maximum';
+  if (r.from.getTime() === r.to.getTime()) return format(r.from, formatStr);
+  return `${format(r.from, formatStr)} - ${format(r.to, formatStr)}`;
+}
+
+export const DateRangeFilter = ({ onDateRangeChange, className, defaultPreset = 'maximum' }: DateRangeFilterProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedOption, setSelectedOption] = useState('maximum');
-  const [customRange, setCustomRange] = useState<DateRange | undefined>();
-  const [displayText, setDisplayText] = useState('Maximum');
+  const [selectedOption, setSelectedOption] = useState(() =>
+    defaultPreset === 'last30days' ? 'last30days' : 'maximum',
+  );
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(() =>
+    defaultPreset === 'last30days' ? getLast30DaysDateRange() : undefined,
+  );
+  const [displayText, setDisplayText] = useState(() => {
+    if (defaultPreset === 'last30days') return formatRangeButtonLabel(getLast30DaysDateRange());
+    return 'Maximum';
+  });
+  const calendarDefaultMonth = useMemo(() => new Date(), []);
 
   const today = new Date();
   const yesterday = subDays(today, 1);
@@ -166,6 +184,7 @@ export const DateRangeFilter = ({ onDateRangeChange, className }: DateRangeFilte
               selected={customRange}
               onSelect={handleCustomRangeChange}
               numberOfMonths={2}
+              defaultMonth={calendarDefaultMonth}
               className="pointer-events-auto"
             />
             

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DateRange } from "react-day-picker";
 import { format } from "date-fns";
+import { getLast30DaysDateRange } from "@/5-3-dashboard/components/leads/filters/dateRangePresets";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 
@@ -26,6 +27,8 @@ export type TrafficDashboardPayload = {
     median_active_ms: number;
     avg_active_ms: number;
     n: number;
+    max_deep_scroll_pct?: number | null;
+    avg_max_deep_scroll_pct?: number | null;
     click_event_name?: string;
     click_track_key?: string | null;
     click_element_type?: string | null;
@@ -67,10 +70,20 @@ export type TrafficDashboardPayload = {
   }>;
 };
 
+export type TrafficIngestionStatus = {
+  raw_events_exist: boolean;
+  daily_rollups_exist: boolean;
+  /** YYYY-MM-DD; null jika belum ada baris agregat untuk web_id */
+  aggregate_day_min?: string | null;
+  aggregate_day_max?: string | null;
+  data_status: "ok" | "no_ingested_data" | "rollups_not_built";
+};
+
 export function useTrafficDashboardController() {
   const { organizationId } = useCurrentOrg();
   const [webId, setWebId] = useState<string>("");
-  const [range, setRange] = useState<DateRange | null>(null);
+  /** Default: 30 hari terakhir agar dashboard sejalan dengan trafik aktual; "Maximum" pilih lewat filter. */
+  const [range, setRange] = useState<DateRange | null>(() => getLast30DaysDateRange());
 
   const webIdsQuery = useQuery({
     queryKey: ["traffic", "accessible-web-ids"],
@@ -112,7 +125,26 @@ export function useTrafficDashboardController() {
         p_utm_limit: 2000,
       });
       if (error) throw error;
-      return data as TrafficDashboardPayload;
+      const raw = data as TrafficDashboardPayload;
+      // RPC lama (top_pages: page_views) vs baru (impr); filter tanggal pakai `day` di DB, bukan UTC di sini
+      const topPages = (raw.top_pages ?? []).map((row) => {
+        const r = row as unknown as { impr?: unknown; page_views?: unknown };
+        const impr = r.impr ?? r.page_views;
+        return { ...row, impr: Number(impr ?? 0) };
+      });
+      return { ...raw, top_pages: topPages } as TrafficDashboardPayload;
+    },
+  });
+
+  const ingestionQuery = useQuery({
+    queryKey: ["traffic", "ingestion", organizationId, effectiveWebId],
+    enabled: Boolean(organizationId) && Boolean(effectiveWebId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_traffic_ingestion_status", {
+        p_web_id: effectiveWebId,
+      });
+      if (error) throw error;
+      return data as TrafficIngestionStatus;
     },
   });
 
@@ -128,6 +160,7 @@ export function useTrafficDashboardController() {
     toDate,
     rangeIsMaximum,
     dashboardQuery,
+    ingestionQuery,
   };
 }
 
