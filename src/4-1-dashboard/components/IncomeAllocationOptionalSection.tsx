@@ -81,10 +81,8 @@ function pickAutoAllocation(
 }
 
 /**
- * Optional "allocate from income" UI when paying from a bank account.
- * Auto-selects when the bank account matches eligible income: immediately if only one row,
- * or when several exist (newest first if payment amount not set yet). Respects explicit "None"
- * until bank account or reference date changes.
+ * Optional link from a bank-funded payment/expense to an income row on the same account.
+ * Auto-picks when possible; user can choose None or adjust selection/amount.
  */
 export function IncomeAllocationOptionalSection({
   bankAccountId,
@@ -180,24 +178,16 @@ export function IncomeAllocationOptionalSection({
   }
 
   return (
-    <div className="rounded-md border border-dashed border-muted-foreground/30 p-3 space-y-3 bg-muted/20">
-      <p className="text-sm font-medium">
-        {t('incomes.allocation.sectionTitle', 'Allocate from income (optional)')}
+    <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/20 p-3 space-y-2">
+      <p className="text-sm font-medium leading-snug">
+        {t('incomes.allocation.sectionTitle', 'Link to income (optional)')}
       </p>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground leading-snug">
         {t(
           'incomes.allocation.sectionHint',
-          'Link this payment to a specific income on the same bank account so that income cannot be edited or deleted until the expense or debt payment is removed.'
+          'Choose income on this same account if needed. Usually filled automatically; pick None to skip.'
         )}
       </p>
-      {!isLoading && candidates.length > 0 ? (
-        <p className="text-xs text-muted-foreground">
-          {t(
-            'incomes.allocation.autoHint',
-            'If only one income matches this account, it is linked automatically when you choose the bank account. If there are several, we pick the newest (or the best match once you enter the payment amount). Choose None if you do not want a link.'
-          )}
-        </p>
-      ) : null}
       {isLoading ? (
         <p className="text-xs text-muted-foreground">{t('common.loading', 'Loading…')}</p>
       ) : candidates.length === 0 ? (
@@ -211,7 +201,7 @@ export function IncomeAllocationOptionalSection({
         <>
           <div className="space-y-1.5">
             <Label htmlFor="income-allocation-select" className="text-xs">
-              {t('incomes.allocation.selectIncome', 'Income record')}
+              {t('incomes.allocation.selectIncome', 'Income')}
             </Label>
             <Select
               value={selectedIncomeId || '__none__'}
@@ -256,7 +246,7 @@ export function IncomeAllocationOptionalSection({
           {selectedIncomeId ? (
             <div className="space-y-1.5">
               <Label htmlFor="income-allocation-amount" className="text-xs">
-                {t('incomes.allocation.amountLabel', 'Amount to allocate (IDR)')}
+                {t('incomes.allocation.amountLabel', 'Amount (IDR)')}
               </Label>
               <Input
                 id="income-allocation-amount"

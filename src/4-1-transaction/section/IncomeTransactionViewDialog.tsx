@@ -8,6 +8,10 @@ import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
+import {
+  MODAL_BRAND_HEADER_BAR,
+  MODAL_BRAND_HEADER_CLOSE_BTN,
+} from '@/shared/constants/modalBrandHeaderClasses';
 
 interface IncomeTransactionViewDialogProps {
   transaction: IncomeTransactionWithRelations | null;
@@ -103,30 +107,29 @@ export const IncomeTransactionViewDialog = ({
       >
         <DialogHeader
           className={cn(
-            'flex-shrink-0 border-b text-left',
+            'flex-shrink-0 text-left',
+            MODAL_BRAND_HEADER_BAR,
             isMobile
-              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 dark:from-blue-950/20 dark:to-indigo-950/20'
-              : 'px-6 pt-6 pb-4',
+              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0 !space-y-0'
+              : 'space-y-1 px-4 py-3',
           )}
         >
           {isMobile ? (
             <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
-              <DialogTitle className="m-0 min-w-0 flex-1 truncate py-0 pr-1 text-base font-semibold leading-tight">
+              <DialogTitle className="m-0 min-w-0 flex-1 truncate py-0 pr-1 text-base font-semibold leading-tight text-primary-foreground">
                 {title}
               </DialogTitle>
-              <Button
+              <button
                 type="button"
-                variant="ghost"
-                size="icon"
-                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                className={MODAL_BRAND_HEADER_CLOSE_BTN}
                 onClick={() => onOpenChange(false)}
                 aria-label={t('layout.sheetClose', 'Close')}
               >
-                <X className="h-4 w-4" />
-              </Button>
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </button>
             </div>
           ) : (
-            <DialogTitle className="pr-10 text-lg font-semibold leading-tight">
+            <DialogTitle className="pr-10 text-lg font-semibold leading-tight text-primary-foreground">
               {title}
             </DialogTitle>
           )}

@@ -70,6 +70,10 @@ import {
 import { setShareBackGuard } from "@/mobile/4-2-reminder-bills/lib/shareBackGuard";
 import type { ExpenseReceiptAutofillData } from "@/mobile/shared/services/analyzeExpenseReceiptWithAI";
 import { IncomeAllocationOptionalSection } from "@/4-1-dashboard/components/IncomeAllocationOptionalSection";
+import {
+  MODAL_BRAND_HEADER_BAR,
+  MODAL_BRAND_HEADER_CLOSE_BTN,
+} from "@/shared/constants/modalBrandHeaderClasses";
 
 export interface AddNewExpenseModalProps {
   open: boolean;
@@ -786,34 +790,39 @@ export function AddNewExpenseModal({
         }}
       >
         {isMobile ? (
-          <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+          <DialogHeader
+            className={cn(
+              "safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0 text-left",
+              MODAL_BRAND_HEADER_BAR,
+            )}
+          >
             <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
               <div className="min-w-0 flex-1">
-                <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
+                <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center truncate py-0 pr-1 text-base font-semibold leading-tight text-primary-foreground">
                   {t("expenses.addNewExpenseTitle", "Add New Expense")}
                 </DialogTitle>
-                <p className="mt-0.5 truncate text-xs leading-snug text-muted-foreground">
+                <p className="mt-0.5 truncate text-xs leading-snug text-primary-foreground/90">
                   {t("expenses.addNewExpenseSubtitle", "Enter the details for your new expense entry.")}
                 </p>
               </div>
-              <Button
+              <button
                 type="button"
-                variant="ghost"
-                size="icon"
-                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                className={MODAL_BRAND_HEADER_CLOSE_BTN}
                 onClick={() => handleOpenChange(false)}
                 aria-label={t("common.close", "Close")}
               >
-                <X className="h-4 w-4" />
-              </Button>
+                <X className="h-4 w-4 shrink-0" aria-hidden />
+              </button>
             </div>
           </DialogHeader>
         ) : (
-          <DialogHeader className="flex-shrink-0 space-y-1 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-4 py-3 text-left dark:from-brand-blue/20 dark:to-brand-blue/10">
-            <DialogTitle className="text-lg font-semibold leading-tight">
+          <DialogHeader
+            className={cn("flex-shrink-0 space-y-1 px-4 py-3 text-left", MODAL_BRAND_HEADER_BAR)}
+          >
+            <DialogTitle className="text-lg font-semibold leading-tight text-primary-foreground">
               {t("expenses.addNewExpenseTitle", "Add New Expense")}
             </DialogTitle>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-primary-foreground/90">
               {t("expenses.addNewExpenseSubtitle", "Enter the details for your new expense entry.")}
             </p>
           </DialogHeader>

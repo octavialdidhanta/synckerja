@@ -2,6 +2,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { AppShellLayout } from "@/shared/layouts/AppShellLayout";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
 import { useToolsModuleMobileViewport } from "@/shared/hooks/useToolsModuleMobileViewport";
+import { SHARE_RECEIPT_VALIDATION_PATH } from "@/shared/native/shareReceiptValidationPath";
 
 /** Bottom-nav parity routes render full-screen chrome inside the page (no desktop AppHeader / sidebar). */
 const MOBILE_MAIN_TAB_PATHS = new Set([
@@ -41,6 +42,8 @@ export function AdaptiveAppLayout() {
     pathname === "/subscription/overview" ||
     pathname === "/subscription/plans" ||
     pathname === "/subscription/management";
+  /** Gallery share → validate receipt: halaman punya header mobile sendiri (bukan `AppHeader` desktop). */
+  const isMobileShareReceiptValidationPath = pathname === SHARE_RECEIPT_VALIDATION_PATH;
 
   if (
     !isDesktop &&
@@ -48,7 +51,8 @@ export function AdaptiveAppLayout() {
       isMobileExpensesPath ||
       isMobileIncomesPath ||
       isMobileHabitsTrackerPath ||
-      isMobileWebTrafficPath)
+      isMobileWebTrafficPath ||
+      isMobileShareReceiptValidationPath)
   ) {
     return <Outlet />;
   }

@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient';
-import { isValidDebtPaymentBankAccountId } from './submitDebtPayment';
+import { isValidDebtPaymentBankAccountId, reverseDebtRowAfterPaymentRemoved } from './submitDebtPayment';
 
 type UpdateBalanceFn = (
   bankAccountId: string,
@@ -32,6 +32,23 @@ export async function deleteDebtPaymentWithRefund(params: {
   let refunded = false;
 
   try {
+    const { data: payRow, error: payFetchErr } = await supabase
+      .from('debt_payments')
+      .select('id, debt_id, payment_amount')
+      .eq('id', paymentId)
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+
+    if (payFetchErr || !payRow?.debt_id) {
+      return { ok: false, message: payFetchErr?.message ?? 'Payment not found' };
+    }
+
+    const debtIdForSync = payRow.debt_id as string;
+    const payAmt = parseFloat(String(payRow.payment_amount));
+    if (!Number.isFinite(payAmt) || payAmt <= 0) {
+      return { ok: false, message: 'Invalid stored payment amount' };
+    }
+
     if (isValidDebtPaymentBankAccountId(bankId)) {
       await updateBalance(
         bankId,
@@ -64,6 +81,16 @@ export async function deleteDebtPaymentWithRefund(params: {
         }
       }
       return { ok: false, message: error.message };
+    }
+
+    const rev = await reverseDebtRowAfterPaymentRemoved({
+      organizationId,
+      debtId: debtIdForSync,
+      paymentAmount: payAmt,
+    });
+    if (!rev.ok) {
+      console.error('deleteDebtPaymentWithRefund debt row reversal failed:', rev.message);
+      return { ok: false, message: rev.message };
     }
 
     return { ok: true };

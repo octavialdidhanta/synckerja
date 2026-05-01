@@ -44,6 +44,10 @@ import { getPayableDebts } from '../utils/payableDebts';
 import type { ExpenseReceiptAutofillData } from '@/mobile/shared/services/analyzeExpenseReceiptWithAI';
 import { isValidDebtPaymentBankAccountId, type DebtPaymentModalSubmitPayload } from '../services/submitDebtPayment';
 import { IncomeAllocationOptionalSection } from '@/4-1-dashboard/components/IncomeAllocationOptionalSection';
+import {
+  MODAL_BRAND_HEADER_BAR,
+  MODAL_BRAND_HEADER_CLOSE_BTN,
+} from '@/shared/constants/modalBrandHeaderClasses';
 
 const RECEIPT_ALLOWED = [
   'image/jpeg',
@@ -471,29 +475,35 @@ export const DebtPaymentModal = ({
           hideCloseButton={isMobile}
         >
           {isMobile ? (
-            <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <DialogHeader
+              className={cn(
+                'safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0 text-left',
+                MODAL_BRAND_HEADER_BAR,
+              )}
+            >
               <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
                 <div className="min-w-0 flex-1">
-                  <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center text-left text-base font-semibold leading-tight">
+                  <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center text-left text-base font-semibold leading-tight text-primary-foreground">
                     {t('debt.payment.title', 'Pay Debt')}
                   </DialogTitle>
-                  <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
+                  <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-primary-foreground/90">
                     {t('debt.payment.noPayableDebts', 'No debts available for payment')}
                   </DialogDescription>
                 </div>
-                <DialogClose
-                  type="button"
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-blue/50 bg-background/80 p-0 text-muted-foreground ring-offset-background transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
+                <DialogClose type="button" className={MODAL_BRAND_HEADER_CLOSE_BTN}>
                   <X className="block h-4 w-4 shrink-0" aria-hidden />
                   <span className="sr-only">{t('common.close', 'Close')}</span>
                 </DialogClose>
               </div>
             </DialogHeader>
           ) : (
-            <DialogHeader>
-              <DialogTitle className="text-lg font-semibold">{t('debt.payment.title', 'Pay Debt')}</DialogTitle>
-              <DialogDescription>{t('debt.payment.noPayableDebts', 'No debts available for payment')}</DialogDescription>
+            <DialogHeader className={cn(MODAL_BRAND_HEADER_BAR, 'p-4 pb-3')}>
+              <DialogTitle className="text-lg font-semibold text-primary-foreground">
+                {t('debt.payment.title', 'Pay Debt')}
+              </DialogTitle>
+              <DialogDescription className="text-primary-foreground/90">
+                {t('debt.payment.noPayableDebts', 'No debts available for payment')}
+              </DialogDescription>
             </DialogHeader>
           )}
           <DialogFooter className={cn('flex-shrink-0 border-t', isMobile ? 'px-4 pt-3 pb-3 bg-muted/30' : '')}>
@@ -543,32 +553,40 @@ export const DebtPaymentModal = ({
           hideCloseButton={isMobile}
         >
           {isMobile ? (
-            <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <DialogHeader
+              className={cn(
+                'safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0 text-left',
+                MODAL_BRAND_HEADER_BAR,
+              )}
+            >
               <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
                 <div className="min-w-0 flex-1">
-                  <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center text-left text-base font-semibold leading-tight">
+                  <DialogTitle className="m-0 flex min-h-0 min-w-0 items-center text-left text-base font-semibold leading-tight text-primary-foreground">
                     {t('debt.payment.title', 'Pay Debt')}
                   </DialogTitle>
-                  <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
+                  <DialogDescription className="mt-0.5 text-left text-xs leading-snug text-primary-foreground/90">
                     {shareFlowLocked
                       ? t('debt.payment.shareDescription', 'Record a debt payment using your shared receipt.')
                       : t('debt.payment.description', 'Record a payment for this debt')}
                   </DialogDescription>
                 </div>
-                <DialogClose
+                <button
                   type="button"
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-blue/50 bg-background/80 p-0 text-muted-foreground ring-offset-background transition hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
-                  disabled={shareFlowLocked}
+                  className={MODAL_BRAND_HEADER_CLOSE_BTN}
+                  onClick={() => handleRequestClose()}
+                  disabled={isLoading}
+                  aria-label={t('common.close', 'Close')}
                 >
                   <X className="block h-4 w-4 shrink-0" aria-hidden />
-                  <span className="sr-only">{t('common.close', 'Close')}</span>
-                </DialogClose>
+                </button>
               </div>
             </DialogHeader>
           ) : (
-            <DialogHeader className={cn('flex-shrink-0 border-b', 'p-4 pb-2')}>
-              <DialogTitle className="text-lg font-semibold">{t('debt.payment.title', 'Pay Debt')}</DialogTitle>
-              <DialogDescription>
+            <DialogHeader className={cn('flex-shrink-0', MODAL_BRAND_HEADER_BAR, 'p-4 pb-3')}>
+              <DialogTitle className="text-lg font-semibold text-primary-foreground">
+                {t('debt.payment.title', 'Pay Debt')}
+              </DialogTitle>
+              <DialogDescription className="text-primary-foreground/90">
                 {shareFlowLocked
                   ? t('debt.payment.shareDescription', 'Record a debt payment using your shared receipt.')
                   : t('debt.payment.description', 'Record a payment for this debt')}

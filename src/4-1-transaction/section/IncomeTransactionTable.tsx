@@ -3,7 +3,16 @@ import { Plus, MoreHorizontal, Edit, Trash2, Eye, FileDown } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/shared/components/ui/dialog';
+import { cn } from '@/shared/lib/utils';
+import { MODAL_BRAND_HEADER_BAR } from '@/shared/constants/modalBrandHeaderClasses';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
 import { Badge } from '@/shared/components/ui/badge';
 import { useIncomeTransactions } from '@/4-1-dashboard/hooks';
@@ -99,14 +108,20 @@ export const IncomeTransactionTable = ({
               Add Income
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Add New Income Transaction</DialogTitle>
-              <DialogDescription>
-                Create a new income transaction record
+          <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+            <DialogHeader
+              className={cn('flex-shrink-0 space-y-1 px-4 py-3 text-left', MODAL_BRAND_HEADER_BAR)}
+            >
+              <DialogTitle className="text-lg font-semibold text-primary-foreground">
+                {t('incomes.addTransactionTitle', 'Add New Income Transaction')}
+              </DialogTitle>
+              <DialogDescription className="text-primary-foreground/90">
+                {t('incomes.addTransactionSubtitle', 'Create a new income transaction record')}
               </DialogDescription>
             </DialogHeader>
-            <AddIncomeForm onSuccess={() => setIsAddDialogOpen(false)} />
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <AddIncomeForm onSuccess={() => setIsAddDialogOpen(false)} />
+            </div>
           </DialogContent>
         </Dialog>
       </div>

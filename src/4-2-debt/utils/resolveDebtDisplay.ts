@@ -26,6 +26,16 @@ export function calculateDebtUtilization(limit: number, used: number): number {
 }
 
 /**
+ * Outstanding balance for UI: match `payableDebts` / DebtPaymentModal.
+ * Expense triggers (withdrawal_from_balance) bump `debt_amount`; many paths do not sync `remaining_debt`
+ * on every spend. Preferring `remaining_debt` whenever it is > 0 would freeze the UI after new card
+ * expenses — always derive from `debt_amount − paid_amount`, which triggers maintain for all debt types.
+ */
+export function effectiveOutstandingBalance(debt: DebtLike): number {
+  return Math.max(0, (debt.debt_amount ?? 0) - (debt.paid_amount ?? 0));
+}
+
+/**
  * Single source for debt row display (desktop + mobile).
  * Pinjaman Online: remaining-based (remaining_debt / debt_amount - paid).
  * Kartu kredit & lainnya: debt_amount di DB = total pemakaian (selaras SUM expense di dashboard);
@@ -36,8 +46,7 @@ export function resolveDebtDisplay(debt: DebtLike): ResolvedDebtDisplay {
   const isOnlineLoan = debt.debt_type === 'Pinjaman Online';
 
   if (isOnlineLoan) {
-    const remaining =
-      debt.remaining_debt ?? Math.max(0, (debt.debt_amount ?? 0) - (debt.paid_amount ?? 0));
+    const remaining = effectiveOutstandingBalance(debt);
     const lim = debt.limit_amount ?? 0;
     const displayLimitAmount = debt.limit_amount;
     const displayAvailableLimit = Math.max(0, lim - remaining);
@@ -62,8 +71,7 @@ export function resolveDebtDisplay(debt: DebtLike): ResolvedDebtDisplay {
   }
 
   const lim = debt.limit_amount ?? 0;
-  const remaining =
-    debt.remaining_debt ?? Math.max(0, (debt.debt_amount ?? 0) - (debt.paid_amount ?? 0));
+  const remaining = effectiveOutstandingBalance(debt);
   const displayDebtAmount = remaining;
   const displayAvailableLimit = Math.max(0, lim - remaining);
   const displayPaidAmount = debt.paid_amount ?? null;

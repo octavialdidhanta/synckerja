@@ -64,6 +64,174 @@ function normalizeReceiptMetadata(file: File): { extension: string; mimeType: st
   return { extension: byName, mimeType: mimeByExt };
 }
 
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * After a debt_payment row is committed: bump paid_amount, restore credit-line (non–Pinjaman Online),
+ * and for Pinjaman Online call DB recalc (expense sum + paid_amount → remaining / available).
+ */
+async function syncDebtRowAfterPayment(params: {
+  organizationId: string;
+  debtId: string;
+  paymentAmount: number;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { organizationId, debtId, paymentAmount } = params;
+  const amt = roundMoney(Number(paymentAmount));
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return { ok: false, message: 'Invalid payment amount for debt sync' };
+  }
+
+  const { data: debt, error: fetchErr } = await supabase
+    .from('debts')
+    .select(
+      'id, organization_id, debt_type, limit_amount, available_limit, debt_amount, paid_amount, remaining_debt',
+    )
+    .eq('id', debtId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+
+  if (fetchErr || !debt) {
+    console.error('syncDebtRowAfterPayment fetch debt:', fetchErr);
+    return { ok: false, message: fetchErr?.message ?? 'Debt not found' };
+  }
+
+  const prevPaid = roundMoney(Number(debt.paid_amount ?? 0));
+  const newPaid = roundMoney(prevPaid + amt);
+  const nowIso = new Date().toISOString();
+
+  if (debt.debt_type === 'Pinjaman Online') {
+    const { error: upErr } = await supabase
+      .from('debts')
+      .update({
+        paid_amount: newPaid,
+        updated_at: nowIso,
+      })
+      .eq('id', debtId)
+      .eq('organization_id', organizationId);
+
+    if (upErr) {
+      console.error('syncDebtRowAfterPayment update paid (online):', upErr);
+      return { ok: false, message: upErr.message };
+    }
+
+    const { error: rpcErr } = await supabase.rpc('recalculate_pinjaman_online_debt_amount', {
+      p_debt_id: debtId,
+    });
+    if (rpcErr) {
+      console.error('syncDebtRowAfterPayment recalculate_pinjaman_online:', rpcErr);
+      return { ok: false, message: rpcErr.message };
+    }
+    return { ok: true };
+  }
+
+  const lim = roundMoney(Number(debt.limit_amount ?? 0));
+  const debtAmt = roundMoney(Number(debt.debt_amount ?? 0));
+  const currentAvail = debt.available_limit != null ? roundMoney(Number(debt.available_limit)) : lim;
+  const newAvail = lim > 0 ? Math.min(lim, roundMoney(currentAvail + amt)) : roundMoney(currentAvail + amt);
+  const remaining = Math.max(0, roundMoney(debtAmt - newPaid));
+
+  const { error: upErr } = await supabase
+    .from('debts')
+    .update({
+      paid_amount: newPaid,
+      available_limit: newAvail,
+      remaining_debt: remaining,
+      updated_at: nowIso,
+    })
+    .eq('id', debtId)
+    .eq('organization_id', organizationId);
+
+  if (upErr) {
+    console.error('syncDebtRowAfterPayment update debt:', upErr);
+    return { ok: false, message: upErr.message };
+  }
+
+  return { ok: true };
+}
+
+/** Reverse {@link syncDebtRowAfterPayment} when a debt_payment row is removed (e.g. history delete). */
+export async function reverseDebtRowAfterPaymentRemoved(params: {
+  organizationId: string;
+  debtId: string;
+  paymentAmount: number;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { organizationId, debtId, paymentAmount } = params;
+  const amt = roundMoney(Number(paymentAmount));
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return { ok: false, message: 'Invalid payment amount for debt reversal' };
+  }
+
+  const { data: debt, error: fetchErr } = await supabase
+    .from('debts')
+    .select(
+      'id, organization_id, debt_type, limit_amount, available_limit, debt_amount, paid_amount, remaining_debt',
+    )
+    .eq('id', debtId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+
+  if (fetchErr || !debt) {
+    console.error('reverseDebtRowAfterPaymentRemoved fetch debt:', fetchErr);
+    return { ok: false, message: fetchErr?.message ?? 'Debt not found' };
+  }
+
+  const prevPaid = roundMoney(Number(debt.paid_amount ?? 0));
+  const newPaid = Math.max(0, roundMoney(prevPaid - amt));
+  const nowIso = new Date().toISOString();
+
+  if (debt.debt_type === 'Pinjaman Online') {
+    const { error: upErr } = await supabase
+      .from('debts')
+      .update({
+        paid_amount: newPaid,
+        updated_at: nowIso,
+      })
+      .eq('id', debtId)
+      .eq('organization_id', organizationId);
+
+    if (upErr) {
+      console.error('reverseDebtRowAfterPaymentRemoved update paid (online):', upErr);
+      return { ok: false, message: upErr.message };
+    }
+
+    const { error: rpcErr } = await supabase.rpc('recalculate_pinjaman_online_debt_amount', {
+      p_debt_id: debtId,
+    });
+    if (rpcErr) {
+      console.error('reverseDebtRowAfterPaymentRemoved recalculate_pinjaman_online:', rpcErr);
+      return { ok: false, message: rpcErr.message };
+    }
+    return { ok: true };
+  }
+
+  const lim = roundMoney(Number(debt.limit_amount ?? 0));
+  const debtAmt = roundMoney(Number(debt.debt_amount ?? 0));
+  const currentAvail =
+    debt.available_limit != null ? roundMoney(Number(debt.available_limit)) : lim;
+  const newAvail = Math.max(0, roundMoney(currentAvail - amt));
+  const remaining = Math.max(0, roundMoney(debtAmt - newPaid));
+
+  const { error: upErr } = await supabase
+    .from('debts')
+    .update({
+      paid_amount: newPaid,
+      available_limit: newAvail,
+      remaining_debt: remaining,
+      updated_at: nowIso,
+    })
+    .eq('id', debtId)
+    .eq('organization_id', organizationId);
+
+  if (upErr) {
+    console.error('reverseDebtRowAfterPaymentRemoved update debt:', upErr);
+    return { ok: false, message: upErr.message };
+  }
+
+  return { ok: true };
+}
+
 async function uploadDebtPaymentReceipt(
   organizationId: string,
   file: File
@@ -255,6 +423,17 @@ export async function submitDebtPayment(params: SubmitDebtPaymentParams): Promis
       toast.error(messages.allocationLinkFailed);
       return false;
     }
+  }
+
+  const sync = await syncDebtRowAfterPayment({
+    organizationId,
+    debtId,
+    paymentAmount,
+  });
+  if (!sync.ok) {
+    console.error('syncDebtRowAfterPayment failed after payment recorded:', sync.message);
+    toast.error(messages.paymentInsertFailed);
+    return false;
   }
 
   if (onAfterSuccess) {

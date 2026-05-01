@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useOrganizationDebtsQuery } from "@/shared/hooks/finance/useOrganizationDebtsQuery";
 import type { Debt } from "@/shared/types/debt";
+import { effectiveOutstandingBalance } from "@/4-2-debt/utils/resolveDebtDisplay";
 
 export interface DebtForExpense {
   id: string;
@@ -16,8 +17,7 @@ export interface DebtForExpense {
 
 function toDebtForExpenseRow(debt: Debt): DebtForExpense {
   const limit = debt.limit_amount ?? 0;
-  const remaining =
-    debt.remaining_debt ?? Math.max(0, (debt.debt_amount ?? 0) - (debt.paid_amount ?? 0));
+  const remaining = effectiveOutstandingBalance(debt);
   const available = Math.max(0, limit - remaining);
   return {
     id: debt.id,

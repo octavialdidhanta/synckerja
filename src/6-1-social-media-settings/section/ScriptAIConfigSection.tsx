@@ -52,20 +52,34 @@ const GEMINI_MODEL_OPTIONS = [
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
 ] as const;
 
-// Default list of common Groq chat models. Keep it permissive: stored values may vary by account availability.
+// Groq: include vision models for receipt analysis; text-only rows still work for Script Generator.
 const GROQ_MODEL_OPTIONS = [
-  { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (instant)' },
-  { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (versatile)' },
+  {
+    value: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    label: 'Llama 4 Scout 17B (vision / struk)',
+  },
+  { value: 'llama-3.2-11b-vision-preview', label: 'Llama 3.2 11B vision (preview)' },
+  { value: 'llama-3.2-90b-vision-preview', label: 'Llama 3.2 90B vision (preview)' },
+  { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (instant, teks)' },
+  { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (versatile, teks)' },
 ] as const;
 
 const FIREWORKS_MODEL_OPTIONS = [
   {
+    value: 'fireworks/llama-v3p2-11b-vision-instruct',
+    label: 'Llama 3.2 11B vision (struk)',
+  },
+  {
+    value: 'fireworks/llama-v3p2-90b-vision-instruct',
+    label: 'Llama 3.2 90B vision (struk, kualitas)',
+  },
+  {
     value: 'fireworks/llama-v3p1-8b-instruct',
-    label: 'Llama 3.1 8B instruct (cepat / murah)',
+    label: 'Llama 3.1 8B instruct (cepat / murah, teks)',
   },
   {
     value: 'fireworks/llama-v3p3-70b-instruct',
-    label: 'Llama 3.3 70B instruct (kualitas)',
+    label: 'Llama 3.3 70B instruct (kualitas, teks)',
   },
 ] as const;
 
@@ -98,6 +112,8 @@ function normalizeStoredModel(raw: string | null | undefined, provider: TextAIPr
   const legacyFireworksToCatalog: Record<string, string> = {
     'accounts/fireworks/models/llama-v3p1-8b-instruct': 'fireworks/llama-v3p1-8b-instruct',
     'accounts/fireworks/models/llama-v3p3-70b-instruct': 'fireworks/llama-v3p3-70b-instruct',
+    'accounts/fireworks/models/llama-v3p2-11b-vision-instruct': 'fireworks/llama-v3p2-11b-vision-instruct',
+    'accounts/fireworks/models/llama-v3p2-90b-vision-instruct': 'fireworks/llama-v3p2-90b-vision-instruct',
   };
   if (legacyFireworksToCatalog[rawStr]) return legacyFireworksToCatalog[rawStr];
   if (rawStr.startsWith('accounts/') || rawStr.startsWith('fireworks/')) return rawStr;
@@ -155,7 +171,7 @@ export const ScriptAIConfigSection: React.FC = () => {
         daily_limit: dailyLimit,
         model,
         text_ai_provider: textAiProvider,
-        // Keep true whenever Script AI settings exist: receipt vision & edge helpers gate on this row + Gemini key, not on legacy "groq-only" semantics.
+        // Keep true whenever Script AI settings exist: row must exist for daily limits; Groq/Fireworks use server secrets, Gemini uses stored key.
         is_active: true,
       };
 
@@ -251,10 +267,9 @@ export const ScriptAIConfigSection: React.FC = () => {
           <div>
             <Label id="ai-provider-label">Text AI Provider</Label>
             <p className="text-xs text-gray-500">
-              Script Generator & Product Knowledge.
-              {(provider === 'groq' || provider === 'fireworks') && (
-                <span className="text-gray-600"> Image/Vision: Gemini — atur key di opsi Gemini.</span>
-              )}
+              Script Generator & Product Knowledge. Analisis struk (gambar) memakai model vision untuk provider
+              terpilih; API key Groq/Fireworks diatur di secrets proyek Supabase (sama seperti generate script). Untuk
+              file PDF, gunakan Gemini atau unggah hasil OCR dari perangkat.
             </p>
           </div>
           <div

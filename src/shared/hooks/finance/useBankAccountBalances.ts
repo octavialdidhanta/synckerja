@@ -163,6 +163,37 @@ export const useBankAccountBalances = () => {
         }
       }
 
+      // Debt payments debit `payment_method` via `updateBalance` on `bank_account_balances`.
+      // Displayed balance is this ledger (income − expense ± transfers), not the stored column,
+      // so outflows must include `debt_payments` or saldo looks unchanged after Pay Debt.
+      const debtPaymentRows: { payment_method: string | null; payment_amount: unknown }[] = [];
+      let debtPayFrom = 0;
+      for (;;) {
+        const { data: chunk, error: debtPayErr } = await supabase
+          .from('debt_payments')
+          .select('payment_method, payment_amount')
+          .eq('organization_id', organizationId)
+          .in('payment_method', ids)
+          .range(debtPayFrom, debtPayFrom + LEDGER_PAGE_SIZE - 1);
+
+        if (debtPayErr) {
+          console.error('Error fetching debt_payments for ledger balance:', debtPayErr);
+          throw debtPayErr;
+        }
+        const rows = chunk ?? [];
+        debtPaymentRows.push(...rows);
+        if (rows.length < LEDGER_PAGE_SIZE) break;
+        debtPayFrom += LEDGER_PAGE_SIZE;
+      }
+
+      for (const row of debtPaymentRows) {
+        const bid = row.payment_method as string | null;
+        if (!bid || !(bid in ledgerByAccount)) continue;
+        const amt = parseFloat(String(row.payment_amount ?? 0));
+        if (!Number.isFinite(amt) || amt <= 0) continue;
+        ledgerByAccount[bid] -= amt;
+      }
+
       return (bankAccounts || []).map((bankAccount: { id: string; name: string; account_number: string | null; bank_name: string | null }) => {
         const storedBalance = storedBalances?.find((b) => b.bank_account_id === bankAccount.id);
         const ledger = ledgerByAccount[bankAccount.id] ?? 0;

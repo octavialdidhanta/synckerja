@@ -635,18 +635,16 @@ const idTranslations: TranslationDictionary = {
     "Pemasukan ini terhubung ke pengeluaran atau pembayaran utang. Hapus alokasinya dengan menghapus/mengubah pembayaran tersebut sebelum mengubah nominal, rekening, atau klasifikasi.",
   "incomes.edit.lockedFinancialHint":
     "Pemasukan ini terhubung ke pengeluaran atau pembayaran utang. Kolom nominal, rekening, dan klasifikasi terkunci sampai pembayaran tersebut dihapus atau diubah.",
-  "incomes.allocation.sectionTitle": "Alokasi dari pemasukan (opsional)",
+  "incomes.allocation.sectionTitle": "Taut ke pemasukan (opsional)",
   "incomes.allocation.sectionHint":
-    "Hubungkan pembayaran ini ke pemasukan tertentu di rekening yang sama agar pemasukan tidak bisa diubah atau dihapus sampai pengeluaran/pembayaran utang dihapus.",
-  "incomes.allocation.autoHint":
-    "Jika hanya satu pemasukan cocok dengan rekening ini, tautan dibuat otomatis begitu rekening dipilih. Jika beberapa, sistem memilih yang terbaru (atau yang paling cocok setelah nominal pembayaran diisi). Pilih Tidak ada jika tidak ingin menautkan.",
+    "Pilih pemasukan di rekening yang sama bila perlu. Umumnya terisi otomatis; pilih Tidak ada untuk melewati.",
   "incomes.allocation.noEligibleIncome":
     "Tidak ada pemasukan yang memenuhi syarat di rekening ini dengan sisa yang bisa dialokasikan.",
-  "incomes.allocation.selectIncome": "Catatan pemasukan",
+  "incomes.allocation.selectIncome": "Pemasukan",
   "incomes.allocation.placeholder": "Tidak ada",
   "incomes.allocation.none": "Tidak ada",
   "incomes.allocation.remaining": "tersisa",
-  "incomes.allocation.amountLabel": "Nominal dialokasikan (IDR)",
+  "incomes.allocation.amountLabel": "Nominal (IDR)",
   "incomes.allocation.error.linkFailed":
     "Tidak bisa menautkan pengeluaran ke pemasukan yang dipilih. Periksa nominal, rekening, dan sisa pemasukan, lalu coba lagi.",
   "debt.payment.allocationLinkFailed":
@@ -697,6 +695,9 @@ const idTranslations: TranslationDictionary = {
   "incomes.transactionIdMissingHint": "Referensi belum ditemukan. Tunggu analisis selesai atau pilih tujuan lain.",
   "incomes.shareTransactionIdRequired": "ID transaksi tidak terdeteksi di struk. Coba lagi atau pilih tujuan lain.",
   "incomes.shareReceiptRequired": "Tambahkan minimal satu berkas bukti (receipt).",
+  "incomes.shareCancelTitle": "Batalkan tambah pemasukan?",
+  "incomes.shareCancelDescription": "Receipt yang sudah dipilih akan dibuang dari formulir ini.",
+  "incomes.shareCancelConfirm": "Batalkan",
   "incomes.duplicateTransactionReference": "Pemasukan dengan ID transaksi ini sudah ada di organisasi Anda.",
   "incomes.distribution.title": "Distribusi Pemasukan",
   "incomes.distribution.service": "Layanan",
@@ -5061,18 +5062,16 @@ const enTranslations: TranslationDictionary = {
     "This income is linked to an expense or debt payment. Remove the allocation by deleting or adjusting that payment before changing amount, account, or classification.",
   "incomes.edit.lockedFinancialHint":
     "This income is linked to an expense or debt payment. Amount, account, and classification fields are locked until that payment is removed or changed.",
-  "incomes.allocation.sectionTitle": "Allocate from income (optional)",
+  "incomes.allocation.sectionTitle": "Link to income (optional)",
   "incomes.allocation.sectionHint":
-    "Link this payment to a specific income on the same bank account so that income cannot be edited or deleted until the expense or debt payment is removed.",
-  "incomes.allocation.autoHint":
-    "If only one income matches this account, it is linked automatically when you choose the bank account. If there are several, we pick the newest (or the best match once you enter the payment amount). Choose None if you do not want a link.",
+    "Choose income on this same account if needed. Usually filled automatically; pick None to skip.",
   "incomes.allocation.noEligibleIncome":
     "No eligible income on this account with remaining balance to allocate.",
-  "incomes.allocation.selectIncome": "Income record",
+  "incomes.allocation.selectIncome": "Income",
   "incomes.allocation.placeholder": "None",
   "incomes.allocation.none": "None",
   "incomes.allocation.remaining": "left",
-  "incomes.allocation.amountLabel": "Amount to allocate (IDR)",
+  "incomes.allocation.amountLabel": "Amount (IDR)",
   "incomes.allocation.error.linkFailed":
     "Could not link this expense to the selected income. Check amounts, account, and remaining income balance, then try again.",
   "debt.payment.allocationLinkFailed":
@@ -5123,6 +5122,9 @@ const enTranslations: TranslationDictionary = {
   "incomes.transactionIdMissingHint": "No reference found yet. Wait for analysis to finish or choose another destination.",
   "incomes.shareTransactionIdRequired": "Transaction ID was not detected on the receipt. Try again or choose another destination.",
   "incomes.shareReceiptRequired": "Add at least one receipt file.",
+  "incomes.shareCancelTitle": "Cancel adding income?",
+  "incomes.shareCancelDescription": "Selected receipts will be removed from this form.",
+  "incomes.shareCancelConfirm": "Cancel",
   "incomes.duplicateTransactionReference": "An income transaction with this Transaction ID already exists in your organization.",
   "incomes.distribution.title": "Income Distribution",
   "incomes.distribution.service": "Service",

@@ -28,6 +28,8 @@ import {
 import { useBankAccountBalances } from "@/shared/hooks/finance/useBankAccountBalances";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useCurrentUser } from "@/shared/hooks/useCurrentUser";
+import { cn } from "@/shared/lib/utils";
+import { MODAL_BRAND_HEADER_BAR } from "@/shared/constants/modalBrandHeaderClasses";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -355,22 +357,27 @@ export default function ShareReceiptValidationPage() {
 
   return (
     <div className="min-h-dvh flex flex-col bg-background">
-      <header className="flex-shrink-0 flex items-center gap-2 px-4 pt-4 pb-3 border-b border-border safe-area-top bg-card">
+      <header
+        className={cn(
+          "flex shrink-0 items-center gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]",
+          MODAL_BRAND_HEADER_BAR,
+        )}
+      >
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="shrink-0"
+          className="h-9 w-9 shrink-0 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
           onClick={() => setLeaveConfirmOpen(true)}
           aria-label={t("common.back", "Kembali")}
         >
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className="h-5 w-5 stroke-[1.5]" />
         </Button>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-base font-semibold text-foreground truncate">
+        <div className="min-w-0 flex-1 py-0.5">
+          <h1 className="truncate text-base font-bold leading-tight tracking-tight text-primary-foreground">
             {t("shareReceipt.title", "Validasi receipt")}
           </h1>
-          <p className="text-xs text-muted-foreground">
+          <p className="mt-0.5 text-xs font-normal leading-snug text-primary-foreground/90">
             {t("shareReceipt.subtitle", "Pilih tujuan sebelum menyimpan")}
           </p>
         </div>

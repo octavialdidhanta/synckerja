@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -6,6 +6,16 @@ import { cn } from "@/shared/lib/utils";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -26,6 +36,10 @@ import { pickReceiptImageFiles } from "@/mobile-app/utils/pickReceiptFromGallery
 import { format } from "date-fns";
 import type { ExpenseReceiptAutofillData } from "@/mobile/shared/services/analyzeExpenseReceiptWithAI";
 import { isOtherIncomeType } from "@/4-1-dashboard/utils/incomeOtherType";
+import {
+  MODAL_BRAND_HEADER_BAR,
+  MODAL_BRAND_HEADER_CLOSE_BTN,
+} from "@/shared/constants/modalBrandHeaderClasses";
 
 const formSchema = z.object({
   transaction_date: z.string().min(1, "Transaction date is required"),
@@ -149,6 +163,7 @@ export function MobileAddIncomeTransactionModal({
   const wasOpenRef = useRef(false);
   const lastAppliedAiRequestRef = useRef<number | null>(null);
   const [transactionRefDisplay, setTransactionRefDisplay] = useState("");
+  const [shareCancelConfirmOpen, setShareCancelConfirmOpen] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -306,9 +321,26 @@ export function MobileAddIncomeTransactionModal({
 
   const handleOpenChange = (next: boolean) => {
     if (!next && shareFlowLocked) {
+      setShareCancelConfirmOpen(true);
       return;
     }
+    if (!next) {
+      lastAppliedAiRequestRef.current = null;
+    }
     onOpenChange(next);
+  };
+
+  const confirmShareFlowCancel = () => {
+    setShareCancelConfirmOpen(false);
+    lastAppliedAiRequestRef.current = null;
+    form.reset({
+      transaction_date: new Date().toISOString().split("T")[0],
+      amount: "" as never,
+      is_recurring: false,
+    });
+    setReceiptFile(null);
+    setTransactionRefDisplay("");
+    onOpenChange(false);
   };
 
   const handleTakeReceiptPhoto = useCallback(() => {
@@ -439,6 +471,7 @@ export function MobileAddIncomeTransactionModal({
   };
 
   return (
+    <Fragment>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
@@ -448,41 +481,54 @@ export function MobileAddIncomeTransactionModal({
         )}
         fullscreenAnimation={isMobile}
         hideCloseButton={isMobile}
+        onInteractOutside={(e) => {
+          if (shareFlowLocked) e.preventDefault();
+        }}
+        onPointerDownOutside={(e) => {
+          if (shareFlowLocked) e.preventDefault();
+        }}
+        onFocusOutside={(e) => {
+          if (shareFlowLocked) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (shareFlowLocked) e.preventDefault();
+        }}
       >
         <DialogHeader
           className={cn(
-            "flex-shrink-0 border-b text-left",
+            "flex-shrink-0 text-left",
+            MODAL_BRAND_HEADER_BAR,
             isMobile
-              ? "safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 dark:from-blue-950/20 dark:to-indigo-950/20"
-              : "bg-gradient-to-r from-blue-50 to-indigo-50 !space-y-0 px-4 pb-3 pt-4 dark:from-blue-950/20 dark:to-indigo-950/20",
+              ? "safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0"
+              : "!space-y-0 px-4 pb-3 pt-4",
           )}
         >
           {isMobile ? (
-            <div className="flex w-full min-w-0 items-center gap-2 px-3 py-2">
+            <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
               <div className="min-w-0 flex-1">
-                <DialogTitle className="m-0 truncate text-base font-semibold leading-tight">
+                <DialogTitle className="m-0 truncate text-base font-semibold leading-tight text-primary-foreground">
                   {t("incomes.addTransactionTitle", "Add New Income Transaction")}
                 </DialogTitle>
-                <DialogDescription className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">
+                <DialogDescription className="mt-0.5 truncate text-xs leading-tight text-primary-foreground/90">
                   {t("incomes.addTransactionSubtitle", "Create a new income transaction record")}
                 </DialogDescription>
               </div>
               <button
                 type="button"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0 text-muted-foreground ring-offset-background transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                className={MODAL_BRAND_HEADER_CLOSE_BTN}
                 onClick={() => handleOpenChange(false)}
                 disabled={isCreating && shareFlowLocked}
                 aria-label={t("layout.sheetClose", "Close")}
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4 shrink-0" aria-hidden />
               </button>
             </div>
           ) : (
             <>
-              <DialogTitle className="text-lg font-semibold leading-tight">
+              <DialogTitle className="text-lg font-semibold leading-tight text-primary-foreground">
                 {t("incomes.addTransactionTitle", "Add New Income Transaction")}
               </DialogTitle>
-              <DialogDescription className="mt-0.5 text-sm leading-snug">
+              <DialogDescription className="mt-0.5 text-sm leading-snug text-primary-foreground/90">
                 {t("incomes.addTransactionSubtitle", "Create a new income transaction record")}
               </DialogDescription>
             </>
@@ -841,5 +887,28 @@ export function MobileAddIncomeTransactionModal({
         />
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={shareCancelConfirmOpen} onOpenChange={setShareCancelConfirmOpen}>
+      <AlertDialogContent className="z-[100]">
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("incomes.shareCancelTitle", "Batalkan tambah pemasukan?")}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t(
+              "incomes.shareCancelDescription",
+              "Receipt yang sudah dipilih akan dibuang dari formulir ini."
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.cancel", "Batal")}</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmShareFlowCancel}>
+            {t("incomes.shareCancelConfirm", "Batalkan")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </Fragment>
   );
 }

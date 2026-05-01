@@ -269,11 +269,8 @@ export const useExpenses = () => {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('expense-receipts')
-        .getPublicUrl(filePath);
-
-      return urlData.publicUrl;
+      // Store object path (private bucket); viewers use signed URLs (see openSupabaseFinanceReceiptOrInvoice).
+      return filePath;
     } catch (error) {
       console.error('Error uploading receipt:', error);
       const rawMessage =

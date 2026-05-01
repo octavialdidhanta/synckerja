@@ -59,7 +59,11 @@ import {
 } from "@/mobile-app/components/ui/drawer";
 import type { ExpenseTableItem, UseExpenseTableReturn } from "@/shared/hooks/finance/useExpenseTable";
 import { AddNewExpenseModal } from "@/4-2-reminder-bills/modal/AddNewExpenseModal";
-import { supabase } from "@/shared/lib/supabaseClient";
+import { getFinanceReceiptSignedUrl } from "@/shared/utils/openSupabaseSignedFile";
+import {
+  MODAL_BRAND_HEADER_BAR,
+  MODAL_BRAND_HEADER_CLOSE_BTN,
+} from "@/shared/constants/modalBrandHeaderClasses";
 
 const SCROLL_HIDE =
   "scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
@@ -80,19 +84,10 @@ async function openExpenseReceiptFile(filePath: string | null | undefined, prefe
     toast.error("File path not found");
     return;
   }
-  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-    window.open(filePath, "_blank");
-    return;
-  }
-  const tryBucket = async (bucket: string) => {
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(filePath, 3600);
-    if (error || !data?.signedUrl) return null;
-    return data.signedUrl;
-  };
-  const primary = preferPurchaseBucket ? "purchase-documents" : "expense-receipts";
-  const secondary = preferPurchaseBucket ? "expense-receipts" : "purchase-documents";
-  let url = await tryBucket(primary);
-  if (!url) url = await tryBucket(secondary);
+  const url = await getFinanceReceiptSignedUrl(filePath, {
+    preferPurchaseBucketFirst: preferPurchaseBucket,
+    expiresInSeconds: 3600,
+  });
   if (!url) {
     toast.error("Failed to open file.");
     return;
@@ -165,22 +160,13 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
       return;
     }
     const path = selectedExpense.receipt_url;
-    if (path.startsWith("http")) {
-      setReceiptPreviewUrl(path);
-      return;
-    }
     let cancelled = false;
     const preferPurchase = isPurchaseRow(selectedExpense);
     const load = async () => {
-      const tryBucket = async (bucket: string) => {
-        const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
-        if (error || !data?.signedUrl) return null;
-        return data.signedUrl;
-      };
-      const primary = preferPurchase ? "purchase-documents" : "expense-receipts";
-      const secondary = preferPurchase ? "expense-receipts" : "purchase-documents";
-      let url = await tryBucket(primary);
-      if (!url) url = await tryBucket(secondary);
+      const url = await getFinanceReceiptSignedUrl(path, {
+        preferPurchaseBucketFirst: preferPurchase,
+        expiresInSeconds: 3600,
+      });
       if (!cancelled) setReceiptPreviewUrl(url);
     };
     void load();
@@ -858,18 +844,20 @@ export function ExpenseTableSection({ expenseTable }: ExpenseTableSectionProps) 
         >
           {isMobile ? (
             <>
-              <DialogHeader className="safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+              <DialogHeader
+                className={cn(
+                  "safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0 text-left",
+                  MODAL_BRAND_HEADER_BAR,
+                )}
+              >
                 <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
                   <DialogDescription className="sr-only">
                     {t("expenses.expenseDetailsDescription", "View detailed information about this expense")}
                   </DialogDescription>
-                  <DialogTitle className="m-0 min-w-0 flex-1 truncate py-0 pr-1 text-base font-semibold leading-tight">
+                  <DialogTitle className="m-0 min-w-0 flex-1 truncate py-0 pr-1 text-base font-semibold leading-tight text-primary-foreground">
                     {t("expenses.expenseDetails", "Expense Details")}
                   </DialogTitle>
-                  <DialogClose
-                    type="button"
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0 opacity-80 transition-opacity hover:opacity-100 focus:outline-none"
-                  >
+                  <DialogClose type="button" className={MODAL_BRAND_HEADER_CLOSE_BTN}>
                     <X className="h-4 w-4 shrink-0" aria-hidden />
                     <span className="sr-only">{t("common.close", "Close")}</span>
                   </DialogClose>

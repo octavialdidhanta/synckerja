@@ -9,6 +9,8 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
+import { cn } from "@/shared/lib/utils";
+import { MODAL_BRAND_HEADER_BAR } from "@/shared/constants/modalBrandHeaderClasses";
 import { AddIncomeForm } from "@/4-1-dashboard/components/AddIncomeForm";
 import { IncomeTransactionDialog } from "@/4-1-dashboard/components/IncomeTransactionDialog";
 import { formatToRupiah } from "@/shared/utils/formatCurrency";
@@ -44,19 +46,25 @@ export function IncomeTransactionDialogsBundle({ ctrl, onRefresh, omitAddDialog 
     <>
       {!omitAddDialog ? (
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{t("incomes.addIncomeDialogTitle", "Add New Income Transaction")}</DialogTitle>
-              <DialogDescription>
-                {t("incomes.addIncomeDialogDescription", "Create a new income transaction record")}
+          <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+            <DialogHeader
+              className={cn("flex-shrink-0 space-y-1 px-4 py-3 text-left", MODAL_BRAND_HEADER_BAR)}
+            >
+              <DialogTitle className="text-lg font-semibold text-primary-foreground">
+                {t("incomes.addTransactionTitle", "Add New Income Transaction")}
+              </DialogTitle>
+              <DialogDescription className="text-primary-foreground/90">
+                {t("incomes.addTransactionSubtitle", "Create a new income transaction record")}
               </DialogDescription>
             </DialogHeader>
-            <AddIncomeForm
-              onSuccess={() => {
-                setIsAddDialogOpen(false);
-                onRefresh?.();
-              }}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <AddIncomeForm
+                onSuccess={() => {
+                  setIsAddDialogOpen(false);
+                  onRefresh?.();
+                }}
+              />
+            </div>
           </DialogContent>
         </Dialog>
       ) : null}

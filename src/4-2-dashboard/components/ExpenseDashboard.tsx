@@ -41,7 +41,7 @@ import { ExpenseCategoryCrudModal } from './ExpenseCategoryCrudModal';
 import { usePurchaseRequests, PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { ExpenseTableFooter } from './ExpenseTableFooter';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { openSupabaseSignedFile } from '@/shared/utils/openSupabaseSignedFile';
+import { openSupabaseFinanceReceiptOrInvoice } from '@/shared/utils/openSupabaseSignedFile';
 import { AttendanceDateRangePicker } from '@/shared/calendar/AttendanceDateRangePicker';
 import { Link } from 'react-router-dom';
 import { IncomeAllocationOptionalSection } from '@/4-1-dashboard/components/IncomeAllocationOptionalSection';
@@ -49,11 +49,7 @@ import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { ExpenseDashboardModuleShell } from '../layout/ExpenseDashboardModuleShell';
 
 async function handleViewInvoice(filePath: string | null | undefined) {
-  const result = await openSupabaseSignedFile({
-    bucket: 'purchase-documents',
-    filePath,
-    expiresInSeconds: 3600,
-  });
+  const result = await openSupabaseFinanceReceiptOrInvoice(filePath, 3600);
   if (result.ok) return;
   if (result.reason === 'missing_path') {
     toast.error('Invoice file path not found');
