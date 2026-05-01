@@ -155,8 +155,8 @@ export const ScriptAIConfigSection: React.FC = () => {
         daily_limit: dailyLimit,
         model,
         text_ai_provider: textAiProvider,
-        // Legacy compatibility: Groq text routing historically used is_active=true.
-        is_active: textAiProvider === 'groq',
+        // Keep true whenever Script AI settings exist: receipt vision & edge helpers gate on this row + Gemini key, not on legacy "groq-only" semantics.
+        is_active: true,
       };
 
       if (apiKeyInput.trim()) {

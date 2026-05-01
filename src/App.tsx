@@ -17,6 +17,7 @@ import { NativeAppDisplayInit } from "@/shared/components/mobile/NativeAppDispla
 import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVars";
 import { NativeBootstrapSplashGate } from "@/shared/components/mobile/NativeBootstrapSplashGate";
 import { NativeFcmRegistration } from "@/shared/native/NativeFcmRegistration";
+import { ShareIntentRouteSync } from "@/shared/native/ShareIntentRouteSync";
 import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
@@ -1509,6 +1510,7 @@ const App = () => (
                   v7_startTransition: true,
                 }}
               >
+                <ShareIntentRouteSync />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <Suspense
                     fallback={

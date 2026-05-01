@@ -56,6 +56,9 @@ verify_jwt = false
 [functions.generate-script-ai]
 verify_jwt = false
 
+[functions.analyze-expense-receipt-ai]
+verify_jwt = false
+
 # Browser calls with user JWT (ES256); auth enforced inside (getUser + token exchange).
 [functions.google-oauth-token]
 verify_jwt = false

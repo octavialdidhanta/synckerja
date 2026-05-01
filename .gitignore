@@ -34,6 +34,7 @@ dist-ssr
 
 # Supabase: temporary chunk/invoke artifacts (real migrations use YYYYMMDDHHMMSS_*.sql)
 supabase/migrations/_*
+supabase/.temp/
 
 # Editor directories and files
 .vscode/*

@@ -243,7 +243,7 @@ const ScriptGeneratorContent: React.FC = () => {
         .from('organization_script_ai_config')
         .update({
           text_ai_provider: next,
-          is_active: next === 'groq',
+          is_active: true,
           model: defaultModelForTextAIProvider(next),
         })
         .eq('organization_id', organizationId);
