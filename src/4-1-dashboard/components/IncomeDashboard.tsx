@@ -359,7 +359,7 @@ export function IncomeDashboard() {
                             </span>
                           </div>
                           <Link
-                            to="/request-form/reimbursement"
+                            to="/expenses/dashboard"
                             className="inline-block flex-shrink-0"
                           >
                             <Button
