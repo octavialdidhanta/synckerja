@@ -17,7 +17,7 @@ import { LiveChatListView } from './LiveChatListView';
 import { LiveChatChatView } from './LiveChatChatView';
 import { useLiveChatInboundNotification } from './hooks/useLiveChatInboundNotification';
 import { LiveChatAppBadgeSync } from '@/5-3-whatsapp/components/LiveChatAppBadgeSync';
-import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
+import { CONSULTANT_LIVECHAT_PATH } from '@/mobile/4-leads-management/shared/consultantCrmNavPaths';
 
 type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `email:${string}`;
 
@@ -170,7 +170,7 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
   useEffect(() => {
     if (!invalidTicketId) return;
     setShowInvalidTicketBanner(true);
-    navigate('/operations/consultant/all/livechat', { replace: true });
+    navigate(CONSULTANT_LIVECHAT_PATH, { replace: true });
   }, [invalidTicketId, navigate]);
 
   useEffect(() => {
@@ -180,7 +180,7 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
   }, [showInvalidTicketBanner]);
 
   const handleSelectConversation = (conv: LiveChatConversation) => {
-    navigate(`/operations/consultant/all/livechat?ticket_id=${encodeURIComponent(getConversationTicketId(conv))}`);
+    navigate(`${CONSULTANT_LIVECHAT_PATH}?ticket_id=${encodeURIComponent(getConversationTicketId(conv))}`);
   };
 
   const handleSelectFromSearch = (
@@ -189,11 +189,11 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
   ) => {
     setScrollToTextInChat(opts?.textQuery ?? null);
     setScrollToMessageId(opts?.messageId ?? null);
-    navigate(`/operations/consultant/all/livechat?ticket_id=${encodeURIComponent(getConversationTicketId(conv))}`);
+    navigate(`${CONSULTANT_LIVECHAT_PATH}?ticket_id=${encodeURIComponent(getConversationTicketId(conv))}`);
   };
 
   const handleBack = () => {
-    navigate('/operations/consultant/all/livechat');
+    navigate(CONSULTANT_LIVECHAT_PATH);
   };
 
   const refreshLiveChat = useCallback(() => {

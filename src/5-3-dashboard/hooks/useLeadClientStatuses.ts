@@ -43,11 +43,15 @@ export function useLeadClientStatuses(leads: NewLead[]) {
                   .from('whatsapp_conversation_client_profiles')
                   .select('*')
                   .eq('conversation_id', conversationId)
+                  .eq('organization_id', lead.organization_id)
                   .maybeSingle()
               : await supabase
                   .from('lead_client_profiles')
                   .select('*')
                   .eq('lead_id', lead.id)
+                  .eq('organization_id', lead.organization_id)
+                  .order('updated_at', { ascending: false })
+                  .limit(1)
                   .maybeSingle();
 
           if (!data) {

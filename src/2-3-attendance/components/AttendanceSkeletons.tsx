@@ -318,85 +318,99 @@ function RecordsBody({ view }: { view: "table" | "calendar" }) {
   );
 }
 
-/** Mirrors fixed-height `AttendanceSettingsLayout`: inner scroll panes for nav + form. */
+/** Mirrors `AttendanceSettingsLayout` after social-media settings shell (grid 3+9, dual cards). */
 function SettingsBody() {
   const scrollPane =
-    'scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+    "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
   return (
-    <div className="bg-surface-subtle flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden lg:flex-row">
-      <div className="bg-card flex max-h-[42vh] min-h-0 w-full shrink-0 flex-col border-border lg:h-full lg:max-h-none lg:w-80 lg:border-r">
-        <div className="shrink-0 border-b border-border p-4 lg:p-6">
-          <Skeleton className="mb-2 h-6 w-52 max-w-full" />
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="mt-1 h-3 w-full max-w-md" />
-        </div>
-        <div className={cn('p-3 lg:p-4', scrollPane)}>
-          <div className="space-y-1.5 lg:space-y-2">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "w-full rounded-lg p-3 lg:p-4",
-                  i === 0
-                    ? "border-2 border-primary/25 bg-accent shadow-sm"
-                    : "border border-border bg-card",
-                )}
-              >
-                <div className="flex items-start space-x-2 lg:space-x-3">
-                  <Skeleton
+    <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-muted/40 font-sans">
+      <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
+        <div className="col-span-12 flex min-h-0 flex-col overflow-hidden md:col-span-3 lg:h-full">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[5px] border border-border bg-card shadow-sm lg:h-full">
+            <div className="flex min-h-16 flex-shrink-0 flex-col justify-center border-b border-border bg-primary/5 px-4 py-2.5">
+              <Skeleton className="h-4 w-44 max-w-full" />
+              <Skeleton className="mt-1 h-3 w-full max-w-[220px]" />
+            </div>
+            <div className={cn(scrollPane, "p-3")}>
+              <div className="space-y-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
                     className={cn(
-                      "h-7 w-7 shrink-0 rounded-lg lg:h-9 lg:w-9",
-                      i === 0 ? "bg-primary/15" : "bg-muted",
+                      "w-full rounded-[5px] p-3",
+                      i === 0
+                        ? "border-2 border-primary/50 bg-accent shadow-sm"
+                        : "border border-border bg-card",
                     )}
-                  />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Skeleton className="h-4 w-36 max-w-[85%]" />
-                      <Skeleton className="h-5 w-12 shrink-0 rounded-full" />
+                  >
+                    <div className="flex items-start space-x-3">
+                      <Skeleton
+                        className={cn(
+                          "h-9 w-9 shrink-0 rounded-[5px]",
+                          i === 0 ? "bg-primary/15" : "bg-muted",
+                        )}
+                      />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Skeleton className="h-4 w-36 max-w-[85%]" />
+                          <Skeleton className="h-5 w-12 shrink-0 rounded-full" />
+                        </div>
+                        <Skeleton className="h-3 w-full max-w-[200px]" />
+                      </div>
                     </div>
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-full max-w-lg" />
                   </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-[5px] border border-primary/30 bg-primary/10 p-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-2 w-2 shrink-0 rounded-full bg-primary/80" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+                <Skeleton className="mt-2 h-3 w-full max-w-xs" />
+              </div>
+            </div>
+            <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-span-12 flex min-h-0 min-w-0 flex-col overflow-hidden md:col-span-9 lg:h-full">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[5px] border border-border bg-card shadow-sm lg:h-full">
+              <div className="flex min-h-16 flex-shrink-0 items-start justify-between gap-3 border-b border-border bg-primary/5 px-4 py-2.5">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-48 max-w-full" />
+                  <Skeleton className="h-3 w-full max-w-lg" />
+                </div>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2 pt-0.5">
+                    <Skeleton className="h-6 w-28 rounded-full" />
+                    <Skeleton className="h-6 w-24 rounded-full" />
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="shrink-0 border-t border-border p-3 lg:p-4">
-          <div className="bg-accent rounded-lg border border-primary/20 p-2.5 lg:p-3">
-            <div className="flex items-center space-x-2">
-              <Skeleton className="bg-primary h-2 w-2 shrink-0 rounded-full opacity-80" />
-              <Skeleton className="h-3 w-36" />
+              <div className={scrollPane}>
+                <div className="min-w-0 space-y-4 p-4">
+                  <Skeleton className="h-10 w-full max-w-full rounded-md" />
+                  <Skeleton className="h-10 w-full max-w-full rounded-md" />
+                  <Skeleton className="h-32 w-full max-w-full rounded-md" />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Skeleton className="h-10 w-full rounded-md" />
+                    <Skeleton className="h-10 w-full rounded-md" />
+                  </div>
+                  <Skeleton className="h-24 w-full rounded-md" />
+                  <Skeleton className="h-10 w-40 max-w-full rounded-md" />
+                </div>
+              </div>
+              <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-3 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
             </div>
-            <Skeleton className="mt-2 h-3 w-full max-w-sm" />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-card flex min-h-0 min-w-0 flex-1 flex-col lg:h-full">
-        <div className="shrink-0 border-b border-border px-4 py-3 lg:px-6 lg:py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-7 w-56 max-w-full lg:h-8" />
-              <Skeleton className="h-3 w-full max-w-xl" />
-            </div>
-            <div className="ml-4 flex shrink-0 gap-2">
-              <Skeleton className="h-6 w-28 rounded-full" />
-              <Skeleton className="h-6 w-24 rounded-full" />
-            </div>
-          </div>
-        </div>
-        <div className={cn('p-4 lg:p-6', scrollPane)}>
-          <div className="mx-auto max-w-4xl space-y-4">
-            <Skeleton className="h-10 w-full max-w-full rounded-md" />
-            <Skeleton className="h-10 w-full max-w-full rounded-md" />
-            <Skeleton className="h-32 w-full max-w-full rounded-md" />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Skeleton className="h-10 w-full rounded-md" />
-              <Skeleton className="h-10 w-full rounded-md" />
-            </div>
-            <Skeleton className="h-24 w-full rounded-md" />
-            <Skeleton className="h-10 w-40 max-w-full rounded-md" />
           </div>
         </div>
       </div>
@@ -438,7 +452,7 @@ export function AttendanceModuleSkeleton({
                     {variant === "dashboard" ? <DashboardBody /> : null}
                     {variant === "attendance" ? <RecordsBody view={recordsView} /> : null}
                     {variant === "settings" ? (
-                      <div className="border-border bg-card flex h-full max-h-[calc(100vh-120px)] min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-lg border p-4 shadow-sm">
+                      <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
                         <SettingsBody />
                       </div>
                     ) : null}

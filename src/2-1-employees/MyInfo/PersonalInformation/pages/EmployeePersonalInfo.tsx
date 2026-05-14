@@ -278,7 +278,11 @@ const EmployeePersonalInfo = () => {
                             </div>
                           </div>
                           
-                          <PersonalInfoTab employee={employee} isEditMode={isEditMode} onUpdate={() => {}} />
+                          <PersonalInfoTab
+                            employee={employee}
+                            isEditMode={isEditMode}
+                            onUpdate={() => void refetch()}
+                          />
                         </div>
                       </div>
 

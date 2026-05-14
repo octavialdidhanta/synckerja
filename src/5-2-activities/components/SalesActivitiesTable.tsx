@@ -11,13 +11,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shar
 import { SalesActivitiesActionsDropdown } from './SalesActivitiesActionsDropdown';
 import { SalesActivitiesTableFooter } from './SalesActivitiesTableFooter';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
-import { devLog } from '@/shared/lib/logger';
 import type { SalesActivity } from '@/shared/hooks/organized/sales';
 
 interface SalesActivitiesTableProps {
   activities: SalesActivity[];
   onUpdate: () => void;
   onEdit: (activity: SalesActivity) => void;
+  onViewDetails: (activity: SalesActivity) => void;
   onDelete: (activity: SalesActivity) => void;
   onUpdatePayment: (activity: SalesActivity) => void;
   onCheckHistory: (activity: SalesActivity) => void;
@@ -73,23 +73,63 @@ const formatDate = (dateString: string | null) => {
   }
 };
 
+/** Row total (items / activity total). */
+function getActivityRowTotal(activity: SalesActivity): number {
+  const n = Number(activity.total_amount ?? activity.amount ?? 0);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * Amount paid via `sales_activity_payments` (DB trigger keeps `total_paid_amount` in sync).
+ * Modal "Payment History" updates this; it does not set `is_down_payment`.
+ */
+function getActivityInstallmentPaid(activity: SalesActivity): number {
+  const raw = (activity as Record<string, unknown>).total_paid_amount;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Remaining balance for display: installments first, else legacy down payment on the activity row. */
+function getActivityRemainingDisplay(activity: SalesActivity): number {
+  const total = getActivityRowTotal(activity);
+  const paidInstallments = getActivityInstallmentPaid(activity);
+  if (paidInstallments > 0) {
+    return Math.max(0, total - paidInstallments);
+  }
+  if (activity.is_down_payment && activity.down_payment_amount != null) {
+    const down = Number(activity.down_payment_amount);
+    if (Number.isFinite(down) && down >= 0 && total > 0) {
+      return Math.max(0, total - down);
+    }
+  }
+  return total;
+}
+
+function isActivityFullyPaidForActions(activity: SalesActivity): boolean {
+  const total = getActivityRowTotal(activity);
+  if (total <= 0) return false;
+  return getActivityRemainingDisplay(activity) <= 0;
+}
+
 // Memoized row component for performance
 const ActivityRow = memo(({ 
   activity, 
   onEdit,
+  onViewDetails,
   onDelete,
   onUpdatePayment,
   onCheckHistory
 }: {
   activity: SalesActivity;
   onEdit: (activity: SalesActivity) => void;
+  onViewDetails: (activity: SalesActivity) => void;
   onDelete: (activity: SalesActivity) => void;
   onUpdatePayment: (activity: SalesActivity) => void;
   onCheckHistory: (activity: SalesActivity) => void;
 }) => {
   const handleViewDetails = useCallback(() => {
-    devLog.debug('View details:', activity);
-  }, [activity]);
+    onViewDetails(activity);
+  }, [activity, onViewDetails]);
 
   const handleEdit = useCallback(() => {
     onEdit(activity);
@@ -106,6 +146,10 @@ const ActivityRow = memo(({
   const handleCheckHistory = useCallback(() => {
     onCheckHistory(activity);
   }, [activity, onCheckHistory]);
+
+  const installmentPaid = getActivityInstallmentPaid(activity);
+  const rowTotal = getActivityRowTotal(activity);
+  const remainingDisplay = getActivityRemainingDisplay(activity);
 
   return (
     <TableRow className="hover:bg-gray-50/50 h-12 transition-colors">
@@ -145,15 +189,23 @@ const ActivityRow = memo(({
               {formatToRupiah(activity.total_amount || activity.amount)}
             </span>
           )}
-          {!activity.is_down_payment ? (
+          {installmentPaid > 0 ? (
+            remainingDisplay <= 0 ? (
+              <span className="truncate block text-xs font-medium text-green-600">PAID</span>
+            ) : (
+              <span className="text-xs text-gray-500 truncate block">
+                Remaining: {formatToRupiah(remainingDisplay)}
+              </span>
+            )
+          ) : !activity.is_down_payment ? (
             <span className="text-xs text-gray-500 truncate block">
-              Remaining: {formatToRupiah(activity.total_amount || activity.amount)}
+              Remaining: {formatToRupiah(rowTotal)}
             </span>
           ) : (
             activity.down_payment_amount && (activity.total_amount || activity.amount) && (
               <span className="text-xs text-gray-500 truncate block">
-                {activity.down_payment_amount === (activity.total_amount || activity.amount) 
-                  ? "PAID" 
+                {activity.down_payment_amount === (activity.total_amount || activity.amount)
+                  ? "PAID"
                   : `Remaining: ${formatToRupiah((activity.total_amount || activity.amount) - activity.down_payment_amount)}`
                 }
               </span>
@@ -163,7 +215,16 @@ const ActivityRow = memo(({
       </TableCell>
       <TableCell className="w-40 px-3 text-sm">
         <div>
-          {!activity.is_down_payment ? (
+          {installmentPaid > 0 ? (
+            <div>
+              <span className="truncate block font-medium text-gray-900">
+                {remainingDisplay <= 0 ? 'Paid' : 'Partial'}
+              </span>
+              <span className="text-xs text-gray-500 truncate block">
+                Paid: {formatToRupiah(installmentPaid)}
+              </span>
+            </div>
+          ) : !activity.is_down_payment ? (
             <span className="truncate block text-gray-500">Pending</span>
           ) : (
             <div>
@@ -219,7 +280,11 @@ const ActivityRow = memo(({
           onDelete={handleDelete}
           onUpdatePayment={handleUpdatePayment}
           onCheckHistory={handleCheckHistory}
-          isPaid={activity.is_paid || activity.down_payment_amount === (activity.total_amount || activity.amount)}
+          isPaid={
+            activity.is_paid ||
+            isActivityFullyPaidForActions(activity) ||
+            activity.down_payment_amount === (activity.total_amount || activity.amount)
+          }
         />
       </TableCell>
     </TableRow>
@@ -231,7 +296,8 @@ ActivityRow.displayName = 'ActivityRow';
 export const SalesActivitiesTable = memo(({ 
   activities, 
   onUpdate, 
-  onEdit, 
+  onEdit,
+  onViewDetails,
   onDelete,
   onUpdatePayment, 
   onCheckHistory,
@@ -256,12 +322,13 @@ export const SalesActivitiesTable = memo(({
         key={activity.id}
         activity={activity}
         onEdit={onEdit}
+        onViewDetails={onViewDetails}
         onDelete={onDelete}
         onUpdatePayment={onUpdatePayment}
         onCheckHistory={onCheckHistory}
       />
     ))
-  ), [activities, onEdit, onDelete, onUpdatePayment, onCheckHistory]);
+  ), [activities, onEdit, onViewDetails, onDelete, onUpdatePayment, onCheckHistory]);
 
   return (
     <div className="flex h-full flex-col">

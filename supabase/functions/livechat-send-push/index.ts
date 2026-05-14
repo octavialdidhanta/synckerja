@@ -259,7 +259,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const baseUrl = APP_ORIGIN || "https://app.profitloop.id";
-    const url = `${baseUrl}/operations/consultant/all/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
+    const url = `${baseUrl}/omnichannel/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
 
     const { data: subscriptions } = await supabase
       .from("push_subscriptions")

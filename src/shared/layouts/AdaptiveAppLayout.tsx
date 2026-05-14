@@ -34,9 +34,11 @@ export function AdaptiveAppLayout() {
   /** Meeting notes mobile (`5-meeting-notes`) membawa `AppSidebar` + `SidebarTrigger` + footer tools sendiri. */
   const isMobileMeetingNotesPath = pathname === "/tools/meeting-notes";
   /** Consultant livechat mobile (`4-livechat`) membawa `AppSidebar` + `SidebarTrigger` + `NavigationFooter` CRM sendiri. */
-  const isMobileConsultantLivechatPath = pathname === "/operations/consultant/all/livechat";
+  const isMobileConsultantLivechatPath =
+    pathname === "/omnichannel/livechat" || pathname.startsWith("/omnichannel/livechat/");
   /** Consultant leads mobile (`4-leads-management`) membawa `AppSidebar` + `SidebarTrigger` + footer CRM sendiri. */
-  const isMobileConsultantLeadsManagementPath = pathname === "/operations/consultant/leads-management";
+  const isMobileConsultantLeadsManagementPath =
+    pathname === "/omnichannel/leads" || pathname.startsWith("/omnichannel/leads/");
   /** Subscription mobile (`6-subscription`) membawa `AppSidebar` + `SidebarTrigger` + bottom tabs sendiri. */
   const isMobileSubscriptionShellPath =
     pathname === "/subscription/overview" ||

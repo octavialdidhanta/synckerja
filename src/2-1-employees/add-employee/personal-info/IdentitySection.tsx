@@ -88,7 +88,7 @@ export const IdentitySection = ({ formData, handleInputChange }: PersonalDataSte
   return (
     <div className="space-y-2">
       <Label htmlFor="nik" className="text-sm font-medium text-gray-700">
-        NIK (16 digit)
+        NIK (16 digit) <span className="text-red-500">*</span>
       </Label>
       <div className="relative">
         <Input

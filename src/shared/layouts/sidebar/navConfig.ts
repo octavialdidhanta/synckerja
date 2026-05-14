@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, ClipboardList, CreditCard, Layers, Target, Users, Wallet, Wrench } from "lucide-react";
+import { Briefcase, ClipboardList, CreditCard, Layers, MessagesSquare, Target, Users, Wallet, Wrench } from "lucide-react";
+import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 
 /** Strip query/hash for path comparison */
 export function pathBaseFromNavPath(full: string): string {
@@ -44,6 +45,10 @@ export function isNavSubItemActive(item: NavSubItem, pathname: string, search: s
 export type NavSubItem = {
   titleKey: string;
   path: string;
+  /**
+   * When false, this sub-item still shows active in the flyout but does not mark the main sidebar parent row active.
+   */
+  highlightsParent?: boolean;
   /** Extra prefixes that highlight this sub-item (e.g. /my-info for employee detail) */
   activePathPrefixes?: string[];
   /** All of these query params must match for this row to be active */
@@ -150,48 +155,57 @@ export const mainNavItems: MainNavItem[] = [
     ],
   },
   {
-    id: "operations",
+    id: "omnichannel",
     titleKey: "sidebar.operations.title",
-    icon: Briefcase,
-    activePathPrefixes: ["/operations"],
+    icon: MessagesSquare,
+    /** CRM, livechat, integrations, campaign, omnichannel settings — exclude `/operations/sales` (see `operations` nav below). */
+    activePathPrefixes: ["/operations/consultant", "/operations/campaign", "/omnichannel"],
     subItems: [
       {
         titleKey: "sidebar.operations.crm.title",
-        path: "/operations/consultant/leads-management",
+        path: "/omnichannel/crm",
+        activePathPrefixes: ["/omnichannel/crm", "/omnichannel/leads"],
+      },
+      {
+        titleKey: "sidebar.operations.livechat.title",
+        path: "/omnichannel/livechat",
+        activePathPrefixes: ["/omnichannel/livechat"],
+      },
+      {
+        titleKey: "sidebar.operations.integrations.title",
+        path: "/omnichannel/integrations/whatsapp",
         activePathPrefixes: [
-          "/operations/consultant/leads-management",
-          "/operations/consultant/dashboard",
+          "/omnichannel/integrations/whatsapp",
+          "/omnichannel/integrations/instagram",
+          "/omnichannel/integrations/email",
         ],
       },
+      {
+        titleKey: "sidebar.operations.whatsappTemplates.menuTitle",
+        path: "/omnichannel/campaign/whatsapp",
+        activePathPrefixes: [
+          "/omnichannel/campaign/whatsapp",
+          "/omnichannel/campaign/templates",
+          "/omnichannel/campaign/recipient-lists",
+        ],
+      },
+      {
+        titleKey: "sidebar.operations.settings.title",
+        path: OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO,
+        activePathPrefixes: ["/omnichannel/settings"],
+      },
+    ],
+  },
+  {
+    id: "operations",
+    titleKey: "sidebar.salesOperations.title",
+    icon: Briefcase,
+    activePathPrefixes: ["/operations/sales"],
+    subItems: [
       {
         titleKey: "sidebar.operations.sales.title",
         path: "/operations/sales/activities",
         activePathPrefixes: ["/operations/sales"],
-      },
-      {
-        titleKey: "sidebar.operations.whatsappConnect.title",
-        path: "/operations/consultant/whatsapp/connect",
-        activePathPrefixes: ["/operations/consultant/whatsapp/connect"],
-      },
-      {
-        titleKey: "sidebar.operations.instagramConnect.title",
-        path: "/operations/consultant/instagram/connect",
-        activePathPrefixes: ["/operations/consultant/instagram/connect"],
-      },
-      {
-        titleKey: "sidebar.operations.emailConnect.title",
-        path: "/operations/consultant/email/connect",
-        activePathPrefixes: ["/operations/consultant/email/connect"],
-      },
-      {
-        titleKey: "sidebar.operations.livechat.title",
-        path: "/operations/consultant/all/livechat",
-        activePathPrefixes: ["/operations/consultant/all/livechat"],
-      },
-      {
-        titleKey: "sidebar.operations.whatsappTemplates.title",
-        path: "/operations/consultant/whatsapp/templates",
-        activePathPrefixes: ["/operations/consultant/whatsapp/templates"],
       },
     ],
   },

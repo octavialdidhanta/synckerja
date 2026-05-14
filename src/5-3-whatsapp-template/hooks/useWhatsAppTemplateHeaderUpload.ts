@@ -6,6 +6,7 @@ export type TemplateHeaderMediaFormat = "IMAGE" | "VIDEO" | "DOCUMENT";
 export async function uploadWhatsAppTemplateHeaderMedia(
   file: File,
   format: TemplateHeaderMediaFormat,
+  whatsappAccountId?: string | null,
 ): Promise<{ header_handle: string }> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Not authenticated");
@@ -13,6 +14,7 @@ export async function uploadWhatsAppTemplateHeaderMedia(
   const form = new FormData();
   form.append("file", file);
   form.append("format", format);
+  if (whatsappAccountId) form.append("whatsapp_account_id", whatsappAccountId);
 
   const url = `${SUPABASE_URL}/functions/v1/whatsapp-template-header-upload`;
   const res = await fetch(url, {
@@ -34,7 +36,14 @@ export async function uploadWhatsAppTemplateHeaderMedia(
 
 export function useWhatsAppTemplateHeaderUpload() {
   return useMutation({
-    mutationFn: async ({ file, format }: { file: File; format: TemplateHeaderMediaFormat }) =>
-      uploadWhatsAppTemplateHeaderMedia(file, format),
+    mutationFn: async ({
+      file,
+      format,
+      whatsappAccountId,
+    }: {
+      file: File;
+      format: TemplateHeaderMediaFormat;
+      whatsappAccountId?: string | null;
+    }) => uploadWhatsAppTemplateHeaderMedia(file, format, whatsappAccountId),
   });
 }

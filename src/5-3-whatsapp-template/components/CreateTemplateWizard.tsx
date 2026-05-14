@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Megaphone, Bell, KeyRound, Info } from "lucide-react";
 import {
   Dialog,
@@ -20,6 +22,8 @@ import {
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
 import { toast } from "sonner";
+import { useWhatsAppAccounts } from "@/5-3-whatsapp/hooks/useWhatsAppAccounts";
+import type { WhatsAppAccount } from "@/5-3-whatsapp/types";
 import { useCreateWhatsAppMessageTemplate } from "../hooks/useCreateWhatsAppMessageTemplate";
 import { useWhatsAppTemplateHeaderUpload } from "../hooks/useWhatsAppTemplateHeaderUpload";
 import type { TemplateHeaderMediaFormat } from "../hooks/useWhatsAppTemplateHeaderUpload";
@@ -52,13 +56,31 @@ function sampleMatchesVariableKind(sample: string, kind: VariableKindOption): bo
   return /^[a-zA-ZÀ-ÿ0-9\s._,'@/-]+$/.test(t);
 }
 
+function wizardWhatsAppAccountLabel(a: WhatsAppAccount): string {
+  const name = (a.whatsapp_business_name ?? "").trim();
+  const phone = (a.display_phone_number ?? "").trim();
+  if (name && phone) return `${name} (${phone})`;
+  if (name) return name;
+  if (phone) return phone;
+  return a.phone_number_id;
+}
+
 export function CreateTemplateWizard({
   open,
   onOpenChange,
+  whatsappAccountId = null,
+  onWhatsappAccountIdChange,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** `organization_whatsapp_accounts.id` — awal pilihan saat wizard dibuka (disinkronkan dari halaman daftar). */
+  whatsappAccountId?: string | null;
+  /** Menyelaraskan dropdown akun di halaman template saat pengguna mengganti akun di wizard. */
+  onWhatsappAccountIdChange?: (id: string) => void;
 }) {
+  const { t } = useTranslation();
+  const { accounts: waAccounts, isLoading: waAccountsLoading } = useWhatsAppAccounts();
+  const [wizardWaAccountId, setWizardWaAccountId] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [category, setCategory] = useState<Category>("MARKETING");
   const [messageType, setMessageType] = useState("default");
@@ -76,6 +98,30 @@ export function CreateTemplateWizard({
   const headerFileInputRef = useRef<HTMLInputElement>(null);
   const headerUploadMutation = useWhatsAppTemplateHeaderUpload();
   const createMutation = useCreateWhatsAppMessageTemplate();
+
+  const effectiveWaAccountId =
+    wizardWaAccountId && waAccounts.some((a) => a.id === wizardWaAccountId)
+      ? wizardWaAccountId
+      : waAccounts[0]?.id ?? null;
+
+  const waAccountIdsKey = useMemo(() => waAccounts.map((a) => a.id).sort().join(","), [waAccounts]);
+
+  useEffect(() => {
+    if (!open) {
+      setWizardWaAccountId(null);
+      return;
+    }
+    if (!waAccountIdsKey) {
+      setWizardWaAccountId(null);
+      return;
+    }
+    setWizardWaAccountId((prev) => {
+      if (prev && waAccounts.some((a) => a.id === prev)) return prev;
+      const fromPage =
+        whatsappAccountId && waAccounts.some((a) => a.id === whatsappAccountId) ? whatsappAccountId : null;
+      return fromPage ?? waAccounts[0].id;
+    });
+  }, [open, whatsappAccountId, waAccountIdsKey, waAccounts]);
 
   useEffect(() => {
     const idx = sortedUniqueVariableIndices(body);
@@ -101,6 +147,7 @@ export function CreateTemplateWizard({
     setVariableKind("NUMBER");
     setHeaderMediaKind("NONE");
     setHeaderMediaHandle("");
+    setWizardWaAccountId(null);
   };
 
   const handleClose = (v: boolean) => {
@@ -240,12 +287,17 @@ export function CreateTemplateWizard({
       return;
     }
     if (!validateEditStep()) return;
+    if (waAccounts.length > 0 && !effectiveWaAccountId) {
+      toast.error("Pilih akun WhatsApp terlebih dahulu (langkah Set up template).");
+      return;
+    }
     try {
       await createMutation.mutateAsync({
         name: trimmed,
         language,
         category,
         components: buildComponents(),
+        ...(effectiveWaAccountId ? { whatsapp_account_id: effectiveWaAccountId } : {}),
       });
       toast.success("Template dikirim ke Meta untuk ditinjau.");
       handleClose(false);
@@ -291,9 +343,58 @@ export function CreateTemplateWizard({
                   <DialogHeader className="space-y-1 p-0 text-left">
                     <DialogTitle className="text-lg">Set up your template</DialogTitle>
                     <p className="text-sm text-muted-foreground">
-                      Pilih kategori dan jenis pesan. Autentikasi hanya didukung lewat Meta Business Manager.
+                      Pilih akun WhatsApp, lalu kategori dan jenis pesan. Autentikasi hanya didukung lewat Meta Business Manager.
                     </p>
                   </DialogHeader>
+
+                  {waAccountsLoading ? (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-slate-800">Akun WhatsApp</Label>
+                      <div className="h-9 w-full max-w-md animate-pulse rounded-md bg-slate-100" aria-busy aria-label="Memuat daftar akun" />
+                    </div>
+                  ) : waAccounts.length > 0 ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="wizard-wa-account" className="text-sm font-medium text-slate-800">
+                        Akun WhatsApp
+                      </Label>
+                      <Select
+                        value={effectiveWaAccountId ?? ""}
+                        onValueChange={(id) => {
+                          setWizardWaAccountId(id);
+                          onWhatsappAccountIdChange?.(id);
+                        }}
+                      >
+                        <SelectTrigger id="wizard-wa-account" className="h-9 w-full max-w-md font-normal">
+                          <SelectValue placeholder="Pilih akun" />
+                        </SelectTrigger>
+                        <SelectContent align="start">
+                          {waAccounts.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {wizardWhatsAppAccountLabel(a)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Template akan dibuat di WABA Meta untuk akun ini (sama dengan daftar template di halaman utama).
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+                      role="status"
+                    >
+                      <span>{t("whatsappTemplates.createWizard.noWhatsAppAccountLead")}</span>{" "}
+                      <Link
+                        to="/omnichannel/integrations/whatsapp"
+                        className="font-semibold text-amber-950 underline underline-offset-2 hover:text-amber-900"
+                      >
+                        {t("whatsappTemplates.createWizard.connectWhatsAppLink")}
+                      </Link>
+                      <span> {t("whatsappTemplates.createWizard.noWhatsAppAccountTrail")}</span>
+                    </div>
+                  )}
+
                   <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50/80 p-1">
                     <button
                       type="button"
@@ -554,7 +655,9 @@ export function CreateTemplateWizard({
                                 return;
                               }
                               const fmt = headerMediaKind as TemplateHeaderMediaFormat;
-                              void headerUploadMutation.mutateAsync({ file: f, format: fmt }).then(
+                              void headerUploadMutation
+                                .mutateAsync({ file: f, format: fmt, whatsappAccountId: effectiveWaAccountId })
+                                .then(
                                 (r) => {
                                   setHeaderMediaHandle(r.header_handle);
                                   toast.success("File berhasil diunggah. Anda bisa melanjutkan mengisi template.");
@@ -836,7 +939,12 @@ export function CreateTemplateWizard({
               <Button
                 type="button"
                 className="bg-[#1877F2] hover:bg-[#166FE5]"
+                disabled={step === 0 && waAccountsLoading}
                 onClick={() => {
+                  if (step === 0 && waAccounts.length > 0 && !effectiveWaAccountId) {
+                    toast.error("Pilih akun WhatsApp terlebih dahulu.");
+                    return;
+                  }
                   if (step === 1 && !validateEditStep()) return;
                   setStep((s) => s + 1);
                 }}

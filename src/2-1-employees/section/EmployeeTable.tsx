@@ -11,6 +11,8 @@ import { EmployeeTableFooter } from './EmployeeTableFooter';
 import { EmployeeManagerCell } from './EmployeeManagerCell';
 import { getEmployeeStatus, countActiveEmployees } from '../utils/employeeUtils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { formatOrganizationRole } from '@/shared/lib/formatOrganizationRole';
+import { Briefcase, Crown, ShieldCheck, UserRound, Users } from 'lucide-react';
 import './EmployeeTable.css';
 
 interface EmployeeTableProps {
@@ -66,6 +68,34 @@ const EmployeeRow = memo(({
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   }, []);
+
+  const { t } = useAppTranslation();
+
+  const orgRoleLabel = useMemo(() => {
+    if (employee.is_organization_owner) {
+      return formatOrganizationRole(t, 'owner');
+    }
+    const r = employee.organization_role;
+    return r ? formatOrganizationRole(t, r) : formatOrganizationRole(t, 'employee');
+  }, [employee.is_organization_owner, employee.organization_role, t]);
+
+  const OrgRoleIcon = useMemo(() => {
+    if (employee.is_organization_owner) return Crown;
+    const raw = (employee.organization_role ?? '').trim().toLowerCase();
+    if (raw === 'admin') return ShieldCheck;
+    if (raw === 'hr') return Users;
+    if (raw === 'manager') return Briefcase;
+    return UserRound;
+  }, [employee.is_organization_owner, employee.organization_role]);
+
+  const orgRoleIconClass = useMemo(() => {
+    if (employee.is_organization_owner) return 'text-amber-500';
+    const raw = (employee.organization_role ?? '').trim().toLowerCase();
+    if (raw === 'admin') return 'text-brand-blue dark:text-sky-400';
+    if (raw === 'hr') return 'text-violet-600 dark:text-violet-400';
+    if (raw === 'manager') return 'text-emerald-600 dark:text-emerald-400';
+    return 'text-slate-600 dark:text-slate-400';
+  }, [employee.is_organization_owner, employee.organization_role]);
 
   const formatDate = useCallback((dateString: string | null) => {
     if (!dateString) return '-';
@@ -138,6 +168,12 @@ const EmployeeRow = memo(({
           {employee.job_level_name || '-'}
         </span>
       </TableCell>
+      <TableCell className="w-28 px-3 text-sm">
+        <span className="flex min-w-0 items-center gap-1.5" title={orgRoleLabel}>
+          <OrgRoleIcon className={`h-3.5 w-3.5 shrink-0 ${orgRoleIconClass}`} aria-hidden />
+          <span className="truncate">{orgRoleLabel}</span>
+        </span>
+      </TableCell>
       <TableCell className="w-40 px-3">
         <Badge className={`${getStatusColor(displayStatus)} text-xs px-2 py-1 border`}>
           {displayStatus}
@@ -186,6 +222,7 @@ export const EmployeeTable = memo(({
     { key: 'department', label: 'Department', width: 'w-40' },
     { key: 'position', label: 'Job Position', width: 'w-36' },
     { key: 'level', label: 'Job Level', width: 'w-32' },
+    { key: 'org_role', label: t('employees.table.orgRole', 'Role'), width: 'w-28' },
     { key: 'status', label: 'Employment Status', width: 'w-40' },
     { key: 'join_date', label: 'Join Date', width: 'w-36' },
     { key: 'phone', label: 'Phone', width: 'w-36' },
@@ -226,7 +263,7 @@ export const EmployeeTable = memo(({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-12 text-center">
+                <TableCell colSpan={11} className="py-12 text-center">
                   <div className="mx-auto flex max-w-md flex-col items-center gap-3">
                     <Skeleton className="h-8 w-48" />
                     <Skeleton className="h-4 w-64 max-w-full" />
@@ -236,7 +273,7 @@ export const EmployeeTable = memo(({
               </TableRow>
             ) : employees.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-8 text-center text-sm text-gray-500">
+                <TableCell colSpan={11} className="py-8 text-center text-sm text-gray-500">
                   <div className="flex flex-col items-center space-y-2">
                     <div className="text-lg">👥</div>
                     <div>No employees found</div>

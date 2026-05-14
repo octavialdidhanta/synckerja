@@ -16,9 +16,10 @@ interface ItemsTableProps {
   loading: boolean;
   onEdit: (item: SalesActivityItem) => void;
   onDelete: (itemId: string) => void;
+  readOnly?: boolean;
 }
 
-export const ItemsTable = ({ items, loading, onEdit, onDelete }: ItemsTableProps) => {
+export const ItemsTable = ({ items, loading, onEdit, onDelete, readOnly = false }: ItemsTableProps) => {
   if (loading) {
     return (
       <div className="text-center py-8">
@@ -30,7 +31,9 @@ export const ItemsTable = ({ items, loading, onEdit, onDelete }: ItemsTableProps
   if (items.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">No items added yet. Click "Add Item" to get started.</p>
+        <p className="text-muted-foreground">
+          {readOnly ? 'No line items for this activity.' : 'No items added yet. Click "Add Item" to get started.'}
+        </p>
       </div>
     );
   }
@@ -48,7 +51,7 @@ export const ItemsTable = ({ items, loading, onEdit, onDelete }: ItemsTableProps
             <TableHead className="text-right">Unit Price</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead>Notes</TableHead>
-            <TableHead className="w-[100px]">Actions</TableHead>
+            {!readOnly && <TableHead className="w-[100px]">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -72,26 +75,28 @@ export const ItemsTable = ({ items, loading, onEdit, onDelete }: ItemsTableProps
               <TableCell>
                 {item.notes || '-'}
               </TableCell>
-              <TableCell>
-                <div className="flex space-x-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEdit(item)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDelete(item.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
+              {!readOnly && (
+                <TableCell>
+                  <div className="flex space-x-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(item)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDelete(item.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>

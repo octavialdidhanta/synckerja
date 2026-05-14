@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useTransition, type TransitionEvent } from
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
-import { Sidebar, SidebarContent } from "@/shared/components/ui/sidebar";
+import { Sidebar, SidebarContent, useSidebar } from "@/shared/components/ui/sidebar";
 import { cn } from "@/shared/lib/utils";
 import {
   mainNavItems,
@@ -13,11 +13,63 @@ import {
 } from "./navConfig";
 import { useSidebarState } from "./useSidebarState";
 import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
+import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
+import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 
 interface SubSidebarPanelProps {
   items: NavSubItem[];
   isOpen: boolean;
   titleKey: string;
+}
+
+/** Logo + label: same `/pwa-192.png` expanded/collapsed; label animates when rail expands (mobile sheet always shows label). */
+function SidebarBrandHeader() {
+  const { t } = useTranslation();
+  const { state, isMobile } = useSidebar();
+  const showBrandText = isMobile || state === "expanded";
+
+  return (
+    <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 px-2 py-2 dark:border-slate-600">
+      <Link
+        to="/"
+        className={cn(
+          "flex h-full min-h-0 w-full min-w-0 items-center overflow-hidden rounded-lg px-1 py-0 outline-none ring-offset-background",
+          "transition-[justify-content] duration-300 ease-out motion-reduce:transition-none",
+          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          showBrandText ? "justify-start" : "justify-center",
+        )}
+      >
+        <img
+          src="/pwa-192.png"
+          alt={t("layout.appName")}
+          width={192}
+          height={192}
+          loading="eager"
+          decoding="sync"
+          draggable={false}
+          className={cn(
+            "shrink-0 object-contain select-none transform-gpu",
+            "transition-[width,height] duration-300 ease-out motion-reduce:transition-none",
+            // Icon rail: sedikit lebih besar saat collapse agar downscale dari 192px lebih tajam di DPR tinggi
+            showBrandText ? "h-8 w-8" : "h-9 w-9 max-h-[2.75rem] max-w-[2.75rem]",
+          )}
+          sizes={showBrandText ? "32px" : "40px"}
+        />
+        <span
+          aria-hidden
+          className={cn(
+            "select-none truncate text-sm font-semibold leading-none tracking-tight text-foreground",
+            "transition-[max-width,opacity,transform,margin] duration-300 ease-out motion-reduce:transition-none",
+            showBrandText
+              ? "ml-2 max-w-[min(14rem,calc(100%-2.5rem))] translate-x-0 opacity-100"
+              : "ml-0 max-w-0 -translate-x-2 opacity-0 overflow-hidden",
+          )}
+        >
+          {t("layout.appName")}
+        </span>
+      </Link>
+    </div>
+  );
 }
 
 function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
@@ -36,8 +88,8 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
       }}
     >
       <div className="box-border flex h-full w-64 flex-col border-r-2 border-slate-300 bg-card shadow-sm dark:border-slate-600">
-        <div className="border-b border-slate-300 bg-muted/40 px-4 py-3 dark:border-slate-600">
-          <h3 className="truncate text-sm font-semibold text-foreground">{resolvedTitle}</h3>
+        <div className="box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 bg-muted/40 px-4 py-2 dark:border-slate-600">
+          <h3 className="truncate text-sm font-semibold leading-none text-foreground">{resolvedTitle}</h3>
         </div>
         <div className="flex-1 overflow-y-auto seamless-scroll pt-2">
           <nav className="space-y-0">
@@ -91,7 +143,14 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [, startTransition] = useTransition();
+  const { canAccessPage, configLoading } = useDepartmentAccess();
+  const { isOwner, isAdmin } = useCentralizedUserData();
   const currentPath = location.pathname;
+
+  const subItemsForUser = (items: NavSubItem[]) =>
+    items.filter(
+      (item) => isOwner || isAdmin || configLoading || canAccessPage(item.path),
+    );
   const {
     activeSubSidebar,
     handleMouseEnter,
@@ -225,6 +284,7 @@ export function AppSidebar() {
     }
     return Boolean(
       item.subItems?.some((sub) => {
+        if (sub.highlightsParent === false) return false;
         const base = pathBaseFromNavPath(sub.path);
         const subMatch =
           base === "/"
@@ -259,23 +319,7 @@ export function AppSidebar() {
           }}
         >
           <SidebarContent className="flex w-full min-w-0 flex-col gap-0 overflow-hidden p-0">
-            <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 px-2 py-2 dark:border-slate-600">
-              <Link
-                to="/"
-                className={cn(
-                  "flex h-full min-h-0 w-full transform-none items-center justify-start rounded-lg px-1 py-0 outline-none ring-offset-background",
-                  "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  "group-data-[collapsible=icon]:justify-center",
-                )}
-              >
-                <img
-                  src="/favicon.png"
-                  alt={t("layout.appName")}
-                  className="h-8 w-auto max-w-full shrink-0 transform-none object-contain object-left group-data-[collapsible=icon]:object-center"
-                  decoding="async"
-                />
-              </Link>
-            </div>
+            <SidebarBrandHeader />
             <div className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto seamless-scroll pb-4 pt-1">
               <div className="w-full min-w-0 space-y-0.5 px-0">
                 {mainNavItems.map((item) => {
@@ -398,7 +442,7 @@ export function AppSidebar() {
           {panelContentMenu?.subItems && (
             <SubSidebarPanel
               key={panelContentMenu.id}
-              items={panelContentMenu.subItems}
+              items={subItemsForUser(panelContentMenu.subItems)}
               isOpen={isSubContentVisible}
               titleKey={panelContentMenu.titleKey}
             />

@@ -14,12 +14,10 @@ import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { IncomeTransactionSkeleton } from '@/4-1-transaction/components/IncomeTransactionSkeleton';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
+import { INCOME_TX_MAIN_GRID } from '@/4-1-transaction/layout/incomeTransactionLayout';
 import { cn } from '@/shared/lib/utils';
 
 /** Content area only (scroll/header handled by `IncomeTransactionModuleShell`). */
-const INCOME_TX_MAIN_GRID =
-  'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]';
-
 export function IncomeTransactionPage() {
   const [filters, setFilters] = useState<IncomeTransactionFiltersType>({
     search: '',

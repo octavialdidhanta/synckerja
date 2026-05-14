@@ -46,7 +46,7 @@ export const ProductKnowledgeFilters: React.FC<ProductKnowledgeFiltersProps> = (
       <div className="relative min-w-[12rem] flex-1">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
         <Input
-          placeholder={t('productKnowledge.filters.searchPlaceholder', 'Search product knowledge...')}
+          placeholder={t('productKnowledge.filters.searchPlaceholder', 'Search creative...')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="h-9 pl-10 text-sm"

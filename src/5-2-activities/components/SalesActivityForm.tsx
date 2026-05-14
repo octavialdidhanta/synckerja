@@ -55,9 +55,11 @@ interface SalesActivityFormProps {
   onSuccess: () => void;
   onCancel: () => void;
   activity?: SalesActivity | null;
+  /** Tampilkan data tanpa mengizinkan penyimpanan (mode lihat detail). */
+  readOnly?: boolean;
 }
 
-export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivityFormProps) => {
+export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = false }: SalesActivityFormProps) => {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [selectedIncomeType, setSelectedIncomeType] = useState<string>('');
@@ -153,6 +155,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
   };
 
   const onSubmit = async (data: FormData) => {
+    if (readOnly) return;
     if (!organizationId) {
       toast({
         title: "Error",
@@ -464,9 +467,13 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
   };
 
   const filteredCategories = getCategoriesByIncomeType(selectedIncomeType);
+  const rd = readOnly ? ({ disabled: true } as const) : undefined;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="min-w-0 max-w-full space-y-2">
+    <form
+      onSubmit={readOnly ? (e) => e.preventDefault() : handleSubmit(onSubmit)}
+      className="min-w-0 max-w-full space-y-2"
+    >
       {masterDataError && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -475,10 +482,11 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
         </Alert>
       )}
       {/* Items Manager - Moved to top */}
-      <SalesActivityItemsManager 
+      <SalesActivityItemsManager
         ref={itemsManagerRef}
         salesActivityId={currentActivityId}
-        onTotalChange={handleTotalAmountChange}
+        onTotalChange={readOnly ? undefined : handleTotalAmountChange}
+        readOnly={readOnly}
       />
 
       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2 [&>*]:min-w-0">
@@ -492,7 +500,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
               <Label htmlFor="client_name" className="text-sm">Client Name *</Label>
               <Input
                 id="client_name"
-                {...register('client_name')}
+                {...register('client_name', rd)}
                 placeholder="Enter client name"
                 className="mt-1"
               />
@@ -505,7 +513,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
               <Label htmlFor="client_phone" className="text-sm">Phone</Label>
               <Input
                 id="client_phone"
-                {...register('client_phone')}
+                {...register('client_phone', rd)}
                 placeholder="Enter phone number"
                 className="mt-1"
               />
@@ -516,7 +524,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
               <Input
                 id="client_email"
                 type="email"
-                {...register('client_email')}
+                {...register('client_email', rd)}
                 placeholder="Enter email address"
                 className="mt-1"
               />
@@ -535,7 +543,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
           <CardContent className="space-y-2">
             <div>
               <Label htmlFor="activity_type" className="text-sm">Activity Type *</Label>
-              <Select onValueChange={(value) => setValue('activity_type', value)}>
+              <Select disabled={readOnly} onValueChange={(value) => setValue('activity_type', value)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select activity type" />
                 </SelectTrigger>
@@ -555,7 +563,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
 
             <div>
               <Label htmlFor="status" className="text-sm">Status *</Label>
-              <Select onValueChange={(value) => setValue('status', value)}>
+              <Select disabled={readOnly} onValueChange={(value) => setValue('status', value)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -578,7 +586,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
               <Input
                 id="date"
                 type="date"
-                {...register('date')}
+                {...register('date', rd)}
                 className="mt-1"
               />
               {errors.date && (
@@ -591,7 +599,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
               <Input
                 id="follow_up_date"
                 type="date"
-                {...register('follow_up_date')}
+                {...register('follow_up_date', rd)}
                 className="mt-1"
               />
             </div>
@@ -606,7 +614,9 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
           <CardContent className="space-y-2">
             <div>
               <Label htmlFor="income_type_id" className="text-sm">Income Type</Label>
-              <Select onValueChange={(value) => {
+              <Select
+                disabled={readOnly}
+                onValueChange={(value) => {
                 setValue('income_type_id', value);
                 setSelectedIncomeType(value);
                 setValue('income_category_id', ''); // Reset category when income type changes
@@ -636,9 +646,9 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
 
             <div>
               <Label htmlFor="income_category_id" className="text-sm">Income Category</Label>
-              <Select 
+              <Select
                 onValueChange={(value) => setValue('income_category_id', value)}
-                disabled={!selectedIncomeType}
+                disabled={readOnly || !selectedIncomeType}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select income category" />
@@ -680,6 +690,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
               <Checkbox
                 id="is_down_payment"
                 checked={isDownPayment}
+                disabled={readOnly}
                 onCheckedChange={(checked) => setValue('is_down_payment', !!checked)}
               />
               <Label htmlFor="is_down_payment" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
@@ -691,6 +702,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
               <Checkbox
                 id="is_paid"
                 checked={watch('is_paid')}
+                disabled={readOnly}
                 onCheckedChange={(checked) => setValue('is_paid', !!checked)}
               />
               <Label htmlFor="is_paid" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
@@ -706,7 +718,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
                     id="down_payment_amount"
                     type="number"
                     step="0.01"
-                    {...register('down_payment_amount', { valueAsNumber: true })}
+                    {...register('down_payment_amount', { valueAsNumber: true, ...rd })}
                     placeholder="0.00"
                     className="mt-1"
                   />
@@ -718,7 +730,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
                     id="remaining_amount"
                     type="number"
                     step="0.01"
-                    {...register('remaining_amount', { valueAsNumber: true })}
+                    {...register('remaining_amount', { valueAsNumber: true, ...rd })}
                     placeholder="0.00"
                     readOnly
                     className="mt-1"
@@ -732,7 +744,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
               <>
                 <div>
                   <Label htmlFor="payment_method" className="text-sm">Payment Method</Label>
-                  <Select onValueChange={(value) => setValue('payment_method', value)}>
+                  <Select disabled={readOnly} onValueChange={(value) => setValue('payment_method', value)}>
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Select payment method" />
                     </SelectTrigger>
@@ -754,6 +766,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
                     id="receipt"
                     type="file"
                     accept="image/*,.pdf"
+                    disabled={readOnly}
                     onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
                     className="text-sm mt-1"
                   />
@@ -779,7 +792,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
             <Label htmlFor="description" className="text-sm">Description</Label>
             <Textarea
               id="description"
-              {...register('description')}
+              {...register('description', rd)}
               placeholder="Enter activity description"
               rows={3}
               className="mt-1"
@@ -790,7 +803,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
             <Label htmlFor="notes" className="text-sm">Notes</Label>
             <Textarea
               id="notes"
-              {...register('notes')}
+              {...register('notes', rd)}
               placeholder="Enter additional notes"
               rows={3}
               className="mt-1"
@@ -802,17 +815,25 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity }: SalesActivi
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-2 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? `${activity ? 'Updating' : 'Creating'}...` : `${activity ? 'Update' : 'Create'} Activity`}
-        </Button>
+        {readOnly ? (
+          <Button type="button" variant="default" onClick={onCancel}>
+            Close
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? `${activity ? 'Updating' : 'Creating'}...` : `${activity ? 'Update' : 'Create'} Activity`}
+            </Button>
+          </>
+        )}
       </div>
     </form>
   );

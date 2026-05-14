@@ -84,6 +84,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
           .from('whatsapp_conversation_client_profiles')
           .select('*')
           .eq('conversation_id', conversationId)
+          .eq('organization_id', organizationId)
           .maybeSingle();
         if (error) throw error;
         if (data) {
@@ -116,6 +117,9 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
         .from('lead_client_profiles')
         .select('*')
         .eq('lead_id', leadId)
+        .eq('organization_id', organizationId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;

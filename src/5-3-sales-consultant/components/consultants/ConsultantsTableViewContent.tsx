@@ -6,11 +6,23 @@ import { LeadsInsights } from '@/5-3-dashboard/components/leads/metrics/LeadsIns
 import { NewLeadForm } from '@/5-3-dashboard/components/leads/forms/NewLeadForm';
 import { ScrollArea } from "@/shared/components/ui/scroll-area";
 import { useLeads } from '@/shared/hooks/organized/sales';
+import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { NewLead } from '@/types/leads';
 import { useClientProfileStatus } from '@/shared/hooks/organized/sales';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { LeadAttributionSortColumn } from '@/shared/lib/leadAttribution';
-import { defaultLeadAttributionSortState, sortLeadsByAttributionColumn } from '@/shared/lib/leadAttribution';
+import {
+  defaultLeadAttributionSortState,
+  distinctLeadAttributionValues,
+  sortLeadsByAttributionColumn,
+} from '@/shared/lib/leadAttribution';
+import {
+  FU_PRIORITY_FILTER_CHOICES,
+  buildAssigneeFilterOptions,
+  buildLeadSourceFilterOptions,
+  buildUniqueLeadStatusFilterOptions,
+  useLeadsManagementFilterQueries,
+} from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
 
 interface ConsultantsTableViewContentProps {
   // No props needed now, using the hook
@@ -23,6 +35,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     dataCompleteness: 'all',
     services: 'all',
     category: 'all',
+    createdBy: 'all',
     assignee: 'all',
     fuPriority: 'all',
     status: 'all',
@@ -39,6 +52,106 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
   });
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
+  const { data: employees = [] } = useOmnichannelRosterAssignees();
+  const { subServices, leadSources, leadStatuses } = useLeadsManagementFilterQueries();
+
+  const handleCategoryFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, category: value }));
+  }, []);
+
+  const handleSourceFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, source: value }));
+  }, []);
+
+  const handleCreatedByFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, createdBy: value }));
+  }, []);
+
+  const handleAssigneeFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, assignee: value }));
+  }, []);
+
+  const handleFuPriorityFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, fuPriority: value }));
+  }, []);
+
+  const handleStatusFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, status: value }));
+  }, []);
+
+  const statusFilterOptions = useMemo(
+    () => buildUniqueLeadStatusFilterOptions(leadStatuses),
+    [leadStatuses],
+  );
+
+  const createdByFilterOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of leads) {
+      const n = (l.created_by_name ?? "").trim();
+      if (n) set.add(n);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [leads]);
+
+  const sourceFilterOptions = useMemo(
+    () => buildLeadSourceFilterOptions(leads, leadSources),
+    [leads, leadSources],
+  );
+
+  const assigneeFilterOptions = useMemo(
+    () => buildAssigneeFilterOptions(leads, employees),
+    [leads, employees],
+  );
+
+  const handleUtmSourceFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, utmSource: value }));
+  }, []);
+  const handleUtmCampaignFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, utmCampaign: value }));
+  }, []);
+  const handleUtmMediumFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, utmMedium: value }));
+  }, []);
+  const handleUtmContentFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, utmContent: value }));
+  }, []);
+  const handleUtmTermFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, utmTerm: value }));
+  }, []);
+
+  const utmSourceFilterOptions = useMemo(
+    () => distinctLeadAttributionValues(leads, "utm_source"),
+    [leads],
+  );
+  const utmCampaignFilterOptions = useMemo(
+    () => distinctLeadAttributionValues(leads, "utm_campaign"),
+    [leads],
+  );
+  const utmMediumFilterOptions = useMemo(
+    () => distinctLeadAttributionValues(leads, "utm_medium"),
+    [leads],
+  );
+  const utmContentFilterOptions = useMemo(
+    () => distinctLeadAttributionValues(leads, "utm_content"),
+    [leads],
+  );
+  const utmTermFilterOptions = useMemo(
+    () => distinctLeadAttributionValues(leads, "utm_term"),
+    [leads],
+  );
+
+  const handleAttributionLabelFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, attributionLabel: value }));
+  }, []);
+
+  const handleLandingUrlContainsChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, landingUrlContains: value }));
+  }, []);
+
+  const attributionLabelFilterOptions = useMemo(
+    () => distinctLeadAttributionValues(leads, "attribution_label"),
+    [leads],
+  );
 
   const handleAttributionSort = useCallback((column: LeadAttributionSortColumn) => {
     setAttributionSort((prev) => {
@@ -88,6 +201,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
               .from('whatsapp_conversation_client_profiles')
               .select('*')
               .eq('conversation_id', conversationId)
+              .eq('organization_id', lead.organization_id)
               .maybeSingle();
             if (!waData) {
               statusMap[lead.id] = 'empty';
@@ -105,6 +219,9 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
             .from('lead_client_profiles')
             .select('*')
             .eq('lead_id', lead.id)
+            .eq('organization_id', lead.organization_id)
+            .order('updated_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
           if (!data) {
@@ -159,6 +276,11 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
 
       // Assignee filter
       if (filters.assignee !== 'all' && lead.assignee !== filters.assignee) {
+        return false;
+      }
+
+      // Created-by filter
+      if (filters.createdBy !== 'all' && filters.createdBy && (lead.created_by_name ?? '').trim() !== filters.createdBy) {
         return false;
       }
 
@@ -247,7 +369,6 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
             onNewLeadClick={handleNewLeadClick}
             onFiltersChange={setFilters}
             filteredLeads={filteredLeads}
-            leadsForAttributionOptions={leads}
           />
           
           {/* Loading state */}
@@ -276,6 +397,70 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                   onRefreshLeads={refetch}
                   attributionSort={attributionSort}
                   onAttributionSort={handleAttributionSort}
+                  categoryColumnFilter={{
+                    value: filters.category,
+                    onChange: handleCategoryFilterChange,
+                    options: subServices,
+                  }}
+                  sourceColumnFilter={{
+                    value: filters.source,
+                    onChange: handleSourceFilterChange,
+                    options: sourceFilterOptions,
+                  }}
+                  createdByColumnFilter={{
+                    value: filters.createdBy,
+                    onChange: handleCreatedByFilterChange,
+                    options: createdByFilterOptions,
+                  }}
+                  assigneeColumnFilter={{
+                    value: filters.assignee,
+                    onChange: handleAssigneeFilterChange,
+                    options: assigneeFilterOptions,
+                  }}
+                  fuPriorityColumnFilter={{
+                    value: filters.fuPriority,
+                    onChange: handleFuPriorityFilterChange,
+                    options: FU_PRIORITY_FILTER_CHOICES,
+                  }}
+                  statusColumnFilter={{
+                    value: filters.status,
+                    onChange: handleStatusFilterChange,
+                    options: statusFilterOptions,
+                  }}
+                  utmSourceColumnFilter={{
+                    value: filters.utmSource,
+                    onChange: handleUtmSourceFilterChange,
+                    options: utmSourceFilterOptions,
+                  }}
+                  utmCampaignColumnFilter={{
+                    value: filters.utmCampaign,
+                    onChange: handleUtmCampaignFilterChange,
+                    options: utmCampaignFilterOptions,
+                  }}
+                  utmMediumColumnFilter={{
+                    value: filters.utmMedium,
+                    onChange: handleUtmMediumFilterChange,
+                    options: utmMediumFilterOptions,
+                  }}
+                  utmContentColumnFilter={{
+                    value: filters.utmContent,
+                    onChange: handleUtmContentFilterChange,
+                    options: utmContentFilterOptions,
+                  }}
+                  utmTermColumnFilter={{
+                    value: filters.utmTerm,
+                    onChange: handleUtmTermFilterChange,
+                    options: utmTermFilterOptions,
+                  }}
+                  attributionLabelColumnFilter={{
+                    value: filters.attributionLabel,
+                    onChange: handleAttributionLabelFilterChange,
+                    options: attributionLabelFilterOptions,
+                  }}
+                  landingUrlContainsColumnFilter={{
+                    value: filters.landingUrlContains,
+                    onChange: handleLandingUrlContainsChange,
+                  }}
                 />
               </div>
             </>

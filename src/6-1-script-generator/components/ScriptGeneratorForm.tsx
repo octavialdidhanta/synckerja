@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -30,12 +30,19 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/shared/components/ui/accordion';
-import { Sparkles, Loader2, X, ChevronDown, Check } from 'lucide-react';
+import { Sparkles, Loader2, X, ChevronDown, Check, Copy } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { ScriptGeneratorRequest } from '../services/scriptGeneratorService';
+import {
+  ScriptGeneratorRequest,
+  isStoryTellingContentPillar,
+  type ScriptBreakdownTableSnapshot,
+} from '../services/scriptGeneratorService';
+import { useScriptBreakdownTableTemplates } from '@/6-1-product-knowledge/hooks/useScriptBreakdownTableTemplates';
 import { useScriptGeneratorFormMasterData } from '../hooks/useScriptGeneratorFormMasterData';
 import { useProductKnowledge } from '@/6-1-product-knowledge/hooks/useProductKnowledge';
+import { useProductKnowledgeDetail } from '@/6-1-product-knowledge/hooks/useProductKnowledgeDetail';
+import type { ProductKnowledgeDetail } from '@/6-1-product-knowledge/hooks/useProductKnowledgeDetail';
 import { useProductKnowledgeStyle } from '@/6-1-product-knowledge/hooks/useProductKnowledgeStyle';
 import { useProductKnowledgeHooks } from '@/6-1-product-knowledge/hooks/useProductKnowledgeHooks';
 import { useKeywords } from '@/6-1-product-knowledge/hooks/useKeywords';
@@ -46,6 +53,11 @@ import { cn } from '@/shared/lib/utils';
 /** Judul di trigger: hilang halus saat expand (diganti bar primary di dalam konten). */
 const SCRIPT_GEN_ACCORDION_TRIGGER_TITLE_CLASS =
   'block min-w-0 truncate text-left overflow-hidden transition-[max-width,opacity,transform] duration-300 ease-smooth motion-reduce:transition-none motion-reduce:duration-0 group-data-[state=closed]:max-w-full group-data-[state=closed]:opacity-100 group-data-[state=closed]:translate-x-0 group-data-[state=open]:max-w-0 group-data-[state=open]:opacity-0 group-data-[state=open]:-translate-x-1';
+
+/** Nilai Select untuk "tanpa hook" (bukan nama template dari Product Knowledge). */
+const HOOK_NAME_SELECT_NONE = '__hook_none__';
+
+const BREAKDOWN_TABLE_SELECT_NONE = '__breakdown_table_none__';
 
 interface ScriptGeneratorFormProps {
   onGenerate: (data: ScriptGeneratorRequest) => Promise<void>;
@@ -80,6 +92,18 @@ function richTextToPlainText(value: string | null | undefined): string {
   return text;
 }
 
+/** Target Audience untuk prompt Story Telling dari baris Creative (`product_knowledge_detail`). */
+function buildTargetMarketFromCreativeDetail(d: ProductKnowledgeDetail): string {
+  const parts: string[] = [];
+  const title = d.title?.trim();
+  if (title) parts.push(`**Target market:** ${title}`);
+  const pers = d.perspective?.trim();
+  if (pers) parts.push(`**Dari perspective:** ${pers}`);
+  const body = richTextToPlainText(d.product_knowledge_content).trim();
+  if (body) parts.push(body);
+  return parts.join('\n\n');
+}
+
 function sanitizeScriptRequestPayload(request: ScriptGeneratorRequest): ScriptGeneratorRequest {
   return {
     ...request,
@@ -109,6 +133,31 @@ function sanitizeScriptRequestPayload(request: ScriptGeneratorRequest): ScriptGe
     sub_service_name: richTextToPlainText(request.sub_service_name),
     content_pillar: richTextToPlainText(request.content_pillar),
     content_type: richTextToPlainText(request.content_type),
+    story_context_mode: request.story_context_mode,
+    script_breakdown_table: sanitizeScriptBreakdownSnapshotForPayload(request.script_breakdown_table),
+  };
+}
+
+function sanitizeScriptBreakdownSnapshotForPayload(
+  snapshot: ScriptBreakdownTableSnapshot | undefined
+): ScriptBreakdownTableSnapshot | undefined {
+  if (!snapshot?.columns?.length) return undefined;
+  const columns = snapshot.columns
+    .map((c) => ({
+      header_label: richTextToPlainText(c.header_label).trim(),
+      placeholder_example:
+        c.placeholder_example != null ? richTextToPlainText(c.placeholder_example) : null,
+      detail_body: c.detail_body != null ? richTextToPlainText(c.detail_body) : null,
+      fill_rule: c.fill_rule === 'honest_empty' ? 'honest_empty' : 'strict',
+      keyword_hint:
+        c.keyword_hint === 'narasi' ? 'narasi' : c.keyword_hint === 'visual' ? 'visual' : 'none',
+    }))
+    .filter((c) => c.header_label !== '');
+  if (!columns.length) return undefined;
+  const name = snapshot.templateName != null ? richTextToPlainText(snapshot.templateName).trim() : '';
+  return {
+    ...(name ? { templateName: name } : {}),
+    columns,
   };
 }
 
@@ -238,7 +287,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
     judul: '',
     judul_custom: '',
     selling_approach: undefined,
-    cta_type: undefined
+    cta_type: undefined,
+    script_breakdown_table: undefined,
   });
   
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
@@ -246,11 +296,17 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
   const [selectedStyleName, setSelectedStyleName] = useState<string>('');
   const [selectedJudulTemplate, setSelectedJudulTemplate] = useState<string>('');
   const [errors, setErrors] = useState<{ target_market?: string; keywords?: string }>({});
+  /** Mode Creative: value = id baris `product_knowledge_detail`, atau `__none__`. */
+  const [storyCreativeDetailId, setStoryCreativeDetailId] = useState<string>('__none__');
+  /** Semua pillar: Creative = sembunyikan Product/Service Details, pilih baris Creative; Product Knowledge = alur PK (fitur, insight, dll.). */
+  const [storyContextMode, setStoryContextMode] = useState<'creative' | 'product_knowledge'>('product_knowledge');
   const [keywordSearchOpen, setKeywordSearchOpen] = useState<boolean>(false);
   const [keywordSearchQuery, setKeywordSearchQuery] = useState<string>('');
   const [useKeyword, setUseKeyword] = useState<boolean>(false);
+  const [breakdownTableTemplateId, setBreakdownTableTemplateId] = useState<string>(BREAKDOWN_TABLE_SELECT_NONE);
 
   const [filteredSubServices, setFilteredSubServices] = useState<any[]>([]);
+  const prevContentPillarRef = useRef<string | undefined>(undefined);
 
   const {
     data: masterData,
@@ -272,6 +328,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
 
   // Fetch product knowledge for wants and needs
   const { data: productKnowledgeData = [] } = useProductKnowledge();
+  const { data: productKnowledgeDetailData = [] } = useProductKnowledgeDetail();
   
   // Fetch product knowledge style for style instructions
   const { data: productKnowledgeStyles = [] } = useProductKnowledgeStyle();
@@ -281,6 +338,55 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
   
   // Fetch keywords
   const { data: keywords = [] } = useKeywords();
+  const { data: scriptBreakdownTemplates = [] } = useScriptBreakdownTableTemplates();
+
+  const isStoryTelling = useMemo(
+    () => isStoryTellingContentPillar(formData.content_pillar),
+    [formData.content_pillar]
+  );
+
+  const useCreativeContextFlow = useMemo(
+    () => storyContextMode === 'creative',
+    [storyContextMode]
+  );
+
+  const selectedSubServiceIdForFilter = useMemo(() => {
+    if (!formData.sub_service_name?.trim()) return '';
+    const row = filteredSubServices.find((ss: { name: string }) => ss.name === formData.sub_service_name);
+    return row?.id ?? '';
+  }, [filteredSubServices, formData.sub_service_name]);
+
+  /** UUID pillar dari master — dipakai menyamakan filter Creative dengan `content_pillar_ids` di baris Creative. */
+  const selectedFormContentPillarId = useMemo(() => {
+    const name = formData.content_pillar?.trim();
+    if (!name) return '';
+    return contentPillars.find((p: { name: string; id?: string }) => p.name === name)?.id ?? '';
+  }, [formData.content_pillar, contentPillars]);
+
+  const storyCreativeDetailOptions = useMemo(() => {
+    if (!useCreativeContextFlow || !selectedServiceId) return [];
+    if (!selectedFormContentPillarId) return [];
+    return productKnowledgeDetailData.filter((d) => {
+      if (d.service_id !== selectedServiceId) return false;
+      if (selectedSubServiceIdForFilter) {
+        if (d.sub_service_id && d.sub_service_id !== selectedSubServiceIdForFilter) return false;
+      }
+      const rowPillarIds = d.content_pillar_ids ?? [];
+      if (!rowPillarIds.includes(selectedFormContentPillarId)) return false;
+      return true;
+    });
+  }, [
+    useCreativeContextFlow,
+    selectedServiceId,
+    productKnowledgeDetailData,
+    selectedSubServiceIdForFilter,
+    selectedFormContentPillarId,
+  ]);
+
+  const selectedStoryCreativeDetail = useMemo((): ProductKnowledgeDetail | null => {
+    if (!useCreativeContextFlow || !storyCreativeDetailId || storyCreativeDetailId === '__none__') return null;
+    return productKnowledgeDetailData.find((d) => d.id === storyCreativeDetailId) ?? null;
+  }, [useCreativeContextFlow, storyCreativeDetailId, productKnowledgeDetailData]);
   
   // Filter product knowledge that has wants and needs
   const productKnowledgeWithWantsNeeds = productKnowledgeData.filter(
@@ -441,6 +547,15 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
     toast.error('Gagal memuat data form. Coba refresh halaman.');
   }, [masterQueryIsError, masterQueryError]);
 
+  useEffect(() => {
+    if (breakdownTableTemplateId === BREAKDOWN_TABLE_SELECT_NONE) return;
+    const exists = scriptBreakdownTemplates.some((t) => t.id === breakdownTableTemplateId);
+    if (!exists) {
+      setBreakdownTableTemplateId(BREAKDOWN_TABLE_SELECT_NONE);
+      setFormData((p) => ({ ...p, script_breakdown_table: undefined }));
+    }
+  }, [scriptBreakdownTemplates, breakdownTableTemplateId]);
+
   // Filter sub services based on selected service
   useEffect(() => {
     if (selectedServiceId && subServices.length > 0) {
@@ -494,7 +609,98 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
     }
   }, [formData.content_pillar, formData.style_name, productKnowledgeStyles, contentPillars]);
 
+  // Story Telling: masuk → default Creative; keluar → default Product Knowledge. Pillar lain tetap pakai mode yang dipilih user.
+  useEffect(() => {
+    const prev = prevContentPillarRef.current;
+    const current = formData.content_pillar;
+    prevContentPillarRef.current = current;
+    const nowStory = isStoryTellingContentPillar(current);
+    const wasStory = prev !== undefined && isStoryTellingContentPillar(prev);
+
+    if (nowStory && !wasStory) {
+      setStoryContextMode('creative');
+      setStoryCreativeDetailId('__none__');
+      setUseKeyword(false);
+      setFormData((p) => ({
+        ...p,
+        feature_name: '',
+        feature_description: '',
+        solution: '',
+        competitive_advantage: '',
+        target_market: '',
+        gender: '',
+        age: '',
+        buying_roles: '',
+        keywords: [],
+        keinginan: '',
+        kebutuhan: '',
+        hidden_needs: '',
+        problem: '',
+        impact: '',
+        false_belief: '',
+        false_belief_impact: '',
+        what_makes_them_stop: '',
+      }));
+      return;
+    }
+    if (!nowStory && wasStory) {
+      setStoryContextMode('product_knowledge');
+      setStoryCreativeDetailId('__none__');
+      setFormData((p) => ({
+        ...p,
+        target_market: '',
+        keinginan: '',
+        kebutuhan: '',
+        hidden_needs: '',
+        problem: '',
+        impact: '',
+        false_belief: '',
+        false_belief_impact: '',
+        what_makes_them_stop: '',
+      }));
+    }
+  }, [formData.content_pillar]);
+
+  // Creative row: reset jika baris yang dipilih tidak lagi cocok (pillar/service/sub berubah atau data refresh).
+  useEffect(() => {
+    if (!useCreativeContextFlow) return;
+    if (storyCreativeDetailId === '__none__') return;
+    const stillValid = storyCreativeDetailOptions.some((d) => d.id === storyCreativeDetailId);
+    if (stillValid) return;
+    setStoryCreativeDetailId('__none__');
+    setFormData((prev) => ({
+      ...prev,
+      target_market: '',
+      keinginan: '',
+      kebutuhan: '',
+      hidden_needs: '',
+      problem: '',
+      impact: '',
+      false_belief: '',
+      false_belief_impact: '',
+      what_makes_them_stop: '',
+    }));
+  }, [useCreativeContextFlow, storyCreativeDetailId, storyCreativeDetailOptions]);
+
   const handleInputChange = (field: keyof ScriptGeneratorRequest, value: any) => {
+    if (field === 'content_pillar' && storyContextMode === 'creative') {
+      setStoryCreativeDetailId('__none__');
+      setFormData((prev) => ({
+        ...prev,
+        content_pillar: value,
+        target_market: '',
+        keinginan: '',
+        kebutuhan: '',
+        hidden_needs: '',
+        problem: '',
+        impact: '',
+        false_belief: '',
+        false_belief_impact: '',
+        what_makes_them_stop: '',
+      }));
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -508,6 +714,30 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
         sub_service_name: ''
       }));
     }
+  };
+
+  const applyBreakdownTemplateSelection = (templateId: string) => {
+    setBreakdownTableTemplateId(templateId);
+    if (templateId === BREAKDOWN_TABLE_SELECT_NONE || !templateId) {
+      setFormData((prev) => ({ ...prev, script_breakdown_table: undefined }));
+      return;
+    }
+    const row = scriptBreakdownTemplates.find((r) => r.id === templateId);
+    if (!row) {
+      setFormData((prev) => ({ ...prev, script_breakdown_table: undefined }));
+      return;
+    }
+    const columns = (row.script_breakdown_table_columns || []).map((c) => ({
+      header_label: c.header_label,
+      placeholder_example: c.placeholder_example,
+      detail_body: c.detail_body,
+      fill_rule: c.fill_rule,
+      keyword_hint: c.keyword_hint,
+    }));
+    setFormData((prev) => ({
+      ...prev,
+      script_breakdown_table: { templateName: row.name, columns },
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -539,14 +769,17 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
     const sub_service_id = filteredSubServices.find((ss: { name: string }) => ss.name === formData.sub_service_name)?.id ?? '';
     const content_pillar_id = contentPillars.find((cp: { name: string }) => cp.name === formData.content_pillar)?.id ?? '';
     // Pass useKeyword flag and plan IDs to the service
-    await onGenerate(sanitizeScriptRequestPayload({
-      ...formData,
-      useKeyword,
-      content_type_id,
-      service_id,
-      sub_service_id,
-      content_pillar_id,
-    }));
+    await onGenerate(
+      sanitizeScriptRequestPayload({
+        ...formData,
+        useKeyword,
+        story_context_mode: storyContextMode,
+        content_type_id,
+        service_id,
+        sub_service_id,
+        content_pillar_id,
+      }),
+    );
   };
 
   const handleReset = () => {
@@ -585,13 +818,17 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
       judul: '',
       judul_custom: '',
       selling_approach: undefined,
-      cta_type: undefined
+      cta_type: undefined,
+      script_breakdown_table: undefined,
     });
     setSelectedServiceId('');
     setSelectedHookName('');
     setSelectedStyleName('');
     setSelectedJudulTemplate('');
+    setBreakdownTableTemplateId(BREAKDOWN_TABLE_SELECT_NONE);
     setUseKeyword(false);
+    setStoryCreativeDetailId('__none__');
+    setStoryContextMode('product_knowledge');
     setErrors({});
   };
 
@@ -686,8 +923,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               </div>
               <div className="space-y-2 bg-primary/10 px-4 py-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Content Type */}
-              <div className="space-y-1">
+              {/* Content Type — full row width when paired with Durasi (reel/story/youtube) so numeric field is not squeezed */}
+              <div className={cn('space-y-1', isReelStoryYoutube && 'md:col-span-2')}>
                 <Label htmlFor="content_type">Content Type</Label>
                 <Select
                   value={formData.content_type || ""}
@@ -703,7 +940,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     }));
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-11 text-base">
                     <SelectValue placeholder="Pilih Content Type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -735,12 +972,13 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     value={formData.slide || ''}
                     onChange={(e) => handleInputChange('slide', parseInt(e.target.value) || undefined)}
                     placeholder="Contoh: 5"
+                    className="min-h-11 text-base"
                   />
                 </div>
               ) : isReelStoryYoutube ? (
-                <div className="space-y-1">
+                <div className="space-y-1 md:col-span-2">
                   <Label htmlFor="duration_value">Durasi</Label>
-                  <div className="flex gap-2">
+                  <div className="grid min-w-0 grid-cols-2 gap-3">
                     <Input
                       id="duration_value"
                       type="number"
@@ -748,13 +986,13 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       value={formData.duration_value || ''}
                       onChange={(e) => handleInputChange('duration_value', parseInt(e.target.value) || undefined)}
                       placeholder="Contoh: 60"
-                      className="flex-1"
+                      className="min-h-11 min-w-0 text-base"
                     />
                     <Select
                       value={formData.duration_unit || 'detik'}
                       onValueChange={(value) => handleInputChange('duration_unit', value as 'menit' | 'detik')}
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="h-11 min-h-11 w-full min-w-0 text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -790,9 +1028,10 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     handleInputChange('feature_description', '');
                     handleInputChange('solution', '');
                     handleInputChange('competitive_advantage', '');
+                    setStoryCreativeDetailId('__none__');
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-11 text-base">
                     <SelectValue placeholder="Pilih Service" />
                   </SelectTrigger>
                   <SelectContent>
@@ -819,10 +1058,29 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                 <Label htmlFor="sub_service_name">Sub Service</Label>
                 <Select
                   value={formData.sub_service_name || ""}
-                  onValueChange={(value) => handleInputChange('sub_service_name', value)}
+                  onValueChange={(value) => {
+                    if (useCreativeContextFlow) {
+                      setStoryCreativeDetailId('__none__');
+                      setFormData((prev) => ({
+                        ...prev,
+                        sub_service_name: value,
+                        target_market: '',
+                        keinginan: '',
+                        kebutuhan: '',
+                        hidden_needs: '',
+                        problem: '',
+                        impact: '',
+                        false_belief: '',
+                        false_belief_impact: '',
+                        what_makes_them_stop: '',
+                      }));
+                      return;
+                    }
+                    handleInputChange('sub_service_name', value);
+                  }}
                   disabled={!selectedServiceId}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-11 text-base">
                     <SelectValue placeholder={selectedServiceId ? "Pilih Sub Service" : "Pilih Service dulu"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -932,13 +1190,91 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   );
                 })()}
               </div>
+
+              {formData.content_pillar?.trim() ? (
+                <div className="space-y-1 md:col-span-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
+                  <Label htmlFor="story_context_mode">
+                    {t('scriptGenerator.form.contextSource', 'Sumber konteks')}
+                  </Label>
+                  <Select
+                    value={storyContextMode}
+                    onValueChange={(v) => {
+                      const next = v as 'creative' | 'product_knowledge';
+                      if (next === storyContextMode) return;
+                      setStoryContextMode(next);
+                      if (next === 'product_knowledge') {
+                        setStoryCreativeDetailId('__none__');
+                        setFormData((p) => ({
+                          ...p,
+                          target_market: '',
+                          keinginan: '',
+                          kebutuhan: '',
+                          hidden_needs: '',
+                          problem: '',
+                          impact: '',
+                          false_belief: '',
+                          false_belief_impact: '',
+                          what_makes_them_stop: '',
+                        }));
+                      } else {
+                        setStoryCreativeDetailId('__none__');
+                        setFormData((p) => ({
+                          ...p,
+                          feature_name: '',
+                          feature_description: '',
+                          solution: '',
+                          competitive_advantage: '',
+                          target_market: '',
+                          keinginan: '',
+                          kebutuhan: '',
+                          hidden_needs: '',
+                          problem: '',
+                          impact: '',
+                          false_belief: '',
+                          false_belief_impact: '',
+                          what_makes_them_stop: '',
+                        }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="story_context_mode" className="min-h-11 text-base bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="creative">
+                        {t('scriptGenerator.form.storyContextCreative', 'Creative')}
+                      </SelectItem>
+                      <SelectItem value="product_knowledge">
+                        {t('scriptGenerator.form.storyContextProductKnowledge', 'Product Knowledge')}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {storyContextMode === 'creative'
+                      ? t(
+                          'scriptGenerator.form.storyContextCreativeHint',
+                          'Product/Service Details disembunyikan; pilih baris Creative di Target Audience.',
+                        )
+                      : isStoryTelling
+                        ? t(
+                            'scriptGenerator.form.storyContextPkHint',
+                            'Isi Product/Service Details dan insight seperti pillar lain; prompt Story Telling tetap memakai format narasi.',
+                          )
+                        : t(
+                            'scriptGenerator.form.contextPkHint',
+                            'Isi Product/Service Details dan insight dari Product Knowledge seperti biasa.',
+                          )}
+                  </p>
+                </div>
+              ) : null}
             </div>
               </div>
             </div>
           </AccordionContent>
         </AccordionItem>
 
-        {/* Section 2: Product/Service Details */}
+        {/* Section 2: Product/Service Details (disembunyikan untuk mode Creative) */}
+        {!useCreativeContextFlow && (
         <AccordionItem value="product-details" className="group border rounded-lg px-3 transition-colors data-[state=open]:bg-primary/10 data-[state=open]:border-primary/25 data-[state=closed]:bg-white data-[state=closed]:border-gray-200">
           <AccordionTrigger className="py-2 text-base font-semibold group-data-[state=closed]:text-gray-700 group-data-[state=open]:justify-end group-data-[state=closed]:justify-between">
             <span className={SCRIPT_GEN_ACCORDION_TRIGGER_TITLE_CLASS}>Product/Service Details</span>
@@ -1053,6 +1389,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
             </div>
           </AccordionContent>
         </AccordionItem>
+        )}
 
         {/* Section 3: Target Audience & Customer Insights (combined - lihat insight saat persona dipilih) */}
         <AccordionItem value="target-audience" className="border rounded-lg px-3 transition-colors data-[state=open]:bg-primary/10 data-[state=open]:border-primary/25 data-[state=closed]:bg-white data-[state=closed]:border-gray-200">
@@ -1066,21 +1403,58 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                 <h4 className="text-sm font-semibold text-primary-foreground">Target Audience</h4>
               </div>
               <div className="space-y-2 bg-primary/10 px-4 py-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {/* Customer Persona */}
+              <div className={cn('grid grid-cols-1 gap-3', !useCreativeContextFlow && 'md:grid-cols-2')}>
+              {/* Customer Persona / pemilih baris Creative (mode Creative) */}
               <div className="space-y-1">
                 <Label htmlFor="target_market">
                   Customer Persona <span className="text-red-500">*</span>
                 </Label>
                 <Select
-                  value={formData.target_market?.trim() || "__none__"}
+                  value={
+                    useCreativeContextFlow
+                      ? storyCreativeDetailId || '__none__'
+                      : formData.target_market?.trim() || '__none__'
+                  }
                   onValueChange={(value) => {
-                    // Clear error when value changes
                     if (errors.target_market) {
-                      setErrors(prev => ({ ...prev, target_market: undefined }));
+                      setErrors((prev) => ({ ...prev, target_market: undefined }));
                     }
-                    
-                    // When user selects "Pilih Customer Persona" (clear), reset all Customer Insights
+
+                    if (useCreativeContextFlow) {
+                      if (value === '__none__') {
+                        setStoryCreativeDetailId('__none__');
+                        setFormData((prev) => ({
+                          ...prev,
+                          target_market: '',
+                          keinginan: '',
+                          kebutuhan: '',
+                          hidden_needs: '',
+                          problem: '',
+                          impact: '',
+                          false_belief: '',
+                          false_belief_impact: '',
+                          what_makes_them_stop: '',
+                        }));
+                        return;
+                      }
+                      const d = productKnowledgeDetailData.find((x) => x.id === value);
+                      if (!d) return;
+                      setStoryCreativeDetailId(value);
+                      setFormData((prev) => ({
+                        ...prev,
+                        target_market: buildTargetMarketFromCreativeDetail(d),
+                        keinginan: '',
+                        kebutuhan: '',
+                        hidden_needs: '',
+                        problem: '',
+                        impact: '',
+                        false_belief: '',
+                        false_belief_impact: '',
+                        what_makes_them_stop: '',
+                      }));
+                      return;
+                    }
+
                     if (value === '__none__') {
                       setFormData((prev) => ({
                         ...prev,
@@ -1096,7 +1470,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       }));
                       return;
                     }
-                    
+
                     const normalizePersona = (s: string) => (s || '').trim();
                     const selectedFeature = formData.feature_name?.trim() || '';
                     const matchingPKs = productKnowledgeData.filter((pk) => {
@@ -1106,7 +1480,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       const pkPersonaStr = normalizePersona(extractTargetAudienceAsString(pk.target_audience));
                       return pkPersonaStr === normalizePersona(value);
                     });
-                    
+
                     const matchingWithWantsNeeds = productKnowledgeWithWantsNeeds.filter((pk) => {
                       if (pk.service_id !== selectedServiceId) return false;
                       if (pk.feature_name?.trim() !== selectedFeature) return false;
@@ -1114,29 +1488,31 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       const pkPersonaStr = normalizePersona(extractTargetAudienceAsString(pk.target_audience));
                       return pkPersonaStr === normalizePersona(value);
                     });
-                    
-                    const selectedPK = matchingWithWantsNeeds.length > 0
-                      ? matchingWithWantsNeeds[0]
-                      : matchingPKs[0];
-                    
+
+                    const selectedPK =
+                      matchingWithWantsNeeds.length > 0 ? matchingWithWantsNeeds[0] : matchingPKs[0];
+
                     const updates: Partial<ScriptGeneratorRequest> = { target_market: value };
-                    
+
                     if (matchingPKs.length > 0 && selectedPK) {
                       const wantsVal = selectedPK.wants?.trim() || '';
-                      const rawNeeds = selectedPK.needs?.trim()
-                        || (matchingPKs.find((pk) => pk.needs?.trim())?.needs?.trim() || '');
+                      const rawNeeds =
+                        selectedPK.needs?.trim() ||
+                        matchingPKs.find((pk) => pk.needs?.trim())?.needs?.trim() ||
+                        '';
                       const needsVal = rawNeeds ? rawNeeds.replace(/\r\n/g, '\n') : '';
-                      
+
                       updates.keinginan = wantsVal;
                       updates.kebutuhan = needsVal;
                       updates.hidden_needs = selectedPK.hidden_needs
-                        ? (parseHiddenNeeds(selectedPK.hidden_needs).join('\n\n') || '')
+                        ? parseHiddenNeeds(selectedPK.hidden_needs).join('\n\n') || ''
                         : '';
-                      updates.problem = selectedPK.problems_solved && Array.isArray(selectedPK.problems_solved)
-                        ? selectedPK.problems_solved.filter(Boolean).join('\n\n')
-                        : '';
+                      updates.problem =
+                        selectedPK.problems_solved && Array.isArray(selectedPK.problems_solved)
+                          ? selectedPK.problems_solved.filter(Boolean).join('\n\n')
+                          : '';
                       updates.impact = selectedPK.impact
-                        ? (parseImpact(selectedPK.impact).join('\n\n') || '')
+                        ? parseImpact(selectedPK.impact).join('\n\n') || ''
                         : '';
                       updates.false_belief = selectedPK.false_belief?.trim() || '';
                       updates.false_belief_impact = richTextToPlainText(selectedPK.false_belief_impact) || '';
@@ -1161,31 +1537,84 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       updates.feature_description = '';
                       updates.competitive_advantage = '';
                     }
-                    
+
                     setFormData((prev) => ({ ...prev, ...updates }));
                   }}
-                  disabled={!selectedServiceId || !formData.feature_name?.trim()}
+                  disabled={
+                    useCreativeContextFlow
+                      ? !selectedServiceId || !selectedFormContentPillarId
+                      : !selectedServiceId || !formData.feature_name?.trim()
+                  }
                 >
-                  <SelectTrigger className={cn(
-                    'min-w-0 overflow-hidden [&>span]:min-w-0 [&>span]:truncate',
-                    (!selectedServiceId || !formData.feature_name?.trim()) && 'opacity-70',
-                    errors.target_market && 'border-red-500'
-                  )}>
-                    <SelectValue placeholder={
-                      !selectedServiceId
-                        ? "Pilih Service terlebih dahulu"
-                        : !formData.feature_name?.trim()
-                        ? "Pilih Feature terlebih dahulu"
-                        : customerPersonas.length === 0
-                        ? "Tidak ada Customer Persona untuk Feature ini"
-                        : "Pilih Customer Persona"
-                    } />
+                  <SelectTrigger
+                    className={cn(
+                      'min-w-0 overflow-hidden [&>span]:min-w-0 [&>span]:truncate',
+                      (useCreativeContextFlow
+                        ? !selectedServiceId || !selectedFormContentPillarId
+                        : !selectedServiceId || !formData.feature_name?.trim()) && 'opacity-70',
+                      errors.target_market && 'border-red-500'
+                    )}
+                  >
+                    <SelectValue
+                      placeholder={
+                        useCreativeContextFlow
+                          ? !selectedServiceId
+                            ? 'Pilih Service terlebih dahulu'
+                            : !selectedFormContentPillarId
+                              ? 'Pilih Content Pillar terlebih dahulu'
+                            : storyCreativeDetailOptions.length === 0
+                              ? 'Tidak ada baris Creative untuk pillar & layanan ini'
+                              : 'Pilih baris Creative (Target market)'
+                          : !selectedServiceId
+                            ? 'Pilih Service terlebih dahulu'
+                            : !formData.feature_name?.trim()
+                              ? 'Pilih Feature terlebih dahulu'
+                              : customerPersonas.length === 0
+                                ? 'Tidak ada Customer Persona untuk Feature ini'
+                                : 'Pilih Customer Persona'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent
                     className="max-w-[var(--radix-select-trigger-width)] w-[var(--radix-select-trigger-width)]"
                     position="popper"
                   >
-                    {!selectedServiceId ? (
+                    {useCreativeContextFlow ? (
+                      !selectedServiceId ? (
+                        <SelectItem value="select-service-first" disabled>
+                          Pilih Service terlebih dahulu
+                        </SelectItem>
+                      ) : !selectedFormContentPillarId ? (
+                        <SelectItem value="select-pillar-first" disabled>
+                          Pilih Content Pillar terlebih dahulu
+                        </SelectItem>
+                      ) : storyCreativeDetailOptions.length === 0 ? (
+                        <SelectItem value="no-creative" disabled>
+                          Tidak ada baris Creative untuk pillar & layanan ini
+                        </SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="__none__">Pilih baris Creative</SelectItem>
+                          {storyCreativeDetailOptions.map((row) => {
+                            const label =
+                              row.title?.trim() ||
+                              richTextToPlainText(row.product_knowledge_content).slice(0, 80) ||
+                              row.id;
+                            return (
+                              <SelectItem
+                                key={row.id}
+                                value={row.id}
+                                className="break-words whitespace-normal items-start py-2"
+                              >
+                                <span className="line-clamp-3 block break-words" title={label}>
+                                  {label}
+                                </span>
+                              </SelectItem>
+                            );
+                          })}
+                        </>
+                      )
+                    ) : !selectedServiceId ? (
                       <SelectItem value="select-service-first" disabled>
                         Pilih Service terlebih dahulu
                       </SelectItem>
@@ -1199,20 +1628,18 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       </SelectItem>
                     ) : (
                       <>
-                        <SelectItem value="__none__">
-                          Pilih Customer Persona
-                        </SelectItem>
+                        <SelectItem value="__none__">Pilih Customer Persona</SelectItem>
                         {customerPersonas.map((persona, index) => (
-                        <SelectItem
-                          key={index}
-                          value={persona}
-                          className="break-words whitespace-normal items-start py-2"
-                        >
-                          <span className="block break-words line-clamp-3" title={persona}>
-                            {persona}
-                          </span>
-                        </SelectItem>
-                      ))}
+                          <SelectItem
+                            key={index}
+                            value={persona}
+                            className="break-words whitespace-normal items-start py-2"
+                          >
+                            <span className="line-clamp-3 block break-words" title={persona}>
+                              {persona}
+                            </span>
+                          </SelectItem>
+                        ))}
                       </>
                     )}
                   </SelectContent>
@@ -1222,6 +1649,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                 )}
               </div>
 
+              {!useCreativeContextFlow && (
+              <>
               {/* Gender */}
               <div className="space-y-1">
                 <Label htmlFor="gender">Gender</Label>
@@ -1389,10 +1818,89 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   <p className="text-sm text-red-500 mt-1">{errors.keywords}</p>
                 )}
               </div>
-            </div>
-            </div>
+              </>
+              )}
+
+              {useCreativeContextFlow && selectedStoryCreativeDetail ? (
+                <div className="space-y-3 md:col-span-2">
+                  {selectedStoryCreativeDetail.title?.trim() ? (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold text-gray-800">
+                        {t('productKnowledge.detail.title', 'Target Market')}
+                      </h3>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-sm font-medium text-gray-900">
+                          {selectedStoryCreativeDetail.title.trim()}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {selectedStoryCreativeDetail.perspective?.trim() ? (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold text-gray-800">
+                        {t('productKnowledge.detail.perspective', 'Dari Perspective')}
+                      </h3>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p className="whitespace-pre-wrap break-words text-sm text-gray-800">
+                          {richTextToPlainText(selectedStoryCreativeDetail.perspective)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-gray-800">
+                        {t('productKnowledge.detail.content', 'Creative Content')}
+                      </h3>
+                      {selectedStoryCreativeDetail.product_knowledge_content ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          title={t('productKnowledgeDetail.copy', 'Copy content')}
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(
+                                selectedStoryCreativeDetail.product_knowledge_content || ''
+                              );
+                              toast.success(
+                                t(
+                                  'productKnowledgeDetail.toast.copySuccess',
+                                  'Content copied to clipboard'
+                                )
+                              );
+                            } catch {
+                              toast.error(
+                                t('productKnowledgeDetail.toast.copyError', 'Error copying content')
+                              );
+                            }
+                          }}
+                        >
+                          <Copy className="mr-1.5 h-3.5 w-3.5" />
+                          {t('productKnowledgeDetail.copy', 'Copy')}
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <p
+                        className="whitespace-pre-wrap break-words text-sm text-gray-700"
+                        style={{ wordBreak: 'break-word' }}
+                      >
+                        {richTextToPlainText(selectedStoryCreativeDetail.product_knowledge_content) ||
+                          t('productKnowledge.detail.noContent', 'No content available')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              </div>
+              </div>
             </div>
 
+            {!useCreativeContextFlow && (
+            <>
             {/* Customer Insights — pola sama: bar primary + area isi */}
             <div className="overflow-hidden rounded-lg border-2 border-primary/50 shadow-sm">
               <div className="bg-primary px-4 py-2.5">
@@ -1526,7 +2034,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       'min-w-0 overflow-hidden [&>span]:min-w-0 [&>span]:truncate',
                       !formData.target_market?.trim() && 'bg-gray-100 opacity-70'
                     )}>
-                      <SelectValue placeholder={formData.target_market?.trim() ? "Pilih Keinginan dari Product Knowledge" : "Pilih Customer Persona terlebih dahulu"} />
+                      <SelectValue placeholder={formData.target_market?.trim() ? "Pilih Keinginan dari Creative" : "Pilih Customer Persona terlebih dahulu"} />
                     </SelectTrigger>
                     <SelectContent
                       className="max-w-[var(--radix-select-trigger-width)] w-[var(--radix-select-trigger-width)]"
@@ -1534,7 +2042,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     >
                       {productKnowledgeWithWantsNeeds.length === 0 ? (
                         <SelectItem value="no-data" disabled>
-                          Tidak ada data Product Knowledge dengan Wants dan Needs
+                          Tidak ada data Creative dengan Wants dan Needs
                         </SelectItem>
                       ) : (
                         productKnowledgeWithWantsNeeds
@@ -1751,6 +2259,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               </div>
               </div>
             </div>
+            </>
+            )}
           </AccordionContent>
         </AccordionItem>
 
@@ -1766,24 +2276,63 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               </div>
               <div className="space-y-2 bg-primary/10 px-4 py-3">
               <div className="space-y-1">
+                <Label htmlFor="script_breakdown_table_template">Template tabel breakdown</Label>
+                <Select
+                  value={breakdownTableTemplateId}
+                  onValueChange={(value) => applyBreakdownTemplateSelection(value)}
+                  disabled={!organizationId || scriptBreakdownTemplates.length === 0}
+                >
+                  <SelectTrigger id="script_breakdown_table_template">
+                    <SelectValue placeholder="Tanpa template tabel" />
+                  </SelectTrigger>
+                  <SelectContent
+                    className="w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)] border-2 border-gray-200 bg-white shadow-lg"
+                    position="popper"
+                  >
+                    <SelectItem value={BREAKDOWN_TABLE_SELECT_NONE} className="break-words whitespace-normal">
+                      Tanpa template tabel
+                    </SelectItem>
+                    {scriptBreakdownTemplates.length > 0 ? <SelectSeparator className="my-1 bg-gray-200" /> : null}
+                    {scriptBreakdownTemplates.map((tpl) => (
+                      <SelectItem key={tpl.id} value={tpl.id} className="break-words whitespace-normal">
+                        {tpl.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Opsional. Jika dipilih, prompt memakai kolom ini untuk blok ## FORMAT TABLE ##. Durasi breakdown:
+                  video mengikuti durasi konten; selain video mengikuti field durasi (menit/detik) bila diisi, atau default{' '}
+                  <span className="font-medium">60 detik</span>.
+                </p>
+              </div>
+
+              <div className="space-y-1">
                 <Label htmlFor="hook_name">Hook Name</Label>
                 <Select
-                  value={selectedHookName || ""}
+                  value={
+                    (selectedHookName || formData.hook_name || '').trim()
+                      ? selectedHookName || formData.hook_name || ''
+                      : HOOK_NAME_SELECT_NONE
+                  }
                   onValueChange={(value) => {
+                    if (value === HOOK_NAME_SELECT_NONE) {
+                      setSelectedHookName('');
+                      handleInputChange('hook_name', '');
+                      handleInputChange('hook_description', '');
+                      handleInputChange('hook_content', '');
+                      return;
+                    }
+
                     setSelectedHookName(value);
-                    
-                    // Find the selected hook
-                    const selectedHook = productKnowledgeHooks.find(
-                      (hook) => hook.name === value
-                    );
-                    
-                    // Auto-fill hook_name, hook_description, and hook_content if found
+
+                    const selectedHook = productKnowledgeHooks.find((hook) => hook.name === value);
+
                     if (selectedHook) {
                       handleInputChange('hook_name', value);
                       handleInputChange('hook_description', selectedHook.description || '');
                       handleInputChange('hook_content', selectedHook.hook_content || '');
                     } else {
-                      // Clear fields if no hook found
                       handleInputChange('hook_name', '');
                       handleInputChange('hook_description', '');
                       handleInputChange('hook_content', '');
@@ -1797,26 +2346,33 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     className="w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)] border-2 border-gray-200 bg-white shadow-lg"
                     position="popper"
                   >
+                    <SelectItem value={HOOK_NAME_SELECT_NONE} className="break-words whitespace-normal">
+                      Tanpa hook
+                    </SelectItem>
                     {productKnowledgeHooks.length === 0 ? (
-                      <SelectItem value="no-data" disabled className="break-words whitespace-normal">
-                        Tidak ada Hook tersedia
+                      <SelectItem value="no-hooks-in-db" disabled className="break-words whitespace-normal">
+                        Tidak ada template Hook di Product Knowledge
                       </SelectItem>
                     ) : (
-                      productKnowledgeHooks
-                        .filter((hook) => hook.name && hook.name.trim() !== '')
-                        .flatMap((hook, index) => [
-                          index > 0 && <SelectSeparator key={`sep-${hook.id}`} className="my-1 bg-gray-200" />,
-                          <SelectItem
-                            key={hook.id}
-                            value={hook.name}
-                            className={cn(
-                              "break-words whitespace-normal",
-                              index % 2 === 1 && "bg-gray-50/80"
-                            )}
-                          >
-                            {hook.name}
-                          </SelectItem>
-                        ]).filter(Boolean)
+                      <>
+                        <SelectSeparator className="my-1 bg-gray-200" />
+                        {productKnowledgeHooks
+                          .filter((hook) => hook.name && hook.name.trim() !== '')
+                          .flatMap((hook, index) => [
+                            index > 0 && <SelectSeparator key={`sep-${hook.id}`} className="my-1 bg-gray-200" />,
+                            <SelectItem
+                              key={hook.id}
+                              value={hook.name}
+                              className={cn(
+                                'break-words whitespace-normal',
+                                index % 2 === 1 && 'bg-gray-50/80'
+                              )}
+                            >
+                              {hook.name}
+                            </SelectItem>,
+                          ])
+                          .filter(Boolean)}
+                      </>
                     )}
                   </SelectContent>
                 </Select>
@@ -2007,7 +2563,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                {formData.cta_type === 'use_solution' && !formData.solution && (
+                {formData.cta_type === 'use_solution' && !formData.solution && !useCreativeContextFlow && (
                   <p className="text-xs text-amber-600 mt-1">
                     ⚠️ Pastikan field "Solution" di accordion "Product/Service Details" sudah diisi
                   </p>

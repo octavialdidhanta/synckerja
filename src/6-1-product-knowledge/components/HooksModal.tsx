@@ -114,7 +114,7 @@ export const HooksModal: React.FC<HooksModalProps> = ({
                   )
                 : t(
                     'productKnowledge.hooks.modal.description',
-                    'Create a new hook for product knowledge content'
+                    'Create a new hook for creative content'
                   )}
             </DialogDescription>
           </DialogHeader>

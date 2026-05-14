@@ -17,6 +17,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useScriptGeneratorFormMasterData } from './hooks/useScriptGeneratorFormMasterData';
 import { useProductKnowledge } from '@/6-1-product-knowledge/hooks/useProductKnowledge';
+import { useProductKnowledgeDetail } from '@/6-1-product-knowledge/hooks/useProductKnowledgeDetail';
 import { useProductKnowledgeStyle } from '@/6-1-product-knowledge/hooks/useProductKnowledgeStyle';
 import { useProductKnowledgeHooks } from '@/6-1-product-knowledge/hooks/useProductKnowledgeHooks';
 import { useKeywords } from '@/6-1-product-knowledge/hooks/useKeywords';
@@ -92,6 +93,7 @@ const ScriptGeneratorContent: React.FC = () => {
   const [formPanelHidden, setFormPanelHidden] = useState(false);
   const { isPending: masterPending } = useScriptGeneratorFormMasterData();
   const { isPending: productKnowledgePending } = useProductKnowledge();
+  const { isPending: productKnowledgeDetailPending } = useProductKnowledgeDetail();
   const { isPending: stylePending } = useProductKnowledgeStyle();
   const { isPending: hooksPending } = useProductKnowledgeHooks();
   const { isPending: keywordsPending } = useKeywords();
@@ -108,6 +110,7 @@ const ScriptGeneratorContent: React.FC = () => {
     (hasOrg &&
       (masterPending ||
         productKnowledgePending ||
+        productKnowledgeDetailPending ||
         stylePending ||
         hooksPending ||
         keywordsPending ||

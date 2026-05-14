@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
-
-const ROLE_ORDER = ["owner", "admin", "manager", "member"];
+import { pickHighestUserRoleFromRows } from "@/shared/lib/organizationRolePick";
+import { forceClearCache } from "@/shared/auth/page-access/departmentPageAccessCache";
 
 export type OrganizationMembership = {
   organizationId: string;
@@ -16,15 +16,9 @@ type OrgRow = {
 
 function pickRole(rows: { organization_id: string; role: string }[], orgId: string): string {
   const forOrg = rows.filter((r) => r.organization_id === orgId);
-  if (forOrg.length === 0) return "member";
-  forOrg.sort((a, b) => {
-    const ia = ROLE_ORDER.indexOf(a.role);
-    const ib = ROLE_ORDER.indexOf(b.role);
-    const sa = ia === -1 ? 999 : ia;
-    const sb = ib === -1 ? 999 : ib;
-    return sa - sb;
-  });
-  return forOrg[0].role;
+  // Default staff role in this app is `employee` (not generic "member").
+  if (forOrg.length === 0) return "employee";
+  return pickHighestUserRoleFromRows(forOrg) ?? "employee";
 }
 
 function orgNameFromRow(row: OrgRow): string {
@@ -130,8 +124,13 @@ export function useUserOrganizations() {
       if (error) throw error;
       return organizationId;
     },
-    onSuccess: () => {
+    onSuccess: (organizationId) => {
       queryClient.invalidateQueries({ queryKey: userOrganizationsQueryKey });
+      forceClearCache();
+      window.dispatchEvent(
+        new CustomEvent("organization-switched", { detail: { organizationId } }),
+      );
+      void queryClient.invalidateQueries();
     },
   });
 

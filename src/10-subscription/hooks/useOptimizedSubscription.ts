@@ -5,12 +5,44 @@ import { toast } from "sonner";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
+import { fetchSubscriptionPlansWithAddOns } from "@/10-subscription/api/fetchSubscriptionPlansWithAddOns";
+
+export type { SubscriptionPlan, SubscriptionPlanAddOnLink, SubscriptionAddOnNested } from "@/10-subscription/types/SubscriptionPlanCatalog";
 
 /** RPC check without mounting subscription queries (e.g. useEmployeeCreation). */
 export async function fetchCanAddEmployee(organizationId: string): Promise<boolean> {
   const { data, error } = await supabase.rpc("can_add_employee", { p_org_id: organizationId });
   if (error) return false;
   return Boolean(data);
+}
+
+/** PostgREST may return jsonb as object or (rarely) string; RPC keys stay snake_case from SQL. */
+function parseSubscriptionStatusRpcPayload(data: unknown): Record<string, unknown> | null {
+  if (data == null) return null;
+  if (typeof data === "string") {
+    try {
+      const parsed = JSON.parse(data) as unknown;
+      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof data === "object" && !Array.isArray(data)) {
+    return data as Record<string, unknown>;
+  }
+  return null;
+}
+
+function readNonNegativeInt(raw: Record<string, unknown>, keys: readonly string[]): number {
+  for (const k of keys) {
+    const v = raw[k];
+    if (v === undefined || v === null) continue;
+    const n = Math.round(Number(v));
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 0;
 }
 
 export type UseOptimizedSubscriptionOptions = {
@@ -41,26 +73,10 @@ export interface SubscriptionStatus {
   base_price_per_member?: number;
   annual_discount_percentage?: number;
   next_payment_date?: string;
-}
-
-export interface SubscriptionPlan {
-  id: string;
-  name: string;
-  description: string;
-  base_price_per_member: number;
-  features: string[];
-  is_active: boolean;
-  is_custom: boolean;
-  demo_required: boolean;
-  annual_discount_percentage: number | null;
-  member_discount_tiers: unknown[] | null;
-  jumlah_hari_trial: number | null;
-}
-
-function parseFeatures(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.map(String);
-  if (raw && typeof raw === "object") return [];
-  return [];
+  /** Purchased omnichannel roster seat entitlement (DB). */
+  omnichannel_paid_seat_count?: number;
+  /** Cap for roster rows = min(HR member_limit, paid omnichannel seats). */
+  omnichannel_roster_seat_cap?: number;
 }
 
 export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptions) {
@@ -119,17 +135,47 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
   const {
     data: subscriptionStatus,
     isLoading: statusLoading,
+    isFetching: statusFetching,
     error: statusError,
   } = useQuery({
     queryKey: subscriptionQueryKeys.status(organizationId || ""),
     queryFn: async () => {
       if (!organizationId) throw new Error("No organization ID");
-      const { data, error } = await supabase.rpc("get_subscription_status", {
-        p_org_id: organizationId,
-      });
+      const [{ data, error }, osRes] = await Promise.all([
+        supabase.rpc("get_subscription_status", {
+          p_org_id: organizationId,
+        }),
+        supabase
+          .from("organization_subscriptions")
+          .select("omnichannel_paid_seat_count, member_count")
+          .eq("organization_id", organizationId)
+          .maybeSingle(),
+      ]);
       if (error) throw error;
-      const raw = data as Record<string, unknown> | null;
+      const raw = parseSubscriptionStatusRpcPayload(data);
       if (!raw) return null;
+
+      /** RPC bisa tidak menyertakan / mengisi omnichannel; baris tabel bisa tertunda RLS. Ambil nilai terbesar yang masuk akal. */
+      if (osRes.error) {
+        console.warn("organization_subscriptions omnichannel merge:", osRes.error.message);
+      }
+      const rpcPaid = readNonNegativeInt(raw, ["omnichannel_paid_seat_count", "omnichannelPaidSeatCount"]);
+      const tablePaid =
+        osRes.data?.omnichannel_paid_seat_count !== undefined &&
+        osRes.data?.omnichannel_paid_seat_count !== null
+          ? Number(osRes.data.omnichannel_paid_seat_count)
+          : NaN;
+      const paidOmni = Number.isFinite(tablePaid)
+        ? Math.max(0, tablePaid, rpcPaid)
+        : Math.max(0, rpcPaid);
+
+      const memberFromTable = osRes.data?.member_count;
+      const memberLimRpc = Number(raw.member_limit ?? (raw.is_trial ? 2 : 1000));
+      const memberLim =
+        memberFromTable !== undefined && memberFromTable !== null
+          ? Number(memberFromTable)
+          : memberLimRpc;
+      const rosterCap = Math.min(memberLim, paidOmni);
 
       const daysRem = Number(raw.days_remaining ?? 0);
       const mapped: SubscriptionStatus = {
@@ -139,7 +185,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         is_active: Boolean(raw.is_active),
         is_expired: Boolean(raw.is_expired),
         current_employees: Number(raw.employee_count ?? 0),
-        member_count: Number(raw.member_limit ?? (raw.is_trial ? 2 : 1000)),
+        member_count: memberLim,
         over_limit: Boolean(raw.is_over_limit),
         days_until_expiry: daysRem,
         needs_renewal: daysRem <= 7,
@@ -151,18 +197,21 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         base_price_per_member: Number(raw.base_price_per_member ?? 0),
         next_payment_date: raw.next_payment_date as string | undefined,
         employee_count: Number(raw.employee_count ?? 0),
-        member_limit: Number(raw.member_limit ?? 0),
+        member_limit: memberLim,
         is_over_limit: Boolean(raw.is_over_limit),
         days_remaining: daysRem,
+        omnichannel_paid_seat_count: paidOmni,
+        omnichannel_roster_seat_cap: rosterCap,
       };
       return mapped;
     },
     enabled: !!organizationId,
-    staleTime: 2 * 60 * 1000,
+    /** Keep omnichannel seat counts aligned across `/subscription/plans` and `/omnichannel/settings` when navigating. */
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
     retry: (failureCount, err: { status?: number }) => {
       if (err?.status >= 400 && err?.status < 500) return false;
       return failureCount < 2;
@@ -171,18 +220,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
 
   const { data: subscriptionPlans, isLoading: plansLoading } = useQuery({
     queryKey: subscriptionQueryKeys.plans,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("subscription_plans")
-        .select("*")
-        .eq("is_active", true)
-        .order("base_price_per_member", { ascending: true });
-      if (error) throw error;
-      return (data || []).map((row: Record<string, unknown>) => ({
-        ...row,
-        features: parseFeatures(row.features),
-      })) as SubscriptionPlan[];
-    },
+    queryFn: fetchSubscriptionPlansWithAddOns,
     enabled: includePlans,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -235,6 +273,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
   return {
     subscriptionStatus,
     subscriptionPlans,
+    statusFetching,
     statusLoading,
     plansLoading,
     statusError,

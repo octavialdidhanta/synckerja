@@ -2,7 +2,34 @@
 /// <reference path="../deno-globals.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { addMonths, addYears } from "https://esm.sh/date-fns@2";
+
+/** Inlined (hosted bundle sometimes omits sibling `midtransEnv.ts`). Same logic as other Midtrans edge functions. */
+function envBool(name: string): boolean | undefined {
+  const v = (Deno.env.get(name) ?? "").trim().toLowerCase();
+  if (v === "true" || v === "1" || v === "yes") return true;
+  if (v === "false" || v === "0" || v === "no") return false;
+  return undefined;
+}
+
+function midtransIsSandbox(): boolean {
+  const envName = (Deno.env.get("MIDTRANS_ENV") ?? "").trim().toLowerCase();
+  if (envName === "sandbox" || envName === "dev" || envName === "development") return true;
+  if (envName === "production" || envName === "prod") return false;
+
+  const explicit = envBool("MIDTRANS_USE_SANDBOX");
+  if (explicit !== undefined) return explicit;
+
+  const serverKey = (Deno.env.get("MIDTRANS_SERVER_KEY") ?? "").trim();
+  if (serverKey.startsWith("SB-Mid-")) return true;
+
+  return false;
+}
+
+function midtransCoreApiBaseUrl(): string {
+  const override = (Deno.env.get("MIDTRANS_CORE_API_BASE_URL") ?? "").trim().replace(/\/+$/, "");
+  if (override) return override;
+  return midtransIsSandbox() ? "https://api.sandbox.midtrans.com" : "https://api.midtrans.com";
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,23 +37,23 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const addBillingInterval = (baseDate: Date, billingCycle: string): Date => {
-  if (billingCycle === "yearly") {
-    return addYears(baseDate, 1);
-  }
-  return addMonths(baseDate, 1);
-};
-
+/**
+ * Poll Midtrans Core API for transaction status, then forward the payload to
+ * `process-midtrans-payment` so subscription + omnichannel seat entitlement stay
+ * in one code path (same as HTTP notification webhook).
+ *
+ * Previously this function duplicated only part of `process-midtrans-payment` and
+ * skipped `purchase_kind: omnichannel_seats`, so paid omnichannel seats stayed at 0.
+ */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
+    const supabaseUrl = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { order_id } = await req.json();
     if (!order_id) {
@@ -35,7 +62,7 @@ Deno.serve(async (req) => {
 
     const { data: payment, error: paymentError } = await supabase
       .from("payments")
-      .select("*")
+      .select("id, order_id")
       .eq("order_id", order_id)
       .single();
 
@@ -43,13 +70,12 @@ Deno.serve(async (req) => {
       throw new Error(`Payment not found for order_id: ${order_id}`);
     }
 
-    const serverKey = Deno.env.get("MIDTRANS_SERVER_KEY");
+    const serverKey = (Deno.env.get("MIDTRANS_SERVER_KEY") ?? "").trim();
     if (!serverKey) {
       throw new Error("MIDTRANS_SERVER_KEY not configured");
     }
 
-    const isSandbox = serverKey.startsWith("SB-Mid-");
-    const baseUrl = isSandbox ? "https://api.sandbox.midtrans.com" : "https://api.midtrans.com";
+    const baseUrl = midtransCoreApiBaseUrl();
     const authString = btoa(`${serverKey}:`);
     const midtransResponse = await fetch(`${baseUrl}/v2/${order_id}/status`, {
       method: "GET",
@@ -65,17 +91,34 @@ Deno.serve(async (req) => {
       throw new Error(`Midtrans API error (${midtransResponse.status}): ${errorText}`);
     }
 
-    const midtransData = await midtransResponse.json();
-    const {
-      transaction_status,
-      transaction_id,
-      fraud_status,
-      settlement_time,
-      transaction_time,
-      payment_type,
-      bank,
-      approval_code,
-    } = midtransData;
+    const raw = (await midtransResponse.json()) as Record<string, unknown>;
+    /** Core API status shape matches HTTP notification fields `process-midtrans-payment` expects; ensure order_id is present. */
+    const notification = {
+      ...raw,
+      order_id: raw.order_id != null ? String(raw.order_id) : order_id,
+    };
+
+    const processorUrl = `${supabaseUrl}/functions/v1/process-midtrans-payment`;
+    const forward = await fetch(processorUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+      },
+      body: JSON.stringify(notification),
+    });
+
+    const bodyText = await forward.text();
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      parsed = JSON.parse(bodyText) as Record<string, unknown>;
+    } catch {
+      /* ignore */
+    }
+
+    const transaction_status =
+      typeof notification["transaction_status"] === "string" ? notification["transaction_status"] : "";
 
     let finalStatus = "pending";
     if (
@@ -94,130 +137,17 @@ Deno.serve(async (req) => {
       finalStatus = "failed";
     }
 
-    const { error: updateError } = await supabase
-      .from("payments")
-      .update({
-        status: finalStatus,
-        transaction_id: transaction_id || payment.transaction_id,
-        fraud_status: fraud_status || payment.fraud_status,
-        settlement_time: settlement_time || payment.settlement_time,
-        transaction_time: transaction_time || payment.transaction_time,
-        payment_type: payment_type || payment.payment_type,
-        bank: bank || payment.bank,
-        approval_code: approval_code || payment.approval_code,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", payment.id);
-
-    if (updateError) {
-      throw new Error("Failed to update payment status");
-    }
-
-    if (finalStatus === "success") {
-      const prorateDetails = payment.prorate_details as { is_member_upgrade?: boolean } | null;
-      const isMemberUpgradeOnly = prorateDetails?.is_member_upgrade === true;
-
-      const { data: existingSubscription } = await supabase
-        .from("organization_subscriptions")
-        .select("id, subscription_start_date, subscription_end_date")
-        .eq("organization_id", payment.organization_id)
-        .maybeSingle();
-
-      if (existingSubscription && isMemberUpgradeOnly) {
-        await supabase
-          .from("organization_subscriptions")
-          .update({
-            subscription_plan_id: payment.plan_id,
-            member_count: payment.member_count,
-            last_payment_id: payment.id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("organization_id", payment.organization_id);
-
-        await supabase
-          .from("payments")
-          .update({
-            subscription_start_date: existingSubscription.subscription_start_date,
-            subscription_end_date: existingSubscription.subscription_end_date,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", payment.id);
-      } else {
-        const baseStartDate = existingSubscription?.subscription_end_date
-          ? new Date(existingSubscription.subscription_end_date as string)
-          : new Date(payment.created_at as string);
-        const startDate = baseStartDate;
-        const endDate = addBillingInterval(startDate, payment.billing_cycle as string);
-
-        if (existingSubscription) {
-          await supabase
-            .from("organization_subscriptions")
-            .update({
-              subscription_plan_id: payment.plan_id,
-              member_count: payment.member_count,
-              billing_cycle: payment.billing_cycle,
-              status: "active",
-              subscription_start_date: startDate.toISOString(),
-              subscription_end_date: endDate.toISOString(),
-              last_payment_id: payment.id,
-              is_trial: false,
-              trial_start_date: null,
-              trial_end_date: null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("organization_id", payment.organization_id);
-        } else {
-          await supabase.from("organization_subscriptions").insert({
-            organization_id: payment.organization_id,
-            subscription_plan_id: payment.plan_id,
-            status: "active",
-            subscription_start_date: startDate.toISOString(),
-            subscription_end_date: endDate.toISOString(),
-            member_count: payment.member_count,
-            billing_cycle: payment.billing_cycle,
-            last_payment_id: payment.id,
-            is_trial: false,
-          });
-        }
-
-        await supabase
-          .from("payments")
-          .update({
-            subscription_start_date: startDate.toISOString(),
-            subscription_end_date: endDate.toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", payment.id);
-      }
-
-      await supabase
-        .from("organizations")
-        .update({
-          has_active_subscription: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", payment.organization_id);
-
-      const { data: employeesToRemove, error: employeesError } = await supabase
-        .from("employees")
-        .select("id, full_name, email")
-        .eq("organization_id", payment.organization_id)
-        .eq("pending_removal", true);
-
-      if (!employeesError && employeesToRemove && employeesToRemove.length > 0) {
-        const employeeIds = employeesToRemove.map((emp) => emp.id);
-        await supabase
-          .from("employees")
-          .update({
-            status: "terminated",
-            pending_removal: false,
-            pending_removal_reason: null,
-            pending_removal_date: null,
-            updated_at: new Date().toISOString(),
-          })
-          .in("id", employeeIds)
-          .eq("organization_id", payment.organization_id);
-      }
+    if (!forward.ok) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: parsed?.error ?? "process-midtrans-payment failed",
+          message: parsed?.message ?? bodyText,
+          status: finalStatus,
+          transaction_status,
+        }),
+        { status: forward.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     return new Response(

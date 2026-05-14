@@ -52,19 +52,17 @@ export function ReprimandManagementPageSkeleton() {
 
                       <div className="mb-2 flex-shrink-0">
                         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
-                          {[
-                            "border-red-200 bg-red-50",
-                            "border-brand-blue/30 bg-brand-blue/10",
-                            "border-brand-blue/30 bg-brand-blue/10",
-                            "border-red-200 bg-red-50",
-                          ].map((cardClass, i) => (
-                            <div key={i} className={`rounded-md border p-4 ${cardClass}`}>
+                          {Array.from({ length: 4 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className="rounded-md border border-border bg-card p-4"
+                            >
                               <div className="mb-3 flex items-center justify-between">
-                                <Skeleton className="h-4 w-28 bg-background/50" />
-                                <Skeleton className="h-5 w-5 shrink-0 rounded bg-background/50" />
+                                <Skeleton className="h-4 w-28 bg-muted-foreground/15" />
+                                <Skeleton className="h-5 w-5 shrink-0 rounded bg-muted-foreground/15" />
                               </div>
-                              <Skeleton className="mb-1 h-8 w-12 bg-background/50" />
-                              <Skeleton className="h-3 w-24 bg-background/50" />
+                              <Skeleton className="mb-1 h-8 w-12 bg-muted-foreground/15" />
+                              <Skeleton className="h-3 w-24 bg-muted-foreground/15" />
                             </div>
                           ))}
                         </div>
@@ -81,9 +79,9 @@ export function ReprimandManagementPageSkeleton() {
                                       key={i}
                                       className="mb-2 overflow-hidden rounded-lg border border-border bg-card shadow-sm"
                                     >
-                                      <div className="bg-gradient-to-r from-brand-red to-brand-red px-4 py-2">
-                                        <Skeleton className="mb-1 h-5 w-44 max-w-[85%] bg-white/35" />
-                                        <Skeleton className="h-3 w-28 bg-white/30" />
+                                      <div className="border-b border-border bg-muted px-4 py-2">
+                                        <Skeleton className="mb-1 h-5 w-44 max-w-[85%] bg-muted-foreground/15" />
+                                        <Skeleton className="h-3 w-28 bg-muted-foreground/12" />
                                       </div>
                                       <div className="space-y-2 p-3">
                                         <Skeleton className="h-14 w-full rounded-lg" />
@@ -99,9 +97,9 @@ export function ReprimandManagementPageSkeleton() {
                                       key={i}
                                       className="mb-2 overflow-hidden rounded-lg border border-border bg-card shadow-sm"
                                     >
-                                      <div className="bg-gradient-to-r from-brand-red to-brand-red px-4 py-2">
-                                        <Skeleton className="mb-1 h-5 w-40 max-w-[85%] bg-white/35" />
-                                        <Skeleton className="h-3 w-24 bg-white/30" />
+                                      <div className="border-b border-border bg-muted px-4 py-2">
+                                        <Skeleton className="mb-1 h-5 w-40 max-w-[85%] bg-muted-foreground/15" />
+                                        <Skeleton className="h-3 w-24 bg-muted-foreground/12" />
                                       </div>
                                       <div className="space-y-2 p-3">
                                         <Skeleton className="h-14 w-full rounded-lg" />
@@ -134,9 +132,9 @@ export function ReprimandManagementPageSkeleton() {
                         <div className="min-h-0 flex-1">
                           <div className="h-full space-y-4 p-4">
                             <div className="grid grid-cols-1 gap-3">
-                              <Skeleton className="h-[4.25rem] w-full rounded-lg bg-red-50" />
-                              <Skeleton className="h-[4.25rem] w-full rounded-lg bg-orange-50" />
-                              <Skeleton className="h-[4.25rem] w-full rounded-lg border border-brand-blue/30 bg-brand-blue/10" />
+                              <Skeleton className="h-[4.25rem] w-full rounded-lg border border-border bg-muted/50" />
+                              <Skeleton className="h-[4.25rem] w-full rounded-lg border border-border bg-muted/40" />
+                              <Skeleton className="h-[4.25rem] w-full rounded-lg border border-border bg-muted/50" />
                             </div>
                             <div>
                               <Skeleton className="mb-3 h-3 w-40" />

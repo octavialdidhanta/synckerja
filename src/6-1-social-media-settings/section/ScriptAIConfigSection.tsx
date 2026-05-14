@@ -267,7 +267,7 @@ export const ScriptAIConfigSection: React.FC = () => {
           <div>
             <Label id="ai-provider-label">Text AI Provider</Label>
             <p className="text-xs text-gray-500">
-              Script Generator & Product Knowledge. Analisis struk (gambar) memakai model vision untuk provider
+              Script Generator & Creative. Analisis struk (gambar) memakai model vision untuk provider
               terpilih; API key Groq/Fireworks diatur di secrets proyek Supabase (sama seperti generate script). Untuk
               file PDF, gunakan Gemini atau unggah hasil OCR dari perangkat.
             </p>

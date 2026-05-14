@@ -16,7 +16,7 @@ export const ProductKnowledgeSidebarFooter = ({
         <span className="flex items-center gap-1 truncate">
           <BookOpen className="h-3 w-3 flex-shrink-0" />
           <span className="truncate">
-            {t('productKnowledge.sidebar.footer.totalItems', 'Product Knowledge')}
+            {t('productKnowledge.sidebar.footer.totalItems', 'Creative')}
           </span>
         </span>
         <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">

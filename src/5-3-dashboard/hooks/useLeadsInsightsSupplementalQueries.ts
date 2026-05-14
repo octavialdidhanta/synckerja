@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 
-type CycleRow = {
+export type WhatsappCycleMetricRow = {
   conversation_id: string;
   assignee_id: string | null;
   cycle_started_at: string;
   first_response_at: string | null;
   resolved_at: string | null;
+  /** From `whatsapp_conversations.channel`: whatsapp | instagram */
+  channel?: string | null;
 };
 
 type LeadStatusRow = { id: string; name: string; color: string };
@@ -28,8 +30,12 @@ export function useLeadsInsightsSupplementalQueries(organizationId: string | nul
         p_organization_id: orgId,
       });
       if (error) throw error;
-      return (data ?? []) as CycleRow[];
+      return (data ?? []) as WhatsappCycleMetricRow[];
     },
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   const statusesQuery = useQuery({
@@ -57,10 +63,13 @@ export function useLeadsInsightsSupplementalQueries(organizationId: string | nul
       (cycleQuery.isFetching && cycleQuery.dataUpdatedAt === 0) ||
       (statusesQuery.isFetching && statusesQuery.dataUpdatedAt === 0));
 
+  const cycleMetricsPending = enabled && cycleQuery.isPending;
+
   return {
     cycleRows: cycleQuery.data ?? [],
     leadStatusesFromDb: statusesQuery.data ?? [],
     isCycleMetricsError: cycleQuery.isError,
     insightsSupplementalPending,
+    cycleMetricsPending,
   };
 }

@@ -44,6 +44,29 @@ function messageContainsContactRequest(text: string | null | undefined): boolean
   return CONTACT_REQUEST_PHRASES.some((phrase) => normalized.includes(phrase));
 }
 
+/** Meta outbound status webhook values (sent → delivered → read); failed is terminal. */
+function metaDeliveryRank(status: string): number | null {
+  const s = status.trim().toLowerCase();
+  if (s === "read") return 4;
+  if (s === "delivered") return 3;
+  if (s === "sent") return 2;
+  if (s === "failed") return -1;
+  return null;
+}
+
+function shouldUpgradeMetaDelivery(current: string | null | undefined, incoming: string): boolean {
+  const incRank = metaDeliveryRank(incoming.trim());
+  if (incRank === null) return false;
+  if (incRank === -1) return true;
+
+  const cur = String(current ?? "").trim();
+  if (cur.toLowerCase() === "failed") return false;
+
+  const curRank = metaDeliveryRank(cur);
+  if (curRank === null || curRank === -1) return true;
+  return incRank >= curRank;
+}
+
 function getMediaIdAndType(msg: Record<string, unknown>): { id: string; type: string; mime?: string; filename?: string } | null {
   const img = msg.image as { id?: string; mime_type?: string } | undefined;
   if (img?.id) return { id: img.id, type: "image", mime: img.mime_type };
@@ -368,6 +391,115 @@ async function ensureLeadForNewConversation(
   console.log("ensureLeadForNewConversation: lead created", { ticket_id: ticketId, source });
 }
 
+function resolveVialdiWeddingWebIdFromDisplayPhoneNumber(
+  displayPhoneNumber: string | null | undefined,
+): "vialdi-wedding" | null {
+  const digits = digitsOnly(displayPhoneNumber ?? null);
+  return digits === "6281281714855" ? "vialdi-wedding" : null;
+}
+
+async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
+  supabase: ReturnType<typeof createClient>;
+  orgId: string;
+  convId: string;
+  customerWaId: string;
+  customerName: string | null;
+  displayPhoneNumber: string | null;
+  timestampIso: string;
+}): Promise<void> {
+  const { supabase, orgId, convId, customerWaId, customerName, displayPhoneNumber, timestampIso } = args;
+
+  const webId = resolveVialdiWeddingWebIdFromDisplayPhoneNumber(displayPhoneNumber);
+  if (!webId) return;
+
+  const ticketId = WA_TICKET_PREFIX + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
+
+  try {
+    const { data: leadRow, error: leadSelErr } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("ticket_id", ticketId)
+      .maybeSingle();
+
+    if (leadSelErr) {
+      console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: leads select error", leadSelErr);
+      return;
+    }
+    const leadId = leadRow?.id;
+    if (!leadId) return;
+
+    const { data: waClick, error: waSelErr } = await supabase
+      .from("analytics_wa_clicks")
+      .select("id, session_id, attribution")
+      .eq("web_id", webId)
+      .is("phone_number", null)
+      .lte("created_at", timestampIso)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (waSelErr) {
+      console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: analytics_wa_clicks select error", waSelErr);
+      return;
+    }
+    const analyticsSessionId = waClick?.session_id;
+    if (!waClick?.id || !analyticsSessionId) return;
+
+    const { error: waUpdErr } = await supabase
+      .from("analytics_wa_clicks")
+      .update({ phone_number: customerWaId })
+      .eq("id", waClick.id);
+
+    if (waUpdErr) {
+      console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: analytics_wa_clicks update error", waUpdErr);
+    }
+
+    const { error: leadPatchErr } = await supabase
+      .from("leads")
+      .update({
+        web_id: webId,
+        analytics_session_id: analyticsSessionId,
+        attribution: waClick?.attribution ?? null,
+        phone_number: customerWaId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("organization_id", orgId)
+      .eq("ticket_id", ticketId);
+
+    if (leadPatchErr) {
+      console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: leads patch error", leadPatchErr);
+    }
+
+    const safeName = (customerName ?? customerWaId ?? "WhatsApp").toString().trim().slice(0, 200);
+    const { error: upsertErr } = await supabase.from("leads_vialdi_wedding").upsert(
+      {
+        organization_id: orgId,
+        lead_id: leadId,
+        name: safeName,
+        phone_number: customerWaId || null,
+        email: null,
+        package_label: "WhatsApp",
+        event_date: null,
+        event_time: null,
+        event_address: null,
+        step: 1,
+        source: "WhatsApp",
+        analytics_session_id: analyticsSessionId,
+        attribution: waClick?.attribution ?? null,
+        attribution_label: null,
+      },
+      { onConflict: "organization_id,step1_dedupe_key" },
+    );
+
+    if (upsertErr) {
+      console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: leads_vialdi_wedding upsert error", upsertErr);
+    }
+  } catch (e) {
+    console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: unexpected error", e);
+  }
+}
+
 /** Inline: Supabase deploy bundle resolves `index.ts` reliably; local `./notifyLivechatSendPush` import can fail to bundle. */
 type LivechatPushTable = "whatsapp_messages" | "instagram_messages" | "email_messages";
 
@@ -411,6 +543,75 @@ async function notifyLivechatInboundPush(
   } catch (e) {
     console.error("notifyLivechatInboundPush: fetch failed", e);
   }
+}
+
+/** Keep only high-signal fields + preserve `errors` from Meta status payloads. */
+function pickWhatsappStatusForDebug(st: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of ["id", "status", "timestamp", "recipient_id", "conversation", "pricing", "errors"] as const) {
+    if (k in st) out[k] = st[k];
+  }
+  return out;
+}
+
+/** Update inbox row status + merge status history into raw_metadata.whatsapp_webhook */
+async function updateWhatsappMessageStatusWithDebug(args: {
+  supabase: ReturnType<typeof createClient>;
+  waMessageId: string;
+  status: string;
+  statusTimestampIso: string;
+  statusPayload: Record<string, unknown>;
+}): Promise<void> {
+  const { supabase, waMessageId, status, statusTimestampIso, statusPayload } = args;
+
+  const { data: row } = await supabase
+    .from("whatsapp_messages")
+    .select("raw_metadata")
+    .eq("wa_message_id", waMessageId)
+    .maybeSingle();
+
+  const oldMeta =
+    row?.raw_metadata && typeof row.raw_metadata === "object" && !Array.isArray(row.raw_metadata)
+      ? (row.raw_metadata as Record<string, unknown>)
+      : {};
+
+  const oldWebhook =
+    oldMeta.whatsapp_webhook && typeof oldMeta.whatsapp_webhook === "object" && !Array.isArray(oldMeta.whatsapp_webhook)
+      ? (oldMeta.whatsapp_webhook as Record<string, unknown>)
+      : {};
+
+  const nowIso = new Date().toISOString();
+
+  const prevHistoryRaw = oldWebhook.status_history;
+  const prevHistory = Array.isArray(prevHistoryRaw) ? prevHistoryRaw : [];
+  const nextHistory = [
+    ...prevHistory,
+    {
+      received_at: nowIso,
+      status_updated_at: statusTimestampIso,
+      status,
+      payload: pickWhatsappStatusForDebug(statusPayload),
+    },
+  ].slice(-20);
+
+  const nextMeta: Record<string, unknown> = {
+    ...oldMeta,
+    whatsapp_webhook: {
+      ...oldWebhook,
+      last_status: pickWhatsappStatusForDebug(statusPayload),
+      last_status_received_at: nowIso,
+      status_history: nextHistory,
+    },
+  };
+
+  await supabase
+    .from("whatsapp_messages")
+    .update({
+      status,
+      status_updated_at: statusTimestampIso,
+      raw_metadata: nextMeta,
+    })
+    .eq("wa_message_id", waMessageId);
 }
 
 Deno.serve(async (req: Request) => {
@@ -522,16 +723,36 @@ Deno.serve(async (req: Request) => {
                 console.log("[whatsapp-webhook] POST entry whatsapp_business_account_id=", whatsappBusinessAccountId, "phone_number_id=", phoneNumberId ?? "(none)");
               }
 
-              // Handle status updates (delivered, read)
+              // Status updates (sent | delivered | read | failed): inbox raw_metadata + campaign blast recipients
               for (const st of statuses) {
-                const waMessageId = st.id;
-                const status = st.status; // sent | delivered | read
+                const waMessageId = st.id != null ? String(st.id).trim() : "";
+                const status = st.status != null ? String(st.status).trim() : "";
                 const statusTimestamp = st.timestamp ? new Date(Number(st.timestamp) * 1000).toISOString() : new Date().toISOString();
                 if (!waMessageId || !status) continue;
-                await supabase
-                  .from("whatsapp_messages")
-                  .update({ status, status_updated_at: statusTimestamp })
-                  .eq("wa_message_id", waMessageId);
+
+                await updateWhatsappMessageStatusWithDebug({
+                  supabase,
+                  waMessageId,
+                  status,
+                  statusTimestampIso: statusTimestamp,
+                  statusPayload: st as Record<string, unknown>,
+                });
+
+                const { data: campRec } = await supabase
+                  .from("whatsapp_campaign_recipients")
+                  .select("id, wa_delivery_status")
+                  .eq("wa_message_id", waMessageId)
+                  .maybeSingle();
+
+                if (campRec && typeof campRec === "object" && "id" in campRec) {
+                  const row = campRec as { id: string; wa_delivery_status: string | null };
+                  if (shouldUpgradeMetaDelivery(row.wa_delivery_status, status)) {
+                    await supabase
+                      .from("whatsapp_campaign_recipients")
+                      .update({ wa_delivery_status: status, wa_delivery_status_at: statusTimestamp })
+                      .eq("id", row.id);
+                  }
+                }
               }
 
               if (!phoneNumberId || messages.length === 0) {
@@ -542,7 +763,12 @@ Deno.serve(async (req: Request) => {
               }
 
               // Resolve orgs by phone_number_id from organization_whatsapp_accounts only (no fallback to organization_meta_config).
-              type OrgAccount = { organization_id: string; meta_access_token: string; created_by_display_name: string };
+              type OrgAccount = {
+                organization_id: string;
+                meta_access_token: string;
+                created_by_display_name: string;
+                display_phone_number: string | null;
+              };
               let accountsList: OrgAccount[] = [];
 
               const { data: accountRows, error: accountError } = await supabase
@@ -572,6 +798,7 @@ Deno.serve(async (req: Request) => {
                       organization_id: r.organization_id,
                       meta_access_token: (r.meta_access_token ?? "").trim(),
                       created_by_display_name: name,
+                      display_phone_number: r.display_phone_number ?? null,
                     };
                   })
                   .filter((a) => a.meta_access_token && a.organization_id);
@@ -623,20 +850,23 @@ Deno.serve(async (req: Request) => {
                 }
 
                 // Backfill display_phone_number on organization_whatsapp_accounts from webhook metadata
-              const rawDisplayNumber = value.metadata?.display_phone_number;
-              if (rawDisplayNumber != null) {
-                let displayNumber = typeof rawDisplayNumber === "number" ? String(rawDisplayNumber) : (typeof rawDisplayNumber === "string" ? rawDisplayNumber.trim() : "");
-                if (displayNumber && /^\d+$/.test(displayNumber)) displayNumber = `+${displayNumber}`;
-                if (displayNumber) {
-                  await supabase
-                    .from("organization_whatsapp_accounts")
-                    .update({ display_phone_number: displayNumber, updated_at: new Date().toISOString() })
-                    .eq("organization_id", orgId)
-                    .eq("phone_number_id", phoneNumberId);
+                const rawDisplayNumber = value.metadata?.display_phone_number;
+                if (rawDisplayNumber != null) {
+                  let displayNumber =
+                    typeof rawDisplayNumber === "number"
+                      ? String(rawDisplayNumber)
+                      : (typeof rawDisplayNumber === "string" ? rawDisplayNumber.trim() : "");
+                  if (displayNumber && /^\d+$/.test(displayNumber)) displayNumber = `+${displayNumber}`;
+                  if (displayNumber) {
+                    await supabase
+                      .from("organization_whatsapp_accounts")
+                      .update({ display_phone_number: displayNumber, updated_at: new Date().toISOString() })
+                      .eq("organization_id", orgId)
+                      .eq("phone_number_id", phoneNumberId);
+                  }
                 }
-              }
 
-              for (const msg of sortedMessages) {
+                for (const msg of sortedMessages) {
                 if (msg.type === "unsupported") {
                   continue;
                 }
@@ -724,6 +954,16 @@ Deno.serve(async (req: Request) => {
                   customerWaId,
                   customerName ?? customerWaId ?? "",
                 );
+
+                void ensureLeadsVialdiWeddingFromAnalyticsWaClick({
+                  supabase,
+                  orgId,
+                  convId: conv.id,
+                  customerWaId,
+                  customerName: customerName ?? null,
+                  displayPhoneNumber: account.display_phone_number,
+                  timestampIso: timestamp,
+                });
 
                 let mediaUrl: string | null = null;
                 const mediaInfo = getMediaIdAndType(msg as Record<string, unknown>);

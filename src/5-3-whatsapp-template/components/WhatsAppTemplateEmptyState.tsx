@@ -19,7 +19,7 @@ export function WhatsAppTemplateEmptyState({
           Hubungkan WhatsApp Business di halaman Connect, atau pastikan Edge Function <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">whatsapp-message-templates</code> sudah di-deploy versi terbaru (WABA bisa diambil otomatis dari Phone Number ID).
         </p>
         <Button asChild className="mt-6">
-          <Link to="/operations/consultant/whatsapp/connect">Connect WhatsApp</Link>
+          <Link to="/omnichannel/integrations/whatsapp">Connect WhatsApp</Link>
         </Button>
       </div>
     );

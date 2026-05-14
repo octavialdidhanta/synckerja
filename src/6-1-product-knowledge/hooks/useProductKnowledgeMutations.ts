@@ -77,12 +77,12 @@ export const useProductKnowledgeMutations = () => {
             return [newData, ...oldData];
           }
         );
-        toast.success('Product knowledge added successfully');
+        toast.success('Creative added successfully');
       }
     },
     onError: (error: any) => {
       console.error('Error adding product knowledge:', error);
-      toast.error('Failed to add product knowledge');
+      toast.error('Failed to add creative');
     },
   });
 
@@ -119,7 +119,7 @@ export const useProductKnowledgeMutations = () => {
     },
     onError: (error: any) => {
       console.error('Error updating product knowledge:', error);
-      toast.error('Failed to update product knowledge');
+      toast.error('Failed to update creative');
     },
   });
 
@@ -144,12 +144,12 @@ export const useProductKnowledgeMutations = () => {
             return oldData.filter((item: any) => item.id !== deletedId);
           }
         );
-        toast.success('Product knowledge deleted successfully');
+        toast.success('Creative deleted successfully');
       }
     },
     onError: (error: any) => {
       console.error('Error deleting product knowledge:', error);
-      toast.error('Failed to delete product knowledge');
+      toast.error('Failed to delete creative');
     },
   });
 

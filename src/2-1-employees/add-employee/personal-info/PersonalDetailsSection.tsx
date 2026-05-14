@@ -78,7 +78,7 @@ export const PersonalDetailsSection = ({ formData, handleInputChange }: Personal
 
       <div className={fieldClass}>
         <Label htmlFor="religion" className="text-sm font-medium text-gray-700">
-          Religion
+          Religion <span className="text-red-500">*</span>
         </Label>
         <Select value={formData.religion || ''} onValueChange={value => handleInputChange('religion', value)}>
           <SelectTrigger className={selectTriggerClass}>
@@ -96,7 +96,7 @@ export const PersonalDetailsSection = ({ formData, handleInputChange }: Personal
 
       <div className={fieldClass}>
         <Label htmlFor="birth_date" className="text-sm font-medium text-gray-700">
-          Birth Date
+          Birth Date <span className="text-red-500">*</span>
         </Label>
         <Input
           id="birth_date"
@@ -109,7 +109,7 @@ export const PersonalDetailsSection = ({ formData, handleInputChange }: Personal
 
       <div className={fieldClass}>
         <Label htmlFor="gender" className="text-sm font-medium text-gray-700">
-          Gender
+          Gender <span className="text-red-500">*</span>
         </Label>
         <Select value={formData.gender || ''} onValueChange={value => handleInputChange('gender', value)}>
           <SelectTrigger className={selectTriggerClass}>
@@ -127,7 +127,7 @@ export const PersonalDetailsSection = ({ formData, handleInputChange }: Personal
 
       <div className={fieldClass}>
         <Label htmlFor="marital_status" className="text-sm font-medium text-gray-700">
-          Marital Status
+          Marital Status <span className="text-red-500">*</span>
         </Label>
         <Select value={formData.marital_status || ''} onValueChange={value => handleInputChange('marital_status', value)}>
           <SelectTrigger className={selectTriggerClass}>

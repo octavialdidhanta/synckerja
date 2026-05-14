@@ -85,6 +85,8 @@ export const useRegistration = () => {
       sessionStorage.setItem("userName", fullName.trim());
 
       const origin = typeof window !== "undefined" ? window.location.origin : "";
+      // Email: only the custom OTP from `send-confirmation-email` (Resend). Disable GoTrue "Confirm your signup" in
+      // `supabase/config.toml` [auth.email] enable_confirmations + Dashboard (Confirm email), else users get two mails.
       const { data, error: signErr } = await supabase.auth.signUp({
         email: sanitizedEmail,
         password,

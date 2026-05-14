@@ -11,6 +11,7 @@ import { devLog } from '@/shared/lib/logger';
 interface SalesActivityItemsManagerProps {
   salesActivityId?: string;
   onTotalChange?: (total: number) => void;
+  readOnly?: boolean;
 }
 
 export interface SalesActivityItemsManagerHandle {
@@ -18,7 +19,7 @@ export interface SalesActivityItemsManagerHandle {
   clearDrafts: () => void;
 }
 
-export const SalesActivityItemsManager = React.forwardRef<SalesActivityItemsManagerHandle, SalesActivityItemsManagerProps>(({ salesActivityId, onTotalChange }, ref) => {
+export const SalesActivityItemsManager = React.forwardRef<SalesActivityItemsManagerHandle, SalesActivityItemsManagerProps>(({ salesActivityId, onTotalChange, readOnly = false }, ref) => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<SalesActivityItem | null>(null);
   const [draftItems, setDraftItems] = useState<SalesActivityItem[]>([]);
@@ -33,6 +34,13 @@ export const SalesActivityItemsManager = React.forwardRef<SalesActivityItemsMana
     getTotalAmount,
   } = useSalesActivityItems(salesActivityId);
   const lastSyncedForIdRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (readOnly) {
+      setShowAddDialog(false);
+      setEditingItem(null);
+    }
+  }, [readOnly]);
 
   // Combine saved items and draft items for display
   const allItems = [...items, ...draftItems];
@@ -224,14 +232,16 @@ export const SalesActivityItemsManager = React.forwardRef<SalesActivityItemsMana
       <CardHeader>
         <div className="flex justify-between items-center">
           <CardTitle>Item Details</CardTitle>
-          <Button
-            type="button"
-            onClick={() => setShowAddDialog(true)}
-            size="sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              onClick={() => setShowAddDialog(true)}
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Item
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="min-w-0 overflow-x-auto">
@@ -240,6 +250,7 @@ export const SalesActivityItemsManager = React.forwardRef<SalesActivityItemsMana
           loading={loading}
           onEdit={handleEdit}
           onDelete={handleDeleteItem}
+          readOnly={readOnly}
         />
       </CardContent>
 

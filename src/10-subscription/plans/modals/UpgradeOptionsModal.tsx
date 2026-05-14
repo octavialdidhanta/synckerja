@@ -26,6 +26,8 @@ interface Props {
     proRatePercentage: number;
     memberCostIncrease: number;
     currentPlanCredit: number;
+    /** True when DB used full list price (no time-based prorate), e.g. Start Up → Scale Up. */
+    skipProrate?: boolean;
   };
 }
 
@@ -45,7 +47,9 @@ export function UpgradeOptionsModal({
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "—";
-    return new Date(dateString).toLocaleDateString(i18n.language === "id" ? "id-ID" : "en-US", {
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString(i18n.language === "id" ? "id-ID" : "en-US", {
       day: "numeric",
       month: "long",
       year: "numeric",
@@ -58,7 +62,9 @@ export function UpgradeOptionsModal({
         <DialogHeader>
           <DialogTitle>{t("subscription.plans.modal.options.title")}</DialogTitle>
           <DialogDescription>
-            {t("subscription.plans.modal.options.description", { planName })}
+            {proRateData?.skipProrate
+              ? t("subscription.plans.modal.options.descriptionNoSchedule", { planName })
+              : t("subscription.plans.modal.options.description", { planName })}
           </DialogDescription>
         </DialogHeader>
 
@@ -78,14 +84,22 @@ export function UpgradeOptionsModal({
             </span>
           </div>
           <div className="rounded-md border border-border bg-muted/40 p-3">
-            <p className="text-xs text-muted-foreground">
-              {t("subscription.plans.modal.prorate.remainingDays")}: {proRateData?.remainingDays ?? "—"} —{" "}
-              {t("subscription.plans.modal.prorate.percentage")}: {proRateData?.proRatePercentage ?? "—"}%
+            {!proRateData?.skipProrate && (
+              <p className="text-xs text-muted-foreground">
+                {t("subscription.plans.modal.prorate.remainingDays")}: {proRateData?.remainingDays ?? "—"} —{" "}
+                {t("subscription.plans.modal.prorate.percentage")}: {proRateData?.proRatePercentage ?? "—"}%
+              </p>
+            )}
+            <p
+              className={`text-lg font-semibold text-foreground ${proRateData?.skipProrate ? "" : "mt-2"}`}
+            >
+              {formatIDR(immediateAmount)}
             </p>
-            <p className="mt-2 text-lg font-semibold text-foreground">{formatIDR(immediateAmount)}</p>
-            <p className="text-xs text-muted-foreground">
-              {t("subscription.plans.modal.scheduled.dateLabel")}: {formatDate(scheduledDate)}
-            </p>
+            {!proRateData?.skipProrate && (
+              <p className="text-xs text-muted-foreground">
+                {t("subscription.plans.modal.scheduled.dateLabel")}: {formatDate(scheduledDate)}
+              </p>
+            )}
           </div>
         </div>
 
@@ -93,10 +107,12 @@ export function UpgradeOptionsModal({
           <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)}>
             {t("common.cancel", "Cancel")}
           </Button>
-          <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={onChooseScheduled}>
-            <Calendar className="mr-2 h-4 w-4" />
-            {t("subscription.plans.modal.button.schedule")}
-          </Button>
+          {!proRateData?.skipProrate && (
+            <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={onChooseScheduled}>
+              <Calendar className="mr-2 h-4 w-4" />
+              {t("subscription.plans.modal.button.schedule")}
+            </Button>
+          )}
           <Button type="button" className="w-full sm:w-auto" onClick={onChooseImmediate}>
             <CreditCard className="mr-2 h-4 w-4" />
             {t("subscription.plans.modal.button.payNow")}

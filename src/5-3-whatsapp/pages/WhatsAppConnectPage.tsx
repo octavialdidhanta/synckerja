@@ -175,7 +175,7 @@ function AccountCard({
   );
 }
 
-/** `/operations/consultant/whatsapp/connect` — Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`). */
+/** `/omnichannel/integrations/whatsapp` — Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`). */
 export function WhatsAppConnectPage() {
   const { t } = useAppTranslation();
   const { loading: orgLoading, organizationId } = useCurrentOrg();

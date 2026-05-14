@@ -2,6 +2,7 @@
 /// <reference path="../deno-globals.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { midtransSnapApiBaseUrl } from "./midtransEnv.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,7 +80,7 @@ Deno.serve(async (req) => {
       throw new Error("Invalid payment amount");
     }
 
-    const serverKey = Deno.env.get("MIDTRANS_SERVER_KEY");
+    const serverKey = (Deno.env.get("MIDTRANS_SERVER_KEY") ?? "").trim();
     if (!serverKey) {
       throw new Error("MIDTRANS_SERVER_KEY not configured");
     }
@@ -127,8 +128,7 @@ Deno.serve(async (req) => {
       },
     };
 
-    const isSandbox = serverKey.startsWith("SB-Mid-");
-    const snapBaseUrl = isSandbox ? "https://app.sandbox.midtrans.com" : "https://app.midtrans.com";
+    const snapBaseUrl = midtransSnapApiBaseUrl();
     const authString = btoa(`${serverKey}:`);
 
     const midtransResponse = await fetch(`${snapBaseUrl}/snap/v1/transactions`, {

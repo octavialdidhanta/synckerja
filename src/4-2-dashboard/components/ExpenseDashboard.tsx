@@ -1483,7 +1483,7 @@ export function ExpenseDashboard() {
 
         <div className="h-[min(32rem,calc(100vh-18rem))] max-h-[32rem] min-h-[14rem] min-w-0 shrink-0 overflow-auto">
             <table className="w-full min-w-[1400px]">
-              <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 shadow-sm">
+              <thead className="sticky top-0 z-10 border-b border-border bg-gray-50 shadow-sm">
                 <tr>
                   <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-gray-700 whitespace-nowrap text-xs sm:text-sm">Expense</th>
                   <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-gray-700 whitespace-nowrap text-xs sm:text-sm">

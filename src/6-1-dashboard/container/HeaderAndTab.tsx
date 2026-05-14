@@ -28,9 +28,9 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
     },
     {
       id: 'product-knowledge',
-      label: 'Product Knowledge',
+      label: 'Creative',
       icon: BookOpen,
-      description: 'Manage product knowledge',
+      description: 'Manage creative',
       route: '/digital-marketing/social-media/product-knowledge'
     },
     {

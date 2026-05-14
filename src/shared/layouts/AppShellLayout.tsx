@@ -28,7 +28,7 @@ export function AppShellLayout() {
             {/* min-w-0: lets wide child pages (e.g. employees table min-width) shrink so inner overflow-x-auto works instead of clipping under overflow-x-hidden */}
             <div
               data-app-shell-scroll
-              className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="scrollbar-hide nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col">
                 <Outlet />

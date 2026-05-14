@@ -159,7 +159,7 @@ function AttendancePageContent() {
                     )}
 
                     {activeTab === "settings" && (
-                      <div className="border-border bg-card flex h-full max-h-[calc(100vh-120px)] min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-lg border p-4 shadow-sm">
+                      <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
                         <AttendanceSettings />
                       </div>
                     )}

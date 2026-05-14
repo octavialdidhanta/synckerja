@@ -6,6 +6,8 @@ export type CreateTemplatePayload = {
   language: string;
   category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
   components: unknown[];
+  /** `organization_whatsapp_accounts.id` — template is created on that account's WABA. */
+  whatsapp_account_id?: string | null;
 };
 
 export function useCreateWhatsAppMessageTemplate() {

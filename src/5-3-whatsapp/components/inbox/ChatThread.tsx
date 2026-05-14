@@ -27,6 +27,7 @@ import { format } from 'date-fns';
 import type { Locale } from 'date-fns';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSubscription';
 
 /** Bucket yang sama dipakai untuk kirim (outbound) dan terima (webhook/resolve) media */
 const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
@@ -619,6 +620,9 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
   }, []);
   const { t, dateFnsLocale } = useAppTranslation();
   const queryClient = useQueryClient();
+  const { subscriptionStatus, statusLoading: subscriptionStatusLoading } = useOptimizedSubscription({
+    includePlans: false,
+  });
   const isInstagram = (conversation as LiveChatConversation)?.source === 'instagram';
   const waMessagesQuery = useWhatsAppMessages(!isInstagram ? conversation?.id ?? null : null);
   const igMessagesQuery = useInstagramMessages(isInstagram ? conversation?.id ?? null : null);
@@ -644,19 +648,19 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
       if (isInstagram) {
         const { data, error } = await supabase
           .from('instagram_conversations')
-          .select('lead_status_id, last_inbound_at, created_at')
+          .select('lead_status_id, last_inbound_at, created_at, assignee_id')
           .eq('id', conversation.id)
           .maybeSingle();
         if (error) throw error;
-        return data as { lead_status_id?: string; last_inbound_at?: string | null; created_at?: string } | null;
+        return data as { lead_status_id?: string; last_inbound_at?: string | null; created_at?: string; assignee_id?: string | null } | null;
       }
       const { data, error } = await supabase
         .from('whatsapp_conversations')
-        .select('lead_status_id, last_inbound_at, created_at')
+        .select('lead_status_id, last_inbound_at, created_at, assignee_id')
         .eq('id', conversation.id)
         .maybeSingle();
       if (error) throw error;
-      return data as { lead_status_id?: string; last_inbound_at?: string | null; created_at?: string } | null;
+      return data as { lead_status_id?: string; last_inbound_at?: string | null; created_at?: string; assignee_id?: string | null } | null;
     },
     enabled: hasConversationId,
     refetchInterval: 5000,
@@ -688,10 +692,21 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
   const isResolved = isResolvedStatus(effectiveStatusName);
   const isWhatsAppConversation = conversation?.source === 'whatsapp';
   const sendDisabledByNoAccount = Boolean(hasNoConnectedWhatsAppAccount && isWhatsAppConversation);
+  /** WA/IG live chat outbound requires paid omnichannel add-on seats on the org subscription. */
+  const sendDisabledByNoOmnichannelAddon =
+    (isWhatsAppConversation || isInstagram) &&
+    (subscriptionStatusLoading || (subscriptionStatus?.omnichannel_paid_seat_count ?? 0) < 1);
   const outside24h =
     (isWhatsAppConversation || isInstagram) &&
     isOutside24hWindow(lastInboundAt, conversationCreatedAt);
-  const sendDisabled = isResolved || sendDisabledByNoAccount || outside24h;
+  const hasAssignee = Boolean(conversationStatusRow?.assignee_id);
+  const sendDisabledByNoAssignee = (isWhatsAppConversation || isInstagram) && !hasAssignee;
+  const sendDisabled =
+    isResolved ||
+    sendDisabledByNoAccount ||
+    sendDisabledByNoOmnichannelAddon ||
+    sendDisabledByNoAssignee ||
+    outside24h;
 
   const isInstagramConversation = isInstagram;
   const isSending = isSendingWhatsApp || isSendingInstagram;
@@ -916,6 +931,31 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
         toast.error('Nomor WhatsApp penerima tidak tersedia.');
         return;
       }
+      if (sendDisabled) {
+        if (sendDisabledByNoAccount) {
+          toast.error(
+            t('whatsappInbox.noWhatsAppAccountCannotSend', 'Tidak ada akun WhatsApp terhubung untuk organisasi ini. Hubungkan akun di Connect WhatsApp untuk mengirim pesan.'),
+          );
+        } else if (sendDisabledByNoOmnichannelAddon) {
+          toast.error(
+            t(
+              'whatsappInbox.noOmnichannelAddonCannotSend',
+              'Add-on omnichannel belum aktif. Aktifkan atau beli seat add-on di Langganan → Paket atau Pengaturan Omnichannel untuk membalas chat.',
+            ),
+          );
+        } else if (sendDisabledByNoAssignee) {
+          toast.error(t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.'));
+        } else if (outside24h) {
+          toast.error(
+            t('whatsappInbox.outside24hCannotSend', 'Pesan terakhir dari customer sudah lewat 24 jam. Kirim pesan tidak diizinkan sampai customer mengirim pesan lagi.'),
+          );
+        } else {
+          toast.error(
+            t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.'),
+          );
+        }
+        return;
+      }
       const displayBody = caption || `[${mediaType}]`;
       const path = `${conversation.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       setIsUploading(true);
@@ -958,7 +998,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
       }
       // Optimistic media dihapus saat pesan asli ada di list (useEffect hasMatchingRealMessage)
     },
-    [conversation, customerId, send, isInstagramConversation, t]
+    [conversation, customerId, send, isInstagramConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, outside24h]
   );
 
   /** Blokir pesan yang meminta kontak. Default ON; set VITE_WHATSAPP_BLOCK_CONTACT_REQUESTS=false untuk nonaktifkan. */
@@ -970,6 +1010,15 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
     if (sendDisabled) {
       if (sendDisabledByNoAccount) {
         toast.error(t('whatsappInbox.noWhatsAppAccountCannotSend', 'Tidak ada akun WhatsApp terhubung untuk organisasi ini. Hubungkan akun di Connect WhatsApp untuk mengirim pesan.'));
+      } else if (sendDisabledByNoOmnichannelAddon) {
+        toast.error(
+          t(
+            'whatsappInbox.noOmnichannelAddonCannotSend',
+            'Add-on omnichannel belum aktif. Aktifkan atau beli seat add-on di Langganan → Paket atau Pengaturan Omnichannel untuk membalas chat.',
+          ),
+        );
+      } else if (sendDisabledByNoAssignee) {
+        toast.error(t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.'));
       } else if (outside24h) {
         toast.error(t('whatsappInbox.outside24hCannotSend', 'Pesan terakhir dari customer sudah lewat 24 jam. Kirim pesan tidak diizinkan sampai customer mengirim pesan lagi.'));
       } else {
@@ -1070,6 +1119,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
     const file = e.target.files?.[0];
     if (!file || !conversation) return;
     e.target.value = '';
+    if (sendDisabled) return;
     const mediaType = getMediaType(file);
     const previewUrl = mediaType === 'image' ? URL.createObjectURL(file) : undefined;
     setPendingMedia({ file, mediaType, previewUrl });
@@ -1746,7 +1796,36 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             </span>
           </div>
         )}
-        {(isResolved || outside24h) && !sendDisabledByNoAccount && (
+        {sendDisabledByNoOmnichannelAddon && !sendDisabledByNoAccount && (
+          <div
+            className="text-sm font-medium text-sky-900 bg-sky-100 border-2 border-sky-400 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
+            role="alert"
+            aria-live="assertive"
+          >
+            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-sky-600 flex items-center justify-center text-white text-xs" aria-hidden>
+              !
+            </span>
+            <span>
+              {t(
+                'whatsappInbox.noOmnichannelAddonCannotSend',
+                'Add-on omnichannel belum aktif. Aktifkan atau beli seat add-on di Langganan → Paket atau Pengaturan Omnichannel untuk membalas chat.',
+              )}
+            </span>
+          </div>
+        )}
+        {sendDisabledByNoAssignee && !sendDisabledByNoAccount && !sendDisabledByNoOmnichannelAddon && (
+          <div
+            className="text-sm font-medium text-slate-900 bg-violet-50 border-2 border-violet-300 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
+            role="alert"
+            aria-live="polite"
+          >
+            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center text-white text-xs" aria-hidden>
+              !
+            </span>
+            <span>{t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.')}</span>
+          </div>
+        )}
+        {(isResolved || outside24h) && !sendDisabledByNoAccount && !sendDisabledByNoOmnichannelAddon && !sendDisabledByNoAssignee && (
           <div
             className="text-sm font-medium text-amber-800 bg-amber-100 border-2 border-amber-400 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
             role="alert"

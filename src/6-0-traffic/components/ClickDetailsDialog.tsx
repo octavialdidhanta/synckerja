@@ -13,6 +13,9 @@ export function ClickDetailsDialog({
   rangeIsMaximum,
   path,
   utm,
+  visitorId,
+  sessionId,
+  sessionDay,
   sourceKey,
 }: {
   open: boolean;
@@ -30,13 +33,29 @@ export function ClickDetailsDialog({
     utm_content: string | null;
     utm_term: string | null;
   };
+  visitorId?: string | null;
+  sessionId?: string | null;
+  sessionDay?: string | null;
   sourceKey?: "utm" | "paid_click_ids" | "referral" | "direct";
 }) {
   const hasPath = typeof path === "string" && path.trim() !== "";
   const canFetch = Boolean(utm) || Boolean(sourceKey) || hasPath;
 
   const detailsQuery = useQuery({
-    queryKey: ["traffic", "click-details", "desktop", webId, fromDate, toDate, path, utm ?? null, sourceKey ?? null],
+    queryKey: [
+      "traffic",
+      "click-details",
+      "desktop",
+      webId,
+      fromDate,
+      toDate,
+      path,
+      utm ?? null,
+      visitorId ?? null,
+      sessionId ?? null,
+      sessionDay ?? null,
+      sourceKey ?? null,
+    ],
     enabled: Boolean(webId) && open && canFetch,
     queryFn: async () => {
       const common = {
@@ -46,8 +65,8 @@ export function ClickDetailsDialog({
         p_limit: 50,
       } as const;
 
-      const { data, error } = utm
-        ? await supabase.rpc("get_click_targets_for_utm_row", {
+      const utmParams = utm
+        ? {
             ...common,
             p_route: utm.route ?? "",
             p_utm_campaign: utm.utm_campaign ?? "",
@@ -55,7 +74,26 @@ export function ClickDetailsDialog({
             p_utm_medium: utm.utm_medium ?? "",
             p_utm_content: utm.utm_content ?? "",
             p_utm_term: utm.utm_term ?? "",
-          })
+          }
+        : null;
+
+      const { data, error } = utmParams
+        ? await (async () => {
+            if (!visitorId && !sessionId) {
+              return supabase.rpc("get_click_targets_for_utm_row", utmParams);
+            }
+
+            const scoped = await supabase.rpc("get_click_targets_for_utm_row", {
+              ...utmParams,
+              p_visitor_id: visitorId ?? null,
+              p_session_id: sessionId,
+              p_session_day: visitorId ? null : (sessionDay ?? null),
+            });
+            if (!scoped.error) return scoped;
+
+            // Keeps the dialog usable while Supabase schema cache or older DBs still expose the previous RPC signature.
+            return supabase.rpc("get_click_targets_for_utm_row", utmParams);
+          })()
         : sourceKey
           ? await supabase.rpc("get_click_targets_for_source_key", {
               ...common,

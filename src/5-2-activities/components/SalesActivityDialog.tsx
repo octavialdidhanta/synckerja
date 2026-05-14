@@ -17,9 +17,17 @@ interface SalesActivityDialogProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   activity?: any;
+  /** Hanya lihat data; form tidak bisa disimpan dari dialog ini. */
+  readOnly?: boolean;
 }
 
-export const SalesActivityDialog = ({ open, onOpenChange, onSuccess, activity }: SalesActivityDialogProps) => {
+export const SalesActivityDialog = ({
+  open,
+  onOpenChange,
+  onSuccess,
+  activity,
+  readOnly = false,
+}: SalesActivityDialogProps) => {
   const handleSuccess = () => {
     onSuccess();
     // Close dialog after successful creation
@@ -40,7 +48,11 @@ export const SalesActivityDialog = ({ open, onOpenChange, onSuccess, activity }:
       >
         <DialogHeader className="shrink-0 space-y-0 border-b px-6 pb-4 pt-12 text-left sm:pr-14">
           <DialogTitle className="pr-8">
-            {activity ? 'Edit Sales Activity' : 'Add New Sales Activity'}
+            {readOnly
+              ? 'Sales activity details'
+              : activity
+                ? 'Edit Sales Activity'
+                : 'Add New Sales Activity'}
           </DialogTitle>
         </DialogHeader>
         <div className={cn(dialogBodyScrollClasses, 'px-6 py-4')}>
@@ -48,6 +60,7 @@ export const SalesActivityDialog = ({ open, onOpenChange, onSuccess, activity }:
             onSuccess={handleSuccess}
             onCancel={handleCancel}
             activity={activity}
+            readOnly={readOnly}
           />
         </div>
       </DialogContent>

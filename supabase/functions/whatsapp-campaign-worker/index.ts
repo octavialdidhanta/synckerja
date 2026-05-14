@@ -1,0 +1,505 @@
+/**
+ * WhatsApp template campaign worker — batch send + cron dispatcher.
+ *
+ * Deploy: `supabase functions deploy whatsapp-campaign-worker --no-verify-jwt`
+ * Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (default), optional `WHATSAPP_CAMPAIGN_CRON_SECRET`.
+ *
+ * Schedule (Send later): Supabase Dashboard → Edge Functions → create a schedule every minute POST body
+ * `{ "action": "cron_tick" }` with header `x-whatsapp-campaign-cron-secret: <WHATSAPP_CAMPAIGN_CRON_SECRET>`.
+ * Throughput: ~10–20 msgs/s max per number; this worker uses small batches + short delays to reduce 429s.
+ */
+/// <reference path="../edge-runtime.d.ts" />
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-whatsapp-campaign-cron-secret",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+};
+
+const META_API_BASE = "https://graph.facebook.com/v18.0";
+const RECIPIENT_BATCH = 25;
+const MAX_CRON_CAMPAIGNS_PER_TICK = 8;
+const INTER_SEND_MS = 120;
+
+function countPh(text: string): number {
+  return (text.match(/\{\{[^}]+\}\}/g) ?? []).length;
+}
+
+function digitsOnly(to: string): string {
+  return String(to ?? "").replace(/\D/g, "");
+}
+
+function buildGraphTemplateComponents(
+  templateComponents: unknown[],
+  parameterValues: unknown,
+):
+  | { ok: true; components: Array<Record<string, unknown>> }
+  | { ok: false; reason: string } {
+  const params = Array.isArray(parameterValues)
+    ? parameterValues.map((x) => {
+        const s = String(x ?? "").trim();
+        return s.length > 0 ? s : "—";
+      })
+    : [];
+  let idx = 0;
+  const out: Array<Record<string, unknown>> = [];
+  if (!Array.isArray(templateComponents)) return { ok: true, components: [] };
+
+  for (const raw of templateComponents) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const c = raw as Record<string, unknown>;
+    const type = String(c.type ?? "").toUpperCase();
+    if (type === "HEADER") {
+      const fmt = String(c.format ?? "TEXT").toUpperCase();
+      if (fmt === "IMAGE" || fmt === "VIDEO" || fmt === "DOCUMENT") {
+        return { ok: false, reason: "Media header templates are not supported for template campaigns yet." };
+      }
+      const text = String(c.text ?? "");
+      const n = countPh(text);
+      if (n === 0) continue;
+      const parameters: { type: string; text: string }[] = [];
+      for (let i = 0; i < n; i++) {
+        const t = String(params[idx + i] ?? "—").slice(0, 1024);
+        parameters.push({ type: "text", text: t.length ? t : "—" });
+      }
+      idx += n;
+      out.push({ type: "header", parameters });
+    } else if (type === "BODY") {
+      const text = String(c.text ?? "");
+      const n = countPh(text);
+      if (n === 0) continue;
+      const parameters: { type: string; text: string }[] = [];
+      for (let i = 0; i < n; i++) {
+        const t = String(params[idx + i] ?? "—").slice(0, 1024);
+        parameters.push({ type: "text", text: t.length ? t : "—" });
+      }
+      idx += n;
+      out.push({ type: "body", parameters });
+    }
+  }
+  return { ok: true, components: out };
+}
+
+async function resolvePhoneAndToken(
+  admin: ReturnType<typeof createClient>,
+  orgId: string,
+  whatsappAccountId: string,
+): Promise<{ phone_number_id: string; access_token: string } | null> {
+  const { data: row } = await admin
+    .from("organization_whatsapp_accounts")
+    .select("meta_access_token, phone_number_id")
+    .eq("organization_id", orgId)
+    .eq("id", whatsappAccountId)
+    .maybeSingle();
+  if (!row?.phone_number_id) return null;
+  let accessToken = String(row.meta_access_token ?? "").trim();
+  if (!accessToken) {
+    const { data: metaOnly } = await admin
+      .from("organization_meta_config")
+      .select("meta_access_token")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    accessToken = String(metaOnly?.meta_access_token ?? "").trim();
+  }
+  const phone_number_id = String(row.phone_number_id).trim();
+  if (!accessToken || !phone_number_id) return null;
+  return { phone_number_id, access_token: accessToken };
+}
+
+async function postTemplateMessage(
+  phoneNumberId: string,
+  accessToken: string,
+  toDigits: string,
+  templateName: string,
+  templateLanguage: string,
+  components: Array<Record<string, unknown>>,
+): Promise<{ ok: true; wa_message_id: string } | { ok: false; status: number; body: string }> {
+  const url = `${META_API_BASE}/${encodeURIComponent(phoneNumberId)}/messages`;
+  const template: Record<string, unknown> = {
+    name: templateName,
+    language: { code: templateLanguage },
+  };
+  if (components.length > 0) template.components = components;
+
+  let lastText = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: toDigits,
+        type: "template",
+        template,
+      }),
+    });
+    lastText = await res.text();
+    if (res.status === 429 || (res.status >= 500 && res.status <= 599)) {
+      await new Promise((r) => setTimeout(r, 650 * (attempt + 1)));
+      continue;
+    }
+    if (!res.ok) return { ok: false, status: res.status, body: lastText.slice(0, 2000) };
+    let json: Record<string, unknown> = {};
+    try {
+      json = JSON.parse(lastText) as Record<string, unknown>;
+    } catch {
+      return { ok: false, status: res.status, body: lastText.slice(0, 2000) };
+    }
+    const messages = json?.messages as unknown[] | undefined;
+    const first = messages?.[0] as Record<string, unknown> | undefined;
+    const mid = first?.id != null ? String(first.id).trim() : "";
+    if (!mid) return { ok: false, status: 500, body: lastText.slice(0, 2000) };
+    return { ok: true, wa_message_id: mid };
+  }
+  return { ok: false, status: 429, body: lastText.slice(0, 2000) };
+}
+
+async function countRecipientsByStatus(
+  admin: ReturnType<typeof createClient>,
+  campaignId: string,
+  sendStatus: string,
+): Promise<number> {
+  const { count, error } = await admin
+    .from("whatsapp_campaign_recipients")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId)
+    .eq("send_status", sendStatus);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+async function syncCampaignCounters(
+  admin: ReturnType<typeof createClient>,
+  campaignId: string,
+): Promise<{ sent: number; failed: number; pending: number; skipped: number }> {
+  const [sent, failed, pending, skipped] = await Promise.all([
+    countRecipientsByStatus(admin, campaignId, "sent"),
+    countRecipientsByStatus(admin, campaignId, "failed"),
+    countRecipientsByStatus(admin, campaignId, "pending"),
+    countRecipientsByStatus(admin, campaignId, "skipped"),
+  ]);
+  await admin
+    .from("whatsapp_campaigns")
+    .update({ sent_count: sent, failed_count: failed })
+    .eq("id", campaignId);
+  return { sent, failed, pending, skipped };
+}
+
+type CampaignRow = {
+  id: string;
+  organization_id: string;
+  whatsapp_account_id: string;
+  template_name: string;
+  template_language: string;
+  template_components_json: unknown;
+  status: string;
+  scheduled_at: string | null;
+};
+
+async function processCampaignBatch(
+  admin: ReturnType<typeof createClient>,
+  campaignId: string,
+): Promise<{
+  processed: number;
+  campaign_status: string;
+  pending_remaining: number;
+  error?: string;
+}> {
+  const { data: campaign, error: cErr } = await admin
+    .from("whatsapp_campaigns")
+    .select(
+      "id, organization_id, whatsapp_account_id, template_name, template_language, template_components_json, status, scheduled_at",
+    )
+    .eq("id", campaignId)
+    .maybeSingle();
+  if (cErr || !campaign) {
+    return { processed: 0, campaign_status: "unknown", pending_remaining: 0, error: "Campaign not found" };
+  }
+  const c = campaign as CampaignRow;
+  const terminal = new Set(["completed", "failed", "cancelled", "draft"]);
+  if (terminal.has(c.status)) {
+    const { pending } = await syncCampaignCounters(admin, campaignId);
+    return { processed: 0, campaign_status: c.status, pending_remaining: pending };
+  }
+
+  const now = new Date().toISOString();
+  if (c.status === "scheduled") {
+    if (!c.scheduled_at || c.scheduled_at > now) {
+      const { pending } = await syncCampaignCounters(admin, campaignId);
+      return { processed: 0, campaign_status: "scheduled", pending_remaining: pending };
+    }
+    await admin.from("whatsapp_campaigns").update({ status: "queued" }).eq("id", campaignId);
+    c.status = "queued";
+  }
+
+  if (c.status === "queued") {
+    const ts = new Date().toISOString();
+    await admin
+      .from("whatsapp_campaigns")
+      .update({ status: "running", started_at: ts })
+      .eq("id", campaignId)
+      .eq("status", "queued");
+    c.status = "running";
+  }
+
+  if (c.status !== "running") {
+    const { pending } = await syncCampaignCounters(admin, campaignId);
+    return { processed: 0, campaign_status: c.status, pending_remaining: pending };
+  }
+
+  const sendCfg = await resolvePhoneAndToken(admin, c.organization_id, c.whatsapp_account_id);
+  if (!sendCfg) {
+    await admin
+      .from("whatsapp_campaigns")
+      .update({
+        status: "failed",
+        finished_at: now,
+        last_error: "WhatsApp account or access token not configured",
+      })
+      .eq("id", campaignId);
+    return { processed: 0, campaign_status: "failed", pending_remaining: 0, error: "Missing WhatsApp send config" };
+  }
+
+  const templateComponents = Array.isArray(c.template_components_json)
+    ? (c.template_components_json as unknown[])
+    : [];
+
+  const { data: recipients, error: rErr } = await admin
+    .from("whatsapp_campaign_recipients")
+    .select("id, phone_e164, parameter_values, send_status, wa_message_id, attempt_count")
+    .eq("campaign_id", campaignId)
+    .eq("send_status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(RECIPIENT_BATCH);
+  if (rErr) {
+    return {
+      processed: 0,
+      campaign_status: c.status,
+      pending_remaining: 0,
+      error: rErr.message,
+    };
+  }
+  if (!recipients?.length) {
+    const stats = await syncCampaignCounters(admin, campaignId);
+    if (stats.pending === 0) {
+      await admin
+        .from("whatsapp_campaigns")
+        .update({ status: "completed", finished_at: new Date().toISOString(), last_error: null })
+        .eq("id", campaignId);
+      return { processed: 0, campaign_status: "completed", pending_remaining: 0 };
+    }
+    return { processed: 0, campaign_status: "running", pending_remaining: stats.pending };
+  }
+
+  let processed = 0;
+  for (const rec of recipients) {
+    const row = rec as {
+      id: string;
+      phone_e164: string;
+      parameter_values: unknown;
+      send_status: string;
+      wa_message_id: string | null;
+      attempt_count: number;
+    };
+    if (row.send_status === "sent" && row.wa_message_id) continue;
+
+    const built = buildGraphTemplateComponents(templateComponents, row.parameter_values);
+    if (!built.ok) {
+      await admin
+        .from("whatsapp_campaign_recipients")
+        .update({
+          send_status: "skipped",
+          error_detail: built.reason,
+          attempt_count: row.attempt_count + 1,
+        })
+        .eq("id", row.id);
+      processed++;
+      continue;
+    }
+
+    const toDigits = digitsOnly(row.phone_e164);
+    if (toDigits.length < 8) {
+      await admin
+        .from("whatsapp_campaign_recipients")
+        .update({
+          send_status: "failed",
+          error_detail: "Invalid phone_e164",
+          attempt_count: row.attempt_count + 1,
+        })
+        .eq("id", row.id);
+      processed++;
+      continue;
+    }
+
+    const sendRes = await postTemplateMessage(
+      sendCfg.phone_number_id,
+      sendCfg.access_token,
+      toDigits,
+      c.template_name,
+      c.template_language,
+      built.components,
+    );
+    processed++;
+    if (sendRes.ok) {
+      await admin
+        .from("whatsapp_campaign_recipients")
+        .update({
+          send_status: "sent",
+          wa_message_id: sendRes.wa_message_id,
+          error_detail: null,
+          attempt_count: row.attempt_count + 1,
+        })
+        .eq("id", row.id);
+    } else {
+      await admin
+        .from("whatsapp_campaign_recipients")
+        .update({
+          send_status: "failed",
+          error_detail: `HTTP ${sendRes.status}: ${sendRes.body}`,
+          attempt_count: row.attempt_count + 1,
+        })
+        .eq("id", row.id);
+    }
+    await new Promise((r) => setTimeout(r, INTER_SEND_MS));
+  }
+
+  const stats = await syncCampaignCounters(admin, campaignId);
+  if (stats.pending === 0) {
+    await admin
+      .from("whatsapp_campaigns")
+      .update({ status: "completed", finished_at: new Date().toISOString() })
+      .eq("id", campaignId);
+    return { processed, campaign_status: "completed", pending_remaining: 0 };
+  }
+  return { processed, campaign_status: "running", pending_remaining: stats.pending };
+}
+
+async function promoteScheduledCampaigns(admin: ReturnType<typeof createClient>): Promise<number> {
+  const now = new Date().toISOString();
+  const { data, error } = await admin
+    .from("whatsapp_campaigns")
+    .update({ status: "queued" })
+    .eq("status", "scheduled")
+    .not("scheduled_at", "is", null)
+    .lte("scheduled_at", now)
+    .select("id");
+  if (error) return 0;
+  return Array.isArray(data) ? data.length : 0;
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { status: 200, headers: corsHeaders });
+  }
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const admin = createClient(supabaseUrl, serviceRoleKey);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    body = {};
+  }
+  const action = String(body.action ?? "process_batch");
+
+  if (action === "cron_tick") {
+    const secret = Deno.env.get("WHATSAPP_CAMPAIGN_CRON_SECRET") ?? "";
+    const hdr = req.headers.get("x-whatsapp-campaign-cron-secret") ?? "";
+    if (!secret || hdr !== secret) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const promoted = await promoteScheduledCampaigns(admin);
+    const { data: pendingRows } = await admin
+      .from("whatsapp_campaign_recipients")
+      .select("campaign_id")
+      .eq("send_status", "pending")
+      .limit(120);
+    const ids = [...new Set((pendingRows ?? []).map((r) => String((r as { campaign_id: string }).campaign_id)))];
+    const results: unknown[] = [];
+    let n = 0;
+    for (const cid of ids) {
+      if (n >= MAX_CRON_CAMPAIGNS_PER_TICK) break;
+      const { data: camp } = await admin.from("whatsapp_campaigns").select("status").eq("id", cid).maybeSingle();
+      const st = String((camp as { status?: string } | null)?.status ?? "");
+      if (st !== "queued" && st !== "running") continue;
+      const r = await processCampaignBatch(admin, cid);
+      results.push({ campaign_id: cid, ...r });
+      n++;
+    }
+    return new Response(JSON.stringify({ ok: true, promoted, tick_results: results }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (action !== "process_batch") {
+    return new Response(JSON.stringify({ error: "Unknown action" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const token = authHeader.replace("Bearer ", "");
+  const supabaseWithUser = createClient(supabaseUrl, serviceRoleKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const { data: { user }, error: userError } = await supabaseWithUser.auth.getUser(token);
+  if (userError || !user) {
+    return new Response(JSON.stringify({ error: "Invalid token" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const campaignId = body.campaign_id != null ? String(body.campaign_id).trim() : "";
+  if (!campaignId) {
+    return new Response(JSON.stringify({ error: "Missing campaign_id" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const { data: owned, error: oErr } = await supabaseWithUser
+    .from("whatsapp_campaigns")
+    .select("id")
+    .eq("id", campaignId)
+    .maybeSingle();
+  if (oErr || !owned) {
+    return new Response(JSON.stringify({ error: "Campaign not found or access denied" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const result = await processCampaignBatch(admin, campaignId);
+  return new Response(JSON.stringify({ ok: true, ...result }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+});

@@ -1,17 +1,26 @@
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/shared/components/ui/card";
-import { CreditCard, Users, Calendar, AlertCircle, CheckCircle } from "lucide-react";
+import { CreditCard, Users, Calendar, AlertCircle, CheckCircle, MessagesSquare } from "lucide-react";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
 
 interface MetricCardsProps {
   subscriptionStatus: SubscriptionStatus | null;
   daysRemainingOverride?: number | null;
   nextBillingLoading?: boolean;
+  /** Roster rows in `organization_omnichannel_staff` (livechat / omnichannel users). */
+  omnichannelRosterActiveCount?: number;
+  omnichannelRosterPending?: boolean;
 }
 
 export const MetricCards = memo(
-  function MetricCards({ subscriptionStatus, daysRemainingOverride, nextBillingLoading }: MetricCardsProps) {
+  function MetricCards({
+    subscriptionStatus,
+    daysRemainingOverride,
+    nextBillingLoading,
+    omnichannelRosterActiveCount = 0,
+    omnichannelRosterPending = false,
+  }: MetricCardsProps) {
     const { t } = useTranslation();
 
     const quickStats = useMemo(() => {
@@ -39,6 +48,10 @@ export const MetricCards = memo(
         ? t("subscription.overview.metricStatusTrial")
         : subscriptionStatus.status || t("subscription.overview.metricStatusUnknown");
 
+      const rosterCap = subscriptionStatus.omnichannel_roster_seat_cap ?? 0;
+      const rosterLoading = omnichannelRosterPending;
+      const rosterAtOrOverCap = rosterCap > 0 && omnichannelRosterActiveCount >= rosterCap;
+
       return [
         {
           title: t("subscription.overview.metricCurrentPlan"),
@@ -52,6 +65,18 @@ export const MetricCards = memo(
           icon: Users,
           color:
             subscriptionStatus.over_limit || subscriptionStatus.is_over_limit
+              ? "text-brand-red"
+              : "text-brand-blue",
+        },
+        {
+          title: t("subscription.overview.metricOmnichannelActive"),
+          value: rosterLoading
+            ? t("subscription.overview.loadingEllipsis")
+            : `${omnichannelRosterActiveCount} / ${rosterCap}`,
+          icon: MessagesSquare,
+          color: rosterLoading
+            ? "text-muted-foreground"
+            : rosterAtOrOverCap
               ? "text-brand-red"
               : "text-brand-blue",
         },
@@ -76,9 +101,16 @@ export const MetricCards = memo(
           color: isActive ? "text-brand-blue" : "text-brand-red",
         },
       ];
-    }, [subscriptionStatus, daysRemainingOverride, nextBillingLoading, t]);
+    }, [
+      subscriptionStatus,
+      daysRemainingOverride,
+      nextBillingLoading,
+      omnichannelRosterActiveCount,
+      omnichannelRosterPending,
+      t,
+    ]);
 
-    const gridClass = "grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4";
+    const gridClass = "grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
 
     if (!subscriptionStatus || quickStats.length === 0) {
       return (
@@ -108,6 +140,19 @@ export const MetricCards = memo(
                   <p className="text-xl font-bold text-muted-foreground sm:text-2xl">— / —</p>
                 </div>
                 <Users className="h-7 w-7 shrink-0 text-muted-foreground sm:h-8 sm:w-8" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="min-w-0 border-border shadow-sm">
+            <CardContent className="min-w-0 p-3">
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="mb-1 text-sm font-medium text-muted-foreground">
+                    {t("subscription.overview.metricOmnichannelActive")}
+                  </p>
+                  <p className="text-xl font-bold text-muted-foreground sm:text-2xl">— / —</p>
+                </div>
+                <MessagesSquare className="h-7 w-7 shrink-0 text-muted-foreground sm:h-8 sm:w-8" />
               </div>
             </CardContent>
           </Card>
@@ -179,9 +224,17 @@ export const MetricCards = memo(
       prevProps.subscriptionStatus.plan_name === nextProps.subscriptionStatus.plan_name &&
       prevProps.subscriptionStatus.current_employees === nextProps.subscriptionStatus.current_employees &&
       prevProps.subscriptionStatus.member_count === nextProps.subscriptionStatus.member_count &&
+      prevProps.subscriptionStatus.omnichannel_paid_seat_count ===
+        nextProps.subscriptionStatus.omnichannel_paid_seat_count &&
+      prevProps.subscriptionStatus.omnichannel_roster_seat_cap ===
+        nextProps.subscriptionStatus.omnichannel_roster_seat_cap &&
       prevDays === nextDays &&
       prevProps.nextBillingLoading === nextProps.nextBillingLoading &&
-      prevProps.subscriptionStatus.is_active === nextProps.subscriptionStatus.is_active
+      prevProps.omnichannelRosterPending === nextProps.omnichannelRosterPending &&
+      prevProps.omnichannelRosterActiveCount === nextProps.omnichannelRosterActiveCount &&
+      prevProps.subscriptionStatus.is_active === nextProps.subscriptionStatus.is_active &&
+      prevProps.subscriptionStatus.is_trial === nextProps.subscriptionStatus.is_trial &&
+      prevProps.subscriptionStatus.status === nextProps.subscriptionStatus.status
     );
   },
 );

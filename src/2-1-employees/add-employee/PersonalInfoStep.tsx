@@ -13,6 +13,9 @@ export const PersonalInfoStep = ({ formData, handleInputChange }: PersonalDataSt
         {/* Personal Information — single 2-column grid for consistent layout */}
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
+          <p className="text-xs text-gray-500 mb-4">
+            Fields marked <span className="text-red-500">*</span> are required.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
             <PersonalDetailsSection formData={formData} handleInputChange={handleInputChange} />
             <IdentitySection formData={formData} handleInputChange={handleInputChange} />

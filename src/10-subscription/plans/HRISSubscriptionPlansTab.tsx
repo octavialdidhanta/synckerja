@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { Zap, Users, Shield, Star } from "lucide-react";
 import { toast } from "sonner";
 import { useSubscriptionPlans } from "@/10-subscription/hooks/useSubscriptionPlans";
@@ -13,7 +14,21 @@ import { useLastPaidSubscription } from "@/10-subscription/hooks/useLastPaidSubs
 import { useMidtransPayment } from "@/10-subscription/hooks/useMidtransPayment";
 import { useProRateCalculation } from "@/10-subscription/hooks/useProRateCalculation";
 import { useEmployeeCount } from "@/10-subscription/hooks/useEmployeeCount";
-import { getMonthlyPriceForMembers, getYearlyPriceForMembers } from "@/10-subscription/shared/subscriptionUtils";
+import {
+  getMonthlyPriceForMembers,
+  getYearlyPriceForMembers,
+  formatIDR,
+  buildMidtransExplicitHrAndAddonItemDetails,
+  catalogAddonChargeForMidtransSplit,
+  catalogAddOnListAmountForMidtransSplit,
+  bundledOmnichannelRosterUnitsFromSelections,
+  getOmnichannelAddonMonthlyTotalIdr,
+  getOmnichannelRosterAddonConfig,
+  isScaleUpSubscriptionPlanName,
+  mergePlanAddOnSelections,
+  planEligibleForOmnichannelAddonDisplay,
+  OMNICHANNEL_ADDON_IDR_PER_STAFF_MONTHLY,
+} from "@/10-subscription/shared/subscriptionUtils";
 import {
   UpgradeConfirmationModal,
   type ProRatedData,
@@ -23,6 +38,10 @@ import { PendingChangesCard } from "@/10-subscription/plans/section/PendingChang
 import { UpgradeOptionsModal } from "@/10-subscription/plans/modals/UpgradeOptionsModal";
 import { PlanCard, TrustIndicators } from "@/10-subscription/plans/section";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
+import {
+  organizationOmnichannelStaffQueryKey,
+  useOrganizationOmnichannelStaff,
+} from "@/shared/hooks/useOrganizationOmnichannelStaff";
 
 const RENEWAL_WINDOW_DAYS = 7;
 
@@ -46,17 +65,48 @@ const HRISSubscriptionPlansTab = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
   const [proRatedData, setProRatedData] = useState<ProRatedData | null>(null);
-  
+  const [planAddOnUi, setPlanAddOnUi] = useState<
+    Record<string, Record<string, { included: boolean; quantity: number }>>
+  >({});
+  /** Add-on rows shown on the card when user clicked Pilih Plan / renew (stable across async prorate). */
+  const [checkoutAddOnSnapshot, setCheckoutAddOnSnapshot] = useState<{
+    planId: string;
+    selections: Record<string, { included: boolean; quantity: number }>;
+  } | null>(null);
+  /** Plan whose primary CTA (Upgrade / Renew) is awaiting prorate or Midtrans. */
+  const [planCardPrimaryPendingId, setPlanCardPrimaryPendingId] = useState<string | null>(null);
+
   const { data: plans } = useSubscriptionPlans();
   const { subscriptionStatus, subscriptionPlans } = useOptimizedSubscription();
   const { organizationId } = useActiveOrganization();
+  const { data: omnichannelRoster = [] } = useOrganizationOmnichannelStaff();
+  const rosterCount = omnichannelRoster.length;
+  const omnichannelPaidSeats = subscriptionStatus?.omnichannel_paid_seat_count ?? 0;
+  /** All rows returned for `is_active = true` (no extra client-side hiding). */
+  const activePlans = useMemo(() => plans ?? [], [plans]);
+  const showOmnichannelAddonInsideScaleUpCard = useMemo(
+    () =>
+      activePlans.some(
+        (p) => isScaleUpSubscriptionPlanName(p.name) && planEligibleForOmnichannelAddonDisplay(p),
+      ),
+    [activePlans],
+  );
+
+  /** Unit price for global add-on copy when multiple eligible plans could differ (use first eligible). */
+  const globalOmnichannelUnitPrice = useMemo(() => {
+    const first = activePlans.find((p) => planEligibleForOmnichannelAddonDisplay(p));
+    return first
+      ? getOmnichannelRosterAddonConfig(first).unitPricePerStaffMonthly
+      : OMNICHANNEL_ADDON_IDR_PER_STAFF_MONTHLY;
+  }, [activePlans]);
   const { lastPaidAmount, lastPaidMemberCount } = useLastPaidSubscription(organizationId ?? undefined);
-  const { initiateMidtransPayment } = useMidtransPayment({
+  const { initiateMidtransPayment, isLoading: isMidtransConfirmLoading } = useMidtransPayment({
     onPaymentStatusChange: () => {
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.status(organizationId) });
         queryClient.invalidateQueries({ queryKey: ["payment-history", organizationId] });
         queryClient.invalidateQueries({ queryKey: ["payment-pending", organizationId] });
+        queryClient.invalidateQueries({ queryKey: organizationOmnichannelStaffQueryKey(organizationId) });
       }
     },
   });
@@ -99,11 +149,11 @@ const HRISSubscriptionPlansTab = () => {
 
   // Initialize memberCounts state properly for each plan
   useEffect(() => {
-    if (!plans || !subscriptionStatus || Object.keys(memberCounts).length > 0) return;
+    if (!activePlans.length || !subscriptionStatus || Object.keys(memberCounts).length > 0) return;
 
     const newMemberCounts: { [key: string]: number } = {};
 
-    plans.forEach(plan => {
+    activePlans.forEach(plan => {
       const isTrialPlan = plan.name === 'Trial' || plan.base_price_per_member === 0;
       const isCurrent = isCurrentPlan(plan);
       const maxEmployees = isTrialPlan ? getEmployeeLimitFromFeatures(plan.features) : 100;
@@ -124,15 +174,129 @@ const HRISSubscriptionPlansTab = () => {
     setMemberCounts(newMemberCounts);
     // Intentionally omit memberCounts / isCurrentPlan: one-time init when plans load; re-run would reset sliders.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [plans, subscriptionStatus, currentMemberCount]);
+  }, [activePlans, subscriptionStatus, currentMemberCount]);
 
   const handleMemberCountChange = (planId: string, count: number) => {
-    setMemberCounts(prev => ({ ...prev, [planId]: count }));
+    const cap = Math.max(1, Math.round(Number(count)) || 1);
+    setMemberCounts((prev) => ({ ...prev, [planId]: count }));
+    setPlanAddOnUi((prev) => {
+      const row = prev[planId];
+      if (!row) return prev;
+      let changed = false;
+      const nextRow: Record<string, { included: boolean; quantity: number }> = { ...row };
+      for (const [code, sel] of Object.entries(row)) {
+        if (sel && sel.quantity > cap) {
+          nextRow[code] = { ...sel, quantity: cap };
+          changed = true;
+        }
+      }
+      return changed ? { ...prev, [planId]: nextRow } : prev;
+    });
   };
 
   const handleBillingCycleChange = (planId: string, isYearly: boolean) => {
     setBillingCycles(prev => ({ ...prev, [planId]: isYearly ? 'yearly' : 'monthly' }));
   };
+
+  const mergeSelections = useCallback(
+    (plan: SubscriptionPlan, isCurrent: boolean, hrMemberCount: number) =>
+      mergePlanAddOnSelections(
+        plan,
+        planAddOnUi[plan.id],
+        isCurrent,
+        omnichannelPaidSeats,
+        hrMemberCount,
+      ),
+    [planAddOnUi, omnichannelPaidSeats],
+  );
+
+  /** Merged add-on map for the open checkout (`selectedPlan`), preferring the card snapshot from click time. */
+  const mergeCheckoutSelectionsForSelectedPlan = useCallback((): Record<
+    string,
+    { included: boolean; quantity: number }
+  > => {
+    if (!selectedPlan) return {};
+    if (checkoutAddOnSnapshot?.planId === selectedPlan.id) return checkoutAddOnSnapshot.selections;
+    return mergeSelections(selectedPlan, isCurrentPlan(selectedPlan), selectedMemberCount);
+  }, [selectedPlan, selectedMemberCount, checkoutAddOnSnapshot, mergeSelections]);
+
+  useEffect(() => {
+    if (!selectedPlan) setCheckoutAddOnSnapshot(null);
+  }, [selectedPlan]);
+
+  /** Add-on portion that matches Midtrans gross (full list vs prorated incremental when HR prorate applies). */
+  const catalogAddOnBillingChargeIdr = useMemo(() => {
+    if (!selectedPlan) return 0;
+    const cycle = isYearly ? "yearly" : "monthly";
+    return catalogAddonChargeForMidtransSplit({
+      plan: selectedPlan,
+      billingCycle: cycle,
+      annualDiscountPercent: selectedPlan.annual_discount_percentage,
+      selections: mergeCheckoutSelectionsForSelectedPlan(),
+      legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+      calculation: proRatedData?.calculation,
+    });
+  }, [
+    selectedPlan,
+    isYearly,
+    omnichannelPaidSeats,
+    mergeCheckoutSelectionsForSelectedPlan,
+    proRatedData?.calculation,
+  ]);
+
+  /** Add-on line for confirmation modal (full yearly list when monthly→yearly same plan, else billing charge). */
+  const catalogAddOnForConfirmationModalIdr = useMemo(() => {
+    if (!selectedPlan || !subscriptionStatus) return 0;
+    const billingUpOnly =
+      currentPlanId === selectedPlan.id &&
+      currentMemberCount === selectedMemberCount &&
+      (subscriptionStatus.billing_cycle || "monthly") === "monthly" &&
+      isYearly;
+    if (billingUpOnly) {
+      return catalogAddOnListAmountForMidtransSplit({
+        plan: selectedPlan,
+        billingCycle: "yearly",
+        annualDiscountPercent: selectedPlan.annual_discount_percentage,
+        selections: mergeCheckoutSelectionsForSelectedPlan(),
+        legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+      });
+    }
+    return catalogAddOnBillingChargeIdr;
+  }, [
+    selectedPlan,
+    subscriptionStatus,
+    currentPlanId,
+    currentMemberCount,
+    isYearly,
+    omnichannelPaidSeats,
+    mergeCheckoutSelectionsForSelectedPlan,
+    catalogAddOnBillingChargeIdr,
+  ]);
+
+  const handleAddOnIncludedChange = useCallback((planId: string, code: string, included: boolean) => {
+    setPlanAddOnUi((prev) => {
+      const cur = prev[planId]?.[code] ?? { included: false, quantity: 1 };
+      return {
+        ...prev,
+        [planId]: { ...(prev[planId] ?? {}), [code]: { ...cur, included } },
+      };
+    });
+  }, []);
+
+  const handleAddOnQuantityChange = useCallback(
+    (planId: string, code: string, quantity: number, hrMemberCap: number) => {
+      const cap = Math.max(1, Math.round(Number(hrMemberCap)) || 1);
+      const q = Math.min(cap, Math.max(1, Math.round(Number(quantity)) || 1));
+      setPlanAddOnUi((prev) => {
+        const cur = prev[planId]?.[code] ?? { included: false, quantity: 1 };
+        return {
+          ...prev,
+          [planId]: { ...(prev[planId] ?? {}), [code]: { ...cur, quantity: q } },
+        };
+      });
+    },
+    [],
+  );
 
   const calculatePlanPrice = (plan: SubscriptionPlan, memberCount: number, isYearly: boolean) => {
     const basePrice = plan.base_price_per_member * memberCount;
@@ -142,15 +306,23 @@ const HRISSubscriptionPlansTab = () => {
     return isYearly ? basePrice * 12 : basePrice;
   };
 
-  const handleUpgrade = useCallback(async (plan: SubscriptionPlan, memberCount: number, billingCycleOverride?: 'monthly' | 'yearly') => {
-    const selectedBillingCycle = billingCycleOverride || billingCycles[plan.id] || 'monthly';
+  const handleUpgrade = useCallback(
+    async (
+      plan: SubscriptionPlan,
+      memberCount: number,
+      billingCycleOverride?: "monthly" | "yearly",
+      addOnAtClick?: Record<string, { included: boolean; quantity: number }>,
+    ) => {
+      const selectedBillingCycle = billingCycleOverride || billingCycles[plan.id] || "monthly";
+      const mergedAtClick = addOnAtClick ?? mergeSelections(plan, isCurrentPlan(plan), memberCount);
+      setCheckoutAddOnSnapshot({ planId: plan.id, selections: mergedAtClick });
+      setSelectedPlan(plan);
+      setSelectedMemberCount(memberCount);
+      // Update global isYearly state for modal consistency
+      setIsYearly(selectedBillingCycle === "yearly");
 
-    setSelectedPlan(plan);
-    setSelectedMemberCount(memberCount);
-    // Update global isYearly state for modal consistency
-    setIsYearly(selectedBillingCycle === 'yearly');
-
-    try {
+      setPlanCardPrimaryPendingId(plan.id);
+      try {
       // Selalu hitung prorate untuk semua skenario (plan change / member change)
       const calculation = await proRateCalculation.mutateAsync({
         new_member_count: memberCount,
@@ -200,32 +372,72 @@ const HRISSubscriptionPlansTab = () => {
     } catch {
       setProRatedData(null);
       setIsModalOpen(true);
+    } finally {
+      setPlanCardPrimaryPendingId(null);
     }
-  }, [proRateCalculation, billingCycles, subscriptionStatus, currentPlanId, currentMemberCount]);
+  }, [proRateCalculation, billingCycles, subscriptionStatus, currentPlanId, currentMemberCount, mergeSelections]);
 
   const schedulePlanChange = useSchedulePlanChange();
 
-  const handleRenew = useCallback(async (plan: SubscriptionPlan, memberCount: number, billingCycle: 'monthly' | 'yearly') => {
-    if (!subscriptionStatus) return;
+  const handleRenew = useCallback(
+    async (
+      plan: SubscriptionPlan,
+      memberCount: number,
+      billingCycle: "monthly" | "yearly",
+      addOnAtClick?: Record<string, { included: boolean; quantity: number }>,
+    ) => {
+      if (!subscriptionStatus) return;
 
-    const chargeCycle = subscriptionStatus.billing_cycle === 'yearly' ? 'yearly' : billingCycle;
-    const basePrice = plan.base_price_per_member;
-    const finalAmount = chargeCycle === 'yearly'
-      ? getYearlyPriceForMembers(basePrice, memberCount, plan.annual_discount_percentage)
-      : getMonthlyPriceForMembers(basePrice, memberCount);
+      setPlanCardPrimaryPendingId(plan.id);
+      try {
+        const selections = addOnAtClick ?? mergeSelections(plan, isCurrentPlan(plan), memberCount);
 
-    try {
-      await initiateMidtransPayment({
-        planId: plan.id,
-        planName: plan.name,
-        amount: finalAmount,
-        memberCount,
-        billingCycle: chargeCycle,
-      });
-    } catch {
-      toast.error(t("subscription.plans.error.renewalFailed"));
-    }
-  }, [subscriptionStatus, initiateMidtransPayment, t]);
+        const chargeCycle = subscriptionStatus.billing_cycle === "yearly" ? "yearly" : billingCycle;
+        const basePrice = plan.base_price_per_member;
+        const finalAmount =
+          chargeCycle === "yearly"
+            ? getYearlyPriceForMembers(basePrice, memberCount, plan.annual_discount_percentage)
+            : getMonthlyPriceForMembers(basePrice, memberCount);
+
+        const catalogAddonRenew = catalogAddOnListAmountForMidtransSplit({
+          plan,
+          billingCycle: chargeCycle,
+          annualDiscountPercent: plan.annual_discount_percentage,
+          selections,
+          legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        });
+        const grossRenew = finalAmount + catalogAddonRenew;
+        const itemDetails = buildMidtransExplicitHrAndAddonItemDetails({
+          hrChargeAmountIdr: finalAmount,
+          catalogAddOnsListAmountIdr: catalogAddonRenew,
+          billingCycle: chargeCycle,
+          planName: plan.name,
+          memberCount,
+        });
+
+        await initiateMidtransPayment({
+          planId: plan.id,
+          planName: plan.name,
+          amount: grossRenew,
+          memberCount,
+          billingCycle: chargeCycle,
+          proRateDetails: {
+            is_member_upgrade: false,
+            previous_member_count: memberCount,
+            member_difference: 0,
+            remaining_days: 0,
+            prorate_amount: 0,
+            prorate_percentage: 0,
+            bundled_omnichannel_roster_units: bundledOmnichannelRosterUnitsFromSelections(selections),
+          },
+          ...(itemDetails ? { itemDetails } : {}),
+        });
+      } catch {
+        toast.error(t("subscription.plans.error.renewalFailed"));
+      } finally {
+        setPlanCardPrimaryPendingId(null);
+      }
+  }, [subscriptionStatus, initiateMidtransPayment, t, omnichannelPaidSeats, mergeSelections]);
 
   const handleConfirmUpgrade = useCallback(async () => {
     if (!selectedPlan) return;
@@ -244,12 +456,39 @@ const HRISSubscriptionPlansTab = () => {
           selectedMemberCount,
           selectedPlan.annual_discount_percentage
         );
+        const catalogAddonYearly = catalogAddOnListAmountForMidtransSplit({
+          plan: selectedPlan,
+          billingCycle: "yearly",
+          annualDiscountPercent: selectedPlan.annual_discount_percentage,
+          selections: mergeCheckoutSelectionsForSelectedPlan(),
+          legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        });
+        const grossYearly = fullYearlyPrice + catalogAddonYearly;
+        const itemDetailsYearly = buildMidtransExplicitHrAndAddonItemDetails({
+          hrChargeAmountIdr: fullYearlyPrice,
+          catalogAddOnsListAmountIdr: catalogAddonYearly,
+          billingCycle: "yearly",
+          planName: selectedPlan.name,
+          memberCount: selectedMemberCount,
+        });
         await initiateMidtransPayment({
           planId: selectedPlan.id,
           planName: selectedPlan.name,
-          amount: fullYearlyPrice,
+          amount: grossYearly,
           memberCount: selectedMemberCount,
           billingCycle: 'yearly',
+          proRateDetails: {
+            is_member_upgrade: false,
+            previous_member_count: selectedMemberCount,
+            member_difference: 0,
+            remaining_days: 0,
+            prorate_amount: 0,
+            prorate_percentage: 0,
+            bundled_omnichannel_roster_units: bundledOmnichannelRosterUnitsFromSelections(
+              mergeCheckoutSelectionsForSelectedPlan(),
+            ),
+          },
+          ...(itemDetailsYearly ? { itemDetails: itemDetailsYearly } : {}),
         });
         setIsModalOpen(false);
         setSelectedPlan(null);
@@ -288,20 +527,55 @@ const HRISSubscriptionPlansTab = () => {
         : getMonthlyPriceForMembers(basePrice, selectedMemberCount);
       const finalAmount = (prorateAmount !== undefined && prorateAmount > 0) ? prorateAmount : fullPrice;
 
+      const catalogAddonMain = catalogAddonChargeForMidtransSplit({
+        plan: selectedPlan,
+        billingCycle: isYearly ? "yearly" : "monthly",
+        annualDiscountPercent: selectedPlan.annual_discount_percentage,
+        selections: mergeCheckoutSelectionsForSelectedPlan(),
+        legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        calculation: proRatedData?.calculation,
+      });
+      const grossMain = finalAmount + catalogAddonMain;
+      const itemDetailsMain = buildMidtransExplicitHrAndAddonItemDetails({
+        hrChargeAmountIdr: finalAmount,
+        catalogAddOnsListAmountIdr: catalogAddonMain,
+        billingCycle: isYearly ? "yearly" : "monthly",
+        planName: selectedPlan.name,
+        memberCount: selectedMemberCount,
+      });
+
+      const bundledUnitsPay = bundledOmnichannelRosterUnitsFromSelections(
+        mergeCheckoutSelectionsForSelectedPlan(),
+      );
+
       await initiateMidtransPayment({
         planId: selectedPlan.id,
         planName: selectedPlan.name,
-        amount: finalAmount,
+        amount: grossMain,
         memberCount: selectedMemberCount,
         billingCycle: isYearly ? 'yearly' : 'monthly',
-        proRateDetails: proRatedData?.calculation ? {
-          is_member_upgrade: proRatedData.calculation.is_upgrade && !proRatedData.calculation.is_plan_change,
-          previous_member_count: proRatedData.current_plan.member_count,
-          member_difference: proRatedData.calculation.member_difference,
-          remaining_days: proRatedData.calculation.remaining_days,
-          prorate_amount: proRatedData.calculation.prorate_amount,
-          prorate_percentage: proRatedData.calculation.prorate_percentage
-        } : undefined
+        ...(itemDetailsMain ? { itemDetails: itemDetailsMain } : {}),
+        proRateDetails: proRatedData?.calculation
+          ? {
+              is_member_upgrade: Boolean(
+                proRatedData.calculation.is_upgrade && !proRatedData.calculation.is_plan_change,
+              ),
+              previous_member_count: proRatedData.current_plan.member_count,
+              member_difference: proRatedData.calculation.member_difference ?? 0,
+              remaining_days: proRatedData.calculation.remaining_days,
+              prorate_amount: proRatedData.calculation.prorate_amount,
+              prorate_percentage: proRatedData.calculation.prorate_percentage ?? 0,
+              bundled_omnichannel_roster_units: bundledUnitsPay,
+            }
+          : {
+              is_member_upgrade: false,
+              previous_member_count: selectedMemberCount,
+              member_difference: 0,
+              remaining_days: 0,
+              prorate_amount: 0,
+              prorate_percentage: 0,
+              bundled_omnichannel_roster_units: bundledUnitsPay,
+            },
       });
       
       setIsModalOpen(false);
@@ -310,7 +584,7 @@ const HRISSubscriptionPlansTab = () => {
     } catch {
       // Error surfaced via toast from payment/schedule
     }
-  }, [selectedPlan, selectedMemberCount, isYearly, initiateMidtransPayment, proRatedData, schedulePlanChange, subscriptionStatus, currentPlanId, currentMemberCount]);
+  }, [selectedPlan, selectedMemberCount, isYearly, initiateMidtransPayment, proRatedData, schedulePlanChange, subscriptionStatus, currentPlanId, currentMemberCount, omnichannelPaidSeats, mergeCheckoutSelectionsForSelectedPlan]);
 
   const handleChooseImmediate = useCallback(async () => {
     setIsOptionsModalOpen(false);
@@ -327,20 +601,55 @@ const HRISSubscriptionPlansTab = () => {
         : getMonthlyPriceForMembers(basePrice, selectedMemberCount);
       const finalAmount = (prorateAmount !== undefined && prorateAmount > 0) ? prorateAmount : fullPrice;
 
+      const catalogAddonImmediate = catalogAddonChargeForMidtransSplit({
+        plan: selectedPlan,
+        billingCycle: isYearly ? "yearly" : "monthly",
+        annualDiscountPercent: selectedPlan.annual_discount_percentage,
+        selections: mergeCheckoutSelectionsForSelectedPlan(),
+        legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        calculation: proRatedData?.calculation,
+      });
+      const grossImmediate = finalAmount + catalogAddonImmediate;
+      const itemDetailsImmediate = buildMidtransExplicitHrAndAddonItemDetails({
+        hrChargeAmountIdr: finalAmount,
+        catalogAddOnsListAmountIdr: catalogAddonImmediate,
+        billingCycle: isYearly ? "yearly" : "monthly",
+        planName: selectedPlan.name,
+        memberCount: selectedMemberCount,
+      });
+
+      const bundledUnitsImmediate = bundledOmnichannelRosterUnitsFromSelections(
+        mergeCheckoutSelectionsForSelectedPlan(),
+      );
+
       await initiateMidtransPayment({
         planId: selectedPlan.id,
         planName: selectedPlan.name,
-        amount: finalAmount,
+        amount: grossImmediate,
         memberCount: selectedMemberCount,
         billingCycle: isYearly ? 'yearly' : 'monthly',
-        proRateDetails: proRatedData?.calculation ? {
-          is_member_upgrade: proRatedData.calculation.is_upgrade && !proRatedData.calculation.is_plan_change,
-          previous_member_count: proRatedData.current_plan.member_count,
-          member_difference: proRatedData.calculation.member_difference,
-          remaining_days: proRatedData.calculation.remaining_days,
-          prorate_amount: proRatedData.calculation.prorate_amount,
-          prorate_percentage: proRatedData.calculation.prorate_percentage
-        } : undefined
+        ...(itemDetailsImmediate ? { itemDetails: itemDetailsImmediate } : {}),
+        proRateDetails: proRatedData?.calculation
+          ? {
+              is_member_upgrade: Boolean(
+                proRatedData.calculation.is_upgrade && !proRatedData.calculation.is_plan_change,
+              ),
+              previous_member_count: proRatedData.current_plan.member_count,
+              member_difference: proRatedData.calculation.member_difference ?? 0,
+              remaining_days: proRatedData.calculation.remaining_days,
+              prorate_amount: proRatedData.calculation.prorate_amount,
+              prorate_percentage: proRatedData.calculation.prorate_percentage ?? 0,
+              bundled_omnichannel_roster_units: bundledUnitsImmediate,
+            }
+          : {
+              is_member_upgrade: false,
+              previous_member_count: selectedMemberCount,
+              member_difference: 0,
+              remaining_days: 0,
+              prorate_amount: 0,
+              prorate_percentage: 0,
+              bundled_omnichannel_roster_units: bundledUnitsImmediate,
+            },
       });
       
       setSelectedPlan(null);
@@ -348,7 +657,7 @@ const HRISSubscriptionPlansTab = () => {
     } catch {
       // Error surfaced via toast from payment
     }
-  }, [selectedPlan, selectedMemberCount, isYearly, initiateMidtransPayment, proRatedData]);
+  }, [selectedPlan, selectedMemberCount, isYearly, initiateMidtransPayment, proRatedData, omnichannelPaidSeats, mergeCheckoutSelectionsForSelectedPlan]);
 
   const handleChooseScheduled = useCallback(async () => {
     if (!selectedPlan || !proRatedData?.calculation) return;
@@ -384,7 +693,8 @@ const HRISSubscriptionPlansTab = () => {
   // Function to check if upgrade/downgrade is allowed
   const canChangePlan = (plan: SubscriptionPlan, newMemberCount: number) => {
     if (!subscriptionStatus) return true;
-    
+    if (rosterCount > newMemberCount) return false;
+
     const isCurrent = isCurrentPlan(plan);
     const currentMemberLimit = subscriptionStatus.member_count || 0;
     
@@ -459,7 +769,7 @@ const HRISSubscriptionPlansTab = () => {
 
                 {/* Plans Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {plans?.map((plan) => {
+                  {activePlans.map((plan) => {
                     const isTrialPlan = plan.name === 'Trial' || plan.base_price_per_member === 0;
                     const maxEmployees = isTrialPlan ? getEmployeeLimitFromFeatures(plan.features) : 100;
                     const isCurrent = isCurrentPlan(plan);
@@ -485,7 +795,9 @@ const HRISSubscriptionPlansTab = () => {
                     const buttonText = getButtonText(plan, memberCount, billingCycle, isRenewEligible);
                     const currentBillingCycle = subscriptionStatus?.billing_cycle || 'monthly';
                     const hasBillingCycleChange = isCurrent && billingCycle !== currentBillingCycle;
-                    
+
+                    const mergedAddOns = mergeSelections(plan, isCurrent, memberCount);
+
                     return (
                       <PlanCard
                         key={plan.id}
@@ -508,14 +820,53 @@ const HRISSubscriptionPlansTab = () => {
                         subscriptionStatus={subscriptionStatus}
                         lastPaidAmount={isCurrent ? lastPaidAmount : undefined}
                         lastPaidMemberCount={isCurrent ? lastPaidMemberCount : undefined}
+                        addOnSelections={mergedAddOns}
+                        onAddOnIncludedChange={(code, inc) => handleAddOnIncludedChange(plan.id, code, inc)}
+                        onAddOnQuantityChange={(code, qty) =>
+                          handleAddOnQuantityChange(plan.id, code, qty, memberCount)
+                        }
+                        omnichannelPaidSeats={omnichannelPaidSeats}
+                        omnichannelRosterActiveCount={rosterCount}
                         onRenew={handleRenew}
                         onMemberCountChange={handleMemberCountChange}
                         onBillingCycleChange={handleBillingCycleChange}
                         onUpgrade={handleUpgrade}
+                        isPrimaryActionLoading={
+                          planCardPrimaryPendingId === plan.id &&
+                          (proRateCalculation.isPending || isMidtransConfirmLoading)
+                        }
                       />
                     );
                   })}
                 </div>
+
+                {activePlans.some((p) => planEligibleForOmnichannelAddonDisplay(p)) &&
+                  !showOmnichannelAddonInsideScaleUpCard && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
+                    <h3 className="font-semibold text-foreground">{t("subscription.plans.omnichannelAddonTitle")}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t("subscription.plans.omnichannelAddonSubtitle", {
+                        amount: formatIDR(globalOmnichannelUnitPrice),
+                      })}
+                    </p>
+                    <p className="mt-2 text-foreground">
+                      {t("subscription.plans.omnichannelPaidSeatsEntitled", { count: omnichannelPaidSeats })}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t("subscription.plans.omnichannelRosterActiveLine", { count: rosterCount })}
+                    </p>
+                    <p className="mt-1 text-foreground">
+                      {t("subscription.plans.omnichannelMonthlyLine", {
+                        amount: formatIDR(
+                          getOmnichannelAddonMonthlyTotalIdr(omnichannelPaidSeats, globalOmnichannelUnitPrice),
+                        ),
+                      })}
+                    </p>
+                      <Link to="/omnichannel/settings" className="mt-2 inline-block text-xs font-medium text-primary underline">
+                        {t("subscription.plans.manageRosterLink")}
+                      </Link>
+                    </div>
+                  )}
 
                 {/* Trust Indicators */}
                 <TrustIndicators />
@@ -525,7 +876,7 @@ const HRISSubscriptionPlansTab = () => {
             {/* Content Footer — same shell as subscription overview footers */}
             <div className="flex min-h-10 flex-shrink-0 items-center border-t border-border bg-muted/40 px-4 py-2">
               <div className="flex min-h-7 w-full items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>{t("subscription.plans.footer.showing", { count: plans?.length || 0 })}</span>
+                <span>{t("subscription.plans.footer.showing", { count: activePlans.length || 0 })}</span>
                 <span>
                   {t("subscription.plans.footer.lastUpdated", {
                     time: new Date().toLocaleTimeString(),
@@ -575,7 +926,7 @@ const HRISSubscriptionPlansTab = () => {
                 <div className="space-y-2 text-xs text-gray-600">
                   <div className="flex justify-between">
                     <span>{t("subscription.plans.comparison.totalPlans")}</span>
-                    <span className="font-medium">{plans?.length || 0}</span>
+                    <span className="font-medium">{activePlans.length || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>{t("subscription.plans.comparison.currentEmployees")}</span>
@@ -583,7 +934,7 @@ const HRISSubscriptionPlansTab = () => {
                   </div>
                   <div className="flex justify-between">
                     <span>{t("subscription.plans.comparison.activeFeatures")}</span>
-                    <span className="font-medium">{plans?.length || 0}</span>
+                    <span className="font-medium">{activePlans.length || 0}</span>
                   </div>
                 </div>
               </div>
@@ -620,6 +971,8 @@ const HRISSubscriptionPlansTab = () => {
             (subscriptionStatus?.billing_cycle || 'monthly') === 'monthly' &&
             isYearly
           }
+          catalogAddOnTotalIdr={catalogAddOnForConfirmationModalIdr}
+          isConfirmLoading={isMidtransConfirmLoading}
         />
       )}
 
@@ -628,7 +981,7 @@ const HRISSubscriptionPlansTab = () => {
         onOpenChange={setIsOptionsModalOpen}
         onChooseImmediate={handleChooseImmediate}
         onChooseScheduled={handleChooseScheduled}
-        immediateAmount={proRatedData?.calculation?.prorate_amount || 0}
+        immediateAmount={(proRatedData?.calculation?.prorate_amount ?? 0) + catalogAddOnBillingChargeIdr}
         scheduledDate={proRatedData?.calculation?.scheduled_date || ''}
         planName={selectedPlan?.name || ''}
         currentPlanName={proRatedData?.current_plan?.name || subscriptionStatus?.plan_name || 'Unknown Plan'}
@@ -636,12 +989,19 @@ const HRISSubscriptionPlansTab = () => {
           from: proRatedData?.current_plan?.member_count || subscriptionStatus?.member_count || 0,
           to: selectedMemberCount
         }}
-        proRateData={{
-          remainingDays: proRatedData?.calculation?.remaining_days || 31,
-          proRatePercentage: proRatedData?.calculation?.prorate_percentage || 103.3,
-          memberCostIncrease: proRatedData?.calculation?.prorate_amount || 0,
-          currentPlanCredit: proRatedData?.calculation?.current_plan_credit || 0
-        }}
+        proRateData={
+          proRatedData?.calculation
+            ? {
+                remainingDays: proRatedData.calculation.remaining_days,
+                proRatePercentage: proRatedData.calculation.prorate_percentage ?? 0,
+                memberCostIncrease: proRatedData.calculation.prorate_amount ?? 0,
+                currentPlanCredit: Number(
+                  (proRatedData.calculation as { current_plan_credit?: number }).current_plan_credit ?? 0,
+                ),
+                skipProrate: Boolean(proRatedData.calculation.skip_prorate),
+              }
+            : undefined
+        }
       />
     </div>
   );

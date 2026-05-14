@@ -28,7 +28,7 @@ import {
   DrawerTrigger,
 } from "@/mobile-app/components/ui/drawer";
 import { ChevronDown } from "lucide-react";
-import { getLast30DaysDateRange } from "@/5-3-dashboard/components/leads/filters/dateRangePresets";
+import { getTodayDateRange } from "@/5-3-dashboard/components/leads/filters/dateRangePresets";
 import { endOfDay, endOfMonth, endOfWeek, startOfDay, startOfMonth, startOfWeek, subDays, subMonths } from "date-fns";
 
 function formatCompactInt(n: number) {
@@ -41,6 +41,13 @@ const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
 const INDICATOR_HEIGHT = 56;
 const PULL_RESISTANCE = 0.55;
+
+type TrafficSyncResponseBody = {
+  success?: unknown;
+  ok?: unknown;
+  error?: unknown;
+  message?: unknown;
+};
 
 export default function MobileWebTrafficPage() {
   useStatusBarStyle("light");
@@ -58,11 +65,11 @@ export default function MobileWebTrafficPage() {
     fromDate,
     toDate,
     rangeIsMaximum,
-  } = useTrafficDashboardController();
+  } = useTrafficDashboardController(() => getTodayDateRange());
 
   const [dateFilter, setDateFilter] = useState<
     "maximum" | "last_30" | "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "custom"
-  >("last_30");
+  >("today");
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [periodDrawerOpen, setPeriodDrawerOpen] = useState(false);
@@ -223,14 +230,15 @@ export default function MobileWebTrafficPage() {
       });
 
       const text = await res.text();
-      let parsed: any = null;
+      let parsed: TrafficSyncResponseBody | null = null;
       try {
-        parsed = text ? (JSON.parse(text) as any) : null;
+        const raw: unknown = text ? JSON.parse(text) : null;
+        parsed = raw && typeof raw === "object" ? (raw as TrafficSyncResponseBody) : null;
       } catch {
         parsed = null;
       }
 
-      if (res.ok && parsed?.success) {
+      if (res.ok && (parsed?.success === true || parsed?.ok === true)) {
         const desc = rangeIsMaximum
           ? `Rollup refreshed for ${effectiveWebId} (Maximum: semua tanggal yang tersedia).`
           : `Rollup refreshed for ${effectiveWebId} (${fromDate} → ${toDate}).`;
@@ -241,11 +249,11 @@ export default function MobileWebTrafficPage() {
       }
 
       if (res.status === 503 && attempt < delaysMs.length - 1) {
-        lastErr = { status: res.status, message: parsed?.error ?? text ?? "Edge runtime error" };
+        lastErr = { status: res.status, message: String(parsed?.error ?? parsed?.message ?? text ?? "Edge runtime error") };
         continue;
       }
 
-      lastErr = { status: res.status, message: parsed?.error ?? text ?? res.statusText };
+      lastErr = { status: res.status, message: String(parsed?.error ?? parsed?.message ?? text ?? res.statusText) };
       break;
     }
 
@@ -255,7 +263,7 @@ export default function MobileWebTrafficPage() {
       variant: "headsUp",
       duration: 3200,
     });
-  }, [dashboardQuery, effectiveWebId, fromDate, ingestionQuery, rangeIsMaximum, t, toast, toDate]);
+  }, [dashboardQuery, effectiveWebId, fromDate, ingestionQuery, rangeIsMaximum, toast, toDate]);
 
   const handleSync = useCallback(async () => {
     if (isRefreshing || dashboardQuery.isFetching) return;
@@ -558,13 +566,18 @@ export default function MobileWebTrafficPage() {
 
               <MobileUtmTrackingTable
                 rows={(dashboardQuery.data?.utm_table ?? []).map((r) => ({
+                  visit_key: (r as { visit_key?: string | null }).visit_key ?? null,
+                  visitor_id: (r as { visitor_id?: string | null }).visitor_id ?? null,
+                  session_id: (r as { session_id?: string | null }).session_id ?? null,
+                  day: (r as { day?: string | null }).day ?? null,
+                  occurred_at: (r as { occurred_at?: string | null }).occurred_at ?? null,
+                  time_label: (r as { time_label?: string | null }).time_label ?? null,
                   route: (r as { route?: string | null }).route ?? null,
                   utm_campaign: (r as { utm_campaign?: string | null }).utm_campaign ?? null,
                   utm_source: (r as { utm_source?: string | null }).utm_source ?? null,
                   utm_medium: (r as { utm_medium?: string | null }).utm_medium ?? null,
                   utm_content: (r as { utm_content?: string | null }).utm_content ?? null,
                   utm_term: (r as { utm_term?: string | null }).utm_term ?? null,
-                  sessions: Number((r as { sessions?: unknown }).sessions ?? 0),
                   page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
                   clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
                   max_deep_scroll_pct: (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null

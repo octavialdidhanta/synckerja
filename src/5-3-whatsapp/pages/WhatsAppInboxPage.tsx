@@ -200,12 +200,6 @@ export function WhatsAppInboxPage() {
               <div className="flex-shrink-0">
                 <HeaderAndTab />
               </div>
-              {waAccounts.length === 0 && (
-                <div className="flex-shrink-0 mx-4 mb-2 px-3 py-2 rounded-lg bg-slate-100 border border-slate-300 text-sm text-slate-800 flex items-center gap-2" role="alert">
-                  <span className="font-medium">{t('whatsappInbox.noAccountBannerTitle', 'Tidak ada akun WhatsApp terhubung')}</span>
-                  <span>{t('whatsappInbox.noAccountBannerBody', 'Percakapan yang tampil adalah riwayat lama. Untuk mengirim pesan, hubungkan akun di Connect WhatsApp.')}</span>
-                </div>
-              )}
               <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-row max-w-full rounded-lg border border-gray-200 shadow-sm bg-white max-h-[calc(100vh-120px)]">
                 {/* Kiri: daftar conversation - sidebar */}
                 <aside className="flex-shrink-0 border-r border-gray-200 flex flex-col min-h-0 bg-white" style={{ width: '20rem', minWidth: '20rem' }} aria-label="Conversations">
@@ -331,7 +325,7 @@ export function WhatsAppInboxPage() {
                           <PanelRightClose className="w-4 h-4" />
                         </button>
                       </div>
-                      <div className="flex-1 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain min-h-0 p-4">
+                      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         <LivechatQuickActionPanel conversation={selectedConversation ?? null} />
                       </div>
                     </>

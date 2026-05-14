@@ -23,6 +23,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useSaveToPlan, type NewPlanData } from '../hooks/useSaveToPlan';
 import { parseAIScriptMetadata } from '../utils/parseAIScriptOutput';
+import { dedupeMasterRowsByNamePreferOrg } from '../utils/dedupeMasterRowsByNamePreferOrg';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { InfoTooltip } from '@/2-1-employees/MyInfo/LeavePermit/components/info-tooltip';
 import { ContentCalendarPlanPicker, type PlanForPicker } from './ContentCalendarPlanPicker';
@@ -119,7 +120,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
       setContentTypes(ct.data || []);
       setServices(svc.data || []);
       setSubServices(sub.data || []);
-      setContentPillars(cp.data || []);
+      setContentPillars(dedupeMasterRowsByNamePreferOrg(cp.data || [], organizationId));
       const statusNameById = new Map((statuses.data || []).map((status) => [status.id, status.name]));
       const activeEmployees = ((emp.data || []) as Employee[])
         .map((employee) => ({

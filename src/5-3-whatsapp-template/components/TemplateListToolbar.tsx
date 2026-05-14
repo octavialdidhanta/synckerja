@@ -6,13 +6,31 @@ import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
+import type { WhatsAppAccount } from "@/5-3-whatsapp/types";
 import type { DateRangePreset } from "../types";
 import { STATUS_FILTER_OPTIONS, type StatusFilterOption } from "../types";
+
+function whatsAppAccountLabel(a: WhatsAppAccount): string {
+  const name = (a.whatsapp_business_name ?? "").trim();
+  const phone = (a.display_phone_number ?? "").trim();
+  if (name && phone) return `${name} (${phone})`;
+  if (name) return name;
+  if (phone) return phone;
+  return a.phone_number_id;
+}
 
 const CATEGORY_OPTIONS = ["Marketing", "Utility", "Authentication"] as const;
 
 const DATE_LABELS: Record<DateRangePreset, string> = {
+  all: "All time",
   "7": "Last 7 days",
   "30": "Last 30 days",
   "60": "Last 60 days",
@@ -34,6 +52,10 @@ export type TemplateListToolbarProps = {
   dateFilterDisabled: boolean;
   onResetFilters: () => void;
   onCreateClick: () => void;
+  whatsappAccounts: WhatsAppAccount[];
+  whatsappAccountsLoading: boolean;
+  selectedWhatsappAccountId: string | null;
+  onSelectedWhatsappAccountIdChange: (id: string) => void;
 };
 
 export function TemplateListToolbar({
@@ -51,6 +73,10 @@ export function TemplateListToolbar({
   dateFilterDisabled,
   onResetFilters,
   onCreateClick,
+  whatsappAccounts,
+  whatsappAccountsLoading,
+  selectedWhatsappAccountId,
+  onSelectedWhatsappAccountIdChange,
 }: TemplateListToolbarProps) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusDraft, setStatusDraft] = useState<Set<StatusFilterOption>>(() => new Set(statusFilters));
@@ -106,6 +132,25 @@ export function TemplateListToolbar({
   return (
     <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        {whatsappAccounts.length > 0 ? (
+          <Select
+            value={selectedWhatsappAccountId ?? whatsappAccounts[0]?.id ?? ""}
+            onValueChange={onSelectedWhatsappAccountIdChange}
+            disabled={whatsappAccountsLoading}
+          >
+            <SelectTrigger className="h-9 w-[min(100%,14rem)] min-w-[11rem] max-w-[16rem] shrink-0 font-normal" aria-label="WhatsApp account">
+              <SelectValue placeholder="Akun WhatsApp" />
+            </SelectTrigger>
+            <SelectContent align="start">
+              {whatsappAccounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {whatsAppAccountLabel(a)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+
         <div className="relative min-w-[140px] max-w-xs flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input

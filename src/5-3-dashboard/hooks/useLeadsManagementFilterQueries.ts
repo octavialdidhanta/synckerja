@@ -1,5 +1,97 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { getLeadStatusDisplayName } from "@/5-1-leads-management/utils/leadStatusDisplay";
+
+/**
+ * Opsi filter kolom Source: master `lead_sources` + nilai `lead.source` yang ada di data
+ * (mis. default "Website") agar dropdown tidak hanya "All Sources" bila master DB kosong/tidak lengkap.
+ */
+export function buildLeadSourceFilterOptions(
+  leads: Array<{ source?: string | null }>,
+  masterSources: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  const byName = new Map<string, { id: string; name: string }>();
+  for (const s of masterSources) {
+    const n = (s.name ?? "").trim();
+    if (n) byName.set(n, { id: s.id, name: n });
+  }
+  let seq = 0;
+  for (const l of leads) {
+    const n = (l.source ?? "").trim();
+    if (!n) continue;
+    if (!byName.has(n)) {
+      byName.set(n, { id: `__from_lead__${seq++}`, name: n });
+    }
+  }
+  return [...byName.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
+/** Opsi filter Assignee: roster omnichannel + `lead.assignee` yang ada di data. */
+export function buildAssigneeFilterOptions(
+  leads: Array<{ assignee?: string | null }>,
+  roster: Array<{ id: string; full_name?: string | null; email?: string | null }>,
+): Array<{ id: string; name: string }> {
+  const byName = new Map<string, { id: string; name: string }>();
+  for (const e of roster) {
+    const label = (e.full_name || e.email || "").trim();
+    if (label) byName.set(label, { id: e.id, name: label });
+  }
+  let seq = 0;
+  for (const l of leads) {
+    const n = (l.assignee ?? "").trim();
+    if (!n) continue;
+    if (!byName.has(n)) {
+      byName.set(n, { id: `__assignee_lead__${seq++}`, name: n });
+    }
+  }
+  return [...byName.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
+/** Sama logika dedupe/sort seperti `LeadsFilters` untuk filter status (nilai filter = `lead_status.name`). */
+export function buildUniqueLeadStatusFilterOptions(
+  leadStatuses: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string; label: string }> {
+  const excluded = leadStatuses.filter((s) => {
+    const name = (s.name?.trim().toLowerCase() ?? "");
+    return name !== "lost" && name !== "qualified";
+  });
+  const canonical = ["Open", "Unread", "In Progress", "Converted", "Qualified", "Closed", "Resolve"];
+  const byDisplay = (
+    a: (typeof leadStatuses)[number],
+    b: (typeof leadStatuses)[number],
+  ) => {
+    const da = getLeadStatusDisplayName(a.name);
+    const db = getLeadStatusDisplayName(b.name);
+    const ia = canonical.indexOf(a.name ?? "");
+    const ib = canonical.indexOf(b.name ?? "");
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return (da || "").localeCompare(db || "");
+  };
+  const sorted = [...excluded].sort(byDisplay);
+  const seen = new Set<string>();
+  const out: Array<{ id: string; name: string; label: string }> = [];
+  for (const s of sorted) {
+    const displayName = getLeadStatusDisplayName(s.name);
+    if (seen.has(displayName)) continue;
+    seen.add(displayName);
+    out.push({ id: s.id, name: s.name ?? "", label: displayName });
+  }
+  return out;
+}
+
+/** Pilihan filter kolom FU Priority (nilai = string yang dipakai `filters.fuPriority`). */
+export const FU_PRIORITY_FILTER_CHOICES: Array<{ id: string; name: string }> = [
+  { id: "fu-pfu", name: "Please Follow Up" },
+  { id: "fu-high", name: "High" },
+  { id: "fu-medium", name: "Medium" },
+  { id: "fu-low", name: "Low" },
+];
 
 /** Shared with LeadsFilters + LeadsTableNew; one network fetch via React Query. */
 export const LEADS_MANAGEMENT_ACTIVE_STATUSES_QUERY_KEY = [

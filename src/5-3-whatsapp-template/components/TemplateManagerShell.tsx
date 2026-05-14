@@ -1,20 +1,23 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 
-type SubTab = "templates" | "groups";
+export type TemplateManagerSubTab = "templates" | "groups";
 
 export function TemplateManagerShell({
   activeSubTab,
   onSubTabChange,
   children,
 }: {
-  activeSubTab: SubTab;
-  onSubTabChange: (t: SubTab) => void;
+  activeSubTab: TemplateManagerSubTab;
+  onSubTabChange: (t: TemplateManagerSubTab) => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="min-w-0 space-y-4">
-      <div className="flex gap-6 border-b border-slate-200">
+      <div className="flex flex-wrap gap-6 border-b border-slate-200">
         <button
           type="button"
           onClick={() => onSubTabChange("templates")}
@@ -23,7 +26,7 @@ export function TemplateManagerShell({
             activeSubTab === "templates" ? "border-brand-blue text-brand-blue" : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
-          Templates
+          {t("whatsappTemplates.subTab.templates")}
         </button>
         <button
           type="button"
@@ -33,14 +36,14 @@ export function TemplateManagerShell({
             activeSubTab === "groups" ? "border-brand-blue text-brand-blue" : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
-          Template groups
+          {t("whatsappTemplates.subTab.groups")}
         </button>
       </div>
       {activeSubTab === "templates" ? (
         children
       ) : (
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-12 text-center text-sm text-muted-foreground">
-          Template groups akan tersedia pada pembaruan berikutnya.
+          {t("whatsappTemplates.subTab.groupsComingSoon")}
         </div>
       )}
     </div>

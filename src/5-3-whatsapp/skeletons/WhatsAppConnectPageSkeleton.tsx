@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 
 /**
- * Layout mirror for `/operations/consultant/whatsapp/connect` — used by PageAccessGuard,
+ * Layout mirror for `/omnichannel/integrations/whatsapp` — used by PageAccessGuard,
  * Suspense fallback, and in-page overlay (Loading Skeleton rule).
  */
 export function WhatsAppConnectPageSkeleton() {
@@ -17,7 +17,7 @@ export function WhatsAppConnectPageSkeleton() {
                   <Skeleton className="mb-0.5 h-7 w-14 max-w-[40%]" />
                   <Skeleton className="mb-3 h-3 w-80 max-w-full" />
                   <div className="-mb-3 flex min-w-0 flex-nowrap gap-x-6 overflow-x-hidden">
-                    {['w-28', 'w-36', 'w-32', 'w-36', 'w-28', 'w-36', 'w-24'].map((w, i) => (
+                    {['w-36', 'w-40', 'w-28'].map((w, i) => (
                       <Skeleton key={i} className={`h-8 shrink-0 ${w}`} />
                     ))}
                   </div>

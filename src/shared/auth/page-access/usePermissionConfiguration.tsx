@@ -164,8 +164,7 @@ export function PermissionConfigurationProvider({ children }: { children: ReactN
         const { data: fetchedConfigs, error } = await supabase
           .from("permission_configurations")
           .select("*")
-          .or(`organization_id.eq.${organization.id},organization_id.is.null`)
-          .eq("is_active", true)
+          .eq("organization_id", organization.id)
           .order("created_at", { ascending: false });
 
         if (error) {
@@ -180,18 +179,12 @@ export function PermissionConfigurationProvider({ children }: { children: ReactN
         } else {
           const configs = (fetchedConfigs || []) as PermissionConfiguration[];
           const mergedByPath = new Map<string, PermissionConfiguration>();
-          configs.forEach((cfg) => {
+          for (const cfg of configs) {
             const existing = mergedByPath.get(cfg.page_path);
-            if (!existing) {
-              mergedByPath.set(cfg.page_path, cfg);
-              return;
-            }
-            const existingIsOrgSpecific = existing.organization_id !== null;
-            const currentIsOrgSpecific = cfg.organization_id !== null;
-            if (currentIsOrgSpecific && !existingIsOrgSpecific) {
+            if (!existing || new Date(cfg.updated_at) > new Date(existing.updated_at)) {
               mergedByPath.set(cfg.page_path, cfg);
             }
-          });
+          }
           const resolvedConfigs = Array.from(mergedByPath.values());
           setConfigurations(resolvedConfigs);
           APP_CONFIG_CACHE.set(cacheKey, {
@@ -263,33 +256,111 @@ export function PermissionConfigurationProvider({ children }: { children: ReactN
     async (id: string, updates: Partial<PermissionConfiguration>) => {
       try {
         if (!organization?.id) {
-          throw new Error("No organization found");
+          return { success: false, error: "No organization found" };
         }
 
-        const updatedConfig = {
+        const row = configurationsRef.current.find((c) => c.id === id);
+        if (!row) {
+          return { success: false, error: "Configuration not found" };
+        }
+
+        if (
+          row.organization_id !== null &&
+          row.organization_id !== organization.id
+        ) {
+          return { success: false, error: "Cannot edit another organization's configuration" };
+        }
+
+        const patch = {
           ...updates,
           updated_at: new Date().toISOString(),
         };
 
+        // System defaults (`organization_id` NULL) are read-only under RLS. Toggles must create
+        // or update an org-scoped row for the same `page_path` (see migrations: unique per org+path).
+        if (row.organization_id === null) {
+          const { data: orgRow, error: orgLookupError } = await supabase
+            .from("permission_configurations")
+            .select("*")
+            .eq("organization_id", organization.id)
+            .eq("page_path", row.page_path)
+            .maybeSingle();
+
+          if (orgLookupError) {
+            console.error("permission_configurations org lookup:", orgLookupError);
+            return { success: false, error: orgLookupError.message };
+          }
+
+          if (orgRow) {
+            const { data, error } = await supabase
+              .from("permission_configurations")
+              .update(patch)
+              .eq("id", orgRow.id)
+              .eq("organization_id", organization.id)
+              .select()
+              .single();
+
+            if (error) {
+              return { success: false, error: error.message };
+            }
+            clearAccessCache();
+            setConfigurations((prev) =>
+              prev.map((c) =>
+                c.page_path === row.page_path ? (data as PermissionConfiguration) : c,
+              ),
+            );
+            APP_CONFIG_CACHE.delete(`${CACHE_KEY_PREFIX}${organization.id}`);
+            return { success: true, data: data as PermissionConfiguration };
+          }
+
+          const insertPayload = {
+            organization_id: organization.id,
+            page_path: row.page_path,
+            page_title: patch.page_title ?? row.page_title,
+            is_active: patch.is_active ?? row.is_active,
+            roles_allowed: patch.roles_allowed ?? row.roles_allowed ?? [],
+            job_levels_allowed: patch.job_levels_allowed ?? row.job_levels_allowed ?? [],
+            exceptions: patch.exceptions ?? row.exceptions ?? [],
+            exception_paths: patch.exception_paths ?? row.exception_paths ?? [],
+            created_by: user?.id ?? null,
+          };
+
+          const { data: inserted, error: insertError } = await supabase
+            .from("permission_configurations")
+            .insert([insertPayload])
+            .select()
+            .single();
+
+          if (insertError) {
+            return { success: false, error: insertError.message };
+          }
+          clearAccessCache();
+          setConfigurations((prev) =>
+            prev.map((c) =>
+              c.page_path === row.page_path ? (inserted as PermissionConfiguration) : c,
+            ),
+          );
+          APP_CONFIG_CACHE.delete(`${CACHE_KEY_PREFIX}${organization.id}`);
+          return { success: true, data: inserted as PermissionConfiguration };
+        }
+
         const { data, error } = await supabase
           .from("permission_configurations")
-          .update(updatedConfig)
+          .update(patch)
           .eq("id", id)
           .eq("organization_id", organization.id)
           .select()
           .single();
 
         if (error) {
-          console.warn("Could not update in database, updating local state:", error.message);
-          clearAccessCache();
-          setConfigurations((prev) =>
-            prev.map((c) => (c.id === id ? { ...c, ...updatedConfig } : c))
-          );
-          return { success: true, data: null };
+          return { success: false, error: error.message };
         }
 
         clearAccessCache();
-        setConfigurations((prev) => prev.map((c) => (c.id === id ? (data as PermissionConfiguration) : c)));
+        setConfigurations((prev) =>
+          prev.map((c) => (c.id === id ? (data as PermissionConfiguration) : c)),
+        );
+        APP_CONFIG_CACHE.delete(`${CACHE_KEY_PREFIX}${organization.id}`);
         return { success: true, data: data as PermissionConfiguration };
       } catch (error) {
         console.error("Error updating permission configuration:", error);
@@ -299,7 +370,7 @@ export function PermissionConfigurationProvider({ children }: { children: ReactN
         };
       }
     },
-    [organization?.id]
+    [organization?.id, user?.id]
   );
 
   const deletePermissionConfiguration = useCallback(
@@ -382,17 +453,17 @@ export function PermissionConfigurationProvider({ children }: { children: ReactN
         return s.toLowerCase();
       };
 
-      const matchingConfigs = configurations.filter((c) => {
-        const base = normalize(c.page_path);
-        const current = normalize(pagePath);
-        return current === base || current.startsWith(base + "/");
-      });
+      const matchingConfigs = configurations
+        .filter((c) => {
+          const base = normalize(c.page_path);
+          const current = normalize(pagePath);
+          return current === base || current.startsWith(base + "/");
+        })
+        .sort((a, b) => normalize(b.page_path).length - normalize(a.page_path).length);
 
       console.log("Matching configurations:", matchingConfigs);
 
-      const prioritizedConfig =
-        matchingConfigs.find((c) => c.organization_id !== null) ||
-        matchingConfigs.find((c) => c.organization_id === null);
+      const prioritizedConfig = matchingConfigs[0];
       console.log("Prioritized configuration:", prioritizedConfig);
 
       if (prioritizedConfig) {

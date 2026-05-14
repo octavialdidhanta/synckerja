@@ -4,6 +4,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { Tables } from '@supabase/types';
 import { getOptimizedCurrentOrganizationId } from './useOptimizedCurrentOrg';
 import { devLog } from '@/2-1-employees/MyInfo/PersonalInformation/utils/devLogger';
+import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
 
 export type Employee = Tables<'employees'> & {
   department_name?: string;
@@ -12,6 +13,8 @@ export type Employee = Tables<'employees'> & {
   branch_name?: string;
   employee_status_name?: string;
   is_organization_owner?: boolean;
+  /** Canonical `user_roles.role` for active org (highest privilege). */
+  organization_role?: string | null;
 };
 
 export const useEmployees = () => {
@@ -42,10 +45,27 @@ export const useEmployees = () => {
         .eq('id', organizationId)
         .single();
 
+      const { data: orgRoleRows } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .eq('organization_id', organizationId);
+
+      const rolesByUser = new Map<string, { role: string }[]>();
+      for (const row of orgRoleRows ?? []) {
+        if (!row.user_id) continue;
+        const list = rolesByUser.get(row.user_id) ?? [];
+        list.push({ role: row.role });
+        rolesByUser.set(row.user_id, list);
+      }
+
       // Get related data separately for each employee
       const enrichedEmployees = await Promise.all(
         (employees || []).map(async (emp) => {
           const isOwner = emp.user_id && organization && emp.user_id === organization.user_id;
+          const orgRoles = emp.user_id ? rolesByUser.get(emp.user_id) : undefined;
+          const organization_role = orgRoles?.length
+            ? pickHighestUserRoleFromRows(orgRoles)
+            : null;
           
           // Get related data separately to avoid JOIN issues
           const [departmentData, jobPositionData, jobLevelData, branchData, employeeStatusData] = await Promise.all([
@@ -61,6 +81,7 @@ export const useEmployees = () => {
           return {
             ...emp,
             is_organization_owner: isOwner,
+            organization_role,
             // Use consistent naming and proper fallbacks
             department_name: departmentData.data?.name || null,
             job_position_name: jobPositionData.data?.name || null,

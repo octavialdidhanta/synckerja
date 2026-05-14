@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
-import { Calendar, Users, CreditCard, AlertTriangle } from "lucide-react";
+import { Calendar, Users, CreditCard, AlertTriangle, Puzzle } from "lucide-react";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
 
 interface CurrentSubscriptionProps {
@@ -66,24 +66,22 @@ export const CurrentSubscription = memo(function CurrentSubscription({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-2">
+      <CardContent className="space-y-5">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2 md:gap-y-6">
+          <div className="min-w-0 space-y-2">
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="text-sm font-medium">{t("subscription.overview.employeeUsage")}</span>
-              {isNearLimit && <AlertTriangle className="h-4 w-4 text-brand-red" />}
+              {isNearLimit && <AlertTriangle className="h-4 w-4 shrink-0 text-brand-red" />}
             </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-sm">
-                <span>
-                  {t("subscription.overview.employeeUsageOf", {
-                    current: subscriptionStatus.current_employees,
-                    max: maxEmployees,
-                  })}
-                </span>
-                <span className={isNearLimit ? "text-brand-red" : "text-muted-foreground"}>
-                  {Math.round(employeeUsagePercentage)}%
+            <div className="space-y-1.5">
+              <div className="text-sm text-foreground">
+                {t("subscription.overview.employeeUsageOf", {
+                  current: subscriptionStatus.current_employees,
+                  max: maxEmployees,
+                })}{" "}
+                <span className={`tabular-nums ${isNearLimit ? "text-brand-red" : "text-muted-foreground"}`}>
+                  ({Math.round(employeeUsagePercentage)}%)
                 </span>
               </div>
               <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -98,9 +96,9 @@ export const CurrentSubscription = memo(function CurrentSubscription({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="text-sm font-medium">
                 {subscriptionStatus.is_trial
                   ? t("subscription.overview.trialPeriod")
@@ -127,9 +125,9 @@ export const CurrentSubscription = memo(function CurrentSubscription({
           </div>
 
           {!subscriptionStatus.is_trial && (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="text-sm font-medium">{t("subscription.overview.billing")}</span>
               </div>
               <div className="text-sm">
@@ -154,6 +152,24 @@ export const CurrentSubscription = memo(function CurrentSubscription({
               </div>
             </div>
           )}
+
+          <div
+            className={`min-w-0 space-y-2 ${subscriptionStatus.is_trial ? "md:col-span-2" : ""}`}
+          >
+            <div className="flex items-center gap-2">
+              <Puzzle className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="text-sm font-medium">{t("subscription.overview.addOnsTitle")}</span>
+            </div>
+            <div className="text-sm">
+              <p className="text-foreground">
+                {t("subscription.overview.omnichannelAddOnSummary", {
+                  paid: subscriptionStatus.omnichannel_paid_seat_count ?? 0,
+                  cap: subscriptionStatus.omnichannel_roster_seat_cap ?? 0,
+                })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("subscription.overview.omnichannelAddOnHint")}</p>
+            </div>
+          </div>
         </div>
 
         {isExpired ? (

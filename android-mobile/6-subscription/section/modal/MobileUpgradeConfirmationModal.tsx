@@ -52,6 +52,8 @@ interface MobileUpgradeConfirmationModalProps {
   proRatedData?: ProRatedData;
   isLoading?: boolean;
   isBillingCycleUpgradeOnly?: boolean;
+  /** Add-on portion included in the charged total (full list or prorated incremental; same rules as web). */
+  catalogAddOnChargeIdr?: number;
 }
 
 export const MobileUpgradeConfirmationModal = ({
@@ -67,6 +69,7 @@ export const MobileUpgradeConfirmationModal = ({
   proRatedData,
   isLoading,
   isBillingCycleUpgradeOnly = false,
+  catalogAddOnChargeIdr = 0,
 }: MobileUpgradeConfirmationModalProps) => {
   const { t, language } = useAppTranslation();
   const dateLocale = language === "id" ? "id-ID" : "en-US";
@@ -77,13 +80,15 @@ export const MobileUpgradeConfirmationModal = ({
   const fullPlanAmount = isYearly
     ? newPlan.base_price_per_member * newMemberCount * 12 * (1 - (newPlan.annual_discount_percentage || 0) / 100)
     : newPlan.base_price_per_member * newMemberCount;
+  const addon = Math.max(0, Math.round(Number(catalogAddOnChargeIdr)));
   // Total actually charged: prorate when immediate charge, else full plan (or 0 if scheduled)
-  const totalAmount =
-    isScheduled
-      ? 0
+  const totalAmount = isScheduled
+    ? 0
+    : isBillingCycleUpgradeOnly
+      ? fullPlanAmount + addon
       : isImmediateCharge && calculation?.prorate_amount != null
-        ? calculation.prorate_amount
-        : fullPlanAmount;
+        ? calculation.prorate_amount + addon
+        : fullPlanAmount + addon;
 
   const summaryLine = `${newPlan.name} • ${newMemberCount} ${t("subscription.plans.unit.member", "member")} • ${billingCycle === "yearly" ? t("subscription.plans.modal.details.billingYearly", "Tahunan") : t("subscription.plans.modal.details.billingMonthly", "Bulanan")}`;
 

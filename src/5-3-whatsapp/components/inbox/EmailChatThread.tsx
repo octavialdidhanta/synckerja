@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import DOMPurify from 'dompurify';
+import { useQuery } from '@tanstack/react-query';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
 import { useSendEmailReply } from '../../hooks/useSendEmailReply';
 import type { EmailConversation, EmailMessage } from '../../types';
+import { supabase } from '@/shared/lib/supabaseClient';
 import { Mail, Copy, Reply } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -139,6 +141,20 @@ function isVerificationEmail(msg: EmailMessage): boolean {
 
 export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadProps) {
   const { t } = useAppTranslation();
+  const { data: convStatus } = useQuery({
+    queryKey: ['email-conversation-status', conversation.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('email_conversations')
+        .select('assignee_id')
+        .eq('id', conversation.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { assignee_id: string | null } | null;
+    },
+    refetchInterval: 5000,
+  });
+  const sendBlocked = !convStatus?.assignee_id;
   const { data: messages = [], isLoading, isError, refetch } = useEmailMessages(conversation.id);
   const { sendReply, isSending } = useSendEmailReply();
   const [composeOpen, setComposeOpen] = useState(false);
@@ -201,6 +217,10 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
     bcc?: string;
     attachments: Array<{ filename: string; content: string }>;
   }) => {
+    if (sendBlocked) {
+      toast.error(t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.'));
+      return;
+    }
     try {
       await sendReply({
         conversation_id: conversation.id,
@@ -298,8 +318,12 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
                     size="sm"
                     className="text-blue-600 border-blue-200 hover:bg-blue-50"
                     onClick={() => handleReplyToMessage(msg)}
-                    disabled={isSending}
-                    title={t('emailConnect.replyFromMessage', 'Reply and quote this message')}
+                    disabled={isSending || sendBlocked}
+                    title={
+                      sendBlocked
+                        ? t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.')
+                        : t('emailConnect.replyFromMessage', 'Reply and quote this message')
+                    }
                   >
                     <Reply className="w-3.5 h-3.5 mr-1.5 shrink-0" />
                     {t('emailConnect.reply', 'Balas')}
@@ -311,12 +335,17 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
         })}
       </div>
       <div className="flex-shrink-0 sticky bottom-0 left-0 right-0 z-10 pt-1 pb-2.5 px-3 border-t border-slate-700 bg-slate-800 safe-area-bottom">
+        {sendBlocked ? (
+          <p className="mb-2 text-center text-xs text-amber-200 px-1">
+            {t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.')}
+          </p>
+        ) : null}
         <Button
           type="button"
           variant="outline"
           className="w-full mb-1.5 border-slate-400 bg-white text-slate-800 hover:bg-slate-100 hover:text-slate-900"
           onClick={handleOpenCompose}
-          disabled={isSending}
+          disabled={isSending || sendBlocked}
         >
           {t('emailConnect.newMessage', 'Pesan Baru')}
         </Button>

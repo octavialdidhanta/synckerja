@@ -1,7 +1,7 @@
 import { Skeleton } from '@/shared/components/ui/skeleton';
 
 /**
- * Layout mirror for `/operations/consultant/email/connect` — used by PageAccessGuard,
+ * Layout mirror for `/omnichannel/integrations/email` — used by PageAccessGuard,
  * React.Suspense, and the in-page loading overlay (Loading Skeleton rule).
  */
 export function EmailConnectPageSkeleton() {
@@ -20,8 +20,8 @@ export function EmailConnectPageSkeleton() {
                   </div>
                   <div className="-mb-3 min-w-0">
                     <div className="flex min-w-0 flex-nowrap gap-x-6 border-b border-transparent pb-0">
-                      {Array.from({ length: 7 }).map((_, i) => (
-                        <Skeleton key={i} className="h-9 w-[7.5rem] shrink-0 rounded-none" />
+                      {['w-36', 'w-40', 'w-28'].map((w, i) => (
+                        <Skeleton key={i} className={`h-9 shrink-0 rounded-none ${w}`} />
                       ))}
                     </div>
                   </div>

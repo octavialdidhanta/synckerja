@@ -6,14 +6,18 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
  */
 export function SubscriptionShellSkeleton() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-border bg-card px-4 pb-2 pt-4">
-        <Skeleton className="h-7 w-56 max-w-full" />
-        <Skeleton className="mt-2 h-3 w-80 max-w-full" />
-        <div className="mt-3 flex gap-6 border-b border-transparent">
-          <Skeleton className="h-8 w-28 rounded-none" />
-          <Skeleton className="h-8 w-24 rounded-none" />
-          <Skeleton className="h-8 w-32 rounded-none" />
+    <div className="flex min-h-0 flex-1 flex-col bg-gray-100 font-sans">
+      <div className="shrink-0 px-4">
+        <div className="px-1 py-3">
+          <div className="mb-3">
+            <Skeleton className="h-7 w-56 max-w-full" />
+            <Skeleton className="mt-2 h-3 w-80 max-w-full" />
+          </div>
+          <div className="-mb-3 flex space-x-6">
+            <Skeleton className="h-8 w-28 rounded-none" />
+            <Skeleton className="h-8 w-24 rounded-none" />
+            <Skeleton className="h-8 w-32 rounded-none" />
+          </div>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col px-4 pb-2 pt-1">

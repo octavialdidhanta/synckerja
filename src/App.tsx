@@ -44,10 +44,13 @@ import {
 } from "@/2-8-dashboard/skeletons/CompanyPageSkeletons";
 import { CompanyRouteSkeleton } from "@/2-8-dashboard/skeletons/CompanyRouteSkeleton";
 import { AccessPermissionsPageSkeleton } from "@/2-9-PageAccess/skeletons/AccessPermissionsPageSkeleton";
+import { EmployeesPageSkeleton } from "@/2-1-employees/components/EmployeesPageSkeleton";
+import { AddEmployeePageSkeleton } from "@/2-1-employees/add-employee/AddEmployeePageSkeleton";
 import { ExpenseDashboardRouteLoadingShell } from "@/shared/components/mobile/ExpenseDashboardRouteLoadingShell";
 import { IncomeBankAccountRouteLoadingShell } from "@/shared/components/mobile/IncomeBankAccountRouteLoadingShell";
 import { IncomeDashboardRouteLoadingShell } from "@/shared/components/mobile/IncomeDashboardRouteLoadingShell";
 import { IncomeTransactionRouteLoadingShell } from "@/shared/components/mobile/IncomeTransactionRouteLoadingShell";
+import { IncomePiutangRouteLoadingShell } from "@/shared/components/mobile/IncomePiutangRouteLoadingShell";
 import { DebtRouteLoadingShell } from "@/shared/components/mobile/DebtRouteLoadingShell";
 import { ApprovalsRouteLoadingShell } from "@/shared/components/mobile/ApprovalsRouteLoadingShell";
 import { PaymentProcessRouteLoadingShell } from "@/shared/components/mobile/PaymentProcessRouteLoadingShell";
@@ -67,6 +70,8 @@ import { ConsultantLivechatRouteLoadingShell } from "@/shared/components/mobile/
 import { ConsultantLeadsManagementRouteLoadingShell } from "@/shared/components/mobile/ConsultantLeadsManagementRouteLoadingShell";
 import { InstagramConnectPageSkeleton } from "@/5-3-whatsapp/skeletons/InstagramConnectPageSkeleton";
 import { ConsultantCrmDashboardPageSkeleton } from "@/5-3-dashboard/skeletons/ConsultantCrmDashboardPageSkeleton";
+import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
+import { OmnichannelSettingsPageSkeleton } from "@/5-3-dashboard/skeletons/OmnichannelSettingsPageSkeleton";
 import { EmailConnectPageSkeleton } from "@/5-3-whatsapp/pages/EmailConnectPageSkeleton";
 import { SalesActivitiesPageSkeleton } from "@/5-2-activities/skeletons/SalesActivitiesPageSkeleton";
 import { VisitSchedulingPageSkeleton } from "@/5-2-jadwal-kunjungan";
@@ -155,6 +160,9 @@ const ReviewRouteGate = lazy(() =>
 const CRMDashboardPage = lazy(() =>
   import("@/5-3-dashboard/pages/CRMDashboardPage").then((m) => ({ default: m.CRMDashboardPage })),
 );
+const OmnichannelSettingsPage = lazy(() =>
+  import("@/5-3-dashboard/pages/OmnichannelSettingsPage").then((m) => ({ default: m.OmnichannelSettingsPage })),
+);
 const SalesOperationsPage = lazy(() =>
   import("@/5-2-activities/pages/SalesOperationsPage").then((m) => ({ default: m.SalesOperationsPage })),
 );
@@ -171,6 +179,21 @@ const EmailConnectPage = lazy(() =>
 );
 const WhatsAppTemplatePage = lazy(() =>
   import("@/5-3-whatsapp-template/pages/WhatsAppTemplatePage").then((m) => ({ default: m.WhatsAppTemplatePage })),
+);
+const WhatsAppRecipientListsPage = lazy(() =>
+  import("@/5-3-whatsapp-template/pages/WhatsAppRecipientListsPage").then((m) => ({
+    default: m.WhatsAppRecipientListsPage,
+  })),
+);
+const WhatsAppRecipientListDetailPage = lazy(() =>
+  import("@/5-3-whatsapp-template/pages/WhatsAppRecipientListDetailPage").then((m) => ({
+    default: m.WhatsAppRecipientListDetailPage,
+  })),
+);
+const WhatsAppCampaignPage = lazy(() =>
+  import("@/5-3-whatsapp-template/pages/WhatsAppCampaignPage").then((m) => ({
+    default: m.WhatsAppCampaignPage,
+  })),
 );
 
 // Keep initial bundle small: lazy-load large desktop modules/pages.
@@ -321,6 +344,11 @@ const IncomeBankAccountRouteElement = lazy(() =>
     default: m.IncomeBankAccountRouteElement,
   })),
 );
+const IncomePiutangRouteElement = lazy(() =>
+  import("@/shared/components/mobile/incomesMobileRouteElements").then((m) => ({
+    default: m.IncomePiutangRouteElement,
+  })),
+);
 
 const HabitTrackerRouteElement = lazy(() =>
   import("@/shared/components/mobile/habitTrackerRouteElement").then((m) => ({ default: m.HabitTrackerRouteElement })),
@@ -363,6 +391,11 @@ const DailyTaskReportRouteElement = lazy(() =>
     default: m.DailyTaskReportRouteElement,
   })),
 );
+const FirstLoginRouteElement = lazy(() =>
+  import("@/2-1-employees/employee-invitation/FirstLogin").then((m) => ({
+    default: m.default,
+  })),
+);
 const ShareReceiptValidationRouteElement = lazy(() =>
   import("@/shared/components/mobile/shareReceiptValidationRouteElement").then((m) => ({
     default: m.ShareReceiptValidationRouteElement,
@@ -389,6 +422,7 @@ function AppRoutes() {
     <Suspense fallback={fallback}>
       <Routes>
         <Route path="/login" element={<LoginRouteElement />} />
+        <Route path="/first-login" element={<FirstLoginRouteElement />} />
         <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
         <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
         <Route path="/reset-password" element={<ResetPasswordRouteElement />} />
@@ -463,7 +497,6 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/"
-                    requiresPermissions={false}
                     loadingShell={<HomePageRouteLoadingShell />}
                     loadingShellWrapperClassName="bg-gray-100"
                   >
@@ -537,13 +570,30 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
-              <Route path="/employees" element={<EmployeePage />} />
+              <Route
+                path="/employees"
+                element={
+                  <PageAccessGuard
+                    pagePath="/employees"
+                    loadingShell={<EmployeesPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <EmployeePage />
+                  </PageAccessGuard>
+                }
+              />
               <Route
                 path="/employees/reprimand"
                 element={
-                  <HrManagementRoleGuard showPendingSkeleton={false}>
-                    <ReprimandManagementPage />
-                  </HrManagementRoleGuard>
+                  <PageAccessGuard
+                    pagePath="/employees/reprimand"
+                    loadingShell={<EmployeesPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <HrManagementRoleGuard showPendingSkeleton={false}>
+                      <ReprimandManagementPage />
+                    </HrManagementRoleGuard>
+                  </PageAccessGuard>
                 }
               />
               <Route path="/my-info/personal" element={<EmployeePersonalInfo />} />
@@ -584,7 +634,11 @@ function AppRoutes() {
               <Route
                 path="/access-permissions"
                 element={
-                  <PageAccessGuard requiresPermissions={false}>
+                  <PageAccessGuard
+                    pagePath="/access-permissions"
+                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-background"
+                  >
                     <AccessPermissionsSuspense>
                       <AccessPermissionsConfig />
                     </AccessPermissionsSuspense>
@@ -594,7 +648,11 @@ function AppRoutes() {
               <Route
                 path="/access-permissions/page-access"
                 element={
-                  <PageAccessGuard requiresPermissions={false}>
+                  <PageAccessGuard
+                    pagePath="/access-permissions/page-access"
+                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-background"
+                  >
                     <AccessPermissionsSuspense>
                       <AccessPermissionsConfig />
                     </AccessPermissionsSuspense>
@@ -604,7 +662,11 @@ function AppRoutes() {
               <Route
                 path="/access-permissions/overview"
                 element={
-                  <PageAccessGuard requiresPermissions={false}>
+                  <PageAccessGuard
+                    pagePath="/access-permissions/overview"
+                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-background"
+                  >
                     <AccessPermissionsSuspense>
                       <AccessPermissionsConfig />
                     </AccessPermissionsSuspense>
@@ -614,7 +676,11 @@ function AppRoutes() {
               <Route
                 path="/access-permissions/roles"
                 element={
-                  <PageAccessGuard requiresPermissions={false}>
+                  <PageAccessGuard
+                    pagePath="/access-permissions/roles"
+                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-background"
+                  >
                     <AccessPermissionsSuspense>
                       <AccessPermissionsConfig />
                     </AccessPermissionsSuspense>
@@ -624,7 +690,11 @@ function AppRoutes() {
               <Route
                 path="/access-permissions/pages"
                 element={
-                  <PageAccessGuard requiresPermissions={false}>
+                  <PageAccessGuard
+                    pagePath="/access-permissions/pages"
+                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-background"
+                  >
                     <AccessPermissionsSuspense>
                       <AccessPermissionsConfig />
                     </AccessPermissionsSuspense>
@@ -668,7 +738,10 @@ function AppRoutes() {
               <Route
                 path="/company/organization"
                 element={
-                  <PageAccessGuard loadingShell={<OrganizationGuardLoadingShell />}>
+                  <PageAccessGuard
+                    pagePath="/company/organization"
+                    loadingShell={<OrganizationGuardLoadingShell />}
+                  >
                     <CompanyOrganizationPage />
                   </PageAccessGuard>
                 }
@@ -695,6 +768,14 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard pagePath="/incomes/transaction" loadingShell={<IncomeTransactionRouteLoadingShell />}>
                     <IncomeTransactionRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/incomes/piutang"
+                element={
+                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={<IncomePiutangRouteLoadingShell />}>
+                    <IncomePiutangRouteElement />
                   </PageAccessGuard>
                 }
               />
@@ -876,10 +957,28 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
-              <Route path="/operations/customer-service/dashboard" element={<Navigate to="/operations/consultant/leads-management" replace />} />
-              <Route path="/operations/customer-service/tickets" element={<Navigate to="/operations/consultant/leads-management" replace />} />
-              <Route path="/operations/customer-service" element={<Navigate to="/operations/consultant/leads-management" replace />} />
-              <Route path="/operations/consultant/sales-consultant" element={<Navigate to="/operations/consultant/leads-management" replace />} />
+              <Route
+                path="/omnichannel/settings"
+                element={<Navigate to={OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO} replace />}
+              />
+              <Route
+                path="/omnichannel/settings/:section"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/settings"
+                    loadingShell={<OmnichannelSettingsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <OmnichannelSettingsSuspense>
+                      <OmnichannelSettingsPage />
+                    </OmnichannelSettingsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/operations/customer-service/dashboard" element={<Navigate to="/omnichannel/leads" replace />} />
+              <Route path="/operations/customer-service/tickets" element={<Navigate to="/omnichannel/leads" replace />} />
+              <Route path="/operations/customer-service" element={<Navigate to="/omnichannel/leads" replace />} />
+              <Route path="/operations/consultant/sales-consultant" element={<Navigate to="/omnichannel/leads" replace />} />
               <Route path="/operations/sales" element={<Navigate to="/operations/sales/activities" replace />} />
               <Route
                 path="/operations/sales/activities"
@@ -930,10 +1029,10 @@ function AppRoutes() {
                 }
               />
               <Route
-                path="/operations/consultant/dashboard"
+                path="/omnichannel/crm"
                 element={
                   <PageAccessGuard
-                    pagePath="/operations/consultant/dashboard"
+                    pagePath="/omnichannel/crm"
                     loadingShell={<ConsultantCrmDashboardPageSkeleton />}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
@@ -944,10 +1043,10 @@ function AppRoutes() {
                 }
               />
               <Route
-                path="/operations/consultant/leads-management"
+                path="/omnichannel/leads"
                 element={
                   <PageAccessGuard
-                    pagePath="/operations/consultant/leads-management"
+                    pagePath="/omnichannel/leads"
                     loadingShell={<ConsultantLeadsManagementRouteLoadingShell />}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
@@ -956,10 +1055,10 @@ function AppRoutes() {
                 }
               />
               <Route
-                path="/operations/consultant/whatsapp/connect"
+                path="/omnichannel/integrations/whatsapp"
                 element={
                   <PageAccessGuard
-                    pagePath="/operations/consultant/whatsapp/connect"
+                    pagePath="/omnichannel/integrations/whatsapp"
                     loadingShell={<WhatsAppConnectPageSkeleton />}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
@@ -970,10 +1069,10 @@ function AppRoutes() {
                 }
               />
               <Route
-                path="/operations/consultant/instagram/connect"
+                path="/omnichannel/integrations/instagram"
                 element={
                   <PageAccessGuard
-                    pagePath="/operations/consultant/instagram/connect"
+                    pagePath="/omnichannel/integrations/instagram"
                     loadingShellWrapperClassName="bg-surface-muted"
                     loadingShell={
                       <div
@@ -993,10 +1092,10 @@ function AppRoutes() {
                 }
               />
               <Route
-                path="/operations/consultant/email/connect"
+                path="/omnichannel/integrations/email"
                 element={
                   <PageAccessGuard
-                    pagePath="/operations/consultant/email/connect"
+                    pagePath="/omnichannel/integrations/email"
                     loadingShell={<EmailConnectPageSkeleton />}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
@@ -1007,10 +1106,10 @@ function AppRoutes() {
                 }
               />
               <Route
-                path="/operations/consultant/all/livechat"
+                path="/omnichannel/livechat"
                 element={
                   <PageAccessGuard
-                    pagePath="/operations/consultant/all/livechat"
+                    pagePath="/omnichannel/livechat"
                     loadingShell={<ConsultantLivechatRouteLoadingShell />}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
@@ -1019,7 +1118,57 @@ function AppRoutes() {
                 }
               />
               <Route
+                path="/operations/consultant/whatsapp/templates/recipient-lists"
+                element={<Navigate to="/omnichannel/campaign/recipient-lists" replace />}
+              />
+              <Route
+                path="/omnichannel/campaign/recipient-lists/:listId"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/campaign/recipient-lists"
+                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <WhatsAppTemplateSuspense>
+                      <WhatsAppRecipientListDetailPage />
+                    </WhatsAppTemplateSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/omnichannel/campaign/recipient-lists"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/campaign/recipient-lists"
+                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <WhatsAppTemplateSuspense>
+                      <WhatsAppRecipientListsPage />
+                    </WhatsAppTemplateSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/omnichannel/campaign/whatsapp"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/consultant/whatsapp/templates"
+                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <WhatsAppTemplateSuspense>
+                      <WhatsAppCampaignPage />
+                    </WhatsAppTemplateSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
                 path="/operations/consultant/whatsapp/templates"
+                element={<Navigate to="/omnichannel/campaign/templates" replace />}
+              />
+              <Route
+                path="/omnichannel/campaign/templates"
                 element={
                   <PageAccessGuard
                     pagePath="/operations/consultant/whatsapp/templates"
@@ -1039,7 +1188,18 @@ function AppRoutes() {
                 <Route path="/subscription/management" element={<SubscriptionManagementRouteElement />} />
               </Route>
             </Route>
-            <Route path="/employees/add" element={<AddEmployeePage />} />
+            <Route
+              path="/employees/add"
+              element={
+                <PageAccessGuard
+                  pagePath="/employees/add"
+                  loadingShell={<AddEmployeePageSkeleton />}
+                  loadingShellWrapperClassName="bg-gray-50"
+                >
+                  <AddEmployeePage />
+                </PageAccessGuard>
+              }
+            />
             <Route path="/create-organization" element={<CreateOrganizationRouteElement />} />
             <Route path="/create-plan" element={<CreatePlanRouteElement />} />
             <Route path="/employee-welcome" element={<EmployeeWelcomeRouteElement />} />
@@ -1077,6 +1237,22 @@ const ConsultantCrmDashboardSuspense = ({ children }: { children: ReactNode }) =
         aria-label="Loading CRM dashboard"
       >
         <ConsultantCrmDashboardPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const OmnichannelSettingsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading omnichannel settings"
+      >
+        <OmnichannelSettingsPageSkeleton />
       </div>
     }
   >
@@ -1531,6 +1707,7 @@ const App = () => (
                   >
                     <Routes>
                   <Route path="/login" element={<LoginRouteElement />} />
+                  <Route path="/first-login" element={<FirstLoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
                   <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
                   <Route path="/reset-password" element={<ResetPasswordRouteElement />} />
@@ -1608,7 +1785,6 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/"
-                              requiresPermissions={false}
                               loadingShell={<HomePageRouteLoadingShell />}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -1682,13 +1858,30 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
-                        <Route path="/employees" element={<EmployeePage />} />
+                        <Route
+                          path="/employees"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/employees"
+                              loadingShell={<EmployeesPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <EmployeePage />
+                            </PageAccessGuard>
+                          }
+                        />
                         <Route
                           path="/employees/reprimand"
                           element={
-                            <HrManagementRoleGuard showPendingSkeleton={false}>
-                              <ReprimandManagementPage />
-                            </HrManagementRoleGuard>
+                            <PageAccessGuard
+                              pagePath="/employees/reprimand"
+                              loadingShell={<EmployeesPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <HrManagementRoleGuard showPendingSkeleton={false}>
+                                <ReprimandManagementPage />
+                              </HrManagementRoleGuard>
+                            </PageAccessGuard>
                           }
                         />
                         <Route path="/my-info/personal" element={<EmployeePersonalInfo />} />
@@ -1729,7 +1922,11 @@ const App = () => (
                         <Route
                           path="/access-permissions"
                           element={
-                            <PageAccessGuard requiresPermissions={false}>
+                            <PageAccessGuard
+                              pagePath="/access-permissions"
+                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-background"
+                            >
                               <AccessPermissionsSuspense>
                                 <AccessPermissionsConfig />
                               </AccessPermissionsSuspense>
@@ -1739,7 +1936,11 @@ const App = () => (
                         <Route
                           path="/access-permissions/page-access"
                           element={
-                            <PageAccessGuard requiresPermissions={false}>
+                            <PageAccessGuard
+                              pagePath="/access-permissions/page-access"
+                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-background"
+                            >
                               <AccessPermissionsSuspense>
                                 <AccessPermissionsConfig />
                               </AccessPermissionsSuspense>
@@ -1749,7 +1950,11 @@ const App = () => (
                         <Route
                           path="/access-permissions/overview"
                           element={
-                            <PageAccessGuard requiresPermissions={false}>
+                            <PageAccessGuard
+                              pagePath="/access-permissions/overview"
+                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-background"
+                            >
                               <AccessPermissionsSuspense>
                                 <AccessPermissionsConfig />
                               </AccessPermissionsSuspense>
@@ -1759,7 +1964,11 @@ const App = () => (
                         <Route
                           path="/access-permissions/roles"
                           element={
-                            <PageAccessGuard requiresPermissions={false}>
+                            <PageAccessGuard
+                              pagePath="/access-permissions/roles"
+                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-background"
+                            >
                               <AccessPermissionsSuspense>
                                 <AccessPermissionsConfig />
                               </AccessPermissionsSuspense>
@@ -1769,7 +1978,11 @@ const App = () => (
                         <Route
                           path="/access-permissions/pages"
                           element={
-                            <PageAccessGuard requiresPermissions={false}>
+                            <PageAccessGuard
+                              pagePath="/access-permissions/pages"
+                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-background"
+                            >
                               <AccessPermissionsSuspense>
                                 <AccessPermissionsConfig />
                               </AccessPermissionsSuspense>
@@ -1813,7 +2026,10 @@ const App = () => (
                         <Route
                           path="/company/organization"
                           element={
-                            <PageAccessGuard loadingShell={<OrganizationGuardLoadingShell />}>
+                            <PageAccessGuard
+                              pagePath="/company/organization"
+                              loadingShell={<OrganizationGuardLoadingShell />}
+                            >
                               <CompanyOrganizationPage />
                             </PageAccessGuard>
                           }
@@ -1852,6 +2068,17 @@ const App = () => (
                               loadingShell={<IncomeTransactionRouteLoadingShell />}
                             >
                               <IncomeTransactionRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/incomes/piutang"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/incomes/transaction"
+                              loadingShell={<IncomePiutangRouteLoadingShell />}
+                            >
+                              <IncomePiutangRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -2082,20 +2309,38 @@ const App = () => (
                           }
                         />
                         <Route
+                          path="/omnichannel/settings"
+                          element={<Navigate to={OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO} replace />}
+                        />
+                        <Route
+                          path="/omnichannel/settings/:section"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/settings"
+                              loadingShell={<OmnichannelSettingsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <OmnichannelSettingsSuspense>
+                                <OmnichannelSettingsPage />
+                              </OmnichannelSettingsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
                           path="/operations/customer-service/dashboard"
-                          element={<Navigate to="/operations/consultant/leads-management" replace />}
+                          element={<Navigate to="/omnichannel/leads" replace />}
                         />
                         <Route
                           path="/operations/customer-service/tickets"
-                          element={<Navigate to="/operations/consultant/leads-management" replace />}
+                          element={<Navigate to="/omnichannel/leads" replace />}
                         />
                         <Route
                           path="/operations/customer-service"
-                          element={<Navigate to="/operations/consultant/leads-management" replace />}
+                          element={<Navigate to="/omnichannel/leads" replace />}
                         />
                         <Route
                           path="/operations/consultant/sales-consultant"
-                          element={<Navigate to="/operations/consultant/leads-management" replace />}
+                          element={<Navigate to="/omnichannel/leads" replace />}
                         />
                         <Route path="/operations/sales" element={<Navigate to="/operations/sales/activities" replace />} />
                         <Route
@@ -2147,10 +2392,10 @@ const App = () => (
                           }
                         />
                         <Route
-                          path="/operations/consultant/dashboard"
+                          path="/omnichannel/crm"
                           element={
                             <PageAccessGuard
-                              pagePath="/operations/consultant/dashboard"
+                              pagePath="/omnichannel/crm"
                               loadingShell={<ConsultantCrmDashboardPageSkeleton />}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
@@ -2161,10 +2406,10 @@ const App = () => (
                           }
                         />
                         <Route
-                          path="/operations/consultant/leads-management"
+                          path="/omnichannel/leads"
                           element={
                             <PageAccessGuard
-                              pagePath="/operations/consultant/leads-management"
+                              pagePath="/omnichannel/leads"
                               loadingShell={<ConsultantLeadsManagementRouteLoadingShell />}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
@@ -2173,10 +2418,10 @@ const App = () => (
                           }
                         />
                         <Route
-                          path="/operations/consultant/whatsapp/connect"
+                          path="/omnichannel/integrations/whatsapp"
                           element={
                             <PageAccessGuard
-                              pagePath="/operations/consultant/whatsapp/connect"
+                              pagePath="/omnichannel/integrations/whatsapp"
                               loadingShell={<WhatsAppConnectPageSkeleton />}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
@@ -2187,10 +2432,10 @@ const App = () => (
                           }
                         />
                         <Route
-                          path="/operations/consultant/instagram/connect"
+                          path="/omnichannel/integrations/instagram"
                           element={
                             <PageAccessGuard
-                              pagePath="/operations/consultant/instagram/connect"
+                              pagePath="/omnichannel/integrations/instagram"
                               loadingShellWrapperClassName="bg-surface-muted"
                               loadingShell={
                                 <div
@@ -2210,10 +2455,10 @@ const App = () => (
                           }
                         />
                         <Route
-                          path="/operations/consultant/email/connect"
+                          path="/omnichannel/integrations/email"
                           element={
                             <PageAccessGuard
-                              pagePath="/operations/consultant/email/connect"
+                              pagePath="/omnichannel/integrations/email"
                               loadingShell={<EmailConnectPageSkeleton />}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
@@ -2224,10 +2469,10 @@ const App = () => (
                           }
                         />
                         <Route
-                          path="/operations/consultant/all/livechat"
+                          path="/omnichannel/livechat"
                           element={
                             <PageAccessGuard
-                              pagePath="/operations/consultant/all/livechat"
+                              pagePath="/omnichannel/livechat"
                               loadingShell={<ConsultantLivechatRouteLoadingShell />}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
@@ -2236,7 +2481,57 @@ const App = () => (
                           }
                         />
                         <Route
+                          path="/operations/consultant/whatsapp/templates/recipient-lists"
+                          element={<Navigate to="/omnichannel/campaign/recipient-lists" replace />}
+                        />
+                        <Route
+                          path="/omnichannel/campaign/recipient-lists/:listId"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/campaign/recipient-lists"
+                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <WhatsAppTemplateSuspense>
+                                <WhatsAppRecipientListDetailPage />
+                              </WhatsAppTemplateSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/omnichannel/campaign/recipient-lists"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/campaign/recipient-lists"
+                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <WhatsAppTemplateSuspense>
+                                <WhatsAppRecipientListsPage />
+                              </WhatsAppTemplateSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/omnichannel/campaign/whatsapp"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/consultant/whatsapp/templates"
+                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <WhatsAppTemplateSuspense>
+                                <WhatsAppCampaignPage />
+                              </WhatsAppTemplateSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
                           path="/operations/consultant/whatsapp/templates"
+                          element={<Navigate to="/omnichannel/campaign/templates" replace />}
+                        />
+                        <Route
+                          path="/omnichannel/campaign/templates"
                           element={
                             <PageAccessGuard
                               pagePath="/operations/consultant/whatsapp/templates"
@@ -2486,7 +2781,18 @@ const App = () => (
                           <Route path="/subscription/management" element={<SubscriptionManagementRouteElement />} />
                         </Route>
                       </Route>
-                      <Route path="/employees/add" element={<AddEmployeePage />} />
+                      <Route
+                        path="/employees/add"
+                        element={
+                          <PageAccessGuard
+                            pagePath="/employees/add"
+                            loadingShell={<AddEmployeePageSkeleton />}
+                            loadingShellWrapperClassName="bg-gray-50"
+                          >
+                            <AddEmployeePage />
+                          </PageAccessGuard>
+                        }
+                      />
                       <Route path="/create-organization" element={<CreateOrganizationRouteElement />} />
                       <Route path="/create-plan" element={<CreatePlanRouteElement />} />
                       <Route path="/employee-welcome" element={<EmployeeWelcomeRouteElement />} />

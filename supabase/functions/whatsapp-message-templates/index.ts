@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -32,11 +32,42 @@ async function resolveGraphContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   _userId: string,
   activeOrgId: string | null,
+  /** `organization_whatsapp_accounts.id` — when set, use that row (org-scoped); otherwise first active account + meta fallback. */
+  whatsappAccountId: string | null,
 ): Promise<GraphContext | null> {
   /** Templates are scoped to the user's active organization only (no cross-org fallback). */
   if (!activeOrgId) return null;
 
   const tryOrg = async (oid: string): Promise<GraphContext | null> => {
+    const accId = (whatsappAccountId ?? "").trim();
+
+    if (accId) {
+      const { data: row } = await supabaseAdmin
+        .from("organization_whatsapp_accounts")
+        .select("meta_access_token, whatsapp_business_account_id, phone_number_id")
+        .eq("organization_id", oid)
+        .eq("id", accId)
+        .maybeSingle();
+      if (!row) return null;
+      let accessToken = (row.meta_access_token ?? "").toString().trim();
+      if (!accessToken) {
+        const { data: metaOnly } = await supabaseAdmin
+          .from("organization_meta_config")
+          .select("meta_access_token")
+          .eq("organization_id", oid)
+          .maybeSingle();
+        accessToken = (metaOnly?.meta_access_token ?? "").toString().trim();
+      }
+      if (!accessToken) return null;
+      let wabaId = (row.whatsapp_business_account_id ?? "").toString().trim();
+      const phoneNumberId = (row.phone_number_id ?? "").toString().trim();
+      if (!wabaId && phoneNumberId) {
+        wabaId = (await fetchWabaIdFromPhoneNumberId(phoneNumberId, accessToken)) ?? "";
+      }
+      if (!wabaId) return null;
+      return { orgId: oid, wabaId, accessToken };
+    }
+
     const { data: meta } = await supabaseAdmin
       .from("organization_meta_config")
       .select("whatsapp_business_account_id, meta_access_token")
@@ -310,7 +341,7 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
-  if (req.method !== "GET" && req.method !== "POST") {
+  if (req.method !== "GET" && req.method !== "POST" && req.method !== "DELETE") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -349,31 +380,100 @@ Deno.serve(async (req: Request) => {
       .single();
 
     const orgId = profile?.active_organization_id ?? null;
-    const ctx = await resolveGraphContext(supabaseAdmin, user.id, orgId);
-    if (!ctx) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "WhatsApp Business Account not configured or missing access token. Connect WhatsApp in Operations → Consultant.",
-          code: "WHATSAPP_NOT_CONFIGURED",
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
 
-    // Keep fields compatible with Graph v18 message_templates node (avoid unknown field errors).
-    const fields = "id,name,status,category,language,components,rejected_reason";
+    const FIELDS_LIST =
+      "id,name,status,category,language,rejected_reason,last_updated_time,created_time,components";
+    /** Single-template read: ask Meta for nested `example` + button fields (matches Manager preview data). */
+    const FIELDS_DETAIL =
+      "id,name,status,category,language,rejected_reason,last_updated_time,created_time,components{type,format,text,example,buttons{type,text,url,phone_number,example}}";
 
     if (req.method === "GET") {
       const urlObj = new URL(req.url);
-      const limit = Math.min(100, Math.max(1, parseInt(urlObj.searchParams.get("limit") ?? "50", 10) || 50));
-      const after = urlObj.searchParams.get("after")?.trim() || "";
+      const waAcc = urlObj.searchParams.get("whatsapp_account_id")?.trim() || null;
+      const hsmId = urlObj.searchParams.get("hsm_id")?.trim() || "";
+      const ctx = await resolveGraphContext(supabaseAdmin, user.id, orgId, waAcc);
+      if (!ctx) {
+        return new Response(
+          JSON.stringify({
+            error:
+              waAcc
+                ? "WhatsApp account not found for this organization, or missing token / WABA. Pick another account or reconnect in Operations → Consultant."
+                : "WhatsApp Business Account not configured or missing access token. Connect WhatsApp in Operations → Consultant.",
+            code: "WHATSAPP_NOT_CONFIGURED",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
 
-      let graphUrl =
-        `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/message_templates?fields=${encodeURIComponent(fields)}&limit=${limit}`;
-      if (after) graphUrl += `&after=${encodeURIComponent(after)}`;
+      const fields = hsmId ? FIELDS_DETAIL : FIELDS_LIST;
+      let graphUrl: string;
+      if (hsmId) {
+        graphUrl =
+          `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/message_templates?hsm_id=${encodeURIComponent(hsmId)}&fields=${encodeURIComponent(fields)}`;
+      } else {
+        const limit = Math.min(100, Math.max(1, parseInt(urlObj.searchParams.get("limit") ?? "50", 10) || 50));
+        const after = urlObj.searchParams.get("after")?.trim() || "";
+        graphUrl =
+          `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/message_templates?fields=${encodeURIComponent(fields)}&limit=${limit}`;
+        if (after) graphUrl += `&after=${encodeURIComponent(after)}`;
+      }
 
-      const res = await fetch(graphUrl, {
+      let res = await fetch(graphUrl, {
+        headers: { Authorization: `Bearer ${ctx.accessToken}` },
+      });
+      let json = await res.json().catch(() => ({}));
+      if (!res.ok && hsmId) {
+        const fallbackUrl =
+          `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/message_templates?hsm_id=${encodeURIComponent(hsmId)}&fields=${encodeURIComponent(FIELDS_LIST)}`;
+        const res2 = await fetch(fallbackUrl, { headers: { Authorization: `Bearer ${ctx.accessToken}` } });
+        const json2 = await res2.json().catch(() => ({}));
+        if (res2.ok) {
+          res = res2;
+          json = json2;
+        }
+      }
+      if (!res.ok) {
+        const msg = json?.error?.message ?? json?.error_message ?? "Meta API error";
+        return new Response(JSON.stringify({ error: String(msg), details: json }), {
+          status: res.status >= 400 && res.status < 600 ? res.status : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const rawData = json?.data;
+      const data = Array.isArray(rawData) ? rawData : rawData != null ? [rawData] : [];
+      return new Response(JSON.stringify({ data, paging: json?.paging ?? null }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (req.method === "DELETE") {
+      const urlObj = new URL(req.url);
+      const waAcc = urlObj.searchParams.get("whatsapp_account_id")?.trim() || null;
+      const hsmId = urlObj.searchParams.get("hsm_id")?.trim() || "";
+      if (!hsmId) {
+        return new Response(JSON.stringify({ error: "Missing hsm_id (Meta template id)", code: "MISSING_HSM_ID" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const ctx = await resolveGraphContext(supabaseAdmin, user.id, orgId, waAcc);
+      if (!ctx) {
+        return new Response(
+          JSON.stringify({
+            error:
+              waAcc
+                ? "WhatsApp account not found for this organization, or missing token / WABA. Pick another account or reconnect in Operations → Consultant."
+                : "WhatsApp Business Account not configured or missing access token. Connect WhatsApp in Operations → Consultant.",
+            code: "WHATSAPP_NOT_CONFIGURED",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const delUrl =
+        `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/message_templates?hsm_id=${encodeURIComponent(hsmId)}`;
+      const res = await fetch(delUrl, {
+        method: "DELETE",
         headers: { Authorization: `Bearer ${ctx.accessToken}` },
       });
       const json = await res.json().catch(() => ({}));
@@ -384,14 +484,36 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ data: json?.data ?? [], paging: json?.paging ?? null }), {
+      return new Response(JSON.stringify({ success: true, result: json }), {
         status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method not allowed" }), {
+        status: 405,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // POST — create template
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const waAccPost = body.whatsapp_account_id != null ? String(body.whatsapp_account_id).trim() : "";
+    const ctx = await resolveGraphContext(supabaseAdmin, user.id, orgId, waAccPost || null);
+    if (!ctx) {
+      return new Response(
+        JSON.stringify({
+          error:
+            waAccPost
+              ? "WhatsApp account not found for this organization, or missing token / WABA. Pick another account or reconnect in Operations → Consultant."
+              : "WhatsApp Business Account not configured or missing access token. Connect WhatsApp in Operations → Consultant.",
+          code: "WHATSAPP_NOT_CONFIGURED",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const name = body.name != null ? String(body.name).trim().toLowerCase() : "";
     const language = body.language != null ? String(body.language).trim() : "";
     const category = body.category != null ? String(body.category).trim().toUpperCase() : "";
@@ -423,7 +545,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const sanitized = sanitizeTemplateComponentsForCreate(components);
-    if (!sanitized.ok) {
+    if (sanitized.ok === false) {
       return new Response(JSON.stringify({ error: sanitized.error, code: sanitized.code }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

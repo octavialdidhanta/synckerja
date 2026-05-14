@@ -33,9 +33,9 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange, flushBottom }: He
     },
     {
       id: 'product-knowledge',
-      label: t('productKnowledge.tabs.productKnowledge', 'Product Knowledge'),
+      label: t('productKnowledge.tabs.productKnowledge', 'Creative'),
       icon: BookOpen,
-      description: t('productKnowledge.tabs.productKnowledgeDescription', 'Manage product knowledge'),
+      description: t('productKnowledge.tabs.productKnowledgeDescription', 'Manage creative'),
       route: '/digital-marketing/social-media/product-knowledge'
     },
     {

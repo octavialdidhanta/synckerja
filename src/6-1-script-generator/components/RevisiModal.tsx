@@ -72,7 +72,7 @@ export const RevisiModal: React.FC<RevisiModalProps> = ({
     const parts: string[] = [];
     if (trimmed) parts.push(trimmed);
     parts.push('');
-    parts.push(t('scriptGenerator.revisi.applyStylePrefix', 'Gunakan style dari Product Knowledge:'));
+    parts.push(t('scriptGenerator.revisi.applyStylePrefix', 'Gunakan style dari Creative:'));
     parts.push(`${t('scriptGenerator.revisi.styleName', 'Nama')}: ${selectedStyle.name}`);
     if (selectedStyle.description) {
       parts.push(`${t('scriptGenerator.revisi.styleDescription', 'Deskripsi')}: ${selectedStyle.description}`);
@@ -130,7 +130,7 @@ export const RevisiModal: React.FC<RevisiModalProps> = ({
               disabled={stylesLoading || isRevising}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder={t('scriptGenerator.revisi.stylePlaceholder', 'Pilih style dari Product Knowledge')} />
+                <SelectValue placeholder={t('scriptGenerator.revisi.stylePlaceholder', 'Pilih style dari Creative')} />
               </SelectTrigger>
               <SelectContent
                 className="w-[var(--radix-select-trigger-width)] min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)] max-h-[min(50vh, 300px)] z-[9999999] p-0 [&_[data-radix-select-viewport]]:p-0 overflow-hidden"

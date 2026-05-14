@@ -79,6 +79,7 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
               .from('whatsapp_conversation_client_profiles')
               .select('*')
               .eq('conversation_id', conversationId)
+              .eq('organization_id', lead.organization_id)
               .maybeSingle();
             if (!waData) {
               statusMap[lead.id] = 'empty';
@@ -96,6 +97,9 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
             .from('lead_client_profiles')
             .select('*')
             .eq('lead_id', lead.id)
+            .eq('organization_id', lead.organization_id)
+            .order('updated_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
           if (!data) {

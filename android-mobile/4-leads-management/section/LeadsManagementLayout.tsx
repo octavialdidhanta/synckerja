@@ -32,6 +32,7 @@ const defaultFilters: LeadsFilters = {
   dataCompleteness: 'all',
   services: 'all',
   category: 'all',
+  createdBy: 'all',
   assignee: 'all',
   fuPriority: 'all',
   status: 'all',
@@ -50,6 +51,7 @@ const defaultFilters: LeadsFilters = {
 function hasActiveFilters(f: LeadsFilters): boolean {
   return (
     f.source !== 'all' ||
+    f.createdBy !== 'all' ||
     f.services !== 'all' ||
     f.assignee !== 'all' ||
     f.status !== 'all' ||
@@ -129,6 +131,11 @@ export function LeadsManagementLayout() {
     if (filters.assignee !== 'all' && filters.assignee) {
       filtered = filtered.filter((lead) => lead.assignee === filters.assignee);
     }
+    if (filters.createdBy !== 'all' && filters.createdBy) {
+      filtered = filtered.filter(
+        (lead) => (lead.created_by_name ?? '').trim() === filters.createdBy,
+      );
+    }
     if (filters.status !== 'all' && filters.status) {
       const statusNorm = (filters.status as string).trim().toLowerCase();
       filtered = filtered.filter(
@@ -188,6 +195,7 @@ export function LeadsManagementLayout() {
   }, [
     filters.dateRange,
     filters.source,
+    filters.createdBy,
     filters.services,
     filters.assignee,
     filters.status,

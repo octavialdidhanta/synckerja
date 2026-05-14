@@ -1,11 +1,9 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { INCOME_TX_MAIN_GRID } from "@/4-1-transaction/layout/incomeTransactionLayout";
 
 /** Mirror `IncomeTransactionPage` — varian header ikut scroll + AppShell (`h-full`, bukan `h-screen`). */
-const INCOME_TX_MAIN_GRID =
-  "grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]";
-
 const MAIN_SCROLL =
   "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
@@ -28,9 +26,10 @@ export function IncomeTransactionSkeleton() {
                   <Skeleton className="h-7 w-56 max-w-[90vw]" />
                   <Skeleton className="h-3 w-full max-w-xl" />
                 </div>
-                <div className="-mb-3 flex flex-wrap gap-x-6 gap-y-1">
+                <div className="-mb-3 flex flex-wrap gap-x-4 gap-y-1">
+                  <Skeleton className="h-9 w-36" />
                   <Skeleton className="h-9 w-40" />
-                  <Skeleton className="h-9 w-44" />
+                  <Skeleton className="h-9 w-28" />
                 </div>
               </div>
 

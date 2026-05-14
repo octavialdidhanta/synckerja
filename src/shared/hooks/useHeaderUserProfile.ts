@@ -47,7 +47,7 @@ export function useHeaderUserProfile() {
 
   const activeId = orgData?.activeOrganizationId ?? null;
   const activeMembership = orgData?.memberships.find((m) => m.organizationId === activeId);
-  const role = activeMembership?.role ?? "member";
+  const role = activeId ? (activeMembership?.role ?? "employee") : "";
 
   return {
     user,

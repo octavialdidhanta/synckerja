@@ -27,11 +27,15 @@ declare global {
 }
 
 export interface PaymentParams {
-  planId: string;
+  /** Required for HR subscription checkout; optional for `purchaseKind: omnichannel_seats` (server resolves plan). */
+  planId?: string;
   planName: string;
   amount: number;
   memberCount: number;
+  /** Always `"monthly"` or `"yearly"`. For `purchaseKind: "omnichannel_seats"`, must match HR `organization_subscriptions.billing_cycle`; `create-midtrans-payment` recomputes from DB and ignores a mismatched client value. */
   billingCycle: "monthly" | "yearly";
+  /** Optional Midtrans line items; server uses them only if prices sum to `amount`. */
+  itemDetails?: Array<{ id: string; name: string; price: number; quantity: number }>;
   proRateDetails?: {
     is_member_upgrade: boolean;
     previous_member_count: number;
@@ -39,7 +43,13 @@ export interface PaymentParams {
     remaining_days: number;
     prorate_amount: number;
     prorate_percentage: number;
+    /** Declared omnichannel roster seats in this checkout; webhook applies to org entitlement. */
+    bundled_omnichannel_roster_units?: number;
   };
+  purchaseKind?: "omnichannel_seats";
+  additionalSeats?: number;
+  /** Midtrans `finish` redirect path (must start with `/`). */
+  checkoutSuccessRelativePath?: string;
 }
 
 export interface UseMidtransPaymentOptions {
@@ -96,12 +106,21 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
 
     const { data: keyData, error } = await supabase.functions.invoke("get-midtrans-config");
     if (error) throw new Error("Failed to get Midtrans configuration");
-    const clientKey = (keyData as { client_key?: string })?.client_key;
+    const cfg = keyData as { client_key?: string; snap_js_url?: string; is_sandbox?: boolean };
+    const clientKey = cfg?.client_key;
     if (!clientKey) throw new Error("Midtrans client key not configured");
 
-    const snapSrc = clientKey.startsWith("SB-Mid-")
-      ? "https://app.sandbox.midtrans.com/snap/snap.js"
-      : "https://app.midtrans.com/snap/snap.js";
+    const snapSrc =
+      (typeof cfg.snap_js_url === "string" && cfg.snap_js_url.trim().length > 0
+        ? cfg.snap_js_url.trim()
+        : null) ??
+      (cfg.is_sandbox === true
+        ? "https://app.sandbox.midtrans.com/snap/snap.js"
+        : cfg.is_sandbox === false
+          ? "https://app.midtrans.com/snap/snap.js"
+          : clientKey.startsWith("SB-Mid-")
+            ? "https://app.sandbox.midtrans.com/snap/snap.js"
+            : "https://app.midtrans.com/snap/snap.js");
 
     await new Promise<void>((resolve, reject) => {
       const script = document.createElement("script");
@@ -135,7 +154,18 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
           "Content-Type": "application/json",
           apikey: SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify(params),
+        body: JSON.stringify({
+          planId: params.planId,
+          planName: params.planName,
+          amount: params.amount,
+          memberCount: params.memberCount,
+          billingCycle: params.billingCycle,
+          proRateDetails: params.proRateDetails,
+          itemDetails: params.itemDetails,
+          purchaseKind: params.purchaseKind,
+          additionalSeats: params.additionalSeats,
+          checkoutSuccessRelativePath: params.checkoutSuccessRelativePath,
+        }),
       });
 
       if (!rawResponse.ok) {
@@ -175,7 +205,11 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
       await new Promise((r) => setTimeout(r, 200));
       ensureMidtransDesktopZIndex();
 
-      const successPath = "/subscription/overview";
+      const successPath =
+        typeof params.checkoutSuccessRelativePath === "string" &&
+        params.checkoutSuccessRelativePath.startsWith("/")
+          ? params.checkoutSuccessRelativePath
+          : "/subscription/overview";
       const fallbackPath = "/subscription/plans";
 
       const checkPaymentStatusFromMidtrans = async (orderId: string) => {
@@ -190,10 +224,15 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
         return null;
       };
 
-      const syncPaymentStatus = async (result: Record<string, unknown>, statusOverride?: "success" | "pending" | "failed") => {
+      const syncPaymentStatus = async (
+        result: Record<string, unknown>,
+        statusOverride?: "success" | "pending" | "failed",
+      ) => {
         try {
           const orderId = (result?.order_id as string) || data.order_id;
           const realStatus = await checkPaymentStatusFromMidtrans(orderId);
+          // If Midtrans Core API already confirmed a final status, `check-midtrans-payment-status`
+          // has also applied DB updates (subscription + payments). Nothing else to do.
           if (realStatus) return;
 
           const payload = {
@@ -227,20 +266,24 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
 
       const snapConfig = {
         onSuccess: (result: unknown) => {
-          void syncPaymentStatus(result as Record<string, unknown>, "success");
-          setIsPopupOpen(false);
-          onPaymentStatusChange?.();
-          toast.success(t("subscription.plans.success.paymentSuccess"));
-          if (onPaymentClose) setTimeout(() => onPaymentClose(successPath), 2000);
-          else setTimeout(() => { window.location.href = `${window.location.origin}${successPath}`; }, 2000);
+          void (async () => {
+            await syncPaymentStatus(result as Record<string, unknown>, "success");
+            onPaymentStatusChange?.();
+            setIsPopupOpen(false);
+            toast.success(t("subscription.plans.success.paymentSuccess"));
+            if (onPaymentClose) setTimeout(() => onPaymentClose(successPath), 2000);
+            else setTimeout(() => { window.location.href = `${window.location.origin}${successPath}`; }, 2000);
+          })();
         },
         onPending: (result: unknown) => {
-          void syncPaymentStatus(result as Record<string, unknown>, "pending");
-          setIsPopupOpen(false);
-          onPaymentStatusChange?.();
-          toast.info(t("subscription.plans.info.paymentProcessing"));
-          if (onPaymentClose) setTimeout(() => onPaymentClose(successPath), 1000);
-          else setTimeout(() => { window.location.href = `${window.location.origin}${successPath}`; }, 1000);
+          void (async () => {
+            await syncPaymentStatus(result as Record<string, unknown>, "pending");
+            onPaymentStatusChange?.();
+            setIsPopupOpen(false);
+            toast.info(t("subscription.plans.info.paymentProcessing"));
+            if (onPaymentClose) setTimeout(() => onPaymentClose(successPath), 1000);
+            else setTimeout(() => { window.location.href = `${window.location.origin}${successPath}`; }, 1000);
+          })();
         },
         onError: () => {
           setIsPopupOpen(false);
@@ -345,10 +388,14 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
         return null;
       };
 
-      const syncPaymentStatus = async (result: Record<string, unknown>, statusOverride?: "success" | "pending" | "failed") => {
+      const syncPaymentStatus = async (
+        result: Record<string, unknown>,
+        statusOverride?: "success" | "pending" | "failed",
+      ) => {
         try {
           const oid = (result?.order_id as string) ?? snapData.order_id;
-          await checkPaymentStatusFromMidtrans(oid);
+          const realStatus = await checkPaymentStatusFromMidtrans(oid);
+          if (realStatus) return;
           const payload = {
             order_id: oid,
             transaction_status: statusOverride ?? (result?.transaction_status as string) ?? "pending",
@@ -378,20 +425,24 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
 
       const snapConfig = {
         onSuccess: (result: unknown) => {
-          void syncPaymentStatus(result as Record<string, unknown>, "success");
-          setIsPopupOpen(false);
-          onPaymentStatusChange?.();
-          toast.success(t("subscription.plans.success.paymentSuccess"));
-          if (onPaymentClose) setTimeout(() => onPaymentClose(successPath), 2000);
-          else setTimeout(() => { window.location.href = `${window.location.origin}${successPath}`; }, 2000);
+          void (async () => {
+            await syncPaymentStatus(result as Record<string, unknown>, "success");
+            onPaymentStatusChange?.();
+            setIsPopupOpen(false);
+            toast.success(t("subscription.plans.success.paymentSuccess"));
+            if (onPaymentClose) setTimeout(() => onPaymentClose(successPath), 2000);
+            else setTimeout(() => { window.location.href = `${window.location.origin}${successPath}`; }, 2000);
+          })();
         },
         onPending: (result: unknown) => {
-          void syncPaymentStatus(result as Record<string, unknown>, "pending");
-          setIsPopupOpen(false);
-          onPaymentStatusChange?.();
-          toast.info(t("subscription.plans.info.paymentProcessing"));
-          if (onPaymentClose) setTimeout(() => onPaymentClose(successPath), 1000);
-          else setTimeout(() => { window.location.href = `${window.location.origin}${successPath}`; }, 1000);
+          void (async () => {
+            await syncPaymentStatus(result as Record<string, unknown>, "pending");
+            onPaymentStatusChange?.();
+            setIsPopupOpen(false);
+            toast.info(t("subscription.plans.info.paymentProcessing"));
+            if (onPaymentClose) setTimeout(() => onPaymentClose(successPath), 1000);
+            else setTimeout(() => { window.location.href = `${window.location.origin}${successPath}`; }, 1000);
+          })();
         },
         onError: () => {
           setIsPopupOpen(false);

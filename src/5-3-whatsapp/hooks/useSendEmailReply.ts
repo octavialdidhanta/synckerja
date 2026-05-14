@@ -65,7 +65,21 @@ export function useSendEmailReply() {
       const leadStatuses = queryClient.getQueryData<Array<{ id: string; name: string }>>(['lead-statuses']);
       const inProgressStatus = leadStatuses?.find((s) => (s.name ?? '').trim().toLowerCase() === 'in progress');
       if (inProgressStatus?.id) {
-        queryClient.setQueryData(statusQueryKey, inProgressStatus.id);
+        queryClient.setQueryData(statusQueryKey, (prev: unknown) => {
+          const base =
+            prev &&
+            typeof prev === 'object' &&
+            prev !== null &&
+            !Array.isArray(prev) &&
+            'lead_status_id' in (prev as Record<string, unknown>)
+              ? (prev as {
+                  lead_status_id?: string | null;
+                  last_inbound_at?: string | null;
+                  created_at?: string | null;
+                })
+              : {};
+          return { ...base, lead_status_id: inProgressStatus.id };
+        });
       }
       // Jangan invalidate/refetch status di sini: refetch 800ms bisa dapat data lama (race dengan backend)
       // dan status balik ke Unread. Optimistic update di atas cukup; refetchInterval 5s di panel akan sync nanti.

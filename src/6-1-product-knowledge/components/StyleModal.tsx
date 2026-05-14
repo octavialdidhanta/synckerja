@@ -268,7 +268,7 @@ export const StyleModal: React.FC<StyleModalProps> = ({
                   )
                 : t(
                     'productKnowledge.style.modal.description',
-                    'Create a new style for product knowledge content'
+                    'Create a new style for creative content'
                   )}
             </DialogDescription>
           </DialogHeader>

@@ -3,11 +3,12 @@ import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabase
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import type { TemplateListResponse } from "../types";
 
-async function fetchPage(after: string | undefined): Promise<TemplateListResponse> {
+async function fetchPage(after: string | undefined, whatsappAccountId: string | null): Promise<TemplateListResponse> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Not authenticated");
   const params = new URLSearchParams({ limit: "50" });
   if (after) params.set("after", after);
+  if (whatsappAccountId) params.set("whatsapp_account_id", whatsappAccountId);
   const url = `${SUPABASE_URL}/functions/v1/whatsapp-message-templates?${params.toString()}`;
   const res = await fetch(url, {
     headers: {
@@ -25,13 +26,13 @@ async function fetchPage(after: string | undefined): Promise<TemplateListRespons
   return json as TemplateListResponse;
 }
 
-export function useWhatsAppMessageTemplates() {
+export function useWhatsAppMessageTemplates(whatsappAccountId: string | null) {
   const { organizationId } = useCurrentOrg();
   return useInfiniteQuery({
-    queryKey: ["whatsapp-message-templates", organizationId],
+    queryKey: ["whatsapp-message-templates", organizationId, whatsappAccountId],
     enabled: !!organizationId,
     initialPageParam: "" as string,
-    queryFn: ({ pageParam }) => fetchPage(pageParam || undefined),
+    queryFn: ({ pageParam }) => fetchPage(pageParam || undefined, whatsappAccountId),
     getNextPageParam: (last) => {
       const after = last.paging?.cursors?.after;
       return after && after.length > 0 ? after : undefined;

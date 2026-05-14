@@ -1,10 +1,11 @@
 
-import { useState, memo, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { History, Clock, ChevronDown, ChevronUp, ArrowUpDown } from "lucide-react";
+import { History, Clock, ChevronDown, ChevronUp, ArrowUpDown, ListFilter } from "lucide-react";
 import { format } from "date-fns";
 import { NewLead } from '@/shared/types/leads';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -16,12 +17,71 @@ import { ClientProfilePopup } from "@/5-3-dashboard/components/leads/dialogs/Cli
 import { LeadStatusHistoryDialog } from "@/5-3-dashboard/components/leads/dialogs/LeadStatusHistoryDialog";
 import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
 import { useClientProfileStatus } from '@/shared/hooks/organized/sales';
-import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
+import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { useLeadStatusesActiveFull } from "@/5-3-dashboard/hooks/useLeadsManagementFilterQueries";
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useToast } from '@/shared/components/ui/use-toast';
+import { cn } from "@/shared/lib/utils";
 import type { LeadAttributionSortColumn, LeadAttributionSortState } from '@/shared/lib/leadAttribution';
 import { defaultLeadAttributionSortState } from '@/shared/lib/leadAttribution';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+
+type CategoryColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ id: string; name: string }>;
+};
+
+type SourceColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ id: string; name: string }>;
+};
+
+type CreatedByColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+  /** Nilai = `created_by_name` (trim), dari distinct leads. */
+  options: string[];
+};
+
+type AssigneeColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+  /** Nilai filter = label assignee (`full_name || email`), selaras filter bar lama. */
+  options: Array<{ id: string; name: string }>;
+};
+
+type FuPriorityColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ id: string; name: string }>;
+};
+
+type StatusColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+  /** Nilai filter = `lead_status.name` (raw), label = nama tampilan. */
+  options: Array<{ id: string; name: string; label: string }>;
+};
+
+/** UTM / string attribution: nilai filter = string field lead (sama seperti bar filter lama). */
+type UtmStringColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+};
+
+type LandingUrlContainsColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+};
 
 type TableHeadCol = {
   key: string;
@@ -37,9 +97,26 @@ interface LeadsTableNewProps {
   onRefreshLeads?: () => void;
   attributionSort?: LeadAttributionSortState;
   onAttributionSort?: (column: LeadAttributionSortColumn) => void;
+  /** Filter kategori di header kolom (filter bar atas tidak memakai Select category). */
+  categoryColumnFilter?: CategoryColumnFilterConfig | null;
+  sourceColumnFilter?: SourceColumnFilterConfig | null;
+  createdByColumnFilter?: CreatedByColumnFilterConfig | null;
+  assigneeColumnFilter?: AssigneeColumnFilterConfig | null;
+  fuPriorityColumnFilter?: FuPriorityColumnFilterConfig | null;
+  statusColumnFilter?: StatusColumnFilterConfig | null;
+  utmSourceColumnFilter?: UtmStringColumnFilterConfig | null;
+  utmCampaignColumnFilter?: UtmStringColumnFilterConfig | null;
+  utmMediumColumnFilter?: UtmStringColumnFilterConfig | null;
+  utmContentColumnFilter?: UtmStringColumnFilterConfig | null;
+  utmTermColumnFilter?: UtmStringColumnFilterConfig | null;
+  attributionLabelColumnFilter?: UtmStringColumnFilterConfig | null;
+  landingUrlContainsColumnFilter?: LandingUrlContainsColumnFilterConfig | null;
 }
 
 const TABLE_COL_COUNT = 20;
+
+/** Radix Select requires a non-empty string; maps to `assignee_id: null` in `handleFieldUpdate`. */
+const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
 
 export default function LeadsTableNew({
   leads,
@@ -48,6 +125,19 @@ export default function LeadsTableNew({
   onRefreshLeads,
   attributionSort = defaultLeadAttributionSortState,
   onAttributionSort,
+  categoryColumnFilter,
+  sourceColumnFilter,
+  createdByColumnFilter,
+  assigneeColumnFilter,
+  fuPriorityColumnFilter,
+  statusColumnFilter,
+  utmSourceColumnFilter,
+  utmCampaignColumnFilter,
+  utmMediumColumnFilter,
+  utmContentColumnFilter,
+  utmTermColumnFilter,
+  attributionLabelColumnFilter,
+  landingUrlContainsColumnFilter,
 }: LeadsTableNewProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -75,7 +165,7 @@ export default function LeadsTableNew({
     [statusRows],
   );
 
-  const { data: employees = [] } = useAvailableEmployees();
+  const { data: employees = [] } = useOmnichannelRosterAssignees();
 
   const handleFieldUpdate = async (leadId: string, field: string, value: string) => {
     const lead = leads.find(l => l.id === leadId);
@@ -94,11 +184,12 @@ export default function LeadsTableNew({
         lead_status: selectedStatus ? { id: selectedStatus.id, name: selectedStatus.name, color: selectedStatus.color } : lead.lead_status,
       };
     } else if (field === 'assignee_id') {
-      const emp = employees.find((e) => e.id === value);
+      const assigneeId = value === ASSIGNEE_SELECT_UNASSIGNED ? null : value;
+      const emp = assigneeId ? employees.find((e) => e.id === assigneeId) : undefined;
       updatedLead = {
         ...lead,
-        assignee_id: value || null,
-        assignee: emp ? (emp.full_name || emp.email) : (lead.assignee ?? ''),
+        assignee_id: assigneeId,
+        assignee: emp ? (emp.full_name || emp.email) : "",
       };
     } else {
       updatedLead = { ...lead, [field]: value };
@@ -259,58 +350,361 @@ export default function LeadsTableNew({
   };
 
   const tableHeaders = useMemo((): TableHeadCol[] => [
-    { key: 'created', label: 'Created', width: 'w-[100px]' },
-    { key: 'ticket', label: 'Ticket ID', width: 'w-[120px]' },
-    { key: 'client', label: 'Client', width: 'w-[150px]' },
-    { key: 'title', label: 'Title', width: 'w-[200px]' },
-    { key: 'services', label: 'Services', width: 'w-[280px] max-w-[280px]' },
-    { key: 'category', label: 'Category', width: 'w-[200px] max-w-[200px]' },
-    { key: 'created_by', label: 'Created By', width: 'w-[120px]' },
-    { key: 'source', label: 'Source', width: 'w-[100px]' },
-    { key: 'utm_source', label: 'UTM Source', width: 'w-[110px]', sortKey: 'utm_source' },
-    { key: 'utm_campaign', label: 'UTM Campaign', width: 'w-[130px]', sortKey: 'utm_campaign' },
-    { key: 'utm_medium', label: 'UTM Medium', width: 'w-[120px]', sortKey: 'utm_medium' },
-    { key: 'utm_content', label: 'UTM Content', width: 'w-[120px]', sortKey: 'utm_content' },
-    { key: 'utm_term', label: 'UTM Term', width: 'w-[110px]', sortKey: 'utm_term' },
-    { key: 'landing_url', label: 'Landing URL', width: 'w-[200px] max-w-[220px]', sortKey: 'landing_url' },
-    { key: 'attribution_label', label: 'Attribution label', width: 'w-[120px]', sortKey: 'attribution_label' },
-    { key: 'assignee', label: 'Assignee', width: 'w-[120px]' },
-    { key: 'followup', label: 'Follow Up', width: 'w-[100px]' },
-    { key: 'fu_priority', label: 'FU Priority', width: 'w-[120px]' },
-    { key: 'status', label: 'Status', width: 'w-[120px]' },
-    { key: 'actions', label: 'Actions', width: 'w-[100px]' },
+    { key: "created", label: "Created", width: "w-[100px]", sortKey: "created_at" },
+    { key: "ticket", label: "Ticket ID", width: "w-[120px]", sortKey: "ticket_id" },
+    { key: "client", label: "Client", width: "w-[150px]", sortKey: "client" },
+    { key: "title", label: "Title", width: "w-[200px]", sortKey: "title" },
+    { key: "services", label: "Services", width: "w-[280px] max-w-[280px]", sortKey: "services" },
+    { key: "category", label: "Category", width: "w-[200px] max-w-[200px]", sortKey: "category" },
+    { key: "created_by", label: "Created By", width: "w-[120px]", sortKey: "created_by_name" },
+    { key: "source", label: "Source", width: "w-[100px]", sortKey: "source" },
+    { key: "utm_source", label: "UTM Source", width: "w-[110px]", sortKey: "utm_source" },
+    { key: "utm_campaign", label: "UTM Campaign", width: "w-[130px]", sortKey: "utm_campaign" },
+    { key: "utm_medium", label: "UTM Medium", width: "w-[120px]", sortKey: "utm_medium" },
+    { key: "utm_content", label: "UTM Content", width: "w-[120px]", sortKey: "utm_content" },
+    { key: "utm_term", label: "UTM Term", width: "w-[110px]", sortKey: "utm_term" },
+    { key: "landing_url", label: "Landing URL", width: "w-[200px] max-w-[220px]", sortKey: "landing_url" },
+    { key: "attribution_label", label: "Attribution label", width: "w-[120px]", sortKey: "attribution_label" },
+    { key: "assignee", label: "Assignee", width: "w-[120px]", sortKey: "assignee" },
+    { key: "followup", label: "Follow Up", width: "w-[100px]", sortKey: "followup" },
+    { key: "fu_priority", label: "FU Priority", width: "w-[120px]", sortKey: "fu_priority" },
+    { key: "status", label: "Status", width: "w-[120px]", sortKey: "status" },
+    { key: "actions", label: "Actions", width: "w-[100px]" },
   ], []);
 
   const renderAttributionSortHead = (header: TableHeadCol) => {
     const sk = header.sortKey;
-    if (!sk || !onAttributionSort) {
-      return header.label;
-    }
+    if (!sk) return header.label;
     const active = attributionSort.column === sk;
-    const Icon = !active ? ArrowUpDown : attributionSort.direction === 'asc' ? ChevronUp : ChevronDown;
+    const Icon = !active ? ArrowUpDown : attributionSort.direction === "asc" ? ChevronUp : ChevronDown;
     return (
       <button
         type="button"
-        className="inline-flex items-center gap-0.5 text-left font-medium text-gray-700 hover:text-gray-900"
-        onClick={() => onAttributionSort(sk)}
-        aria-sort={active ? (attributionSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+        className={cn(
+          "inline-flex max-w-full items-center gap-0.5 text-left font-medium text-gray-700 hover:text-gray-900",
+          !onAttributionSort && "cursor-default opacity-70",
+        )}
+        disabled={!onAttributionSort}
+        onClick={() => onAttributionSort?.(sk)}
+        aria-sort={active ? (attributionSort.direction === "asc" ? "ascending" : "descending") : "none"}
       >
-        <span>{header.label}</span>
-        <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-gray-900' : 'text-gray-400'}`} aria-hidden />
+        <span className="min-w-0 truncate">{header.label}</span>
+        <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-gray-900" : "text-gray-400")} aria-hidden />
       </button>
     );
+  };
+
+  const renderLeadColumnFilterDropdown = (
+    filterValue: string,
+    onFilterChange: (v: string) => void,
+    allLabel: string,
+    entries: Array<{ key: string; value: string; label: string }>,
+    ariaLabel: string,
+  ) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 text-gray-500 hover:text-gray-900"
+          aria-label={ariaLabel}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <ListFilter
+            className={cn("h-3.5 w-3.5", filterValue !== "all" && "text-primary")}
+            aria-hidden
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+        <DropdownMenuItem
+          onSelect={() => onFilterChange("all")}
+          className={cn(filterValue === "all" && "bg-accent")}
+        >
+          {allLabel}
+        </DropdownMenuItem>
+        {entries.map((e) => (
+          <DropdownMenuItem
+            key={e.key}
+            onSelect={() => onFilterChange(e.value)}
+            className={cn(filterValue === e.value && "bg-accent")}
+          >
+            {e.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const renderTableHeadContent = (header: TableHeadCol) => {
+    if (header.key === "category" && categoryColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            categoryColumnFilter.value,
+            categoryColumnFilter.onChange,
+            t("leadsManagement.filters.allCategories", "All Categories"),
+            categoryColumnFilter.options.map((o) => ({ key: o.id, value: o.name, label: o.name })),
+            t("leadsManagement.table.filterCategory", "Filter category"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "created_by" && createdByColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            createdByColumnFilter.value,
+            createdByColumnFilter.onChange,
+            t("leadsManagement.filters.allCreatedBy", "All creators"),
+            createdByColumnFilter.options.map((name, i) => ({
+              key: `cb-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("leadsManagement.table.filterCreatedBy", "Filter by creator"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "source" && sourceColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            sourceColumnFilter.value,
+            sourceColumnFilter.onChange,
+            t("leadsManagement.filters.allSources", "All Sources"),
+            sourceColumnFilter.options.map((o) => ({ key: o.id, value: o.name, label: o.name })),
+            t("leadsManagement.table.filterSource", "Filter source"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "assignee" && assigneeColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            assigneeColumnFilter.value,
+            assigneeColumnFilter.onChange,
+            t("leadsManagement.filters.allAssignees", "All Assignees"),
+            assigneeColumnFilter.options.map((o) => ({ key: o.id, value: o.name, label: o.name })),
+            t("leadsManagement.table.filterAssignee", "Filter assignee"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "fu_priority" && fuPriorityColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            fuPriorityColumnFilter.value,
+            fuPriorityColumnFilter.onChange,
+            t("leadsManagement.filters.allPriorities", "All Priorities"),
+            fuPriorityColumnFilter.options.map((o) => ({ key: o.id, value: o.name, label: o.name })),
+            t("leadsManagement.table.filterFuPriority", "Filter FU priority"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "status" && statusColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            statusColumnFilter.value,
+            statusColumnFilter.onChange,
+            t("leadsManagement.filters.allStatus", "All Status"),
+            statusColumnFilter.options.map((o) => ({ key: o.id, value: o.name, label: o.label })),
+            t("leadsManagement.table.filterStatus", "Filter status"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "utm_source" && utmSourceColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            utmSourceColumnFilter.value,
+            utmSourceColumnFilter.onChange,
+            t("leadsManagement.filters.allUtmSources", "All UTM sources"),
+            utmSourceColumnFilter.options.map((name, i) => ({
+              key: `utm-src-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("leadsManagement.table.filterUtmSource", "Filter UTM source"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "utm_campaign" && utmCampaignColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            utmCampaignColumnFilter.value,
+            utmCampaignColumnFilter.onChange,
+            t("leadsManagement.filters.allUtmCampaigns", "All UTM campaigns"),
+            utmCampaignColumnFilter.options.map((name, i) => ({
+              key: `utm-cmp-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("leadsManagement.table.filterUtmCampaign", "Filter UTM campaign"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "utm_medium" && utmMediumColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            utmMediumColumnFilter.value,
+            utmMediumColumnFilter.onChange,
+            t("leadsManagement.filters.allUtmMedia", "All UTM media"),
+            utmMediumColumnFilter.options.map((name, i) => ({
+              key: `utm-med-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("leadsManagement.table.filterUtmMedium", "Filter UTM medium"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "utm_content" && utmContentColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            utmContentColumnFilter.value,
+            utmContentColumnFilter.onChange,
+            t("leadsManagement.filters.allUtmContent", "All UTM content"),
+            utmContentColumnFilter.options.map((name, i) => ({
+              key: `utm-cnt-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("leadsManagement.table.filterUtmContent", "Filter UTM content"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "utm_term" && utmTermColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            utmTermColumnFilter.value,
+            utmTermColumnFilter.onChange,
+            t("leadsManagement.filters.allUtmTerms", "All UTM terms"),
+            utmTermColumnFilter.options.map((name, i) => ({
+              key: `utm-trm-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("leadsManagement.table.filterUtmTerm", "Filter UTM term"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "landing_url" && landingUrlContainsColumnFilter) {
+      const hasLandingFilter = (landingUrlContainsColumnFilter.value ?? "").trim() !== "";
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-gray-500 hover:text-gray-900"
+                aria-label={t("leadsManagement.table.filterLandingUrl", "Filter landing URL")}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <ListFilter
+                  className={cn("h-3.5 w-3.5", hasLandingFilter && "text-primary")}
+                  aria-hidden
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="w-80 p-3"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <p className="mb-2 text-xs text-muted-foreground">
+                {t(
+                  "leadsManagement.table.landingUrlContainsHint",
+                  "Show leads whose landing URL contains this text (case-insensitive).",
+                )}
+              </p>
+              <Input
+                type="text"
+                className="h-9 text-sm"
+                placeholder={t(
+                  "leadsManagement.table.landingUrlContainsPlaceholder",
+                  "Landing URL contains…",
+                )}
+                value={landingUrlContainsColumnFilter.value}
+                onChange={(e) => landingUrlContainsColumnFilter.onChange(e.target.value)}
+              />
+              <div className="mt-2 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => landingUrlContainsColumnFilter.onChange("")}
+                >
+                  {t("leadsManagement.table.clearLandingUrlFilter", "Clear")}
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      );
+    }
+    if (header.key === "attribution_label" && attributionLabelColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            attributionLabelColumnFilter.value,
+            attributionLabelColumnFilter.onChange,
+            t("leadsManagement.filters.allAttributionLabels", "All attribution labels"),
+            attributionLabelColumnFilter.options.map((name, i) => ({
+              key: `attr-lbl-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("leadsManagement.table.filterAttributionLabel", "Filter attribution label"),
+          )}
+        </div>
+      );
+    }
+    return renderAttributionSortHead(header);
   };
 
   return (
     <div className="h-full flex flex-col">
       {/* rule 3.1: satu scroll container untuk tabel, nested-scroll-touch-chain */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto seamless-scroll nested-scroll-touch-chain">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <table className="w-full min-w-max caption-bottom text-sm">
           <TableHeader className="bg-gray-50 sticky top-0 z-20 shadow-sm">
             <TableRow className="hover:bg-transparent">
               {tableHeaders.map((header) => (
                 <TableHead key={header.key} className={`text-xs font-medium text-gray-700 ${header.width} px-3 bg-gray-50 whitespace-nowrap`}>
-                  {renderAttributionSortHead(header)}
+                  {renderTableHeadContent(header)}
                 </TableHead>
               ))}
             </TableRow>
@@ -398,15 +792,24 @@ export default function LeadsTableNew({
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Select
-                      value={(lead as NewLead & { assignee_id?: string | null }).assignee_id ?? (employees.find((e) => (e.full_name || e.email) === lead.assignee)?.id) ?? ''}
-                      onValueChange={(value) => handleFieldUpdate(lead.id, 'assignee_id', value)}
+                      value={
+                        (lead as NewLead & { assignee_id?: string | null }).assignee_id ??
+                        employees.find((e) => (e.full_name || e.email) === lead.assignee)?.id ??
+                        ASSIGNEE_SELECT_UNASSIGNED
+                      }
+                      onValueChange={(value) => handleFieldUpdate(lead.id, "assignee_id", value)}
                     >
                       <SelectTrigger className="w-full h-8 text-xs" disabled={isResolvedLead(lead)}>
-                        <SelectValue placeholder="Select assignee" />
+                        <SelectValue placeholder={t("leadsManagement.table.assigneePlaceholder", "Select assignee")} />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value={ASSIGNEE_SELECT_UNASSIGNED}>
+                          {t("leadsManagement.table.assigneeUnassigned", "Unassigned")}
+                        </SelectItem>
                         {employees.length === 0 ? (
-                          <SelectItem value="no-employees" disabled>No employees</SelectItem>
+                          <SelectItem value="no-employees" disabled>
+                            {t("leadsManagement.table.noRosterStaff", "No staff on omnichannel roster")}
+                          </SelectItem>
                         ) : (
                           employees.map((emp) => (
                             <SelectItem key={emp.id} value={emp.id}>

@@ -65,7 +65,7 @@ export const SetPasswordForm = ({ token, email, fullName, organizationId, onSucc
 
       if (error) {
         console.error('❌ SetPasswordForm: Edge function error:', error);
-        throw new Error('Terjadi kesalahan saat mengatur password');
+        throw new Error((data as any)?.error || error.message || 'Terjadi kesalahan saat mengatur password');
       }
 
       if (!data || !data.success) {

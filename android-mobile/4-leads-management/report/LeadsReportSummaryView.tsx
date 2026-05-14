@@ -28,6 +28,7 @@ const defaultFilters: LeadsFilters = {
   dataCompleteness: 'all',
   services: 'all',
   category: 'all',
+  createdBy: 'all',
   assignee: 'all',
   fuPriority: 'all',
   status: 'all',
@@ -142,6 +143,11 @@ export function LeadsReportSummaryView() {
     }
     if (filters.assignee !== 'all' && filters.assignee) {
       filtered = filtered.filter((lead) => lead.assignee === filters.assignee);
+    }
+    if (filters.createdBy !== 'all' && filters.createdBy) {
+      filtered = filtered.filter(
+        (lead) => (lead.created_by_name ?? '').trim() === filters.createdBy,
+      );
     }
     if (filters.fuPriority !== 'all') {
       if (filters.fuPriority === 'Please Follow Up') {

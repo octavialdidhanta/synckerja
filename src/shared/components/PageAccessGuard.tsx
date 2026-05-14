@@ -46,7 +46,7 @@ export function PageAccessGuard({
   loadingShell,
   loadingShellWrapperClassName,
 }: PageAccessGuardProps) {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { t } = useAppTranslation();
   const { isMobile } = useAuthSurface();
   const location = useLocation();
@@ -56,18 +56,38 @@ export function PageAccessGuard({
     getDepartmentRestrictionMessage,
     configLoading,
   } = useDepartmentAccess();
-  const { hasOrganization, organization, employee, isOwner } = useCentralizedUserData();
+  const {
+    hasOrganization,
+    organization,
+    employee,
+    isOwner,
+    loading: centralDataLoading,
+    centralProfileHydrated,
+  } = useCentralizedUserData();
 
   const pathToCheck = pagePath || location.pathname;
 
   const isLoadingOrgData = requiresPermissions && !!user && !organization && hasOrganization;
-  const isLoading = loading || (requiresPermissions && configLoading) || isLoadingOrgData;
+  const isLoading =
+    !centralProfileHydrated ||
+    authLoading ||
+    centralDataLoading ||
+    (requiresPermissions && configLoading) ||
+    isLoadingOrgData;
 
   const [showDeniedAfterDebounce, setShowDeniedAfterDebounce] = useState(false);
   const denyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!requiresPermissions || !user) {
+      if (denyDebounceRef.current) {
+        clearTimeout(denyDebounceRef.current);
+        denyDebounceRef.current = null;
+      }
+      setShowDeniedAfterDebounce(false);
+      return;
+    }
+    if (!centralProfileHydrated) {
       if (denyDebounceRef.current) {
         clearTimeout(denyDebounceRef.current);
         denyDebounceRef.current = null;
@@ -94,11 +114,12 @@ export function PageAccessGuard({
         denyDebounceRef.current = null;
       }
     };
-  }, [requiresPermissions, user, pathToCheck, canAccessPage]);
+  }, [requiresPermissions, user, pathToCheck, canAccessPage, centralProfileHydrated]);
 
   const isResolvingAccess =
     requiresPermissions &&
     !!user &&
+    centralProfileHydrated &&
     !canAccessPage(pathToCheck) &&
     !showDeniedAfterDebounce;
 
@@ -125,10 +146,10 @@ export function PageAccessGuard({
   // While auth is still hydrating, `user` is null — must not redirect to /login before
   // `showLoadingUI` flips (250ms), or refresh on guarded routes looks like a logout.
   /** Tanpa delay 250ms: layout-matched shell harus tampil segera saat auth/org/config resolve (Loading Skeleton rule). */
-  const guardShellBlocking = (loading && !user) || isLoading || isResolvingAccess;
+  const guardShellBlocking = (authLoading && !user) || isLoading || isResolvingAccess;
 
   const shouldShowLoading =
-    (loading && !user) || (showLoadingUI && isLoading) || isResolvingAccess;
+    (authLoading && !user) || (showLoadingUI && isLoading) || isResolvingAccess;
 
   /**
    * Selama `guardShellBlocking`, jika route menyediakan `loadingShell`, selalu pakai itu
@@ -222,7 +243,7 @@ export function PageAccessGuard({
     }
   }
 
-  if (requiresPermissions && user && showDeniedAfterDebounce) {
+  if (requiresPermissions && user && centralProfileHydrated && showDeniedAfterDebounce) {
     const hasPageAccess = canAccessPage(pathToCheck);
     if (!hasPageAccess) {
       if (showAccessDeniedPage) {

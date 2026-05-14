@@ -140,7 +140,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
         if (rows.length >= 1) {
           setAiResultRows(rows);
           setParseError(null);
-          toast.success(t('productKnowledge.generate.aiSuccess', 'Hasil AI berhasil di-parse. Pilih baris lalu "Add to Product Knowledge".'));
+          toast.success(t('productKnowledge.generate.aiSuccess', 'Hasil AI berhasil di-parse. Pilih baris lalu "Tambah ke Creative".'));
         } else {
           setParseError(
             t('productKnowledge.generate.parseError', 'Hasil AI tidak dalam format tabel yang diharapkan. Silakan edit prompt dan coba lagi.')

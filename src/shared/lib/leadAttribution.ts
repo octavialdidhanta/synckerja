@@ -78,13 +78,25 @@ export function isAttributionFlatEmpty(f: LeadAttributionFlat): boolean {
 }
 
 export const LEAD_ATTRIBUTION_SORT_COLUMNS = [
-  'utm_source',
-  'utm_campaign',
-  'utm_medium',
-  'utm_content',
-  'utm_term',
-  'landing_url',
-  'attribution_label',
+  "created_at",
+  "ticket_id",
+  "client",
+  "title",
+  "services",
+  "category",
+  "created_by_name",
+  "source",
+  "utm_source",
+  "utm_campaign",
+  "utm_medium",
+  "utm_content",
+  "utm_term",
+  "landing_url",
+  "attribution_label",
+  "assignee",
+  "followup",
+  "fu_priority",
+  "status",
 ] as const;
 
 export type LeadAttributionSortColumn = (typeof LEAD_ATTRIBUTION_SORT_COLUMNS)[number];
@@ -99,31 +111,86 @@ export const defaultLeadAttributionSortState: LeadAttributionSortState = {
   direction: 'asc',
 };
 
-type RowWithAttribution = Record<string, string | null | undefined>;
+type SortableLeadRow = Record<string, unknown> & {
+  id?: string;
+  lead_status?: { name?: string | null } | null;
+};
+
+function tieBreakIds(a: SortableLeadRow, b: SortableLeadRow): number {
+  return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+}
+
+/** Value used for compare; null sorts last for both asc and desc. */
+function sortComparable(row: SortableLeadRow, col: LeadAttributionSortColumn): string | number | null {
+  switch (col) {
+    case "created_at": {
+      const raw = row.created_at;
+      if (raw == null || String(raw).trim() === "") return null;
+      const ms = new Date(String(raw)).getTime();
+      return Number.isNaN(ms) ? null : ms;
+    }
+    case "followup": {
+      const n = Number(row.followup ?? 0);
+      return Number.isNaN(n) ? 0 : n;
+    }
+    case "fu_priority": {
+      const countRaw = row.followup;
+      const count = countRaw == null ? 0 : Number(countRaw);
+      const safe = Number.isNaN(count) ? 0 : count;
+      const display = safe === 0 ? "please follow up" : String(row.fu_priority ?? "Medium").trim().toLowerCase();
+      return display === "" ? null : display;
+    }
+    case "status": {
+      const name =
+        row.lead_status && typeof row.lead_status === "object" && row.lead_status !== null && "name" in row.lead_status
+          ? String((row.lead_status as { name?: string | null }).name ?? "").trim()
+          : "";
+      return name === "" ? null : name.toLowerCase();
+    }
+    case "ticket_id":
+    case "client":
+    case "title":
+    case "services":
+    case "category":
+    case "created_by_name":
+    case "source":
+    case "utm_source":
+    case "utm_campaign":
+    case "utm_medium":
+    case "utm_content":
+    case "utm_term":
+    case "landing_url":
+    case "attribution_label":
+    case "assignee": {
+      const v = row[col];
+      if (v == null) return null;
+      const s = String(v).trim();
+      return s === "" ? null : s.toLowerCase();
+    }
+  }
+}
 
 /** Null/empty values sort last for both asc and desc. */
-export function sortLeadsByAttributionColumn<T extends RowWithAttribution>(
+export function sortLeadsByAttributionColumn<T extends SortableLeadRow>(
   rows: T[],
   state: LeadAttributionSortState
 ): T[] {
   if (!state.column) return rows;
-  const dir = state.direction === 'asc' ? 1 : -1;
+  const dir = state.direction === "asc" ? 1 : -1;
   const col = state.column;
-  const norm = (r: T): string | null => {
-    const v = r[col];
-    if (v == null) return null;
-    const s = String(v).trim();
-    return s === '' ? null : s.toLowerCase();
-  };
   return [...rows].sort((a, b) => {
-    const va = norm(a);
-    const vb = norm(b);
-    if (va == null && vb == null) return 0;
+    const va = sortComparable(a, col);
+    const vb = sortComparable(b, col);
+    if (va == null && vb == null) return tieBreakIds(a, b);
     if (va == null) return 1;
     if (vb == null) return -1;
-    const cmp = va.localeCompare(vb, undefined, { sensitivity: 'base' });
+    if (typeof va === "number" && typeof vb === "number") {
+      if (va !== vb) return (va - vb) * dir;
+      return tieBreakIds(a, b);
+    }
+    const cmp = String(va).localeCompare(String(vb), undefined, { sensitivity: "base" });
     if (cmp !== 0) return cmp * dir;
-    return 0;
+    return tieBreakIds(a, b);
   });
 }
 

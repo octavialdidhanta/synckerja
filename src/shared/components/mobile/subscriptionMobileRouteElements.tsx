@@ -13,7 +13,7 @@ function ShellSuspense({ children }: { children: ReactNode }) {
   return (
     <Suspense
       fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" aria-busy>
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100" aria-busy>
           <SubscriptionShellSkeleton />
         </div>
       }

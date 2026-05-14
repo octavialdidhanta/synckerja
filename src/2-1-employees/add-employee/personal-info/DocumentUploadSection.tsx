@@ -9,11 +9,11 @@ export const DocumentUploadSection = ({ formData, handleInputChange }: PersonalD
       <div className="space-y-4">
         <FileUpload
           id="id_card"
-          label="ID Card (KTP)"
+          label="ID Card (KTP) *"
           value={formData.id_card_file}
           onChange={(value) => handleInputChange('id_card_file', value || '')}
           accept=".pdf,.jpg,.jpeg,.png"
-          required={false}
+          required
         />
 
         <FileUpload

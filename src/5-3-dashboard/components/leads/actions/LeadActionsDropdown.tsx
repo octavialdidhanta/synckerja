@@ -25,8 +25,8 @@ export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete }: Le
 
   if (canOpenChat) {
     const url = hasConversationId
-      ? `/operations/consultant/all/livechat?conversation=${String(lead.id).replace(/^wa-/, '').replace(/^email-/, '')}`
-      : `/operations/consultant/all/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
+      ? `/omnichannel/livechat?conversation=${String(lead.id).replace(/^wa-/, '').replace(/^email-/, '')}`
+      : `/omnichannel/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
     return (
       <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-medium" asChild>
         <Link to={url}>

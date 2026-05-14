@@ -1,11 +1,12 @@
 // Sales hooks - Placeholder implementations
 // TODO: Implement actual hooks based on Supabase queries
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog } from '@/shared/lib/logger';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentUserEmployee } from '@/1-home/components/HomeOKRDashboard/component/SectionGreetingsImport/useCurrentUserEmployee';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { isOutside24hWindow, isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
@@ -520,6 +521,7 @@ export const useSalesActivityItems = (salesActivityId?: string) => {
 // Hook: useSalesActivityPayments
 export const useSalesActivityPayments = () => {
   const queryClient = useQueryClient();
+  const { organizationId } = useCurrentOrg();
 
   const getPaymentHistory = async (salesActivityId: string, organizationId?: string) => {
     console.log('🔍 Fetching payment history for salesActivityId:', salesActivityId, 'orgId:', organizationId);
@@ -553,7 +555,65 @@ export const useSalesActivityPayments = () => {
 
     if (error) throw error;
     queryClient.invalidateQueries({ queryKey: ['sales-activity-payments'] });
+    queryClient.invalidateQueries({ queryKey: ['piutang-payment-verifications'] });
+    if (organizationId) {
+      queryClient.invalidateQueries({ queryKey: ['sales-activities', organizationId] });
+    }
     return data;
+  };
+
+  const deletePaymentHistory = async (paymentId: string) => {
+    const { error } = await supabase.from('sales_activity_payments').delete().eq('id', paymentId);
+
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['sales-activity-payments'] });
+    queryClient.invalidateQueries({ queryKey: ['piutang-payment-verifications'] });
+    if (organizationId) {
+      queryClient.invalidateQueries({ queryKey: ['sales-activities', organizationId] });
+    }
+  };
+
+  const updatePaymentHistory = async (
+    paymentId: string,
+    patch: Record<string, unknown>,
+    scopeOrganizationId?: string | null,
+  ) => {
+    const org = scopeOrganizationId ?? organizationId;
+    let q = supabase.from('sales_activity_payments').update(patch).eq('id', paymentId);
+    if (org) {
+      q = q.eq('organization_id', org);
+    }
+    const { error } = await q;
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['sales-activity-payments'] });
+    queryClient.invalidateQueries({ queryKey: ['piutang-payment-verifications'] });
+    if (organizationId) {
+      queryClient.invalidateQueries({ queryKey: ['sales-activities', organizationId] });
+    }
+  };
+
+  const updatePaymentVerification = async (params: {
+    paymentId: string;
+    status: 'unchecked' | 'approved' | 'rejected';
+    verifiedByUserId: string | null | undefined;
+  }) => {
+    const { paymentId, status, verifiedByUserId } = params;
+    const now = status === 'unchecked' ? null : new Date().toISOString();
+    const by = status === 'unchecked' ? null : verifiedByUserId ?? null;
+    const { error } = await supabase
+      .from('sales_activity_payments')
+      .update({
+        transfer_verification_status: status,
+        transfer_verified_at: now,
+        transfer_verified_by: by,
+      })
+      .eq('id', paymentId);
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['sales-activity-payments'] });
+    queryClient.invalidateQueries({ queryKey: ['piutang-payment-verifications'] });
+    if (organizationId) {
+      queryClient.invalidateQueries({ queryKey: ['sales-activities', organizationId] });
+    }
   };
 
   const handleDownPayment = async (salesActivityId: string, paymentData: any) => {
@@ -575,6 +635,9 @@ export const useSalesActivityPayments = () => {
   return {
     getPaymentHistory,
     createPaymentHistory,
+    deletePaymentHistory,
+    updatePaymentHistory,
+    updatePaymentVerification,
     handleDownPayment,
     handleFinalPayment,
   };
@@ -814,25 +877,52 @@ export const useClientVisitsMetrics = () => {
 };
 
 // Hook: useIncomeTransactions
+/** Minimal income insert for sales flows (e.g. PaymentUpdateModal). Must match `income_transactions` columns. */
 export const useIncomeTransactions = () => {
   const { organizationId } = useCurrentOrg();
+  const { user } = useCurrentUser();
   const queryClient = useQueryClient();
 
   const createIncomeTransaction = useMutation({
-    mutationFn: async (transactionData: any) => {
+    mutationFn: async (transactionData: Record<string, unknown>) => {
       if (!organizationId) throw new Error('Organization ID is required');
-      
+      if (!user?.id) throw new Error('User authentication required');
+
+      const {
+        receipt_url: receiptUrlRaw,
+        receipt_file: _receiptFile,
+        active_organization_id: _legacyActiveOrg,
+        organization_id: _ignoredOrg,
+        user_id: _ignoredUser,
+        created_by: _ignoredCreatedBy,
+        ...rest
+      } = transactionData;
+
+      const insertRow: Record<string, unknown> = {
+        ...rest,
+        organization_id: organizationId,
+        user_id: user.id,
+        created_by: user.id,
+      };
+
+      const receiptUrl =
+        typeof receiptUrlRaw === 'string' ? receiptUrlRaw.trim() : '';
+      if (receiptUrl) {
+        insertRow.receipt_file_path = receiptUrl;
+      }
+      delete insertRow.receipt_url;
+
       const { data, error } = await supabase
         .from('income_transactions')
-        .insert({
-          ...transactionData,
-          active_organization_id: organizationId,
-        })
+        .insert(insertRow)
         .select()
         .single();
 
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['income-transactions', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['income-metrics', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-income-data', organizationId] });
       return data;
     },
   });
@@ -959,6 +1049,7 @@ export const useClientProfileStatus = (leadId: string) => {
           .from('whatsapp_conversation_client_profiles')
           .select('*')
           .eq('conversation_id', conversationId)
+          .eq('organization_id', organizationId)
           .maybeSingle();
         if (error) {
           console.error('Error fetching WhatsApp client profile:', error);
@@ -972,6 +1063,9 @@ export const useClientProfileStatus = (leadId: string) => {
         .from('lead_client_profiles')
         .select('*')
         .eq('lead_id', leadId)
+        .eq('organization_id', organizationId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) {
@@ -1078,7 +1172,14 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
   // Owner always sees all leads regardless of scope
   const effectiveScope: LeadsScope = isOwner ? 'all' : scope;
 
-  // Realtime: invalidate leads query when leads atau whatsapp_conversations berubah (status/assignee dll) — sama seperti tab live chat
+  const invalidateCycleDerivedCrmQueries = useCallback(() => {
+    if (!organizationId) return;
+    queryClient.invalidateQueries({ queryKey: ['whatsapp-cycle-metrics', organizationId] });
+    queryClient.invalidateQueries({ queryKey: ['crm-first-response-per-room', organizationId] });
+    queryClient.invalidateQueries({ queryKey: ['crm-sla-conversation', organizationId] });
+  }, [organizationId, queryClient]);
+
+  // Realtime: leads + WA/IG conversations; cycle rows drive Performance / First response / Resolution CRM sections.
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   useEffect(() => {
     if (!organizationId) return;
@@ -1097,9 +1198,21 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       )
       .on(
         'postgres_changes',
+        { event: '*', schema: 'public', table: 'whatsapp_conversation_cycles' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+        }
+      )
+      .on(
+        'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'whatsapp_conversations' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+          // Livechat Quick Action reads `whatsapp-conversation-status` / IG equivalent — refetch assignee & status.
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-conversation-status'] });
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status'] });
         }
       )
       .on(
@@ -1107,6 +1220,19 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         { event: 'INSERT', schema: 'public', table: 'whatsapp_conversations' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-conversation-status'] });
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'whatsapp_conversations' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-conversation-status'] });
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status'] });
         }
       )
       .on(
@@ -1114,6 +1240,49 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         { event: '*', schema: 'public', table: 'email_conversations' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['email-conversation-status'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'instagram_conversation_cycles' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'email_conversation_cycles' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'organization_omnichannel_sla' },
+        () => {
+          invalidateCycleDerivedCrmQueries();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'organization_sla_policies' },
+        () => {
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['organization-sla-policies', organizationId] });
+          queryClient.invalidateQueries({ queryKey: ['organization-omnichannel-sla', organizationId] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'organization_sla_policy_conditions' },
+        () => {
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['organization-sla-policies', organizationId] });
+          queryClient.invalidateQueries({ queryKey: ['organization-omnichannel-sla', organizationId] });
         }
       )
       .on(
@@ -1137,7 +1306,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         channelRef.current = null;
       }
     };
-  }, [organizationId, queryClient]);
+  }, [organizationId, queryClient, invalidateCycleDerivedCrmQueries]);
 
   // Fetch leads with join to lead_statuses; filter by scope (assignee_id)
   const queryEnabled =
@@ -1347,6 +1516,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           const leadStatus = useResolved ? resolvedStatusObj : (statusId ? statusMap.get(normId(statusId)) ?? null : null);
           const isInstagram = (c.channel ?? '').toLowerCase() === 'instagram';
           const sourceLabel = isInstagram ? 'Instagram' : 'WhatsApp';
+          const channelKey = isInstagram ? 'instagram' : 'whatsapp';
           const waTicketId = c.ticket_id ?? ((isInstagram ? 'IG-' : 'WA-') + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
           const leadRow = leadByTicketMap.get(waTicketId);
           const assigneeId = c.assignee_id ?? null;
@@ -1362,6 +1532,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             fu_priority: c.fu_priority ?? null,
             status_id: statusId,
             source: sourceLabel,
+            channel: channelKey,
             followup: c.followup ?? 0,
             converted_at: null,
             created_at: c.created_at,
@@ -1453,13 +1624,15 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             .maybeSingle();
           if (statusExists?.id) safeStatusId = lead.status_id;
         }
-        const { error: updateError } = await supabase
-          .from('email_conversations')
-          .update({
-            lead_status_id: safeStatusId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', convId);
+        const emailConvPatch: Record<string, unknown> = {
+          lead_status_id: safeStatusId,
+          updated_at: new Date().toISOString(),
+        };
+        const emailAssignee = (lead as { assignee_id?: string | null }).assignee_id;
+        if (emailAssignee !== undefined) {
+          emailConvPatch.assignee_id = emailAssignee;
+        }
+        const { error: updateError } = await supabase.from('email_conversations').update(emailConvPatch).eq('id', convId);
         if (updateError) {
           console.error('Error updating email conversation status:', updateError);
           throw updateError;
@@ -1480,6 +1653,19 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             .update({ status_id: safeStatusId, updated_at: new Date().toISOString() })
             .eq('organization_id', orgId)
             .eq('ticket_id', ticketId);
+        }
+        if (isResolvedStatus(newStatusName)) {
+          const now = new Date().toISOString();
+          const { error: emCycleErr } = await supabase
+            .from('email_conversation_cycles')
+            .update({ resolved_at: now, updated_at: now })
+            .eq('conversation_id', convId)
+            .is('resolved_at', null);
+          if (!emCycleErr && orgId) {
+            queryClient.invalidateQueries({ queryKey: ['crm-first-response-per-room', orgId] });
+            queryClient.invalidateQueries({ queryKey: ['crm-sla-conversation', orgId] });
+            queryClient.invalidateQueries({ queryKey: ['whatsapp-cycle-metrics', orgId] });
+          }
         }
         if (newStatusName?.trim().toLowerCase() === 'converted' && orgId) {
           const { data: leadRow } = await supabase
@@ -1589,13 +1775,19 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             organization_id: lead.organization_id,
           });
         }
-        if (newStatusName?.trim().toLowerCase() === 'closed') {
+        if (isResolvedStatus(newStatusName)) {
           const now = new Date().toISOString();
-          await supabase
+          const { error: cycleUpdErr } = await supabase
             .from('whatsapp_conversation_cycles')
             .update({ resolved_at: now, updated_at: now })
             .eq('conversation_id', convId)
             .is('resolved_at', null);
+          const orgForKeys = lead.organization_id ?? organizationId;
+          if (!cycleUpdErr && orgForKeys) {
+            queryClient.invalidateQueries({ queryKey: ['whatsapp-cycle-metrics', orgForKeys] });
+            queryClient.invalidateQueries({ queryKey: ['crm-first-response-per-room', orgForKeys] });
+            queryClient.invalidateQueries({ queryKey: ['crm-sla-conversation', orgForKeys] });
+          }
         }
         const orgId = lead.organization_id ?? organizationId;
         const { data: convRow } = await supabase
@@ -1694,13 +1886,15 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             }
           }
         }
-        // Sync UI: invalidate leads list and lead-by-ticket so Quick Action and /operations/consultant/leads-management stay in sync
+        // Sync UI: invalidate leads list and lead-by-ticket so Quick Action and /omnichannel/leads stay in sync
         queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['lead-by-ticket'] });
         return lead;
       }
       const { id, lead_status, organization_id: leadOrgId, whatsapp_conversation_id: whatsappConvId, ...updateData } = lead;
       const organizationIdForHistory = leadOrgId ?? organizationId;
+      const hadAssigneeUpdate = updateData.assignee_id !== undefined;
+      const hadStatusUpdate = updateData.status_id !== undefined;
 
       // Ambil status lama dari DB untuk catat ke lead_status_history
       let oldStatusId: string | null = null;
@@ -1751,28 +1945,196 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       const updatedLead = data as { ticket_id?: string; assignee_id?: string | null; organization_id?: string };
       const newStatusIdForConv = validFields.status_id as string | undefined;
-      // Sync status to whatsapp_conversations: by conversation id (from Quick Action) or by ticket_id
-      if (whatsappConvId && newStatusIdForConv) {
-        await supabase
-          .from('whatsapp_conversations')
-          .update({
-            lead_status_id: newStatusIdForConv,
-            assignee_id: updatedLead.assignee_id ?? null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', whatsappConvId);
-      } else {
-        const ticketId = updatedLead?.ticket_id;
-        if (ticketId && (ticketId.startsWith('WA-') || ticketId.startsWith('IG-')) && organizationIdForHistory) {
-          await supabase
+
+      // Keep livechat / room assignee & status in sync with `leads` (Quick Action reads `whatsapp_conversations`).
+      // Previously assignee-only updates skipped the `whatsappConvId && newStatusId` branch and used strict
+      // `ticket_id` eq — case mismatch or missing `whatsappConvId` left the room on "Belum ditetapkan".
+      if (
+        organizationIdForHistory &&
+        (hadAssigneeUpdate || (hadStatusUpdate && newStatusIdForConv != null))
+      ) {
+        let targetConvId: string | null =
+          typeof whatsappConvId === 'string' && whatsappConvId.trim() !== '' ? whatsappConvId.trim() : null;
+        const rawTid = updatedLead?.ticket_id;
+        const tid = rawTid == null ? '' : String(rawTid).trim();
+        const tidUpper = tid.toUpperCase();
+
+        if (!targetConvId && tid && (tidUpper.startsWith('WA-') || tidUpper.startsWith('IG-'))) {
+          const { data: convByIlike } = await supabase
             .from('whatsapp_conversations')
-            .update({
-              assignee_id: updatedLead.assignee_id ?? null,
-              ...(newStatusIdForConv != null && { lead_status_id: newStatusIdForConv }),
-              updated_at: new Date().toISOString(),
-            })
+            .select('id')
             .eq('organization_id', organizationIdForHistory)
-            .eq('ticket_id', ticketId);
+            .ilike('ticket_id', tid)
+            .maybeSingle();
+          targetConvId = (convByIlike?.id as string | undefined) ?? null;
+          if (!targetConvId) {
+            const { data: convByEq } = await supabase
+              .from('whatsapp_conversations')
+              .select('id')
+              .eq('organization_id', organizationIdForHistory)
+              .eq('ticket_id', tid)
+              .maybeSingle();
+            targetConvId = (convByEq?.id as string | undefined) ?? null;
+          }
+        }
+
+        let igSyncId: string | null =
+          tidUpper.startsWith('IG-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
+            ? whatsappConvId.trim()
+            : null;
+        if (!igSyncId && tid && tidUpper.startsWith('IG-')) {
+          const { data: igByIlike } = await supabase
+            .from('instagram_conversations')
+            .select('id')
+            .eq('organization_id', organizationIdForHistory)
+            .ilike('ticket_id', tid)
+            .maybeSingle();
+          igSyncId = (igByIlike?.id as string | undefined) ?? null;
+          if (!igSyncId) {
+            const { data: igByEq } = await supabase
+              .from('instagram_conversations')
+              .select('id')
+              .eq('organization_id', organizationIdForHistory)
+              .eq('ticket_id', tid)
+              .maybeSingle();
+            igSyncId = (igByEq?.id as string | undefined) ?? null;
+          }
+        }
+
+        let emailSyncId: string | null =
+          tidUpper.startsWith('EMAIL-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
+            ? whatsappConvId.trim()
+            : null;
+
+        const convPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (hadAssigneeUpdate) convPatch.assignee_id = updatedLead.assignee_id ?? null;
+        if (hadStatusUpdate && newStatusIdForConv != null) convPatch.lead_status_id = newStatusIdForConv;
+
+        if (igSyncId) {
+          const { error: igConvSyncErr } = await supabase
+            .from('instagram_conversations')
+            .update(convPatch)
+            .eq('id', igSyncId);
+          if (igConvSyncErr) console.error('Sync lead → instagram_conversations failed:', igConvSyncErr);
+          else {
+            queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', igSyncId] });
+          }
+        } else if (emailSyncId) {
+          const { error: emConvSyncErr } = await supabase
+            .from('email_conversations')
+            .update(convPatch)
+            .eq('id', emailSyncId);
+          if (emConvSyncErr) console.error('Sync lead → email_conversations failed:', emConvSyncErr);
+          else {
+            queryClient.invalidateQueries({ queryKey: ['email-conversation-status', emailSyncId] });
+          }
+        } else if (targetConvId) {
+          const { error: waConvSyncErr } = await supabase
+            .from('whatsapp_conversations')
+            .update(convPatch)
+            .eq('id', targetConvId);
+          if (waConvSyncErr) console.error('Sync lead → whatsapp_conversations failed:', waConvSyncErr);
+          else {
+            queryClient.invalidateQueries({ queryKey: ['whatsapp-conversation-status', targetConvId] });
+          }
+        }
+      }
+      // Close omnichannel conversation cycles when status → Resolve/Closed from leads row path.
+      if (newStatusIdForConv && organizationIdForHistory) {
+        const tidRaw = updatedLead?.ticket_id;
+        const tidStr = tidRaw == null ? '' : String(tidRaw).trim();
+        const tidUpperCycle = tidStr.toUpperCase();
+
+        const { data: convStatusRow } = await supabase
+          .from('lead_statuses')
+          .select('name')
+          .eq('id', newStatusIdForConv)
+          .maybeSingle();
+        const convStatusName = (convStatusRow?.name as string) ?? '';
+        if (isResolvedStatus(convStatusName)) {
+          const nowIso = new Date().toISOString();
+          const orgForKeys = organizationIdForHistory ?? organizationId;
+
+          const bumpCrm = async () => {
+            if (!orgForKeys) return;
+            queryClient.invalidateQueries({ queryKey: ['whatsapp-cycle-metrics', orgForKeys] });
+            queryClient.invalidateQueries({ queryKey: ['crm-first-response-per-room', orgForKeys] });
+            queryClient.invalidateQueries({ queryKey: ['crm-sla-conversation', orgForKeys] });
+          };
+
+          let waConvId: string | null =
+            typeof whatsappConvId === 'string' && whatsappConvId.trim() !== '' ? whatsappConvId.trim() : null;
+          if (!waConvId && tidStr && (tidUpperCycle.startsWith('WA-') || tidUpperCycle.startsWith('IG-'))) {
+            const { data: convLookup } = await supabase
+              .from('whatsapp_conversations')
+              .select('id')
+              .eq('organization_id', organizationIdForHistory)
+              .ilike('ticket_id', tidStr)
+              .maybeSingle();
+            waConvId = (convLookup?.id as string | undefined) ?? null;
+            if (!waConvId) {
+              const { data: convLookupEq } = await supabase
+                .from('whatsapp_conversations')
+                .select('id')
+                .eq('organization_id', organizationIdForHistory)
+                .eq('ticket_id', tidStr)
+                .maybeSingle();
+              waConvId = (convLookupEq?.id as string | undefined) ?? null;
+            }
+          }
+
+          if (waConvId && !tidUpperCycle.startsWith('IG-') && !tidUpperCycle.startsWith('EMAIL-')) {
+            const { error: cycleUpdErr } = await supabase
+              .from('whatsapp_conversation_cycles')
+              .update({ resolved_at: nowIso, updated_at: nowIso })
+              .eq('conversation_id', waConvId)
+              .is('resolved_at', null);
+            if (!cycleUpdErr) await bumpCrm();
+          }
+
+          if (tidUpperCycle.startsWith('IG-')) {
+            let igConvId: string | null =
+              typeof whatsappConvId === 'string' && whatsappConvId.trim() !== '' ? whatsappConvId.trim() : null;
+            if (!igConvId && tidStr) {
+              const { data: igLookup } = await supabase
+                .from('instagram_conversations')
+                .select('id')
+                .eq('organization_id', organizationIdForHistory)
+                .ilike('ticket_id', tidStr)
+                .maybeSingle();
+              igConvId = (igLookup?.id as string | undefined) ?? null;
+              if (!igConvId) {
+                const { data: igEq } = await supabase
+                  .from('instagram_conversations')
+                  .select('id')
+                  .eq('organization_id', organizationIdForHistory)
+                  .eq('ticket_id', tidStr)
+                  .maybeSingle();
+                igConvId = (igEq?.id as string | undefined) ?? null;
+              }
+            }
+            if (igConvId) {
+              const { error: igCycleErr } = await supabase
+                .from('instagram_conversation_cycles')
+                .update({ resolved_at: nowIso, updated_at: nowIso })
+                .eq('conversation_id', igConvId)
+                .is('resolved_at', null);
+              if (!igCycleErr) await bumpCrm();
+            }
+          }
+
+          if (tidUpperCycle.startsWith('EMAIL-')) {
+            const emailConvId =
+              typeof whatsappConvId === 'string' && whatsappConvId.trim() !== '' ? whatsappConvId.trim() : null;
+            if (emailConvId) {
+              const { error: emCycleErr } = await supabase
+                .from('email_conversation_cycles')
+                .update({ resolved_at: nowIso, updated_at: nowIso })
+                .eq('conversation_id', emailConvId)
+                .is('resolved_at', null);
+              if (!emCycleErr) await bumpCrm();
+            }
+          }
         }
       }
       if (whatsappConvId) {

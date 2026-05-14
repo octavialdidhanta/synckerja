@@ -7,7 +7,8 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { IncomeTransactionWithRelations, CreateIncomeTransactionData } from '../types';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
-import { EXPENSES_QUERY_KEY } from '@/shared/lib/expensesQueryKeys';
+import { deleteIncomeTransactionForOrg } from '@/shared/lib/finance/deleteIncomeTransactionForOrg';
+import { refetchIncomeModuleQueries } from '@/shared/lib/finance/refetchIncomeModuleQueries';
 
 /** Postgres UUID columns must get NULL, not "", when unset. */
 function uuidOrNull(v: unknown): string | null {
@@ -605,83 +606,15 @@ export const useIncomeTransactions = () => {
         throw new Error('No organization');
       }
 
-      const { data: row, error: fetchError } = await supabase
-        .from('income_transactions')
-        .select('id, bank_account_id, amount, description, customer_name')
-        .eq('id', id)
-        .eq('organization_id', organizationId)
-        .single();
-
-      if (fetchError) throw fetchError;
-      if (!row) throw new Error('Transaction not found');
-
-      // Try RPC first (SECURITY DEFINER sees journal). Client SELECT on bank_transfer_journals can be empty under RLS → would wrongly fall through to DELETE and get 409.
-      const { error: rpcError } = await supabase.rpc('delete_bank_transfer_by_income_transaction', {
-        p_income_transaction_id: id,
+      await deleteIncomeTransactionForOrg({
+        supabase,
+        organizationId,
+        incomeTransactionId: id,
+        updateBalance,
       });
-      if (!rpcError) {
-        return;
-      }
-      const rpcMsg = [rpcError.message, (rpcError as { details?: string }).details]
-        .filter(Boolean)
-        .join(' ')
-        .toUpperCase();
-      if (!rpcMsg.includes('NOT_BANK_TRANSFER_INCOME')) {
-        throw rpcError;
-      }
-
-      const bankId = row.bank_account_id as string | null;
-      const amt = parseFloat(String(row.amount ?? 0));
-      const label =
-        (row.description && String(row.description).trim()) ||
-        (row.customer_name && String(row.customer_name).trim()) ||
-        'Transaction';
-
-      let balanceReversed = false;
-      try {
-        if (bankId && Number.isFinite(amt) && Math.abs(amt) > 1e-9) {
-          await updateBalance(bankId, -amt, 'income', row.id, `Income deleted: ${label}`);
-          balanceReversed = true;
-        }
-
-        const { error: delError } = await supabase
-          .from('income_transactions')
-          .delete()
-          .eq('id', id)
-          .eq('organization_id', organizationId);
-
-        if (delError) throw delError;
-      } catch (e) {
-        if (balanceReversed && bankId && Number.isFinite(amt) && Math.abs(amt) > 1e-9) {
-          try {
-            await updateBalance(bankId, amt, 'income', row.id, 'Rollback: income delete failed');
-          } catch (rollbackErr) {
-            console.error('Income delete balance rollback failed:', rollbackErr);
-          }
-        }
-        throw e;
-      }
     },
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['income-transactions', organizationId] }),
-        queryClient.refetchQueries({ queryKey: ['income-transactions'] }),
-        queryClient.refetchQueries({ queryKey: ['sales-activities'] }),
-        queryClient.refetchQueries({ queryKey: ['bank-account-balances', organizationId] }),
-        queryClient.refetchQueries({ queryKey: ['bank-account-balances'] }),
-        organizationId
-          ? queryClient.refetchQueries({ queryKey: [...EXPENSES_QUERY_KEY, organizationId] })
-          : queryClient.refetchQueries({ queryKey: EXPENSES_QUERY_KEY }),
-        organizationId
-          ? queryClient.refetchQueries({ queryKey: ['income-metrics', organizationId] })
-          : Promise.resolve(),
-        organizationId
-          ? queryClient.refetchQueries({ queryKey: ['monthly-income-data', organizationId] })
-          : Promise.resolve(),
-        organizationId
-          ? queryClient.refetchQueries({ queryKey: ['expense-metrics', organizationId] })
-          : Promise.resolve(),
-      ]);
+      await refetchIncomeModuleQueries(queryClient, organizationId);
       toast({
         title: t('common.success', 'Success'),
         description: t('incomes.delete.success', 'Income transaction deleted successfully'),

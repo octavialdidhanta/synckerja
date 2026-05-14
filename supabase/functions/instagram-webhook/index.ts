@@ -44,8 +44,8 @@ async function ensureLeadForNewInstagramConversation(
   const { data: unreadStatus } = await supabase
     .from("lead_statuses")
     .select("id")
+    .or(`organization_id.eq.${orgId},organization_id.is.null`)
     .eq("name", "Unread")
-    .limit(1)
     .maybeSingle();
   const statusId = unreadStatus?.id ?? null;
   if (!statusId) {
@@ -327,9 +327,28 @@ Deno.serve(async (req: Request) => {
           conv = updated;
         } else {
           const ticketId = "IG-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
-          const { data: openStatus } = await supabase.from("lead_statuses").select("id").eq("name", "Open").maybeSingle();
-          const { data: unreadStatus } = await supabase.from("lead_statuses").select("id").eq("name", "Unread").maybeSingle();
+          const orgOrGlobalNew = `organization_id.eq.${orgId},organization_id.is.null`;
+          const { data: openStatus } = await supabase
+            .from("lead_statuses")
+            .select("id")
+            .or(orgOrGlobalNew)
+            .eq("name", "Open")
+            .maybeSingle();
+          const { data: unreadStatus } = openStatus?.id
+            ? { data: null }
+            : await supabase
+                .from("lead_statuses")
+                .select("id")
+                .or(orgOrGlobalNew)
+                .eq("name", "Unread")
+                .maybeSingle();
           const leadStatusId = openStatus?.id ?? unreadStatus?.id ?? null;
+          if (!leadStatusId) {
+            console.warn(
+              "[instagram-webhook] new conv: no Open/Unread lead_status (org or global); conversation may insert with null lead_status_id",
+              { organization_id: orgId },
+            );
+          }
 
           const { data: inserted, error: insertErr } = await supabase
             .from("instagram_conversations")
@@ -355,6 +374,11 @@ Deno.serve(async (req: Request) => {
             senderId,
             displayName
           );
+          const { error: newCycleErr } = await supabase.from("instagram_conversation_cycles").insert({
+            conversation_id: conv!.id,
+            cycle_started_at: ts,
+          });
+          if (newCycleErr) console.error("[instagram-webhook] new conversation cycle insert error", newCycleErr);
         }
 
         if (!conv || !mid) {
@@ -445,6 +469,11 @@ Deno.serve(async (req: Request) => {
           const isResolved = statusNameLower === "closed" || statusNameLower === "resolve";
           const isNewOrReopen = openStatusId && (statusId == null || isResolved);
           if (isNewOrReopen) {
+            const { data: convBefore } = await supabase
+              .from("instagram_conversations")
+              .select("organization_id, ticket_id")
+              .eq("id", conv.id)
+              .maybeSingle();
             const { error: updateErr } = await supabase
               .from("instagram_conversations")
               .update({ lead_status_id: openStatusId, last_inbound_at: ts, updated_at: ts })
@@ -454,6 +483,21 @@ Deno.serve(async (req: Request) => {
             } else {
               console.log("[instagram-webhook] Reopened conversation to Open (Unread):", conv.id, { openStatusId, hadStatus: statusId });
             }
+            if (convBefore?.organization_id && openStatusId) {
+              const ticketId =
+                (convBefore.ticket_id as string) ?? `IG-${conv.id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+              const { error: leadErr } = await supabase
+                .from("leads")
+                .update({ status_id: openStatusId, updated_at: ts })
+                .eq("organization_id", convBefore.organization_id)
+                .eq("ticket_id", ticketId);
+              if (leadErr) console.error("[instagram-webhook] Reopen: sync leads.status_id to Open failed:", leadErr);
+            }
+            const { error: cycleErr } = await supabase.from("instagram_conversation_cycles").insert({
+              conversation_id: conv.id,
+              cycle_started_at: ts,
+            });
+            if (cycleErr) console.error("[instagram-webhook] New cycle insert error:", cycleErr);
           }
         }
 

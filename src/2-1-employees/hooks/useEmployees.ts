@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { attendanceHRQueryDefaults } from '@/shared/lib/attendanceHRQueryDefaults';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
 import { getOptimizedCurrentOrganizationId } from './useOptimizedCurrentOrg';
 
 export type Employee = {
@@ -37,6 +38,8 @@ export type Employee = {
   manager_id?: string | null;
   /** Resolved from current org employee list (same fetch). */
   manager_name?: string | null;
+  /** Canonical `user_roles.role` for current org (highest privilege). */
+  organization_role?: string | null;
 };
 
 export const useEmployees = () => {
@@ -64,10 +67,27 @@ export const useEmployees = () => {
         .eq('id', organizationId)
         .single();
 
+      const { data: orgRoleRows } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .eq('organization_id', organizationId);
+
+      const rolesByUser = new Map<string, { role: string }[]>();
+      for (const row of orgRoleRows ?? []) {
+        if (!row.user_id) continue;
+        const list = rolesByUser.get(row.user_id) ?? [];
+        list.push({ role: row.role });
+        rolesByUser.set(row.user_id, list);
+      }
+
       // Get related data separately for each employee
       const enrichedEmployees = await Promise.all(
         (employees || []).map(async (emp: any) => {
           const isOwner = emp.user_id && organization && emp.user_id === (organization as any)?.user_id;
+          const orgRoles = emp.user_id ? rolesByUser.get(emp.user_id) : undefined;
+          const organization_role = orgRoles?.length
+            ? pickHighestUserRoleFromRows(orgRoles)
+            : null;
           
           // Get related data separately to avoid JOIN issues
           const [departmentData, jobPositionData, jobLevelData, branchData, employeeStatusData] = await Promise.all([
@@ -98,6 +118,7 @@ export const useEmployees = () => {
           return {
             ...emp,
             is_organization_owner: isOwner,
+            organization_role,
             // Use consistent naming and proper fallbacks
             department_name: departmentData.data?.name || null,
             job_position_name: jobPositionData.data?.name || null,

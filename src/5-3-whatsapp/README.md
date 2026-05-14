@@ -4,10 +4,10 @@ Fitur integrasi WhatsApp Business API, Instagram, dan Email untuk area Operation
 
 ## Path
 
-- **Connect WhatsApp:** `/operations/consultant/whatsapp/connect` — form Business Account ID, Access Token, Verify Token, Phone Number ID; tampilan Webhook Callback URL.
-- **Connect Instagram:** `/operations/consultant/instagram/connect` — OAuth Meta; daftar akun Instagram terhubung.
-- **Connect Email:** `/operations/consultant/email/connect` — tambah email, alamat inbound untuk forwarding Gmail; daftar akun email terhubung.
-- **Inbox (Live Chat):** `/operations/consultant/all/livechat` — daftar percakapan (WhatsApp, Instagram, Email), chat thread, form balas.
+- **Connect WhatsApp:** `/omnichannel/integrations/whatsapp` — form Business Account ID, Access Token, Verify Token, Phone Number ID; tampilan Webhook Callback URL.
+- **Connect Instagram:** `/omnichannel/integrations/instagram` — OAuth Meta; daftar akun Instagram terhubung.
+- **Connect Email:** `/omnichannel/integrations/email` — tambah email, alamat inbound untuk forwarding Gmail; daftar akun email terhubung.
+- **Inbox (Live Chat):** `/omnichannel/livechat` — daftar percakapan (WhatsApp, Instagram, Email), chat thread, form balas.
 
 ## Struktur
 

@@ -23,7 +23,7 @@ export function IncomeTransactionModuleShell({ children }: IncomeTransactionModu
                 <HeaderAndTab />
               </div>
 
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

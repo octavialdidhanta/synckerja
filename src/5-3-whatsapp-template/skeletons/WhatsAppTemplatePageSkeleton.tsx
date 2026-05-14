@@ -1,6 +1,6 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
-/** Mirrors CRM `HeaderAndTab` (7 tabs) + template manager toolbar + table shell. */
+/** Mirrors CRM `HeaderAndTab` on campaign routes (WhatsApp Campaign + Template + Recipient Lists; h1 Campaign/Kampanye) + toolbar + table shell. */
 function CrmHeaderTabSkeleton() {
   return (
     <div className="min-w-0 max-w-full px-1 py-3">
@@ -10,15 +10,18 @@ function CrmHeaderTabSkeleton() {
       </div>
       <div className="-mb-3 min-w-0 overflow-x-auto seamless-scroll">
         <nav className="flex min-w-0 flex-nowrap gap-x-6" aria-hidden>
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex cursor-default items-center space-x-1.5 border-b-2 border-transparent py-1.5 px-1"
-            >
-              <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
-              <Skeleton className="h-4 w-24 shrink-0 rounded-sm sm:w-28" />
-            </div>
-          ))}
+          <div className="flex cursor-default items-center space-x-1.5 border-b-2 border-transparent py-1.5 px-1">
+            <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
+            <Skeleton className="h-4 w-40 shrink-0 rounded-sm sm:w-44" />
+          </div>
+          <div className="flex cursor-default items-center space-x-1.5 border-b-2 border-transparent py-1.5 px-1">
+            <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
+            <Skeleton className="h-4 w-36 shrink-0 rounded-sm sm:w-40" />
+          </div>
+          <div className="flex cursor-default items-center space-x-1.5 border-b-2 border-transparent py-1.5 px-1">
+            <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
+            <Skeleton className="h-4 w-32 shrink-0 rounded-sm sm:w-36" />
+          </div>
         </nav>
       </div>
     </div>
@@ -38,7 +41,7 @@ export function WhatsAppTemplatePageSkeleton() {
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                    <div className="mb-4 flex gap-6 border-b border-slate-200 pb-2">
+                    <div className="mb-4 flex flex-wrap gap-6 border-b border-slate-200 pb-2">
                       <Skeleton className="h-5 w-24" />
                       <Skeleton className="h-5 w-32" />
                     </div>

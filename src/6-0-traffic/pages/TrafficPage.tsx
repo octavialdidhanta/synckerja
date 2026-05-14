@@ -13,6 +13,16 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { ClickDetailsDialog } from "../components/ClickDetailsDialog";
 import { useTrafficDashboardController } from "../hooks/useTrafficDashboardController";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 
 type TrafficDashboardPayload = {
   web_id: string;
@@ -53,6 +63,12 @@ type TrafficDashboardPayload = {
     clicks: number;
   }>;
   utm_table: Array<{
+    visit_key?: string | null;
+    visitor_id?: string | null;
+    session_id?: string | null;
+    day?: string | null;
+    occurred_at?: string | null;
+    time_label?: string | null;
     route: string | null;
     utm_campaign: string | null;
     utm_source: string | null;
@@ -104,10 +120,60 @@ function formatPct(v: unknown) {
   return `${clamped}%`;
 }
 
+function trafficDashboardErrorHint(err: unknown): string | null {
+  const msg =
+    err &&
+    typeof err === "object" &&
+    "message" in err &&
+    typeof (err as { message: unknown }).message === "string"
+      ? (err as { message: string }).message.trim()
+      : "";
+  if (!msg) return null;
+  const lower = msg.toLowerCase();
+  if (lower.includes("forbidden")) {
+    return "Akses ditolak untuk Web ID ini di organisasi aktif. Periksa organisasi di header dan pastikan properti sudah dihubungkan (Connect) untuk org tersebut.";
+  }
+  if (lower.includes("web_id is required")) {
+    return "Web ID belum dipilih atau kosong.";
+  }
+  if (lower.includes("invalid range")) {
+    return "Rentang tanggal tidak valid (akhir sebelum mulai). Sesuaikan filter tanggal.";
+  }
+  if (lower.includes("could not choose the best candidate")) {
+    return "Ada dua versi get_traffic_dashboard di database (konflik overload). Jalankan migrasi terbaru (drop overload text,text,text) atau hapus fungsi duplikat di SQL Editor Supabase.";
+  }
+  if (lower.includes("pgrst") || lower.includes("could not find the function")) {
+    return "Fungsi database tidak ditemukan atau tidak cocok. Pastikan migrasi Supabase untuk traffic sudah di-push ke project ini.";
+  }
+  return msg;
+}
+
+type TrafficSyncResponseBody = {
+  success?: unknown;
+  ok?: unknown;
+  message?: unknown;
+  error?: unknown;
+  step?: unknown;
+  hint_sql?: unknown;
+  hint?: unknown;
+};
+
+function parseTrafficSyncResponse(text: string): TrafficSyncResponseBody | null {
+  if (!text) return null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? (parsed as TrafficSyncResponseBody) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function TrafficPage() {
   const { toast } = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [cancellingWebId, setCancellingWebId] = useState<string | null>(null);
+  const [cancelConfirmWebId, setCancelConfirmWebId] = useState<string | null>(null);
   type TrafficClickDetails =
     | { kind: "path"; path: string }
     | { kind: "source"; key: "utm" | "paid_click_ids" | "referral" | "direct"; label: string };
@@ -132,14 +198,23 @@ export default function TrafficPage() {
     rangeIsMaximum,
     dashboardQuery,
     ingestionQuery,
+    webAccessQuery,
   } = useTrafficDashboardController();
 
   const accessibleWebIds = webIdsQuery.data ?? [];
+  const pendingApprovalWebIds = useMemo(() => {
+    return (webAccessQuery.data ?? [])
+      .filter((row) => row.is_approved === false)
+      .map((row) => row.web_id)
+      .filter((id) => id.trim() !== "");
+  }, [webAccessQuery.data]);
 
   const webIdSelectValue = useMemo(() => {
     if (webIdsQuery.isLoading) return "";
     if (accessibleWebIds.length === 0) return CONNECT_WEB_ID_SELECT_VALUE;
-    return webId.trim() || accessibleWebIds[0];
+    const trimmed = webId.trim();
+    if (trimmed && accessibleWebIds.includes(trimmed)) return trimmed;
+    return accessibleWebIds[0];
   }, [webIdsQuery.isLoading, accessibleWebIds, webId]);
 
   function handleWebIdSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -149,6 +224,12 @@ export default function TrafficPage() {
       return;
     }
     setWebId(v);
+  }
+
+  function openConnectDialogFromEmptySelect(e: React.SyntheticEvent<HTMLSelectElement>) {
+    if (webIdsQuery.isLoading || accessibleWebIds.length > 0) return;
+    e.preventDefault();
+    setConnectOpen(true);
   }
 
   void organizationId;
@@ -211,8 +292,15 @@ export default function TrafficPage() {
     );
   }, [sourceBreakdownRows]);
 
+  const hasSourceBreakdown = sourceBreakdownRows.length > 0;
   const sessionsDisplay =
-    kpis == null ? null : utmTableMetrics.utmFiltersActive ? utmTableMetrics.filteredSessionsSum : kpis.sessions;
+    kpis == null
+      ? null
+      : utmTableMetrics.utmFiltersActive
+        ? utmTableMetrics.filteredSessionsSum
+        : hasSourceBreakdown
+          ? sourceBreakdownTotals.sessions
+          : kpis.sessions;
   const pageViewsDisplay =
     kpis == null ? null : utmTableMetrics.utmFiltersActive ? utmTableMetrics.filteredPageViewsSum : kpis.page_views;
   const clicksDisplay =
@@ -295,14 +383,12 @@ export default function TrafficPage() {
         });
 
         const text = await res.text();
-        let parsed: any = null;
-        try {
-          parsed = text ? (JSON.parse(text) as any) : null;
-        } catch {
-          parsed = null;
-        }
+        const parsed = parseTrafficSyncResponse(text);
 
-        if (res.ok && parsed?.success) {
+        // Edge function may return `{ success: true }` (repo) or `{ ok: true, p_from, p_to, ... }` (RPC-shaped / older deploy).
+        const syncOk =
+          res.ok && (parsed?.success === true || parsed?.ok === true);
+        if (syncOk) {
           const desc =
             range === null
               ? `Rollup refreshed for ${effectiveWebId} (Maximum: semua tanggal yang tersedia).`
@@ -318,12 +404,21 @@ export default function TrafficPage() {
 
         // Supabase Edge Runtime can intermittently return 503 without executing the function.
         // Retry a few times before surfacing the error to the user.
+        const errMsg = (() => {
+          const m = parsed?.message ?? parsed?.error ?? (typeof text === "string" && text.trim() ? text : null);
+          const step = parsed?.step ? String(parsed.step) : "";
+          const hint = parsed?.hint_sql ?? parsed?.hint;
+          const base = m == null ? "Edge runtime error" : String(m);
+          const withStep = step ? `[${step}] ${base}` : base;
+          return hint ? `${withStep} — ${String(hint)}` : withStep;
+        })();
+
         if (res.status === 503 && attempt < delaysMs.length - 1) {
-          lastErr = { status: res.status, message: parsed?.error ?? text ?? "Edge runtime error" };
+          lastErr = { status: res.status, message: errMsg };
           continue;
         }
 
-        lastErr = { status: res.status, message: parsed?.error ?? text ?? res.statusText };
+        lastErr = { status: res.status, message: errMsg || res.statusText };
         break;
       }
 
@@ -335,6 +430,36 @@ export default function TrafficPage() {
       return;
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleCancelWebAccessRequest(webIdToCancel: string) {
+    if (!organizationId) return;
+    setCancellingWebId(webIdToCancel);
+    try {
+      const { error } = await supabase
+        .from("analytics_web_access")
+        .delete()
+        .eq("organization_id", organizationId)
+        .eq("web_id", webIdToCancel)
+        .eq("is_approved", false);
+      if (error) throw error;
+
+      toast({
+        title: "Request cancelled",
+        description: `Request web_id "${webIdToCancel}" sudah dihapus.`,
+      });
+      void webAccessQuery.refetch();
+      void webIdsQuery.refetch();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus request web_id.";
+      toast({
+        title: "Cancel failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingWebId(null);
     }
   }
 
@@ -362,6 +487,12 @@ export default function TrafficPage() {
                           className="h-8 min-w-[10rem] max-w-[14rem] rounded-md border border-input bg-background px-2 text-xs text-foreground"
                           value={webIdSelectValue}
                           onChange={handleWebIdSelectChange}
+                          onMouseDown={openConnectDialogFromEmptySelect}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              openConnectDialogFromEmptySelect(e);
+                            }
+                          }}
                           disabled={webIdsQuery.isLoading}
                         >
                           {webIdsQuery.isLoading ? (
@@ -381,7 +512,7 @@ export default function TrafficPage() {
                         </select>
                         <DateRangeFilter
                           onDateRangeChange={setRange}
-                          defaultPreset="last30days"
+                          defaultPreset="today"
                           className="w-auto"
                         />
                         <Button
@@ -403,6 +534,36 @@ export default function TrafficPage() {
 
                   <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <div className="grid grid-cols-12 gap-3">
+                      {pendingApprovalWebIds.length > 0 ? (
+                        <div className="col-span-12">
+                          <Alert className="border-amber-200 bg-amber-50/90 text-amber-950">
+                            <AlertTitle className="text-amber-950">web_id belum approved</AlertTitle>
+                            <AlertDescription className="flex flex-col gap-2 text-sm text-amber-900/90">
+                              <span>Data traffic belum bisa diambil sampai approval aktif.</span>
+                              <span className="flex flex-wrap gap-2">
+                                {pendingApprovalWebIds.map((pendingWebId) => (
+                                  <span
+                                    key={pendingWebId}
+                                    className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-white/70 px-2 py-1"
+                                  >
+                                    <code className="text-amber-950">{pendingWebId}</code>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-6 border-amber-300 px-2 text-xs text-amber-950 hover:bg-amber-100"
+                                      onClick={() => setCancelConfirmWebId(pendingWebId)}
+                                      disabled={cancellingWebId === pendingWebId}
+                                    >
+                                      {cancellingWebId === pendingWebId ? "Cancelling..." : "Cancel"}
+                                    </Button>
+                                  </span>
+                                ))}
+                              </span>
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      ) : null}
                       {!ingestionQuery.isLoading && !ingestionQuery.isError && ingestionQuery.data?.data_status === "rollups_not_built" && (
                         <div className="col-span-12">
                           <Alert className="border-amber-200 bg-amber-50/90 text-amber-950">
@@ -494,7 +655,26 @@ export default function TrafficPage() {
                               ) : dashboardQuery.isError ? (
                                 <tr>
                                   <td colSpan={7} className="px-4 py-6 text-center text-xs text-gray-500">
-                                    Gagal memuat sumber traffic.
+                                    <p className="font-medium text-gray-700">Gagal memuat sumber traffic.</p>
+                                    {(() => {
+                                      const hint = trafficDashboardErrorHint(dashboardQuery.error);
+                                      return hint ? (
+                                        <p className="mx-auto mt-2 max-w-xl text-[11px] leading-snug text-gray-500">
+                                          {hint}
+                                        </p>
+                                      ) : null;
+                                    })()}
+                                    <div className="mt-3">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs"
+                                        onClick={() => void dashboardQuery.refetch()}
+                                      >
+                                        Coba lagi
+                                      </Button>
+                                    </div>
                                   </td>
                                 </tr>
                               ) : sourceBreakdownRows.length === 0 ? (
@@ -834,7 +1014,46 @@ export default function TrafficPage() {
           webIdsQuery.refetch();
           setWebId(newWebId);
         }}
+        onRequestSubmitted={() => {
+          void webAccessQuery.refetch();
+          void webIdsQuery.refetch();
+        }}
       />
+
+      <AlertDialog
+        open={cancelConfirmWebId != null}
+        onOpenChange={(open) => {
+          if (!open && cancellingWebId == null) setCancelConfirmWebId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel request web_id?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Request untuk web_id{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">{cancelConfirmWebId ?? ""}</code>{" "}
+              akan dihapus dari <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">analytics_web_access</code>.
+              Data traffic untuk web_id ini tetap tidak bisa diambil sampai request baru dibuat dan di-approved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancellingWebId != null}>Back</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={cancellingWebId != null || cancelConfirmWebId == null}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!cancelConfirmWebId) return;
+                void handleCancelWebAccessRequest(cancelConfirmWebId).then(() => {
+                  setCancelConfirmWebId(null);
+                });
+              }}
+            >
+              {cancellingWebId != null ? "Deleting..." : "Delete request"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ClickDetailsDialog
         open={clickDetails != null}

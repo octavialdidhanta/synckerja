@@ -204,15 +204,6 @@ export const PageAccessTab = () => {
   };
 
   const handleDeletePage = async (config: PermissionConfiguration) => {
-    if (config.organization_id === null) {
-      toast({
-        variant: 'destructive',
-        title: 'Cannot Delete',
-        description: 'Default system configuration cannot be deleted.',
-      });
-      return;
-    }
-
     if (!confirm(`Are you sure you want to delete access configuration for "${config.page_title}"?`)) {
       return;
     }
@@ -445,11 +436,7 @@ export const PageAccessTab = () => {
                                           </code>
                                         </TableCell>
                                         <TableCell className="text-center">
-                                          {config.organization_id === null ? (
-                                            <Badge variant="secondary" className="text-xs">Default</Badge>
-                                          ) : (
-                                            <Badge variant="outline" className="text-xs">Custom</Badge>
-                                          )}
+                                          <Badge variant="outline" className="text-xs">Organisasi</Badge>
                                         </TableCell>
                                         <TableCell className="text-center">
                                           {config.exceptions?.length || 0}
@@ -495,12 +482,8 @@ export const PageAccessTab = () => {
                                               variant="outline" 
                                               size="sm" 
                                               onClick={() => handleDeletePage(config)}
-                                              disabled={deletingId === config.id || config.organization_id === null}
-                                              title={
-                                                config.organization_id === null
-                                                  ? 'Default system configuration cannot be deleted'
-                                                  : 'Delete page access configuration'
-                                              }
+                                              disabled={deletingId === config.id}
+                                              title="Delete page access configuration"
                                               className="text-red-600 hover:text-red-700 disabled:text-muted-foreground"
                                             >
                                               {deletingId === config.id ? (
@@ -524,7 +507,13 @@ export const PageAccessTab = () => {
                         <div className="border-border bg-muted/40 mt-2 flex-shrink-0 rounded-md border px-4 py-2">
                           <AccessPermissionsTableFooter 
                             totalConfigurations={configurations.length}
-                            lastUpdated={configurations.find(c => c.organization_id !== null)?.updated_at}
+                            lastUpdated={
+                              configurations.length
+                                ? [...configurations].sort((a, b) =>
+                                    b.updated_at.localeCompare(a.updated_at),
+                                  )[0]?.updated_at
+                                : undefined
+                            }
                           />
                         </div>
                     </div>

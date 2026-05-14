@@ -319,6 +319,11 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         conversationId = newConv.id;
+        const { error: newEmailCycleErr } = await supabase.from("email_conversation_cycles").insert({
+          conversation_id: conversationId,
+          cycle_started_at: nowIso,
+        });
+        if (newEmailCycleErr) console.error("email-inbound: new conversation cycle insert failed", newEmailCycleErr);
       }
 
       const emailInsertPayload = {
@@ -370,15 +375,25 @@ Deno.serve(async (req: Request) => {
       const statusNameLower = leadStatusName?.trim().toLowerCase() ?? "";
       const isResolved = statusNameLower === "closed" || statusNameLower === "resolve";
       if (isResolved) {
+        // Prefer org-scoped statuses, fallback global — sama pola dengan whatsapp-webhook (hindari .maybeSingle() ambigu).
+        const orgId = conn.organization_id;
+        const orgOrGlobal = `organization_id.eq.${orgId},organization_id.is.null`;
         const { data: openStatus } = await supabase
           .from("lead_statuses")
           .select("id")
+          .or(orgOrGlobal)
           .eq("name", "Open")
           .maybeSingle();
         const { data: unreadStatus } = openStatus?.id
           ? { data: null }
-          : await supabase.from("lead_statuses").select("id").eq("name", "Unread").maybeSingle();
+          : await supabase.from("lead_statuses").select("id").or(orgOrGlobal).eq("name", "Unread").maybeSingle();
         const openStatusId = openStatus?.id ?? unreadStatus?.id ?? null;
+        if (!openStatusId) {
+          console.warn(
+            "email-inbound: cannot reopen — no lead_status Open/Unread (org or global).",
+            { organization_id: orgId },
+          );
+        }
         if (openStatusId) {
           const nowIso = new Date().toISOString();
           await supabase
@@ -399,6 +414,11 @@ Deno.serve(async (req: Request) => {
               .eq("ticket_id", ticketId);
             if (leadErr) console.error("email-inbound: reopen sync leads.status_id to Open failed:", leadErr);
           }
+          const { error: reopenCycleErr } = await supabase.from("email_conversation_cycles").insert({
+            conversation_id: conversationId,
+            cycle_started_at: nowIso,
+          });
+          if (reopenCycleErr) console.error("email-inbound: reopen cycle insert failed", reopenCycleErr);
         }
       }
 

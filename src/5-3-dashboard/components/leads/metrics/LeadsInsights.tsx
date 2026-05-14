@@ -56,10 +56,11 @@ export const LeadsInsights = ({
   const setActiveTab = isControlled ? (onActiveTabChange ?? (() => {})) : setInternalTab;
 
   const sectionCardClass = (base: string) => {
-    if (!denserSections) return base;
-    return base
-      .replace('border-none', 'border border-border')
-      .replace(/shadow-sm|shadow/g, 'shadow-none');
+    let result = base.replace("border-none", "border border-border");
+    if (denserSections) {
+      result = result.replace(/shadow-sm|shadow/g, "shadow-none");
+    }
+    return result;
   };
 
   const sectionSpacingClass = denserSections ? 'space-y-1 mt-1' : 'space-y-3 mt-4';
@@ -437,27 +438,27 @@ export const LeadsInsights = ({
       )}
         {activeTab === 'overview' && <div className={sectionSpacingClass}>
           {/* Conversion Metrics */}
-          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-emerald-50 to-green-50")}>
+          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/5")}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <Target className="h-4 w-4 text-emerald-600" />
+                <Target className="h-4 w-4 text-brand-blue" />
                 Conversion Metrics
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-white/70 rounded-lg p-3">
-                  <div className="text-lg font-bold text-emerald-600">{convertedCount}</div>
+                <div className="bg-white/70 rounded-lg border border-border p-3">
+                  <div className="text-lg font-bold text-brand-red">{convertedCount}</div>
                   <div className="text-xs text-slate-600">
                     {filters?.dateRange?.from ? 'Conversion Deal Periode Ini' : 'Total Converted Leads'}
                   </div>
                 </div>
-                <div className="bg-white/70 rounded-lg p-3">
-                  <div className="text-lg font-bold text-blue-600">{conversionRate.toFixed(1)}%</div>
+                <div className="bg-white/70 rounded-lg border border-border p-3">
+                  <div className="text-lg font-bold text-brand-blue">{conversionRate.toFixed(1)}%</div>
                   <div className="text-xs text-slate-600">Conversion Rate</div>
                 </div>
               </div>
-              <div className="bg-white/70 rounded-lg p-3">
+              <div className="bg-white/70 rounded-lg border border-border p-3">
                 <div className="text-center mb-2">
                   <div className="text-sm font-medium text-slate-800">{monthToDateConversions.length}</div>
                   <div className="text-xs text-slate-500">Month to Date Conversions</div>
@@ -466,12 +467,12 @@ export const LeadsInsights = ({
                   <div className="space-y-1 mt-3 pt-2 border-t border-slate-200">
                     <div className="text-xs font-medium text-slate-600 mb-2">Conversion Details:</div>
                     {monthToDateConversions.map((lead, index) => (
-                      <div key={lead.id} className="flex justify-between items-center text-xs bg-emerald-50 rounded p-2">
+                      <div key={lead.id} className="flex justify-between items-center text-xs rounded bg-brand-blue-soft p-2">
                         <div className="flex-1">
                           <div className="font-medium text-slate-700">{lead.client}</div>
                           <div className="text-slate-500">by {lead.assignee}</div>
                         </div>
-                        <div className="text-emerald-600 font-medium">
+                        <div className="font-medium text-brand-blue">
                           {lead.converted_at ? new Date(lead.converted_at).toLocaleDateString('id-ID', {
                             day: '2-digit',
                             month: 'short',
@@ -495,7 +496,7 @@ export const LeadsInsights = ({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-white/70 rounded-lg p-3 text-center">
+              <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                 <div className="text-sm font-medium text-slate-800">
                   {filters?.dateRange?.from && filters?.dateRange?.to ? `${new Date(filters.dateRange.from).toLocaleDateString('en-US')} - ${new Date(filters.dateRange.to).toLocaleDateString('en-US')}` : 'All Data'}
                 </div>
@@ -505,15 +506,15 @@ export const LeadsInsights = ({
           </Card>
 
           {/* Source Analysis */}
-          {sourceAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-purple-50 to-pink-50")}>
+          {sourceAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/5")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-purple-600" />
+                  <TrendingUp className="h-4 w-4 text-brand-blue" />
                   Lead Source
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {sourceAnalysis.map(source => <div key={source.source} className="flex items-center justify-between p-2 bg-white/70 rounded">
+                {sourceAnalysis.map(source => <div key={source.source} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                     <span className="text-sm text-slate-700">{source.source}</span>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">
@@ -526,25 +527,25 @@ export const LeadsInsights = ({
             </Card>}
 
           {/* Data Overview */}
-          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50")}>
+          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-blue-600" />
+                <BarChart3 className="h-4 w-4 text-brand-blue" />
                 Data Summary
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-white/70 rounded-lg p-3">
-                  <div className="text-lg font-bold text-green-600">{completeDataCount}</div>
+                <div className="bg-white/70 rounded-lg border border-border p-3">
+                  <div className="text-lg font-bold text-brand-blue">{completeDataCount}</div>
                   <div className="text-xs text-slate-600">Complete Data</div>
                 </div>
-                <div className="bg-white/70 rounded-lg p-3">
-                  <div className="text-lg font-bold text-orange-600">{incompleteDataCount}</div>
+                <div className="bg-white/70 rounded-lg border border-border p-3">
+                  <div className="text-lg font-bold text-brand-blue/70">{incompleteDataCount}</div>
                   <div className="text-xs text-slate-600">Incomplete Data</div>
                 </div>
-                <div className="bg-white/70 rounded-lg p-3">
-                  <div className="text-lg font-bold text-red-600">{noDataCount}</div>
+                <div className="bg-white/70 rounded-lg border border-border p-3">
+                  <div className="text-lg font-bold text-brand-red">{noDataCount}</div>
                   <div className="text-xs text-slate-600">No Data</div>
                 </div>
               </div>
@@ -552,15 +553,15 @@ export const LeadsInsights = ({
           </Card>
 
           {/* Services Analysis */}
-          {servicesAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-amber-50 to-yellow-50")}>
+          {servicesAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-amber-600" />
+                  <FileText className="h-4 w-4 text-brand-blue" />
                   Services
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {servicesAnalysis.map((service, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded">
+                {servicesAnalysis.map((service, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                     <span className="text-sm text-slate-700">{service.service}</span>
                     <Badge variant="outline" className="text-xs">
                       {service.count}
@@ -570,15 +571,15 @@ export const LeadsInsights = ({
             </Card>}
 
           {/* Category Analysis */}
-          {categoryAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-indigo-50 to-blue-50")}>
+          {categoryAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-blue-soft/60")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-indigo-600" />
+                  <FileText className="h-4 w-4 text-brand-blue" />
                   Category Analysis
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {categoryAnalysis.map((category, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded">
+                {categoryAnalysis.map((category, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                     <span className="text-sm text-slate-700">{category.category}</span>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">
@@ -591,18 +592,18 @@ export const LeadsInsights = ({
             </Card>}
 
           {/* Gender Distribution Analysis */}
-          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-pink-50 to-rose-50")}>
+          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <Users className="h-4 w-4 text-pink-600" />
+                <Users className="h-4 w-4 text-brand-blue" />
                 Gender Distribution
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex items-center justify-between p-2 bg-white/70 rounded">
+              <div className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                 <span className="text-sm text-slate-700">Laki-laki</span>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">
+                  <Badge variant="outline" className="text-xs bg-brand-blue-soft text-brand-blue">
                     {genderAnalysis.male}
                   </Badge>
                   <span className="text-xs text-slate-500">
@@ -610,10 +611,10 @@ export const LeadsInsights = ({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center justify-between p-2 bg-white/70 rounded">
+              <div className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                 <span className="text-sm text-slate-700">Perempuan</span>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs bg-pink-100 text-pink-700">
+                  <Badge variant="outline" className="text-xs bg-brand-red/10 text-brand-red">
                     {genderAnalysis.female}
                   </Badge>
                   <span className="text-xs text-slate-500">
@@ -621,7 +622,7 @@ export const LeadsInsights = ({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center justify-between p-2 bg-white/70 rounded">
+              <div className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                 <span className="text-sm text-slate-700">Unknown</span>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700">
@@ -636,15 +637,15 @@ export const LeadsInsights = ({
           </Card>
 
           {/* Enhanced Location Analysis */}
-          {enhancedLocationAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-orange-50 to-red-50")}>
+          {enhancedLocationAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/10")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-orange-600" />
+                  <MapPin className="h-4 w-4 text-brand-blue" />
                   Location Distribution
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {enhancedLocationAnalysis.map((location, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded">
+                {enhancedLocationAnalysis.map((location, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                     <span className="text-sm text-slate-700">{location.location}</span>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">
@@ -657,29 +658,29 @@ export const LeadsInsights = ({
             </Card>}
 
           {/* Priority Analysis */}
-          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-green-50 to-emerald-50")}>
+          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <Target className="h-4 w-4 text-green-600" />
+                <Target className="h-4 w-4 text-brand-blue" />
                 Priority Analysis
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex justify-between items-center p-2 bg-white/70 rounded">
+              <div className="flex justify-between items-center p-2 bg-white/70 rounded border border-border">
                 <span className="text-sm text-slate-700">Hot Prospect</span>
-                <Badge variant="destructive" className="bg-red-100 text-red-700">
+                <Badge variant="destructive" className="bg-brand-red/15 text-brand-red">
                   {hotProspectCount}
                 </Badge>
               </div>
-              <div className="flex justify-between items-center p-2 bg-white/70 rounded">
+              <div className="flex justify-between items-center p-2 bg-white/70 rounded border border-border">
                 <span className="text-sm text-slate-700">Warm Prospect</span>
-                <Badge variant="outline" className="bg-orange-100 text-orange-700">
+                <Badge variant="outline" className="bg-brand-blue-soft text-brand-blue">
                   {warmProspectCount}
                 </Badge>
               </div>
-              <div className="flex justify-between items-center p-2 bg-white/70 rounded">
+              <div className="flex justify-between items-center p-2 bg-white/70 rounded border border-border">
                 <span className="text-sm text-slate-700">Cold Prospect</span>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                <Badge variant="secondary" className="bg-muted text-muted-foreground">
                   {coldProspectCount}
                 </Badge>
               </div>
@@ -687,10 +688,10 @@ export const LeadsInsights = ({
           </Card>
 
           {/* Employee Performance */}
-          {employeeAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-violet-50 to-purple-50")}>
+          {employeeAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/5")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <User2 className="h-4 w-4 text-violet-600" />
+                  <User2 className="h-4 w-4 text-brand-blue" />
                   Employee Performance
                 </CardTitle>
               </CardHeader>
@@ -703,7 +704,7 @@ export const LeadsInsights = ({
                     ? employee.employeeIds.map((id) => cycleMetricsByAssignee.get(id)).find(Boolean)
                     : cycleMetricsByAssignee.get(employee.employeeId);
                   return (
-                    <div key={index} className="p-3 bg-white/70 rounded-lg space-y-2">
+                    <div key={index} className="p-3 bg-white/70 rounded-lg border border-border space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-slate-700">{employee.employee}</span>
                       <Badge variant="outline" className="text-xs">
@@ -740,23 +741,23 @@ export const LeadsInsights = ({
             </Card>}
 
           {/* Status Analysis - Always displayed below Employee Performance */}
-          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-teal-50 to-cyan-50")}>
+          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <Users className="h-4 w-4 text-teal-600" />
+                  <Users className="h-4 w-4 text-brand-blue" />
                   Status
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {statusAnalysis.length > 0 ? (
-                  statusAnalysis.map((status, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded">
+                  statusAnalysis.map((status, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                       <span className="text-sm text-slate-700">{getLeadStatusDisplayName(status.status)}</span>
                       <Badge variant="outline" className="text-xs">
                         {status.count}
                       </Badge>
                     </div>)
                 ) : (
-                  <div className="p-2 bg-white/70 rounded text-center">
+                  <div className="p-2 bg-white/70 rounded border border-border text-center">
                     <span className="text-sm text-slate-500">No status data available</span>
                   </div>
                 )}
@@ -774,7 +775,7 @@ export const LeadsInsights = ({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-white/70 rounded-lg p-3 text-center">
+              <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                 <div className="text-sm font-medium text-slate-800">
                   Lead generation and conversion performance by source
                 </div>
@@ -784,15 +785,15 @@ export const LeadsInsights = ({
           </Card>
 
           {/* Source Performance Analysis */}
-          {sourcePerformanceAnalysis.length > 0 ? <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-emerald-50 to-teal-50")}>
+          {sourcePerformanceAnalysis.length > 0 ? <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  <TrendingUp className="h-4 w-4 text-brand-blue" />
                   Source Conversion Performance
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {sourcePerformanceAnalysis.map((source, index) => <div key={source.source} className="p-3 bg-white/70 rounded-lg space-y-2">
+                {sourcePerformanceAnalysis.map((source, index) => <div key={source.source} className="p-3 bg-white/70 rounded-lg border border-border space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-slate-700">{source.source}</span>
                       <div className="flex items-center gap-2">
@@ -816,13 +817,13 @@ export const LeadsInsights = ({
                         <div className="font-semibold text-slate-700">{source.totalLeads}</div>
                         <div className="text-slate-500">Total Leads</div>
                       </div>
-                      <div className="bg-green-50 rounded p-2">
-                        <div className="font-semibold text-green-700">{source.convertedLeads}</div>
-                        <div className="text-green-600">Converted</div>
+                      <div className="bg-brand-red/10 rounded p-2">
+                        <div className="font-semibold text-brand-red">{source.convertedLeads}</div>
+                        <div className="text-brand-red/90">Converted</div>
                       </div>
-                      <div className="bg-blue-50 rounded p-2">
-                        <div className="font-semibold text-blue-700">{source.conversionRate}%</div>
-                        <div className="text-blue-600">Success Rate</div>
+                      <div className="bg-brand-blue-soft rounded p-2">
+                        <div className="font-semibold text-brand-blue">{source.conversionRate}%</div>
+                        <div className="text-brand-blue/90">Success Rate</div>
                       </div>
                     </div>
                     
@@ -830,23 +831,23 @@ export const LeadsInsights = ({
                     <div className="mt-3 pt-3 border-t border-slate-200">
                       <div className="text-xs font-medium text-slate-600 mb-2">FU Priority Performance</div>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="bg-red-50 rounded p-2">
-                          <div className="font-semibold text-red-600">
+                        <div className="bg-brand-red/10 rounded p-2">
+                          <div className="font-semibold text-brand-red">
                             {leads.filter(lead => lead.source === source.source && lead.fu_priority === 'High').length}
                           </div>
-                          <div className="text-red-500">High</div>
+                          <div className="text-brand-red/90">High</div>
                         </div>
-                        <div className="bg-orange-50 rounded p-2">
-                          <div className="font-semibold text-orange-600">
+                        <div className="bg-brand-blue-soft rounded p-2">
+                          <div className="font-semibold text-brand-blue">
                             {leads.filter(lead => lead.source === source.source && lead.fu_priority === 'Medium').length}
                           </div>
-                          <div className="text-orange-500">Medium</div>
+                          <div className="text-brand-blue/90">Medium</div>
                         </div>
-                        <div className="bg-blue-50 rounded p-2">
-                          <div className="font-semibold text-blue-600">
+                        <div className="bg-muted rounded p-2">
+                          <div className="font-semibold text-muted-foreground">
                             {leads.filter(lead => lead.source === source.source && lead.fu_priority === 'Low').length}
                           </div>
-                          <div className="text-blue-500">Low</div>
+                          <div className="text-muted-foreground">Low</div>
                         </div>
                       </div>
                     </div>
@@ -855,17 +856,17 @@ export const LeadsInsights = ({
                     <div className="mt-3 pt-3 border-t border-slate-200">
                       <div className="text-xs font-medium text-slate-600 mb-2">Gender Distribution</div>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="bg-blue-50 rounded p-2">
-                          <div className="font-semibold text-blue-600">
+                        <div className="bg-brand-blue-soft rounded p-2">
+                          <div className="font-semibold text-brand-blue">
                             {leads.filter(lead => lead.source === source.source && getGenderFromProfile(lead.id) === 'Male').length}
                           </div>
-                          <div className="text-blue-500">Laki-laki</div>
+                          <div className="text-brand-blue/90">Laki-laki</div>
                         </div>
-                        <div className="bg-pink-50 rounded p-2">
-                          <div className="font-semibold text-pink-600">
+                        <div className="bg-brand-red/10 rounded p-2">
+                          <div className="font-semibold text-brand-red">
                             {leads.filter(lead => lead.source === source.source && getGenderFromProfile(lead.id) === 'Female').length}
                           </div>
-                          <div className="text-pink-500">Perempuan</div>
+                          <div className="text-brand-red/90">Perempuan</div>
                         </div>
                         <div className="bg-gray-50 rounded p-2">
                           <div className="font-semibold text-gray-600">
@@ -911,15 +912,15 @@ export const LeadsInsights = ({
             </Card>}
 
           {/* Top performing source highlight */}
-          {sourcePerformanceAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-yellow-50 to-orange-50")}>
+          {sourcePerformanceAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/10")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-yellow-600" />
+                  <Target className="h-4 w-4 text-brand-blue" />
                   Best Performing Source
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-white/70 rounded-lg p-3">
+                <div className="bg-white/70 rounded-lg border border-border p-3">
                   <div className="text-center">
                     <div className="text-lg font-bold text-slate-800">{sourcePerformanceAnalysis[0].source}</div>
                     <div className="text-sm text-slate-600">
@@ -944,7 +945,7 @@ export const LeadsInsights = ({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-white/70 rounded-lg p-3 text-center">
+              <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                 <div className="text-sm font-medium text-slate-800">
                   Individual consultant performance metrics and analytics
                 </div>
@@ -955,10 +956,10 @@ export const LeadsInsights = ({
           </Card>
 
           {/* Consultant Performance Analysis */}
-          {employeeAnalysis.length > 0 ? <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-indigo-50 to-purple-50")}>
+          {employeeAnalysis.length > 0 ? <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/5")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <Users className="h-4 w-4 text-indigo-600" />
+                  <Users className="h-4 w-4 text-brand-blue" />
                   Consultant Performance Details
                 </CardTitle>
               </CardHeader>
@@ -966,11 +967,11 @@ export const LeadsInsights = ({
                 {employeeAnalysis.map((consultant, index) => {
                   const isConsultantLead = (lead: NewLead) =>
                     lead.assignee === consultant.employee || (leadAssigneeId(lead) && consultant.employeeIds.includes(leadAssigneeId(lead)!));
-                  return <div key={consultant.employeeId} className="p-3 bg-white/70 rounded-lg space-y-2">
+                  return <div key={consultant.employeeId} className="p-3 bg-white/70 rounded-lg border border-border space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-slate-700">{consultant.employee}</span>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={`text-xs ${consultant.conversionRate >= 50 ? 'bg-green-100 text-green-700' : consultant.conversionRate >= 25 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                        <Badge variant="outline" className={`text-xs ${consultant.conversionRate >= 50 ? 'bg-brand-blue-soft text-brand-blue' : consultant.conversionRate >= 25 ? 'bg-brand-red/10 text-brand-red' : 'bg-muted text-muted-foreground'}`}>
                           {consultant.conversionRate}%
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
@@ -990,26 +991,26 @@ export const LeadsInsights = ({
                         <div className="font-semibold text-slate-700">{consultant.totalLeads}</div>
                         <div className="text-slate-500">Total Chats/Leads</div>
                       </div>
-                      <div className="bg-blue-50 rounded p-2">
-                        <div className="font-semibold text-blue-700">{consultant.activeLeads}</div>
-                        <div className="text-blue-600">In Progress</div>
+                      <div className="bg-brand-blue-soft rounded p-2">
+                        <div className="font-semibold text-brand-blue">{consultant.activeLeads}</div>
+                        <div className="text-brand-blue/90">In Progress</div>
                       </div>
-                      <div className="bg-green-50 rounded p-2">
-                        <div className="font-semibold text-green-700">{consultant.convertedLeads}</div>
-                        <div className="text-green-600">Converted</div>
+                      <div className="bg-brand-red/10 rounded p-2">
+                        <div className="font-semibold text-brand-red">{consultant.convertedLeads}</div>
+                        <div className="text-brand-red/90">Converted</div>
                       </div>
-                      <div className="bg-red-50 rounded p-2">
-                        <div className="font-semibold text-red-700">{consultant.totalLeads - consultant.convertedLeads}</div>
-                        <div className="text-red-600">Not Converted</div>
+                      <div className="bg-muted rounded p-2">
+                        <div className="font-semibold text-muted-foreground">{consultant.totalLeads - consultant.convertedLeads}</div>
+                        <div className="text-muted-foreground">Not Converted</div>
                       </div>
                     </div>
                     
                      {/* Conversion Deal Periode Ini */}
                     <div className="mt-3 pt-3 border-t border-slate-200">
                       <div className="text-xs font-medium text-slate-600 mb-2">Conversion Deal Periode Ini</div>
-                      <div className="p-3 bg-white/70 rounded-lg space-y-2">
+                      <div className="p-3 bg-white/70 rounded-lg border border-border space-y-2">
                         <div className="text-center">
-                           <div className="text-lg font-bold text-emerald-600">
+                           <div className="text-lg font-bold text-brand-red">
                              {(() => {
                                 // Get converted leads for this consultant (match by name or assignee_id)
                                 const consultantLeads = leads.filter(lead => isConsultantLead(lead) && isConvertedLead(lead));
@@ -1048,23 +1049,23 @@ export const LeadsInsights = ({
                     <div className="mt-3 pt-3 border-t border-slate-200">
                       <div className="text-xs font-medium text-slate-600 mb-2">FU Priority Distribution</div>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="bg-red-50 rounded p-2">
-                          <div className="font-semibold text-red-600">
+                        <div className="bg-brand-red/10 rounded p-2">
+                          <div className="font-semibold text-brand-red">
                             {leads.filter(lead => isConsultantLead(lead) && lead.fu_priority === 'High').length}
                           </div>
-                          <div className="text-red-500">High</div>
+                          <div className="text-brand-red/90">High</div>
                         </div>
-                        <div className="bg-orange-50 rounded p-2">
-                          <div className="font-semibold text-orange-600">
+                        <div className="bg-brand-blue-soft rounded p-2">
+                          <div className="font-semibold text-brand-blue">
                             {leads.filter(lead => isConsultantLead(lead) && lead.fu_priority === 'Medium').length}
                           </div>
-                          <div className="text-orange-500">Medium</div>
+                          <div className="text-brand-blue/90">Medium</div>
                         </div>
-                        <div className="bg-blue-50 rounded p-2">
-                          <div className="font-semibold text-blue-600">
+                        <div className="bg-muted rounded p-2">
+                          <div className="font-semibold text-muted-foreground">
                             {leads.filter(lead => isConsultantLead(lead) && lead.fu_priority === 'Low').length}
                           </div>
-                          <div className="text-blue-500">Low</div>
+                          <div className="text-muted-foreground">Low</div>
                         </div>
                       </div>
                     </div>
@@ -1105,15 +1106,15 @@ export const LeadsInsights = ({
             </Card>}
 
           {/* Top performing consultant highlight */}
-          {employeeAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-yellow-50 to-orange-50")}>
+          {employeeAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/10")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-yellow-600" />
+                  <Target className="h-4 w-4 text-brand-blue" />
                   Top Performing Consultant
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-white/70 rounded-lg p-3">
+                <div className="bg-white/70 rounded-lg border border-border p-3">
                   <div className="text-center">
                     <div className="text-lg font-bold text-slate-800">{employeeAnalysis[0].employee}</div>
                     <div className="text-sm text-slate-600">
@@ -1128,20 +1129,20 @@ export const LeadsInsights = ({
             </Card>}
 
           {/* Overall consultant statistics */}
-          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-teal-50 to-cyan-50")}>
+          <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-teal-600" />
+                <BarChart3 className="h-4 w-4 text-brand-blue" />
                 Team Statistics
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white/70 rounded-lg p-3 text-center">
+                <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                   <div className="text-lg font-bold text-slate-800">{employeeAnalysis.length}</div>
                   <div className="text-xs text-slate-600">Active Consultants</div>
                 </div>
-                <div className="bg-white/70 rounded-lg p-3 text-center">
+                <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                   <div className="text-lg font-bold text-slate-800">
                     {employeeAnalysis.length > 0 ? Math.round(employeeAnalysis.reduce((sum, emp) => sum + emp.conversionRate, 0) / employeeAnalysis.length) : 0}%
                   </div>

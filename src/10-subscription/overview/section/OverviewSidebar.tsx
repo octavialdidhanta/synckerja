@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Clock, Users, Calendar, TrendingUp } from "lucide-react";
+import { Clock, Users, Calendar, TrendingUp, Puzzle, LayoutTemplate } from "lucide-react";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
 
 interface OverviewSidebarProps {
@@ -23,6 +23,26 @@ export const OverviewSidebar = memo(function OverviewSidebar({ subscriptionStatu
         icon: TrendingUp,
         label: t("subscription.overview.sidebarMemberLimit"),
         value: subscriptionStatus?.member_limit ?? subscriptionStatus?.member_count ?? 0,
+        color: "text-brand-blue",
+        bgColor: "bg-brand-blue/10 dark:bg-brand-blue/20",
+      },
+      {
+        icon: Puzzle,
+        label: t("subscription.overview.sidebarOmnichannelPaid"),
+        value:
+          subscriptionStatus?.omnichannel_paid_seat_count != null
+            ? subscriptionStatus.omnichannel_paid_seat_count
+            : "—",
+        color: "text-brand-blue",
+        bgColor: "bg-brand-blue/10 dark:bg-brand-blue/20",
+      },
+      {
+        icon: LayoutTemplate,
+        label: t("subscription.overview.sidebarOmnichannelCap"),
+        value:
+          subscriptionStatus?.omnichannel_roster_seat_cap != null
+            ? subscriptionStatus.omnichannel_roster_seat_cap
+            : "—",
         color: "text-brand-blue",
         bgColor: "bg-brand-blue/10 dark:bg-brand-blue/20",
       },

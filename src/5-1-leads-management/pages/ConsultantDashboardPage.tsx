@@ -3,14 +3,14 @@ import { useSearchParams } from "react-router-dom";
 import { ConsultantsPageContent } from "@/5-3-dashboard/components/consultants/ConsultantsPageContent";
 import { HeaderAndTab } from "@/5-3-dashboard/components/layout/HeaderAndTab";
 import { useLeadsManagementFilterQueries } from "@/5-3-dashboard/hooks/useLeadsManagementFilterQueries";
-import { useAvailableEmployees } from "@/shared/hooks/useAvailableEmployees";
+import { useOmnichannelRosterAssignees } from "@/shared/hooks/useOrganizationOmnichannelStaff";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useLeads } from "@/shared/hooks/organized/sales";
 import { LeadsManagementPageSkeleton } from "@/5-1-leads-management/skeletons/LeadsManagementPageSkeleton";
 import { cn } from "@/shared/lib/utils";
 
 /**
- * /operations/consultant/leads-management — Seamless Page Scroll Layout
+ * /omnichannel/leads — Seamless Page Scroll Layout
  * (`.cursor/rules/Seamless Page Scroll Layout.mdc`).
  * One layout-matched skeleton overlay until org + leads + employees + filter metadata are ready
  * (`.cursor/rules/Loading Skeleton.mdc`).
@@ -26,7 +26,7 @@ export const ConsultantDashboardPage = () => {
 
   const { loading: orgLoading, organizationId } = useCurrentOrg();
   const { initialLoadPending: leadsInitialPending } = useLeads({ scope: "all" });
-  const employeesQuery = useAvailableEmployees();
+  const employeesQuery = useOmnichannelRosterAssignees();
   const { metadataPending } = useLeadsManagementFilterQueries();
 
   const employeesInitialPending =

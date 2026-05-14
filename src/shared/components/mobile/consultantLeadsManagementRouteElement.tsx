@@ -27,7 +27,7 @@ function ShellSuspense({ children }: { children: ReactNode }) {
 }
 
 /**
- * `/operations/consultant/leads-management`: viewport tools-mobile atau native → `android-mobile/4-leads-management/LeadsManagementPage`.
+ * `/omnichannel/leads`: viewport tools-mobile atau native → `android-mobile/4-leads-management/LeadsManagementPage`.
  * Harus dipasangkan dengan `AdaptiveAppLayout` bypass `AppShellLayout` untuk path ini.
  */
 export function ConsultantLeadsManagementRouteElement() {

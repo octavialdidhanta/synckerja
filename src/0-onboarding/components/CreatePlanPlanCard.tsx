@@ -54,14 +54,28 @@ export function CreatePlanPlanCard({
   const rawYearlyBeforeDiscount = monthlySubtotal * 12;
   const comingSoon = isComingSoonDescription(plan.description);
   const pct = plan.annual_discount_percentage;
+  const cardInactive = !catalogSelectable || comingSoon;
 
   return (
-    <button
-      type="button"
-      disabled={!catalogSelectable || comingSoon}
-      onClick={onSelect}
+    <div
+      role="button"
+      tabIndex={cardInactive ? -1 : 0}
+      aria-disabled={cardInactive}
+      onClick={() => {
+        if (cardInactive) return;
+        onSelect();
+      }}
+      onKeyDown={(e) => {
+        if (cardInactive) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       className={cn(
-        "flex h-full min-h-0 w-full flex-col rounded-xl border-2 p-6 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:p-7",
+        "flex h-full min-h-0 w-full flex-col rounded-xl border-2 p-6 text-left transition-colors sm:p-7",
+        cardInactive && "cursor-not-allowed opacity-60",
+        !cardInactive && "cursor-pointer",
         selected && catalogSelectable
           ? "border-[hsl(var(--brand-blue))] bg-[hsl(var(--brand-blue))]/5 shadow-sm"
           : "border-slate-200 bg-white hover:border-[hsl(var(--brand-blue))]/35",
@@ -205,6 +219,6 @@ export function CreatePlanPlanCard({
       {comingSoon ? (
         <p className="mt-3 text-center text-xs font-medium text-slate-500">Coming soon</p>
       ) : null}
-    </button>
+    </div>
   );
 }

@@ -1,8 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useAuth } from '@/shared/auth/contexts/AuthContext';
 import type { User, Session } from '@supabase/supabase-js';
 import { logger } from '@/shared/lib/logger';
+import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
 
 // Types - focus only on 5 core tables
 interface UserData {
@@ -27,11 +36,13 @@ interface Employee {
   employee_id: string;
   full_name: string;
   department_id?: string;
+  job_level_id?: string | null;
+  job_levels?: { id: string; name: string } | null;
   departments?: { name: string } | null;
   department?: { name: string } | null;
 }
 
-type UserRole = 'owner' | 'admin' | 'employee' | 'hr' | null;
+type UserRole = 'owner' | 'admin' | 'employee' | 'hr' | 'manager' | 'member' | null;
 
 /** Jangan mengosongkan `organization` di state jika profil punya `active_organization_id` (hindari skeleton / flicker). */
 function mergeOrganizationState(
@@ -50,8 +61,16 @@ interface CentralizedUserDataContextType {
   userData: UserData | null;
   organization: Organization | null;
   userRole: UserRole;
+  /** All `user_roles.role` values for the active org (user may have multiple rows). */
+  organizationMemberRoles: string[];
   employee: Employee | null;
   loading: boolean;
+  /**
+   * True after the first profile/org/role resolution for the current auth user finishes
+   * (cache hit, skip, or network). PageAccessGuard uses this to avoid a one-frame "denied"
+   * flash while `canAccessPage` still sees empty roles/config.
+   */
+  centralProfileHydrated: boolean;
   error: Error | null;
   
   // Computed values
@@ -77,8 +96,10 @@ const DEFAULT_CENTRALIZED_USER_DATA: CentralizedUserDataContextType = {
   userData: null,
   organization: null,
   userRole: null,
+  organizationMemberRoles: [],
   employee: null,
   loading: true,
+  centralProfileHydrated: false,
   error: null,
   isAuthenticated: false,
   isEmailVerified: false,
@@ -97,8 +118,10 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
   const [userData, setUserData] = useState<UserData | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [userRole, setUserRole] = useState<UserRole>(null);
+  const [organizationMemberRoles, setOrganizationMemberRoles] = useState<string[]>([]);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(false);
+  const [centralProfileHydrated, setCentralProfileHydrated] = useState(() => !user?.id);
   const [error, setError] = useState<Error | null>(null);
   /** Snapshot org terakhir untuk callback async (timeout) — jangan setOrganization(null) saat refetch gagal. */
   const organizationStateRef = useRef<Organization | null>(null);
@@ -114,12 +137,21 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
   // Prevent multiple simultaneous fetches
   const fetchingRef = useRef(false);
   const lastUserIdRef = useRef<string>('');
-  
+
+  useLayoutEffect(() => {
+    if (!user?.id) {
+      setCentralProfileHydrated(true);
+    } else {
+      setCentralProfileHydrated(false);
+    }
+  }, [user?.id]);
+
   // Cache for user data to avoid repeated queries
   const userDataCacheRef = useRef<{
     data: UserData | null;
     organization: Organization | null;
     userRole: UserRole;
+    organizationMemberRoles: string[];
     employee: Employee | null;
     timestamp: number;
   } | null>(null);
@@ -137,9 +169,11 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         setUserData(null);
         setOrganization(null);
         setUserRole(null);
+        setOrganizationMemberRoles([]);
         setEmployee(null);
         setLoading(false);
         lastUserIdRef.current = '';
+        setCentralProfileHydrated(true);
       }
       return;
     }
@@ -152,6 +186,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     // Only skip data fetching on auth pages if no force refresh or email verified flag
     if (!forceRefresh && !emailVerifiedFlag && (currentPath === '/login' || currentPath === '/register' || currentPath === '/verify-email')) {
       setLoading(false);
+      setCentralProfileHydrated(true);
       return;
     }
     
@@ -187,8 +222,10 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         setUserData(userDataCacheRef.current.data);
         setOrganization(userDataCacheRef.current.organization);
         setUserRole(userDataCacheRef.current.userRole);
+        setOrganizationMemberRoles(userDataCacheRef.current.organizationMemberRoles ?? []);
         setEmployee(userDataCacheRef.current.employee);
         setLoading(false);
+        setCentralProfileHydrated(true);
         return;
       }
     }
@@ -199,6 +236,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         logger.userData('CentralizedUserDataContext: Skipping fetch - already fetched for user:', user.id);
       }
       setLoading(false);
+      setCentralProfileHydrated(true);
       return;
     }
 
@@ -216,6 +254,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       fetchingRef.current = true;
       lastUserIdRef.current = user.id;
       setLoading(true);
+      setCentralProfileHydrated(false);
       setError(null);
       
       // Run profile and email verification in parallel with timeout; one retry on timeout
@@ -402,7 +441,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           const result = await supabase
             .from('employees')
             .select(
-              'id, employee_id, full_name, email, organization_id, department_id, employee_status_id, user_id',
+              'id, employee_id, full_name, email, organization_id, department_id, employee_status_id, user_id, job_level_id',
             )
             .eq('user_id', user.id)
             .eq('organization_id', organizationId)
@@ -413,7 +452,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           }
 
           const raw = result.data;
-          const [statusRes, deptRes] = await Promise.all([
+          const [statusRes, deptRes, levelRes] = await Promise.all([
             raw.employee_status_id
               ? supabase
                   .from('employee_statuses')
@@ -424,6 +463,9 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             raw.department_id
               ? supabase.from('departments').select('name').eq('id', raw.department_id).maybeSingle()
               : Promise.resolve({ data: null }),
+            raw.job_level_id
+              ? supabase.from('job_levels').select('id, name').eq('id', raw.job_level_id).maybeSingle()
+              : Promise.resolve({ data: null }),
           ]);
 
           return {
@@ -431,6 +473,9 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
               ...raw,
               employee_statuses: statusRes.data ? { name: statusRes.data.name } : null,
               departments: deptRes.data ? { name: deptRes.data.name } : null,
+              job_levels: levelRes.data
+                ? { id: levelRes.data.id, name: levelRes.data.name }
+                : null,
             },
             error: null,
           };
@@ -440,8 +485,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           .from('user_roles')
           .select('role')
           .eq('user_id', user.id)
-          .eq('organization_id', organizationId)
-          .maybeSingle();
+          .eq('organization_id', organizationId);
 
         const organizationPromise = supabase
           .from('organizations')
@@ -461,7 +505,11 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           ]) as PromiseSettledResult<any>[];
 
           const employeeData = results[0]?.status === 'fulfilled' ? results[0].value.data : null;
-          const roleData = results[1]?.status === 'fulfilled' ? results[1].value.data : null;
+          const roleBundle = results[1]?.status === 'fulfilled' ? results[1].value : null;
+          const roleRows = Array.isArray(roleBundle?.data)
+            ? (roleBundle.data as { role: string }[])
+            : [];
+          const resolvedRole = pickHighestUserRoleFromRows(roleRows) as UserRole | null;
           const orgData = results[2]?.status === 'fulfilled' ? results[2].value.data : null;
 
           // Calculate is_organization_owner (not a database field)
@@ -481,6 +529,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             }
             setEmployee(null);
             setUserRole(null);
+            setOrganizationMemberRoles([]);
             setOrganization((prev) =>
               mergeOrganizationState(null, userData.active_organization_id, prev)
             );
@@ -490,8 +539,31 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
               is_organization_owner: calculatedIsOwner || false
             } : null;
 
+            const memberRoleListRaw = [
+              ...new Set(
+                roleRows
+                  .map((r) => String((r as { role?: string }).role || "").trim())
+                  .filter(Boolean),
+              ),
+            ];
+            // Align with `useUserOrganizations.pickRole`: no `user_roles` row → treat as `employee`,
+            // otherwise PageAccess sees `eff.length === 0` while header shows "Karyawan".
+            let memberRoleList = memberRoleListRaw;
+            let effectiveResolvedRole = resolvedRole;
+            if (memberRoleList.length === 0) {
+              if (isOrgOwner || calculatedIsOwner) {
+                memberRoleList = ["owner"];
+                effectiveResolvedRole = "owner";
+              } else {
+                memberRoleList = ["employee"];
+                effectiveResolvedRole = (resolvedRole ?? "employee") as UserRole;
+              }
+            }
+
+            setOrganizationMemberRoles(memberRoleList);
+
             setEmployee(enrichedEmployeeData);
-            setUserRole(roleData?.role || null);
+            setUserRole(effectiveResolvedRole);
             setOrganization((prev) =>
               mergeOrganizationState(orgData, userData.active_organization_id, prev)
             );
@@ -508,7 +580,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
               userDataCacheRef.current = {
                 data: updatedUserData,
                 organization: orgForCache,
-                userRole: roleData?.role || null,
+                userRole: effectiveResolvedRole,
+                organizationMemberRoles: memberRoleList,
                 employee: enrichedEmployeeData,
                 timestamp: Date.now()
               };
@@ -516,7 +589,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
               userDataCacheRef.current = {
                 data: userData,
                 organization: orgForCache,
-                userRole: roleData?.role || null,
+                userRole: effectiveResolvedRole,
+                organizationMemberRoles: memberRoleList,
                 employee: enrichedEmployeeData,
                 timestamp: Date.now()
               };
@@ -542,15 +616,17 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
               setUserRole('employee'); // Default fallback
               logger.userData('CentralizedUserDataContext: Set default employee role as fallback');
             }
-            
-            // Update cache with fallback organization data
+
             const fallbackRole = user.email?.includes('owner') || user.email?.includes('admin')
               ? 'owner'
               : (user.user_metadata?.role as UserRole || 'employee');
+            setOrganizationMemberRoles([String(fallbackRole)]);
+
             userDataCacheRef.current = {
               data: userData,
               organization: organizationStateRef.current,
               userRole: fallbackRole,
+              organizationMemberRoles: [String(fallbackRole)],
               employee: null,
               timestamp: Date.now()
             };
@@ -565,6 +641,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           mergeOrganizationState(null, userData.active_organization_id, prev)
         );
         setUserRole(null);
+        setOrganizationMemberRoles([]);
 
         const orgForCache = mergeOrganizationState(
           null,
@@ -575,6 +652,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           data: userData,
           organization: orgForCache,
           userRole: null,
+          organizationMemberRoles: [],
           employee: null,
           timestamp: Date.now()
         };
@@ -605,12 +683,14 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           ? 'owner' 
           : (user.user_metadata?.role as UserRole || 'employee');
         setUserRole(fallbackRole);
-        
+        setOrganizationMemberRoles([String(fallbackRole)]);
+
         // Update cache with fallback data
         userDataCacheRef.current = {
           data: fallbackUserData,
           organization: null,
           userRole: fallbackRole,
+          organizationMemberRoles: [String(fallbackRole)],
           employee: null,
           timestamp: Date.now()
         };
@@ -633,6 +713,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     } finally {
       setLoading(false);
       fetchingRef.current = false;
+      setCentralProfileHydrated(true);
     }
   }, [authLoading]);
 
@@ -667,6 +748,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       setUserData(null);
       setOrganization(null);
       setUserRole(null);
+      setOrganizationMemberRoles([]);
       setEmployee(null);
       setLoading(false);
       return;
@@ -681,6 +763,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     const currentPath = window.location.pathname;
     if (!forceRefresh && !emailVerifiedFlag && (currentPath === '/login' || currentPath === '/register' || currentPath === '/verify-email')) {
       setLoading(false);
+      setCentralProfileHydrated(true);
       return;
     }
 
@@ -733,8 +816,10 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     userData,
     organization,
     userRole,
+    organizationMemberRoles,
     employee,
     loading: authLoading || loading,
+    centralProfileHydrated,
     error,
     
     // Computed values

@@ -49,9 +49,6 @@ export const AccessPermissionsConfig = () => {
   const location = useLocation();
   const isAccessPermissionsRoute = location.pathname.startsWith('/access-permissions');
   
-  // Define tabs array for access checking and navigation
-  const tabs = ['overview', 'roles', 'pages'];
-
   // Get active tab from URL path, default to 'overview'
   const getActiveTabFromPath = () => {
     const pathSegments = location.pathname.split("/").filter(Boolean);
@@ -67,6 +64,20 @@ export const AccessPermissionsConfig = () => {
   const [routeSkeletonGate, setRouteSkeletonGate] = useState(true);
   const initialPending = configLoading || permissionLoading || bootstrapLoading || routeSkeletonGate;
   const [showSkeleton, setShowSkeleton] = useState(initialPending);
+
+  const accessPaths = {
+    overview: '/access-permissions/overview',
+    pageAccess: '/access-permissions/page-access',
+    roles: '/access-permissions/roles',
+  } as const;
+
+  const firstAccessiblePath = useCallback((): string | null => {
+    const order = [accessPaths.overview, accessPaths.pageAccess, accessPaths.roles];
+    for (const p of order) {
+      if (canAccessPage(p)) return p;
+    }
+    return null;
+  }, [canAccessPage]);
 
   useEffect(() => {
     if (!isAccessPermissionsRoute) {
@@ -90,74 +101,60 @@ export const AccessPermissionsConfig = () => {
     return () => window.clearTimeout(hideTimer);
   }, [initialPending]);
   
-  // MODIFIED: Always allow access to page-access tab (database-only control)
-  const hasAccessToAnyTab = tabs.some(tab => {
-    const tabPath = `/access-permissions/${tab}`;
-    // Special case: Always allow page-access tab unless explicitly restricted in database
-    if (tab === 'pages') {
-      return true; // Always accessible unless DB restrictions exist
-    }
-    return canAccessPage(tabPath);
-  });
+  const hasAccessToAnyTab =
+    canAccessPage(accessPaths.overview) ||
+    canAccessPage(accessPaths.pageAccess) ||
+    canAccessPage(accessPaths.roles);
   
   // Auto-redirect logic - only run once when component mounts or path changes
   useEffect(() => {
-    if (configLoading) return; // Don't redirect while still loading
-    
+    if (configLoading) return;
+
     const currentPath = location.pathname;
-    
+
     try {
-      // If user is on base path, redirect to page-access tab (always accessible)
       if (currentPath === '/access-permissions') {
-        navigate('/access-permissions/page-access', { replace: true });
+        const dest = firstAccessiblePath();
+        if (dest) navigate(dest, { replace: true });
         return;
       }
-      
-      // MODIFIED: Allow page-access tab access, check other tabs normally
-      if (currentPath.startsWith('/access-permissions/') && currentPath !== '/access-permissions') {
-        // Special handling for page-access tab - always allow unless DB restrictions exist
-        if (currentPath === '/access-permissions/page-access') {
-          // Page access is controlled by database only - let useDepartmentAccess handle it
-          return;
-        }
-        
-        // For other tabs, check access normally
+
+      if (currentPath.startsWith('/access-permissions/')) {
         if (!canAccessPage(currentPath)) {
-          // Redirect to page-access as it's always accessible
-          navigate('/access-permissions/page-access', { replace: true });
+          const dest = firstAccessiblePath();
+          if (dest && dest !== currentPath) navigate(dest, { replace: true });
         }
       }
     } catch {
-      // Fallback to overview if navigation fails
-      if (currentPath !== '/access-permissions/page-access') {
-        navigate('/access-permissions/page-access', { replace: true });
-      }
+      const dest = firstAccessiblePath();
+      if (dest) navigate(dest, { replace: true });
     }
-  }, [location.pathname, configLoading]); // Removed navigate and canAccessPage from deps to prevent loops
+  }, [location.pathname, configLoading, canAccessPage, firstAccessiblePath, navigate]);
 
   // Define handleTabChange callback BEFORE conditional returns (Rules of Hooks)
   const handleTabChange = useCallback((tab: string) => {
     try {
-      const targetPath = `/access-permissions/${tab}`;
-      
-      // Special handling for page-access tab - always allow unless DB restrictions exist
       if (tab === 'pages') {
-        navigate('/access-permissions/page-access');
+        if (canAccessPage(accessPaths.pageAccess)) navigate(accessPaths.pageAccess);
+        else {
+          const dest = firstAccessiblePath();
+          if (dest) navigate(dest);
+        }
         return;
       }
-      
-      // Check access for other tabs
+
+      const targetPath = `/access-permissions/${tab}`;
       if (canAccessPage(targetPath)) {
         navigate(targetPath);
       } else {
-        // Redirect to page-access as fallback (always accessible)
-        navigate('/access-permissions/page-access');
+        const dest = firstAccessiblePath();
+        if (dest) navigate(dest);
       }
     } catch {
-      // Fallback to page-access tab
-      navigate('/access-permissions/page-access');
+      const dest = firstAccessiblePath();
+      if (dest) navigate(dest);
     }
-  }, [canAccessPage, navigate]);
+  }, [canAccessPage, navigate, firstAccessiblePath]);
 
   // CONDITIONAL RETURNS AFTER ALL HOOKS
   // Check if user has permission to view this page (respects exceptions)

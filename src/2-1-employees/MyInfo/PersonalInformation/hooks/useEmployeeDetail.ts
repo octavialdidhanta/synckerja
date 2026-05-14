@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { Employee } from '@/shared/hooks/employees/useEmployees';
 import { usePerformanceMonitor } from '@/shared/hooks/usePerformanceMonitor';
+import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
 
 export const useEmployeeDetail = (employeeId: string | null) => {
   const perf = usePerformanceMonitor('useEmployeeDetail');
@@ -100,9 +101,34 @@ export const useEmployeeDetail = (employeeId: string | null) => {
       // For now, provide immediate response with essential data
       const [jobLevelData, branchData] = await Promise.all(backgroundPromises);
 
+      let is_organization_owner = false;
+      let organization_role: string | null = null;
+
+      if (employee.organization_id) {
+        const [{ data: orgRow }, { data: roleRows }] = await Promise.all([
+          supabase.from('organizations').select('user_id').eq('id', employee.organization_id).maybeSingle(),
+          employee.user_id
+            ? supabase
+                .from('user_roles')
+                .select('role')
+                .eq('user_id', employee.user_id)
+                .eq('organization_id', employee.organization_id)
+            : Promise.resolve({ data: null as { role: string }[] | null }),
+        ]);
+
+        if (employee.user_id && orgRow?.user_id && employee.user_id === orgRow.user_id) {
+          is_organization_owner = true;
+        }
+        if (roleRows?.length) {
+          organization_role = pickHighestUserRoleFromRows(roleRows);
+        }
+      }
+
       // Transform the data with proper null handling
       const enrichedEmployee: Employee = {
         ...employee,
+        is_organization_owner,
+        organization_role,
         department_name: departmentData.data?.name || null,
         job_position_name: jobPositionData.data?.name || null,
         job_level_name: jobLevelData.data?.name || null,

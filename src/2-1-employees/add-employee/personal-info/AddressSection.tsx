@@ -7,7 +7,7 @@ export const AddressSection = ({ formData, handleInputChange }: PersonalDataStep
   return (
     <div className="space-y-2 md:col-span-2">
       <Label htmlFor="address" className="text-sm font-medium text-gray-700">
-        Address
+        Address <span className="text-red-500">*</span>
       </Label>
       <Textarea
         id="address"

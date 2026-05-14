@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { X } from "lucide-react";
 import { NewLead } from '@/shared/types/leads';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
+import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
 
@@ -16,6 +16,9 @@ interface LeadStatus {
   name: string;
   color?: string;
 }
+
+/** Same sentinel as `LeadsTableNew` — Radix Select needs a non-empty string for “unassigned”. */
+const ASSIGNEE_SELECT_UNASSIGNED = '__lead_assignee_unassigned__';
 
 interface EditLeadDialogProps {
   open: boolean;
@@ -35,7 +38,7 @@ export const EditLeadDialog = ({
   const [formData, setFormData] = useState<Partial<NewLead>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
-  const { data: employees = [] } = useAvailableEmployees();
+  const { data: employees = [] } = useOmnichannelRosterAssignees();
 
   // Fetch lead statuses from database
   useEffect(() => {
@@ -79,6 +82,7 @@ export const EditLeadDialog = ({
         title: lead.title,
         category: lead.category,
         assignee: lead.assignee,
+        assignee_id: (lead as NewLead & { assignee_id?: string | null }).assignee_id ?? null,
         fu_priority: lead.fu_priority,
         status_id: lead.status_id || undefined, // Use status_id instead of status
         source: lead.source
@@ -182,15 +186,37 @@ export const EditLeadDialog = ({
               Assignee
             </label>
             <Select
-              value={formData.assignee || ''}
-              onValueChange={(value) => handleFieldChange('assignee', value)}
+              value={
+                formData.assignee_id
+                  ? String(formData.assignee_id)
+                  : ASSIGNEE_SELECT_UNASSIGNED
+              }
+              onValueChange={(value) => {
+                if (value === ASSIGNEE_SELECT_UNASSIGNED) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    assignee_id: null,
+                    assignee: '',
+                  }));
+                  return;
+                }
+                const emp = employees.find((e) => e.id === value);
+                setFormData((prev) => ({
+                  ...prev,
+                  assignee_id: value,
+                  assignee: emp ? (emp.full_name || emp.email || '') : prev.assignee,
+                }));
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select assignee" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ASSIGNEE_SELECT_UNASSIGNED}>
+                  {t('leadsManagement.table.assigneeUnassigned', 'Unassigned')}
+                </SelectItem>
                 {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.full_name || emp.email}>
+                  <SelectItem key={emp.id} value={emp.id}>
                     {emp.full_name || emp.email}
                   </SelectItem>
                 ))}

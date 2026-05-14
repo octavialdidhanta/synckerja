@@ -88,52 +88,43 @@ export function useSubscriptionAnalytics() {
         return activeStatusIds.has(e.employee_status_id);
       }).length;
 
-      const { data: activityData } = await supabase
+      const { data: activityData, error: activityError } = await supabase
         .from("activities")
-        .select("activity_type")
+        .select("activity_type, user_id")
         .eq("organization_id", organizationId)
         .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 
-      const activityCounts = (activityData ?? []).reduce(
-        (acc, activity: { activity_type?: string }) => {
-          const type = activity.activity_type || "Unknown";
-          acc[type] = (acc[type] || 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>,
-      );
+      if (activityError) throw activityError;
 
-      let feature_usage: FeatureUsageData[] = Object.entries(activityCounts).map(([type, count]) => ({
-        feature: type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-        usage: count,
-        total_access: count,
-        unique_users: Math.min(count, employeeCount || 0),
+      type ActivityRow = { activity_type?: string | null; user_id?: string | null };
+      const rows = (activityData ?? []) as ActivityRow[];
+
+      const formatActivityTypeLabel = (raw: string) =>
+        raw.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+
+      const byType = new Map<string, { count: number; userIds: Set<string> }>();
+      for (const row of rows) {
+        const type = String(row.activity_type ?? "unknown").trim() || "unknown";
+        const uid = row.user_id;
+        let agg = byType.get(type);
+        if (!agg) {
+          agg = { count: 0, userIds: new Set<string>() };
+          byType.set(type, agg);
+        }
+        agg.count += 1;
+        if (uid) agg.userIds.add(uid);
+      }
+
+      /** Real counts from `public.activities` (RLS-scoped); no synthetic filler. */
+      let feature_usage: FeatureUsageData[] = Array.from(byType.entries()).map(([type, agg]) => ({
+        feature: formatActivityTypeLabel(type),
+        usage: agg.count,
+        total_access: agg.count,
+        unique_users: agg.userIds.size,
       }));
 
-      if (feature_usage.length === 0) {
-        feature_usage = [
-          {
-            feature: "Employee Management",
-            usage: employeeCount || 0,
-            total_access: employeeCount || 0,
-            unique_users: employeeCount || 0,
-          },
-          {
-            feature: "Attendance Tracking",
-            usage: Math.floor((employeeCount || 0) * 0.9),
-            total_access: Math.floor((employeeCount || 0) * 0.9),
-            unique_users: Math.floor((employeeCount || 0) * 0.9),
-          },
-          {
-            feature: "Reports & Analytics",
-            usage: Math.floor((employeeCount || 0) * 0.3),
-            total_access: Math.floor((employeeCount || 0) * 0.3),
-            unique_users: Math.floor((employeeCount || 0) * 0.3),
-          },
-        ];
-      } else {
-        feature_usage = feature_usage.slice(0, 5);
-      }
+      feature_usage.sort((a, b) => b.usage - a.usage);
+      feature_usage = feature_usage.slice(0, 10);
 
       const employeeUtilizationPercentage = employeeCount ? Math.min(100, (employeeCount / 1000) * 100) : 0;
       const planEfficiencyScore = Math.min(100, employeeUtilizationPercentage * 1.2);

@@ -254,7 +254,7 @@ export const ProductKnowledgeAiResultTable: React.FC<ProductKnowledgeAiResultTab
             </Button>
             <Button onClick={handleAddFromDetailModal} className="gap-1.5">
               <PlusCircle className="h-4 w-4" />
-              {t('productKnowledge.generate.addToProductKnowledge', 'Add to Product Knowledge')}
+              {t('productKnowledge.generate.addToProductKnowledge', 'Add to Creative')}
             </Button>
           </DialogFooter>
         </DialogContent>

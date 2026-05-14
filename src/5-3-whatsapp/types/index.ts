@@ -78,6 +78,7 @@ export interface WhatsAppConversation {
   /** Lead status (Open/Unread, On going, Resolve) untuk blokir outbound saat Resolve. */
   lead_status_id?: string | null;
   lead_status_name?: string | null;
+  assignee_id?: string | null;
   /** Channel sumber: 'whatsapp' | 'instagram'. Untuk live chat unified inbox. */
   channel?: string | null;
   /** WhatsApp Phone Number ID for channel=whatsapp; for multi-account indicator. */
@@ -187,6 +188,7 @@ export interface InstagramConversation {
   last_message_status: string | null;
   lead_status_id: string | null;
   lead_status_name: string | null;
+  assignee_id?: string | null;
   instagram_business_account_id: string;
   instagram_account_display_name: string | null;
   created_at: string;

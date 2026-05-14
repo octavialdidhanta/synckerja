@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { midtransCoreApiBaseUrl } from "./midtransEnv.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,13 +71,12 @@ serve(async (req) => {
       );
     }
 
-    const serverKey = Deno.env.get("MIDTRANS_SERVER_KEY");
+    const serverKey = (Deno.env.get("MIDTRANS_SERVER_KEY") ?? "").trim();
     if (!serverKey) {
       throw new Error("MIDTRANS_SERVER_KEY not configured");
     }
 
-    const isSandbox = serverKey.startsWith("SB-Mid-");
-    const baseUrl = isSandbox ? "https://api.sandbox.midtrans.com" : "https://api.midtrans.com";
+    const baseUrl = midtransCoreApiBaseUrl();
     const authString = btoa(`${serverKey}:`);
 
     const cancelResponse = await fetch(`${baseUrl}/v2/${order_id}/cancel`, {

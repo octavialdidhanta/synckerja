@@ -1,11 +1,12 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 
-const TAB_SKELETON_WIDTHS = ["w-[118px]", "w-[148px]", "w-[156px]", "w-[164px]", "w-[132px]", "w-[124px]", "w-[108px]"];
+const TAB_SKELETON_WIDTHS = ["w-[118px]", "w-[168px]"];
 
 /**
- * Mirrors `CRMDashboardPage` + `HeaderAndTab` + `CRMDashboardContent` shell for
- * `/operations/consultant/dashboard` — guard, Suspense, and in-page overlay share this component.
+ * Mirrors `CRMDashboardPage` + `HeaderAndTab` (Dashboard + Leads tabs on CRM core) + `CRMDashboardContent` shell for
+ * `/omnichannel/crm` — guard, Suspense, and in-page overlay share this component.
  */
 export function ConsultantCrmDashboardPageSkeleton() {
   const { t } = useAppTranslation();
@@ -17,10 +18,10 @@ export function ConsultantCrmDashboardPageSkeleton() {
       aria-label={aria}
     >
       <span className="sr-only">{aria}</span>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-1 sm:pl-3">
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-h-full min-w-0 flex-col">
+          <div className="scrollbar-hide nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-h-full min-h-0 min-w-0 flex-1 flex-col">
               {/* HeaderAndTab */}
               <div className="mb-1 min-w-0 shrink-0">
                 <div className="min-w-0 max-w-full px-1 py-3">
@@ -38,9 +39,20 @@ export function ConsultantCrmDashboardPageSkeleton() {
                 </div>
               </div>
 
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-                  <div className="box-border min-w-0 w-full max-w-4xl shrink-0 self-start overflow-x-auto rounded-lg border border-surface-border bg-card p-4 shadow-sm">
+              <div className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-1 gap-2 xl:grid-cols-2">
+                <div
+                  className={cn(
+                    'box-border flex min-h-0 w-full max-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-lg border border-surface-border bg-card shadow-sm',
+                    'xl:h-full xl:max-h-none',
+                    'xl:max-w-none',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'scrollbar-hide nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4',
+                      '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    )}
+                  >
                     <div className="min-w-0 max-w-full space-y-4">
                       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
                         {Array.from({ length: 4 }).map((_, i) => (
@@ -88,11 +100,151 @@ export function ConsultantCrmDashboardPageSkeleton() {
                       </div>
                     </div>
                   </div>
+                  <div
+                    className="shrink-0 border-t border-border bg-muted/30 px-4 py-2.5"
+                    aria-hidden
+                  >
+                    <div className="mx-auto max-w-md space-y-1.5">
+                      <Skeleton className="mx-auto h-3 w-32" />
+                      <Skeleton className="mx-auto h-3 w-full max-w-[280px]" />
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className={cn(
+                    'box-border flex min-h-0 w-full max-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-lg border border-surface-border bg-card shadow-sm',
+                    'xl:h-full xl:max-h-none',
+                    'xl:max-w-none',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'scrollbar-hide nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4',
+                      '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    )}
+                  >
+                    <div className="flex min-h-0 w-full flex-col gap-2">
+                  <div className="w-full min-w-0 shrink-0">
+                    <div className="rounded-lg border border-surface-border bg-card shadow-sm">
+                      <div className="space-y-3 border-b border-surface-border p-3 sm:p-4">
+                        <Skeleton className="h-5 w-48 max-w-full" />
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                          <Skeleton className="h-9 w-full sm:max-w-[220px]" />
+                          <Skeleton className="h-9 w-full sm:max-w-[160px]" />
+                          <Skeleton className="h-9 w-full sm:max-w-[160px]" />
+                        </div>
+                        <Skeleton className="h-3 w-full max-w-xs" />
+                      </div>
+                      <div className="space-y-2 p-3 sm:p-4">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="rounded-lg border border-surface-border bg-card p-3 shadow-sm"
+                          >
+                            <Skeleton className="h-3 w-40" />
+                            <Skeleton className="mt-2 h-8 w-12" />
+                            <Skeleton className="mt-2 h-3 w-24" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="min-h-0 min-w-0 w-full flex-1">
+                    <div className="space-y-3 rounded-lg border border-surface-border bg-card p-4 shadow-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Skeleton className="h-6 w-44" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Skeleton className="h-9 w-full min-[720px]:w-56" />
+                        <Skeleton className="h-9 w-32" />
+                        <Skeleton className="h-9 w-32" />
+                      </div>
+                      <Skeleton className="h-16 w-full max-w-2xl" />
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                            <Skeleton className="h-3 w-36" />
+                            <Skeleton className="mt-3 h-9 w-24" />
+                            <Skeleton className="mt-4 h-4 w-20" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="min-h-0 min-w-0 w-full flex-1">
+                    <div className="space-y-3 rounded-lg border border-surface-border bg-card p-4 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Skeleton className="h-6 w-56" />
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Skeleton className="h-9 w-20" />
+                          <Skeleton className="h-9 w-9" />
+                          <Skeleton className="h-9 w-48" />
+                          <Skeleton className="h-9 w-32" />
+                          <Skeleton className="h-9 w-40" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-12 w-full max-w-3xl" />
+                      <div className="rounded-md border border-border">
+                        <Skeleton className="h-10 w-full rounded-none rounded-t-md" />
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <Skeleton key={i} className="h-11 w-full rounded-none border-t border-border" />
+                        ))}
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <Skeleton className="h-8 w-48" />
+                        <Skeleton className="h-8 w-40" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="min-h-0 min-w-0 w-full flex-1">
+                    <div className="space-y-3 rounded-lg border border-surface-border bg-card p-4 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Skeleton className="h-6 w-60" />
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Skeleton className="h-9 w-20" />
+                          <Skeleton className="h-9 w-9" />
+                          <Skeleton className="h-9 w-48" />
+                          <Skeleton className="h-9 w-32" />
+                          <Skeleton className="h-9 w-40" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-12 w-full max-w-3xl" />
+                      <div className="rounded-md border border-border">
+                        <Skeleton className="h-10 w-full rounded-none rounded-t-md" />
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <Skeleton key={i} className="h-11 w-full rounded-none border-t border-border" />
+                        ))}
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <Skeleton className="h-8 w-48" />
+                        <Skeleton className="h-8 w-40" />
+                      </div>
+                    </div>
+                  </div>
+                    </div>
+                  </div>
+                  <div
+                    className="shrink-0 border-t border-border bg-muted/30 px-4 py-2.5"
+                    aria-hidden
+                  >
+                    <div className="mx-auto max-w-md space-y-1.5">
+                      <Skeleton className="mx-auto h-3 w-36" />
+                      <Skeleton className="mx-auto h-3 w-full max-w-[300px]" />
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div
-                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-2 [@media(max-height:760px)]:h-3"
                 aria-hidden
               />
             </div>

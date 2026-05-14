@@ -76,15 +76,18 @@ export function OrganizationSwitcher() {
 
   return (
     <>
-      <DropdownMenu>
+      {/* modal={false}: avoid focus/pointer-dismiss quirks under fixed header + full-app refetches after org switch */}
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
             variant="outline"
-            className="h-auto max-w-full shrink-0 justify-start gap-2 border-border bg-background px-3 py-2 text-left font-normal hover:bg-brand-blue/10 hover:text-brand-blue"
+            className={cn(
+              "h-auto max-w-full shrink-0 justify-start gap-2 border-border bg-background px-3 py-2 text-left font-normal hover:bg-brand-blue/10 hover:text-brand-blue",
+              isSwitching && "pointer-events-none opacity-80",
+            )}
             aria-label={t("layout.orgSwitcher.triggerAria")}
             aria-busy={isSwitching}
-            disabled={isSwitching}
           >
             <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 text-left">
@@ -110,7 +113,7 @@ export function OrganizationSwitcher() {
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="max-w-[min(100vw-2rem,28rem)] min-w-[var(--radix-dropdown-menu-trigger-width)] border-border bg-background"
+          className="z-[100] max-w-[min(100vw-2rem,28rem)] min-w-[var(--radix-dropdown-menu-trigger-width)] border-border bg-background"
         >
           <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
             {t("layout.orgSwitcher.sectionTitle", { count })}
@@ -125,8 +128,7 @@ export function OrganizationSwitcher() {
                   "cursor-pointer gap-2 focus:bg-brand-blue/10 focus:text-brand-blue",
                   isActive && "bg-brand-blue/5",
                 )}
-                onSelect={(e) => {
-                  e.preventDefault();
+                onSelect={() => {
                   void handleSelect(m.organizationId);
                 }}
               >
@@ -144,8 +146,7 @@ export function OrganizationSwitcher() {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="cursor-pointer gap-2 focus:bg-brand-blue/10 focus:text-brand-blue"
-            onSelect={(e) => {
-              e.preventDefault();
+            onSelect={() => {
               setCreateOpen(true);
             }}
           >

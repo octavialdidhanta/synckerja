@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { ScrollArea } from '@/shared/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useLeads } from '@/shared/hooks/organized/sales';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { LeadStatusSelect } from '@/5-1-leads-management/components/LeadStatusSelect';
 import { useServices } from '@/6-1-product-knowledge/hooks/useServices';
 import { useSubServices } from '@/6-1-product-knowledge/hooks/useSubServices';
@@ -15,9 +16,9 @@ import { devLog } from '@/shared/lib/logger';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { Plus, User, Clock, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { format } from 'date-fns';
 import type { LiveChatConversation } from '../../types';
+import { LivechatSlaTargetPanel } from '@/5-3-whatsapp/components/inbox/LivechatSlaTargetPanel';
 import { isResolvedStatus, isOutside24hWindow } from '../../constants/leadStatus';
 import { computeFollowUpAndPriority } from '@/5-1-leads-management/utils/fuPriorityFromUpdates';
 
@@ -111,6 +112,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
   const [prospectStatus, setProspectStatus] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFollowUpExpanded, setIsFollowUpExpanded] = useState(true);
+  const [isSlaTargetExpanded, setIsSlaTargetExpanded] = useState(true);
   const [selectedServiceName, setSelectedServiceName] = useState<string>('');
   const [selectedCategoryName, setSelectedCategoryName] = useState<string>('');
   const [isUpdatingLead, setIsUpdatingLead] = useState(false);
@@ -119,7 +121,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
   const [dialogServiceName, setDialogServiceName] = useState<string>('');
   const [dialogCategoryName, setDialogCategoryName] = useState<string>('');
   const [dialogDescription, setDialogDescription] = useState<string>('');
-  const [isMarkUnmarkLeadLoading, setIsMarkUnmarkLeadLoading] = useState(false);
+  const { data: rosterAssignees = [] } = useOmnichannelRosterAssignees();
 
   const { data: servicesList = [] } = useServices();
   const { data: subServicesList = [] } = useSubServices();
@@ -358,11 +360,11 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
       if (!conversation?.id) return null;
       const { data, error } = await supabase
         .from(statusTable)
-        .select('lead_status_id, last_inbound_at, created_at')
+        .select('lead_status_id, last_inbound_at, created_at, assignee_id')
         .eq('id', conversation.id)
         .maybeSingle();
       if (error) throw error;
-      return data as { lead_status_id?: string; last_inbound_at?: string | null; created_at?: string } | null;
+      return data as { lead_status_id?: string; last_inbound_at?: string | null; created_at?: string; assignee_id?: string | null } | null;
     },
     enabled: !!conversation?.id,
     refetchInterval: 5000,
@@ -370,6 +372,8 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
   const conversationStatusId = conversationStatusRow?.lead_status_id ?? null;
   const lastInboundAt = conversationStatusRow?.last_inbound_at ?? null;
   const conversationCreatedAt = conversationStatusRow?.created_at ?? null;
+  const conversationAssigneeId =
+    (conversationStatusRow as { assignee_id?: string | null } | null)?.assignee_id ?? null;
 
   const { data: followUpUpdates = [], refetch: refetchFollowUps } = useQuery({
     queryKey: [isEmail ? 'email-conversation-follow-ups' : 'wa-lead-follow-up-updates', conversation?.id],
@@ -546,10 +550,31 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
         conversionDescription,
         ...(leadRow?.id && { whatsapp_conversation_id: conversation.id }),
       });
-      queryClient.setQueryData([statusQueryKeyBase, conversation.id], { lead_status_id: newStatusId, last_inbound_at: lastInboundAt, created_at: conversationCreatedAt });
+      queryClient.setQueryData([statusQueryKeyBase, conversation.id], (prev: unknown) => {
+        const base =
+          prev &&
+          typeof prev === 'object' &&
+          prev !== null &&
+          'lead_status_id' in (prev as Record<string, unknown>)
+            ? (prev as {
+                lead_status_id?: string | null;
+                last_inbound_at?: string | null;
+                created_at?: string | null;
+                assignee_id?: string | null;
+              })
+            : {};
+        return {
+          ...base,
+          lead_status_id: newStatusId,
+          last_inbound_at: lastInboundAt,
+          created_at: conversationCreatedAt,
+        };
+      });
       await queryClient.invalidateQueries({ queryKey: [statusQueryKey, conversation.id] });
       await queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
       await queryClient.invalidateQueries({ queryKey: ['lead-by-ticket', organizationId, ticketId] });
+      await queryClient.invalidateQueries({ queryKey: ['crm-first-response-per-room', organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ['crm-sla-conversation', organizationId] });
       toast.success(t('whatsappInbox.statusUpdated', 'Status updated'));
     } catch (err) {
       devLog.error('Failed to update lead status:', err);
@@ -822,7 +847,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
               <Textarea
                 value={updateDetails}
                 onChange={(e) => setUpdateDetails(e.target.value)}
-                placeholder={t('whatsappInbox.updateDetailsPlaceholder', 'Describe the progress or changes made...')}
+                placeholder={t('whatsappInbox.updateDetailsPlaceholder', '')}
                 className="min-h-[72px] resize-none text-sm bg-white border-gray-200"
                 required
                 disabled={effectiveResolved}
@@ -865,7 +890,9 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
                 {t('whatsappInbox.updateHistory', 'Update History')} ({followUpUpdates.length})
               </span>
             </div>
-            <ScrollArea className="h-[140px] rounded border border-gray-200 bg-white/80 p-2">
+            <div
+              className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-[140px] overflow-y-auto overflow-x-hidden rounded border border-gray-200 bg-white/80 p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
               {followUpUpdates.length === 0 ? (
                 <div className="text-center py-4 text-gray-500 text-xs">
                   <p>{t('whatsappInbox.noUpdatesYet', 'No updates yet.')}</p>
@@ -902,7 +929,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
                           </TooltipTrigger>
                           <TooltipContent
                             side="top"
-                            className="max-w-[280px] max-h-[200px] overflow-y-auto whitespace-pre-wrap text-left"
+                            className="scrollbar-hide seamless-scroll nested-scroll-touch-chain max-h-[200px] max-w-[280px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap text-left [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                           >
                             {u.update_details}
                           </TooltipContent>
@@ -912,10 +939,79 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
                   ))}
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </div>
         </div>
         )}
+      </div>
+
+      {/* Assignee: read-only; ubah assignee hanya dari Leads Management */}
+      <div className="space-y-1.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full">
+              <label className="text-xs font-medium text-gray-600">
+                {t('whatsappInbox.assignee', 'Assignee')}
+              </label>
+              <Select
+                value={conversationAssigneeId ?? 'none'}
+                onValueChange={() => {}}
+                disabled
+              >
+                <SelectTrigger
+                  className="w-full text-sm bg-muted/50 border-gray-200 h-9 cursor-not-allowed opacity-90"
+                  aria-disabled
+                >
+                  <SelectValue placeholder={t('whatsappInbox.assignee', 'Assignee')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('whatsappInbox.assigneeNone', 'Unassigned')}</SelectItem>
+                  {rosterAssignees.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.full_name || e.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[220px] text-xs">
+            {t('whatsappInbox.assigneeReadOnlyHint', 'Assignee is managed in Leads Management.')}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* SLA Target — informasi; hitung mundur SLA mengikuti kebijakan org setelah assignee */}
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <button
+          type="button"
+          onClick={() => setIsSlaTargetExpanded((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-gray-50/80"
+          aria-expanded={isSlaTargetExpanded}
+          title={
+            isSlaTargetExpanded
+              ? t('whatsappInbox.clickToCollapse', 'Click to collapse')
+              : t('whatsappInbox.clickToExpand', 'Click to expand')
+          }
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {isSlaTargetExpanded ? (
+              <ChevronUp className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
+            )}
+            <span className="text-sm font-semibold text-gray-900">
+              {t('whatsappInbox.slaTargetTitle', 'SLA Target')}
+            </span>
+          </div>
+        </button>
+        {isSlaTargetExpanded ? (
+          <LivechatSlaTargetPanel
+            organizationId={organizationId}
+            conversation={conversation}
+            chatResolved={effectiveResolved}
+          />
+        ) : null}
       </div>
 
       {/* Status - kode sama dengan leads-management (LeadStatusSelect); when outside 24h show Resolve and disable */}

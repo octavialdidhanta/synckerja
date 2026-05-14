@@ -1,4 +1,5 @@
-import { memo } from "react";
+import { memo, useMemo, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
@@ -6,9 +7,18 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Slider } from "@/shared/components/ui/slider";
 import { Switch } from "@/shared/components/ui/switch";
 import { Label } from "@/shared/components/ui/label";
-import { Check, type LucideIcon } from "lucide-react";
-import { formatIDR } from "@/10-subscription/shared/subscriptionUtils";
-import type { SubscriptionPlan } from "@/10-subscription/hooks/useOptimizedSubscription";
+import { Check, Loader2, type LucideIcon } from "lucide-react";
+import {
+  OMNICHANNEL_ROSTER_ADD_ON_CODE,
+  catalogAddOnListAmountForMidtransSplit,
+  computePlanAddOnLineYearlyTotalIdr,
+  formatIDR,
+  resolvePlanAddOnUnitMonthly,
+  sortPlanAddOnLinks,
+  sumSelectedCatalogAddOnsListAmountIdr,
+} from "@/10-subscription/shared/subscriptionUtils";
+import type { SubscriptionPlan } from "@/10-subscription/types/SubscriptionPlanCatalog";
+import { cn } from "@/shared/lib/utils";
 
 interface PlanCardProps {
   plan: SubscriptionPlan;
@@ -34,10 +44,29 @@ interface PlanCardProps {
   };
   lastPaidAmount?: number | null;
   lastPaidMemberCount?: number | null;
+  /** Merged selections for `plan.plan_add_ons` rows (by add-on `code`). */
+  addOnSelections: Record<string, { included: boolean; quantity: number }>;
+  onAddOnIncludedChange: (code: string, included: boolean) => void;
+  onAddOnQuantityChange: (code: string, quantity: number) => void;
+  /** For omnichannel row copy + legacy headline when no junction rows. */
+  omnichannelPaidSeats: number;
+  omnichannelRosterActiveCount: number;
   onMemberCountChange: (planId: string, count: number) => void;
   onBillingCycleChange: (planId: string, isYearly: boolean) => void;
-  onUpgrade: (plan: SubscriptionPlan, memberCount: number, billingCycle: "monthly" | "yearly") => void;
-  onRenew?: (plan: SubscriptionPlan, memberCount: number, billingCycle: "monthly" | "yearly") => void;
+  onUpgrade: (
+    plan: SubscriptionPlan,
+    memberCount: number,
+    billingCycle: "monthly" | "yearly",
+    addOnSelections: Record<string, { included: boolean; quantity: number }>,
+  ) => void;
+  onRenew?: (
+    plan: SubscriptionPlan,
+    memberCount: number,
+    billingCycle: "monthly" | "yearly",
+    addOnSelections: Record<string, { included: boolean; quantity: number }>,
+  ) => void;
+  /** True while prorate fetch or Midtrans (renew) is in progress for this card's primary action. */
+  isPrimaryActionLoading?: boolean;
 }
 
 export const PlanCard = memo(
@@ -61,13 +90,63 @@ export const PlanCard = memo(
     subscriptionStatus,
     lastPaidAmount,
     lastPaidMemberCount,
+    addOnSelections,
+    onAddOnIncludedChange,
+    onAddOnQuantityChange,
+    omnichannelPaidSeats,
+    omnichannelRosterActiveCount,
     onMemberCountChange,
     onBillingCycleChange,
     onUpgrade,
     onRenew,
+    isPrimaryActionLoading = false,
   }: PlanCardProps) => {
     const { t } = useTranslation();
+    const { featureRowsBeforeAddOnsSection, featureRowsAfterAddOnsSection, showAddOnsHeading } = useMemo(() => {
+      const list = plan.features ?? [];
+      const idx = list.findIndex((f) => /dedicated\s+support/i.test(String(f).trim()));
+      if (idx < 0) {
+        return { featureRowsBeforeAddOnsSection: list, featureRowsAfterAddOnsSection: [] as string[], showAddOnsHeading: false };
+      }
+      return {
+        featureRowsBeforeAddOnsSection: list.slice(0, idx + 1),
+        featureRowsAfterAddOnsSection: list.slice(idx + 1),
+        showAddOnsHeading: true,
+      };
+    }, [plan.features]);
+
+    const catalogLinks = useMemo(() => sortPlanAddOnLinks(plan), [plan]);
+    const showAddOnsBlockHeading = showAddOnsHeading || catalogLinks.length > 0;
+
     const isYearly = billingCycle === "yearly";
+    const cycleKey = isYearly ? "yearly" : "monthly";
+
+    const selectedCatalogAddonTotal = useMemo(
+      () =>
+        sumSelectedCatalogAddOnsListAmountIdr({
+          plan,
+          billingCycle: cycleKey,
+          annualDiscountPercent: plan.annual_discount_percentage,
+          selections: addOnSelections,
+        }),
+      [plan, cycleKey, addOnSelections],
+    );
+
+    const legacyFallbackAddonTotal = useMemo(
+      () =>
+        catalogAddOnListAmountForMidtransSplit({
+          plan,
+          billingCycle: cycleKey,
+          annualDiscountPercent: plan.annual_discount_percentage,
+          selections: {},
+          legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        }),
+      [plan, cycleKey, omnichannelPaidSeats],
+    );
+
+    const addonTotalForHero = catalogLinks.length > 0 ? selectedCatalogAddonTotal : legacyFallbackAddonTotal;
+    const displayHeroTotal = totalPrice + addonTotalForHero;
+
     const isComingSoon =
       plan.description?.toLowerCase().includes("coming soon") ||
       plan.description?.toLowerCase().includes("comming soon");
@@ -75,11 +154,72 @@ export const PlanCard = memo(
       isRenewEligible && isCurrent && memberCount === currentMemberCount && !hasBillingCycleChange;
     const handlePrimaryAction = () => {
       if (shouldRenew && onRenew) {
-        onRenew(plan, memberCount, billingCycle);
+        onRenew(plan, memberCount, billingCycle, addOnSelections);
       } else {
-        onUpgrade(plan, memberCount, billingCycle);
+        onUpgrade(plan, memberCount, billingCycle, addOnSelections);
       }
     };
+
+    /** Ringkasan add-on aktif untuk kartu "paket saat ini" (nama add-on + kuota / roster omnichannel). */
+    const currentPlanAddOnSummaryItems = useMemo((): ReactNode[] => {
+      if (!isCurrent) return [];
+      const parts: ReactNode[] = [];
+      for (const link of catalogLinks) {
+        const code = link.subscription_add_ons.code;
+        const sel = addOnSelections[code];
+        const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
+        const visible = isOmni
+          ? omnichannelPaidSeats > 0 || Boolean(sel?.included)
+          : Boolean(sel?.included);
+        if (!visible) continue;
+        const name = link.subscription_add_ons.name;
+        if (isOmni) {
+          parts.push(
+            <div key={code} className="text-xs text-muted-foreground">
+              <div className="font-medium text-foreground">{name}</div>
+              <div className="mt-0.5">
+                {t("subscription.plans.currentPlan.omnichannelSeatDetail", {
+                  paid: omnichannelPaidSeats,
+                  roster: omnichannelRosterActiveCount,
+                })}
+              </div>
+            </div>,
+          );
+        } else {
+          parts.push(
+            <div key={code} className="text-xs text-muted-foreground">
+              <div className="font-medium text-foreground">{name}</div>
+              <div className="mt-0.5">
+                {t("subscription.plans.currentPlan.addOnQuantityDetail", {
+                  count: Math.max(1, sel?.quantity ?? 1),
+                })}
+              </div>
+            </div>,
+          );
+        }
+      }
+      if (catalogLinks.length === 0 && omnichannelPaidSeats > 0) {
+        parts.push(
+          <div key="legacy-omnichannel" className="text-xs text-muted-foreground">
+            <div className="font-medium text-foreground">{t("subscription.plans.omnichannelAddonTitle")}</div>
+            <div className="mt-0.5">
+              {t("subscription.plans.currentPlan.omnichannelSeatDetail", {
+                paid: omnichannelPaidSeats,
+                roster: omnichannelRosterActiveCount,
+              })}
+            </div>
+          </div>,
+        );
+      }
+      return parts;
+    }, [
+      isCurrent,
+      catalogLinks,
+      addOnSelections,
+      omnichannelPaidSeats,
+      omnichannelRosterActiveCount,
+      t,
+    ]);
 
     return (
       <Card
@@ -131,7 +271,7 @@ export const PlanCard = memo(
           </div>
 
           <div className="space-y-2">
-            <div className="text-4xl font-bold text-foreground">{formatIDR(totalPrice)}</div>
+            <div className="text-4xl font-bold text-foreground">{formatIDR(displayHeroTotal)}</div>
             <div className="text-sm text-muted-foreground">
               {isYearly
                 ? t("subscription.plans.pricing.perYear", { count: memberCount })
@@ -171,30 +311,146 @@ export const PlanCard = memo(
             />
           </div>
 
-          <div className="min-h-[120px] flex-grow space-y-3">
+          <div className="space-y-3 text-left">
             <h4 className="font-medium text-foreground">{t("subscription.plans.features.title")}</h4>
             <ul className="space-y-2">
-              {plan.features?.map((feature, index) => (
-                <li key={index} className="flex items-start space-x-2">
+              {featureRowsBeforeAddOnsSection.map((feature, index) => (
+                <li key={`feat-core-${index}`} className="flex items-start space-x-2">
                   <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
                   <span className="text-sm text-muted-foreground">{feature}</span>
                 </li>
               ))}
             </ul>
+            {featureRowsAfterAddOnsSection.length > 0 && (
+              <ul className="space-y-2">
+                {featureRowsAfterAddOnsSection.map((feature, index) => (
+                  <li key={`feat-after-${index}`} className="flex items-start space-x-2">
+                    <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
+                    <span className="text-sm text-muted-foreground">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {showAddOnsBlockHeading && (
+              <h4 className="font-medium text-foreground">{t("subscription.plans.addOnsSectionTitle")}</h4>
+            )}
+            {catalogLinks.length > 0 && (
+              <div className="space-y-3">
+                {catalogLinks.map((link) => {
+                  const code = link.subscription_add_ons.code;
+                  const sel = addOnSelections[code] ?? { included: false, quantity: 1 };
+                  const seatCap = Math.max(1, memberCount);
+                  const billedQty = Math.min(seatCap, Math.max(1, sel.quantity));
+                  const unit = resolvePlanAddOnUnitMonthly(link);
+                  const lineAmount = isYearly
+                    ? computePlanAddOnLineYearlyTotalIdr(
+                        billedQty,
+                        unit,
+                        link.subscription_add_ons.follows_plan_annual_discount !== false,
+                        plan.annual_discount_percentage,
+                      )
+                    : billedQty * unit;
+                  const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
+                  return (
+                    <div
+                      key={code}
+                      className="rounded-md border border-primary/20 bg-primary/5 p-3 text-left text-xs space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 space-y-1">
+                          <div className="font-semibold text-foreground leading-snug">
+                            {link.subscription_add_ons.name}
+                          </div>
+                          <p className="text-muted-foreground">
+                            {t("subscription.plans.addOnPricePerUnit", { amount: formatIDR(unit) })}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <Label className="text-[10px] font-normal text-muted-foreground">
+                            {t("subscription.plans.addOnIncludeLabel")}
+                          </Label>
+                          <Switch
+                            checked={sel.included}
+                            onCheckedChange={(v) => onAddOnIncludedChange(code, v)}
+                            disabled={isTrialPlan}
+                            className={isTrialPlan ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </div>
+                      </div>
+                      {isOmni && (
+                        <div className="space-y-1 border-t border-primary/10 pt-2 text-[11px] leading-snug">
+                          <p className="text-foreground">
+                            {t("subscription.plans.omnichannelPaidSeatsEntitled", { count: omnichannelPaidSeats })}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {t("subscription.plans.omnichannelRosterActiveLine", { count: omnichannelRosterActiveCount })}
+                          </p>
+                          <Link to="/omnichannel/settings" className="inline-block font-medium text-primary underline">
+                            {t("subscription.plans.manageRosterLink")}
+                          </Link>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">
+                          {t("subscription.plans.addOnQuantityLabel", { count: billedQty, max: seatCap })}
+                        </Label>
+                        <Slider
+                          value={[billedQty]}
+                          onValueChange={
+                            isTrialPlan || !sel.included
+                              ? undefined
+                              : (value) =>
+                                  onAddOnQuantityChange(code, Math.min(seatCap, Math.max(1, value[0])))
+                          }
+                          max={seatCap}
+                          min={1}
+                          step={1}
+                          className={isTrialPlan || !sel.included ? "pointer-events-none opacity-50" : "w-full"}
+                          disabled={isTrialPlan || !sel.included}
+                        />
+                        <div className="flex justify-between text-[11px] text-muted-foreground">
+                          <span>1</span>
+                          <span>{seatCap}</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between border-t border-primary/10 pt-2 font-medium text-foreground">
+                        <span>{t("subscription.plans.addOnLineSubtotal")}</span>
+                        <span>{formatIDR(sel.included ? lineAmount : 0)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="mt-auto">
             <Button
-              className="w-full py-3 text-base font-medium"
+              className={cn(
+                "w-full py-3 text-base font-medium touch-manipulation transition-[transform,filter,box-shadow] duration-150 ease-out",
+                "active:scale-[0.97] active:brightness-[0.92] active:shadow-inner",
+                "disabled:active:scale-100 disabled:active:brightness-100",
+              )}
               variant={isCurrent && memberCount === currentMemberCount ? "default" : "default"}
               onClick={handlePrimaryAction}
               disabled={
                 isComingSoon ||
                 !canChange ||
-                (isCurrent && memberCount === currentMemberCount && !hasBillingCycleChange && !isRenewEligible)
+                (isCurrent && memberCount === currentMemberCount && !hasBillingCycleChange && !isRenewEligible) ||
+                isPrimaryActionLoading
               }
+              aria-busy={isPrimaryActionLoading}
             >
-              {isComingSoon ? t("subscription.plans.button.comingSoon") : buttonText}
+              {isPrimaryActionLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                  <span>{isComingSoon ? t("subscription.plans.button.comingSoon") : buttonText}</span>
+                </>
+              ) : isComingSoon ? (
+                t("subscription.plans.button.comingSoon")
+              ) : (
+                buttonText
+              )}
             </Button>
             {isCurrent && (
               <div className="mt-2 text-center text-xs font-medium text-brand-blue">
@@ -202,6 +458,20 @@ export const PlanCard = memo(
                   memberCount: currentMemberCount,
                   employeeCount: currentEmployeeCount,
                 })}
+              </div>
+            )}
+            {isCurrent && (
+              <div className="mt-3 rounded-md border border-primary/15 bg-primary/5 px-3 py-2 text-left">
+                <p className="text-xs font-semibold text-primary">
+                  {t("subscription.plans.currentPlan.addOnSectionTitle")}
+                </p>
+                {currentPlanAddOnSummaryItems.length > 0 ? (
+                  <div className="mt-2 space-y-2">{currentPlanAddOnSummaryItems}</div>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {t("subscription.plans.currentPlan.noPaidAddOns")}
+                  </p>
+                )}
               </div>
             )}
             {!canChange && isCurrent && memberCount < currentMemberCount && (
@@ -246,14 +516,51 @@ export const PlanCard = memo(
                 <span>-{formatIDR(monthlyPrice * 12 * (plan.annual_discount_percentage / 100))}</span>
               </div>
             )}
+            {catalogLinks.map((link) => {
+              const code = link.subscription_add_ons.code;
+              const sel = addOnSelections[code] ?? { included: false, quantity: 1 };
+              if (!sel.included) return null;
+              const seatCap = Math.max(1, memberCount);
+              const billedQty = Math.min(seatCap, Math.max(1, sel.quantity));
+              const unit = resolvePlanAddOnUnitMonthly(link);
+              const amount = isYearly
+                ? computePlanAddOnLineYearlyTotalIdr(
+                    billedQty,
+                    unit,
+                    link.subscription_add_ons.follows_plan_annual_discount !== false,
+                    plan.annual_discount_percentage,
+                  )
+                : billedQty * unit;
+              return (
+                <div key={`bd-${code}`} className="flex justify-between text-muted-foreground">
+                  <span className="min-w-0 truncate pr-2">
+                    {t("subscription.plans.priceBreakdown.addOnLineLabel", {
+                      addOns: t("subscription.plans.addOnsSectionTitle"),
+                      name: link.subscription_add_ons.name,
+                    })}
+                  </span>
+                  <span className="shrink-0">{formatIDR(amount)}</span>
+                </div>
+              );
+            })}
+            {catalogLinks.length === 0 && addonTotalForHero > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>{t("subscription.plans.priceBreakdown.omnichannelAddonMonthly")}</span>
+                <span>{formatIDR(addonTotalForHero)}</span>
+              </div>
+            )}
             <hr className="border-border" />
             <div className="flex justify-between font-medium text-foreground">
               <span>
-                {isYearly
-                  ? t("subscription.plans.priceBreakdown.totalYearly")
-                  : t("subscription.plans.priceBreakdown.totalMonthly")}
+                {addonTotalForHero > 0
+                  ? isYearly
+                    ? t("subscription.plans.priceBreakdown.totalWithAddonYearly")
+                    : t("subscription.plans.priceBreakdown.totalWithAddonMonthly")
+                  : isYearly
+                    ? t("subscription.plans.priceBreakdown.totalYearly")
+                    : t("subscription.plans.priceBreakdown.totalMonthly")}
               </span>
-              <span>{formatIDR(totalPrice)}</span>
+              <span>{formatIDR(displayHeroTotal)}</span>
             </div>
           </div>
 

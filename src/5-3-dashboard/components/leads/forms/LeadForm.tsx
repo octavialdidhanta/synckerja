@@ -7,7 +7,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Lead } from '@/shared/types/operationsConsultant';
-import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
+import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 
 interface LeadFormProps {
   open: boolean;
@@ -17,7 +17,7 @@ interface LeadFormProps {
 }
 
 export const LeadForm = ({ open, onClose, onSubmit, lead }: LeadFormProps) => {
-  const { data: employees = [] } = useAvailableEmployees();
+  const { data: employees = [] } = useOmnichannelRosterAssignees();
   const [formData, setFormData] = useState({
     ticketId: lead?.ticketId || '',
     client: lead?.client || lead?.namaPasien || '',

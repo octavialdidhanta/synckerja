@@ -185,7 +185,7 @@ export const ProductKnowledgeTable: React.FC<ProductKnowledgeTableProps> = ({
               ) : data.length === 0 ? (
                 <tr>
                   <td colSpan={onGeneratePromptForRow ? 17 : 16} className="text-center py-8 border-b border-gray-200">
-                    <p className="text-gray-500 text-sm">{t('productKnowledge.table.emptyState', 'No product knowledge found')}</p>
+                    <p className="text-gray-500 text-sm">{t('productKnowledge.table.emptyState', 'No creative entries found')}</p>
                   </td>
                 </tr>
               ) : (

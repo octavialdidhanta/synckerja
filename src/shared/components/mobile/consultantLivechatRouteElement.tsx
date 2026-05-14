@@ -26,7 +26,7 @@ function ShellSuspense({ children }: { children: ReactNode }) {
 }
 
 /**
- * `/operations/consultant/all/livechat`: viewport tools-mobile atau native → `android-mobile/4-livechat/LiveChatPage`.
+ * `/omnichannel/livechat`: viewport tools-mobile atau native → `android-mobile/4-livechat/LiveChatPage`.
  * Harus dipasangkan dengan `AdaptiveAppLayout` bypass untuk path ini agar tidak dobel `AppHeader`.
  */
 export function ConsultantLivechatRouteElement() {

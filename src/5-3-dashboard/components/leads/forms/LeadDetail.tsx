@@ -32,7 +32,7 @@ import {
   Plus
 } from 'lucide-react';
 import { Lead, FollowUpHistory } from '@/shared/types/operationsConsultant';
-import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
+import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 
 interface LeadDetailProps {
   lead: Lead;
@@ -45,7 +45,7 @@ export const LeadDetail: React.FC<LeadDetailProps> = ({
   onClose, 
   onUpdate 
 }) => {
-  const { data: employees = [] } = useAvailableEmployees();
+  const { data: employees = [] } = useOmnichannelRosterAssignees();
   const [editedLead, setEditedLead] = useState<Lead>({ ...lead });
   const [showFollowUpForm, setShowFollowUpForm] = useState(false);
   const [newFollowUp, setNewFollowUp] = useState<Partial<FollowUpHistory>>({

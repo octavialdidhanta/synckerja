@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Receipt } from 'lucide-react';
+import { BarChart3, Receipt, CircleDollarSign } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 
 interface HeaderAndTabProps {
@@ -26,6 +26,13 @@ export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
       description: 'Manage income transactions and records',
       route: '/incomes/transaction',
     },
+    {
+      id: 'piutang',
+      label: 'Piutang',
+      icon: CircleDollarSign,
+      description: 'Piutang dari aktivitas penjualan',
+      route: '/incomes/piutang',
+    },
   ];
 
   const handleTabClick = (tab: (typeof tabs)[number]) => {
@@ -37,8 +44,11 @@ export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
   };
 
   const getActiveTab = () => {
-    if (location.pathname === '/incomes/transaction') {
+    if (location.pathname === '/incomes/transaction' || location.pathname.startsWith('/incomes/transaction/')) {
       return 'transaction';
+    }
+    if (location.pathname === '/incomes/piutang') {
+      return 'piutang';
     }
     if (location.pathname === '/incomes/dashboard') {
       return 'dashboard';

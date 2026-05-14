@@ -491,7 +491,10 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
                       <SelectTrigger className="w-full h-9 text-sm border rounded">
                         <SelectValue placeholder={t('productKnowledge.masterData.selectService', 'Pilih Service')} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent
+                        position="popper"
+                        className="z-[10050] max-h-[min(16rem,calc(90vh-8rem))]"
+                      >
                         <SelectItem value="placeholder" disabled>
                           {t('productKnowledge.masterData.selectService', 'Pilih Service')}
                         </SelectItem>

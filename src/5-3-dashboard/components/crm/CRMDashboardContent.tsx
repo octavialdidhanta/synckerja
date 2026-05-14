@@ -1,13 +1,13 @@
 import React from 'react';
 import { useLeads } from '@/shared/hooks/organized/sales';
-import { LeadsMetricsCards } from "@/5-3-dashboard/components/leads/metrics/LeadsMetricsCards";
 import { LeadsInsights } from "@/5-3-dashboard/components/leads/metrics/LeadsInsights";
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Users, Clock, Target, CheckCircle } from 'lucide-react';
 
+/** CRM dashboard metrics: org-wide leads (same scope as `CrmConversationSummaryPanel`; RLS-bound). */
 export const CRMDashboardContent = () => {
-  const { leads } = useLeads();
+  const { leads } = useLeads({ scope: 'all' });
 
   const totalLeads = leads.length;
   const convertedLeads = leads.filter(lead => lead.lead_status?.name === 'Converted').length;
@@ -36,53 +36,53 @@ export const CRMDashboardContent = () => {
     <div className="min-w-0 max-w-full space-y-4">
       {/* Key Metrics */}
       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <Card className="border border-brand-blue/20 bg-gradient-to-br from-brand-blue-soft to-background">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-900">Total Leads</CardTitle>
-            <Users className="h-4 w-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-brand-blue-on-soft">Total Leads</CardTitle>
+            <Users className="h-4 w-4 text-brand-blue" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-900">{totalLeads}</div>
-            <p className="text-xs text-blue-600 mt-1">
+            <div className="text-2xl font-bold text-brand-blue">{totalLeads}</div>
+            <p className="mt-1 text-xs text-brand-blue/80">
               Semua leads dalam sistem
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+        <Card className="border border-brand-red/20 bg-gradient-to-br from-brand-red/10 to-background">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-900">Converted Leads</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium text-brand-red">Converted Leads</CardTitle>
+            <CheckCircle className="h-4 w-4 text-brand-red" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-900">{convertedLeads}</div>
-            <p className="text-xs text-green-600 mt-1">
+            <div className="text-2xl font-bold text-brand-red">{convertedLeads}</div>
+            <p className="mt-1 text-xs text-brand-red/80">
               Conversion rate: {conversionRate}%
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+        <Card className="border border-brand-blue/15 bg-gradient-to-br from-brand-blue-soft/80 to-background">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-900">Pending Follow Up</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600" />
+            <CardTitle className="text-sm font-medium text-brand-blue-on-soft">Pending Follow Up</CardTitle>
+            <Clock className="h-4 w-4 text-brand-blue" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-900">{pendingFollowUp}</div>
-            <p className="text-xs text-orange-600 mt-1">
+            <div className="text-2xl font-bold text-brand-blue">{pendingFollowUp}</div>
+            <p className="mt-1 text-xs text-brand-blue/80">
               Memerlukan tindak lanjut
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+        <Card className="border border-brand-red/15 bg-gradient-to-br from-brand-red/10 to-brand-blue-soft/40">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-purple-900">Conversion Rate</CardTitle>
-            <Target className="h-4 w-4 text-purple-600" />
+            <CardTitle className="text-sm font-medium text-brand-red">Conversion Rate</CardTitle>
+            <Target className="h-4 w-4 text-brand-red" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-900">{conversionRate}%</div>
-            <p className="text-xs text-purple-600 mt-1">
+            <div className="text-2xl font-bold text-brand-red">{conversionRate}%</div>
+            <p className="mt-1 text-xs text-brand-red/80">
               Tingkat keberhasilan
             </p>
           </CardContent>
@@ -103,8 +103,8 @@ export const CRMDashboardContent = () => {
                 <span className="min-w-0 truncate text-sm font-medium">{source}</span>
                 <div className="flex shrink-0 items-center gap-2">
                   <div className="w-20 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-[#2E5AAC] h-2 rounded-full" 
+                    <div
+                      className="h-2 rounded-full bg-brand-blue"
                       style={{ width: `${totalLeads > 0 ? (count / totalLeads) * 100 : 0}%` }}
                     />
                   </div>
@@ -127,8 +127,8 @@ export const CRMDashboardContent = () => {
                 <span className="min-w-0 truncate text-sm font-medium">{consultant}</span>
                 <div className="flex shrink-0 items-center gap-2">
                   <div className="w-20 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-500 h-2 rounded-full" 
+                    <div
+                      className="h-2 rounded-full bg-brand-red"
                       style={{ width: `${totalLeads > 0 ? (count / totalLeads) * 100 : 0}%` }}
                     />
                   </div>
@@ -151,8 +151,8 @@ export const CRMDashboardContent = () => {
                 <span className="min-w-0 truncate text-sm font-medium">{category}</span>
                 <div className="flex shrink-0 items-center gap-2">
                   <div className="w-20 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-purple-500 h-2 rounded-full" 
+                    <div
+                      className="h-2 rounded-full bg-brand-blue-deep"
                       style={{ width: `${totalLeads > 0 ? (count / totalLeads) * 100 : 0}%` }}
                     />
                   </div>

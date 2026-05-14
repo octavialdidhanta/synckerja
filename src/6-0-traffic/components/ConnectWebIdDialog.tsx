@@ -14,12 +14,14 @@ export function ConnectWebIdDialog({
   organizationId,
   existingWebIds,
   onConnected,
+  onRequestSubmitted,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string | null | undefined;
   existingWebIds: string[];
   onConnected: (webId: string) => void;
+  onRequestSubmitted?: () => void;
 }) {
   const { toast } = useToast();
   const [webIdInput, setWebIdInput] = useState("");
@@ -67,10 +69,21 @@ export function ConnectWebIdDialog({
     const { error } = await supabase.from("analytics_web_access").insert({
       organization_id: organizationId,
       web_id: normalized,
+      is_approved: false,
     });
     setSubmitting(false);
 
     if (error) {
+      if (error.code === "23505") {
+        toast({
+          title: "Request already exists",
+          description: "Request web_id ini sudah ada dan menunggu approval.",
+        });
+        onRequestSubmitted?.();
+        setWebIdInput("");
+        onOpenChange(false);
+        return;
+      }
       toast({
         title: "Connect failed",
         description: error.message,
@@ -80,10 +93,10 @@ export function ConnectWebIdDialog({
     }
 
     toast({
-      title: "Connected",
-      description: `web_id \"${normalized}\" berhasil dihubungkan.`,
+      title: "Request submitted",
+      description: `web_id "${normalized}" menunggu approval sebelum bisa dipakai.`,
     });
-    onConnected(normalized);
+    onRequestSubmitted?.();
     setWebIdInput("");
     onOpenChange(false);
   }

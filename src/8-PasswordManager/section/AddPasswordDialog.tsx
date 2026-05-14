@@ -1,10 +1,13 @@
 import type React from "react";
 import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogFormScrollArea,
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
@@ -21,7 +24,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, X } from "lucide-react";
 import type { Password, PasswordFormData } from "../types";
 import { PasswordStrengthMeter } from "./PasswordStrengthMeter";
 import { PasswordGenerator } from "./PasswordGenerator";
@@ -41,6 +44,7 @@ export const AddPasswordDialog: React.FC<AddPasswordDialogProps> = ({
   editPassword,
   categories,
 }) => {
+  const { t } = useTranslation();
   const defaultCategoryId = useMemo(() => {
     const general = categories.find((c) => c.name.trim().toLowerCase() === "general");
     return general?.id ?? categories[0]?.id ?? "";
@@ -111,37 +115,48 @@ export const AddPasswordDialog: React.FC<AddPasswordDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[720px] max-h-[95vh] w-[680px] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 min-h-0">
-        <DialogHeader className="flex-shrink-0 border-b border-brand-blue/15 bg-gradient-to-r from-brand-blue-soft to-muted px-6 pb-4 pt-6 pr-14 dark:from-brand-blue/10">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-blue/15">
-              <Eye className="h-5 w-5 text-brand-blue" />
+      <DialogContent
+        hideCloseButton
+        className="flex h-[720px] max-h-[95vh] w-[680px] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 min-h-0"
+      >
+        <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between gap-3 space-y-0 border-b border-brand-blue/15 bg-gradient-to-r from-brand-blue-soft to-muted px-4 py-2.5 text-left dark:from-brand-blue/10">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-blue/15">
+              <Eye className="h-4 w-4 text-brand-blue" />
             </div>
             <div className="min-w-0">
-              <DialogTitle className="truncate text-xl font-semibold">
+              <DialogTitle className="truncate text-lg font-semibold leading-tight">
                 {editPassword ? "Edit Password" : "Add New Password"}
               </DialogTitle>
-              <DialogDescription className="mt-1 truncate text-sm text-muted-foreground">
+              <DialogDescription className="mt-0.5 truncate text-xs leading-snug text-muted-foreground">
                 {editPassword
                   ? "Update your password information below."
                   : "Fill in the details to save a new password."}
               </DialogDescription>
             </div>
           </div>
+          <DialogClose
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent/80 data-[state=open]:text-muted-foreground"
+            aria-label={t("layout.sheetClose")}
+          >
+            <X className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="sr-only">{t("layout.sheetClose")}</span>
+          </DialogClose>
         </DialogHeader>
 
-        <div className="seamless-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pb-6 pt-1">
+        <DialogFormScrollArea className="px-4 pb-3 pt-1">
           <Tabs defaultValue="details" className="flex min-h-0 w-full flex-col">
             <TabsList className="grid w-full shrink-0 grid-cols-2">
               <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="generator">Password Generator</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="details" className="mt-3 min-h-0 space-y-4 pb-1">
+            <TabsContent value="details" className="mt-2 min-h-0 space-y-3 pb-1">
               <form
                 id="password-form"
                 onSubmit={handleSubmit}
-                className="space-y-4"
+                className="space-y-3"
                 autoComplete="off"
               >
                 <div className="space-y-2">
@@ -252,7 +267,7 @@ export const AddPasswordDialog: React.FC<AddPasswordDialogProps> = ({
                     value={formData.notes ?? ""}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
-                    className="max-h-40 min-h-[4.5rem] resize-y overflow-auto"
+                    className="max-h-40 min-h-[4.5rem] resize-y overflow-auto scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     autoComplete="off"
                     autoCorrect="off"
                     spellCheck={false}
@@ -274,15 +289,15 @@ export const AddPasswordDialog: React.FC<AddPasswordDialogProps> = ({
               </form>
             </TabsContent>
 
-            <TabsContent value="generator" className="mt-3 min-h-0 pb-1">
+            <TabsContent value="generator" className="mt-2 min-h-0 pb-1">
               <PasswordGenerator onUsePassword={handleUseGeneratedPassword} />
               <p className="mt-4 text-sm text-muted-foreground">
                 Switch to the Details tab to see the generated password in the form.
               </p>
             </TabsContent>
           </Tabs>
-        </div>
-        <DialogFooter className="flex-shrink-0 border-t bg-muted/30 px-6 pb-6 pt-4 mt-0">
+        </DialogFormScrollArea>
+        <DialogFooter className="mt-0 flex-shrink-0 border-t bg-muted/30 px-4 py-2.5">
           <Button type="button" variant="outline" onClick={handleCancel} className="w-full md:w-auto">
             Cancel
           </Button>

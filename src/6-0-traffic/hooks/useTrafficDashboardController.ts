@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DateRange } from "react-day-picker";
 import { format } from "date-fns";
-import { getLast30DaysDateRange } from "@/5-3-dashboard/components/leads/filters/dateRangePresets";
+import { getTodayDateRange } from "@/5-3-dashboard/components/leads/filters/dateRangePresets";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 
@@ -44,6 +44,12 @@ export type TrafficDashboardPayload = {
     clicks: number;
   }>;
   utm_table: Array<{
+    visit_key?: string | null;
+    visitor_id?: string | null;
+    session_id?: string | null;
+    day?: string | null;
+    occurred_at?: string | null;
+    time_label?: string | null;
     route: string | null;
     utm_campaign: string | null;
     utm_source: string | null;
@@ -79,14 +85,49 @@ export type TrafficIngestionStatus = {
   data_status: "ok" | "no_ingested_data" | "rollups_not_built";
 };
 
-export function useTrafficDashboardController() {
+export type TrafficWebAccessRequest = {
+  web_id: string;
+  is_approved: boolean;
+  created_at: string | null;
+};
+
+function ymdOnly(v: string | null | undefined): string | null {
+  if (v == null || v === "") return null;
+  const s = String(v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+function emptyTrafficDashboard(webId: string): TrafficDashboardPayload {
+  return {
+    web_id: webId,
+    from: null,
+    to: null,
+    kpis: {
+      sessions: 0,
+      page_views: 0,
+      clicks: 0,
+      avg_active_ms_per_view: 0,
+      sessions_with_utm: 0,
+      sessions_with_gclid: 0,
+    },
+    series: [],
+    top_pages: [],
+    top_clicks: [],
+    utm_table: [],
+    funnel: { sessions: 0, page_views: 0, clicks: 0 },
+    source_breakdown: [],
+  };
+}
+
+export function useTrafficDashboardController(getInitialRange: () => DateRange | null = () => getTodayDateRange()) {
   const { organizationId } = useCurrentOrg();
   const [webId, setWebId] = useState<string>("");
-  /** Default: 30 hari terakhir agar dashboard sejalan dengan trafik aktual; "Maximum" pilih lewat filter. */
-  const [range, setRange] = useState<DateRange | null>(() => getLast30DaysDateRange());
+  /** Default: hari ini; rentang lain & "Maximum" lewat filter. */
+  const [range, setRange] = useState<DateRange | null>(() => getInitialRange());
 
   const webIdsQuery = useQuery({
-    queryKey: ["traffic", "accessible-web-ids"],
+    queryKey: ["traffic", "accessible-web-ids", organizationId],
+    enabled: Boolean(organizationId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("list_accessible_web_ids");
       if (error) throw error;
@@ -94,10 +135,43 @@ export function useTrafficDashboardController() {
     },
   });
 
+  const webAccessQuery = useQuery({
+    queryKey: ["traffic", "web-access-requests", organizationId],
+    enabled: Boolean(organizationId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("analytics_web_access")
+        .select("web_id,is_approved,created_at")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as TrafficWebAccessRequest[];
+    },
+  });
+
+  // After org switch, React Query must not reuse another org's web_id list; also drop a stale manual selection.
+  useEffect(() => {
+    const ids = webIdsQuery.data;
+    if (webIdsQuery.isLoading || ids === undefined) return;
+    const trimmed = webId.trim();
+    if (trimmed && !ids.includes(trimmed)) {
+      setWebId("");
+    }
+  }, [webIdsQuery.data, webIdsQuery.isLoading, webId]);
+
+  /**
+   * Hanya pakai `webId` state jika ada di daftar RPC untuk org ini. Saat ganti org, `data` sementara
+   * undefined: jangan fallback ke ID lama (bisa memicu `forbidden` di get_traffic_dashboard).
+   */
   const effectiveWebId = useMemo(() => {
     const trimmed = webId.trim();
-    return trimmed || (webIdsQuery.data?.[0] ?? "");
-  }, [webId, webIdsQuery.data]);
+    const ids = webIdsQuery.data;
+    if (!organizationId) return "";
+    if (ids === undefined) return "";
+    if (ids.length === 0) return "";
+    if (trimmed && ids.includes(trimmed)) return trimmed;
+    return ids[0] ?? "";
+  }, [organizationId, webId, webIdsQuery.data]);
 
   const fromDate = useMemo(() => {
     if (!range?.from) return null;
@@ -112,16 +186,45 @@ export function useTrafficDashboardController() {
   const rangeIsMaximum = range === null;
 
   const dashboardQuery = useQuery({
-    queryKey: ["traffic", "dashboard", effectiveWebId, fromDate, toDate],
+    queryKey: ["traffic", "dashboard", organizationId, effectiveWebId, fromDate, toDate],
     enabled:
       Boolean(organizationId) &&
       Boolean(effectiveWebId) &&
       (range === null || (Boolean(fromDate) && Boolean(toDate))),
     queryFn: async () => {
+      let rpcFrom: string | null = range === null ? null : ymdOnly(fromDate);
+      let rpcTo: string | null = range === null ? null : ymdOnly(toDate);
+
+      // "Maximum" sent null dates; older get_traffic_dashboard (pre–null-range migration) raises "from/to are required".
+      // Resolve to rollup bounds when available (same as server COALESCE(p_from, v_min)).
+      if (range === null) {
+        const { data: ing, error: ingErr } = await supabase.rpc("get_traffic_ingestion_status", {
+          p_web_id: effectiveWebId,
+        });
+        if (ingErr) throw ingErr;
+        const ingRow = ing as TrafficIngestionStatus;
+        const bmin = ymdOnly(ingRow.aggregate_day_min ?? null);
+        const bmax = ymdOnly(ingRow.aggregate_day_max ?? null);
+        if (bmin && bmax) {
+          rpcFrom = bmin;
+          rpcTo = bmax;
+        } else {
+          return emptyTrafficDashboard(effectiveWebId);
+        }
+      } else if (!rpcFrom || !rpcTo) {
+        throw new Error("Rentang tanggal tidak valid.");
+      }
+
+      if (rpcFrom && rpcTo && rpcTo < rpcFrom) {
+        throw new Error("Tanggal akhir harus setelah tanggal mulai.");
+      }
+
       const { data, error } = await supabase.rpc("get_traffic_dashboard", {
         p_web_id: effectiveWebId,
-        p_from: range === null ? null : fromDate,
-        p_to: range === null ? null : toDate,
+        p_from: rpcFrom,
+        p_to: rpcTo,
+        p_top_pages_limit: 15,
+        p_top_clicks_limit: 15,
         p_utm_limit: 2000,
       });
       if (error) throw error;
@@ -155,6 +258,7 @@ export function useTrafficDashboardController() {
     range,
     setRange,
     webIdsQuery,
+    webAccessQuery,
     effectiveWebId,
     fromDate,
     toDate,

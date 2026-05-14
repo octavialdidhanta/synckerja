@@ -64,14 +64,26 @@ export function useSendInstagramMessage() {
         }
         const statusQueryKey = ['instagram-conversation-status', conversationId] as const;
         const statusIdFromBackend = data?.lead_status_id ?? null;
-        if (statusIdFromBackend) {
-          queryClient.setQueryData(statusQueryKey, statusIdFromBackend);
-        } else {
-          const leadStatuses = queryClient.getQueryData<Array<{ id: string; name: string }>>(['lead-statuses']);
-          const inProgressStatus = leadStatuses?.find((s) => (s.name ?? '').trim().toLowerCase() === 'in progress');
-          if (inProgressStatus?.id) {
-            queryClient.setQueryData(statusQueryKey, inProgressStatus.id);
-          }
+        const leadStatuses = queryClient.getQueryData<Array<{ id: string; name: string }>>(['lead-statuses']);
+        const inProgressStatus = leadStatuses?.find((s) => (s.name ?? '').trim().toLowerCase() === 'in progress');
+        const nextStatusId = statusIdFromBackend ?? inProgressStatus?.id ?? null;
+        if (nextStatusId) {
+          queryClient.setQueryData(statusQueryKey, (prev: unknown) => {
+            const base =
+              prev &&
+              typeof prev === 'object' &&
+              prev !== null &&
+              !Array.isArray(prev) &&
+              'lead_status_id' in (prev as Record<string, unknown>)
+                ? (prev as {
+                    lead_status_id?: string | null;
+                    last_inbound_at?: string | null;
+                    created_at?: string | null;
+                    assignee_id?: string | null;
+                  })
+                : {};
+            return { ...base, lead_status_id: nextStatusId };
+          });
         }
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });

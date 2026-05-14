@@ -4,12 +4,12 @@ import { useProductKnowledgeStyle, ProductKnowledgeStyle } from '../hooks/usePro
 import { useProductKnowledgeHooks, ProductKnowledgeHook } from '../hooks/useProductKnowledgeHooks';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { LoadingDots } from '@/shared/components/LoadingDots';
-import { BookOpen, Search, X, Plus, ChevronLeft, Palette, Edit, Trash2, Link2, Copy, Hash } from 'lucide-react';
+import { BookOpen, Search, X, Plus, ChevronLeft, Palette, Edit, Trash2, Link2, Copy, Hash, Table2 } from 'lucide-react';
 import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import { cn } from '@/shared/lib/utils';
-import { ProductKnowledgeDetailModal } from './ProductKnowledgeDetailModal';
+import { ProductKnowledgeDetailModal, type ProductKnowledgeDetailFormPayload } from './ProductKnowledgeDetailModal';
 import { useProductKnowledgeDetailMutations } from '../hooks/useProductKnowledgeDetail';
 import { useProductKnowledgeStyleMutations } from '../hooks/useProductKnowledgeStyle';
 import { useProductKnowledgeHooksMutations } from '../hooks/useProductKnowledgeHooks';
@@ -19,6 +19,14 @@ import { ProductKnowledgeSidebarFooter } from './ProductKnowledgeSidebarFooter';
 import { StyleModal } from './StyleModal';
 import { HooksModal } from './HooksModal';
 import { KeywordModal } from './KeywordModal';
+import { ScriptBreakdownTableModal } from './ScriptBreakdownTableModal';
+import {
+  useScriptBreakdownTableTemplates,
+  useScriptBreakdownTableMutations,
+  type ScriptBreakdownTableTemplateRow,
+  type ScriptBreakdownTableColumnInput,
+} from '../hooks/useScriptBreakdownTableTemplates';
+import { getDefaultStoryTellingVideoBreakdownColumns } from '@/6-1-script-generator/services/scriptGeneratorService';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,14 +52,26 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
   const { data: productKnowledgeStyleData = [], isLoading: isStylesLoading } = useProductKnowledgeStyle();
   const { data: productKnowledgeHooksData = [], isLoading: isHooksLoading } = useProductKnowledgeHooks();
   const { data: keywordsData = [], isLoading: isKeywordsLoading } = useKeywords();
+  const { data: scriptBreakdownTemplates = [], isLoading: isScriptBreakdownTemplatesLoading } =
+    useScriptBreakdownTableTemplates();
+  const {
+    createTemplate: createScriptBreakdownTemplate,
+    updateTemplate: updateScriptBreakdownTemplate,
+    deleteTemplate: deleteScriptBreakdownTemplate,
+    isCreating: isCreatingScriptBreakdownTemplate,
+    isUpdating: isUpdatingScriptBreakdownTemplate,
+    isDeleting: isDeletingScriptBreakdownTemplate,
+  } = useScriptBreakdownTableMutations();
   const [searchTerm, setSearchTerm] = useState('');
   const [styleSearchTerm, setStyleSearchTerm] = useState('');
   const [hooksSearchTerm, setHooksSearchTerm] = useState('');
   const [keywordsSearchTerm, setKeywordsSearchTerm] = useState('');
+  const [scriptTableSearchTerm, setScriptTableSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
   const [isHooksModalOpen, setIsHooksModalOpen] = useState(false);
   const [isKeywordModalOpen, setIsKeywordModalOpen] = useState(false);
+  const [isScriptBreakdownTableModalOpen, setIsScriptBreakdownTableModalOpen] = useState(false);
   const [editingDetail, setEditingDetail] = useState<ProductKnowledgeDetail | null>(null);
   const [editingStyle, setEditingStyle] = useState<ProductKnowledgeStyle | null>(null);
   const [editingHook, setEditingHook] = useState<ProductKnowledgeHook | null>(null);
@@ -60,11 +80,16 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
   const [deletingStyleId, setDeletingStyleId] = useState<string | null>(null);
   const [deletingHookId, setDeletingHookId] = useState<string | null>(null);
   const [deletingKeywordId, setDeletingKeywordId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'knowledge' | 'style' | 'hooks' | 'keywords'>('knowledge');
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'style' | 'hooks' | 'keywords' | 'table'>('knowledge');
   const [selectedDetail, setSelectedDetail] = useState<ProductKnowledgeDetail | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<ProductKnowledgeStyle | null>(null);
   const [selectedHook, setSelectedHook] = useState<ProductKnowledgeHook | null>(null);
   const [selectedKeyword, setSelectedKeyword] = useState<Keyword | null>(null);
+  const [selectedScriptBreakdownTemplate, setSelectedScriptBreakdownTemplate] =
+    useState<ScriptBreakdownTableTemplateRow | null>(null);
+  const [editingScriptBreakdownTemplate, setEditingScriptBreakdownTemplate] =
+    useState<ScriptBreakdownTableTemplateRow | null>(null);
+  const [deletingScriptBreakdownTemplateId, setDeletingScriptBreakdownTemplateId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [pendingDeleteDetailId, setPendingDeleteDetailId] = useState<string | null>(null);
   const {
@@ -109,6 +134,8 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
     const searchLower = searchTerm.toLowerCase();
     return productKnowledgeDetailData.filter((item) => {
       return (
+        item.title?.toLowerCase().includes(searchLower) ||
+        item.perspective?.toLowerCase().includes(searchLower) ||
         item.product_knowledge_content?.toLowerCase().includes(searchLower) ||
         item.service_name?.toLowerCase().includes(searchLower) ||
         item.sub_service_name?.toLowerCase().includes(searchLower)
@@ -156,6 +183,12 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
     });
   }, [keywordsData, keywordsSearchTerm]);
 
+  const filteredScriptBreakdownTemplates = useMemo(() => {
+    if (!scriptTableSearchTerm) return scriptBreakdownTemplates;
+    const q = scriptTableSearchTerm.toLowerCase();
+    return scriptBreakdownTemplates.filter((row) => (row.name || '').toLowerCase().includes(q));
+  }, [scriptBreakdownTemplates, scriptTableSearchTerm]);
+
   // Get Product/Service name
   const getProductServiceName = (item: ProductKnowledgeDetail): string => {
     if (item.sub_service_name) {
@@ -185,11 +218,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
     setSearchTerm('');
   };
 
-  const handleSaveDetail = async (data: {
-    service_id: string | null;
-    sub_service_id: string | null;
-    product_knowledge_content: string;
-  }) => {
+  const handleSaveDetail = async (data: ProductKnowledgeDetailFormPayload) => {
     try {
       if (editingDetail) {
         // Update existing detail
@@ -198,6 +227,9 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
           data: {
             service_id: data.service_id,
             sub_service_id: data.sub_service_id,
+            content_pillar_ids: data.content_pillar_ids ?? [],
+            title: data.title,
+            perspective: data.perspective,
             product_knowledge_content: data.product_knowledge_content,
           },
         });
@@ -224,8 +256,8 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
       console.error('Error saving product knowledge detail:', error);
       toast.error(
         editingDetail
-          ? t('productKnowledgeDetail.toast.updateError', 'Error updating product knowledge detail')
-          : t('productKnowledgeDetail.toast.createError', 'Error creating product knowledge detail')
+          ? t('productKnowledgeDetail.toast.updateError', 'Error updating creative detail')
+          : t('productKnowledgeDetail.toast.createError', 'Error creating creative detail')
       );
       throw error;
     }
@@ -260,7 +292,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
       setPendingDeleteDetailId(null);
     } catch (error) {
       console.error('Error deleting product knowledge detail:', error);
-      toast.error(t('productKnowledgeDetail.toast.deleteError', 'Error deleting product knowledge detail'));
+      toast.error(t('productKnowledgeDetail.toast.deleteError', 'Error deleting creative detail'));
     } finally {
       setDeletingDetailId(null);
     }
@@ -640,6 +672,80 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
     setSelectedKeyword(null);
   };
 
+  const handleBackToScriptBreakdownList = () => {
+    setSelectedScriptBreakdownTemplate(null);
+  };
+
+  const handleScriptBreakdownTemplateClick = (id: string) => {
+    const row = scriptBreakdownTemplates.find((r) => r.id === id);
+    if (row) setSelectedScriptBreakdownTemplate(row);
+  };
+
+  const handleEditScriptBreakdownTemplate = (row: ScriptBreakdownTableTemplateRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingScriptBreakdownTemplate(row);
+    setIsScriptBreakdownTableModalOpen(true);
+  };
+
+  const handleSaveScriptBreakdownTemplate = async (data: {
+    name: string;
+    is_default: boolean;
+    columns: ScriptBreakdownTableColumnInput[];
+  }) => {
+    try {
+      if (editingScriptBreakdownTemplate) {
+        await updateScriptBreakdownTemplate({
+          id: editingScriptBreakdownTemplate.id,
+          input: { name: data.name, is_default: data.is_default, columns: data.columns },
+        });
+        toast.success(t('productKnowledge.scriptTable.toast.updateSuccess', 'Table template updated'));
+      } else {
+        await createScriptBreakdownTemplate({
+          name: data.name,
+          is_default: data.is_default,
+          columns: data.columns,
+        });
+        toast.success(t('productKnowledge.scriptTable.toast.createSuccess', 'Table template created'));
+      }
+      setIsScriptBreakdownTableModalOpen(false);
+      setEditingScriptBreakdownTemplate(null);
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(
+        editingScriptBreakdownTemplate
+          ? t('productKnowledge.scriptTable.toast.updateError', 'Could not update template') + ': ' + msg
+          : t('productKnowledge.scriptTable.toast.createError', 'Could not create template') + ': ' + msg,
+      );
+    }
+  };
+
+  const handleSeedDefaultScriptBreakdownTemplate = async () => {
+    const defaultName = t(
+      'productKnowledge.scriptTable.seedDefaultName',
+      'Template Story (10 kolom)',
+    );
+    try {
+      const cols = getDefaultStoryTellingVideoBreakdownColumns().map((c) => ({
+        header_label: c.header_label,
+        placeholder_example: c.placeholder_example ?? '',
+        detail_body: c.detail_body ?? '',
+        fill_rule: c.fill_rule,
+        keyword_hint: c.keyword_hint,
+      }));
+      await createScriptBreakdownTemplate({
+        name: defaultName,
+        is_default: false,
+        columns: cols,
+      });
+      toast.success(t('productKnowledge.scriptTable.toast.seedSuccess', 'Default 10-column template added'));
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(t('productKnowledge.scriptTable.toast.seedError', 'Could not add default template') + ': ' + msg);
+    }
+  };
+
   const sidebarTabBaseClass =
     'flex min-h-11 flex-1 items-center justify-center border-b-2 px-2 py-0 text-sm font-medium transition-colors sm:px-4';
   const sidebarTabActiveClass = 'border-primary bg-primary/10 text-primary';
@@ -663,13 +769,14 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               setSelectedStyle(null);
               setSelectedHook(null);
               setSelectedKeyword(null);
+              setSelectedScriptBreakdownTemplate(null);
             }}
             className={cn(
               sidebarTabBaseClass,
               activeTab === 'knowledge' ? sidebarTabActiveClass : sidebarTabInactiveClass
             )}
           >
-            {t('productKnowledge.sidebar.tabs.knowledge', 'Product Knowledge')}
+            {t('productKnowledge.sidebar.tabs.knowledge', 'Creative')}
           </button>
           <button
             onClick={() => {
@@ -678,6 +785,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               setSelectedStyle(null);
               setSelectedHook(null);
               setSelectedKeyword(null);
+              setSelectedScriptBreakdownTemplate(null);
             }}
             className={cn(
               sidebarTabBaseClass,
@@ -693,6 +801,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               setSelectedStyle(null);
               setSelectedHook(null);
               setSelectedKeyword(null);
+              setSelectedScriptBreakdownTemplate(null);
             }}
             className={cn(
               sidebarTabBaseClass,
@@ -708,6 +817,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               setSelectedStyle(null);
               setSelectedHook(null);
               setSelectedKeyword(null);
+              setSelectedScriptBreakdownTemplate(null);
             }}
             className={cn(
               sidebarTabBaseClass,
@@ -715,6 +825,22 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
             )}
           >
             {t('productKnowledge.sidebar.tabs.keywords', 'Keyword')}
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('table');
+              setSelectedDetail(null);
+              setSelectedStyle(null);
+              setSelectedHook(null);
+              setSelectedKeyword(null);
+              setSelectedScriptBreakdownTemplate(null);
+            }}
+            className={cn(
+              sidebarTabBaseClass,
+              activeTab === 'table' ? sidebarTabActiveClass : sidebarTabInactiveClass
+            )}
+          >
+            {t('productKnowledge.sidebar.tabs.table', 'Table')}
           </button>
         </div>
 
@@ -754,20 +880,30 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               >
                 <ChevronLeft className="h-5 w-5 text-gray-700" />
               </button>
+            ) : activeTab === 'table' && selectedScriptBreakdownTemplate ? (
+              <button
+                onClick={handleBackToScriptBreakdownList}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                title={t('productKnowledge.scriptTable.sidebar.backToList', 'Back to list')}
+              >
+                <ChevronLeft className="h-5 w-5 text-gray-700" />
+              </button>
             ) : activeTab === 'knowledge' ? (
               <BookOpen className="h-5 w-5 text-gray-700" />
             ) : activeTab === 'style' ? (
               <Palette className="h-5 w-5 text-gray-700" />
             ) : activeTab === 'hooks' ? (
               <Link2 className="h-5 w-5 text-gray-700" />
-            ) : (
+            ) : activeTab === 'keywords' ? (
               <Hash className="h-5 w-5 text-gray-700" />
+            ) : (
+              <Table2 className="h-5 w-5 text-gray-700" />
             )}
               <h2 className="text-lg font-semibold text-gray-800">
                 {activeTab === 'knowledge'
                   ? selectedDetail
-                    ? t('productKnowledge.sidebar.detailTitle', 'Product Knowledge Detail')
-                    : t('productKnowledge.sidebar.title', 'Product Knowledge')
+                    ? t('productKnowledge.sidebar.detailTitle', 'Detail Creative')
+                    : t('productKnowledge.sidebar.title', 'Creative')
                   : activeTab === 'style'
                     ? selectedStyle
                       ? t('productKnowledge.style.sidebar.detailTitle', 'Style Detail')
@@ -776,9 +912,13 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                       ? selectedHook
                         ? t('productKnowledge.hooks.sidebar.detailTitle', 'Hook Detail')
                         : t('productKnowledge.sidebar.hooksTitle', 'Hooks')
-                      : selectedKeyword
-                        ? t('productKnowledge.keywords.sidebar.detailTitle', 'Keyword Detail')
-                        : t('productKnowledge.sidebar.keywordsTitle', 'Keyword')}
+                      : activeTab === 'keywords'
+                        ? selectedKeyword
+                          ? t('productKnowledge.keywords.sidebar.detailTitle', 'Keyword Detail')
+                          : t('productKnowledge.sidebar.keywordsTitle', 'Keyword')
+                        : selectedScriptBreakdownTemplate
+                          ? t('productKnowledge.scriptTable.sidebar.detailTitle', 'Table template detail')
+                          : t('productKnowledge.scriptTable.sidebar.title', 'Script table templates')}
               </h2>
             </div>
             {activeTab === 'knowledge' && !selectedDetail && (
@@ -833,6 +973,39 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                 {t('productKnowledge.keywords.sidebar.addButton', 'Add Keyword')}
               </Button>
             )}
+            {activeTab === 'table' && !selectedScriptBreakdownTemplate && (
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 px-2 text-xs sm:px-3 sm:text-sm"
+                  onClick={() => void handleSeedDefaultScriptBreakdownTemplate()}
+                  disabled={
+                    isCreatingScriptBreakdownTemplate ||
+                    isUpdatingScriptBreakdownTemplate ||
+                    isDeletingScriptBreakdownTemplate
+                  }
+                >
+                  {t('productKnowledge.scriptTable.sidebar.seedDefault', 'Add from default (10 cols)')}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingScriptBreakdownTemplate(null);
+                    setIsScriptBreakdownTableModalOpen(true);
+                  }}
+                  className="h-8 px-3"
+                  disabled={
+                    isCreatingScriptBreakdownTemplate ||
+                    isUpdatingScriptBreakdownTemplate ||
+                    isDeletingScriptBreakdownTemplate
+                  }
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  {t('productKnowledge.scriptTable.sidebar.addButton', 'Add template')}
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Search Input - Only show in knowledge tab when not viewing detail */}
@@ -842,7 +1015,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder={t('productKnowledge.sidebar.searchPlaceholder', 'Search product knowledge...')}
+                  placeholder={t('productKnowledge.sidebar.searchPlaceholder', 'Search creative...')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 pr-9 h-9 text-sm"
@@ -947,6 +1120,34 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               {/* Count */}
               <div className="mt-2 text-xs text-gray-500">
                 {filteredKeywordsData.length} {t('productKnowledge.keywords.sidebar.items', 'keywords')}
+              </div>
+            </>
+          )}
+
+          {activeTab === 'table' && !selectedScriptBreakdownTemplate && (
+            <>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder={t('productKnowledge.scriptTable.sidebar.searchPlaceholder', 'Search templates...')}
+                  value={scriptTableSearchTerm}
+                  onChange={(e) => setScriptTableSearchTerm(e.target.value)}
+                  className="pl-9 pr-9 h-9 text-sm"
+                />
+                {scriptTableSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setScriptTableSearchTerm('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                {filteredScriptBreakdownTemplates.length}{' '}
+                {t('productKnowledge.scriptTable.sidebar.items', 'templates')}
               </div>
             </>
           )}
@@ -1413,16 +1614,50 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                   <span>{selectedDetail.sub_service_name}</span>
                 </div>
               )}
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span className="font-medium">
+                  {t('productKnowledge.detail.contentPillar', 'Content Pillar')}:
+                </span>
+                <span>
+                  {selectedDetail.content_pillar_names && selectedDetail.content_pillar_names.length > 0
+                    ? selectedDetail.content_pillar_names.join(', ')
+                    : t('productKnowledge.detail.notSet', 'Not set')}
+                </span>
+              </div>
             </div>
 
             {/* Divider */}
             <div className="border-t border-gray-200"></div>
 
+            {selectedDetail.title?.trim() ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  {t('productKnowledge.detail.title', 'Target Market')}
+                </h3>
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-sm font-medium text-gray-900">{selectedDetail.title.trim()}</p>
+                </div>
+              </div>
+            ) : null}
+
+            {selectedDetail.perspective?.trim() ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  {t('productKnowledge.detail.perspective', 'Dari Perspective')}
+                </h3>
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+                    {selectedDetail.perspective.trim()}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             {/* Full Content */}
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-gray-800">
-                  {t('productKnowledge.detail.content', 'Product Knowledge Content')}
+                  {t('productKnowledge.detail.content', 'Creative Content')}
                 </h3>
                 {selectedDetail.product_knowledge_content && (
                   <Button
@@ -1490,7 +1725,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                 <p className="text-sm text-gray-500">
                   {searchTerm
                     ? t('productKnowledge.sidebar.noResults', 'No results found')
-                    : t('productKnowledge.sidebar.noData', 'No product knowledge available')}
+                    : t('productKnowledge.sidebar.noData', 'No creative entries available')}
                 </p>
               </div>
             ) : (
@@ -1508,25 +1743,19 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                           : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
                       )}
                     >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3
-                          className={cn(
-                            'font-medium text-sm line-clamp-2 flex-1',
-                            isSelected ? sidebarListSelectedTitleClass : 'text-gray-900'
-                          )}
-                        >
-                          {getProductServiceName(item) !== 'N/A'
-                            ? getProductServiceName(item)
-                            : t('productKnowledge.sidebar.unnamed', 'Unnamed')}
-                        </h3>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* Service / sub-service di atas */}
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs text-gray-500 line-clamp-2 flex-1 min-w-0 leading-snug">
+                          {getProductServiceName(item)}
+                        </p>
+                        <div className="flex items-center gap-1 flex-shrink-0 -mt-0.5">
                           <button
                             onClick={(e) => handleEditDetail(item, e)}
                             className={cn(
                               'p-1.5 rounded hover:bg-gray-200 transition-colors',
                               isSelected ? sidebarListSelectedActionClass : 'text-gray-600'
                             )}
-                            title={t('productKnowledgeDetail.edit', 'Edit product knowledge detail')}
+                            title={t('productKnowledgeDetail.edit', 'Edit creative detail')}
                             disabled={isUpdatingDetail || isDeletingDetail}
                           >
                             <Edit className="h-3.5 w-3.5" />
@@ -1538,7 +1767,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                               isSelected ? 'text-red-700' : 'text-red-600',
                               deletingDetailId === item.id && 'opacity-50 cursor-not-allowed'
                             )}
-                            title={t('productKnowledgeDetail.delete', 'Delete product knowledge detail')}
+                            title={t('productKnowledgeDetail.delete', 'Delete creative detail')}
                             disabled={isUpdatingDetail || isDeletingDetail || deletingDetailId === item.id}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1546,9 +1775,34 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                         </div>
                       </div>
 
+                      {/* Target market + Dari Perspective berdekatan */}
+                      {(item.title?.trim() || item.perspective?.trim()) && (
+                        <div className="mt-2 space-y-0.5">
+                          {item.title?.trim() ? (
+                            <p
+                              className={cn(
+                                'text-sm font-medium line-clamp-2 leading-snug',
+                                isSelected ? sidebarListSelectedTitleClass : 'text-gray-900'
+                              )}
+                            >
+                              {item.title.trim()}
+                            </p>
+                          ) : null}
+                          {item.perspective?.trim() ? (
+                            <p className="text-xs text-gray-500 line-clamp-3 leading-snug">
+                              <span className="font-medium text-gray-600">
+                                {t('productKnowledge.detail.perspective', 'Dari Perspective')}
+                                {': '}
+                              </span>
+                              {item.perspective.trim()}
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
+
                       {/* Product Knowledge Content Preview */}
                       {item.product_knowledge_content && (
-                        <p className="text-xs text-gray-500 line-clamp-2 mt-1">
+                        <p className="text-xs text-gray-500 line-clamp-2 mt-2 leading-snug">
                           {item.product_knowledge_content}
                         </p>
                       )}
@@ -1558,6 +1812,213 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               </div>
             )}
           </>
+          )
+        ) : activeTab === 'table' ? (
+          selectedScriptBreakdownTemplate ? (
+            <div className="p-4 space-y-4 pb-4">
+              <div className="flex items-center justify-end gap-2 pb-2 border-b border-gray-200">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingScriptBreakdownTemplate(selectedScriptBreakdownTemplate);
+                    setIsScriptBreakdownTableModalOpen(true);
+                  }}
+                  disabled={
+                    isUpdatingScriptBreakdownTemplate ||
+                    isDeletingScriptBreakdownTemplate ||
+                    isCreatingScriptBreakdownTemplate
+                  }
+                  className="h-8 px-3"
+                >
+                  <Edit className="h-3.5 w-3.5 mr-1.5" />
+                  {t('productKnowledge.scriptTable.edit', 'Edit')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    if (
+                      !confirm(
+                        t('productKnowledge.scriptTable.deleteConfirm', 'Delete this table template?'),
+                      )
+                    ) {
+                      return;
+                    }
+                    try {
+                      setDeletingScriptBreakdownTemplateId(selectedScriptBreakdownTemplate.id);
+                      await deleteScriptBreakdownTemplate(selectedScriptBreakdownTemplate.id);
+                      toast.success(
+                        t('productKnowledge.scriptTable.toast.deleteSuccess', 'Table template deleted'),
+                      );
+                      setSelectedScriptBreakdownTemplate(null);
+                    } catch (error) {
+                      console.error(error);
+                      toast.error(
+                        t('productKnowledge.scriptTable.toast.deleteError', 'Could not delete template'),
+                      );
+                    } finally {
+                      setDeletingScriptBreakdownTemplateId(null);
+                    }
+                  }}
+                  disabled={
+                    isUpdatingScriptBreakdownTemplate ||
+                    isDeletingScriptBreakdownTemplate ||
+                    deletingScriptBreakdownTemplateId === selectedScriptBreakdownTemplate.id
+                  }
+                  className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  {t('productKnowledge.scriptTable.delete', 'Delete')}
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  {t('productKnowledge.scriptTable.detail.name', 'Name')}
+                </h3>
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-sm font-medium text-gray-900">{selectedScriptBreakdownTemplate.name}</p>
+                  {selectedScriptBreakdownTemplate.is_default ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t('productKnowledge.scriptTable.detail.defaultBadge', 'Default')}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  {t('productKnowledge.scriptTable.detail.columns', 'Columns')}
+                </h3>
+                <ol className="list-decimal space-y-2 pl-5 text-sm text-gray-700">
+                  {(selectedScriptBreakdownTemplate.script_breakdown_table_columns || []).map((c) => (
+                    <li key={c.id} className="pl-1">
+                      <span className="font-medium">{c.header_label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {' '}
+                        · {c.fill_rule} · {c.keyword_hint}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          ) : (
+            <>
+              {isScriptBreakdownTemplatesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoadingDots />
+                </div>
+              ) : filteredScriptBreakdownTemplates.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                  <Table2 className="h-12 w-12 text-gray-300 mb-2" />
+                  <p className="text-sm text-gray-500">
+                    {scriptTableSearchTerm
+                      ? t('productKnowledge.scriptTable.sidebar.noResults', 'No results')
+                      : t('productKnowledge.scriptTable.sidebar.noData', 'No table templates yet')}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-2 space-y-1">
+                  {filteredScriptBreakdownTemplates.map((row) => (
+                    <div
+                      key={row.id}
+                      onClick={() => handleScriptBreakdownTemplateClick(row.id)}
+                      className={cn(
+                        'p-3 rounded-lg cursor-pointer transition-colors border',
+                        selectedScriptBreakdownTemplate?.id === row.id
+                          ? sidebarListSelectedShellClass
+                          : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300',
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3
+                            className={cn(
+                              'font-medium text-sm line-clamp-2',
+                              selectedScriptBreakdownTemplate?.id === row.id
+                                ? sidebarListSelectedTitleClass
+                                : 'text-gray-900',
+                            )}
+                          >
+                            {row.name}
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {(row.script_breakdown_table_columns || []).length}{' '}
+                            {t('productKnowledge.scriptTable.sidebar.columnCount', 'columns')}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => handleEditScriptBreakdownTemplate(row, e)}
+                            className={cn(
+                              'p-1.5 rounded hover:bg-gray-200 transition-colors',
+                              selectedScriptBreakdownTemplate?.id === row.id
+                                ? sidebarListSelectedActionClass
+                                : 'text-gray-600',
+                            )}
+                            title={t('productKnowledge.scriptTable.edit', 'Edit')}
+                            disabled={
+                              isUpdatingScriptBreakdownTemplate ||
+                              isDeletingScriptBreakdownTemplate ||
+                              isCreatingScriptBreakdownTemplate
+                            }
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (
+                                !confirm(
+                                  t('productKnowledge.scriptTable.deleteConfirm', 'Delete this table template?'),
+                                )
+                              ) {
+                                return;
+                              }
+                              try {
+                                setDeletingScriptBreakdownTemplateId(row.id);
+                                await deleteScriptBreakdownTemplate(row.id);
+                                toast.success(
+                                  t('productKnowledge.scriptTable.toast.deleteSuccess', 'Table template deleted'),
+                                );
+                                if (selectedScriptBreakdownTemplate?.id === row.id) {
+                                  setSelectedScriptBreakdownTemplate(null);
+                                }
+                              } catch (error) {
+                                console.error(error);
+                                toast.error(
+                                  t('productKnowledge.scriptTable.toast.deleteError', 'Could not delete template'),
+                                );
+                              } finally {
+                                setDeletingScriptBreakdownTemplateId(null);
+                              }
+                            }}
+                            className={cn(
+                              'p-1.5 rounded hover:bg-red-100 transition-colors',
+                              selectedScriptBreakdownTemplate?.id === row.id
+                                ? 'text-red-700'
+                                : 'text-red-600',
+                              deletingScriptBreakdownTemplateId === row.id && 'opacity-50 cursor-not-allowed',
+                            )}
+                            title={t('productKnowledge.scriptTable.delete', 'Delete')}
+                            disabled={
+                              isUpdatingScriptBreakdownTemplate ||
+                              isDeletingScriptBreakdownTemplate ||
+                              deletingScriptBreakdownTemplateId === row.id ||
+                              isCreatingScriptBreakdownTemplate
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )
         ) : selectedStyle ? (
           /* Style Detail View */
@@ -1768,7 +2229,9 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               ? filteredStyleData.length
               : activeTab === 'hooks'
                 ? filteredHooksData.length
-                : filteredKeywordsData.length
+                : activeTab === 'keywords'
+                  ? filteredKeywordsData.length
+                  : filteredScriptBreakdownTemplates.length
         }
       />
 
@@ -1826,16 +2289,32 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
         isLoading={isCreatingKeyword || isCreatingMultipleKeywords || isUpdatingKeyword}
         initialData={editingKeyword}
       />
+      <ScriptBreakdownTableModal
+        open={isScriptBreakdownTableModalOpen}
+        onOpenChange={(open) => {
+          setIsScriptBreakdownTableModalOpen(open);
+          if (!open) {
+            setEditingScriptBreakdownTemplate(null);
+          }
+        }}
+        onSave={handleSaveScriptBreakdownTemplate}
+        isLoading={
+          isCreatingScriptBreakdownTemplate ||
+          isUpdatingScriptBreakdownTemplate ||
+          isDeletingScriptBreakdownTemplate
+        }
+        initialData={editingScriptBreakdownTemplate}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t('productKnowledgeDetail.deleteTitle', 'Delete Product Knowledge Detail')}
+              {t('productKnowledgeDetail.deleteTitle', 'Delete Creative Detail')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t('productKnowledgeDetail.deleteConfirm', 'Are you sure you want to delete this product knowledge detail? This action cannot be undone.')}
+              {t('productKnowledgeDetail.deleteConfirm', 'Are you sure you want to delete this creative detail? This action cannot be undone.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

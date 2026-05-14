@@ -2,6 +2,12 @@ import React from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { cn } from '@/shared/lib/utils';
+import {
+  SCRIPT_BREAKDOWN_CELL_TD,
+  SCRIPT_BREAKDOWN_CELL_TH,
+  scriptBreakdownRevisionTableClassName,
+} from '../utils/scriptBreakdownTableClasses';
 
 interface RevisionTableProps {
   tableData: string[][];
@@ -55,20 +61,17 @@ export const RevisionTable: React.FC<RevisionTableProps> = ({
   const body = trimmedData.slice(1);
 
   return (
-    <div className="my-4 group relative">
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-x divide-gray-200 text-sm">
+    <div className="my-4 group relative min-w-0">
+      <div className="scrollbar-hide seamless-scroll w-full min-w-0 max-w-full overflow-x-auto rounded-lg border border-gray-200">
+        <table className={scriptBreakdownRevisionTableClassName()}>
           <thead className="bg-gray-50">
             <tr className="divide-x divide-gray-200">
               {header.map((cell, ci) => (
-                <th
-                  key={ci}
-                  className="px-4 py-3 text-left font-semibold text-gray-800 whitespace-nowrap border-b border-gray-200"
-                >
+                <th key={ci} className={SCRIPT_BREAKDOWN_CELL_TH}>
                   {cell}
                 </th>
               ))}
-              <th className="px-2 py-3 w-10 border-b border-gray-200 font-semibold text-gray-800">
+              <th className={cn(SCRIPT_BREAKDOWN_CELL_TH, 'px-1.5 text-center whitespace-nowrap')}>
                 {t('scriptGenerator.revisi.action', 'Action')}
               </th>
             </tr>
@@ -77,11 +80,11 @@ export const RevisionTable: React.FC<RevisionTableProps> = ({
             {body.map((row, ri) => (
               <tr key={ri} className="divide-x divide-gray-200 hover:bg-gray-50/50 transition-colors group/row">
                 {row.map((cell, ci) => (
-                  <td key={ci} className="px-4 py-3 text-gray-700 align-top">
+                  <td key={ci} className={SCRIPT_BREAKDOWN_CELL_TD}>
                     {cell}
                   </td>
                 ))}
-                <td className="px-2 py-3 align-middle">
+                <td className={cn(SCRIPT_BREAKDOWN_CELL_TD, 'align-middle px-1.5')}>
                   {!disabled && (
                     <div className="flex items-center gap-1">
                       <Button

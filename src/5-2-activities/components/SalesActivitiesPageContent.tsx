@@ -20,6 +20,7 @@ export const SalesActivitiesPageContent = () => {
   const { toast } = useToast();
   const [showDialog, setShowDialog] = useState(false);
   const [editingActivity, setEditingActivity] = useState<SalesActivity | null>(null);
+  const [activityDialogReadOnly, setActivityDialogReadOnly] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedActivityForPayment, setSelectedActivityForPayment] = useState<SalesActivity | null>(null);
   const [paymentModalViewOnly, setPaymentModalViewOnly] = useState(false);
@@ -44,6 +45,13 @@ export const SalesActivitiesPageContent = () => {
 
   const handleEdit = (activity: SalesActivity) => {
     setEditingActivity(activity);
+    setActivityDialogReadOnly(false);
+    setShowDialog(true);
+  };
+
+  const handleViewDetails = (activity: SalesActivity) => {
+    setEditingActivity(activity);
+    setActivityDialogReadOnly(true);
     setShowDialog(true);
   };
 
@@ -54,12 +62,14 @@ export const SalesActivitiesPageContent = () => {
     // Close dialog and clear editing activity
     setShowDialog(false);
     setEditingActivity(null);
+    setActivityDialogReadOnly(false);
   };
 
   const handleCloseDialog = (open: boolean) => {
     setShowDialog(open);
     if (!open) {
       setEditingActivity(null);
+      setActivityDialogReadOnly(false);
     }
   };
 
@@ -167,6 +177,7 @@ export const SalesActivitiesPageContent = () => {
         onOpenChange={handleCloseDialog}
         onSuccess={handleDialogSuccess}
         activity={editingActivity}
+        readOnly={activityDialogReadOnly}
       />
 
       {/* Payment Update Modal */}
@@ -238,6 +249,7 @@ export const SalesActivitiesPageContent = () => {
                   activities={filteredActivities}
                   onUpdate={refetch}
                   onEdit={handleEdit}
+                  onViewDetails={handleViewDetails}
                   onDelete={handleDelete}
                   onUpdatePayment={handleUpdatePayment}
                   onCheckHistory={handleCheckHistory}

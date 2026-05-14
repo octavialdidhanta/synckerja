@@ -34,53 +34,53 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({ leads }) => {
     <div className="space-y-2">
       {/* Key Metrics */}
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <Card className="border border-brand-blue/20 bg-gradient-to-br from-brand-blue-soft to-background">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-900">Total Leads</CardTitle>
-            <Users className="h-4 w-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-brand-blue-on-soft">Total Leads</CardTitle>
+            <Users className="h-4 w-4 text-brand-blue" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-900">{totalLeads}</div>
-            <p className="text-xs text-blue-600 mt-1">
+            <div className="text-2xl font-bold text-brand-blue">{totalLeads}</div>
+            <p className="mt-1 text-xs text-brand-blue/80">
               Semua leads dalam sistem
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+        <Card className="border border-brand-red/20 bg-gradient-to-br from-brand-red/10 to-background">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-900">Leads Efektif</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium text-brand-red">Leads Efektif</CardTitle>
+            <CheckCircle className="h-4 w-4 text-brand-red" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-900">{efektifLeads}</div>
-            <p className="text-xs text-green-600 mt-1">
+            <div className="text-2xl font-bold text-brand-red">{efektifLeads}</div>
+            <p className="mt-1 text-xs text-brand-red/80">
               Conversion rate: {conversionRate}%
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+        <Card className="border border-brand-blue/15 bg-gradient-to-br from-brand-blue-soft/80 to-background">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-900">Pending Follow Up</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600" />
+            <CardTitle className="text-sm font-medium text-brand-blue-on-soft">Pending Follow Up</CardTitle>
+            <Clock className="h-4 w-4 text-brand-blue" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-900">{pendingFollowUp}</div>
-            <p className="text-xs text-orange-600 mt-1">
+            <div className="text-2xl font-bold text-brand-blue">{pendingFollowUp}</div>
+            <p className="mt-1 text-xs text-brand-blue/80">
               Memerlukan tindak lanjut
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+        <Card className="border border-brand-red/15 bg-gradient-to-br from-brand-red/10 to-brand-blue-soft/40">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-purple-900">Conversion Rate</CardTitle>
-            <Target className="h-4 w-4 text-purple-600" />
+            <CardTitle className="text-sm font-medium text-brand-red">Conversion Rate</CardTitle>
+            <Target className="h-4 w-4 text-brand-red" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-900">{conversionRate}%</div>
-            <p className="text-xs text-purple-600 mt-1">
+            <div className="text-2xl font-bold text-brand-red">{conversionRate}%</div>
+            <p className="mt-1 text-xs text-brand-red/80">
               Tingkat keberhasilan
             </p>
           </CardContent>
@@ -101,8 +101,8 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({ leads }) => {
                 <span className="text-sm font-medium">{source}</span>
                 <div className="flex items-center gap-2">
                   <div className="w-20 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-[#2E5AAC] h-2 rounded-full" 
+                    <div
+                      className="h-2 rounded-full bg-brand-blue"
                       style={{ width: `${(count / totalLeads) * 100}%` }}
                     />
                   </div>
@@ -125,8 +125,8 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({ leads }) => {
                 <span className="text-sm font-medium">{consultant}</span>
                 <div className="flex items-center gap-2">
                   <div className="w-20 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-500 h-2 rounded-full" 
+                    <div
+                      className="h-2 rounded-full bg-brand-red"
                       style={{ width: `${(count / totalLeads) * 100}%` }}
                     />
                   </div>
@@ -149,8 +149,8 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({ leads }) => {
                 <span className="text-sm font-medium">{diagnosis}</span>
                 <div className="flex items-center gap-2">
                   <div className="w-20 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-purple-500 h-2 rounded-full" 
+                    <div
+                      className="h-2 rounded-full bg-brand-blue-deep"
                       style={{ width: `${(count / totalLeads) * 100}%` }}
                     />
                   </div>
@@ -173,7 +173,7 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({ leads }) => {
             {leads.slice(0, 5).map((lead) => (
               <div key={lead.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#2E5AAC] rounded-full flex items-center justify-center text-white text-sm font-medium">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue text-sm font-medium text-white">
                     {lead.namaPasien.charAt(0)}
                   </div>
                   <div>

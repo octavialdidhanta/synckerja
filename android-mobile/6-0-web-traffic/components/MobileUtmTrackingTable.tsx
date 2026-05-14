@@ -12,13 +12,18 @@ import {
 import { MobileClickDetailsDialog } from "@/mobile/6-0-web-traffic/components/MobileClickDetailsDialog";
 
 type UtmRow = {
+  visit_key?: string | null;
+  visitor_id?: string | null;
+  session_id?: string | null;
+  day?: string | null;
+  occurred_at?: string | null;
+  time_label?: string | null;
   route: string | null;
   utm_campaign: string | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_content: string | null;
   utm_term: string | null;
-  sessions: number;
   /** Page views attributed to sessions in this UTM bucket (rollup). */
   page_views: number;
   /** Click events attributed to sessions in this UTM bucket (rollup). */
@@ -31,8 +36,8 @@ type UtmRow = {
 type UtmFilterKey = "route" | "utm_campaign" | "utm_source" | "utm_medium" | "utm_content" | "utm_term";
 
 type SortableColumn =
+  | "occurred_at"
   | UtmFilterKey
-  | "sessions"
   | "page_views"
   | "clicks"
   | "max_deep_scroll_pct"
@@ -84,8 +89,12 @@ function sanitizeFilter(filter: string, options: string[]): string {
 
 function compareUtmRows(a: UtmRow, b: UtmRow, key: SortableColumn, dir: "asc" | "desc"): number {
   const m = dir === "asc" ? 1 : -1;
-  if (key === "sessions") {
-    return (a.sessions - b.sessions) * m;
+  if (key === "occurred_at") {
+    const av = Date.parse(cellRaw(a.occurred_at));
+    const bv = Date.parse(cellRaw(b.occurred_at));
+    const safeA = Number.isFinite(av) ? av : -1;
+    const safeB = Number.isFinite(bv) ? bv : -1;
+    return (safeA - safeB) * m;
   }
   if (key === "page_views") {
     return (a.page_views - b.page_views) * m;
@@ -111,6 +120,26 @@ function formatPct(v: unknown) {
   const rounded = Math.round(n);
   const clamped = Math.max(0, Math.min(100, rounded));
   return `${clamped}%`;
+}
+
+function formatUtmTime(row: UtmRow): string {
+  const label = cellRaw(row.time_label);
+  if (label) return label;
+
+  const raw = cellRaw(row.occurred_at);
+  if (!raw) return show(row.day);
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 type SortableThProps = {
@@ -170,7 +199,7 @@ type UtmColumnSelectProps = {
 
 export type UtmTableMetricsSlice = {
   utmFiltersActive: boolean;
-  /** Sum of `sessions` on UTM rows that pass column filters (not affected by sort). */
+  /** Session count equals the number of UTM rows that pass column filters. */
   filteredSessionsSum: number;
   filteredPageViewsSum: number;
   filteredClicksSum: number;
@@ -284,6 +313,9 @@ export function MobileUtmTrackingTable({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [clickDetailsOpen, setClickDetailsOpen] = useState(false);
   const [clickDetailsPath, setClickDetailsPath] = useState<string>("");
+  const [clickDetailsVisitorId, setClickDetailsVisitorId] = useState<string | null>(null);
+  const [clickDetailsSessionId, setClickDetailsSessionId] = useState<string | null>(null);
+  const [clickDetailsSessionDay, setClickDetailsSessionDay] = useState<string | null>(null);
   const [clickDetailsUtm, setClickDetailsUtm] = useState<{
     route: string | null;
     utm_campaign: string | null;
@@ -331,7 +363,7 @@ export function MobileUtmTrackingTable({
   useEffect(() => {
     if (!onUtmTableMetricsSliceChange) return;
     const utmFiltersActive = Object.values(filters).some((v) => v !== FILTER_ALL);
-    const filteredSessionsSum = filteredRows.reduce((s, r) => s + r.sessions, 0);
+    const filteredSessionsSum = filteredRows.length;
     const filteredPageViewsSum = filteredRows.reduce((s, r) => s + r.page_views, 0);
     const filteredClicksSum = filteredRows.reduce((s, r) => s + r.clicks, 0);
     onUtmTableMetricsSliceChange({
@@ -395,9 +427,17 @@ export function MobileUtmTrackingTable({
         className="scrollbar-hide seamless-scroll nested-scroll-touch-chain w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ touchAction: "pan-x pan-y" }}
       >
-        <table className="min-w-[1500px] w-full table-fixed border-separate border-spacing-0">
+        <table className="min-w-[1590px] w-full table-fixed border-separate border-spacing-0">
           <thead className="sticky top-0 z-10 bg-card shadow-sm">
             <tr className="text-xs text-gray-600">
+              <SortableTh
+                column="occurred_at"
+                label="waktu"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+                className="w-[180px]"
+              />
               <SortableTh
                 column="route"
                 label="route"
@@ -447,15 +487,6 @@ export function MobileUtmTrackingTable({
                 className="w-[160px]"
               />
               <SortableTh
-                column="sessions"
-                label="sessions"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                align="right"
-                className="w-[90px]"
-              />
-              <SortableTh
                 column="page_views"
                 label="page_views"
                 sortKey={sortKey}
@@ -493,6 +524,7 @@ export function MobileUtmTrackingTable({
               />
             </tr>
             <tr className="bg-gray-50/80">
+              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
               <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter route"
@@ -545,7 +577,6 @@ export function MobileUtmTrackingTable({
               <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
               <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
               <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
             </tr>
           </thead>
           <tbody className="text-sm">
@@ -566,6 +597,11 @@ export function MobileUtmTrackingTable({
                 return (
                   <tr
                     key={[
+                      r.visit_key ?? "",
+                      r.visitor_id ?? "",
+                      r.session_id ?? "",
+                      r.occurred_at ?? "",
+                      r.day ?? "",
                       r.route ?? "",
                       r.utm_campaign ?? "",
                       r.utm_source ?? "",
@@ -574,6 +610,9 @@ export function MobileUtmTrackingTable({
                       r.utm_term ?? "",
                     ].join("|")}
                   >
+                    <td className="border-b border-gray-100 px-3 py-2 truncate text-gray-700" title={formatUtmTime(r)}>
+                      {formatUtmTime(r)}
+                    </td>
                     <td className="border-b border-gray-100 px-3 py-2 truncate" title={show(r.route)}>
                       {show(r.route)}
                     </td>
@@ -593,9 +632,6 @@ export function MobileUtmTrackingTable({
                       {show(r.utm_term)}
                     </td>
                     <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums text-gray-700">
-                      {r.sessions.toLocaleString()}
-                    </td>
-                    <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums text-gray-700">
                       {r.page_views.toLocaleString()}
                     </td>
                     <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums text-gray-700">
@@ -604,6 +640,9 @@ export function MobileUtmTrackingTable({
                         onClick={() => {
                           const path = cellRaw(r.route) || "/";
                           setClickDetailsPath(path);
+                          setClickDetailsVisitorId(cellRaw(r.visitor_id) || null);
+                          setClickDetailsSessionId(cellRaw(r.session_id) || null);
+                          setClickDetailsSessionDay(cellRaw(r.day) || null);
                           setClickDetailsUtm({
                             route: r.route ?? null,
                             utm_campaign: r.utm_campaign ?? null,
@@ -640,6 +679,9 @@ export function MobileUtmTrackingTable({
           setClickDetailsOpen(open);
           if (!open) {
             setClickDetailsPath("");
+            setClickDetailsVisitorId(null);
+            setClickDetailsSessionId(null);
+            setClickDetailsSessionDay(null);
             setClickDetailsUtm(null);
           }
         }}
@@ -649,6 +691,9 @@ export function MobileUtmTrackingTable({
         rangeIsMaximum={rangeIsMaximum}
         path={clickDetailsPath}
         utm={clickDetailsUtm ?? undefined}
+        visitorId={clickDetailsVisitorId}
+        sessionId={clickDetailsSessionId}
+        sessionDay={clickDetailsSessionDay}
       />
     </div>
   );

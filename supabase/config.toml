@@ -3,6 +3,13 @@
 [api]
 enabled = true
 
+# Custom verification: Resend + OTP (`send-confirmation-email`, `confirm_email_verification_otp`).
+# When true, GoTrue also sends "Confirm your signup" (link) — duplicate of the Synckerja OTP email.
+# Hosted: set the same in Dashboard → Authentication → Sign In / Providers → Email → Confirm email = off.
+# Or: `npx supabase config push` after linking, if you manage auth through CLI.
+[auth.email]
+enable_confirmations = false
+
 # Edge gateway validates JWT before your function runs. If JWT verification stays ON in the
 # hosted project, you get POST 401 with execution_id null and no function logs.
 #
@@ -86,4 +93,8 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.whatsapp-flows]
+verify_jwt = false
+
+# User JWT + optional cron secret inside body/header; auth enforced in function.
+[functions.whatsapp-campaign-worker]
 verify_jwt = false

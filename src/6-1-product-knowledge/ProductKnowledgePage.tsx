@@ -16,6 +16,7 @@ import { useProductKnowledgeDetail } from './hooks/useProductKnowledgeDetail';
 import { useProductKnowledgeStyle } from './hooks/useProductKnowledgeStyle';
 import { useProductKnowledgeHooks } from './hooks/useProductKnowledgeHooks';
 import { useKeywords } from './hooks/useKeywords';
+import { useScriptBreakdownTableTemplates } from './hooks/useScriptBreakdownTableTemplates';
 import { useServices } from './hooks/useServices';
 import { useSubServices } from './hooks/useSubServices';
 import { ProductKnowledgePageSkeleton } from './skeletons/ProductKnowledgePageSkeleton';
@@ -64,6 +65,7 @@ const ProductKnowledgeContent: React.FC = () => {
   const { isPending: stylePending } = useProductKnowledgeStyle();
   const { isPending: hooksPending } = useProductKnowledgeHooks();
   const { isPending: keywordsPending } = useKeywords();
+  const { isPending: scriptBreakdownTemplatesPending } = useScriptBreakdownTableTemplates();
   const { isPending: scriptAiPending } = useScriptAIConfig();
   const { addProductKnowledge, updateProductKnowledge, deleteProductKnowledge } = useProductKnowledgeMutations();
   const { profile } = useUserData();
@@ -80,6 +82,7 @@ const ProductKnowledgeContent: React.FC = () => {
         stylePending ||
         hooksPending ||
         keywordsPending ||
+        scriptBreakdownTemplatesPending ||
         scriptAiPending));
 
   const showPageSkeleton = useProductKnowledgePageSkeletonGate(rawPagePending);
@@ -414,9 +417,9 @@ const ProductKnowledgeContent: React.FC = () => {
                     <div
                       className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-gray-100"
                       aria-busy
-                      aria-label="Memuat product knowledge"
+                      aria-label="Memuat creative"
                     >
-                      <span className="sr-only">Memuat product knowledge</span>
+                      <span className="sr-only">Memuat creative</span>
                       <ProductKnowledgePageSkeleton mode="overlay" headerActiveTabId={activeMainTab} />
                     </div>
                   )}

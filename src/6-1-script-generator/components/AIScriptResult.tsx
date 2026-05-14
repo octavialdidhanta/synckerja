@@ -15,6 +15,11 @@ import { RevisionSectionWrapper } from './RevisionSectionWrapper';
 import { RevisionTable } from './RevisionTable';
 import { parseScriptSections, type ScriptSection, type SectionType } from '../utils/parseScriptSections';
 import { mergeRevisedPart, mergeTableCellRevision, mergeTableRowRevision, deleteTableRow } from '../utils/mergeRevisedPart';
+import {
+  SCRIPT_BREAKDOWN_CELL_TD,
+  SCRIPT_BREAKDOWN_CELL_TH,
+  scriptBreakdownMarkdownTableClassName,
+} from '../utils/scriptBreakdownTableClasses';
 import { reviseScriptPart, regenerateScriptWithDifferentProblem } from '../services/scriptGeneratorAIService';
 
 /** Format satu baris tabel (string[]) jadi satu baris markdown | a | b | c | */
@@ -80,10 +85,14 @@ function AutoResizeSectionTextarea(
   );
 }
 
+/** Wide breakdown tables: prose forces width:100%; w-max + min-w-full lets columns grow and this wrapper scrolls horizontally. */
+const MARKDOWN_TABLE_SCROLL_WRAP =
+  'scrollbar-hide seamless-scroll my-4 w-full min-w-0 max-w-full overflow-x-auto rounded-lg border border-gray-200';
+
 const MARKDOWN_COMPONENTS = {
   table: ({ children }: { children?: React.ReactNode }) => (
-    <div className="my-4 overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-full divide-y divide-x divide-gray-200 text-sm">{children}</table>
+    <div className={MARKDOWN_TABLE_SCROLL_WRAP}>
+      <table className={scriptBreakdownMarkdownTableClassName()}>{children}</table>
     </div>
   ),
   thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-gray-50">{children}</thead>,
@@ -94,12 +103,10 @@ const MARKDOWN_COMPONENTS = {
     <tr className="divide-x divide-gray-200 hover:bg-gray-50/50 transition-colors">{children}</tr>
   ),
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="px-4 py-3 text-left font-semibold text-gray-800 whitespace-nowrap border-b border-gray-200">
-      {children}
-    </th>
+    <th className={SCRIPT_BREAKDOWN_CELL_TH}>{children}</th>
   ),
   td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="px-4 py-3 text-gray-700 align-top">{children}</td>
+    <td className={SCRIPT_BREAKDOWN_CELL_TD}>{children}</td>
   ),
   h1: ({ children }: { children?: React.ReactNode }) => (
     <h1 className="text-lg font-semibold text-gray-900 mt-4 mb-2 first:mt-0 pb-1 border-b border-gray-100">
@@ -569,7 +576,9 @@ export const AIScriptResult: React.FC<AIScriptResultProps> = ({
             </Button>
           </div>
         )}
-        <div className={`px-4 pt-4 pb-4 ${PROSE_CLASS} [&>*:last-child]:!mb-0`}>
+        <div
+          className={`min-w-0 px-4 pt-4 pb-4 ${PROSE_CLASS} [&>*:last-child]:!mb-0 [&_table]:!w-max [&_table]:!min-w-full [&_table]:!table-fixed`}
+        >
           {segments.map((seg, idx) => {
             const slice = fullScript.slice(seg.start, seg.end);
             if (!slice.trim()) return null;

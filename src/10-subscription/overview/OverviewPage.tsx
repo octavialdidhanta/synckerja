@@ -6,6 +6,7 @@ import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganiz
 import { useNextBillingFromPayments } from "@/10-subscription/hooks/useNextBillingFromPayments";
 import { useSubscriptionAnalytics } from "@/10-subscription/hooks/useSubscriptionAnalytics";
 import { useOptimizedPerformanceMonitor } from "@/10-subscription/hooks/useOptimizedPerformanceMonitor";
+import { useOrganizationOmnichannelStaff } from "@/shared/hooks/useOrganizationOmnichannelStaff";
 import { cn } from "@/shared/lib/utils";
 import {
   CurrentSubscription,
@@ -29,8 +30,8 @@ function OverviewPageSkeleton() {
           </div>
           <div className="space-y-4 p-4">
             <div className="h-40 animate-pulse rounded bg-muted/60" />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, i) => (
                 <div key={`overview-metric-skeleton-${i}`} className="h-24 animate-pulse rounded bg-muted/60" />
               ))}
             </div>
@@ -70,6 +71,8 @@ const OverviewTabContent = memo(
     nextBillingLoading,
     onFooterRefresh,
     isFooterRefreshing,
+    omnichannelRosterActiveCount,
+    omnichannelRosterPending,
   }: {
     subscriptionStatus: ReturnType<typeof useOptimizedSubscription>["subscriptionStatus"];
     analytics: ReturnType<typeof useSubscriptionAnalytics>["analytics"];
@@ -78,6 +81,8 @@ const OverviewTabContent = memo(
     nextBillingLoading: boolean;
     onFooterRefresh: () => Promise<void>;
     isFooterRefreshing: boolean;
+    omnichannelRosterActiveCount: number;
+    omnichannelRosterPending: boolean;
   }) {
     const { t } = useTranslation();
     const [lastUpdated] = useState(() => new Date());
@@ -133,6 +138,8 @@ const OverviewTabContent = memo(
                     subscriptionStatus={subscriptionStatus}
                     daysRemainingOverride={nextBillingOverride?.daysRemaining}
                     nextBillingLoading={nextBillingLoading}
+                    omnichannelRosterActiveCount={omnichannelRosterActiveCount}
+                    omnichannelRosterPending={omnichannelRosterPending}
                   />
                 </div>
 
@@ -147,7 +154,7 @@ const OverviewTabContent = memo(
             </div>
 
             <OverviewFooter
-              totalMetrics={4}
+              totalMetrics={5}
               lastUpdated={lastUpdated}
               onRefresh={onFooterRefresh}
               isRefreshing={isFooterRefreshing}
@@ -186,6 +193,7 @@ export default function OverviewPage() {
     nextBillingDate != null ? { date: nextBillingDate, daysRemaining: daysUntilExpiry } : null;
 
   const { analytics, isLoading: analyticsLoading, refetch: refetchAnalytics } = useSubscriptionAnalytics();
+  const { data: omnichannelRoster = [], isPending: omnichannelRosterPending } = useOrganizationOmnichannelStaff();
 
   const [isFooterRefreshing, setIsFooterRefreshing] = useState(false);
   const [initialOverviewReady, setInitialOverviewReady] = useState(false);
@@ -243,12 +251,14 @@ export default function OverviewPage() {
             nextBillingLoading={initialOverviewReady ? paymentsLoading : false}
             onFooterRefresh={handleOverviewFooterRefresh}
             isFooterRefreshing={isFooterRefreshing}
+            omnichannelRosterActiveCount={omnichannelRoster.length}
+            omnichannelRosterPending={omnichannelRosterPending}
           />
           <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
         </div>
         {showShellSkeleton ? (
           <div
-            className="absolute inset-0 z-10 scrollbar-hide seamless-scroll nested-scroll-touch-chain overflow-y-auto overflow-x-hidden bg-background [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="absolute inset-0 z-10 scrollbar-hide seamless-scroll nested-scroll-touch-chain overflow-y-auto overflow-x-hidden bg-gray-100 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             aria-busy="true"
           >
             <OverviewPageSkeleton />

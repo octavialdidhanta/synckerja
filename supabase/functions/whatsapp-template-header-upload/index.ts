@@ -47,8 +47,29 @@ function allowedMimeForFormat(format: string, mime: string): boolean {
 async function resolveUploadContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   activeOrgId: string | null,
+  whatsappAccountId: string | null,
 ): Promise<{ accessToken: string } | null> {
   if (!activeOrgId) return null;
+  const accId = (whatsappAccountId ?? "").trim();
+  if (accId) {
+    const { data: row } = await supabaseAdmin
+      .from("organization_whatsapp_accounts")
+      .select("meta_access_token")
+      .eq("organization_id", activeOrgId)
+      .eq("id", accId)
+      .maybeSingle();
+    let accessToken = (row?.meta_access_token ?? "").toString().trim();
+    if (!accessToken) {
+      const { data: metaOnly } = await supabaseAdmin
+        .from("organization_meta_config")
+        .select("meta_access_token")
+        .eq("organization_id", activeOrgId)
+        .maybeSingle();
+      accessToken = (metaOnly?.meta_access_token ?? "").toString().trim();
+    }
+    if (!accessToken) return null;
+    return { accessToken };
+  }
   const { data: meta } = await supabaseAdmin
     .from("organization_meta_config")
     .select("meta_access_token")
@@ -119,17 +140,6 @@ Deno.serve(async (req: Request) => {
       .single();
 
     const orgId = profile?.active_organization_id ?? null;
-    const ctx = await resolveUploadContext(supabaseAdmin, orgId);
-    if (!ctx) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "WhatsApp token not configured. Connect WhatsApp (meta_access_token) in Operations → Consultant.",
-          code: "WHATSAPP_UPLOAD_NOT_CONFIGURED",
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
 
     const parent = uploadsParentGraphId();
     if (!parent) {
@@ -155,6 +165,22 @@ Deno.serve(async (req: Request) => {
     const file = form.get("file");
     const formatRaw = form.get("format");
     const format = formatRaw != null ? String(formatRaw).trim().toUpperCase() : "";
+    const waAccRaw = form.get("whatsapp_account_id");
+    const waAcc = waAccRaw != null ? String(waAccRaw).trim() : "";
+
+    const ctx = await resolveUploadContext(supabaseAdmin, orgId, waAcc || null);
+    if (!ctx) {
+      return new Response(
+        JSON.stringify({
+          error:
+            waAcc
+              ? "WhatsApp account not found for this organization, or missing token. Pick another account or reconnect in Operations → Consultant."
+              : "WhatsApp token not configured. Connect WhatsApp (meta_access_token) in Operations → Consultant.",
+          code: "WHATSAPP_UPLOAD_NOT_CONFIGURED",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     if (!(file instanceof File) || file.size === 0) {
       return new Response(JSON.stringify({ error: "Missing or empty file", code: "MISSING_FILE" }), {

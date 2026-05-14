@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     if (conversationId) {
       const { data: convRow } = await supabaseAdmin
         .from("whatsapp_conversations")
-        .select("organization_id, phone_number_id, channel")
+        .select("organization_id, phone_number_id, channel, assignee_id")
         .eq("id", conversationId)
         .maybeSingle();
       const convChannel = (convRow?.channel ?? "").toString().toLowerCase();
@@ -124,6 +124,15 @@ Deno.serve(async (req: Request) => {
             error:
               "Percakapan ini dari Instagram. Pengiriman pesan dari inbox ini hanya untuk WhatsApp. Gunakan percakapan WhatsApp.",
             code: "INSTAGRAM_CONVERSATION",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (convRow && (convRow.assignee_id == null || String(convRow.assignee_id).trim() === "")) {
+        return new Response(
+          JSON.stringify({
+            error: "Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.",
+            code: "ASSIGNEE_REQUIRED",
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { LayoutDashboard, Calendar, BookOpen, Settings, FileText } from 'lucide-react';
 
 interface HeaderAndTabProps {
@@ -8,7 +8,6 @@ interface HeaderAndTabProps {
 }
 
 export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabProps) => {
-  const navigate = useNavigate();
   const location = useLocation();
 
   const tabs = [
@@ -28,9 +27,9 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
     },
     {
       id: 'product-knowledge',
-      label: 'Product Knowledge',
+      label: 'Creative',
       icon: BookOpen,
-      description: 'Manage product knowledge',
+      description: 'Manage creative',
       route: '/digital-marketing/social-media/product-knowledge'
     },
     {
@@ -49,11 +48,9 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
     }
   ];
 
-  const handleTabClick = (tab: any) => {
+  const handleTabClick = (tab: { id: string }) => {
+    // Parent owns navigation (`SettingsPage.handleTabChange`); avoid double `navigate`.
     handleTabChange(tab.id);
-    if (tab.route) {
-      navigate(tab.route);
-    }
   };
 
   const getActiveTab = () => {

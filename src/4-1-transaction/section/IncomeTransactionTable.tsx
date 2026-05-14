@@ -137,8 +137,8 @@ export const IncomeTransactionTable = ({
               <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Service</TableHead>
               <TableHead className="h-8 w-[150px] min-w-[150px] px-3 text-xs font-medium bg-gray-50">Type & Category</TableHead>
               <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Amount</TableHead>
-              <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Payment Method</TableHead>
-              <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Bank Account</TableHead>
+              <TableHead className="h-8 min-w-[150px] w-[150px] px-3 text-xs font-medium bg-gray-50">Payment Method</TableHead>
+              <TableHead className="h-8 min-w-[200px] w-[200px] px-3 text-xs font-medium bg-gray-50">Bank Account</TableHead>
               <TableHead className="h-8 w-[118px] min-w-[118px] px-3 text-xs font-medium bg-gray-50">Recurring</TableHead>
               <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Receipt</TableHead>
               <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Status</TableHead>
@@ -192,10 +192,10 @@ export const IncomeTransactionTable = ({
                       {formatToRupiah(transaction.amount)}
                     </div>
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-xs">
+                  <TableCell className="min-w-[150px] w-[150px] px-3 py-2 text-xs align-top">
                     {transaction.payment_method || '-'}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-xs max-w-[10rem]">
+                  <TableCell className="min-w-[200px] w-[200px] px-3 py-2 text-xs align-top">
                     {(() => {
                       const joined = transaction.bank_accounts;
                       const fromJoin =

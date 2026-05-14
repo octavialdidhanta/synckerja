@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { dedupeMasterRowsByNamePreferOrg } from '@/6-1-script-generator/utils/dedupeMasterRowsByNamePreferOrg';
 
 export type ScriptGeneratorMasterRow = {
   id: string;
@@ -72,11 +73,13 @@ export function useScriptGeneratorFormMasterData() {
           return true;
         }) as ScriptGeneratorMasterRow[];
 
+      const contentPillarsRaw = filterNamed(contentPillarsResult.data || []);
+
       return {
         contentTypes: filterNamed(contentTypesResult.data || []),
         services: filterNamed(servicesResult.data || [], true),
         subServices: filterNamed(subServicesResult.data || [], true),
-        contentPillars: filterNamed(contentPillarsResult.data || []),
+        contentPillars: dedupeMasterRowsByNamePreferOrg(contentPillarsRaw, organizationId),
       };
     },
     enabled: !!organizationId,

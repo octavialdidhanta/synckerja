@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: conv, error: convError } = await supabaseAdmin
       .from("email_conversations")
-      .select("id, organization_id, email_connection_id, from_email, thread_subject, lead_status_id")
+      .select("id, organization_id, email_connection_id, from_email, thread_subject, lead_status_id, assignee_id")
       .eq("id", conversationId)
       .maybeSingle();
 
@@ -118,6 +118,15 @@ Deno.serve(async (req: Request) => {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (conv.assignee_id == null || String(conv.assignee_id).trim() === "") {
+      return new Response(
+        JSON.stringify({
+          error: "Tetapkan agen (assignee) pada percakapan ini sebelum mengirim balasan.",
+          code: "ASSIGNEE_REQUIRED",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Block outbound when conversation is Resolved (Closed) until new inbound
@@ -252,7 +261,10 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       currentStatusName = (statusRow?.name as string) ?? null;
     }
-    const isOpenOrUnset = currentStatusName == null || currentStatusName.trim().toLowerCase() === "open";
+    const isOpenOrUnset =
+      currentStatusName == null ||
+      currentStatusName.trim().toLowerCase() === "open" ||
+      currentStatusName.trim().toLowerCase() === "unread";
     if (isOpenOrUnset) {
       // Multi-tenant: prefer status for conversation's org, fallback to default (organization_id IS NULL)
       let inProgressStatus: { id: string } | null = null;
@@ -288,6 +300,20 @@ Deno.serve(async (req: Request) => {
             .eq("organization_id", conv.organization_id)
             .eq("ticket_id", ticketId);
           if (leadErr) console.error("[send-email-reply] sync leads.status_id to In Progress failed:", leadErr);
+        }
+        const { data: currentCycle } = await supabaseAdmin
+          .from("email_conversation_cycles")
+          .select("id")
+          .eq("conversation_id", conversationId)
+          .is("resolved_at", null)
+          .order("cycle_started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (currentCycle?.id) {
+          await supabaseAdmin
+            .from("email_conversation_cycles")
+            .update({ first_response_at: now, updated_at: now })
+            .eq("id", currentCycle.id);
         }
       }
     }

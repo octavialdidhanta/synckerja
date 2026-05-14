@@ -20,7 +20,7 @@ interface ReviewCommentNotificationBellProps {
 
 export function ReviewCommentNotificationBell({ onOpenPreview }: ReviewCommentNotificationBellProps) {
   const [open, setOpen] = useState(false);
-  const { t, dateLocale } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const { notifications, unreadCount, markOneRead } = useReviewCommentNotifications();
   const unreadNotifications = notifications.filter((n) => n.read_at == null);
 
@@ -58,7 +58,7 @@ export function ReviewCommentNotificationBell({ onOpenPreview }: ReviewCommentNo
                     <NotificationItem
                       key={n.id}
                       item={n}
-                      locale={dateLocale}
+                      locale={dateFnsLocale}
                       t={t}
                       onNavigate={() => setOpen(false)}
                       onOpenPreview={onOpenPreview}

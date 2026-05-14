@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 const META_OAUTH_SCOPE = 'pages_show_list,pages_read_engagement,instagram_manage_messages,instagram_basic,business_management';
 const META_OAUTH_VERSION = 'v21.0';
 
-/** `/operations/consultant/instagram/connect` — Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`). */
+/** `/omnichannel/integrations/instagram` — Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`). */
 export function InstagramConnectPage() {
   const { t } = useAppTranslation();
   const { organizationId, loading: orgLoading } = useCurrentOrg();

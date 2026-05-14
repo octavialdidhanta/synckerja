@@ -1,13 +1,30 @@
 ﻿
 import { supabase } from '@/shared/lib/supabaseClient';
 import { EmployeeFormData } from '../types/forms';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 export const useEmployeeValidation = (formData: EmployeeFormData) => {
+  const { organizationId } = useCurrentOrg();
+
+  const validateNikFormat = (nik: string) => {
+    // NIK should be exactly 16 digits
+    const nikRegex = /^\d{16}$/;
+    return nikRegex.test(nik);
+  };
+
   const validatePersonalData = () => {
     return !!(
       formData.name?.trim() &&
       formData.email?.trim() &&
-      formData.mobile_phone?.trim()
+      formData.mobile_phone?.trim() &&
+      formData.religion?.trim() &&
+      formData.birth_date?.trim() &&
+      formData.gender?.trim() &&
+      formData.marital_status?.trim() &&
+      formData.nik?.trim() &&
+      validateNikFormat(formData.nik.trim()) &&
+      formData.address?.trim() &&
+      formData.id_card_file?.trim()
     );
   };
 
@@ -30,23 +47,23 @@ export const useEmployeeValidation = (formData: EmployeeFormData) => {
     return validatePersonalData() && validateEmploymentData() && !!formData.email;
   };
 
-  const validateNikFormat = (nik: string) => {
-    // NIK should be exactly 16 digits
-    const nikRegex = /^\d{16}$/;
-    return nikRegex.test(nik);
-  };
-
   const checkNikUniqueness = async (nik: string) => {
     if (!nik || !validateNikFormat(nik)) {
       return { isValid: false, message: 'NIK must be exactly 16 digits' };
     }
 
     try {
-      const { data: existingEmployee, error } = await supabase
+      let query = supabase
         .from('employees')
         .select('id, full_name')
-        .eq('nik', nik)
-        .maybeSingle();
+        .eq('nik', nik);
+
+      // Uniqueness is scoped per-organization in multi-tenant setup.
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      const { data: existingEmployee, error } = await query.maybeSingle();
 
       if (error) {
         console.error('Error checking NIK uniqueness:', error);

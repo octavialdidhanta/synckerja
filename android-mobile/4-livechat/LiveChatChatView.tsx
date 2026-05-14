@@ -139,7 +139,7 @@ export function LiveChatChatView({
           <SheetContent
             side="right"
             underSafeArea
-            className="w-full max-w-sm overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]"
+            className="scrollbar-hide seamless-scroll nested-scroll-touch-chain w-full max-w-sm overflow-y-auto overflow-x-hidden pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <SheetHeader className="space-y-0.5">
               <SheetTitle>{t('whatsappInbox.quickAction', 'Quick Action')}</SheetTitle>

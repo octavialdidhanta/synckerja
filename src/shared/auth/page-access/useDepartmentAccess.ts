@@ -3,28 +3,7 @@ import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDa
 import { usePermissionConfiguration } from "./usePermissionConfiguration";
 import { logger } from "@/shared/lib/logger";
 import { accessCache, ACCESS_CACHE_TTL, clearAccessCache } from "./departmentPageAccessCache";
-
-const UNRESTRICTED_DURING_LOADING = [
-  "/",
-  "/access-permissions/page-access",
-  "/access-permissions/overview",
-  "/access-permissions/roles",
-  "/access-permissions/pages",
-  "/access-permissions",
-  "/subscription/management",
-  "/subscription",
-  "/okr",
-  "/employees",
-  "/employees/add",
-  "/employees/reprimand",
-  "/my-info",
-  "/recruitment",
-  "/attendance",
-  "/transfer-ownership",
-  "/settings",
-  "/payroll",
-  "/incomes",
-];
+import { buildEffectiveAccessRoles } from "./accessRoleSet";
 
 const CROSS_DEPARTMENT_PAGES = ["/employees", "/reports", "/company", "/organization"];
 
@@ -39,7 +18,7 @@ export {
 } from "./departmentPageAccessCache";
 
 export const useDepartmentAccess = () => {
-  const { userRole, employee, userData, isOwner, isAdmin, organization } =
+  const { userRole, organizationMemberRoles, employee, userData, isOwner, isAdmin, organization } =
     useCentralizedUserData();
   const { configurations, loading: configLoading } = usePermissionConfiguration();
 
@@ -56,7 +35,19 @@ export const useDepartmentAccess = () => {
     }
 
     const canAccessPage = (pagePath: string): boolean => {
-      if (employee && organization && !isOwner) {
+      const normalizePath = (p?: string) => {
+        if (!p) return "/";
+        let s = p.trim();
+        if (!s.startsWith("/")) s = "/" + s;
+        if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
+        return s.toLowerCase();
+      };
+
+      const eff = buildEffectiveAccessRoles(organizationMemberRoles, userRole);
+      const treatsAsOwner = isOwner || userRole === "owner" || eff.includes("owner");
+      const treatsAsAdmin = isAdmin || userRole === "admin" || eff.includes("admin");
+
+      if (employee && organization && !treatsAsOwner) {
         const employeeStatus =
           (employee as { status?: string; employee_status_name?: string }).status ||
           (employee as { employee_status_name?: string }).employee_status_name;
@@ -75,35 +66,25 @@ export const useDepartmentAccess = () => {
         }
       }
 
-      if (isOwner || userRole === "owner") {
+      if (treatsAsOwner) {
         return true;
       }
 
-      if (isAdmin || userRole === "admin") {
+      if (treatsAsAdmin) {
         return true;
       }
-
-      const normalizePath = (p?: string) => {
-        if (!p) return "/";
-        let s = p.trim();
-        if (!s.startsWith("/")) s = "/" + s;
-        if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
-        return s.toLowerCase();
-      };
 
       const normalizedPath = normalizePath(pagePath);
       if (normalizedPath === "/company/files") {
         const allowedRoles = ["owner", "admin", "employee", "hr"];
-        const normalizedRole = userRole?.toLowerCase().trim();
-
-        if (normalizedRole && allowedRoles.includes(normalizedRole)) {
+        if (eff.some((r) => allowedRoles.includes(r))) {
           if (isDev && !loggedOverridePaths.has(pagePath)) {
             loggedOverridePaths.add(pagePath);
             setTimeout(() => {
               loggedOverridePaths.delete(pagePath);
             }, 5 * 60 * 1000);
           }
-          const cacheKey = `${normalizedPath}-${userRole}-${employee?.id || "no-emp"}`;
+          const cacheKey = `${normalizedPath}-${eff.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
           accessCache.set(cacheKey, {
             result: true,
             timestamp: Date.now(),
@@ -114,81 +95,33 @@ export const useDepartmentAccess = () => {
       }
 
       if (configLoading) {
-        const normalize = (p?: string) => {
-          if (!p) return "/";
-          let s = p.trim();
-          if (!s.startsWith("/")) s = "/" + s;
-          if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
-          return s.toLowerCase();
-        };
-
-        const np = normalize(pagePath);
+        const np = normalizePath(pagePath);
 
         if (np === "/company/files") {
           const allowedRoles = ["owner", "admin", "employee", "hr"];
-          const normalizedRole = userRole?.toLowerCase().trim();
-
-          if (normalizedRole && allowedRoles.includes(normalizedRole)) {
+          if (eff.some((r) => allowedRoles.includes(r))) {
             return true;
           }
-        }
-
-        const isUnrestrictedDuringLoading = UNRESTRICTED_DURING_LOADING.some((unrestrictedPath) => {
-          const normalizedUnrestricted = normalize(unrestrictedPath);
-          return (
-            np === normalizedUnrestricted || np.startsWith(normalizedUnrestricted + "/")
-          );
-        });
-
-        if (isUnrestrictedDuringLoading) {
-          return true;
         }
 
         return false;
       }
 
-      if (userData && !userRole && employee) {
-        const normalize = (p?: string) => {
-          if (!p) return "/";
-          let s = p.trim();
-          if (!s.startsWith("/")) s = "/" + s;
-          if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
-          return s.toLowerCase();
-        };
-
-        const np = normalize(pagePath);
+      if (userData && employee && eff.length === 0) {
+        const np = normalizePath(pagePath);
 
         if (np === "/company/files" && employee) {
           return true;
         }
 
-        const isUnrestrictedDuringLoading = UNRESTRICTED_DURING_LOADING.some((unrestrictedPath) => {
-          const normalizedUnrestricted = normalize(unrestrictedPath);
-          return (
-            np === normalizedUnrestricted || np.startsWith(normalizedUnrestricted + "/")
-          );
-        });
-
-        if (isUnrestrictedDuringLoading) {
-          return true;
-        }
-
         return false;
       }
 
-      const normalize = (p?: string) => {
-        if (!p) return "/";
-        let s = p.trim();
-        if (!s.startsWith("/")) s = "/" + s;
-        if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
-        return s.toLowerCase();
-      };
-
-      const current = normalize(pagePath);
+      const current = normalizePath(pagePath);
 
       const verbosePermissions = import.meta.env.VITE_VERBOSE_PERMISSIONS === "true";
 
-      const cacheKey = `${current}-${userRole}-${employee?.id || "no-emp"}`;
+      const cacheKey = `${current}-${eff.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
       const cached = accessCache.get(cacheKey);
       if (
         cached &&
@@ -198,28 +131,55 @@ export const useDepartmentAccess = () => {
         return cached.result;
       }
 
-      const matchingConfigs = configurations.filter((c) => {
-        const base = normalize(c.page_path);
-        return current === base || current.startsWith(base + "/");
-      });
+      const configMatchesPath = (configBase: string, path: string) =>
+        path === configBase || path.startsWith(`${configBase}/`);
 
-      const orgSpecificConfig = matchingConfigs.find((c) => c.organization_id !== null);
-      const systemWideConfig = matchingConfigs.find((c) => c.organization_id === null);
-      const config = orgSpecificConfig || systemWideConfig;
+      const matchingConfigs = configurations
+        .filter((c) => {
+          const base = normalizePath(c.page_path);
+          if (configMatchesPath(base, current)) return true;
+          if (current === "/" && base === "/dashboard") return true;
+          return false;
+        })
+        .sort(
+          (a, b) => normalizePath(b.page_path).length - normalizePath(a.page_path).length,
+        );
+
+      const pickMostSpecific = (list: typeof matchingConfigs) => list[0];
+
+      let config: (typeof matchingConfigs)[number] | undefined;
+      if (current === "/") {
+        const homeMatches = matchingConfigs
+          .filter((c) => {
+            const b = normalizePath(c.page_path);
+            return b === "/" || b === "/dashboard";
+          })
+          .sort(
+            (a, b) => normalizePath(b.page_path).length - normalizePath(a.page_path).length,
+          );
+        const exactRoot = homeMatches.filter((c) => normalizePath(c.page_path) === "/");
+        const legacyDashboard = homeMatches.filter(
+          (c) => normalizePath(c.page_path) === "/dashboard",
+        );
+        config = pickMostSpecific(exactRoot) || pickMostSpecific(legacyDashboard);
+      }
+      if (config == null) {
+        config = pickMostSpecific(matchingConfigs);
+      }
 
       if (isDev && verbosePermissions) {
-        logger.debug(`PERMISSION DEBUG: ${pagePath}`, { current, userRole, config });
+        logger.debug(`PERMISSION DEBUG: ${pagePath}`, { current, userRole, eff, config });
       }
 
       if (!config) {
-        const result = true;
+        const result = false;
         accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
         return result;
       }
 
       if (config.exception_paths && config.exception_paths.length > 0) {
         const isExceptionPath = config.exception_paths.some((exceptionPath) => {
-          const ex = normalize(exceptionPath);
+          const ex = normalizePath(exceptionPath);
           return current === ex || current.startsWith(ex + "/");
         });
 
@@ -230,14 +190,13 @@ export const useDepartmentAccess = () => {
         }
       }
 
-      const isOwnerByRole =
-        (userRole as string) === "owner" ||
-        (userRole as string) === "admin" ||
-        isAdmin === true;
-      const isOwnerByFlag = isOwner === true;
-      const isDefinitelyOwner = isOwnerByRole || isOwnerByFlag;
+      if (config.is_active === false) {
+        const result = false;
+        accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
+        return result;
+      }
 
-      if (isDefinitelyOwner) {
+      if (treatsAsOwner || treatsAsAdmin) {
         const result = true;
         accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
         return result;
@@ -245,27 +204,45 @@ export const useDepartmentAccess = () => {
 
       if (current === "/company/files") {
         const allowedRoles = ["owner", "admin", "employee", "hr"];
-        const normalizedRole = userRole?.toLowerCase().trim();
-
-        if (normalizedRole && allowedRoles.includes(normalizedRole)) {
+        if (eff.some((r) => allowedRoles.includes(r))) {
           const result = true;
           accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
           return result;
         }
       }
 
-      if (!userRole) {
+      if (eff.length === 0) {
         const result = false;
         accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
         return result;
       }
 
-      const hasRoleAccess = (config.roles_allowed || []).includes(userRole);
+      const allowedInConfig = (config.roles_allowed || []).map((r) => (r || "").toLowerCase().trim());
+      const hasRoleAccess = eff.some((r) => allowedInConfig.includes(r));
 
       const isException =
         !!employee?.id && (config.exceptions || []).includes(employee.id);
 
-      const finalResult = hasRoleAccess || isException;
+      let finalResult = hasRoleAccess || isException;
+
+      const allowedJobLevels = (config.job_levels_allowed || [])
+        .map((l) => (l || "").toLowerCase().trim())
+        .filter(Boolean);
+      if (finalResult && allowedJobLevels.length > 0 && !isException) {
+        const emp = employee as
+          | (typeof employee & {
+              job_level_id?: string | null;
+              job_levels?: { id?: string; name?: string } | null;
+            })
+          | null;
+        const levelId = (emp?.job_level_id || emp?.job_levels?.id || "").toLowerCase();
+        const levelName = (emp?.job_levels?.name || "").toLowerCase();
+        const levelMatches = allowedJobLevels.some(
+          (token) =>
+            (levelId && token === levelId) || (levelName && token === levelName),
+        );
+        finalResult = levelMatches;
+      }
 
       accessCache.set(cacheKey, {
         result: finalResult,
@@ -281,15 +258,16 @@ export const useDepartmentAccess = () => {
     };
 
     const canAccessDepartment = (targetDepartmentId?: string): boolean => {
-      if (isOwner || isAdmin) {
+      const eff = buildEffectiveAccessRoles(organizationMemberRoles, userRole);
+      if (isOwner || isAdmin || eff.includes("owner") || eff.includes("admin")) {
         return true;
       }
 
-      if (userRole === "hr") {
+      if (eff.includes("hr")) {
         return true;
       }
 
-      if (userRole === "employee") {
+      if (eff.includes("employee") || eff.includes("manager") || eff.includes("member")) {
         return !targetDepartmentId || targetDepartmentId === currentDepartmentId;
       }
 
@@ -335,7 +313,17 @@ export const useDepartmentAccess = () => {
       configLoading,
       configHash,
     };
-  }, [userRole, employee, userData, isOwner, isAdmin, configurations, configLoading]);
+  }, [
+    userRole,
+    organizationMemberRoles,
+    employee,
+    userData,
+    isOwner,
+    isAdmin,
+    organization,
+    configurations,
+    configLoading,
+  ]);
 
   return departmentAccess;
 };

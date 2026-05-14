@@ -45,7 +45,7 @@ const EMAIL_PROVIDERS = [
   'Yahoo (TLS)', 'Yahoo (SSL)',
 ] as const;
 
-/** `/operations/consultant/email/connect` — Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`). */
+/** `/omnichannel/integrations/email` — Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`). */
 export function EmailConnectPage() {
   const { t } = useAppTranslation();
   const navigate = useNavigate();
@@ -139,7 +139,7 @@ export function EmailConnectPage() {
     setPassword('');
     setProvider('');
   };
-  const handleOpenLiveChat = () => navigate('/operations/consultant/all/livechat');
+  const handleOpenLiveChat = () => navigate("/omnichannel/livechat");
   const handleRemoveConnection = async (conn: EmailConnection) => {
     if (!window.confirm(t('emailConnect.confirmRemove', 'Remove this email connection?'))) return;
     try {

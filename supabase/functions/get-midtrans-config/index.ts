@@ -1,5 +1,6 @@
 /// <reference path="../deno-globals.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { midtransIsSandbox, midtransSnapJsUrl } from "./midtransEnv.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,7 +13,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
   try {
-    const clientKey = Deno.env.get("MIDTRANS_CLIENT_KEY");
+    const clientKey = (Deno.env.get("MIDTRANS_CLIENT_KEY") ?? "").trim();
     if (!clientKey) {
       console.error("Midtrans client key not configured");
       return new Response(JSON.stringify({ error: "Midtrans client key not configured" }), {
@@ -20,10 +21,17 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    return new Response(JSON.stringify({ client_key: clientKey }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        client_key: clientKey,
+        is_sandbox: midtransIsSandbox(),
+        snap_js_url: midtransSnapJsUrl(),
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (error) {
     const err = error as Error;
     console.error("Get Midtrans config error:", err);

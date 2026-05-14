@@ -3,6 +3,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { addMonths, addYears } from "https://esm.sh/date-fns@2";
+import { midtransCoreApiBaseUrl } from "./midtransEnv.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,19 +50,12 @@ serve(async (req) => {
     }
 
     // Get Midtrans server key
-    const serverKey = Deno.env.get("MIDTRANS_SERVER_KEY");
+    const serverKey = (Deno.env.get("MIDTRANS_SERVER_KEY") ?? "").trim();
     if (!serverKey) {
       throw new Error("MIDTRANS_SERVER_KEY not configured");
     }
 
-    // Check payment status from Midtrans API
-    // Determine if using sandbox or production based on server key
-    // Sandbox keys typically start with "SB-Mid-" while production keys start with "Mid-"
-    const isSandbox = serverKey.startsWith("SB-Mid-");
-    const baseUrl = isSandbox 
-      ? "https://api.sandbox.midtrans.com" 
-      : "https://api.midtrans.com";
-    
+    const baseUrl = midtransCoreApiBaseUrl();
     const authString = btoa(`${serverKey}:`);
     const midtransResponse = await fetch(
       `${baseUrl}/v2/${order_id}/status`,

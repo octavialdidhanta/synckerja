@@ -131,7 +131,7 @@ Deno.serve(async (req: Request) => {
 
     // All data to organization_instagram_accounts only (no organization_meta_config).
     // Fetch Pages with Instagram and upsert into organization_instagram_accounts.
-    // so /operations/consultant/instagram/connect shows connected accounts without extra "Connect" click
+    // so /omnichannel/integrations/instagram shows connected accounts without extra "Connect" click
     const fields = "id,name,access_token,instagram_business_account{id,username,name}";
     const pagesWithIg: Array<{ pageId: string; pageToken: string; igId: string; username: string | null; name: string | null }> = [];
 

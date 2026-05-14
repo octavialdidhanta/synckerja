@@ -9,7 +9,7 @@ import { SourceManagementDialog } from "@/5-3-dashboard/components/leads/dialogs
 import { ServicesManagementDialog } from "@/5-3-dashboard/components/leads/dialogs/ServicesManagementDialog";
 import { CategoriesManagementDialog } from "@/5-3-dashboard/components/leads/dialogs/CategoriesManagementDialog";
 import { useLeadSources } from '@/shared/hooks/organized/salesources';
-import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
+import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { MoreVertical } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -59,7 +59,7 @@ export const NewLeadForm = ({ open, onClose, onSubmit, isSubmitting = false }: N
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const { sources, refetch } = useLeadSources();
-  const { data: employees = [] } = useAvailableEmployees();
+  const { data: employees = [] } = useOmnichannelRosterAssignees();
 
   const fetchServices = async () => {
     try {

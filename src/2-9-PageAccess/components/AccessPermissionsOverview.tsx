@@ -1,4 +1,4 @@
-import { Shield, Users, Settings, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Shield, Users, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { AccessPermissionsSidebarFooter } from './AccessPermissionsSidebarFooter';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
@@ -10,10 +10,7 @@ interface AccessPermissionsOverviewProps {
 export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermissionsOverviewProps) => {
   const { userRole, organization, employee } = useCentralizedUserData();
 
-  // Calculate statistics from configurations
   const totalPages = configurations.length;
-  const defaultPages = configurations.filter(config => config.organization_id === null).length;
-  const customPages = configurations.filter(config => config.organization_id !== null).length;
   
   // Count by role access
   const ownerAccessible = configurations.filter(config => config.roles_allowed?.includes('owner')).length;
@@ -53,22 +50,14 @@ export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermiss
           </div>
 
           <div className="bg-muted/60 rounded-lg p-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-medium text-foreground">Default System</p>
-                <p className="text-lg font-bold text-foreground">{defaultPages}</p>
+                <p className="text-xs font-medium text-foreground">Per organisasi</p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  Setiap halaman diatur per organisasi; tidak ada baris permission global di tabel utama.
+                </p>
               </div>
-              <CheckCircle className="text-muted-foreground h-4 w-4" />
-            </div>
-          </div>
-
-          <div className="rounded-lg bg-brand-blue/5 p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-brand-blue">Custom Pages</p>
-                <p className="text-lg font-bold text-brand-blue">{customPages}</p>
-              </div>
-              <Settings className="h-4 w-4 text-brand-blue" />
+              <CheckCircle className="text-muted-foreground h-4 w-4 shrink-0" />
             </div>
           </div>
         </div>
@@ -174,14 +163,8 @@ export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermiss
                       <p className="text-muted-foreground text-xs">{config.page_path}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-muted-foreground text-xs">
-                        {config.organization_id === null ? 'System' : 'Custom'}
-                      </p>
-                      <div
-                        className={`mt-1 h-2 w-2 rounded-full ${
-                          config.organization_id === null ? 'bg-muted-foreground/50' : 'bg-brand-blue'
-                        }`}
-                      />
+                      <p className="text-muted-foreground text-xs">Organisasi</p>
+                      <div className="mt-1 h-2 w-2 rounded-full bg-brand-blue" />
                     </div>
                   </div>
                 </div>

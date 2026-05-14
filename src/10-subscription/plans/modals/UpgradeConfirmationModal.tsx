@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,8 @@ export interface ProRatedData {
     is_plan_change: boolean;
     is_upgrade?: boolean;
     prorate_percentage?: number;
+    skip_prorate?: boolean;
+    current_plan_credit?: number;
   };
 }
 
@@ -49,6 +52,10 @@ interface Props {
   currentEmployeeCount?: number;
   proRatedData?: ProRatedData | null;
   isBillingCycleUpgradeOnly?: boolean;
+  /** Add-on IDR included in the charged total (full list when not on HR prorate; prorated incremental when HR prorate applies). */
+  catalogAddOnTotalIdr?: number;
+  /** While Midtrans / checkout is starting — disables primary button and shows spinner. */
+  isConfirmLoading?: boolean;
 }
 
 export function UpgradeConfirmationModal({
@@ -61,6 +68,8 @@ export function UpgradeConfirmationModal({
   newMemberCount,
   proRatedData,
   isBillingCycleUpgradeOnly = false,
+  catalogAddOnTotalIdr = 0,
+  isConfirmLoading = false,
 }: Props) {
   const { t } = useTranslation();
   const isYearly = billingCycle === "yearly";
@@ -76,8 +85,13 @@ export function UpgradeConfirmationModal({
         newPlan.annual_discount_percentage,
       )
     : getMonthlyPriceForMembers(newPlan.base_price_per_member, newMemberCount);
-  const totalAmount =
-    isImmediateCharge && prorateAmount !== undefined && prorateAmount > 0 ? prorateAmount : fullPrice;
+  const addon = Math.max(0, Math.round(Number(catalogAddOnTotalIdr)));
+  const baseHrAmount = isBillingCycleUpgradeOnly
+    ? fullPrice
+    : isImmediateCharge && prorateAmount !== undefined && prorateAmount > 0
+      ? prorateAmount
+      : fullPrice;
+  const totalAmount = baseHrAmount + addon;
 
   const title = isScheduledChange
     ? t("subscription.plans.modal.title.schedule")
@@ -126,11 +140,30 @@ export function UpgradeConfirmationModal({
           )}
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isConfirmLoading}
+            className="touch-manipulation transition-transform duration-150 ease-out active:scale-[0.98] disabled:pointer-events-none"
+            onClick={() => onOpenChange(false)}
+          >
             {t("common.cancel", "Cancel")}
           </Button>
-          <Button type="button" onClick={onConfirm}>
-            {buttonText}
+          <Button
+            type="button"
+            disabled={isConfirmLoading}
+            aria-busy={isConfirmLoading}
+            className="touch-manipulation transition-[transform,filter,box-shadow] duration-150 ease-out active:scale-[0.97] active:brightness-[0.92] active:shadow-inner disabled:active:scale-100 disabled:active:brightness-100"
+            onClick={onConfirm}
+          >
+            {isConfirmLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <span>{buttonText}</span>
+              </>
+            ) : (
+              buttonText
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

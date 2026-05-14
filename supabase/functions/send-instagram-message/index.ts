@@ -111,10 +111,19 @@ Deno.serve(async (req: Request) => {
     if (conversationId) {
       const { data: conv } = await supabase
         .from("instagram_conversations")
-        .select("organization_id, instagram_business_account_id, lead_status_id, last_inbound_at, created_at")
+        .select("organization_id, instagram_business_account_id, lead_status_id, last_inbound_at, created_at, assignee_id")
         .eq("id", conversationId)
         .maybeSingle();
       if (conv?.organization_id && conv?.instagram_business_account_id) {
+        if (conv.assignee_id == null || String(conv.assignee_id).trim() === "") {
+          return new Response(
+            JSON.stringify({
+              error: "Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.",
+              code: "ASSIGNEE_REQUIRED",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         const leadStatusId = conv?.lead_status_id ?? null;
         if (leadStatusId) {
           const { data: statusRow } = await supabase
@@ -407,6 +416,81 @@ Deno.serve(async (req: Request) => {
             updated_at: now,
           })
           .eq("id", conversationId);
+
+        const { data: convBefore } = await supabase
+          .from("instagram_conversations")
+          .select("lead_status_id, organization_id, ticket_id")
+          .eq("id", conversationId)
+          .maybeSingle();
+        const statusIdBefore = convBefore?.lead_status_id ?? null;
+        const convOrgId = convBefore?.organization_id ?? null;
+        let statusNameBefore: string | null = null;
+        if (statusIdBefore) {
+          const { data: st } = await supabase
+            .from("lead_statuses")
+            .select("name")
+            .eq("id", statusIdBefore)
+            .maybeSingle();
+          statusNameBefore = (st?.name as string) ?? null;
+        }
+        let returnedLeadStatusId: string | null = null;
+        const statusLower = statusNameBefore?.trim().toLowerCase() ?? "";
+        const isOpenOrUnset =
+          !statusNameBefore || statusLower === "open" || statusLower === "unread";
+        if (isOpenOrUnset) {
+          let inProgressStatus: { id: string } | null = null;
+          if (convOrgId) {
+            const { data: orgStatus } = await supabase
+              .from("lead_statuses")
+              .select("id")
+              .eq("organization_id", convOrgId)
+              .eq("name", "In Progress")
+              .maybeSingle();
+            inProgressStatus = orgStatus;
+          }
+          if (!inProgressStatus?.id) {
+            const { data: defaultStatus } = await supabase
+              .from("lead_statuses")
+              .select("id")
+              .is("organization_id", null)
+              .eq("name", "In Progress")
+              .maybeSingle();
+            inProgressStatus = defaultStatus;
+          }
+          if (inProgressStatus?.id) {
+            returnedLeadStatusId = inProgressStatus.id;
+            const { error: updateErr } = await supabase
+              .from("instagram_conversations")
+              .update({ lead_status_id: inProgressStatus.id, updated_at: now })
+              .eq("id", conversationId);
+            if (updateErr) console.error("send-instagram-message: Update to In Progress failed:", updateErr);
+            const ticketId =
+              (convBefore?.ticket_id as string) ??
+              `IG-${conversationId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+            if (convOrgId) {
+              const { error: leadErr } = await supabase
+                .from("leads")
+                .update({ status_id: inProgressStatus.id, updated_at: now })
+                .eq("organization_id", convOrgId)
+                .eq("ticket_id", ticketId);
+              if (leadErr) console.error("send-instagram-message: sync leads.status_id failed:", leadErr);
+            }
+            const { data: currentCycle } = await supabase
+              .from("instagram_conversation_cycles")
+              .select("id")
+              .eq("conversation_id", conversationId)
+              .is("resolved_at", null)
+              .order("cycle_started_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (currentCycle?.id) {
+              await supabase
+                .from("instagram_conversation_cycles")
+                .update({ first_response_at: now, updated_at: now })
+                .eq("id", currentCycle.id);
+            }
+          }
+        }
       }
 
       return new Response(

@@ -1,4 +1,27 @@
 import type { IncomeTransactionWithRelations } from "@/4-1-dashboard/types";
+import { supabase } from "@/shared/lib/supabaseClient";
+
+/**
+ * Resolves `sales_activity_payments.receipt_url` / `receipt_file_path` for inline preview:
+ * full `http(s)` URLs are returned as-is; storage object keys get a time-limited signed URL
+ * (`income-receipts` is private — raw paths cannot be used as `<img src>`).
+ */
+export async function getIncomeReceiptDisplayUrl(
+  pathOrUrl: string | null | undefined,
+  expiresInSeconds = 3600,
+): Promise<string | null> {
+  if (!pathOrUrl || typeof pathOrUrl !== "string") return null;
+  const t = pathOrUrl.trim();
+  if (!t) return null;
+  if (t.startsWith("http://") || t.startsWith("https://")) return t;
+
+  const { data, error } = await supabase.storage.from("income-receipts").createSignedUrl(t, expiresInSeconds);
+  if (error || !data?.signedUrl) {
+    console.error("getIncomeReceiptDisplayUrl", error);
+    return null;
+  }
+  return data.signedUrl;
+}
 
 /**
  * Download income receipt: public URL opens in new tab; storage path downloads from `income-receipts` bucket.

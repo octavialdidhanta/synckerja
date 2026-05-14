@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
+import { User } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
 const sizeMap = {
   sm: "h-9 w-9 text-[11px] font-semibold",
   md: "h-10 w-10 text-xs font-semibold",
   lg: "h-12 w-12 text-sm font-semibold",
+} as const;
+
+const iconSizeMap = {
+  sm: "h-4 w-4",
+  md: "h-5 w-5",
+  lg: "h-6 w-6",
 } as const;
 
 type UserAvatarBadgeProps = {
@@ -42,7 +49,7 @@ export function UserAvatarBadge({ initials, imageUrl, size = "md", className }: 
           onError={() => setImageFailed(true)}
         />
       ) : (
-        initials.slice(0, 2)
+        <User className={cn("text-muted-foreground", iconSizeMap[size])} strokeWidth={2} aria-hidden />
       )}
     </span>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
@@ -12,10 +13,14 @@ import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { useSalesActivityPayments } from '@/shared/hooks/organized/sales';
 import { useIncomeTransactions } from '@/shared/hooks/organized/sales';
+import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { deleteSalesActivityPaymentWithLinkedIncome } from '@/shared/lib/finance/deleteSalesActivityPaymentWithLinkedIncome';
+import { updateIncomeFromSalesPayment } from '@/shared/lib/finance/updateIncomeFromSalesPayment';
+import { refetchIncomeModuleQueries } from '@/shared/lib/finance/refetchIncomeModuleQueries';
 import { Plus, Calendar, CreditCard, FileText, X, Upload, TrendingUp, CheckCircle2, MoreHorizontal, Download, Edit, Trash2 } from 'lucide-react';
 import { InvoicePreviewModal } from './invoice';
 import { calculatePaymentSummary, calculateProgressiveRemaining } from '@/shared/utils/paymentCalculations';
@@ -28,6 +33,17 @@ interface PaymentUpdateModalProps {
   clientName?: string;
   viewOnly?: boolean;
   onFirstPaymentSuccess?: (payload: { title: string; description: string; service_id: string; sub_service_id: string | null }) => void;
+}
+
+/** Digits only, then Indonesian-style thousand separators (.) for display while typing. */
+function formatPaymentAmountThousands(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function parsePaymentAmountThousands(value: string): number {
+  return parseFloat(value.replace(/\D/g, '')) || 0;
 }
 
 export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName, viewOnly = false, onFirstPaymentSuccess }: PaymentUpdateModalProps) => {
@@ -48,7 +64,17 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
     notes: '',
     receipt_url: ''
   });
-  const { getPaymentHistory, createPaymentHistory } = useSalesActivityPayments();
+  const [editingPayment, setEditingPayment] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    payment_amount: '',
+    payment_date: '',
+    payment_method: '',
+    notes: '',
+  });
+  const [editReceiptFile, setEditReceiptFile] = useState<File | null>(null);
+  const queryClient = useQueryClient();
+  const { updateBalance } = useBankAccountBalances();
+  const { getPaymentHistory, createPaymentHistory, updatePaymentHistory } = useSalesActivityPayments();
   const { createIncomeTransaction } = useIncomeTransactions();
   const { user } = useCurrentUser();
   const { organizationId } = useCurrentOrg();
@@ -208,7 +234,7 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
   // Calculate remaining amount (current total - current payment input)
   const getRemainingAmount = () => {
     const currentTotal = getCurrentTotalAmount();
-    const currentPayment = parseFloat(newPayment.payment_amount) || 0;
+    const currentPayment = parsePaymentAmountThousands(newPayment.payment_amount);
     return Math.max(0, currentTotal - currentPayment);
   };
 
@@ -224,7 +250,8 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
   };
 
   const handleAddPayment = async () => {
-    if (!newPayment.payment_amount || !newPayment.payment_method) {
+    const paymentAmountNum = parsePaymentAmountThousands(newPayment.payment_amount);
+    if (paymentAmountNum <= 0 || !newPayment.payment_method) {
       toast({
         title: "Error",
         description: "Please fill in required fields",
@@ -266,9 +293,9 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
       const nextSequence = (existingPayments?.length || 0) + 1;
       
       // Create payment history
-      await createPaymentHistory({
+      const insertedPayment = await createPaymentHistory({
         sales_activity_id: salesActivityId,
-        payment_amount: parseFloat(newPayment.payment_amount),
+        payment_amount: paymentAmountNum,
         payment_date: newPayment.payment_date,
         payment_method: newPayment.payment_method,
         payment_type: getPaymentType(), // Use auto-determined type
@@ -279,30 +306,45 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
         notes: newPayment.notes || null,
       });
 
-      // Create income transaction separately if clientName is provided
-      if (clientName && createIncomeTransaction) {
+      // Create income transaction when client name exists (useIncomeTransactions from sales.ts returns mutateAsync as this fn — do not call .mutateAsync on it).
+      const trimmedClient = (clientName ?? '').trim();
+      let incomePostError: string | null = null;
+      if (trimmedClient && createIncomeTransaction) {
         try {
-          await createIncomeTransaction.mutateAsync({
+          await createIncomeTransaction({
             transaction_date: newPayment.payment_date,
-            amount: parseFloat(newPayment.payment_amount),
-            customer_name: clientName,
+            amount: paymentAmountNum,
+            customer_name: trimmedClient,
             payment_method: newPayment.payment_method === 'transfer' ? 'bank_transfer' : newPayment.payment_method,
             income_type_id: salesActivity?.income_type_id,
             category_id: salesActivity?.income_category_id,
             service_id: salesActivity?.service_id,
             sub_service_id: salesActivity?.sub_service_id,
-            description: `${getPaymentType().replace('_', ' ')} - ${salesActivity?.activity_type || 'Sales Activity'}: ${clientName}`,
+            description: `${getPaymentType().replace('_', ' ')} - ${salesActivity?.activity_type || 'Sales Activity'}: ${trimmedClient}`,
             receipt_url: invoiceUrl || newPayment.receipt_url || undefined,
+            sales_activity_payment_id: insertedPayment?.id,
           });
-        } catch (incomeError) {
+        } catch (incomeError: unknown) {
           console.error('Error creating income transaction:', incomeError);
-          // Don't fail the whole operation if income transaction fails
+          const msg =
+            typeof incomeError === 'object' &&
+            incomeError !== null &&
+            'message' in incomeError &&
+            typeof (incomeError as { message?: unknown }).message === 'string'
+              ? (incomeError as { message: string }).message
+              : 'Unknown error';
+          incomePostError = msg;
         }
       }
 
       toast({
-        title: "Success",
-        description: "Payment and income transaction added successfully",
+        title: incomePostError ? 'Payment saved' : 'Success',
+        description: incomePostError
+          ? `Payment was saved, but the income entry failed: ${incomePostError}`
+          : trimmedClient
+            ? 'Payment and income transaction added successfully'
+            : 'Payment recorded successfully',
+        variant: incomePostError ? 'destructive' : 'default',
       });
 
       // Reset form
@@ -353,20 +395,157 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
   };
 
   const handleEditPayment = (payment: any) => {
-    // TODO: Implement edit payment functionality
-    toast({
-      title: "Coming Soon",
-      description: "Edit payment functionality will be available soon",
+    setEditingPayment(payment);
+    const amt = Number(payment?.payment_amount ?? 0);
+    setEditForm({
+      payment_amount: formatPaymentAmountThousands(String(Math.round(amt))),
+      payment_date: typeof payment?.payment_date === 'string' ? payment.payment_date.slice(0, 10) : '',
+      payment_method: payment?.payment_method ?? '',
+      notes: payment?.notes ?? '',
     });
+    setEditReceiptFile(null);
   };
 
-  const handleDeletePayment = (payment: any) => {
-    // TODO: Implement delete payment functionality  
-    toast({
-      title: "Coming Soon",
-      description: "Delete payment functionality will be available soon",
-      variant: "destructive",
-    });
+  const handleCancelEdit = () => {
+    setEditingPayment(null);
+    setEditReceiptFile(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!organizationId || !editingPayment?.id) {
+      toast({ title: 'Error', description: 'Missing organization or payment.', variant: 'destructive' });
+      return;
+    }
+    const amt = parsePaymentAmountThousands(editForm.payment_amount);
+    if (amt <= 0 || !editForm.payment_method) {
+      toast({
+        title: 'Error',
+        description: 'Please fill in amount and payment method.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      let receiptPath: string | null = (editingPayment.receipt_url as string | null) ?? null;
+      if (editReceiptFile) {
+        const fileExt = editReceiptFile.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `${user?.id}/${fileName}`;
+        const { error: uploadError } = await supabase.storage.from('income-receipts').upload(filePath, editReceiptFile);
+        if (uploadError) {
+          toast({ title: 'Error', description: 'Failed to upload receipt', variant: 'destructive' });
+          return;
+        }
+        receiptPath = filePath;
+      }
+
+      await updatePaymentHistory(
+        editingPayment.id,
+        {
+          payment_amount: amt,
+          payment_date: editForm.payment_date,
+          payment_method: editForm.payment_method,
+          notes: editForm.notes || null,
+          receipt_url: receiptPath,
+        },
+        organizationId,
+      );
+
+      await updateIncomeFromSalesPayment({
+        supabase,
+        organizationId,
+        salesActivityPaymentId: editingPayment.id,
+        patch: {
+          amount: amt,
+          transaction_date: editForm.payment_date,
+          payment_method:
+            editForm.payment_method === 'transfer' ? 'bank_transfer' : editForm.payment_method,
+          description: `${String(editingPayment.payment_type ?? 'partial_payment').replace('_', ' ')} - ${salesActivity?.activity_type || 'Sales Activity'}: ${(clientName ?? '').trim()}`,
+          receipt_file_path: receiptPath ?? undefined,
+        },
+        updateBalance,
+      });
+
+      await refetchIncomeModuleQueries(queryClient, organizationId);
+      await queryClient.invalidateQueries({ queryKey: ['sales-activity-payments'] });
+      toast({ title: 'Success', description: 'Payment updated.' });
+      handleCancelEdit();
+      await loadData();
+    } catch (error) {
+      console.error('Error saving payment edit:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update payment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePayment = async (payment: { id?: string; payment_amount?: number }) => {
+    if (viewOnly) return;
+    const paymentId = payment?.id;
+    if (!paymentId) {
+      toast({
+        title: 'Error',
+        description: 'Invalid payment record.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!organizationId) {
+      toast({
+        title: 'Error',
+        description: 'Organization is required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const amt = payment.payment_amount ?? 0;
+    if (
+      !window.confirm(
+        `Delete this payment (${formatCurrency(amt)})? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await deleteSalesActivityPaymentWithLinkedIncome({
+        supabase,
+        organizationId,
+        paymentId,
+        updateBalance,
+      });
+      await refetchIncomeModuleQueries(queryClient, organizationId);
+      await queryClient.invalidateQueries({ queryKey: ['sales-activity-payments'] });
+      toast({
+        title: 'Success',
+        description: 'Payment removed.',
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Error deleting payment:', err);
+      const raw = String((err as Error)?.message ?? '').toUpperCase();
+      const fkBlocked =
+        raw.includes('INCOME_HAS_ALLOCATIONS') ||
+        raw.includes('INCOME_ALLOCATIONS') ||
+        (raw.includes('VIOLATES FOREIGN KEY') && raw.includes('INCOME'));
+      toast({
+        title: 'Error',
+        description: fkBlocked
+          ? 'Pendapatan terkait masih dialokasikan ke pengeluaran/hutang. Hapus alokasi tersebut dulu, lalu coba lagi.'
+          : 'Gagal menghapus pembayaran.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getPaymentStatusColor = (payment: any) => {
@@ -492,9 +671,16 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
                   <Label htmlFor="amount" className="text-xs">Payment Amount *</Label>
                   <Input
                     id="amount"
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
                     value={newPayment.payment_amount}
-                    onChange={(e) => setNewPayment(prev => ({ ...prev, payment_amount: e.target.value }))}
+                    onChange={(e) =>
+                      setNewPayment((prev) => ({
+                        ...prev,
+                        payment_amount: formatPaymentAmountThousands(e.target.value),
+                      }))
+                    }
                     className="text-xs h-8"
                     placeholder="0"
                   />
@@ -592,6 +778,104 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
             </div>
           )}
 
+          {editingPayment && (
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-sm font-medium text-slate-800">Edit payment</h4>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={handleCancelEdit}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="edit-amount" className="text-xs">
+                    Amount *
+                  </Label>
+                  <Input
+                    id="edit-amount"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={editForm.payment_amount}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        payment_amount: formatPaymentAmountThousands(e.target.value),
+                      }))
+                    }
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-date" className="text-xs">
+                    Date *
+                  </Label>
+                  <Input
+                    id="edit-date"
+                    type="date"
+                    value={editForm.payment_date}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, payment_date: e.target.value }))}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="edit-method" className="text-xs">
+                    Method *
+                  </Label>
+                  <Select
+                    value={editForm.payment_method}
+                    onValueChange={(value) => setEditForm((prev) => ({ ...prev, payment_method: value }))}
+                  >
+                    <SelectTrigger id="edit-method" className="h-8 text-xs">
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="credit_card">Credit Card</SelectItem>
+                      <SelectItem value="debit_card">Debit Card</SelectItem>
+                      <SelectItem value="check">Check</SelectItem>
+                      <SelectItem value="digital_wallet">Digital Wallet</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="edit-receipt" className="text-xs">
+                    Replace receipt (optional)
+                  </Label>
+                  <Input
+                    id="edit-receipt"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setEditReceiptFile(e.target.files?.[0] || null)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="edit-notes" className="text-xs">
+                    Notes
+                  </Label>
+                  <Textarea
+                    id="edit-notes"
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    className="text-xs resize-none"
+                    rows={2}
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+                <Button size="sm" className="h-7 text-xs" disabled={loading} onClick={() => void handleSaveEdit()}>
+                  {loading ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Payment History Table */}
           <div className="min-h-[200px] border border-slate-200 rounded-lg">
             {loading ? (
@@ -667,17 +951,21 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
                                 <FileText className="h-4 w-4 mr-2" />
                                 Generate Invoice
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => handleDeletePayment(payment)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
+                              {!viewOnly && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => void handleDeletePayment(payment)}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>

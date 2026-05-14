@@ -66,6 +66,7 @@ export default defineConfig(({ mode }) => {
         "placeholder.svg",
         "brand/synckerja-logo.png",
         "brand/synckerja-logo.svg",
+        "brand/synckerja-mark.svg",
       ],
       manifest: {
         name: "Synckerja Office",
