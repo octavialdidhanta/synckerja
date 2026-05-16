@@ -46,6 +46,7 @@ import { SectionCompletedObjectives } from './CompanyObjectivesDetailViewImport/
 import { ModalAddIndividualContribution } from '../../modal/ModalAddIndividualContribution';
 import { ModalAddDepartmentContribution } from '../../modal/ModalAddDepartmentContribution';
 import { AddObjectiveDialog } from '../../../AddObjectiveDialog';
+import { CompanyObjectivesEmptyState } from './CompanyObjectivesEmptyState';
 interface CompanyObjectivesViewProps {
   organizationId: string;
   cycleId?: string;
@@ -214,11 +215,14 @@ export const CompanyObjectivesDetailView = ({
     isLoading: loadingObjectives,
     error: companyObjectivesQueryError,
   } = shouldUseFilteredObjectives ? filteredObjectivesQuery : singleObjectivesQuery;
+  const companyObjectivesReady = !loadingObjectives && !isLoadingCycles;
+  const loadRelatedObjectives = companyObjectivesReady && companyObjectives.length > 0;
+
   const {
     departments = [],
     isLoading: loadingDepartments,
     error: departmentsQueryError,
-  } = useDepartments(organizationId);
+  } = useDepartments(loadRelatedObjectives ? organizationId : undefined);
   const {
     user: currentUser
   } = useCurrentUser();
@@ -231,22 +235,22 @@ export const CompanyObjectivesDetailView = ({
     data: departmentObjectives = [],
     isLoading: loadingDepartmentObjectives,
     error: departmentObjectivesQueryError,
-  } = useDepartmentObjectives(organizationId, filteredCycleIds, true); // Include individual objectives
+  } = useDepartmentObjectives(organizationId, filteredCycleIds, true, loadRelatedObjectives);
 
   // Fetch individual objectives from individual_objectives table - use filtered cycle IDs
   const {
     data: individualObjectives = [],
     isLoading: loadingIndividualObjectives,
     error: individualObjectivesQueryError,
-  } = useIndividualObjectives(organizationId, filteredCycleIds);
+  } = useIndividualObjectives(organizationId, filteredCycleIds, loadRelatedObjectives);
   const allObjectives: any[] = [];
   const loadingAllObjectives = loadingDepartmentObjectives || loadingIndividualObjectives;
 
+  const companyShellLoading = isLoadingCycles || loadingObjectives;
   const companyTabLoading =
-    isLoadingCycles ||
-    loadingObjectives ||
-    loadingDepartments ||
-    loadingAllObjectives;
+    companyShellLoading ||
+    (loadRelatedObjectives &&
+      (loadingDepartments || loadingDepartmentObjectives || loadingIndividualObjectives));
   const companyTabError =
     (companyObjectivesQueryError as Error | null | undefined) ||
     (departmentsQueryError as Error | null | undefined) ||
@@ -259,7 +263,8 @@ export const CompanyObjectivesDetailView = ({
       : companyTabError
         ? new Error(String(companyTabError))
         : null;
-  useReportOkrTabStatus('company', companyTabLoading, companyTabErr);
+  /** Home: jangan tahan overlay/skeleton penuh — hanya laporkan error. */
+  useReportOkrTabStatus('company', false, companyTabErr);
   useReportOkrPageDetail('company', companyTabLoading, companyTabErr);
 
   // Helper function to get department name
@@ -417,24 +422,12 @@ export const CompanyObjectivesDetailView = ({
       type: 'company'
     });
   };
-  if (companyTabLoading) {
-    return null;
-  }
-  if (companyObjectives.length === 0) {
+  if (companyShellLoading || companyObjectives.length === 0) {
     return (
-      <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-lg bg-gray-50 p-6 text-center dark:bg-muted/30">
-        <div className="mb-4 flex justify-center">
-          <Target className="h-8 w-8 text-gray-400 dark:text-muted-foreground" />
-        </div>
-        <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-foreground">No Company Objectives Found</h3>
-        <p className="mb-6 max-w-md text-center text-sm text-gray-600 dark:text-muted-foreground">
-          Create company objectives to align your organization&apos;s strategic goals.
-        </p>
-        <Button onClick={() => setShowCreateDialog(true)} size="sm" className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Objective
-        </Button>
-      </div>
+      <CompanyObjectivesEmptyState
+        pending={companyShellLoading}
+        onAddClick={companyShellLoading ? undefined : () => setShowCreateDialog(true)}
+      />
     );
   }
 

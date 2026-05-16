@@ -88,7 +88,11 @@ export const useUnifiedProfile = () => {
       }
 
       const detailsData = detailsResult.data;
-      const photoUrl = detailsData?.profile_photo_url || employeeResult.data?.profile_photo_url || null;
+      const photoUrl =
+        profileData?.profile_photo_url ||
+        detailsData?.profile_photo_url ||
+        employeeResult.data?.profile_photo_url ||
+        null;
 
       const profileDetails: ProfileDetails = {
         phone: detailsData?.phone || undefined,

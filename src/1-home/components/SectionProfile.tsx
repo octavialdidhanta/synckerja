@@ -13,6 +13,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from 'date-fns';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 
 export const SectionProfile = () => {
   const { t, dateFnsLocale } = useAppTranslation();
@@ -107,7 +108,26 @@ export const SectionProfile = () => {
   };
 
   if (profileSectionLoading) {
-    return null;
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-2" aria-hidden>
+        <div className="flex-shrink-0 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <div className="mb-4 flex items-center space-x-3">
+            <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-full" />
+          </div>
+        </div>
+        <Skeleton className="min-h-[12rem] flex-1 rounded-lg" />
+      </div>
+    );
   }
 
   if (profileSectionError) {

@@ -11,6 +11,78 @@ const corsHeaders: Record<string, string> = {
 
 const META_API_BASE = "https://graph.facebook.com/v18.0";
 
+async function markWhatsappConversationExpiredReactive(
+  admin: ReturnType<typeof createClient>,
+  conversationId: string,
+  orgIdHint: string | null,
+): Promise<void> {
+  const { data: conv } = await admin
+    .from("whatsapp_conversations")
+    .select("organization_id, lead_status_id")
+    .eq("id", conversationId)
+    .maybeSingle();
+  const orgId = (conv?.organization_id as string | undefined) ?? orgIdHint;
+  if (!orgId) return;
+
+  let expiredId: string | null = null;
+  const { data: orgExpired } = await admin
+    .from("lead_statuses")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("name", "Expired")
+    .maybeSingle();
+  expiredId = (orgExpired?.id as string | undefined) ?? null;
+  if (!expiredId) {
+    const { data: g } = await admin
+      .from("lead_statuses")
+      .select("id")
+      .is("organization_id", null)
+      .eq("name", "Expired")
+      .maybeSingle();
+    expiredId = (g?.id as string | undefined) ?? null;
+  }
+  if (!expiredId) return;
+
+  let statusName = "";
+  let oldStatusLabel: string | null = null;
+  if (conv?.lead_status_id) {
+    const { data: stRow } = await admin
+      .from("lead_statuses")
+      .select("name")
+      .eq("id", conv.lead_status_id as string)
+      .maybeSingle();
+    oldStatusLabel = (stRow?.name as string) ?? null;
+    statusName = (oldStatusLabel ?? "").trim().toLowerCase();
+  }
+  if (["closed", "resolve", "lost", "converted", "expired"].includes(statusName)) return;
+
+  const nowIso = new Date().toISOString();
+  await admin
+    .from("whatsapp_conversations")
+    .update({ lead_status_id: expiredId, meta_session_expires_at: nowIso, updated_at: nowIso })
+    .eq("id", conversationId);
+
+  await admin.from("whatsapp_conversation_status_history").insert({
+    conversation_id: conversationId,
+    old_status: oldStatusLabel,
+    new_status: "Expired",
+    changed_at: nowIso,
+    changed_by: null,
+    changed_by_name: "Meta",
+    organization_id: orgId,
+  });
+}
+
+function parseWabaExpirationUnixSeconds(meta: Record<string, unknown>): number | null {
+  const messages = meta.messages as unknown[] | undefined;
+  const first = messages?.[0] as Record<string, unknown> | undefined;
+  const conv = first?.conversation as { expiration_timestamp?: string | number } | undefined;
+  const raw = conv?.expiration_timestamp;
+  if (raw == null) return null;
+  const n = typeof raw === "string" ? Number.parseInt(raw, 10) : Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -200,7 +272,7 @@ Deno.serve(async (req: Request) => {
     if (conversationId) {
       const { data: convRow } = await supabaseAdmin
         .from("whatsapp_conversations")
-        .select("lead_status_id, last_inbound_at, created_at")
+        .select("lead_status_id, meta_session_expires_at, organization_id")
         .eq("id", conversationId)
         .maybeSingle();
       const leadStatusId = convRow?.lead_status_id ?? null;
@@ -210,8 +282,8 @@ Deno.serve(async (req: Request) => {
           .select("name")
           .eq("id", leadStatusId)
           .maybeSingle();
-        const statusName = (statusRow?.name as string) ?? "";
-        if (statusName.trim().toLowerCase() === "closed") {
+        const statusName = ((statusRow?.name as string) ?? "").trim().toLowerCase();
+        if (statusName === "closed" || statusName === "resolve") {
           return new Response(
             JSON.stringify({
               error:
@@ -221,19 +293,30 @@ Deno.serve(async (req: Request) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+        if (statusName === "expired") {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.",
+              code: "CONVERSATION_EXPIRED",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
-      const lastInboundAt = convRow?.last_inbound_at != null ? new Date(convRow.last_inbound_at as string).getTime() : NaN;
-      const createdAt = convRow?.created_at != null ? new Date(convRow.created_at as string).getTime() : NaN;
-      const effectiveMs = Number.isNaN(lastInboundAt) ? createdAt : lastInboundAt;
-      if (!Number.isNaN(effectiveMs) && Date.now() - effectiveMs > 24 * 60 * 60 * 1000) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Pesan terakhir dari customer sudah lewat 24 jam. Kirim pesan tidak diizinkan sampai customer mengirim pesan lagi.",
-            code: "OUTSIDE_24H_WINDOW",
-          }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      const metaExp = convRow?.meta_session_expires_at;
+      if (metaExp != null && String(metaExp).trim() !== "") {
+        const expMs = new Date(String(metaExp)).getTime();
+        if (!Number.isNaN(expMs) && Date.now() > expMs) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.",
+              code: "CONVERSATION_EXPIRED",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
@@ -274,6 +357,14 @@ Deno.serve(async (req: Request) => {
       const subcode = metaError?.error_subcode;
       console.error("Meta API error:", metaRes.status, metaData);
 
+      const looksLikeSessionExpired =
+        Number(code) === 131047 ||
+        Number(code) === 131026 ||
+        /re-engagement|24 hours|outside the window|session has expired|outside of allowed window/i.test(String(metaMsg));
+      if (conversationId && looksLikeSessionExpired) {
+        await markWhatsappConversationExpiredReactive(supabaseAdmin, conversationId, resolvedOrgId);
+      }
+
       // Meta code 100 + subcode 33 = object doesn't exist / missing permissions / unsupported operation
       // Sering terjadi jika ID yang dipakai adalah Instagram Business Account ID / Page ID, bukan WhatsApp Phone Number ID
       const userHint =
@@ -294,6 +385,25 @@ Deno.serve(async (req: Request) => {
     const waMessageId = metaData.messages?.[0]?.id ?? null;
 
     if (conversationId) {
+      const expSec = parseWabaExpirationUnixSeconds(metaData as Record<string, unknown>);
+      if (expSec != null) {
+        const expIso = new Date(expSec * 1000).toISOString();
+        const { data: prevRow } = await supabaseAdmin
+          .from("whatsapp_conversations")
+          .select("meta_session_expires_at")
+          .eq("id", conversationId)
+          .maybeSingle();
+        const prev = prevRow?.meta_session_expires_at;
+        const prevMs = prev != null && String(prev).trim() !== "" ? new Date(String(prev)).getTime() : NaN;
+        const useNew = Number.isNaN(prevMs) || prevMs < expSec * 1000;
+        if (useNew) {
+          await supabaseAdmin
+            .from("whatsapp_conversations")
+            .update({ meta_session_expires_at: expIso, updated_at: new Date().toISOString() })
+            .eq("id", conversationId);
+        }
+      }
+
       const storedBody = hasMedia ? (caption || `[${mediaType}]`) : text;
       const lastBody = storedBody.slice(0, 200);
       const now = new Date().toISOString();

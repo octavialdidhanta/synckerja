@@ -9,7 +9,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentUserEmployee } from '@/1-home/components/HomeOKRDashboard/component/SectionGreetingsImport/useCurrentUserEmployee';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
-import { isOutside24hWindow, isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
+import { isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
 import { emptyAttributionFlat, parseAttributionFields } from '@/shared/lib/leadAttribution';
 
 // Types
@@ -1389,7 +1389,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       // 2) Fetch leads from whatsapp_conversations (same org; includes channel: whatsapp | instagram) and map to lead-like rows
       const { data: whatsappConvs, error: whatsappError } = await supabase
         .from('whatsapp_conversations')
-        .select('id, organization_id, customer_wa_id, customer_name, channel, last_message_at, last_message_body, last_opened_at, lead_status_id, last_inbound_at, followup, fu_priority, assignee_id, created_at, updated_at, ticket_id')
+        .select('id, organization_id, customer_wa_id, customer_name, channel, last_message_at, last_message_body, last_opened_at, lead_status_id, last_inbound_at, followup, fu_priority, assignee_id, created_at, updated_at, ticket_id, meta_session_expires_at')
         .eq('organization_id', organizationId)
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
@@ -1429,27 +1429,16 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         }
       }
 
-      // Resolved status (Closed/Resolve) for effective status when chat >24h — same as Quick Action
-      let resolvedStatusObj: { id: string; name: string; color: string } | null = null;
-      for (const [, s] of statusMap) {
-        if (isResolvedStatus(s.name)) {
-          resolvedStatusObj = s;
-          break;
-        }
-      }
-
-      // Sync status and assignee from WhatsApp/Instagram conversation when lead has matching ticket_id (table utama = quick action)
-      // Apply effective status: if last inbound >24h ago, show Resolve (same as Quick Action) so list stays in sync
+      // Sync status and assignee from WhatsApp/Instagram conversation when lead has matching ticket_id (DB truth; Meta expiry via lead_status Expired + meta_session_expires_at).
       if (whatsappConvs && whatsappConvs.length > 0) {
-        const convByTicketId = new Map<string, { lead_status_id: string | null; assignee_id: string | null; last_inbound_at: string | null; created_at: string | null }>();
+        const convByTicketId = new Map<string, { lead_status_id: string | null; assignee_id: string | null; meta_session_expires_at: string | null }>();
         whatsappConvs.forEach((c: any) => {
           const isInstagram = (c.channel ?? '').toLowerCase() === 'instagram';
           const waTicketId = c.ticket_id ?? ((isInstagram ? 'IG-' : 'WA-') + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
           convByTicketId.set(normTicket(waTicketId), {
             lead_status_id: c.lead_status_id ?? null,
             assignee_id: c.assignee_id ?? null,
-            last_inbound_at: c.last_inbound_at ?? null,
-            created_at: c.created_at ?? null,
+            meta_session_expires_at: c.meta_session_expires_at ?? null,
           });
         });
         leadsWithStatus = leadsWithStatus.map((lead: any) => {
@@ -1457,16 +1446,15 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           if (!key) return lead;
           const conv = convByTicketId.get(key);
           if (!conv) return lead;
-          const outside24h = isOutside24hWindow(conv.last_inbound_at, conv.created_at);
-          const useResolved = outside24h && resolvedStatusObj;
-          const status = useResolved ? resolvedStatusObj : (conv.lead_status_id ? statusMap.get(normId(conv.lead_status_id)) ?? null : null);
-          const statusId = useResolved ? resolvedStatusObj!.id : (conv.lead_status_id ?? lead.status_id);
+          const statusId = conv.lead_status_id ?? lead.status_id;
+          const status = conv.lead_status_id ? statusMap.get(normId(conv.lead_status_id)) ?? null : null;
           return {
             ...lead,
             status_id: statusId,
             lead_status: status || lead.lead_status,
             assignee_id: conv.assignee_id ?? lead.assignee_id,
             assignee: conv.assignee_id != null ? (assigneeNameMap.get(normId(conv.assignee_id)) ?? lead.assignee) : lead.assignee,
+            meta_session_expires_at: conv.meta_session_expires_at ?? (lead as { meta_session_expires_at?: string | null }).meta_session_expires_at ?? null,
           };
         });
       }
@@ -1510,10 +1498,8 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           return !ticketIdsInLeadsTable.has(normTicket(waTicketId));
         });
         const whatsappAsLeads = waConvsWithoutLead.map((c: any) => {
-          const outside24h = isOutside24hWindow(c.last_inbound_at ?? null, c.created_at ?? null);
-          const useResolved = outside24h && resolvedStatusObj;
-          const statusId = useResolved ? resolvedStatusObj!.id : (c.lead_status_id ?? '');
-          const leadStatus = useResolved ? resolvedStatusObj : (statusId ? statusMap.get(normId(statusId)) ?? null : null);
+          const statusId = c.lead_status_id ?? '';
+          const leadStatus = statusId ? statusMap.get(normId(statusId)) ?? null : null;
           const isInstagram = (c.channel ?? '').toLowerCase() === 'instagram';
           const sourceLabel = isInstagram ? 'Instagram' : 'WhatsApp';
           const channelKey = isInstagram ? 'instagram' : 'whatsapp';
@@ -1542,6 +1528,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             organization_id: c.organization_id,
             ticket_id: waTicketId,
             lead_status: leadStatus,
+            meta_session_expires_at: c.meta_session_expires_at ?? null,
             _fromWhatsApp: true as const,
             _chatOpenedAt: c.last_opened_at ?? null,
             _customerWaId: (c.customer_wa_id ?? '') as string,

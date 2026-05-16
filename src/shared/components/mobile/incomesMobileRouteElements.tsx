@@ -5,6 +5,7 @@ import { IncomeTransactionSkeleton } from "@/4-1-transaction/components/IncomeTr
 import { IncomePiutangPageSkeleton } from "@/4-1-transaction/piutang";
 import { MobileIncomeDashboardShellSkeleton } from "@/mobile/3-dashboard/pages/MobileIncomeDashboardViewportSkeleton";
 import { MobileIncomeTransactionShellSkeleton } from "@/mobile/3-incomes/pages/MobileIncomeTransactionViewportSkeleton";
+import { MobileIncomePiutangShellSkeleton } from "@/mobile/3-incomes/pages/MobileIncomePiutangViewportSkeleton";
 import { MobileBankAccountShellSkeleton } from "@/mobile/3-bank-account/pages/MobileBankAccountViewportSkeleton";
 
 const IncomeDashboardPage = lazy(() => import("@/4-1-dashboard/pages/IncomeDashboardPage"));
@@ -76,13 +77,7 @@ export function IncomePiutangRouteElement() {
     );
   }
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <MobileIncomeTransactionShellSkeleton />
-        </div>
-      }
-    >
+    <Suspense fallback={<MobileIncomePiutangShellSkeleton />}>
       <MobileIncomePiutangPage />
     </Suspense>
   );

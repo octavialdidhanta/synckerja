@@ -168,10 +168,18 @@ function statusToDisplay(meta: MetaMessageTemplate): { label: string; topBlock: 
   return { label: s || "In review", topBlock: rejected || null };
 }
 
+/** Meta sample / system templates excluded from CRM lists and pickers. */
+const HIDDEN_META_TEMPLATE_NAMES = new Set(["hello_world"]);
+
+export function isHiddenMetaTemplateName(name: string): boolean {
+  return HIDDEN_META_TEMPLATE_NAMES.has(name.trim().toLowerCase());
+}
+
 export function mapMetaTemplateToRow(meta: MetaMessageTemplate): TemplateTableRow | null {
   const id = meta.id != null ? String(meta.id) : "";
   const name = (meta.name ?? "").trim();
   if (!id || !name) return null;
+  if (isHiddenMetaTemplateName(name)) return null;
 
   const bodyFull = extractBodyFull(meta.components);
   const bodyPreview = extractBodyPreviewSnippet(bodyFull);

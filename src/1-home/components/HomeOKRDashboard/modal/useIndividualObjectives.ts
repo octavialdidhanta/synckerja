@@ -44,7 +44,11 @@ interface CreateIndividualObjectiveData {
   created_by: string;
 }
 
-export const useIndividualObjectives = (organizationId?: string, cycleIds?: string[]) => {
+export const useIndividualObjectives = (
+  organizationId?: string,
+  cycleIds?: string[],
+  queryEnabled: boolean = true,
+) => {
   const queryClient = useQueryClient();
 
   // Urutan hook: useQueryClient → useEffect → useQuery (jangan sisipkan useRef di sini — merusak HMR & urutan hook di induk).
@@ -130,7 +134,7 @@ export const useIndividualObjectives = (organizationId?: string, cycleIds?: stri
       }
       return data || [];
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && queryEnabled,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });

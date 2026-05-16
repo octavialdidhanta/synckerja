@@ -1,4 +1,4 @@
-﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -67,7 +67,12 @@ interface CreateDepartmentObjectiveWithKeyResults extends CreateDepartmentObject
   }>;
 }
 
-export const useDepartmentObjectives = (organizationId?: string, cycleIds?: string[], includeIndividualObjectives: boolean = false) => {
+export const useDepartmentObjectives = (
+  organizationId?: string,
+  cycleIds?: string[],
+  includeIndividualObjectives: boolean = false,
+  queryEnabled: boolean = true,
+) => {
   const queryClient = useQueryClient();
   const subscriptionRef = useRef<any>(null);
   const isOKRSectionVisible = useOKRSectionVisibility();
@@ -142,7 +147,7 @@ export const useDepartmentObjectives = (organizationId?: string, cycleIds?: stri
         includeIndividualObjectives
       );
     },
-    enabled: !!organizationId && isOKRSectionVisible,
+    enabled: !!organizationId && isOKRSectionVisible && queryEnabled,
     staleTime: 120 * 1000, // 120 seconds - increased cache time to reduce refetch frequency
     refetchOnMount: false, // Don't refetch on mount if data is fresh
     refetchOnWindowFocus: false, // Don't refetch on window focus (global cache handles this)

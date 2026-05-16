@@ -12,6 +12,8 @@ import { generateLeadsPDF } from "@/5-3-dashboard/lib/LeadsPDFGenerator";
 import { NewLead } from '@/shared/types/leads';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { distinctLeadAttributionValues } from '@/shared/lib/leadAttribution';
+import { cn } from '@/shared/lib/utils';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 export interface LeadsFilters {
   dataCompleteness: 'all' | 'full' | 'partial' | 'empty';
@@ -31,13 +33,24 @@ export interface LeadsFilters {
   utmTerm: string;
   attributionLabel: string;
   landingUrlContains: string;
+  /** Recipient picker / server RPC: exact latest survey rating 1–5, or all. */
+  surveyRating: "all" | "none" | "1" | "2" | "3" | "4" | "5";
 }
 
 interface LeadsFiltersProps {
-  onNewLeadClick: () => void;
+  onNewLeadClick?: () => void;
   onFiltersChange: (filters: LeadsFilters) => void;
   filteredLeads?: NewLead[];
   filters?: LeadsFilters;
+  /** Recipient picker: hide New lead / PDF / status management. Second filter row optional via embeddedSingleRow. */
+  variant?: "default" | "embedded";
+  /**
+   * When variant=embedded and true: one toolbar row only (no attribution label / landing URL row;
+   * use table column filters instead).
+   */
+  embeddedSingleRow?: boolean;
+  /** When variant=embedded: options for attribution label dropdown (server distincts). */
+  embeddedAttributionLabelOptions?: string[];
   /**
    * Jika diset, tampilkan bar kedua (attribution label + landing URL contains).
    * Dipakai pada layout report tanpa `LeadsTableNew`; di view utama filter ada di header kolom.
@@ -51,7 +64,11 @@ export const LeadsFilters = ({
   filteredLeads = [],
   filters: externalFilters,
   attributionBarLeads,
+  variant = "default",
+  embeddedSingleRow = false,
+  embeddedAttributionLabelOptions = [],
 }: LeadsFiltersProps) => {
+  const { t } = useAppTranslation();
   const { services, filtersLoadError } = useLeadsManagementFilterQueries();
   const { toast } = useToast();
   const [statusManagementOpen, setStatusManagementOpen] = useState(false);
@@ -74,15 +91,24 @@ export const LeadsFilters = ({
     utmTerm: 'all',
     attributionLabel: 'all',
     landingUrlContains: '',
+    surveyRating: 'all',
   });
 
   const showAttributionLandingBar = attributionBarLeads != null;
+  const embeddedSecondRow = variant === "embedded" && !embeddedSingleRow;
   const attributionLabelOptions = useMemo(
     () =>
-      showAttributionLandingBar
-        ? distinctLeadAttributionValues(attributionBarLeads ?? [], "attribution_label")
-        : [],
-    [attributionBarLeads, showAttributionLandingBar],
+      embeddedSecondRow
+        ? embeddedAttributionLabelOptions
+        : showAttributionLandingBar
+          ? distinctLeadAttributionValues(attributionBarLeads ?? [], "attribution_label")
+          : [],
+    [
+      embeddedSecondRow,
+      embeddedAttributionLabelOptions,
+      attributionBarLeads,
+      showAttributionLandingBar,
+    ],
   );
 
   const updateFilters = (key: keyof LeadsFilters, value: string | DateRange | null) => {
@@ -110,6 +136,7 @@ export const LeadsFilters = ({
       utmTerm: 'all',
       attributionLabel: 'all',
       landingUrlContains: '',
+      surveyRating: 'all',
     };
     setFilters(clearedFilters);
     onFiltersChange(clearedFilters);
@@ -127,9 +154,21 @@ export const LeadsFilters = ({
         <div className="w-full text-xs text-amber-600 mb-1.5">{filtersLoadError}</div>
       )}
       <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap gap-1.5 items-center">
+      <div
+        className={cn(
+          "flex gap-1.5 items-center",
+          variant === "embedded" && embeddedSingleRow
+            ? "flex-nowrap overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            : "flex-wrap",
+        )}
+      >
         {/* Search Input */}
-        <div className="relative flex-1 min-w-[150px]">
+        <div
+          className={cn(
+            "relative min-w-[150px]",
+            variant === "embedded" && embeddedSingleRow ? "max-w-[min(24rem,45vw)] shrink-0" : "flex-1",
+          )}
+        >
           <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2 z-10" />
           <Input
             type="text"
@@ -141,7 +180,7 @@ export const LeadsFilters = ({
         </div>
 
         {/* Date Range Filter */}
-        <div className="min-w-[180px]">
+        <div className={cn("min-w-[180px]", variant === "embedded" && embeddedSingleRow && "shrink-0")}>
           <DateRangeFilter
             onDateRangeChange={(range) => updateFilters('dateRange', range)}
             className="h-9 text-sm"
@@ -150,7 +189,7 @@ export const LeadsFilters = ({
 
         {/* Data Completeness Filter */}
         <Select value={filters.dataCompleteness} onValueChange={(value) => updateFilters('dataCompleteness', value as LeadsFilters['dataCompleteness'])}>
-          <SelectTrigger className="w-full sm:w-36 lg:w-40 h-9 text-sm text-primary placeholder:text-muted-foreground text-left">
+          <SelectTrigger className={cn("w-full h-9 text-sm text-primary placeholder:text-muted-foreground text-left sm:w-36 lg:w-40 shrink-0")}>
             <SelectValue placeholder="Data Status" />
           </SelectTrigger>
           <SelectContent>
@@ -163,7 +202,7 @@ export const LeadsFilters = ({
 
         {/* Services Filter */}
         <Select value={filters.services} onValueChange={(value) => updateFilters('services', value)}>
-          <SelectTrigger className="w-full sm:w-36 lg:w-40 h-9 text-sm text-primary placeholder:text-muted-foreground text-left">
+          <SelectTrigger className={cn("w-full h-9 text-sm text-primary placeholder:text-muted-foreground text-left sm:w-36 lg:w-40 shrink-0")}>
             <SelectValue placeholder="Services" />
           </SelectTrigger>
           <SelectContent>
@@ -176,7 +215,28 @@ export const LeadsFilters = ({
           </SelectContent>
         </Select>
 
+        {variant === "embedded" ? (
+          <Select
+            value={filters.surveyRating}
+            onValueChange={(value) => updateFilters("surveyRating", value)}
+          >
+            <SelectTrigger className="h-9 w-[7.5rem] shrink-0 text-sm">
+              <SelectValue placeholder={t("leadsManagement.table.surveyRating", "Rating")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("leadsManagement.filters.allSurveyRatings", "All ratings")}</SelectItem>
+              <SelectItem value="none">{t("leadsManagement.filters.noSurveyRating", "No rating")}</SelectItem>
+              {(["1", "2", "3", "4", "5"] as const).map((n) => (
+                <SelectItem key={n} value={n}>
+                  {t("leadsManagement.filters.surveyRatingStars", "{{count}} star", { count: Number(n) })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+
         {/* FU Priority / Status: filter di header kolom tabel; tetap akses kelola status master */}
+        {variant !== "embedded" && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -194,17 +254,19 @@ export const LeadsFilters = ({
             <DropdownMenuItem onClick={() => setStatusManagementOpen(true)}>Manage Status</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
 
         {/* Clear Filters Button */}
         <button
           onClick={handleClear}
-          className="h-9 px-3 hover:bg-gray-100 rounded-md transition-colors border border-gray-300 flex items-center justify-center"
+          className="h-9 px-3 hover:bg-gray-100 rounded-md transition-colors border border-gray-300 flex items-center justify-center shrink-0"
           title="Clear all filters"
         >
           <RefreshCw className="w-4 h-4 text-gray-500" />
         </button>
 
         {/* Download PDF Button */}
+        {variant !== "embedded" && (
         <Button 
           onClick={async () => {
             setIsGeneratingPDF(true);
@@ -235,8 +297,10 @@ export const LeadsFilters = ({
             </>
           )}
         </Button>
+        )}
 
         {/* New Lead Button */}
+        {variant !== "embedded" && onNewLeadClick && (
         <Button 
           onClick={onNewLeadClick}
           className="h-9 px-3 text-sm"
@@ -244,9 +308,10 @@ export const LeadsFilters = ({
           <Plus className="h-4 w-4 mr-1" />
           New Lead
         </Button>
+        )}
       </div>
 
-      {showAttributionLandingBar && (
+      {showAttributionLandingBar || embeddedSecondRow ? (
         <div className="flex flex-wrap gap-1.5 items-center">
           <Select value={filters.attributionLabel} onValueChange={(value) => updateFilters('attributionLabel', value)}>
             <SelectTrigger className="h-9 w-full min-w-[7rem] max-w-[11rem] shrink-0 text-sm sm:w-40">
@@ -271,7 +336,7 @@ export const LeadsFilters = ({
             />
           </div>
         </div>
-      )}
+      ) : null}
       </div>
 
       <StatusManagement 

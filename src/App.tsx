@@ -1,5 +1,4 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { RequestFormPageSkeleton } from "@/9-request-form/components/RequestFormPageSkeleton";
 import { PageAccessGuard } from "@/shared/components/PageAccessGuard";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
@@ -20,77 +19,83 @@ import { NativeFcmRegistration } from "@/shared/native/NativeFcmRegistration";
 import { ShareIntentRouteSync } from "@/shared/native/ShareIntentRouteSync";
 import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
-import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
+import {
+  AccessPermissionsPageSkeleton,
+  AddEmployeePageSkeleton,
+  ApprovalsRouteLoadingShell,
+  AttendanceGuardLoadingShell,
+  CalculatorPageSkeleton,
+  ClientVisitsPageSkeleton,
+  CompanyAssetsGuardLoadingShell,
+  CompanyFilesGuardLoadingShell,
+  CompanyRouteSkeleton,
+  ConsultantCrmDashboardPageSkeleton,
+  ConsultantLeadsManagementRouteLoadingShell,
+  ConsultantLivechatRouteLoadingShell,
+  ContentCalendarPageSkeleton,
+  DailyTaskReportRouteLoadingShell,
+  DailyTaskRouteLoadingShell,
+  DebtRouteLoadingShell,
+  DefaultPricesPageSkeleton,
+  EmailConnectPageSkeleton,
+  EmployeesPageSkeleton,
+  ExpenseDashboardRouteLoadingShell,
+  HabitTrackerPageSkeleton,
+  IncomeBankAccountRouteLoadingShell,
+  IncomeDashboardRouteLoadingShell,
+  IncomePiutangRouteLoadingShell,
+  IncomeTransactionRouteLoadingShell,
+  InstagramConnectPageSkeleton,
+  KolManagementCampaignsPageSkeleton,
+  KolManagementContentPostPageSkeleton,
+  KolManagementDashboardPageSkeleton,
+  KolManagementKolManagementPageSkeleton,
+  KolManagementPaymentTermsPageSkeleton,
+  KolManagementRouteLoadingShell,
+  MeetingNotesRouteLoadingShell,
+  OkrRouteAccessLoadingShell,
+  OmnichannelSettingsPageSkeleton,
+  OrganizationGuardLoadingShell,
+  PasswordManagerPageSkeleton,
+  PaymentProcessRouteLoadingShell,
+  PayrollRouteSkeleton,
+  PPh21PageSkeleton,
+  PricingToolsPageSkeleton,
+  ProductKnowledgePageSkeleton,
+  PromoSimulationPageSkeleton,
+  RecruitmentRouteSkeleton,
+  ReminderBillsRouteLoadingShell,
+  RequestFormPageSkeleton,
+  SalesActivitiesPageSkeleton,
+  ScriptGeneratorPageSkeleton,
+  SocialMediaDashboardSkeleton,
+  SocialMediaSettingsPageSkeleton,
+  SocialMediaShellSkeleton,
+  TrafficPageSkeleton,
+  VisitSchedulingPageSkeleton,
+  WhatsAppConnectPageSkeleton,
+  WhatsAppTemplatePageSkeleton,
+} from "@/appLazySkeletons";
+import { DailyTaskProviderShell } from "@/shared/wrappers/DailyTaskProviderShell";
+import {
+  CustomerSurveyPublicFormPage,
+  CustomerSurveyPublicThanksPage,
+  SurveyPublicShell,
+} from "@/features/customer-survey/public/SurveyPublicRoutes";
 // Route elements are lazy-loaded below to keep the initial JS small.
 import {
   SubscriptionExpiryGuard,
   SubscriptionRoleGuard,
 } from "@/10-subscription";
+import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 import { AuthProvider } from "@/shared/auth/contexts/AuthContext";
 import { LanguageProvider } from "@/shared/i18n/LanguageProvider";
 import { CentralizedUserDataProvider } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { CurrentOrgProvider } from "@/shared/auth/contexts/CurrentOrgContext";
 import { PermissionConfigurationProvider } from "@/shared/auth/page-access/usePermissionConfiguration";
 import { HrManagementRoleGuard } from "@/shared/components/HrManagementRoleGuard";
-import { RecruitmentRouteSkeleton } from "@/2-2-recruitment-dashboard/components/RecruitmentSkeletons";
-import { AttendanceGuardLoadingShell } from "@/2-3-attendance/components/AttendanceSkeletons";
-import { PayrollRouteSkeleton } from "@/2-4-payroll/components/PayrollRouteSkeleton";
-import { OrganizationGuardLoadingShell } from "@/2-8-organization/components/OrganizationPageSkeleton";
-import {
-  CompanyAssetsGuardLoadingShell,
-  CompanyFilesGuardLoadingShell,
-} from "@/2-8-dashboard/skeletons/CompanyPageSkeletons";
-import { CompanyRouteSkeleton } from "@/2-8-dashboard/skeletons/CompanyRouteSkeleton";
-import { AccessPermissionsPageSkeleton } from "@/2-9-PageAccess/skeletons/AccessPermissionsPageSkeleton";
-import { EmployeesPageSkeleton } from "@/2-1-employees/components/EmployeesPageSkeleton";
-import { AddEmployeePageSkeleton } from "@/2-1-employees/add-employee/AddEmployeePageSkeleton";
-import { ExpenseDashboardRouteLoadingShell } from "@/shared/components/mobile/ExpenseDashboardRouteLoadingShell";
-import { IncomeBankAccountRouteLoadingShell } from "@/shared/components/mobile/IncomeBankAccountRouteLoadingShell";
-import { IncomeDashboardRouteLoadingShell } from "@/shared/components/mobile/IncomeDashboardRouteLoadingShell";
-import { IncomeTransactionRouteLoadingShell } from "@/shared/components/mobile/IncomeTransactionRouteLoadingShell";
-import { IncomePiutangRouteLoadingShell } from "@/shared/components/mobile/IncomePiutangRouteLoadingShell";
-import { DebtRouteLoadingShell } from "@/shared/components/mobile/DebtRouteLoadingShell";
-import { ApprovalsRouteLoadingShell } from "@/shared/components/mobile/ApprovalsRouteLoadingShell";
-import { PaymentProcessRouteLoadingShell } from "@/shared/components/mobile/PaymentProcessRouteLoadingShell";
-import { ReminderBillsRouteLoadingShell } from "@/shared/components/mobile/ReminderBillsRouteLoadingShell";
-import { DailyTaskRouteLoadingShell } from "@/shared/components/mobile/DailyTaskRouteLoadingShell";
-import { DailyTaskReportRouteLoadingShell } from "@/shared/components/mobile/DailyTaskReportRouteLoadingShell";
-import { HabitTrackerPageSkeleton } from "@/8-2-HabitTracker/skeletons/HabitTrackerPageSkeleton";
-import { MeetingNotesRouteLoadingShell } from "@/shared/components/mobile/MeetingNotesRouteLoadingShell";
-import { PasswordManagerPageSkeleton } from "@/8-PasswordManager/skeletons/PasswordManagerPageSkeleton";
-import { PPh21PageSkeleton } from "@/8-4-pph-21/skeletons/PPh21PageSkeleton";
-import { CalculatorPageSkeleton } from "@/8-3-calculator/skeletons/CalculatorPageSkeleton";
-import { PricingToolsPageSkeleton } from "@/8-2-pricing-tools/skeletons/PricingToolsPageSkeleton";
-import { PromoSimulationPageSkeleton } from "@/8-2-promo-simulation/skeletons/PromoSimulationPageSkeleton";
-import { DefaultPricesPageSkeleton } from "@/8-2-1-default-prices/skeletons/DefaultPricesPageSkeleton";
-import { DailyTaskProvider } from "@/8-2-DailyTask/context/DailyTaskContext";
-import { ConsultantLivechatRouteLoadingShell } from "@/shared/components/mobile/ConsultantLivechatRouteLoadingShell";
-import { ConsultantLeadsManagementRouteLoadingShell } from "@/shared/components/mobile/ConsultantLeadsManagementRouteLoadingShell";
-import { InstagramConnectPageSkeleton } from "@/5-3-whatsapp/skeletons/InstagramConnectPageSkeleton";
-import { ConsultantCrmDashboardPageSkeleton } from "@/5-3-dashboard/skeletons/ConsultantCrmDashboardPageSkeleton";
-import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
-import { OmnichannelSettingsPageSkeleton } from "@/5-3-dashboard/skeletons/OmnichannelSettingsPageSkeleton";
-import { EmailConnectPageSkeleton } from "@/5-3-whatsapp/pages/EmailConnectPageSkeleton";
-import { SalesActivitiesPageSkeleton } from "@/5-2-activities/skeletons/SalesActivitiesPageSkeleton";
-import { VisitSchedulingPageSkeleton } from "@/5-2-jadwal-kunjungan";
-import { ClientVisitsPageSkeleton } from "@/5-2-client_visits/skeletons/ClientVisitsPageSkeleton";
-import { WhatsAppConnectPageSkeleton } from "@/5-3-whatsapp/skeletons/WhatsAppConnectPageSkeleton";
-import { WhatsAppTemplatePageSkeleton } from "@/5-3-whatsapp-template/skeletons/WhatsAppTemplatePageSkeleton";
-import { KolManagementRouteLoadingShell } from "@/6-2-1-dashboard/kol-management/components/KolManagementRouteLoadingShell";
-import { KolManagementDashboardPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementDashboardPageSkeleton";
-import { KolManagementKolManagementPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementKolManagementPageSkeleton";
-import { KolManagementCampaignsPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementCampaignsPageSkeleton";
-import { KolManagementContentPostPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementContentPostPageSkeleton";
-import { KolManagementPaymentTermsPageSkeleton } from "@/6-2-1-dashboard/kol-management/skeletons/KolManagementPaymentTermsPageSkeleton";
-import { SocialMediaShellSkeleton } from "@/6-1-dashboard/skeletons/SocialMediaShellSkeleton";
-import { SocialMediaDashboardSkeleton } from "@/6-1-dashboard/skeletons/SocialMediaDashboardSkeleton";
-import { ContentCalendarPageSkeleton } from "@/6-1-content-calendar/skeletons/ContentCalendarPageSkeleton";
-import { ProductKnowledgePageSkeleton } from "@/6-1-product-knowledge/skeletons/ProductKnowledgePageSkeleton";
-import { ScriptGeneratorPageSkeleton } from "@/6-1-script-generator/skeletons/ScriptGeneratorPageSkeleton";
-import { SocialMediaSettingsPageSkeleton } from "@/6-1-social-media-settings/skeletons/SocialMediaSettingsPageSkeleton";
-import { TrafficPageSkeleton } from "@/6-0-traffic/skeletons/TrafficPageSkeleton";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
 
 const RecruitmentSuspense = ({ children }: { children: ReactNode }) => (
@@ -989,9 +994,9 @@ function AppRoutes() {
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <SalesActivitiesOperationsSuspense>
-                      <DailyTaskProvider>
+                      <DailyTaskProviderShell>
                         <SalesOperationsPage />
-                      </DailyTaskProvider>
+                      </DailyTaskProviderShell>
                     </SalesActivitiesOperationsSuspense>
                   </PageAccessGuard>
                 }
@@ -1005,9 +1010,9 @@ function AppRoutes() {
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <JadwalKunjunganOperationsSuspense>
-                      <DailyTaskProvider>
+                      <DailyTaskProviderShell>
                         <SalesOperationsPage />
-                      </DailyTaskProvider>
+                      </DailyTaskProviderShell>
                     </JadwalKunjunganOperationsSuspense>
                   </PageAccessGuard>
                 }
@@ -1021,9 +1026,9 @@ function AppRoutes() {
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <ClientVisitsOperationsSuspense>
-                      <DailyTaskProvider>
+                      <DailyTaskProviderShell>
                         <SalesOperationsPage />
-                      </DailyTaskProvider>
+                      </DailyTaskProviderShell>
                     </ClientVisitsOperationsSuspense>
                   </PageAccessGuard>
                 }
@@ -1777,6 +1782,23 @@ const App = () => (
                     }
                   />
 
+                  <Route
+                    path="/s/:token/thanks"
+                    element={
+                      <SurveyPublicShell>
+                        <CustomerSurveyPublicThanksPage />
+                      </SurveyPublicShell>
+                    }
+                  />
+                  <Route
+                    path="/s/:token"
+                    element={
+                      <SurveyPublicShell>
+                        <CustomerSurveyPublicFormPage />
+                      </SurveyPublicShell>
+                    }
+                  />
+
                   <Route element={<RequireAuth />}>
                     <Route element={<SubscriptionExpiryGuard />}>
                       <Route element={<AdaptiveAppLayout />}>
@@ -2352,9 +2374,9 @@ const App = () => (
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <SalesActivitiesOperationsSuspense>
-                                <DailyTaskProvider>
+                                <DailyTaskProviderShell>
                                   <SalesOperationsPage />
-                                </DailyTaskProvider>
+                                </DailyTaskProviderShell>
                               </SalesActivitiesOperationsSuspense>
                             </PageAccessGuard>
                           }
@@ -2368,9 +2390,9 @@ const App = () => (
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <JadwalKunjunganOperationsSuspense>
-                                <DailyTaskProvider>
+                                <DailyTaskProviderShell>
                                   <SalesOperationsPage />
-                                </DailyTaskProvider>
+                                </DailyTaskProviderShell>
                               </JadwalKunjunganOperationsSuspense>
                             </PageAccessGuard>
                           }
@@ -2384,9 +2406,9 @@ const App = () => (
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <ClientVisitsOperationsSuspense>
-                                <DailyTaskProvider>
+                                <DailyTaskProviderShell>
                                   <SalesOperationsPage />
-                                </DailyTaskProvider>
+                                </DailyTaskProviderShell>
                               </ClientVisitsOperationsSuspense>
                             </PageAccessGuard>
                           }

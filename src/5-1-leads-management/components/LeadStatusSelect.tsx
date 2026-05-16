@@ -27,6 +27,7 @@ function getStatusColorClass(status: LeadStatusOption | null | undefined): strin
     '#059669': 'bg-emerald-50 text-emerald-700 border-emerald-200',
     '#EF4444': 'bg-red-50 text-red-700 border-red-200',
     '#6B7280': 'bg-gray-50 text-gray-700 border-gray-200',
+    '#78716C': 'bg-stone-50 text-stone-700 border-stone-200',
     '#3B82F6': 'bg-blue-50 text-blue-700 border-blue-200',
   };
   return colorMap[status.color] ?? 'bg-gray-50 text-gray-700 border-gray-200';
@@ -36,6 +37,7 @@ function getStatusColorClass(status: LeadStatusOption | null | undefined): strin
 const STATUS_ORDER: Record<string, number> = {
   open: 0,
   unread: 0,
+  expired: 0,
   'in progress': 1,
   qualified: 2,
   converted: 3,

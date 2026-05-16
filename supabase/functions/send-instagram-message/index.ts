@@ -11,6 +11,54 @@ const corsHeaders: Record<string, string> = {
 
 const META_GRAPH_VERSION = "v21.0";
 
+async function markInstagramConversationExpiredReactive(
+  supabase: ReturnType<typeof createClient>,
+  conversationId: string,
+  orgId: string,
+): Promise<void> {
+  const { data: conv } = await supabase
+    .from("instagram_conversations")
+    .select("lead_status_id")
+    .eq("id", conversationId)
+    .maybeSingle();
+
+  let expiredId: string | null = null;
+  const { data: orgExpired } = await supabase
+    .from("lead_statuses")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("name", "Expired")
+    .maybeSingle();
+  expiredId = (orgExpired?.id as string | undefined) ?? null;
+  if (!expiredId) {
+    const { data: g } = await supabase
+      .from("lead_statuses")
+      .select("id")
+      .is("organization_id", null)
+      .eq("name", "Expired")
+      .maybeSingle();
+    expiredId = (g?.id as string | undefined) ?? null;
+  }
+  if (!expiredId) return;
+
+  let statusName = "";
+  if (conv?.lead_status_id) {
+    const { data: stRow } = await supabase
+      .from("lead_statuses")
+      .select("name")
+      .eq("id", conv.lead_status_id as string)
+      .maybeSingle();
+    statusName = ((stRow?.name as string) ?? "").trim().toLowerCase();
+  }
+  if (["closed", "resolve", "lost", "converted", "expired"].includes(statusName)) return;
+
+  const nowIso = new Date().toISOString();
+  await supabase
+    .from("instagram_conversations")
+    .update({ lead_status_id: expiredId, meta_session_expires_at: nowIso, updated_at: nowIso })
+    .eq("id", conversationId);
+}
+
 Deno.serve(async (req: Request) => {
   console.log("send-instagram-message: request received", { method: req.method });
 
@@ -111,7 +159,7 @@ Deno.serve(async (req: Request) => {
     if (conversationId) {
       const { data: conv } = await supabase
         .from("instagram_conversations")
-        .select("organization_id, instagram_business_account_id, lead_status_id, last_inbound_at, created_at, assignee_id")
+        .select("organization_id, instagram_business_account_id, lead_status_id, meta_session_expires_at, assignee_id")
         .eq("id", conversationId)
         .maybeSingle();
       if (conv?.organization_id && conv?.instagram_business_account_id) {
@@ -131,8 +179,8 @@ Deno.serve(async (req: Request) => {
             .select("name")
             .eq("id", leadStatusId)
             .maybeSingle();
-          const statusName = (statusRow?.name as string) ?? "";
-          if (statusName.trim().toLowerCase() === "closed") {
+          const statusName = ((statusRow?.name as string) ?? "").trim().toLowerCase();
+          if (statusName === "closed" || statusName === "resolve") {
             return new Response(
               JSON.stringify({
                 error: "Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.",
@@ -141,18 +189,30 @@ Deno.serve(async (req: Request) => {
               { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
+          if (statusName === "expired") {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.",
+                code: "CONVERSATION_EXPIRED",
+              }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
         }
-        const lastInboundAt = conv?.last_inbound_at != null ? new Date(conv.last_inbound_at as string).getTime() : NaN;
-        const createdAt = conv?.created_at != null ? new Date(conv.created_at as string).getTime() : NaN;
-        const effectiveMs = Number.isNaN(lastInboundAt) ? createdAt : lastInboundAt;
-        if (!Number.isNaN(effectiveMs) && Date.now() - effectiveMs > 24 * 60 * 60 * 1000) {
-          return new Response(
-            JSON.stringify({
-              error: "Pesan terakhir dari customer sudah lewat 24 jam. Kirim pesan tidak diizinkan sampai customer mengirim pesan lagi.",
-              code: "OUTSIDE_24H_WINDOW",
-            }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+        const metaExp = conv?.meta_session_expires_at;
+        if (metaExp != null && String(metaExp).trim() !== "") {
+          const expMs = new Date(String(metaExp)).getTime();
+          if (!Number.isNaN(expMs) && Date.now() > expMs) {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.",
+                code: "CONVERSATION_EXPIRED",
+              }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
         }
         const { data: igAcc } = await supabase
           .from("organization_instagram_accounts")
@@ -363,8 +423,15 @@ Deno.serve(async (req: Request) => {
       // 551 = outside 24h messaging window (freeform only within 24h of user message)
       const errMsg =
         code === 551 || subcode === 551
-          ? "Tidak bisa mengirim: percakapan di luar jendela 24 jam. Pengguna harus mengirim pesan dalam 24 jam terakhir agar Anda bisa membalas pesan bebas (bukan template)."
+          ? "Sesi percakapan Meta sudah berakhir. Gunakan pesan template yang disetujui untuk menghubungi pengguna lagi."
           : rawMsg;
+      const sessionMaybe =
+        code === 551 ||
+        subcode === 551 ||
+        /24 hours|window|session|re-engagement/i.test(rawMsg);
+      if (conversationId && resolved && sessionMaybe) {
+        await markInstagramConversationExpiredReactive(supabase, conversationId, resolved.organization_id);
+      }
       // Log full Meta error for debugging (no PII)
       console.error("send-instagram-message: Meta API error full", JSON.stringify({ code, subcode, type: errorType, message: rawMsg }));
       // Use 400 for Meta client errors (invalid request, token, permission) so client can show message; 502 for rate limit / server-side

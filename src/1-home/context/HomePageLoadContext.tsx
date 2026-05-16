@@ -24,11 +24,13 @@ export type HomeSectionStatus = {
 };
 
 const INITIAL: Record<HomeSectionId, HomeSectionStatus> = {
-  motivation: { loading: true, error: null },
-  profile: { loading: true, error: null },
-  okr: { loading: true, error: null },
-  activity: { loading: true, error: null },
-  status: { loading: true, error: null },
+  /** Motivation mounts after idle — does not block first paint. */
+  motivation: { loading: false, error: null },
+  profile: { loading: false, error: null },
+  /** OKR shell ringan — tidak pakai overlay penuh di HomeScreen. */
+  okr: { loading: false, error: null },
+  activity: { loading: false, error: null },
+  status: { loading: false, error: null },
 };
 
 type HomePageLoadContextValue = {
@@ -45,10 +47,8 @@ export function HomePageLoadProvider({ children }: { children: React.ReactNode }
   const [sections, setSections] =
     useState<Record<HomeSectionId, HomeSectionStatus>>(INITIAL);
 
-  const rawPendingLoad = useMemo(
-    () => Object.values(sections).some((s) => s.loading),
-    [sections],
-  );
+  /** Hanya OKR yang menahan overlay penuh; profil punya placeholder sendiri agar LCP OKR tidak tertunda. */
+  const rawPendingLoad = useMemo(() => sections.okr.loading, [sections.okr.loading]);
 
   const [showFullPageSkeleton, setShowFullPageSkeleton] = useState(true);
   /** After first successful reveal, ignore brief `loading` blips (refetch) — avoids full-page skeleton flicker. */

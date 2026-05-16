@@ -1,7 +1,7 @@
 import { DollarSign, Wallet } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import type { SalesActivity } from '@/shared/hooks/organized/sales';
-import { getPiutangRemaining } from '../utils/piutangFilter';
+import { computePiutangMetrics } from '../shared/piutangMetrics';
 
 type PiutangOverviewPanelProps = {
   filteredRows: SalesActivity[];
@@ -9,8 +9,7 @@ type PiutangOverviewPanelProps = {
 
 /** Ringkasan di kolom kanan — ritme visual mengikuti kartu ringkas di `IncomeTransactionOverview`. */
 export function PiutangOverviewPanel({ filteredRows }: PiutangOverviewPanelProps) {
-  const totalRemaining = filteredRows.reduce((s, r) => s + Math.max(0, getPiutangRemaining(r)), 0);
-  const totalPaid = filteredRows.reduce((s, r) => s + Number(r.total_paid_amount ?? 0), 0);
+  const { totalRemaining, totalPaid } = computePiutangMetrics(filteredRows);
 
   return (
     <div className="space-y-4">

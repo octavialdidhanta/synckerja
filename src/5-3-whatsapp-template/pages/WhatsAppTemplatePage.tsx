@@ -17,6 +17,7 @@ import { useWhatsAppMessageTemplates } from "../hooks/useWhatsAppMessageTemplate
 import { useDeleteWhatsAppMessageTemplate } from "../hooks/useDeleteWhatsAppMessageTemplate";
 import { mapMetaTemplateToRow } from "../utils/mapMetaTemplateToRow";
 import type { DateRangePreset, MetaMessageTemplate, StatusFilterOption, TemplateTableRow } from "../types";
+import { templateDeleteBlockReason } from "../utils/templateDeleteRules";
 import { TemplateManagerShell, type TemplateManagerSubTab } from "../components/TemplateManagerShell";
 import { TemplateListToolbar } from "../components/TemplateListToolbar";
 import { TemplateListTable, type SortKey } from "../components/TemplateListTable";
@@ -243,9 +244,15 @@ export function WhatsAppTemplatePage() {
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
+    const blockReason = templateDeleteBlockReason(deleteTarget.statusRaw);
+    if (blockReason) {
+      toast.error(blockReason);
+      return;
+    }
     try {
       await deleteMutation.mutateAsync({
         hsmId: deleteTarget.id,
+        templateName: deleteTarget.templateName,
         whatsappAccountId: selectedWhatsappAccountId,
       });
       toast.success(`Template "${deleteTarget.templateName}" dihapus di WhatsApp (Meta).`);

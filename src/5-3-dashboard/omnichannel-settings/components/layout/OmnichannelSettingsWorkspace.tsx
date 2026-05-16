@@ -11,6 +11,8 @@ import {
 import { OmnichannelSettingsSidebar } from "@/5-3-dashboard/omnichannel-settings/components/sidebar/OmnichannelSettingsSidebar";
 import { UserManagementSection } from "@/5-3-dashboard/omnichannel-settings/components/user-management/UserManagementSection";
 import { SlaManagementSection } from "@/5-3-dashboard/omnichannel-settings/components/sla/SlaManagementSection";
+import { CustomerSurveySettingsShell } from "@/features/customer-survey/settings/CustomerSurveySettingsShell";
+import { CustomerSurveyTargetSettingsShell } from "@/features/customer-survey/settings/CustomerSurveyTargetSettingsShell";
 import { cn } from "@/shared/lib/utils";
 import {
   OMNICHANNEL_SETTINGS_CARD_HEADER_BASE,
@@ -76,6 +78,8 @@ export function OmnichannelSettingsWorkspace() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full">
             {activeSection === "user-management" ? <UserManagementSection /> : null}
             {activeSection === "sla" ? <SlaManagementSection /> : null}
+            {activeSection === "survey" ? <CustomerSurveySettingsShell /> : null}
+            {activeSection === "target" ? <CustomerSurveyTargetSettingsShell /> : null}
           </div>
         </div>
       </div>

@@ -9,7 +9,10 @@ import HRISSubscriptionPlansTab from "@/mobile/6-subscription/section/HRISSubscr
 import { MobileSubscriptionPlansPageSkeletonOverlay } from "@/mobile/6-subscription/pages/MobileSubscriptionPlansPageSkeletonOverlay";
 import { useOptimizedPerformanceMonitor } from "@/10-subscription/hooks/useOptimizedPerformanceMonitor";
 import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useSubscriptionPlans } from "@/10-subscription/hooks/useSubscriptionPlans";
+import { useEmployeeCount } from "@/10-subscription/hooks/useEmployeeCount";
+import { useLastPaidSubscription } from "@/10-subscription/hooks/useLastPaidSubscription";
+import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -27,9 +30,22 @@ const PlansTabPage = memo(() => {
   const { t } = useAppTranslation();
   const { activeTab, handleTabChange, setActiveTabOnLocationChange } = useSubscriptionTabs("plans");
 
-  const { loading: orgLoading } = useCurrentOrg();
-  const { isLoading: subscriptionHookLoading } = useOptimizedSubscription();
-  const blockingLoad = orgLoading || subscriptionHookLoading;
+  const { organizationId, loading: orgLoading } = useActiveOrganization();
+  const { subscriptionStatus, statusLoading, statusError, isLoading: subscriptionHookLoading } =
+    useOptimizedSubscription();
+  const { isLoading: plansLoading } = useSubscriptionPlans();
+  const { isLoading: employeeCountLoading } = useEmployeeCount();
+  const { isLoading: lastPaidLoading } = useLastPaidSubscription(organizationId);
+
+  const blockingLoad =
+    orgLoading ||
+    !organizationId ||
+    statusLoading ||
+    subscriptionHookLoading ||
+    plansLoading ||
+    employeeCountLoading ||
+    lastPaidLoading ||
+    (!subscriptionStatus && !statusError);
 
   const [minSettleDone, setMinSettleDone] = useState(true);
   const skeletonShownAtRef = useRef<number | null>(null);

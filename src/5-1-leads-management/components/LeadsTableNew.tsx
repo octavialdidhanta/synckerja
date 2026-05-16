@@ -18,7 +18,7 @@ import { LeadStatusSelect } from './LeadStatusSelect';
 import { useClientProfileStatus } from '@/shared/hooks/organized/sales';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Check, X, Minus } from 'lucide-react';
-import { supabase } from "@/shared/lib/supabaseClient";
+import { isOutboundBlockedForLivechat, isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
 
 interface LeadStatus {
   id: string;
@@ -79,7 +79,7 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
         // Block changing to Unread (Open) when current status is not Open
         if (selectedStatus?.name?.trim().toLowerCase() === 'open') {
           const currentName = (lead.lead_status?.name ?? leadStatuses.find(s => s.id === lead.status_id)?.name ?? '').trim().toLowerCase();
-          if (currentName && currentName !== 'open') return;
+          if (currentName && currentName !== 'open' && currentName !== 'expired') return;
         }
         if (selectedStatus?.name?.trim().toLowerCase() === 'closed') {
           const confirmed = window.confirm(t('leadsManagement.confirmResolve', 'Yakin ingin mengubah status menjadi Resolve? Chat outbound akan diblokir sampai ada pesan masuk baru dari customer.'));
@@ -173,11 +173,18 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
     return colors[priority as keyof typeof colors] || colors.Medium;
   };
 
-  const isResolvedLead = (l: NewLead) => (l.lead_status?.name ?? leadStatuses.find(s => s.id === l.status_id)?.name ?? '').trim().toLowerCase() === 'closed';
-
-  // Untuk guard di handleFieldUpdate dan currentStatusName di LeadStatusSelect (kode status = livechat)
   const getCurrentLeadStatusName = (l: NewLead) =>
     (l.lead_status?.name ?? leadStatuses.find(s => s.id === l.status_id)?.name ?? '').trim();
+
+  const isRowSessionLocked = (l: NewLead) => {
+    const name = getCurrentLeadStatusName(l);
+    const src = (l.source ?? '').trim().toLowerCase();
+    const meta = l.meta_session_expires_at ?? null;
+    if (src === 'whatsapp' || src === 'instagram') {
+      return isOutboundBlockedForLivechat({ statusName: name, metaSessionExpiresAt: meta });
+    }
+    return isResolvedStatus(name);
+  };
 
   // Get Source with soft rectangular colors
   const getSourceColor = (source?: string) => {
@@ -309,7 +316,7 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
                         value={lead.assignee}
                         onValueChange={(value) => handleFieldUpdate(lead.id, 'assignee', value)}
                       >
-                        <SelectTrigger className="w-full h-8 text-xs" disabled={isResolvedLead(lead)}>
+                        <SelectTrigger className="w-full h-8 text-xs" disabled={isRowSessionLocked(lead)}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -349,7 +356,7 @@ export default function LeadsTableNew({ leads, onUpdateLead, onDeleteLead, onRef
                            onValueChange={(value) => handleFieldUpdate(lead.id, 'status_id', value)}
                            leadStatuses={leadStatuses}
                            currentStatusName={getCurrentLeadStatusName(lead)}
-                           disabled={isResolvedLead(lead)}
+                           disabled={isRowSessionLocked(lead)}
                            triggerClassName="w-28 h-7 text-xs border rounded-sm font-medium justify-between px-2"
                          />
                          <Button

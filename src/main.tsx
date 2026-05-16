@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { I18nextProvider } from "react-i18next";
 import i18n from "@/shared/i18n/index.ts";
 import App from "./App.tsx";
+import { SurveyPublicApp } from "@/features/customer-survey/public/SurveyPublicApp.tsx";
 import "./index.css";
 
 function deferRegisterServiceWorker() {
@@ -35,8 +36,19 @@ function deferRegisterServiceWorker() {
 
 deferRegisterServiceWorker();
 
-createRoot(document.getElementById("root")!).render(
-  <I18nextProvider i18n={i18n}>
-    <App />
-  </I18nextProvider>,
-);
+const surveyHost = import.meta.env.VITE_PUBLIC_SURVEY_HOSTNAME?.trim();
+const rootEl = document.getElementById("root")!;
+
+if (
+  typeof window !== "undefined" &&
+  surveyHost &&
+  window.location.hostname.toLowerCase() === surveyHost.toLowerCase()
+) {
+  createRoot(rootEl).render(<SurveyPublicApp />);
+} else {
+  createRoot(rootEl).render(
+    <I18nextProvider i18n={i18n}>
+      <App />
+    </I18nextProvider>,
+  );
+}

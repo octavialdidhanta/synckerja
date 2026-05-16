@@ -2,6 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { buildRecipientPickerCandidates, type RecipientPickerCandidate } from "@/5-3-whatsapp-template/utils/buildRecipientPickerCandidates";
+import type { RecipientPickerFiltersJson } from "@/5-3-whatsapp-template/utils/recipientPickerFilterSpec";
+import {
+  parseRecipientPickerSearchPayload,
+  type RecipientPickerRpcItem,
+} from "@/5-3-whatsapp-template/utils/recipientPickerRpc";
 import {
   enrichRecipientListMembers,
   type LeadProfileLite,
@@ -18,6 +23,8 @@ import {
 
 const LISTS_KEY = "whatsapp_recipient_lists";
 const PICKER_KEY = "whatsapp_recipient_picker_candidates";
+const PICKER_SEARCH_KEY = "whatsapp_recipient_picker_search";
+const PICKER_FILTER_OPTIONS_KEY = "whatsapp_recipient_picker_filter_options";
 const DETAIL_KEY = "whatsapp_recipient_list_detail";
 const ORG_OWNER_KEY = "api_current_user_is_active_org_owner";
 
@@ -40,6 +47,65 @@ export function useActiveOrgOwnerRpc(organizationId: string | null | undefined) 
   });
 }
 
+export function useRecipientPickerFilterOptions(organizationId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [PICKER_FILTER_OPTIONS_KEY, organizationId],
+    enabled: Boolean(organizationId) && enabled,
+    queryFn: async () => {
+      const orgId = organizationId as string;
+      const { data, error } = await supabase.rpc("recipient_picker_filter_options", {
+        p_organization_id: orgId,
+      });
+      if (error) throw error;
+      const o = (data ?? {}) as Record<string, unknown>;
+      const toStrArr = (k: string): string[] => {
+        const v = o[k];
+        if (!Array.isArray(v)) return [];
+        return v.map((x) => String(x)).filter((s) => s.length > 0);
+      };
+      return {
+        createdByNames: toStrArr("created_by_names"),
+        utmSources: toStrArr("utm_sources"),
+        utmMediums: toStrArr("utm_mediums"),
+        utmCampaigns: toStrArr("utm_campaigns"),
+        utmContents: toStrArr("utm_contents"),
+        utmTerms: toStrArr("utm_terms"),
+        attributionLabels: toStrArr("attribution_labels"),
+        sources: toStrArr("sources"),
+      };
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useRecipientPickerSearch(
+  organizationId: string | null | undefined,
+  queryEnabled: boolean,
+  filters: RecipientPickerFiltersJson,
+  page: number,
+  pageSize: number,
+) {
+  const offset = Math.max(0, (page - 1) * pageSize);
+  return useQuery({
+    queryKey: [PICKER_SEARCH_KEY, organizationId, filters, page, pageSize],
+    enabled: Boolean(organizationId) && queryEnabled,
+    placeholderData: (prev) => prev,
+    queryFn: async (): Promise<{ total: number; items: RecipientPickerRpcItem[] }> => {
+      const orgId = organizationId as string;
+      const { data, error } = await supabase.rpc("search_whatsapp_recipient_picker", {
+        p_organization_id: orgId,
+        p_filters: filters as unknown as Record<string, unknown>,
+        p_limit: pageSize,
+        p_offset: offset,
+      });
+      if (error) throw error;
+      return parseRecipientPickerSearchPayload(data);
+    },
+    staleTime: 15_000,
+  });
+}
+
+/** @deprecated Prefer server-side `useRecipientPickerSearch` in recipient list contact picker. */
 export function useRecipientPickerCandidates(organizationId: string | null | undefined, queryEnabled = true) {
   return useQuery({
     queryKey: [PICKER_KEY, organizationId],
@@ -198,8 +264,12 @@ export function useCreateRecipientListFromSelection(organizationId: string | nul
       return listId;
     },
     onSuccess: () => {
-      if (orgId) qc.invalidateQueries({ queryKey: [LISTS_KEY, orgId] });
-      qc.invalidateQueries({ queryKey: [PICKER_KEY, orgId] });
+      if (orgId) {
+        qc.invalidateQueries({ queryKey: [LISTS_KEY, orgId] });
+        qc.invalidateQueries({ queryKey: [PICKER_KEY, orgId] });
+        qc.invalidateQueries({ queryKey: [PICKER_SEARCH_KEY, orgId] });
+        qc.invalidateQueries({ queryKey: [PICKER_FILTER_OPTIONS_KEY, orgId] });
+      }
     },
   });
 }

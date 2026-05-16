@@ -763,9 +763,9 @@ export function IncomeDashboard() {
               </div>
 
               {/* Section kiri & kanan saja: Income vs. Expenses (kiri) | Net Income per Bank Account (kanan) */}
-              <div className="mb-2 grid min-h-0 min-w-0 grid-cols-1 gap-2 lg:grid-cols-2 lg:items-stretch">
+              <div className="mb-2 grid min-h-0 min-w-0 grid-cols-1 gap-2 lg:min-h-[18rem] lg:grid-cols-2 lg:items-stretch">
                 {/* Kiri: Income vs. Expenses */}
-                <div className="flex min-h-0 min-w-0 flex-col">
+                <div className="flex h-full min-h-0 min-w-0 flex-col">
                   <IncomeVsExpensesChart />
                 </div>
                 {/* Kanan: Net Income per Bank Account — daftar scroll di dalam kartu supaya tidak meluber */}

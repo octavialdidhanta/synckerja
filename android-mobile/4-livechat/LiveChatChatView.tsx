@@ -145,7 +145,7 @@ export function LiveChatChatView({
               <SheetTitle>{t('whatsappInbox.quickAction', 'Quick Action')}</SheetTitle>
               <p className="text-center text-sm text-muted-foreground">{displayName}</p>
             </SheetHeader>
-            <div className="mt-4">
+            <div className="mt-4 pb-1">
               <MobileLivechatQuickActionPanel conversation={selectedConversation} hideLeadTitle />
             </div>
           </SheetContent>

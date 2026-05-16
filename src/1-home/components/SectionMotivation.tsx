@@ -115,7 +115,19 @@ export const SectionMotivation = () => {
   };
 
   if (motivationSectionLoading) {
-    return null;
+    return (
+      <div className="relative min-h-[50px]" aria-hidden>
+        <div className="min-h-[80px] overflow-hidden rounded-lg bg-gradient-to-r from-primary to-brand-blue-deep">
+          <div className="flex h-full min-h-[80px] items-center space-x-3 p-4">
+            <div className="h-6 w-6 shrink-0 rounded-full bg-primary-foreground/20" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-[min(100%,420px)] rounded bg-primary-foreground/20" />
+              <div className="h-3 w-[min(100%,200px)] rounded bg-primary-foreground/15" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (motivationSectionError) {

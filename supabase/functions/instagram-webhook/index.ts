@@ -467,7 +467,8 @@ Deno.serve(async (req: Request) => {
           const openStatusId = openStatus?.id ?? unreadStatus?.id ?? null;
           const statusNameLower = leadStatusName?.trim().toLowerCase() ?? "";
           const isResolved = statusNameLower === "closed" || statusNameLower === "resolve";
-          const isNewOrReopen = openStatusId && (statusId == null || isResolved);
+          const isExpired = statusNameLower === "expired";
+          const isNewOrReopen = openStatusId && (statusId == null || isResolved || isExpired);
           if (isNewOrReopen) {
             const { data: convBefore } = await supabase
               .from("instagram_conversations")

@@ -18,6 +18,7 @@ import { LiveChatChatView } from './LiveChatChatView';
 import { useLiveChatInboundNotification } from './hooks/useLiveChatInboundNotification';
 import { LiveChatAppBadgeSync } from '@/5-3-whatsapp/components/LiveChatAppBadgeSync';
 import { CONSULTANT_LIVECHAT_PATH } from '@/mobile/4-leads-management/shared/consultantCrmNavPaths';
+import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 
 type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `email:${string}`;
 

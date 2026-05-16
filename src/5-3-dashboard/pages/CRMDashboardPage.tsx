@@ -5,6 +5,7 @@ import { CrmConversationSummaryPanel } from "@/5-3-dashboard/components/crm/CrmC
 import { CrmPerformancePerTimeSection } from "@/5-3-dashboard/components/crm/CrmPerformancePerTimeSection";
 import { CrmFirstResponsePerRoomSection } from "@/5-3-dashboard/components/crm/CrmFirstResponsePerRoomSection";
 import { CrmResolutionPerRoomSection } from "@/5-3-dashboard/components/crm/CrmResolutionPerRoomSection";
+import { CrmCustomerSurveySection } from "@/5-3-dashboard/components/crm/CrmCustomerSurveySection";
 import { ConsultantCrmDashboardPageSkeleton } from "@/5-3-dashboard/skeletons/ConsultantCrmDashboardPageSkeleton";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -121,6 +122,9 @@ export const CRMDashboardPage = () => {
                       </div>
                       <div className="min-h-0 min-w-0 w-full flex-1">
                         <CrmResolutionPerRoomSection />
+                      </div>
+                      <div className="min-h-0 min-w-0 w-full flex-1">
+                        <CrmCustomerSurveySection />
                       </div>
                     </div>
                   </div>

@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
 import type { TemplateTableRow } from "../types";
+import { templateDeleteBlockReason } from "../utils/templateDeleteRules";
 import { TemplateStatusBadge } from "./TemplateStatusBadge";
 
 export type SortKey =
@@ -214,17 +215,24 @@ export function TemplateListTable({
                     >
                       View details
                     </DropdownMenuItem>
+                    {(() => {
+                      const deleteBlock = templateDeleteBlockReason(row.statusRaw);
+                      return (
                     <DropdownMenuItem
                       className="cursor-pointer text-red-600 focus:text-red-600"
                       onSelect={() => {
+                        if (deleteBlock) return;
                         queueMicrotask(() => {
                           onRequestDelete(row);
                         });
                       }}
-                      disabled={deletingTemplateId === row.id}
+                      disabled={deletingTemplateId === row.id || Boolean(deleteBlock)}
+                      title={deleteBlock ?? undefined}
                     >
                       Delete
                     </DropdownMenuItem>
+                      );
+                    })()}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>

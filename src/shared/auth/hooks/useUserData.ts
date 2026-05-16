@@ -123,12 +123,11 @@ export const useUserData = (): UserData => {
         };
       }
 
-      // OPTIMIZED: Get photo URL from first successful result
-      // Try user_profile_details first, then fallback to employees
-      let photoUrl: string | null = null;
-      if (photoDetailsResult.status === 'fulfilled' && photoDetailsResult.value.data?.profile_photo_url) {
+      let photoUrl: string | null = profileData?.profile_photo_url ?? null;
+      if (!photoUrl && photoDetailsResult.status === 'fulfilled' && photoDetailsResult.value.data?.profile_photo_url) {
         photoUrl = photoDetailsResult.value.data.profile_photo_url;
-      } else if (photoEmployeeResult.status === 'fulfilled' && photoEmployeeResult.value.data?.profile_photo_url) {
+      }
+      if (!photoUrl && photoEmployeeResult.status === 'fulfilled' && photoEmployeeResult.value.data?.profile_photo_url) {
         photoUrl = photoEmployeeResult.value.data.profile_photo_url;
       }
       

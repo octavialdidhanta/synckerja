@@ -98,3 +98,7 @@ verify_jwt = false
 # User JWT + optional cron secret inside body/header; auth enforced in function.
 [functions.whatsapp-campaign-worker]
 verify_jwt = false
+
+# Cron / scheduler calls with x-customer-survey-dispatch-secret; dispatches pending survey WhatsApp messages (service role inside).
+[functions.dispatch-customer-survey-wa]
+verify_jwt = false

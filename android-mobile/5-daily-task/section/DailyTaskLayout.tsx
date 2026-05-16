@@ -13,7 +13,6 @@ import { useDailyTask } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { TaskList } from './TaskList';
-import { DailyTaskPageSkeleton } from '../DailyTaskPageSkeleton';
 import { MobileTaskFilterDrawerContent } from './MobileTaskFilterDrawer';
 import { hasActiveFilters } from './filterUtils';
 import { useNotificationBadgeCount } from '@/shared/hooks/useNotificationBadgeCount';
@@ -231,8 +230,8 @@ export function DailyTaskLayout() {
             )}
           </div>
           <div className="mx-auto w-full max-w-md space-y-1 px-2 pt-2 content-padding-above-nav-daily-task">
-            {/* Skeleton only on initial load when we have no data; once we have tasks, keep TaskList mounted so modal state (e.g. Sub Step) is not lost on refetch */}
-            {isLoading && !isRefreshing && tasks.length === 0 ? <DailyTaskPageSkeleton /> : <TaskList />}
+            {/* Initial load skeleton: page-level overlay in `DailyTaskPage`. Keep TaskList mounted on refetch. */}
+            <TaskList />
           </div>
         </div>
       </div>

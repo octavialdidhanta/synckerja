@@ -876,7 +876,7 @@ const Absensi = () => {
               <button
                 type="button"
                 onClick={() => setNotificationsOpen(true)}
-                className="relative p-2 hover:bg-muted rounded-lg transition-colors"
+                className="relative translate-y-1 p-2 rounded-lg transition-colors hover:bg-muted"
                 aria-label={t("mobileHome.notificationsTitle", "Notifikasi")}
               >
                 <Bell className="h-5 w-5 text-muted-foreground" />

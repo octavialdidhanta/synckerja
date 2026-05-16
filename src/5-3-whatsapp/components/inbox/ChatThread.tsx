@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWhatsAppMessages } from '../../hooks/useWhatsAppMessages';
 import { useInstagramMessages } from '../../hooks/useInstagramMessages';
@@ -22,8 +22,12 @@ import { Dialog, DialogContent, DialogTitle } from '@/shared/components/ui/dialo
 import { Check, CheckCheck, Paperclip, FileText, X, Download, ChevronDown, Trash2, Reply, Copy, Image, Video, Music, Send } from 'lucide-react';
 import { messageContainsContactRequest } from '../../constants/contactRequestBlockPhrases';
 import { isLikelyInstagramId } from '../../constants/instagramId';
-import { isResolvedStatus, isOutside24hWindow } from '../../constants/leadStatus';
-import { format } from 'date-fns';
+import {
+  isExpiredStatusName,
+  isMetaSessionExpired,
+  isOutboundBlockedForLivechat,
+  isResolvedStatus,
+} from '../../constants/leadStatus';
 import type { Locale } from 'date-fns';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -31,6 +35,10 @@ import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSu
 
 /** Bucket yang sama dipakai untuk kirim (outbound) dan terima (webhook/resolve) media */
 const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
+
+/** Composer textarea: grow with Shift+Enter; cap visible height (~this many lines) then scroll */
+const CHAT_COMPOSER_MAX_LINES = 5;
+const CHAT_COMPOSER_MIN_HEIGHT_PX = 44;
 
 /** No-op: previously unlocked notification sound on user gesture. Bell sound removed. */
 function unlockInboundNotificationAudio() {
@@ -96,40 +104,199 @@ interface ChatThreadProps {
   keyboardOpen?: boolean;
 }
 
-function formatMessageTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-/** YYYY-MM-DD in local timezone for comparing message days. */
-function getDateKey(iso: string): string {
+function formatMessageTime(iso: string, timeZone: string) {
   const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  if (!Number.isFinite(d.getTime())) return '';
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone,
+  }).format(d);
 }
 
-/** Label for date separator: "Hari ini", "Kemarin", or full date (e.g. "9 Maret 2026"). */
+/** Calendar YYYY-MM-DD in the browser's chosen timezone (WIB / Jayapura / … — follows OS locale clock). */
+function getChatDayKey(iso: string, timeZone: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
+function getChatTodayKey(timeZone: string): string {
+  return getChatDayKey(new Date().toISOString(), timeZone);
+}
+
+/** Map date-fns locale → Intl for separator date wording. */
+function separatorIntlLocale(locale: Locale): string {
+  const code = (locale as { code?: string }).code ?? '';
+  if (code.toLowerCase().startsWith('id')) return 'id-ID';
+  return 'en-GB';
+}
+
+/**
+ * How many calendar days the message day is **before** "today" in `timeZone`
+ * (0 = hari ini, 1 = kemarin). Uses civil dates from day-keys, not UTC midnight shifts.
+ */
+function calendarDaysBehindToday(msgIso: string, timeZone: string): number | null {
+  const msgKey = getChatDayKey(msgIso, timeZone);
+  const todayKey = getChatTodayKey(timeZone);
+  if (!msgKey || !todayKey) return null;
+  const parseKey = (k: string) => {
+    const [y, mo, d] = k.split('-').map((x) => Number(x));
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return NaN;
+    return Date.UTC(y, mo - 1, d);
+  };
+  const msgMs = parseKey(msgKey);
+  const todayMs = parseKey(todayKey);
+  if (!Number.isFinite(msgMs) || !Number.isFinite(todayMs)) return null;
+  return Math.round((todayMs - msgMs) / 86400000);
+}
+
+function formatDateSeparatorAbsolute(
+  iso: string,
+  locale: Locale,
+  timeZone: string,
+): string {
+  return new Intl.DateTimeFormat(separatorIntlLocale(locale), {
+    timeZone,
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(iso));
+}
+
+/**
+ * Label for date separator: "Hari ini", "Kemarin", "2 hari yang lalu", or absolute date.
+ * Use `forceAbsolute` when a relative label would duplicate the previous separator (older day).
+ */
 function formatDateSeparator(
   iso: string,
   t: (key: string, fallback: string) => string,
-  locale: Locale
+  locale: Locale,
+  timeZone: string,
+  opts?: { forceAbsolute?: boolean },
 ): string {
-  const key = getDateKey(iso);
-  const today = getDateKey(new Date().toISOString());
-  if (key === today) return t('whatsappInbox.today', 'Hari ini');
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (key === getDateKey(yesterday.toISOString())) return t('whatsappInbox.yesterday', 'Kemarin');
-  return format(new Date(iso), 'd MMMM yyyy', { locale });
+  const key = getChatDayKey(iso, timeZone);
+  if (!key) return '';
+  if (opts?.forceAbsolute) return formatDateSeparatorAbsolute(iso, locale, timeZone);
+  const behind = calendarDaysBehindToday(iso, timeZone);
+  if (behind === 0) return t('whatsappInbox.today', 'Hari ini');
+  if (behind === 1) return t('whatsappInbox.yesterday', 'Kemarin');
+  if (behind === 2) return t('whatsappInbox.twoDaysAgo', '2 hari yang lalu');
+  return formatDateSeparatorAbsolute(iso, locale, timeZone);
+}
+
+/** Stable chronological order so date separators only appear on real day boundaries. */
+function compareTimelineMessages(a: { created_at: string; id: string }, b: { created_at: string; id: string }): number {
+  const ta = new Date(a.created_at).getTime();
+  const tb = new Date(b.created_at).getTime();
+  const fa = Number.isFinite(ta);
+  const fb = Number.isFinite(tb);
+  if (!fa && !fb) return String(a.id).localeCompare(String(b.id));
+  if (!fa) return 1;
+  if (!fb) return -1;
+  if (ta !== tb) return ta - tb;
+  return String(a.id).localeCompare(String(b.id));
+}
+
+/** Normalize Meta WA message unix time: seconds (<1e12) vs milliseconds. */
+function coerceWaUnixSecondsFromTimestampField(ts: unknown): number | null {
+  if (typeof ts === 'number' && Number.isFinite(ts)) {
+    return ts < 1e12 ? Math.floor(ts) : Math.round(ts / 1000);
+  }
+  if (typeof ts === 'string') {
+    const s = ts.trim();
+    if (!s) return null;
+    if (/^\d+$/.test(s)) {
+      const n = Number(s);
+      if (!Number.isFinite(n)) return null;
+      return n < 1e12 ? Math.floor(n) : Math.round(n / 1000);
+    }
+    const n = Number(s);
+    if (!Number.isFinite(n)) return null;
+    return n < 1e12 ? Math.floor(n) : Math.round(n / 1000);
+  }
+  return null;
+}
+
+/**
+ * WhatsApp Cloud API: unix **seconds** on the message object (inbound webhook message,
+ * optional nested shapes, or send-response `messages[0]`). Prefer over `created_at` when present.
+ */
+function extractWaMetaUnixSecondsFromRaw(raw: unknown): number | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+
+  const fromNode = (node: unknown): number | null => {
+    if (!node || typeof node !== 'object') return null;
+    return coerceWaUnixSecondsFromTimestampField((node as Record<string, unknown>).timestamp);
+  };
+
+  const candidates: unknown[] = [o, o.message, Array.isArray(o.messages) ? o.messages[0] : undefined];
+
+  const val = o.value;
+  if (val && typeof val === 'object') {
+    const v = val as Record<string, unknown>;
+    candidates.push(v, Array.isArray(v.messages) ? v.messages[0] : undefined);
+  }
+
+  for (const node of candidates) {
+    const sec = fromNode(node);
+    if (sec != null) return sec;
+  }
+  return null;
+}
+
+/** Instagram Messaging events: `timestamp` is normally unix milliseconds. */
+function extractIgUnixMillisFromRaw(raw: unknown): number | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const ts = (raw as Record<string, unknown>).timestamp;
+  if (typeof ts === 'number' && Number.isFinite(ts)) {
+    return ts < 1e12 ? ts * 1000 : ts;
+  }
+  if (typeof ts === 'string' && /^\d+$/.test(ts)) {
+    const n = Number(ts);
+    if (!Number.isFinite(n)) return null;
+    return n < 1e12 ? n * 1000 : n;
+  }
+  return null;
+}
+
+/**
+ * ISO instant for ordering + bubble clock + day separators.
+ * WhatsApp: prefer Meta unix time embedded in `raw_metadata` (any direction) over DB `created_at`.
+ */
+function getChatTimelineIso(msg: { direction: string; created_at: string; raw_metadata?: unknown }, isInstagram: boolean): string {
+  const ca = msg.created_at;
+  if (isInstagram) {
+    const ms = extractIgUnixMillisFromRaw(msg.raw_metadata);
+    if (ms != null && Number.isFinite(ms)) return new Date(ms).toISOString();
+    return ca;
+  }
+  const sec = extractWaMetaUnixSecondsFromRaw(msg.raw_metadata);
+  if (sec != null) return new Date(sec * 1000).toISOString();
+  return ca;
 }
 
 function DateSeparator({ label }: { label: string }) {
   return (
-    <div className="flex justify-center py-2" data-date-separator data-date-label={label}>
-      <span className="rounded-full bg-gray-800 px-3 py-1.5 text-[10px] text-white">
+    <div
+      className="flex w-full min-w-0 shrink-0 items-center gap-2 py-2.5 px-1"
+      data-date-separator
+      data-date-label={label}
+      role="separator"
+      aria-label={label}
+    >
+      <div className="h-px min-w-[1rem] flex-1 bg-neutral-400/45" aria-hidden />
+      <span className="shrink-0 px-1 text-center text-[11px] font-medium leading-none text-neutral-600">
         {label}
       </span>
+      <div className="h-px min-w-[1rem] flex-1 bg-neutral-400/45" aria-hidden />
     </div>
   );
 }
@@ -575,18 +742,29 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
     return () => cancelAnimationFrame(id);
   }, [stickyDateVisible]);
 
-  /** Mobile (hideHeader): auto-expand textarea with Enter/newlines, fixed max height with vertical scroll */
-  const MOBILE_INPUT_MIN_HEIGHT_PX = 44;
-  const MOBILE_INPUT_MAX_HEIGHT_PX = 120;
+  /** Composer grows with content (Shift+Enter); max CHAT_COMPOSER_MAX_LINES then vertical scroll */
   useLayoutEffect(() => {
-    if (!hideHeader) return;
     const el = textareaRef.current;
     if (!el) return;
+    const computed = window.getComputedStyle(el);
+    let lineHeight = parseFloat(computed.lineHeight);
+    if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+      const fs = parseFloat(computed.fontSize) || 16;
+      lineHeight = fs * 1.375;
+    }
+    const padY = parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom);
+    const borderY =
+      parseFloat(computed.borderTopWidth || '0') + parseFloat(computed.borderBottomWidth || '0');
+    const verticalChrome = padY + borderY;
+    const maxScrollHeight = Math.ceil(lineHeight * CHAT_COMPOSER_MAX_LINES + verticalChrome);
+
+    el.style.overflowY = 'hidden';
     el.style.height = 'auto';
-    const scrollH = el.scrollHeight;
-    const h = Math.min(Math.max(scrollH, MOBILE_INPUT_MIN_HEIGHT_PX), MOBILE_INPUT_MAX_HEIGHT_PX);
-    el.style.height = `${h}px`;
-    el.style.overflowY = scrollH > MOBILE_INPUT_MAX_HEIGHT_PX ? 'auto' : 'hidden';
+    const contentScrollH = el.scrollHeight;
+    const minH = Math.max(CHAT_COMPOSER_MIN_HEIGHT_PX, Math.ceil(lineHeight + verticalChrome));
+    const nextH = Math.min(Math.max(contentScrollH, minH), maxScrollHeight);
+    el.style.height = `${nextH}px`;
+    el.style.overflowY = contentScrollH > maxScrollHeight ? 'auto' : 'hidden';
   }, [text, hideHeader]);
 
   const vibrate = useCallback((ms = 50) => {
@@ -619,6 +797,9 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
     });
   }, []);
   const { t, dateFnsLocale } = useAppTranslation();
+  /** Olah tanggal/jam chat sama seperti jam sistem browser (Jakarta=WIB, Jayapura=WIT, dll.). */
+  const browserTimeZone =
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
   const queryClient = useQueryClient();
   const { subscriptionStatus, statusLoading: subscriptionStatusLoading } = useOptimizedSubscription({
     includePlans: false,
@@ -648,26 +829,36 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
       if (isInstagram) {
         const { data, error } = await supabase
           .from('instagram_conversations')
-          .select('lead_status_id, last_inbound_at, created_at, assignee_id')
+          .select('lead_status_id, last_inbound_at, created_at, assignee_id, meta_session_expires_at')
           .eq('id', conversation.id)
           .maybeSingle();
         if (error) throw error;
-        return data as { lead_status_id?: string; last_inbound_at?: string | null; created_at?: string; assignee_id?: string | null } | null;
+        return data as {
+          lead_status_id?: string;
+          last_inbound_at?: string | null;
+          created_at?: string;
+          assignee_id?: string | null;
+          meta_session_expires_at?: string | null;
+        } | null;
       }
       const { data, error } = await supabase
         .from('whatsapp_conversations')
-        .select('lead_status_id, last_inbound_at, created_at, assignee_id')
+        .select('lead_status_id, last_inbound_at, created_at, assignee_id, meta_session_expires_at')
         .eq('id', conversation.id)
         .maybeSingle();
       if (error) throw error;
-      return data as { lead_status_id?: string; last_inbound_at?: string | null; created_at?: string; assignee_id?: string | null } | null;
+      return data as {
+        lead_status_id?: string;
+        last_inbound_at?: string | null;
+        created_at?: string;
+        assignee_id?: string | null;
+        meta_session_expires_at?: string | null;
+      } | null;
     },
     enabled: hasConversationId,
     refetchInterval: 5000,
   });
   const conversationStatusId = conversationStatusRow?.lead_status_id ?? null;
-  const lastInboundAt = conversationStatusRow?.last_inbound_at ?? null;
-  const conversationCreatedAt = conversationStatusRow?.created_at ?? null;
   const { data: leadStatuses = [] } = useQuery({
     queryKey: ['lead-statuses'],
     queryFn: async () => {
@@ -689,24 +880,31 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
     statusNameFromQuery ??
     (conversation && conversation.source !== 'email' ? (conversation as WhatsAppConversation | InstagramConversation).lead_status_name ?? null : null);
 
-  const isResolved = isResolvedStatus(effectiveStatusName);
   const isWhatsAppConversation = conversation?.source === 'whatsapp';
+  const isResolved = isResolvedStatus(effectiveStatusName);
+  const metaSessionExpiresAt = conversationStatusRow?.meta_session_expires_at ?? null;
+  const outboundSessionBlocked =
+    (isWhatsAppConversation || isInstagram) &&
+    isOutboundBlockedForLivechat({
+      statusName: effectiveStatusName,
+      metaSessionExpiresAt,
+    });
+  const blockReasonResolved = isResolved;
+  const blockReasonExpiredOrMeta =
+    isExpiredStatusName(effectiveStatusName) ||
+    (!blockReasonResolved && isMetaSessionExpired(metaSessionExpiresAt));
   const sendDisabledByNoAccount = Boolean(hasNoConnectedWhatsAppAccount && isWhatsAppConversation);
   /** WA/IG live chat outbound requires paid omnichannel add-on seats on the org subscription. */
   const sendDisabledByNoOmnichannelAddon =
     (isWhatsAppConversation || isInstagram) &&
     (subscriptionStatusLoading || (subscriptionStatus?.omnichannel_paid_seat_count ?? 0) < 1);
-  const outside24h =
-    (isWhatsAppConversation || isInstagram) &&
-    isOutside24hWindow(lastInboundAt, conversationCreatedAt);
   const hasAssignee = Boolean(conversationStatusRow?.assignee_id);
   const sendDisabledByNoAssignee = (isWhatsAppConversation || isInstagram) && !hasAssignee;
   const sendDisabled =
-    isResolved ||
+    outboundSessionBlocked ||
     sendDisabledByNoAccount ||
     sendDisabledByNoOmnichannelAddon ||
-    sendDisabledByNoAssignee ||
-    outside24h;
+    sendDisabledByNoAssignee;
 
   const isInstagramConversation = isInstagram;
   const isSending = isSendingWhatsApp || isSendingInstagram;
@@ -830,6 +1028,22 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
       : []),
   ];
 
+  const timelineMessages = useMemo(() => {
+    const seen = new Set<string>();
+    const unique = displayMessages.filter((m) => {
+      const id = String(m.id ?? '');
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    return unique.sort((a, b) =>
+      compareTimelineMessages(
+        { created_at: getChatTimelineIso(a, isInstagramConversation), id: String(a.id) },
+        { created_at: getChatTimelineIso(b, isInstagramConversation), id: String(b.id) },
+      ),
+    );
+  }, [displayMessages, isInstagramConversation]);
+
   const scrollToTextInChatTrimmed = scrollToTextInChat?.trim();
   const onScrollToTextDoneRef = useRef(onScrollToTextDone);
   onScrollToTextDoneRef.current = onScrollToTextDone;
@@ -945,13 +1159,23 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
           );
         } else if (sendDisabledByNoAssignee) {
           toast.error(t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.'));
-        } else if (outside24h) {
+        } else if (blockReasonResolved) {
           toast.error(
-            t('whatsappInbox.outside24hCannotSend', 'Pesan terakhir dari customer sudah lewat 24 jam. Kirim pesan tidak diizinkan sampai customer mengirim pesan lagi.'),
+            t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.'),
+          );
+        } else if (blockReasonExpiredOrMeta) {
+          toast.error(
+            t(
+              'whatsappInbox.metaSessionExpiredCannotSend',
+              'Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.',
+            ),
           );
         } else {
           toast.error(
-            t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.'),
+            t(
+              'whatsappInbox.metaSessionExpiredCannotSend',
+              'Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.',
+            ),
           );
         }
         return;
@@ -998,7 +1222,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
       }
       // Optimistic media dihapus saat pesan asli ada di list (useEffect hasMatchingRealMessage)
     },
-    [conversation, customerId, send, isInstagramConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, outside24h]
+    [conversation, customerId, send, isInstagramConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, blockReasonResolved, blockReasonExpiredOrMeta]
   );
 
   /** Blokir pesan yang meminta kontak. Default ON; set VITE_WHATSAPP_BLOCK_CONTACT_REQUESTS=false untuk nonaktifkan. */
@@ -1019,10 +1243,22 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
         );
       } else if (sendDisabledByNoAssignee) {
         toast.error(t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.'));
-      } else if (outside24h) {
-        toast.error(t('whatsappInbox.outside24hCannotSend', 'Pesan terakhir dari customer sudah lewat 24 jam. Kirim pesan tidak diizinkan sampai customer mengirim pesan lagi.'));
-      } else {
+      } else if (blockReasonResolved) {
         toast.error(t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.'));
+      } else if (blockReasonExpiredOrMeta) {
+        toast.error(
+          t(
+            'whatsappInbox.metaSessionExpiredCannotSend',
+            'Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.',
+          ),
+        );
+      } else {
+        toast.error(
+          t(
+            'whatsappInbox.metaSessionExpiredCannotSend',
+            'Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.',
+          ),
+        );
       }
       return;
     }
@@ -1209,15 +1445,19 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
       <div className="relative flex-1 min-h-0 flex flex-col">
         {stickyDateVisible && (
           <div
-            className="absolute top-2 left-0 right-0 z-20 flex justify-center items-center pointer-events-none transition-all duration-200 ease-out pl-2 pr-2"
+            className="pointer-events-none absolute left-0 right-0 top-2 z-20 px-2 transition-all duration-200 ease-out"
             style={{
               opacity: stickyDateExiting || !stickyDateAnimateIn ? 0 : 1,
               transform: stickyDateExiting || !stickyDateAnimateIn ? 'translateY(-6px)' : 'translateY(0)',
             }}
           >
-            <span className="rounded-full bg-gray-800 px-3 py-1.5 text-[10px] text-white shadow min-w-0">
-              {stickyDateLabel}
-            </span>
+            <div className="mx-auto flex w-full max-w-full items-center gap-2">
+              <div className="h-px min-w-[1.25rem] flex-1 bg-neutral-400/45 drop-shadow-sm" aria-hidden />
+              <span className="shrink-0 bg-[#efeae2]/90 px-1 text-center text-[11px] font-medium leading-none text-neutral-600 shadow-sm backdrop-blur-[1px]">
+                {stickyDateLabel}
+              </span>
+              <div className="h-px min-w-[1.25rem] flex-1 bg-neutral-400/45 drop-shadow-sm" aria-hidden />
+            </div>
           </div>
         )}
       <div
@@ -1241,11 +1481,76 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
           <p className="text-sm text-gray-500">{t('whatsappInbox.loadingMessages', 'Loading messages...')}</p>
         ) : (
           (() => {
-            const reversedMessages = [...displayMessages].reverse();
+            const chron = timelineMessages;
+            const n = chron.length;
+            const tz = browserTimeZone;
+            const tlIso = (m: DisplayMessage) => getChatTimelineIso(m, isInstagramConversation);
+            const showSepAfterRev = new Array<boolean>(n).fill(false);
+            for (let i = 1; i < n; i++) {
+              if (
+                getChatDayKey(tlIso(chron[i]), tz) !== getChatDayKey(tlIso(chron[i - 1]), tz)
+              ) {
+                showSepAfterRev[n - 1 - i] = true;
+              }
+            }
+            const reversedMessages = [...chron].reverse();
+            /** Visual top → bottom = reversed index n-1 … 0; skip consecutive separators for the same calendar day (label can match twice). */
+            let prevSepDayKeyTopDown: string | null = null;
+            const showSepAfterRevDeduped = new Array<boolean>(n).fill(false);
+            for (let revIdx = n - 1; revIdx >= 0; revIdx--) {
+              if (!showSepAfterRev[revIdx]) continue;
+              const dayKey = getChatDayKey(tlIso(reversedMessages[revIdx]), tz);
+              if (!dayKey || dayKey === prevSepDayKeyTopDown) continue;
+              prevSepDayKeyTopDown = dayKey;
+              showSepAfterRevDeduped[revIdx] = true;
+            }
+            /**
+             * Visual top → bottom: enforce readable labels.
+             * Dedupe by normalized **final text** (not only calendarDaysBehindToday): i18n / edge cases can still yield two "Kemarin".
+             */
+            const sepLabelByRevIdx = new Array<string | null>(n).fill(null);
+            let prevSepVisibleLabelTopDown: string | null = null;
+            const normSepLabel = (s: string) => s.normalize('NFKC').trim().toLowerCase();
+            const canonToday = normSepLabel(t('whatsappInbox.today', 'Hari ini'));
+            const canonYesterday = normSepLabel(t('whatsappInbox.yesterday', 'Kemarin'));
+            const canonTwoDays = normSepLabel(t('whatsappInbox.twoDaysAgo', '2 hari yang lalu'));
+            let relSepHits = { today: 0, yesterday: 0, twoDays: 0 };
+            for (let revIdx = n - 1; revIdx >= 0; revIdx--) {
+              if (!showSepAfterRevDeduped[revIdx]) continue;
+              const iso = tlIso(reversedMessages[revIdx]);
+              let lab = formatDateSeparator(iso, t, dateFnsLocale, tz);
+              let nLab = normSepLabel(lab);
+
+              let duplicateRelative = false;
+              if (nLab === canonToday) {
+                relSepHits.today += 1;
+                duplicateRelative = relSepHits.today > 1;
+              } else if (nLab === canonYesterday) {
+                relSepHits.yesterday += 1;
+                duplicateRelative = relSepHits.yesterday > 1;
+              } else if (nLab === canonTwoDays) {
+                relSepHits.twoDays += 1;
+                duplicateRelative = relSepHits.twoDays > 1;
+              }
+              if (duplicateRelative) {
+                lab = formatDateSeparator(iso, t, dateFnsLocale, tz, { forceAbsolute: true });
+                nLab = normSepLabel(lab);
+              }
+
+              if (
+                prevSepVisibleLabelTopDown != null &&
+                lab !== '' &&
+                nLab === normSepLabel(prevSepVisibleLabelTopDown)
+              ) {
+                lab = formatDateSeparator(iso, t, dateFnsLocale, tz, { forceAbsolute: true });
+              }
+              prevSepVisibleLabelTopDown = lab;
+              sepLabelByRevIdx[revIdx] = lab;
+            }
             return reversedMessages.map((msg, index) => {
-            const nextMsg = reversedMessages[index + 1];
-            /** Show date separator *after* this message in DOM so it appears *above* it in flex-col-reverse (date first, then chat). */
-            const showDateSeparatorAfter = nextMsg && getDateKey(nextMsg.created_at) !== getDateKey(msg.created_at);
+            /** Separator sits above older msgs & below newer msgs (flex-col-reverse); label = day of block BELOW the line (= msg / newer side). */
+            const showDateSeparatorAfter = showSepAfterRevDeduped[index];
+            const dateSeparatorLabel = sepLabelByRevIdx[index];
             const marginBetween = 'mb-0';
             const CheckboxBtn = () =>
               selectionMode ? (
@@ -1753,7 +2058,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                         msg.direction === 'outbound' ? 'text-white/80' : 'text-gray-500'
                       }`}
                     >
-                      <span>{formatMessageTime(msg.created_at)}</span>
+                      <span>{formatMessageTime(tlIso(msg), browserTimeZone)}</span>
                       {msg.direction === 'outbound' && (() => {
                         const msgStatus = (msg as { status?: string | null }).status ?? null;
                         return (
@@ -1768,9 +2073,12 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
               </div>
               {msg.direction === 'outbound' && <CheckboxBtn />}
             </div>
-              {showDateSeparatorAfter && (
-                <DateSeparator key={`date-${getDateKey(msg.created_at)}`} label={formatDateSeparator(msg.created_at, t, dateFnsLocale)} />
-              )}
+              {showDateSeparatorAfter && dateSeparatorLabel ? (
+                <DateSeparator
+                  key={`date-sep-${index}-${String(msg.id)}`}
+                  label={dateSeparatorLabel}
+                />
+              ) : null}
             </React.Fragment>
             );
           });
@@ -1825,7 +2133,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             <span>{t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.')}</span>
           </div>
         )}
-        {(isResolved || outside24h) && !sendDisabledByNoAccount && !sendDisabledByNoOmnichannelAddon && !sendDisabledByNoAssignee && (
+        {outboundSessionBlocked && !sendDisabledByNoAccount && !sendDisabledByNoOmnichannelAddon && !sendDisabledByNoAssignee && (
           <div
             className="text-sm font-medium text-amber-800 bg-amber-100 border-2 border-amber-400 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
             role="alert"
@@ -1835,9 +2143,12 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
               !
             </span>
             <span>
-              {outside24h
-                ? t('whatsappInbox.outside24hCannotSend', 'Pesan terakhir dari customer sudah lewat 24 jam. Kirim pesan tidak diizinkan sampai customer mengirim pesan lagi.')
-                : t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.')}
+              {blockReasonResolved
+                ? t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.')
+                : t(
+                    'whatsappInbox.metaSessionExpiredCannotSend',
+                    'Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.',
+                  )}
             </span>
           </div>
         )}
@@ -1918,7 +2229,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
               </Button>
             </div>
           )}
-          <div className="flex min-h-[44px] items-center">
+          <div className="flex min-h-[44px] items-end">
           <button
             type="button"
             className={`shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50 ${hideHeader ? 'p-2' : 'p-2.5'}`}
@@ -1934,6 +2245,19 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             placeholder={pendingMedia ? t('whatsappInbox.writeCaption', 'Write caption (optional)...') : t('whatsappInbox.typeMessage', 'Type a message...')}
             value={text}
             onChange={(e) => !sendDisabled && setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              if (e.shiftKey) return;
+              if (e.nativeEvent.isComposing) return;
+              e.preventDefault();
+              const canSubmit =
+                !sendDisabled &&
+                !isSending &&
+                !isUploading &&
+                (text.trim().length > 0 || !!pendingMedia);
+              if (!canSubmit) return;
+              void handleSend();
+            }}
             onFocus={() => {
               unlockInboundNotificationAudio();
               if (hideHeader && chatInputBarRef.current) {
@@ -1942,9 +2266,9 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                 }, 300);
               }
             }}
-            rows={hideHeader ? 1 : 2}
+            rows={1}
             readOnly={sendDisabled}
-            className={`resize-none flex-1 self-center border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-transparent pr-1 pl-0 overflow-x-hidden seamless-scroll ${hideHeader ? 'min-h-[44px] max-h-[120px] py-2.5 text-base leading-normal' : 'min-h-[44px] py-2'}`}
+            className={`resize-none flex-1 self-end border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-transparent pr-1 pl-0 overflow-x-hidden seamless-scroll ${hideHeader ? 'min-h-[44px] py-2.5 text-base leading-normal' : 'min-h-[44px] py-2'}`}
           />
           <button
             type="button"

@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { DailyTaskPageSkeleton } from "@/8-2-DailyTask/skeletons/DailyTaskPageSkeleton";
+import { DailyTaskRouteLoadingShell } from "@/shared/components/mobile/DailyTaskRouteLoadingShell";
 import MobileDailyTaskPage from "@/mobile/5-daily-task/DailyTaskPage";
 import { useToolsModuleMobileViewport } from "@/shared/hooks/useToolsModuleMobileViewport";
 
@@ -32,5 +33,15 @@ export function DailyTaskRouteElement() {
       </ShellSuspense>
     );
   }
-  return <MobileDailyTaskPage />;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen min-w-0 w-full flex-col bg-background" aria-busy>
+          <DailyTaskRouteLoadingShell />
+        </div>
+      }
+    >
+      <MobileDailyTaskPage />
+    </Suspense>
+  );
 }

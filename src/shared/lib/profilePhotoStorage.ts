@@ -30,6 +30,21 @@ export function publicUrlToObjectPath(url: string | null | undefined): string | 
   }
 }
 
+/** Prefer profiles (settings) over legacy employee/details rows. */
+export function pickProfilePhotoUrl(sources: {
+  profiles?: string | null;
+  details?: string | null;
+  employee?: string | null;
+}): string | null {
+  const p = sources.profiles?.trim();
+  if (p) return p;
+  const d = sources.details?.trim();
+  if (d) return d;
+  const e = sources.employee?.trim();
+  if (e) return e;
+  return null;
+}
+
 /** Resolve stored `profiles.profile_photo_url` (path or public URL) to a displayable image URL. */
 export function resolveProfilePhotoDisplayUrl(stored: string | null | undefined): string | null {
   if (stored == null || stored === "") return null;

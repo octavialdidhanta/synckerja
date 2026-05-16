@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   AttendanceStatusProvider,
   useAttendanceStatus,
@@ -27,6 +27,7 @@ import { useCurrentEmployee } from "@/shared/hooks/useCurrentEmployee";
 import { CompanyObjectivePageSkeleton } from "./components/CompanyObjectivePageSkeleton";
 import { DepartmentObjectivePageSkeleton } from "./components/DepartmentObjectivePageSkeleton";
 import { IndividualObjectivePageSkeleton } from "./components/IndividualObjectivePageSkeleton";
+import { useOkrHeaderTabChange } from "./hooks/useOkrHeaderTabChange";
 import { useOkrPageSkeletonGate } from "./hooks/useOkrPageSkeletonGate";
 import { getOkrActiveTabFromPath } from "./utils/okrPaths";
 import { OkrPageDetailLoadProvider, useOkrPageDetailTabs } from "./context/OkrPageDetailLoadContext";
@@ -35,7 +36,7 @@ import { HeaderAndTab, OKRSidebar, OKRSidebarFooter } from "./section";
 function OKRPageContent() {
   const { t } = useTranslation();
   const location = useLocation();
-  const navigate = useNavigate();
+  const handleTabChange = useOkrHeaderTabChange();
   const { organizationId, loading: orgLoading } = useCurrentOrg();
   const { data: currentEmployee, isPending: currentEmployeePending } = useCurrentEmployee();
   const { data: cycles = [], isLoading: isLoadingCycles } = useOkrCycles(organizationId);
@@ -148,19 +149,6 @@ function OKRPageContent() {
       : activeTab === "department-objectives"
         ? DepartmentObjectivePageSkeleton
         : IndividualObjectivePageSkeleton;
-
-  const handleTabChange = useCallback(
-    (tab: string) => {
-      if (tab === "department-objectives") {
-        navigate("/okr/department-objective");
-      } else if (tab === "individual-objectives") {
-        navigate("/okr/individual-objective");
-      } else {
-        navigate("/okr/company-objective");
-      }
-    },
-    [navigate],
-  );
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-gray-100 font-sans dark:bg-muted/30">

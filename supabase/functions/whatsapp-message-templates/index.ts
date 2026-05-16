@@ -17,6 +17,68 @@ type GraphContext = {
   accessToken: string;
 };
 
+type MetaGraphErrorBody = {
+  error?: {
+    message?: string;
+    error_user_msg?: string;
+    error_user_title?: string;
+    code?: number;
+    error_subcode?: number;
+    type?: string;
+  };
+};
+
+function metaGraphErrorMessage(json: unknown, fallback = "Meta API error"): string {
+  const err = (json as MetaGraphErrorBody)?.error;
+  const userMsg = (err?.error_user_msg ?? "").trim();
+  if (userMsg) return userMsg;
+  const msg = (err?.message ?? "").trim();
+  if (msg) return msg;
+  return fallback;
+}
+
+function metaGraphErrorCode(json: unknown): string | null {
+  const err = (json as MetaGraphErrorBody)?.error;
+  const code = err?.code;
+  const sub = err?.error_subcode;
+  if (code == null && sub == null) return null;
+  return sub != null ? `META_${code}_${sub}` : `META_${code}`;
+}
+
+type MetaDeleteResult =
+  | { ok: true; result: unknown }
+  | { ok: false; status: number; json: unknown };
+
+/** DELETE template — primary: hsm_id+name; fallback: hsm_ids=[id] per Meta batch delete. */
+async function deleteMessageTemplateOnMeta(
+  ctx: GraphContext,
+  hsmId: string,
+  templateName: string,
+): Promise<MetaDeleteResult> {
+  const authHeaders = { Authorization: `Bearer ${ctx.accessToken}` };
+
+  const byIdUrl =
+    `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/message_templates?hsm_id=${encodeURIComponent(hsmId)}&name=${encodeURIComponent(templateName)}`;
+  const res = await fetch(byIdUrl, { method: "DELETE", headers: authHeaders });
+  const json = await res.json().catch(() => ({}));
+
+  if (res.ok) {
+    return { ok: true as const, result: json };
+  }
+
+  const byIdsUrl =
+    `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/message_templates?hsm_ids=[${encodeURIComponent(hsmId)}]`;
+  const res2 = await fetch(byIdsUrl, { method: "DELETE", headers: authHeaders });
+  const json2 = await res2.json().catch(() => ({}));
+  if (res2.ok) {
+    return { ok: true as const, result: json2 };
+  }
+
+  const status = res2.status >= 400 ? res2.status : res.status;
+  const merged = (json2 as MetaGraphErrorBody)?.error ? json2 : json;
+  return { ok: false as const, status, json: merged };
+}
+
 /** When DB has no WABA but live send works (phone_number_id + token), resolve WABA via Graph. */
 async function fetchWabaIdFromPhoneNumberId(phoneNumberId: string, accessToken: string): Promise<string | null> {
   const fields = encodeURIComponent("whatsapp_business_account{id}");
@@ -451,11 +513,25 @@ Deno.serve(async (req: Request) => {
       const urlObj = new URL(req.url);
       const waAcc = urlObj.searchParams.get("whatsapp_account_id")?.trim() || null;
       const hsmId = urlObj.searchParams.get("hsm_id")?.trim() || "";
-      if (!hsmId) {
-        return new Response(JSON.stringify({ error: "Missing hsm_id (Meta template id)", code: "MISSING_HSM_ID" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      const templateName = urlObj.searchParams.get("name")?.trim() || "";
+      if (!hsmId && !templateName) {
+        return new Response(
+          JSON.stringify({ error: "Missing hsm_id or name (Meta template id or name)", code: "MISSING_TEMPLATE_ID" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      /** Meta requires both `hsm_id` and `name` when deleting by id (see template-management docs). */
+      if (hsmId && !templateName) {
+        return new Response(
+          JSON.stringify({
+            error: "Missing name (template name required with hsm_id for Meta delete)",
+            code: "MISSING_TEMPLATE_NAME",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
       const ctx = await resolveGraphContext(supabaseAdmin, user.id, orgId, waAcc);
       if (!ctx) {
@@ -470,24 +546,32 @@ Deno.serve(async (req: Request) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      const delUrl =
-        `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/message_templates?hsm_id=${encodeURIComponent(hsmId)}`;
-      const res = await fetch(delUrl, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${ctx.accessToken}` },
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = json?.error?.message ?? json?.error_message ?? "Meta API error";
-        return new Response(JSON.stringify({ error: String(msg), details: json }), {
-          status: res.status >= 400 && res.status < 600 ? res.status : 502,
+      const del = await deleteMessageTemplateOnMeta(ctx, hsmId, templateName);
+      if (del.ok === true) {
+        return new Response(JSON.stringify({ success: true, result: del.result }), {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ success: true, result: json }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const msg = metaGraphErrorMessage(del.json);
+      const code = metaGraphErrorCode(del.json);
+      const errObj = (del.json as MetaGraphErrorBody)?.error;
+      const hint =
+        errObj?.code === 10 || errObj?.code === 200
+          ? "Pastikan token Meta punya izin whatsapp_business_management (hubungkan ulang di Operations → Consultant)."
+          : undefined;
+      return new Response(
+        JSON.stringify({
+          error: msg,
+          code: code ?? "META_DELETE_FAILED",
+          hint,
+          details: del.json,
+        }),
+        {
+          status: del.status >= 400 && del.status < 600 ? del.status : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (req.method !== "POST") {

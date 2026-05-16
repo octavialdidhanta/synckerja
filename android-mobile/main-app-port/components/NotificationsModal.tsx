@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { Locale } from "date-fns";
-import { Loader2, User, Eye } from "lucide-react";
+import { Loader2, User, Eye, X } from "lucide-react";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
@@ -109,7 +111,7 @@ export function NotificationsModal({
   initialPostedLinksForceOpen = false,
 }: NotificationsModalProps) {
   const isMobile = useIsMobile();
-  const { t, dateLocale } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -146,42 +148,55 @@ export function NotificationsModal({
             : "md:max-w-lg md:max-h-[85vh] md:rounded-lg md:translate-x-[-50%] md:translate-y-[-50%] md:left-[50%] md:top-[50%] fixed inset-0 md:h-auto"
         )}
         fullscreenAnimation={isMobile}
+        hideCloseButton
       >
         <DialogHeader
           className={cn(
-            "flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left",
-            isMobile ? "safe-area-top px-4 pt-4 pb-3" : "px-4 pt-4 pb-3"
+            "flex min-h-12 flex-shrink-0 flex-row items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 text-left dark:from-blue-950/20 dark:to-indigo-950/20",
+            isMobile ? "safe-area-top px-4 pt-2 pb-1" : "px-4 pt-3 pb-2",
           )}
         >
-          <DialogTitle className="text-lg font-semibold text-foreground">
-            {t("mobileHome.notificationsTitle", "Notifikasi")}
-          </DialogTitle>
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-left text-lg font-semibold leading-none text-foreground">
+              {t("mobileHome.notificationsTitle", "Notifikasi")}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {t("mobileHome.notificationsTitle", "Notifications")}
+            </DialogDescription>
+          </div>
+          <DialogClose
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <X className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="sr-only">{t("layout.sheetClose", "Close")}</span>
+          </DialogClose>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "comments" | "tasks" | "updates")} className="flex-1 flex flex-col min-h-0">
           <TabsList className="flex-shrink-0 w-full justify-start rounded-none border-b bg-transparent p-0 h-auto gap-0">
             <TabsTrigger
               value="comments"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
             >
               {t("mobileHome.notificationsTabComments", "Comments")}
             </TabsTrigger>
             <TabsTrigger
               value="tasks"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
             >
               {t("mobileHome.notificationsTabTasks", "Tasks")}
             </TabsTrigger>
             <TabsTrigger
               value="updates"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
             >
               {t("mobileHome.notificationsTabUpdates", "Updates")}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="comments" className="flex-1 min-h-0 mt-0 overflow-hidden flex flex-col data-[state=inactive]:hidden">
-            <CommentsTab onCommentClick={handleCommentClick} onOpenChange={onOpenChange} dateLocale={dateLocale} t={t} />
+            <CommentsTab onCommentClick={handleCommentClick} onOpenChange={onOpenChange} dateFnsLocale={dateFnsLocale} t={t} />
           </TabsContent>
           <TabsContent value="tasks" className="flex-1 min-h-0 mt-0 overflow-hidden flex flex-col data-[state=inactive]:hidden">
             <TasksTab onOpenChange={onOpenChange} />
@@ -216,12 +231,12 @@ export function NotificationsModal({
 function CommentsTab({
   onCommentClick,
   onOpenChange,
-  dateLocale,
+  dateFnsLocale,
   t,
 }: {
   onCommentClick: (item: ReviewCommentNotificationRow, markOneRead: (id: string) => Promise<void>) => void;
   onOpenChange: (open: boolean) => void;
-  dateLocale: Locale;
+  dateFnsLocale: Locale;
   t: (key: string, fallback: string, vars?: Record<string, string | number>) => string;
 }) {
   const { notifications, markOneRead } = useReviewCommentNotifications();
@@ -237,7 +252,7 @@ function CommentsTab({
             <CommentNotificationItem
               key={n.id}
               item={n}
-              locale={dateLocale}
+              locale={dateFnsLocale}
               t={t}
               onOpenReview={() => onCommentClick(n, markOneRead)}
               onMarkAsReadOnly={markOneRead}
@@ -302,7 +317,7 @@ function CommentNotificationItem({
 }
 
 function TasksTab({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
-  const { t, dateLocale } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { pending, loading, fetchError, refresh } = useCompletionApprovals([]);
@@ -480,7 +495,7 @@ function TasksTab({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
                       </button>
                       <div className="mt-1 flex items-center justify-between gap-2">
                         <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: dateLocale })}
+                          {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: dateFnsLocale })}
                         </span>
                         {item.read_at == null && (
                           <Button
@@ -521,7 +536,7 @@ function UpdatesTab({
   initialPostedLinksPlanTitle?: string;
   initialPostedLinksForceOpen?: boolean;
 }) {
-  const { t, dateLocale } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { notifications, isLoading, error, markOneRead, markAllRead, refetch } = usePlanStatusChangeNotifications();
@@ -689,7 +704,7 @@ function UpdatesTab({
                     </button>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: dateLocale })}
+                        {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: dateFnsLocale })}
                       </span>
                       {item.read_at == null && (
                         <Button

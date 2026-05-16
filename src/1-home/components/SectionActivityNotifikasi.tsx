@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
@@ -14,11 +14,16 @@ import { useEmployeeAssignments } from './hooks/useEmployeeAssignments';
 import { JobDescTimeframe, DateRangeValue, JobDescAssignment } from '@/8-2-DailyTask/section/JobDescTracker/types';
 import { useDailyTaskOptional } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { differenceInCalendarDays, startOfDay, format, formatDistanceToNowStrict } from 'date-fns';
-import { ModalViewSubSteps } from '@/8-2-DailyTask/section/ModalViewSubSteps';
+const ModalViewSubSteps = lazy(() =>
+  import('@/8-2-DailyTask/section/ModalViewSubSteps').then((m) => ({
+    default: m.ModalViewSubSteps,
+  })),
+);
 import { supabase } from '@/shared/lib/supabaseClient';
 import { id as indonesianLocale } from 'date-fns/locale';
 import { cn } from '@/shared/lib/utils';
 import { logger } from '@/shared/lib/logger';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 
 const timeframeOptions: { value: JobDescTimeframe; translationKey: string }[] = [
   { value: "daily", translationKey: "dailyTask.jobDesc.filters.daily" },
@@ -250,7 +255,27 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
   ];
 
   if (activitySectionLoading) {
-    return null;
+    return (
+      <Card className="flex h-full min-h-[320px] flex-col overflow-hidden" aria-hidden>
+        <div className="flex flex-shrink-0 border-b border-border">
+          <Skeleton className="m-2 h-9 flex-1 rounded-md" />
+          <Skeleton className="m-2 h-9 flex-1 rounded-md" />
+        </div>
+        <CardHeader className="flex-shrink-0 space-y-2 pb-2">
+          <Skeleton className="h-3 w-24" />
+          <div className="flex flex-wrap gap-2">
+            <Skeleton className="h-7 w-16 rounded-full" />
+            <Skeleton className="h-7 w-20 rounded-full" />
+            <Skeleton className="h-7 w-24 rounded-full" />
+          </div>
+        </CardHeader>
+        <CardContent className="min-h-0 flex-1 space-y-2">
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-lg" />
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -629,13 +654,16 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
         )}
       </CardContent>
 
-      {/* Sub-step Modal */}
-      <ModalViewSubSteps
-        open={subStepModal.open}
-        onOpenChange={(open) => setSubStepModal(prev => ({ ...prev, open }))}
-        parentStepId={subStepModal.parentStepId}
-        parentStepTitle={subStepModal.parentStepTitle}
-      />
+      {subStepModal.open ? (
+        <Suspense fallback={null}>
+          <ModalViewSubSteps
+            open={subStepModal.open}
+            onOpenChange={(open) => setSubStepModal(prev => ({ ...prev, open }))}
+            parentStepId={subStepModal.parentStepId}
+            parentStepTitle={subStepModal.parentStepTitle}
+          />
+        </Suspense>
+      ) : null}
     </Card>
   );
 };

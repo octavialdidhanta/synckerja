@@ -29,7 +29,7 @@ export function AbsensiPageSkeleton() {
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Skeleton className="h-6 w-14 rounded-md" aria-hidden />
-          <Skeleton className="h-9 w-9 rounded-lg" aria-hidden />
+          <Skeleton className="h-9 w-9 translate-y-1 rounded-lg" aria-hidden />
         </div>
       </header>
 

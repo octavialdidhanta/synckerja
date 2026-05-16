@@ -97,6 +97,7 @@ export const LEAD_ATTRIBUTION_SORT_COLUMNS = [
   "followup",
   "fu_priority",
   "status",
+  "survey_rating",
 ] as const;
 
 export type LeadAttributionSortColumn = (typeof LEAD_ATTRIBUTION_SORT_COLUMNS)[number];
@@ -146,6 +147,13 @@ function sortComparable(row: SortableLeadRow, col: LeadAttributionSortColumn): s
           ? String((row.lead_status as { name?: string | null }).name ?? "").trim()
           : "";
       return name === "" ? null : name.toLowerCase();
+    }
+    case "survey_rating": {
+      const raw =
+        (row as { latest_survey_rating?: number | null }).latest_survey_rating ??
+        (row as { _latest_survey_rating?: number | null })._latest_survey_rating;
+      if (raw == null || !Number.isFinite(Number(raw))) return null;
+      return Number(raw);
     }
     case "ticket_id":
     case "client":

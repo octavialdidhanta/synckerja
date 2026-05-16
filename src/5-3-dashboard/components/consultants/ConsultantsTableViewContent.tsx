@@ -23,6 +23,9 @@ import {
   buildUniqueLeadStatusFilterOptions,
   useLeadsManagementFilterQueries,
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useLeadsTableSurveyIntegration } from '@/5-3-dashboard/hooks/useLeadsTableSurveyIntegration';
+import { CustomerSurveyHistoryDialog } from '@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog';
 
 interface ConsultantsTableViewContentProps {
   // No props needed now, using the hook
@@ -49,9 +52,22 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     utmTerm: 'all',
     attributionLabel: 'all',
     landingUrlContains: '',
+    surveyRating: 'all',
   });
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
+  const { organizationId } = useCurrentOrg();
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
+  const {
+    surveyTableProps,
+    matchesSurveyRatingFilter,
+    surveyHistoryDialogProps,
+    refreshSurveyData,
+  } = useLeadsTableSurveyIntegration(organizationId, leads);
+
+  const handleRefreshLeads = useCallback(() => {
+    refetch();
+    refreshSurveyData();
+  }, [refetch, refreshSurveyData]);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
   const { subServices, leadSources, leadStatuses } = useLeadsManagementFilterQueries();
 
@@ -322,6 +338,10 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
         return false;
       }
 
+      if (!matchesSurveyRatingFilter(lead)) {
+        return false;
+      }
+
       // Date range filter
       if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
         const leadDate = new Date(lead.created_at);
@@ -340,7 +360,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
       return true;
     });
     return filtered;
-  }, [leads, filters, clientStatuses]);
+  }, [leads, filters, clientStatuses, matchesSurveyRatingFilter]);
 
   const sortedLeads = useMemo(
     () => sortLeadsByAttributionColumn(filteredLeads, attributionSort),
@@ -382,7 +402,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                   leads={sortedLeads}
                   onUpdateLead={updateLead}
                   onDeleteLead={deleteLead}
-                  onRefreshLeads={refetch}
+                  onRefreshLeads={handleRefreshLeads}
                   attributionSort={attributionSort}
                   onAttributionSort={handleAttributionSort}
                   categoryColumnFilter={{
@@ -449,6 +469,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                     value: filters.landingUrlContains,
                     onChange: handleLandingUrlContainsChange,
                   }}
+                  {...surveyTableProps}
                 />
               </div>
             </>
@@ -480,6 +501,10 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
         onSubmit={handleCreateLead}
         isSubmitting={isSubmitting}
       />
+
+      {surveyHistoryDialogProps ? (
+        <CustomerSurveyHistoryDialog {...surveyHistoryDialogProps} />
+      ) : null}
     </>
   );
 };

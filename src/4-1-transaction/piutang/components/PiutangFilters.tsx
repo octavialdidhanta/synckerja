@@ -3,6 +3,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import type { PiutangFilterMode, PiutangVerificationFilterMode } from '../types/piutang.types';
+import {
+  hasActivePiutangFilters,
+  PIUTANG_STATUS_FILTER_OPTIONS,
+  PIUTANG_VERIFICATION_FILTER_OPTIONS,
+} from '../shared/piutangFilterConfig';
 
 type PiutangFiltersProps = {
   search: string;
@@ -23,8 +28,7 @@ export function PiutangFilters({
   onVerificationChange,
   onClearFilters,
 }: PiutangFiltersProps) {
-  const hasActiveFilters =
-    Boolean(search.trim()) || status !== 'open' || verification !== 'all';
+  const hasActiveFilters = hasActivePiutangFilters({ search, status, verification });
 
   return (
     <div>
@@ -45,21 +49,27 @@ export function PiutangFilters({
             <SelectValue placeholder="Status piutang" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="open">Terbuka (sisa / perlu verifikasi)</SelectItem>
-            <SelectItem value="settled">Lunas</SelectItem>
-            <SelectItem value="all">Semua</SelectItem>
+            {PIUTANG_STATUS_FILTER_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
-        <Select value={verification} onValueChange={(v) => onVerificationChange(v as PiutangVerificationFilterMode)}>
+        <Select
+          value={verification}
+          onValueChange={(v) => onVerificationChange(v as PiutangVerificationFilterMode)}
+        >
           <SelectTrigger className="h-9 w-full text-left text-sm text-gray-700 placeholder:text-gray-700 sm:w-36 lg:w-44">
             <SelectValue placeholder="Verifikasi" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Verifikasi: semua</SelectItem>
-            <SelectItem value="unchecked">Belum dicek</SelectItem>
-            <SelectItem value="approved">OK</SelectItem>
-            <SelectItem value="rejected">Ditolak</SelectItem>
+            {PIUTANG_VERIFICATION_FILTER_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 

@@ -7,43 +7,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/components/ui/table';
-import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Badge } from '@/shared/components/ui/badge';
-import type { SalesActivity } from '@/shared/hooks/organized/sales';
-import type { PiutangVerificationAggregate } from '../types/piutang.types';
-import { getPiutangRemaining, verificationAggregateLabel } from '../utils/piutangFilter';
+import {
+  buildPiutangRowViewModel,
+  getPiutangServiceLabel,
+  type PiutangActivityTableBaseProps,
+} from '../shared/piutangRowDisplay';
 
 const TABLE_SCROLL =
   'scrollbar-hide seamless-scroll min-h-0 min-w-0 flex-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
-type PiutangActivityTableProps = {
-  rows: SalesActivity[];
-  loading?: boolean;
-  verificationByActivity: ReadonlyMap<string, PiutangVerificationAggregate>;
-  verificationLoading?: boolean;
-  onOpenPayments: (row: SalesActivity) => void;
-};
-
-function serviceLabel(row: SalesActivity): string {
-  const services = row.services as { name?: string } | null | undefined;
-  const sub = row.sub_services as { name?: string } | null | undefined;
-  const a = services?.name?.trim();
-  const b = sub?.name?.trim();
-  if (a && b) return `${a} · ${b}`;
-  return a || b || '—';
-}
-
 export function PiutangActivityTable({
   rows,
-  loading,
   verificationByActivity,
   verificationLoading,
   onOpenPayments,
-}: PiutangActivityTableProps) {
-  if (loading) {
-    return null;
-  }
-
+}: PiutangActivityTableBaseProps) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-2">
@@ -76,42 +55,35 @@ export function PiutangActivityTable({
               </TableRow>
             ) : (
               rows.map((row) => {
-                const remaining = getPiutangRemaining(row);
-                const paid = Number(row.total_paid_amount ?? 0);
-                const total = Number(row.total_amount ?? 0);
-                const status = String(row.payment_status ?? (remaining <= 0 ? 'paid' : 'partial'));
-                const vAgg = verificationByActivity.get(row.id) ?? 'none';
-                const vLabel = verificationAggregateLabel(vAgg);
-                const badgeVariant =
-                  vAgg === 'approved' ? 'default' : vAgg === 'rejected' ? 'destructive' : 'secondary';
+                const vm = buildPiutangRowViewModel(row, verificationByActivity);
                 return (
-                  <TableRow key={row.id} className="hover:bg-gray-50">
+                  <TableRow key={vm.id} className="hover:bg-gray-50">
                     <TableCell className="min-w-[140px] w-[160px] px-3 py-2 text-xs font-medium">
-                      <div className="line-clamp-2 break-words leading-snug">{row.client_name ?? '—'}</div>
+                      <div className="line-clamp-2 break-words leading-snug">{vm.clientName}</div>
                     </TableCell>
                     <TableCell className="min-w-[180px] px-3 py-2 text-xs">
-                      <div className="text-wrap break-words">{serviceLabel(row)}</div>
+                      <div className="text-wrap break-words">{getPiutangServiceLabel(row)}</div>
                     </TableCell>
                     <TableCell className="min-w-[110px] px-3 py-2 text-right text-xs tabular-nums">
-                      {formatToRupiah(total)}
+                      {vm.totalFormatted}
                     </TableCell>
                     <TableCell className="min-w-[100px] px-3 py-2 text-right text-xs font-semibold tabular-nums text-green-600">
-                      {formatToRupiah(paid)}
+                      {vm.paidFormatted}
                     </TableCell>
                     <TableCell className="min-w-[100px] px-3 py-2 text-right text-xs font-semibold tabular-nums">
-                      {formatToRupiah(Math.max(0, remaining))}
+                      {vm.remainingFormatted}
                     </TableCell>
                     <TableCell className="min-w-[90px] px-3 py-2 text-xs capitalize text-gray-700">
-                      {status.replace(/_/g, ' ')}
+                      {vm.statusLabel}
                     </TableCell>
                     <TableCell className="min-w-[100px] px-3 py-2 text-xs">
                       {verificationLoading ? (
                         <span className="text-gray-400">…</span>
-                      ) : vAgg === 'none' ? (
+                      ) : vm.verificationAggregate === 'none' ? (
                         <span className="text-gray-400">—</span>
                       ) : (
-                        <Badge variant={badgeVariant} className="font-normal">
-                          {vLabel}
+                        <Badge variant={vm.verificationBadgeVariant} className="font-normal">
+                          {vm.verificationLabel}
                         </Badge>
                       )}
                     </TableCell>

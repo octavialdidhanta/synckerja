@@ -14,10 +14,11 @@ export type OkrTabStatus = {
   error: Error | null;
 };
 
+/** Only the default tab blocks the home skeleton; others report after first visit. */
 const INITIAL_TABS: Record<HomeOkrTabId, OkrTabStatus> = {
   company: { loading: true, error: null },
-  department: { loading: true, error: null },
-  individual: { loading: true, error: null },
+  department: { loading: false, error: null },
+  individual: { loading: false, error: null },
 };
 
 type Ctx = {

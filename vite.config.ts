@@ -100,12 +100,62 @@ export default defineConfig(({ mode }) => {
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,ttf}"],
+        /**
+         * Jangan precache chunk berat / route lain saat kunjungan pertama (home).
+         * Precache 400+ file (termasuk vendor-pdf ~1.1MB) memakan bandwidth dan
+         * menunda LCP di Lighthouse.
+         */
+        globIgnores: [
+          "**/vendor-pdf-*.js",
+          "**/vendor-charts-*.js",
+          "**/vendor-xlsx-*.js",
+          "**/*Skeleton*.js",
+          "**/*PageSkeleton*.js",
+          "**/*RouteLoadingShell*.js",
+          "**/*GuardLoadingShell*.js",
+          "**/*LoadingShell*.js",
+        ],
         navigateFallback: "/index.html",
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
     }),
     mode === "development" && componentTagger(),
   ].filter(Boolean),
+  build: {
+    target: "es2020",
+    cssCodeSplit: true,
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (
+            id.includes("react-dom") ||
+            id.includes("/react/") ||
+            id.includes("scheduler") ||
+            id.includes("react-router")
+          ) {
+            return "vendor-react";
+          }
+          if (id.includes("@tanstack/react-query")) return "vendor-query";
+          if (id.includes("@supabase")) return "vendor-supabase";
+          if (id.includes("@radix-ui")) return "vendor-radix";
+          if (id.includes("lucide-react")) return "vendor-icons";
+          if (id.includes("date-fns")) return "vendor-date";
+          if (id.includes("i18next") || id.includes("react-i18next")) return "vendor-i18n";
+          if (id.includes("recharts")) return "vendor-charts";
+          if (id.includes("xlsx")) return "vendor-xlsx";
+          if (
+            id.includes("jspdf") ||
+            id.includes("pdf-lib") ||
+            id.includes("html2canvas")
+          ) {
+            return "vendor-pdf";
+          }
+        },
+      },
+    },
+  },
   resolve: {
     alias: [
       {

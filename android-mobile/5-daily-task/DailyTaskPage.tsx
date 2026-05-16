@@ -13,13 +13,51 @@ import { DailyTaskLayout } from './section/DailyTaskLayout';
 import { DailyTaskSummaryView } from './section/DailyTaskSummaryView';
 import { JobDescPage } from '@/mobile/5-job-desc';
 import { InitiativeMobileTab } from '@/mobile/5-initiative/InitiativePage';
+import { MobileToolsDailyTaskPageSkeletonOverlay } from '@/mobile/5-daily-task/pages/MobileToolsDailyTaskPageSkeletonOverlay';
+import { useMobileDailyTaskPageSkeletonGate } from '@/mobile/5-daily-task/hooks/useMobileDailyTaskPageSkeletonGate';
+import { cn } from '@/shared/lib/utils';
+
+function DailyTaskPageBody() {
+  const { mainFixedStyle, isKeyboardShellOpen } = useVisualViewport();
+  const [searchParams] = useSearchParams();
+  const view = searchParams.get('view');
+  const { showPageSkeleton } = useMobileDailyTaskPageSkeletonGate(view);
+
+  return (
+    <div className="flex min-h-screen min-w-0 w-full bg-background">
+      <AppSidebar />
+
+      <main
+        className={cn(
+          'fixed inset-x-0 z-0 flex min-h-0 w-full min-w-0 max-w-none flex-col bg-background',
+          showPageSkeleton && 'pointer-events-none invisible select-none',
+        )}
+        style={mainFixedStyle}
+        aria-hidden={showPageSkeleton}
+      >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {view === 'jobdesc' ? (
+            <JobDescPage />
+          ) : view === 'summary' ? (
+            <DailyTaskSummaryView />
+          ) : view === 'initiative' ? (
+            <InitiativeMobileTab />
+          ) : (
+            <DailyTaskLayout />
+          )}
+        </div>
+        {!isKeyboardShellOpen ? (
+          <ToolsNavigationFooter className="safe-area-bottom-lower" />
+        ) : null}
+      </main>
+
+      {showPageSkeleton ? <MobileToolsDailyTaskPageSkeletonOverlay /> : null}
+    </div>
+  );
+}
 
 const DailyTaskPage = () => {
   useStatusBarStyle('light');
-  const { mainFixedStyle, isKeyboardShellOpen } = useVisualViewport();
-  const [searchParams] = useSearchParams();
-  /** `jobdesc` → `android-mobile/5-job-desc/JobDescPage` (tools footer “Job Desc”). */
-  const view = searchParams.get('view');
 
   return (
     <DesktopWarning>
@@ -27,31 +65,7 @@ const DailyTaskPage = () => {
         <MeetingNotesProvider>
           <DailyTaskProvider>
             <ApplyPendingApprovalFocusFromState />
-            {/* Shell: mobile-tools-layout-android.mdc §1 — min-h-screen + flex (bukan min-h-[100dvh] saja). */}
-            <div className="flex min-h-screen min-w-0 w-full bg-background">
-              <AppSidebar />
-
-              {/* Selaras DailyTaskReport + §3: body flex-1, footer anak langsung main; footer disembunyikan saat keyboard (§1). */}
-              <main
-                className="fixed inset-x-0 z-0 flex min-h-0 w-full min-w-0 max-w-none flex-col bg-background"
-                style={mainFixedStyle}
-              >
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  {view === 'jobdesc' ? (
-                    <JobDescPage />
-                  ) : view === 'summary' ? (
-                    <DailyTaskSummaryView />
-                  ) : view === 'initiative' ? (
-                    <InitiativeMobileTab />
-                  ) : (
-                    <DailyTaskLayout />
-                  )}
-                </div>
-                {!isKeyboardShellOpen ? (
-                  <ToolsNavigationFooter className="safe-area-bottom-lower" />
-                ) : null}
-              </main>
-            </div>
+            <DailyTaskPageBody />
           </DailyTaskProvider>
         </MeetingNotesProvider>
       </SidebarProvider>

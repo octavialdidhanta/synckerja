@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { Timer, Users } from "lucide-react";
+import { ClipboardList, Target, Timer, Users } from "lucide-react";
 
-export type OmnichannelSettingsSectionId = "user-management" | "sla";
+export type OmnichannelSettingsSectionId = "user-management" | "sla" | "survey" | "target";
 
 export type OmnichannelSettingsSectionMeta = {
   id: OmnichannelSettingsSectionId;
@@ -28,6 +28,22 @@ export const OMNICHANNEL_SETTINGS_SECTIONS: OmnichannelSettingsSectionMeta[] = [
     icon: Timer,
     titleKey: "omnichannel.settings.slaManagement.sidebarTitle",
     descriptionKey: "omnichannel.settings.slaManagement.sidebarDescription",
+    status: "active",
+  },
+  {
+    id: "survey",
+    urlSlug: "survey",
+    icon: ClipboardList,
+    titleKey: "omnichannel.settings.customerSurvey.sidebarTitle",
+    descriptionKey: "omnichannel.settings.customerSurvey.sidebarDescription",
+    status: "active",
+  },
+  {
+    id: "target",
+    urlSlug: "target",
+    icon: Target,
+    titleKey: "omnichannel.settings.customerSurveyTarget.sidebarTitle",
+    descriptionKey: "omnichannel.settings.customerSurveyTarget.sidebarDescription",
     status: "active",
   },
 ];

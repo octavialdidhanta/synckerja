@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { pickProfilePhotoUrl } from "@/shared/lib/profilePhotoStorage";
 
 export const PROFILE_QUERY_KEY = "profile" as const;
 
@@ -112,6 +113,14 @@ export function useUpdateProfile() {
         .eq("user_id", user.id);
 
       if (error) throw error;
+
+      await supabase
+        .from("employees")
+        .update({
+          profile_photo_url: payload.profile_photo_url,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [PROFILE_QUERY_KEY] });

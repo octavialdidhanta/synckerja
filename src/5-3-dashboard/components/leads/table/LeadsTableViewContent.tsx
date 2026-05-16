@@ -2,7 +2,13 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { LeadsFilters, LeadsFilters as LeadsFiltersType } from "@/5-3-dashboard/components/leads/filters/LeadsFilters";
 import { LeadsMetricsCards } from "@/5-3-dashboard/components/leads/metrics/LeadsMetricsCards";
-import LeadsTableNew from "@/5-3-dashboard/components/leads/table/LeadsTableNew";
+import LeadsTableNew, {
+  type SurveyRatingColumnFilterValue,
+} from "@/5-3-dashboard/components/leads/table/LeadsTableNew";
+import { CustomerSurveyHistoryDialog } from "@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog";
+import { useCustomerSurveyForLeads } from "@/features/customer-survey/hooks/useCustomerSurveyForLeads";
+import { matchesLeadSurveyRatingFilter } from "@/features/customer-survey/core/surveyRatingFilter";
+import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { LeadsInsights } from "@/5-3-dashboard/components/leads/metrics/LeadsInsights";
 import { NewLeadForm } from "@/5-3-dashboard/components/leads/forms/NewLeadForm";
 import { ScrollArea } from "@/shared/components/ui/scroll-area";
@@ -52,9 +58,15 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
     utmTerm: 'all',
     attributionLabel: 'all',
     landingUrlContains: '',
+    surveyRating: 'all',
   });
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
+  const [surveyRatingFilter, setSurveyRatingFilter] = useState<SurveyRatingColumnFilterValue>("all");
+  const [surveyHistoryLead, setSurveyHistoryLead] = useState<NewLead | null>(null);
+  const [surveyHistoryOpen, setSurveyHistoryOpen] = useState(false);
+  const { organizationId } = useCurrentOrg();
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads({ scope });
+  const { getSurveyForLead, resolveConversationId } = useCustomerSurveyForLeads(organizationId, leads);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
   const { subServices, leadSources, leadStatuses } = useLeadsManagementFilterQueries();
 
@@ -80,6 +92,15 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
 
   const handleStatusFilterChange = useCallback((value: string) => {
     setFilters((prev) => ({ ...prev, status: value }));
+  }, []);
+
+  const handleSurveyRatingFilterChange = useCallback((value: SurveyRatingColumnFilterValue) => {
+    setSurveyRatingFilter(value);
+  }, []);
+
+  const handleOpenSurveyHistory = useCallback((lead: NewLead) => {
+    setSurveyHistoryLead(lead);
+    setSurveyHistoryOpen(true);
   }, []);
 
   const statusFilterOptions = useMemo(
@@ -361,10 +382,14 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
         }
       }
 
+      if (!matchesLeadSurveyRatingFilter(lead, surveyRatingFilter, getSurveyForLead)) {
+        return false;
+      }
+
       return true;
     });
     return filtered;
-  }, [leads, filters, clientStatuses]);
+  }, [leads, filters, clientStatuses, surveyRatingFilter, getSurveyForLead]);
 
   const sortedLeads = useMemo(
     () => sortLeadsByAttributionColumn(filteredLeads, attributionSort),
@@ -488,6 +513,12 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
                     value: filters.landingUrlContains,
                     onChange: handleLandingUrlContainsChange,
                   }}
+                  getSurveyForLead={getSurveyForLead}
+                  onOpenSurveyHistory={handleOpenSurveyHistory}
+                  surveyColumnFilter={{
+                    value: surveyRatingFilter,
+                    onChange: handleSurveyRatingFilterChange,
+                  }}
                 />
               </div>
             </>
@@ -519,6 +550,18 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
         onSubmit={handleCreateLead}
         isSubmitting={isSubmitting}
       />
+
+      {surveyHistoryLead ? (
+        <CustomerSurveyHistoryDialog
+          open={surveyHistoryOpen}
+          onClose={() => {
+            setSurveyHistoryOpen(false);
+            setSurveyHistoryLead(null);
+          }}
+          conversationId={resolveConversationId(surveyHistoryLead)}
+          leadTitle={surveyHistoryLead.title || surveyHistoryLead.client || ""}
+        />
+      ) : null}
     </>
   );
 };

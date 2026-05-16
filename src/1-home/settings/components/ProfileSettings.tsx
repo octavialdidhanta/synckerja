@@ -11,6 +11,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { Separator } from "@/shared/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { PROFILE_QUERY_KEY, useProfile, useUpdateProfile, type ProfileRow } from "@/shared/hooks/useProfile";
+import { supabase } from "@/shared/lib/supabaseClient";
 import { resolveUiLanguage } from "@/shared/i18n/resolveUiLanguage";
 import { setAppLanguage, type SupportedLanguage } from "@/shared/i18n";
 import { ProfilePhotoUpload } from "./ProfilePhotoUpload";
@@ -91,6 +92,15 @@ export function ProfileSettings({
     queryClient.setQueryData<ProfileRow | null>([PROFILE_QUERY_KEY], (prev) =>
       prev ? { ...prev, profile_photo_url: photoUrl } : prev,
     );
+    if (profile?.user_id) {
+      void supabase
+        .from("employees")
+        .update({
+          profile_photo_url: photoUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", profile.user_id);
+    }
   };
 
   const handleSave = async () => {

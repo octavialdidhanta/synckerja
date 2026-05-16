@@ -25,13 +25,12 @@ import {
   type SortDir,
 } from "@/5-3-whatsapp-template/components/recipient-lists/RecipientListsTable";
 import type { RecipientListRow, RecipientSource, RecipientUploadStatus } from "@/5-3-whatsapp-template/components/recipient-lists/mockRecipientListsData";
-import { AddContactsToRecipientListModal } from "@/5-3-whatsapp-template/components/recipient-lists/AddContactsToRecipientListModal";
+import { RecipientListContactPickerPanel } from "@/5-3-whatsapp-template/components/recipient-lists/RecipientListContactPickerPanel";
 import { ImportRecipientListFileModal } from "@/5-3-whatsapp-template/components/recipient-lists/ImportRecipientListFileModal";
 import {
   useActiveOrgOwnerRpc,
   useCreateRecipientListFromSelection,
   useDeleteWhatsappRecipientList,
-  useRecipientPickerCandidates,
   useWhatsappRecipientLists,
   type WhatsappRecipientListRow,
 } from "@/5-3-whatsapp-template/hooks/useWhatsappRecipientLists";
@@ -59,21 +58,8 @@ export function WhatsAppRecipientListsPage() {
   const { organizationId } = useCurrentOrg();
   const { data: ownerOk, isLoading: ownerLoading, isError: ownerRpcError } = useActiveOrgOwnerRpc(organizationId);
   const { data: listRows, isLoading: listsLoading, error: listsError } = useWhatsappRecipientLists(organizationId);
-  const [selectModalOpen, setSelectModalOpen] = useState(false);
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const {
-    data: pickerCandidates = [],
-    isFetching: pickerLoading,
-    isError: pickerError,
-    error: pickerQueryError,
-  } = useRecipientPickerCandidates(organizationId, selectModalOpen);
-  const pickerErrorMessage = pickerError
-    ? pickerQueryError instanceof Error
-      ? pickerQueryError.message
-      : typeof pickerQueryError === "object" && pickerQueryError !== null && "message" in pickerQueryError
-        ? String((pickerQueryError as { message?: unknown }).message ?? pickerQueryError)
-        : String(pickerQueryError ?? "Unknown error")
-    : null;
   const createList = useCreateRecipientListFromSelection(organizationId);
   const deleteList = useDeleteWhatsappRecipientList(organizationId);
 
@@ -134,7 +120,7 @@ export function WhatsAppRecipientListsPage() {
   }, []);
 
   const onCreateSelectContacts = useCallback(() => {
-    setSelectModalOpen(true);
+    setContactPickerOpen(true);
   }, []);
 
   const onRequestDeleteList = useCallback((row: RecipientListRow) => {
@@ -174,6 +160,7 @@ export function WhatsAppRecipientListsPage() {
     async (args: { name: string; picks: RecipientPickerCandidate[] }) => {
       try {
         await createList.mutateAsync({ name: args.name, picks: args.picks });
+        setContactPickerOpen(false);
         toast({
           title: t("whatsappTemplates.recipientLists.toast.listCreatedTitle"),
           description: t("whatsappTemplates.recipientLists.toast.listCreatedDescription", {
@@ -219,16 +206,6 @@ export function WhatsAppRecipientListsPage() {
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
-      <AddContactsToRecipientListModal
-        open={selectModalOpen}
-        onOpenChange={setSelectModalOpen}
-        candidates={pickerCandidates}
-        candidatesLoading={pickerLoading}
-        candidatesError={pickerErrorMessage}
-        isSubmitting={createList.isPending}
-        onSubmit={handleAddContacts}
-      />
-
       <ImportRecipientListFileModal
         open={importModalOpen}
         onOpenChange={setImportModalOpen}
@@ -304,21 +281,30 @@ export function WhatsAppRecipientListsPage() {
                       </div>
 
                       <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
-                        <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-                          <RecipientListsTable
-                            rows={sortedRows}
-                            isLoading={pagePending}
-                            sortKey={sortKey}
-                            sortDir={sortDir}
-                            onSortChange={onSortChange}
-                            page={page}
-                            pageSize={pageSize}
-                            onPageChange={setPage}
-                            onPageSizeChange={setPageSize}
-                            onRequestDeleteList={onRequestDeleteList}
-                            onRequestViewDetails={onRequestViewDetails}
+                        {contactPickerOpen ? (
+                          <RecipientListContactPickerPanel
+                            organizationId={organizationId}
+                            isSubmitting={createList.isPending}
+                            onCancel={() => setContactPickerOpen(false)}
+                            onSubmit={handleAddContacts}
                           />
-                        </div>
+                        ) : (
+                          <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                            <RecipientListsTable
+                              rows={sortedRows}
+                              isLoading={pagePending}
+                              sortKey={sortKey}
+                              sortDir={sortDir}
+                              onSortChange={onSortChange}
+                              page={page}
+                              pageSize={pageSize}
+                              onPageChange={setPage}
+                              onPageSizeChange={setPageSize}
+                              onRequestDeleteList={onRequestDeleteList}
+                              onRequestViewDetails={onRequestViewDetails}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

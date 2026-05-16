@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
-import { SectionGreetings } from './component/SectionGreetings';
+import { Skeleton } from '@/shared/components/ui/skeleton';
+
+const SectionGreetings = lazy(() =>
+  import('./component/SectionGreetings').then((m) => ({ default: m.SectionGreetings })),
+);
 import { SectionQuickMenu } from './component/SectionQuickMenu';
 import { ObjectivesTab } from './component/ObjectivesTab';
 import { CompanyObjectivesProgressCard } from './component/CompanyObjectivesProgressCard';
 import { DepartmentObjectivesProgressCard } from './component/DepartmentObjectivesProgressCard';
 import { IndividualObjectivesProgressCard } from './component/IndividualObjectivesProgressCard';
-import { AttendanceStatusProvider, useAttendanceStatus } from './component/AttendanceStatusProvider';
+import { AttendanceStatusProvider } from './component/AttendanceStatusProvider';
 import { Target, Building, User } from 'lucide-react';
 import type { OkrFilterState } from './types/okr-filter';
 import type { YearQuarterSelection } from './component/FiturTimePeriod';
@@ -26,18 +30,7 @@ import {
   HomeOkrTabsLoadProvider,
   useHomeOkrTabsAggregate,
 } from '@/1-home/context/HomeOkrTabsLoadContext';
-import { useCurrentUserEmployee } from './component/SectionGreetingsImport/useCurrentUserEmployee';
-import { useUnifiedProfile } from '@/shared/hooks/useUnifiedProfile';
-/** Lazy load: becomes true after delay to stagger stats fetches. */
-function useDeferredReady(delayMs: number): boolean {
-  const [ready, setReady] = useState(delayMs <= 0);
-  useEffect(() => {
-    if (delayMs <= 0) return;
-    const t = setTimeout(() => setReady(true), delayMs);
-    return () => clearTimeout(t);
-  }, [delayMs]);
-  return ready;
-}
+const DEFAULT_OKR_TAB = 'company-objectives';
 
 const HomeOKRDashboardContent = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -61,9 +54,19 @@ const HomeOKRDashboardContent = () => {
     data: currentEmployee
   } = useCurrentEmployee();
 
-  // Lazy load: stagger objective stats (company first, then department, then individual)
-  const readyDepartmentStats = useDeferredReady(350);
-  const readyIndividualStats = useDeferredReady(700);
+  const [visitedOkrTabs, setVisitedOkrTabs] = useState(
+    () => new Set<string>([DEFAULT_OKR_TAB]),
+  );
+  const markOkrTabVisited = (tab: string) => {
+    setVisitedOkrTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
+  };
+  const readyDepartmentStats = visitedOkrTabs.has('department-objectives');
+  const readyIndividualStats = visitedOkrTabs.has('individual-objectives');
 
   // Get available years from cycles
   const availableYears = cycles.length > 0 ? cycles.map(c => c.year).filter((year, index, arr) => arr.indexOf(year) === index).sort((a, b) => b - a) : undefined;
@@ -97,28 +100,15 @@ const HomeOKRDashboardContent = () => {
   const departmentStats = useObjectiveStats(organizationId, 'department', getFilteredCycleIds(yearQuarterSelection), readyDepartmentStats);
   const individualStats = useObjectiveStats(organizationId, 'individual', getFilteredCycleIds(yearQuarterSelection), readyIndividualStats);
 
-  // While `enabled` is false, `isLoading` is false — treat pre-defer window as pending so the home
-  // page skeleton does not clear then re-open when staggered stats queries start (reload flicker).
   const departmentStatsPending =
-    !readyDepartmentStats || departmentStats.isLoading;
+    readyDepartmentStats && departmentStats.isLoading;
   const individualStatsPending =
-    !readyIndividualStats || individualStats.isLoading;
+    readyIndividualStats && individualStats.isLoading;
 
-  const { isLoading: attendanceLoading } = useAttendanceStatus();
-  const { isPending: greetingEmployeeLoading } = useCurrentUserEmployee();
-  const { isPending: unifiedProfileLoading } = useUnifiedProfile();
-  const { anyLoading: okrTabsLoading, firstError: okrTabsError } = useHomeOkrTabsAggregate();
+  const { firstError: okrTabsError } = useHomeOkrTabsAggregate();
 
-  const okrLoading =
-    orgLoading ||
-    isLoadingCycles ||
-    companyStats.isLoading ||
-    departmentStatsPending ||
-    individualStatsPending ||
-    attendanceLoading ||
-    greetingEmployeeLoading ||
-    unifiedProfileLoading ||
-    okrTabsLoading;
+  /** Hanya org + cycles — tab OKR & empty state LCP render tanpa menunggu fetch objectives. */
+  const okrLoading = orgLoading || isLoadingCycles;
 
   const okrError =
     okrTabsError ||
@@ -129,8 +119,14 @@ const HomeOKRDashboardContent = () => {
 
   useReportHomeSectionStatus('okr', okrLoading, okrError);
 
+  const greetingFallback = (
+    <div className="flex-shrink-0 overflow-hidden rounded-lg border border-border bg-muted/30" aria-hidden>
+      <Skeleton className="h-[88px] w-full rounded-lg" />
+    </div>
+  );
+
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 60_000);
     return () => clearInterval(timer);
   }, []);
   const { t } = useAppTranslation();
@@ -147,16 +143,22 @@ const HomeOKRDashboardContent = () => {
       [index]: !prev[index]
     }));
   };
-  return <div className="space-y-2 h-full min-h-0 flex flex-col">
-      <div className="flex-shrink-0">
-        <SectionGreetings currentTime={currentTime} greeting={getGreeting()} />
-      </div>
+  return (
+    <div className="flex h-full min-h-0 flex-col space-y-2">
+      <Suspense fallback={greetingFallback}>
+        <div className="flex-shrink-0">
+          <SectionGreetings currentTime={currentTime} greeting={getGreeting()} />
+        </div>
+      </Suspense>
 
-      {/* OKR Objectives Section */}
-      <Card className="border border-border flex-1 min-h-0 flex flex-col overflow-hidden">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border border-border">
         
         <CardContent className="flex-1 flex flex-col overflow-hidden">
-          <Tabs defaultValue="company-objectives" className="w-full h-full flex flex-col overflow-hidden">
+          <Tabs
+            defaultValue={DEFAULT_OKR_TAB}
+            onValueChange={markOkrTabVisited}
+            className="w-full h-full flex flex-col overflow-hidden"
+          >
             <TabsList className="grid w-full grid-cols-3 mt-4 flex-shrink-0">
               <TabsTrigger value="company-objectives" className="text-sm font-semibold">Company Objective</TabsTrigger>
               <TabsTrigger value="department-objectives" className="text-sm font-semibold">Department Objective</TabsTrigger>
@@ -164,7 +166,6 @@ const HomeOKRDashboardContent = () => {
             </TabsList>
 
             <TabsContent
-              forceMount
               value="company-objectives"
               className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
@@ -205,7 +206,6 @@ const HomeOKRDashboardContent = () => {
             </TabsContent>
 
             <TabsContent
-              forceMount
               value="department-objectives"
               className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
@@ -247,7 +247,6 @@ const HomeOKRDashboardContent = () => {
             </TabsContent>
 
             <TabsContent
-              forceMount
               value="individual-objectives"
               className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
@@ -289,7 +288,8 @@ const HomeOKRDashboardContent = () => {
           </Tabs>
         </CardContent>
       </Card>
-    </div>;
+    </div>
+  );
 };
 function HomeOKRDashboardInner() {
   return (

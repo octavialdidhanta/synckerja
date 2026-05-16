@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { OkrHeaderAndTabSkeleton } from "./OkrHeaderAndTabSkeleton";
 
 /**
  * Mirrors OKRPage on `/okr/individual-objective`: HeaderAndTab, Card shell,
@@ -19,19 +20,7 @@ export function IndividualObjectivePageSkeleton() {
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-h-full flex-col">
                 <div className="mb-1 flex-shrink-0">
-                  <div className="px-1 py-3">
-                    <div className="mb-3">
-                      <Skeleton className="mb-0.5 h-7 w-52 max-w-[90%]" />
-                      <Skeleton className="h-3 w-72 max-w-full" />
-                    </div>
-                    <div className="-mb-3">
-                      <div className="flex space-x-6" aria-hidden>
-                        <Skeleton className="h-9 w-40" />
-                        <Skeleton className="h-9 w-44" />
-                        <Skeleton className="h-9 w-40 rounded-none border-b-2 border-brand-blue/40" />
-                      </div>
-                    </div>
-                  </div>
+                  <OkrHeaderAndTabSkeleton />
                 </div>
 
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">

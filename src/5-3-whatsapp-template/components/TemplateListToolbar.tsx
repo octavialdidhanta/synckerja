@@ -138,7 +138,10 @@ export function TemplateListToolbar({
             onValueChange={onSelectedWhatsappAccountIdChange}
             disabled={whatsappAccountsLoading}
           >
-            <SelectTrigger className="h-9 w-[min(100%,14rem)] min-w-[11rem] max-w-[16rem] shrink-0 font-normal" aria-label="WhatsApp account">
+            <SelectTrigger
+              className="h-9 w-auto max-w-full min-w-[11rem] shrink-0 justify-between gap-2 font-normal text-left text-sm text-foreground [&>span]:!line-clamp-none [&>span]:overflow-visible [&>span]:whitespace-nowrap [&>span]:text-left"
+              aria-label="WhatsApp account"
+            >
               <SelectValue placeholder="Akun WhatsApp" />
             </SelectTrigger>
             <SelectContent align="start">
@@ -273,10 +276,22 @@ export function TemplateListToolbar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <Button type="button" variant="secondary" size="sm" disabled title="Compare (coming soon)">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled
+          title="Compare (coming soon)"
+          className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 hover:text-brand-blue disabled:opacity-50"
+        >
           Compare
         </Button>
-        <Button type="button" size="sm" className="bg-[#1877F2] hover:bg-[#166FE5]" onClick={onCreateClick}>
+        <Button
+          type="button"
+          size="sm"
+          className="bg-brand-blue text-white hover:bg-brand-blue/90"
+          onClick={onCreateClick}
+        >
           Create Template
         </Button>
       </div>

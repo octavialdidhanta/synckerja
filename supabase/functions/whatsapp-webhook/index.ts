@@ -394,8 +394,9 @@ async function ensureLeadForNewConversation(
 function resolveVialdiWeddingWebIdFromDisplayPhoneNumber(
   displayPhoneNumber: string | null | undefined,
 ): "vialdi-wedding" | null {
-  const digits = digitsOnly(displayPhoneNumber ?? null);
-  return digits === "6281281714855" ? "vialdi-wedding" : null;
+  const d = digitsOnly(displayPhoneNumber ?? null);
+  if (d === "6281281714855" || d === "6281118891308") return "vialdi-wedding";
+  return null;
 }
 
 async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
@@ -614,6 +615,50 @@ async function updateWhatsappMessageStatusWithDebug(args: {
     .eq("wa_message_id", waMessageId);
 }
 
+/** Meta Cloud API: outbound `statuses[]` may include `conversation.expiration_timestamp` (Unix seconds). */
+async function persistWhatsappMetaSessionExpiryFromStatusPayload(
+  supabase: ReturnType<typeof createClient>,
+  st: Record<string, unknown>,
+): Promise<void> {
+  const conv = st.conversation as { expiration_timestamp?: string | number } | undefined;
+  const rawExp = conv?.expiration_timestamp;
+  if (rawExp == null) return;
+  const expSec = Number(rawExp);
+  if (!Number.isFinite(expSec) || expSec <= 0) return;
+  const expiresAt = new Date(expSec * 1000).toISOString();
+
+  const waMessageId = st.id != null ? String(st.id).trim() : "";
+  if (!waMessageId) return;
+
+  const { data: msg } = await supabase
+    .from("whatsapp_messages")
+    .select("conversation_id")
+    .eq("wa_message_id", waMessageId)
+    .maybeSingle();
+  const cid = msg?.conversation_id != null ? String(msg.conversation_id) : null;
+  if (!cid) return;
+
+  const { data: row } = await supabase
+    .from("whatsapp_conversations")
+    .select("meta_session_expires_at")
+    .eq("id", cid)
+    .maybeSingle();
+
+  const prevMs = row?.meta_session_expires_at
+    ? new Date(String(row.meta_session_expires_at)).getTime()
+    : 0;
+  const nextMs = new Date(expiresAt).getTime();
+  const maxMs = Math.max(prevMs, nextMs);
+
+  await supabase
+    .from("whatsapp_conversations")
+    .update({
+      meta_session_expires_at: new Date(maxMs).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", cid);
+}
+
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const ts = new Date().toISOString();
@@ -737,6 +782,8 @@ Deno.serve(async (req: Request) => {
                   statusTimestampIso: statusTimestamp,
                   statusPayload: st as Record<string, unknown>,
                 });
+
+                await persistWhatsappMetaSessionExpiryFromStatusPayload(supabase, st as Record<string, unknown>);
 
                 const { data: campRec } = await supabase
                   .from("whatsapp_campaign_recipients")
@@ -955,7 +1002,7 @@ Deno.serve(async (req: Request) => {
                   customerName ?? customerWaId ?? "",
                 );
 
-                void ensureLeadsVialdiWeddingFromAnalyticsWaClick({
+                await ensureLeadsVialdiWeddingFromAnalyticsWaClick({
                   supabase,
                   orgId,
                   convId: conv.id,
@@ -1076,7 +1123,8 @@ Deno.serve(async (req: Request) => {
 
                 const statusNameLower = leadStatusName?.trim().toLowerCase() ?? "";
                 const isResolved = statusNameLower === "closed" || statusNameLower === "resolve";
-                const isNewOrReopen = openStatusId && (statusId == null || isResolved);
+                const isExpired = statusNameLower === "expired";
+                const isNewOrReopen = openStatusId && (statusId == null || isResolved || isExpired);
                 console.log("Resolve-cycle:", {
                   conversation_id: conv.id,
                   leadStatusName,

@@ -1,42 +1,29 @@
-import { useState, useMemo } from 'react';
+import { lazy, Suspense, useState, useMemo, useCallback } from 'react';
 import { Plus, MoreHorizontal, Edit, Trash2, Eye, FileDown } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/shared/components/ui/dialog';
-import { cn } from '@/shared/lib/utils';
-import { MODAL_BRAND_HEADER_BAR } from '@/shared/constants/modalBrandHeaderClasses';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
 import { Badge } from '@/shared/components/ui/badge';
 import { useIncomeTransactions } from '@/4-1-dashboard/hooks';
-import { IncomeTransactionDialog } from '@/4-1-dashboard/components/IncomeTransactionDialog';
-import { IncomeTransactionViewDialog } from './IncomeTransactionViewDialog';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format } from 'date-fns';
-import { AddIncomeForm } from '@/4-1-dashboard/components/AddIncomeForm';
 import { IncomeTransactionWithRelations } from '@/4-1-dashboard/types';
 import { useBankAccounts, type BankAccount } from '@/shared/hooks/finance/useBankAccounts';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { getIncomeTransactionIdDisplay } from '@/4-1-dashboard/utils/incomeTransactionDisplayId';
 
+const IncomeTransactionTableDialogs = lazy(() =>
+  import('./IncomeTransactionTableDialogs').then((m) => ({
+    default: m.IncomeTransactionTableDialogs,
+  })),
+);
+
 interface IncomeTransactionTableProps {
   transactions: any[];
-  isLoading?: boolean;
   onRefresh?: () => void;
 }
 
-export const IncomeTransactionTable = ({ 
-  transactions, 
-  isLoading = false,
-  onRefresh 
-}: IncomeTransactionTableProps) => {
+export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransactionTableProps) => {
   const { t } = useAppTranslation();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<IncomeTransactionWithRelations | null>(null);
@@ -44,6 +31,8 @@ export const IncomeTransactionTable = ({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteIncomeTransaction, isDeleting } = useIncomeTransactions();
+  const [mountDialogs, setMountDialogs] = useState(false);
+  const ensureDialogs = useCallback(() => setMountDialogs(true), []);
   const { bankAccounts } = useBankAccounts({ includeInactive: true });
   const bankById = useMemo(
     () => new Map<string, BankAccount>(bankAccounts.map((b) => [b.id, b])),
@@ -64,16 +53,19 @@ export const IncomeTransactionTable = ({
   };
 
   const handleViewDetails = (transaction: IncomeTransactionWithRelations) => {
+    ensureDialogs();
     setSelectedTransaction(transaction);
     setIsViewDialogOpen(true);
   };
 
   const handleEdit = (transaction: IncomeTransactionWithRelations) => {
+    ensureDialogs();
     setSelectedTransaction(transaction);
     setIsEditDialogOpen(true);
   };
 
   const handleDelete = (transaction: IncomeTransactionWithRelations) => {
+    ensureDialogs();
     setSelectedTransaction(transaction);
     setIsDeleteDialogOpen(true);
   };
@@ -92,38 +84,23 @@ export const IncomeTransactionTable = ({
     });
   };
 
-  if (isLoading) {
-    return null;
-  }
-
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-2">
         <h2 className="text-sm font-semibold text-gray-900">Income Transactions</h2>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="h-8 px-3 text-xs">
-              <Plus className="h-3 w-3 mr-1" />
-              Add Income
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
-            <DialogHeader
-              className={cn('flex-shrink-0 space-y-1 px-4 py-3 text-left', MODAL_BRAND_HEADER_BAR)}
-            >
-              <DialogTitle className="text-lg font-semibold text-primary-foreground">
-                {t('incomes.addTransactionTitle', 'Add New Income Transaction')}
-              </DialogTitle>
-              <DialogDescription className="text-primary-foreground/90">
-                {t('incomes.addTransactionSubtitle', 'Create a new income transaction record')}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              <AddIncomeForm onSuccess={() => setIsAddDialogOpen(false)} />
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 px-3 text-xs"
+          onClick={() => {
+            ensureDialogs();
+            setIsAddDialogOpen(true);
+          }}
+        >
+          <Plus className="mr-1 h-3 w-3" />
+          Add Income
+        </Button>
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -134,7 +111,9 @@ export const IncomeTransactionTable = ({
             <TableRow className="bg-gray-50">
               <TableHead className="h-8 w-[200px] min-w-[200px] px-3 text-xs font-medium bg-gray-50">Transaction</TableHead>
               <TableHead className="h-8 w-[130px] min-w-[130px] px-3 text-xs font-medium bg-gray-50">Customer</TableHead>
-              <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Service</TableHead>
+              <TableHead className="h-8 w-[160px] min-w-[160px] px-3 text-xs font-medium bg-gray-50">
+                Service
+              </TableHead>
               <TableHead className="h-8 w-[150px] min-w-[150px] px-3 text-xs font-medium bg-gray-50">Type & Category</TableHead>
               <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Amount</TableHead>
               <TableHead className="h-8 min-w-[150px] w-[150px] px-3 text-xs font-medium bg-gray-50">Payment Method</TableHead>
@@ -167,12 +146,12 @@ export const IncomeTransactionTable = ({
                   <TableCell className="w-[130px] min-w-[130px] px-3 py-2 text-xs font-medium">
                     {transaction.customer_name || '-'}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-xs">
-                    <div>
+                  <TableCell className="w-[160px] min-w-[160px] px-3 py-2 text-xs align-top">
+                    <div className="break-words leading-snug">
                       {transaction.services?.name || '-'}
                     </div>
                     {transaction.sub_services?.name && (
-                      <div className="text-gray-500 text-xs">
+                      <div className="mt-0.5 break-words text-xs text-gray-500">
                         {transaction.sub_services.name}
                       </div>
                     )}
@@ -343,86 +322,25 @@ export const IncomeTransactionTable = ({
         </Table>
       </div>
 
-      {/* View Details Dialog */}
-      <IncomeTransactionViewDialog
-        transaction={selectedTransaction}
-        open={isViewDialogOpen}
-        onOpenChange={(open) => {
-          setIsViewDialogOpen(open);
-          if (!open) {
-            setSelectedTransaction(null);
-          }
-        }}
-        onEdit={() => {
-          setIsViewDialogOpen(false);
-          setIsEditDialogOpen(true);
-        }}
-      />
-
-      {/* Edit Dialog */}
-      <IncomeTransactionDialog
-        income={selectedTransaction}
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditDialogOpen(open);
-          if (!open) {
-            setSelectedTransaction(null);
-            if (onRefresh) {
-              onRefresh();
-            }
-          }
-        }}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Income Transaction</AlertDialogTitle>
-            <AlertDialogDescription>
-              {selectedTransaction?.has_income_allocations ? (
-                <span className="text-foreground">
-                  {t(
-                    'incomes.delete.error.lockedByAllocation',
-                    'This income is allocated to an expense or debt payment. Delete or change that payment first, then try again.'
-                  )}
-                </span>
-              ) : (
-                <>
-                  Are you sure you want to delete this income transaction?
-                </>
-              )}
-              {selectedTransaction && !selectedTransaction.has_income_allocations && (
-                <>
-                  <br />
-                  <span className="font-semibold">
-                    {selectedTransaction.description || selectedTransaction.customer_name || 'Transaction'}
-                  </span>
-                  <br />
-                  Amount: {formatToRupiah(selectedTransaction.amount)}
-                  <br />
-                  This action cannot be undone.
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setIsDeleteDialogOpen(false);
-              setSelectedTransaction(null);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              disabled={isDeleting || !!selectedTransaction?.has_income_allocations}
-              className="bg-brand-red hover:bg-brand-red/90"
-            >
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {mountDialogs ? (
+        <Suspense fallback={null}>
+          <IncomeTransactionTableDialogs
+            isAddDialogOpen={isAddDialogOpen}
+            setIsAddDialogOpen={setIsAddDialogOpen}
+            selectedTransaction={selectedTransaction}
+            isViewDialogOpen={isViewDialogOpen}
+            setIsViewDialogOpen={setIsViewDialogOpen}
+            setIsEditDialogOpen={setIsEditDialogOpen}
+            isEditDialogOpen={isEditDialogOpen}
+            isDeleteDialogOpen={isDeleteDialogOpen}
+            setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+            setSelectedTransaction={setSelectedTransaction}
+            confirmDelete={confirmDelete}
+            isDeleting={isDeleting}
+            onRefresh={onRefresh}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 };

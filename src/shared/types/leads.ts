@@ -34,6 +34,10 @@ export interface NewLead {
     name: string;
     color: string | null;
   };
+  /** WhatsApp / Instagram virtual rows: Meta session expiry from `*_conversations.meta_session_expires_at`. */
+  meta_session_expires_at?: string | null;
+  /** Virtual omnichannel rows: `whatsapp` | `instagram` when merged from conversations. */
+  channel?: string | null;
 }
 
 export interface CreateLeadData {

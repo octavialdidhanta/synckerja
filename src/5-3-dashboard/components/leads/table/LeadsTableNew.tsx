@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react';
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
@@ -22,6 +23,7 @@ import { useLeadStatusesActiveFull } from "@/5-3-dashboard/hooks/useLeadsManagem
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { cn } from "@/shared/lib/utils";
+import { isOutboundBlockedForLivechat, isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
 import type { LeadAttributionSortColumn, LeadAttributionSortState } from '@/shared/lib/leadAttribution';
 import { defaultLeadAttributionSortState } from '@/shared/lib/leadAttribution';
 import {
@@ -31,6 +33,13 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import type { LatestCustomerSurvey } from "@/features/customer-survey/hooks/useCustomerSurveyForLeads";
+import { SURVEY_RATING_FILTER_OPTIONS } from "@/features/customer-survey/core/surveyRatingFilter";
+import {
+  LeadSurveyCommentCell,
+  LeadSurveyHistoryCell,
+  LeadSurveyRatingCell,
+} from "@/5-3-dashboard/components/leads/table/LeadSurveyTableCells";
 
 type CategoryColumnFilterConfig = {
   value: string;
@@ -69,6 +78,13 @@ type StatusColumnFilterConfig = {
   onChange: (value: string) => void;
   /** Nilai filter = `lead_status.name` (raw), label = nama tampilan. */
   options: Array<{ id: string; name: string; label: string }>;
+};
+
+export type { SurveyRatingFilterValue as SurveyRatingColumnFilterValue } from "@/features/customer-survey/core/surveyRatingFilter";
+
+type SurveyColumnFilterConfig = {
+  value: SurveyRatingColumnFilterValue;
+  onChange: (value: SurveyRatingColumnFilterValue) => void;
 };
 
 /** UTM / string attribution: nilai filter = string field lead (sama seperti bar filter lama). */
@@ -111,12 +127,25 @@ interface LeadsTableNewProps {
   utmTermColumnFilter?: UtmStringColumnFilterConfig | null;
   attributionLabelColumnFilter?: UtmStringColumnFilterConfig | null;
   landingUrlContainsColumnFilter?: LandingUrlContainsColumnFilterConfig | null;
+  /** Latest customer survey per WhatsApp conversation (leads page hook or RPC fields in picker). */
+  getSurveyForLead?: (lead: NewLead) => LatestCustomerSurvey | null;
+  onOpenSurveyHistory?: (lead: NewLead) => void;
+  surveyColumnFilter?: SurveyColumnFilterConfig | null;
+  /** Campaign recipient picker: checkbox column + read-only cells (no CRM mutations). */
+  pickerSelection?: {
+    selectedPhoneKeys: ReadonlySet<string>;
+    onTogglePhone: (phoneKey: string, selected: boolean) => void;
+    onTogglePage: (phoneKeys: string[], selected: boolean) => void;
+    getPhoneKey: (lead: NewLead) => string;
+    /** Recipient list contact picker: reuse Title column slot for WhatsApp display phone (`_display_phone`). */
+    replaceTitleColumnWithPhone?: boolean;
+  } | null;
 }
 
-const TABLE_COL_COUNT = 20;
-
-/** Radix Select requires a non-empty string; maps to `assignee_id: null` in `handleFieldUpdate`. */
 const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
+
+/** Extra horizontal room between Attribution label ↔ Assignee ↔ Follow Up (header + body). */
+const ATTRIBUTION_ASSIGNEE_FU_HEAD_KEYS = new Set(["attribution_label", "assignee", "followup"]);
 
 export default function LeadsTableNew({
   leads,
@@ -138,6 +167,10 @@ export default function LeadsTableNew({
   utmTermColumnFilter,
   attributionLabelColumnFilter,
   landingUrlContainsColumnFilter,
+  getSurveyForLead,
+  onOpenSurveyHistory,
+  surveyColumnFilter,
+  pickerSelection = null,
 }: LeadsTableNewProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -174,6 +207,10 @@ export default function LeadsTableNew({
 
     if (field === 'status_id') {
       const selectedStatus = leadStatuses.find(s => s.id === value);
+      if (selectedStatus?.name?.trim().toLowerCase() === 'open') {
+        const cur = (lead.lead_status?.name ?? leadStatuses.find(s => s.id === lead.status_id)?.name ?? '').trim().toLowerCase();
+        if (cur && cur !== 'open' && cur !== 'expired') return;
+      }
       if (selectedStatus?.name?.trim().toLowerCase() === 'closed') {
         const confirmed = window.confirm(t('leadsManagement.confirmResolve', 'Yakin ingin mengubah status menjadi Resolve? Chat outbound akan diblokir sampai ada pesan masuk baru dari customer.'));
         if (!confirmed) return;
@@ -271,7 +308,15 @@ export default function LeadsTableNew({
       (name) => getCurrentLeadStatusName(lead).toLowerCase() === name.toLowerCase()
     );
 
-  const isResolvedLead = (l: NewLead) => (l.lead_status?.name ?? leadStatuses.find(s => s.id === l.status_id)?.name ?? '').trim().toLowerCase() === 'closed';
+  const isRowSessionLocked = (l: NewLead) => {
+    const name = getCurrentLeadStatusName(l);
+    const src = (l.source ?? '').trim().toLowerCase();
+    const meta = l.meta_session_expires_at ?? null;
+    if (src === 'whatsapp' || src === 'instagram') {
+      return isOutboundBlockedForLivechat({ statusName: name, metaSessionExpiresAt: meta });
+    }
+    return isResolvedStatus(name);
+  };
 
   // Get Status with soft colors - rectangular style
   const getStatusColor = (lead: NewLead) => {
@@ -285,6 +330,7 @@ export default function LeadsTableNew({
         '#059669': 'bg-emerald-50 text-emerald-700 border-emerald-200',
         '#EF4444': 'bg-red-50 text-red-700 border-red-200',
         '#6B7280': 'bg-gray-50 text-gray-700 border-gray-200',
+        '#78716C': 'bg-stone-50 text-stone-700 border-stone-200',
         '#3B82F6': 'bg-blue-50 text-blue-700 border-blue-200'
       };
       return colorMap[statusData.color] || 'bg-gray-50 text-gray-700 border-gray-200';
@@ -349,28 +395,61 @@ export default function LeadsTableNew({
     }
   };
 
-  const tableHeaders = useMemo((): TableHeadCol[] => [
-    { key: "created", label: "Created", width: "w-[100px]", sortKey: "created_at" },
-    { key: "ticket", label: "Ticket ID", width: "w-[120px]", sortKey: "ticket_id" },
-    { key: "client", label: "Client", width: "w-[150px]", sortKey: "client" },
-    { key: "title", label: "Title", width: "w-[200px]", sortKey: "title" },
-    { key: "services", label: "Services", width: "w-[280px] max-w-[280px]", sortKey: "services" },
-    { key: "category", label: "Category", width: "w-[200px] max-w-[200px]", sortKey: "category" },
-    { key: "created_by", label: "Created By", width: "w-[120px]", sortKey: "created_by_name" },
-    { key: "source", label: "Source", width: "w-[100px]", sortKey: "source" },
-    { key: "utm_source", label: "UTM Source", width: "w-[110px]", sortKey: "utm_source" },
-    { key: "utm_campaign", label: "UTM Campaign", width: "w-[130px]", sortKey: "utm_campaign" },
-    { key: "utm_medium", label: "UTM Medium", width: "w-[120px]", sortKey: "utm_medium" },
-    { key: "utm_content", label: "UTM Content", width: "w-[120px]", sortKey: "utm_content" },
-    { key: "utm_term", label: "UTM Term", width: "w-[110px]", sortKey: "utm_term" },
-    { key: "landing_url", label: "Landing URL", width: "w-[200px] max-w-[220px]", sortKey: "landing_url" },
-    { key: "attribution_label", label: "Attribution label", width: "w-[120px]", sortKey: "attribution_label" },
-    { key: "assignee", label: "Assignee", width: "w-[120px]", sortKey: "assignee" },
-    { key: "followup", label: "Follow Up", width: "w-[100px]", sortKey: "followup" },
-    { key: "fu_priority", label: "FU Priority", width: "w-[120px]", sortKey: "fu_priority" },
-    { key: "status", label: "Status", width: "w-[120px]", sortKey: "status" },
-    { key: "actions", label: "Actions", width: "w-[100px]" },
-  ], []);
+  const tableHeaders = useMemo((): TableHeadCol[] => {
+    const pick: TableHeadCol[] = pickerSelection
+      ? [{ key: "pick", label: "", width: "w-11" }]
+      : [];
+    const titleLabel =
+      pickerSelection?.replaceTitleColumnWithPhone === true
+        ? t("whatsappTemplates.recipientLists.addContactsModal.colPhone", "Phone number")
+        : "Title";
+    return [
+      ...pick,
+      { key: "created", label: "Created", width: "w-[100px]", sortKey: "created_at" },
+      { key: "ticket", label: "Ticket ID", width: "w-[120px]", sortKey: "ticket_id" },
+      { key: "client", label: "Client", width: "w-[150px]", sortKey: "client" },
+      { key: "title", label: titleLabel, width: "w-[200px]", sortKey: "title" },
+      { key: "services", label: "Services", width: "w-[280px] max-w-[280px]", sortKey: "services" },
+      { key: "category", label: "Category", width: "w-[200px] max-w-[200px]", sortKey: "category" },
+      { key: "created_by", label: "Created By", width: "w-[120px]", sortKey: "created_by_name" },
+      { key: "source", label: "Source", width: "w-[100px]", sortKey: "source" },
+      { key: "utm_source", label: "UTM Source", width: "w-[110px]", sortKey: "utm_source" },
+      { key: "utm_campaign", label: "UTM Campaign", width: "w-[130px]", sortKey: "utm_campaign" },
+      { key: "utm_medium", label: "UTM Medium", width: "w-[120px]", sortKey: "utm_medium" },
+      { key: "utm_content", label: "UTM Content", width: "w-[120px]", sortKey: "utm_content" },
+      { key: "utm_term", label: "UTM Term", width: "w-[110px]", sortKey: "utm_term" },
+      { key: "landing_url", label: "Landing URL", width: "w-[200px] max-w-[220px]", sortKey: "landing_url" },
+      { key: "attribution_label", label: "Attribution label", width: "min-w-[200px] max-w-[260px]", sortKey: "attribution_label" },
+      { key: "assignee", label: "Assignee", width: "min-w-[168px] w-[168px]", sortKey: "assignee" },
+      { key: "followup", label: "Follow Up", width: "min-w-[124px] w-[124px]", sortKey: "followup" },
+      { key: "fu_priority", label: "FU Priority", width: "w-[120px]", sortKey: "fu_priority" },
+      { key: "status", label: "Status", width: "w-[120px]", sortKey: "status" },
+      {
+        key: "survey_rating",
+        label: t("leadsManagement.table.surveyRating", "Rating"),
+        width: "w-[100px]",
+        sortKey: "survey_rating",
+      },
+      { key: "survey_history", label: "", width: "w-10" },
+      { key: "survey_comment", label: t("leadsManagement.table.surveyComment", "Keterangan"), width: "w-[160px] max-w-[200px]" },
+      ...(pickerSelection ? [] : [{ key: "actions" as const, label: "Actions", width: "w-[100px]" }]),
+    ];
+  }, [pickerSelection, t]);
+
+  const tableColCount = tableHeaders.length;
+
+  const surveyRatingFilterOptions = useMemo(
+    () =>
+      SURVEY_RATING_FILTER_OPTIONS.map((v) => ({
+        key: `survey-rating-${v}`,
+        value: v,
+        label:
+          v === "none"
+            ? t("leadsManagement.filters.noSurveyRating", "No rating")
+            : t("leadsManagement.filters.surveyRatingStars", "{{count}} star", { count: Number(v) }),
+      })),
+    [t],
+  );
 
   const renderAttributionSortHead = (header: TableHeadCol) => {
     const sk = header.sortKey;
@@ -438,6 +517,19 @@ export default function LeadsTableNew({
   );
 
   const renderTableHeadContent = (header: TableHeadCol) => {
+    if (header.key === "pick" && pickerSelection) {
+      const keys = leads.map((l) => pickerSelection.getPhoneKey(l));
+      const allOnPage = keys.length > 0 && keys.every((k) => pickerSelection.selectedPhoneKeys.has(k));
+      const someOnPage = keys.some((k) => pickerSelection.selectedPhoneKeys.has(k));
+      return (
+        <Checkbox
+          checked={allOnPage ? true : someOnPage ? "indeterminate" : false}
+          onCheckedChange={(v) => pickerSelection.onTogglePage(keys, v === true)}
+          aria-label={t("whatsappTemplates.recipientLists.addContactsModal.selectAllAria")}
+          className="translate-y-0.5"
+        />
+      );
+    }
     if (header.key === "category" && categoryColumnFilter) {
       return (
         <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
@@ -524,6 +616,25 @@ export default function LeadsTableNew({
             t("leadsManagement.table.filterStatus", "Filter status"),
           )}
         </div>
+      );
+    }
+    if (header.key === "survey_rating" && surveyColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          <span className="min-w-0 truncate font-medium text-gray-700">{header.label}</span>
+          {renderLeadColumnFilterDropdown(
+            surveyColumnFilter.value,
+            (v) => surveyColumnFilter.onChange(v as SurveyRatingColumnFilterValue),
+            t("leadsManagement.filters.allSurveyRatings", "All ratings"),
+            surveyRatingFilterOptions,
+            t("leadsManagement.table.filterSurveyRating", "Filter rating"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "survey_history") {
+      return (
+        <span className="sr-only">{t("leadsManagement.table.surveyHistoryColumn", "Riwayat survei")}</span>
       );
     }
     if (header.key === "utm_source" && utmSourceColumnFilter) {
@@ -703,7 +814,14 @@ export default function LeadsTableNew({
           <TableHeader className="bg-gray-50 sticky top-0 z-20 shadow-sm">
             <TableRow className="hover:bg-transparent">
               {tableHeaders.map((header) => (
-                <TableHead key={header.key} className={`text-xs font-medium text-gray-700 ${header.width} px-3 bg-gray-50 whitespace-nowrap`}>
+                <TableHead
+                  key={header.key}
+                  className={cn(
+                    "bg-gray-50 text-xs font-medium text-gray-700 whitespace-nowrap",
+                    header.width,
+                    ATTRIBUTION_ASSIGNEE_FU_HEAD_KEYS.has(header.key) ? "px-5" : "px-3",
+                  )}
+                >
                   {renderTableHeadContent(header)}
                 </TableHead>
               ))}
@@ -712,7 +830,7 @@ export default function LeadsTableNew({
           <TableBody>
             {leads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={TABLE_COL_COUNT} className="text-center py-8 text-gray-500 text-sm">
+                <TableCell colSpan={tableColCount} className="text-center py-8 text-gray-500 text-sm">
                   <div className="flex flex-col items-center space-y-2">
                     <div className="text-lg">📊</div>
                     <div>No leads found</div>
@@ -721,8 +839,23 @@ export default function LeadsTableNew({
                 </TableCell>
               </TableRow>
             ) : (
-              leads.map((lead, index) => (
+              leads.map((lead) => {
+                const phoneKey = pickerSelection ? pickerSelection.getPhoneKey(lead) : "";
+                const showPhoneInsteadOfTitle = pickerSelection?.replaceTitleColumnWithPhone === true;
+                const rowDisplayPhone = showPhoneInsteadOfTitle
+                  ? (lead as NewLead & { _display_phone?: string | null })._display_phone
+                  : undefined;
+                return (
                 <TableRow key={lead.id} className="hover:bg-muted/30">
+                  {pickerSelection ? (
+                    <TableCell className="w-11 px-2 py-1 align-middle">
+                      <Checkbox
+                        checked={pickerSelection.selectedPhoneKeys.has(phoneKey)}
+                        onCheckedChange={(v) => pickerSelection.onTogglePhone(phoneKey, v === true)}
+                        aria-label={lead.client}
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell className="font-medium text-sm whitespace-nowrap">
                     {formatDate(lead.created_at)}
                   </TableCell>
@@ -731,17 +864,42 @@ export default function LeadsTableNew({
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <div className="flex items-center">
-                      <button
-                        onClick={() => handleClientClick(lead)}
-                        className="font-medium text-sm text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                      >
-                        {lead.client}
-                      </button>
-                      <ClientStatusIcon leadId={lead.id} />
+                      {pickerSelection ? (
+                        <span className="font-medium text-sm">{lead.client}</span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleClientClick(lead)}
+                            className="font-medium text-sm text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          >
+                            {lead.client}
+                          </button>
+                          {/^[0-9a-f-]{36}$/i.test(String(lead.id)) ? (
+                            <ClientStatusIcon leadId={lead.id} />
+                          ) : null}
+                        </>
+                      )}
                     </div>
                   </TableCell>
-                  <TableCell className="w-[200px] max-w-[200px] min-w-0 overflow-hidden align-middle">
-                    <span className="text-sm leading-normal truncate block" title={lead.title ?? ''}>{lead.title}</span>
+                  <TableCell
+                    className={cn(
+                      "w-[200px] max-w-[200px] min-w-0 overflow-hidden align-middle",
+                      showPhoneInsteadOfTitle && "font-mono text-sm",
+                    )}
+                  >
+                    {showPhoneInsteadOfTitle ? (
+                      <span
+                        className="block truncate text-sm leading-normal"
+                        title={rowDisplayPhone?.trim() ? rowDisplayPhone : undefined}
+                      >
+                        {rowDisplayPhone?.trim() ? rowDisplayPhone : "—"}
+                      </span>
+                    ) : (
+                      <span className="block truncate text-sm leading-normal" title={lead.title ?? ""}>
+                        {lead.title}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="w-[280px] max-w-[280px] min-w-0 overflow-hidden align-middle">
                     <span className="text-sm leading-normal block truncate" title={(lead.services ?? '').trim() || undefined}>
@@ -787,10 +945,17 @@ export default function LeadsTableNew({
                       </span>
                     ) : null}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
-                    {lead.attribution_label?.trim() ? <span title={lead.attribution_label}>{lead.attribution_label}</span> : null}
+                  <TableCell className="min-w-0 max-w-[260px] px-5 text-xs text-gray-800 align-middle">
+                    {lead.attribution_label?.trim() ? (
+                      <span className="block truncate" title={lead.attribution_label}>
+                        {lead.attribution_label}
+                      </span>
+                    ) : null}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
+                  <TableCell className="min-w-[168px] whitespace-nowrap px-5">
+                    {pickerSelection ? (
+                      <span className="text-sm text-gray-800">{lead.assignee?.trim() ? lead.assignee : "—"}</span>
+                    ) : (
                     <Select
                       value={
                         (lead as NewLead & { assignee_id?: string | null }).assignee_id ??
@@ -799,7 +964,7 @@ export default function LeadsTableNew({
                       }
                       onValueChange={(value) => handleFieldUpdate(lead.id, "assignee_id", value)}
                     >
-                      <SelectTrigger className="w-full h-8 text-xs" disabled={isResolvedLead(lead)}>
+                      <SelectTrigger className="w-full h-8 text-xs" disabled={isRowSessionLocked(lead)}>
                         <SelectValue placeholder={t("leadsManagement.table.assigneePlaceholder", "Select assignee")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -819,9 +984,13 @@ export default function LeadsTableNew({
                         )}
                       </SelectContent>
                     </Select>
+                    )}
                   </TableCell>
                   {/* Follow Up Column with History Icon and Number (same for regular + WhatsApp) */}
-                  <TableCell className="whitespace-nowrap">
+                  <TableCell className="min-w-[124px] whitespace-nowrap px-5">
+                    {pickerSelection ? (
+                      <span className="text-sm font-medium">{lead.followup ?? 0}</span>
+                    ) : (
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
@@ -833,6 +1002,7 @@ export default function LeadsTableNew({
                       </Button>
                       <span className="text-sm font-medium">{lead.followup ?? 0}</span>
                     </div>
+                    )}
                   </TableCell>
                   {/* FU Priority Column (same for regular + WhatsApp) */}
                   <TableCell className="whitespace-nowrap">
@@ -848,6 +1018,15 @@ export default function LeadsTableNew({
                   </TableCell>
                   {/* Status Column - Read-only badge from lead_statuses; no dropdown. Change status via Edit lead or View detail. */}
                   <TableCell className="whitespace-nowrap">
+                    {pickerSelection ? (
+                      <Badge className={`${getStatusColor(lead)} text-xs px-3 py-1 rounded-sm font-medium border w-28 justify-center`}>
+                        {getLeadStatusDisplayName(
+                          lead.lead_status?.name ||
+                          leadStatuses.find(s => s.id === lead.status_id)?.name ||
+                          (leadStatuses.length > 0 ? leadStatuses[0].name : 'Open')
+                        )}
+                      </Badge>
+                    ) : (
                     <div className="flex items-center gap-2">
                       <Badge className={`${getStatusColor(lead)} text-xs px-3 py-1 rounded-sm font-medium border w-28 justify-center`}>
                         {getLeadStatusDisplayName(
@@ -866,17 +1045,40 @@ export default function LeadsTableNew({
                         <Clock className="h-3 w-3 text-gray-600" />
                       </Button>
                     </div>
+                    )}
                   </TableCell>
-                  <TableCell className="text-center">
-                    <LeadActionsDropdown
+                  <TableCell className="whitespace-nowrap px-2 py-1 align-middle">
+                    <LeadSurveyRatingCell
                       lead={lead}
-                      onEdit={handleEdit}
-                      onViewDetail={handleViewDetail}
-                      onDelete={handleDelete}
+                      survey={getSurveyForLead?.(lead) ?? null}
                     />
                   </TableCell>
+                  <TableCell className="w-10 px-1 py-1 text-center align-middle">
+                    <LeadSurveyHistoryCell
+                      lead={lead}
+                      survey={getSurveyForLead?.(lead) ?? null}
+                      onOpenHistory={onOpenSurveyHistory}
+                    />
+                  </TableCell>
+                  <TableCell className="max-w-[200px] min-w-0 px-2 py-1 align-middle">
+                    <LeadSurveyCommentCell
+                      lead={lead}
+                      survey={getSurveyForLead?.(lead) ?? null}
+                    />
+                  </TableCell>
+                  {!pickerSelection ? (
+                    <TableCell className="text-center">
+                      <LeadActionsDropdown
+                        lead={lead}
+                        onEdit={handleEdit}
+                        onViewDetail={handleViewDetail}
+                        onDelete={handleDelete}
+                      />
+                    </TableCell>
+                  ) : null}
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </table>

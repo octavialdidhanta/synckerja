@@ -1,23 +1,23 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { DollarSign, Calendar, Receipt, Building2 } from 'lucide-react';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 import { MOBILE_INCOMES_BANK_ACCOUNT_PATH } from '@/mobile/3-dashboard/shared/mobileIncomesNavPaths';
-import { useIncomeTransactions } from '@/4-1-dashboard/hooks';
 import { useIncomeMetrics } from '@/4-1-dashboard/hooks';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
-import { BankAccountManagement } from './BankAccountManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
+
+const BankAccountManagement = lazy(() =>
+  import('./BankAccountManagement').then((m) => ({ default: m.BankAccountManagement })),
+);
 
 interface IncomeTransactionOverviewProps {
   transactions?: any[];
 }
 
 const OverviewContent = ({ transactions = [] }: { transactions?: any[] }) => {
-  const { incomeTransactions } = useIncomeTransactions();
   const { data: metrics } = useIncomeMetrics();
-
-  // Use provided transactions or fallback to all transactions
-  const displayTransactions = transactions.length > 0 ? transactions : incomeTransactions;
+  const displayTransactions = transactions;
 
   // Calculate metrics
   const totalAmount = displayTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -160,7 +160,18 @@ export const IncomeTransactionOverview = ({ transactions = [] }: IncomeTransacti
         value="bank-accounts"
         className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:outline-none data-[state=inactive]:hidden"
       >
-        <BankAccountManagement />
+        {activeTab === 'bank-accounts' ? (
+          <Suspense
+            fallback={
+              <div className="space-y-2 p-1" aria-hidden>
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-24 w-full rounded-lg" />
+              </div>
+            }
+          >
+            <BankAccountManagement />
+          </Suspense>
+        ) : null}
       </TabsContent>
     </Tabs>
   );
