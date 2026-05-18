@@ -144,42 +144,58 @@ export function CustomerSurveySettingsForm({
                 />
               </div>
             </label>
-            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-transparent px-1 py-1 hover:bg-muted/60">
-              <RadioGroupItem value="by_score" id="fu_by_score" className="mt-1" />
-              <div className="grid flex-1 gap-3 sm:grid-cols-3">
-                <div className="space-y-1">
-                  <span className="text-sm font-medium">{t("omnichannel.settings.customerSurvey.followUpByScore")}</span>
-                  <p className="text-xs text-muted-foreground">{t("omnichannel.settings.customerSurvey.followUpLowBand")}</p>
+            <div className="space-y-3 rounded-md border border-transparent px-1 py-1">
+              <label className="flex cursor-pointer items-start gap-2 hover:bg-muted/60">
+                <RadioGroupItem value="by_score" id="fu_by_score" className="mt-0.5 shrink-0" />
+                <span className="text-sm font-medium">
+                  {t("omnichannel.settings.customerSurvey.followUpByScore")}
+                </span>
+              </label>
+              <div className="grid grid-cols-1 gap-3 ps-7 sm:grid-cols-3 sm:items-start">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <Label htmlFor="fu_low" className="text-xs font-normal text-muted-foreground">
+                    {t("omnichannel.settings.customerSurvey.followUpLowBand")}
+                  </Label>
                   <Textarea
+                    id="fu_low"
                     disabled={values.follow_up_mode !== "by_score"}
                     rows={2}
                     maxLength={500}
+                    className="min-h-[4.5rem] resize-y"
                     value={values.follow_up_low ?? ""}
                     onChange={(e) => patch({ follow_up_low: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">{t("omnichannel.settings.customerSurvey.followUpMidBand")}</p>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <Label htmlFor="fu_mid" className="text-xs font-normal text-muted-foreground">
+                    {t("omnichannel.settings.customerSurvey.followUpMidBand")}
+                  </Label>
                   <Textarea
+                    id="fu_mid"
                     disabled={values.follow_up_mode !== "by_score"}
                     rows={2}
                     maxLength={500}
+                    className="min-h-[4.5rem] resize-y"
                     value={values.follow_up_mid ?? ""}
                     onChange={(e) => patch({ follow_up_mid: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">{t("omnichannel.settings.customerSurvey.followUpHighBand")}</p>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <Label htmlFor="fu_high" className="text-xs font-normal text-muted-foreground">
+                    {t("omnichannel.settings.customerSurvey.followUpHighBand")}
+                  </Label>
                   <Textarea
+                    id="fu_high"
                     disabled={values.follow_up_mode !== "by_score"}
                     rows={2}
                     maxLength={500}
+                    className="min-h-[4.5rem] resize-y"
                     value={values.follow_up_high ?? ""}
                     onChange={(e) => patch({ follow_up_high: e.target.value })}
                   />
                 </div>
               </div>
-            </label>
+            </div>
           </RadioGroup>
         </div>
 
@@ -241,3 +257,4 @@ export function CustomerSurveySettingsForm({
     </div>
   );
 }
+

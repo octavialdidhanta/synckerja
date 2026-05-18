@@ -1,10 +1,13 @@
 import { HomePageLoadProvider } from "../context/HomePageLoadContext";
+import { HomePageSkeletonGate } from "../components/HomePageSkeletonGate";
 import { HomeScreen } from "./HomeScreen";
 
 function ModernHomePage() {
   return (
     <HomePageLoadProvider>
-      <HomeScreen layoutVariant="desktop" />
+      <HomePageSkeletonGate>
+        <HomeScreen layoutVariant="desktop" />
+      </HomePageSkeletonGate>
     </HomePageLoadProvider>
   );
 }

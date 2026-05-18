@@ -1,8 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { usePermissionConfiguration } from "./usePermissionConfiguration";
 import { logger } from "@/shared/lib/logger";
-import { accessCache, ACCESS_CACHE_TTL, clearAccessCache } from "./departmentPageAccessCache";
+import {
+  accessCache,
+  ACCESS_CACHE_TTL,
+  clearAccessCache,
+  forceClearCache,
+} from "./departmentPageAccessCache";
 import { buildEffectiveAccessRoles } from "./accessRoleSet";
 
 const CROSS_DEPARTMENT_PAGES = ["/employees", "/reports", "/company", "/organization"];
@@ -95,22 +100,28 @@ export const useDepartmentAccess = () => {
       }
 
       if (configLoading) {
-        const np = normalizePath(pagePath);
+        // Do not deny while permission matrix is still loading (avoids "Limited Access" flash on login).
+        return true;
+      }
 
-        if (np === "/company/files") {
-          const allowedRoles = ["owner", "admin", "employee", "hr"];
-          if (eff.some((r) => allowedRoles.includes(r))) {
-            return true;
-          }
-        }
+      if (userData?.active_organization_id && !organization) {
+        // Org id known from profile but org row not hydrated yet (common right after login redirect).
+        return true;
+      }
 
-        return false;
+      if (userData?.active_organization_id && eff.length === 0 && !treatsAsOwner && !treatsAsAdmin) {
+        // Org member but roles not resolved yet — treat as pending, not denied.
+        return true;
       }
 
       if (userData && employee && eff.length === 0) {
         const np = normalizePath(pagePath);
 
         if (np === "/company/files" && employee) {
+          return true;
+        }
+
+        if (userData.active_organization_id) {
           return true;
         }
 
@@ -298,6 +309,15 @@ export const useDepartmentAccess = () => {
       return null;
     };
 
+    const rolesResolutionPending = Boolean(
+      userData?.active_organization_id &&
+        !!organization &&
+        organizationMemberRoles.length === 0 &&
+        !userRole &&
+        !isOwner &&
+        !isAdmin,
+    );
+
     return {
       canAccessPage,
       canAccessDepartment,
@@ -312,6 +332,7 @@ export const useDepartmentAccess = () => {
       departmentName: employee?.departments?.name || employee?.department?.name,
       configLoading,
       configHash,
+      rolesResolutionPending,
     };
   }, [
     userRole,
@@ -324,6 +345,12 @@ export const useDepartmentAccess = () => {
     configurations,
     configLoading,
   ]);
+
+  const { configHash } = departmentAccess;
+
+  useEffect(() => {
+    forceClearCache();
+  }, [userRole, organizationMemberRoles, isOwner, isAdmin, organization?.id, configHash]);
 
   return departmentAccess;
 };

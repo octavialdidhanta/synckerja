@@ -114,7 +114,7 @@ export function WhatsAppTemplatePhonePreview({
   mediaFormat?: string | null;
   /** HTTPS URL from Meta HEADER `example.header_handle` when provided. */
   headerMediaPreviewUrl?: string | null;
-  bodyText: string;
+  bodyText?: string | null;
   bodyVariableExamples?: string[] | null;
   headerVariableExamples?: string[] | null;
   footerText?: string | null;
@@ -135,7 +135,10 @@ export function WhatsAppTemplatePhonePreview({
   const headerRendered = headerText?.trim()
     ? applyMetaVariableSamples(headerText.trim(), headerSamples.length ? headerSamples : null)
     : "";
-  const bodyRendered = applyMetaVariableSamples(bodyText.trim(), bodySamples.length ? bodySamples : null);
+  const bodyRendered = applyMetaVariableSamples(
+    String(bodyText ?? "").trim(),
+    bodySamples.length ? bodySamples : null,
+  );
   const footerRendered = footerText?.trim()
     ? applyMetaVariableSamples(footerText.trim(), bodySamples.length ? bodySamples : null)
     : "";

@@ -292,8 +292,11 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
       // FU Priority filter
       if (filters.fuPriority !== 'all') {
         if (filters.fuPriority === 'Please Follow Up') {
-          // Filter for leads that need follow up (either no follow up count or low follow up count)
-          if (lead.followup > 0) {
+          if ((lead.followup ?? 0) > 0 || lead.template_followup_awaiting_reply) {
+            return false;
+          }
+        } else if (filters.fuPriority === 'No Respon') {
+          if (!lead.template_followup_awaiting_reply) {
             return false;
           }
         } else if (lead.fu_priority !== filters.fuPriority) {

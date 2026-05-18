@@ -252,9 +252,13 @@ export const ConsultantsPageContent = () => {
     // FU Priority filter
     if (filters.fuPriority !== 'all') {
       if (filters.fuPriority === 'Please Follow Up') {
-        filtered = filtered.filter(lead => lead.followup === 0);
+        filtered = filtered.filter(
+          (lead) => (lead.followup ?? 0) === 0 && !lead.template_followup_awaiting_reply,
+        );
+      } else if (filters.fuPriority === 'No Respon') {
+        filtered = filtered.filter((lead) => Boolean(lead.template_followup_awaiting_reply));
       } else if (filters.fuPriority) {
-        filtered = filtered.filter(lead => lead.fu_priority === filters.fuPriority);
+        filtered = filtered.filter((lead) => lead.fu_priority === filters.fuPriority);
       }
     }
 

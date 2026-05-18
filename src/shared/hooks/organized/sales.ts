@@ -1389,7 +1389,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       // 2) Fetch leads from whatsapp_conversations (same org; includes channel: whatsapp | instagram) and map to lead-like rows
       const { data: whatsappConvs, error: whatsappError } = await supabase
         .from('whatsapp_conversations')
-        .select('id, organization_id, customer_wa_id, customer_name, channel, last_message_at, last_message_body, last_opened_at, lead_status_id, last_inbound_at, followup, fu_priority, assignee_id, created_at, updated_at, ticket_id, meta_session_expires_at')
+        .select('id, organization_id, customer_wa_id, customer_name, channel, last_message_at, last_message_body, last_opened_at, lead_status_id, last_inbound_at, followup, fu_priority, assignee_id, created_at, updated_at, ticket_id, meta_session_expires_at, template_followup_awaiting_reply, follow_up_cycle_reset_at')
         .eq('organization_id', organizationId)
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
@@ -1431,7 +1431,18 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       // Sync status and assignee from WhatsApp/Instagram conversation when lead has matching ticket_id (DB truth; Meta expiry via lead_status Expired + meta_session_expires_at).
       if (whatsappConvs && whatsappConvs.length > 0) {
-        const convByTicketId = new Map<string, { lead_status_id: string | null; assignee_id: string | null; meta_session_expires_at: string | null }>();
+        const convByTicketId = new Map<
+          string,
+          {
+            lead_status_id: string | null;
+            assignee_id: string | null;
+            meta_session_expires_at: string | null;
+            followup: number | null;
+            fu_priority: string | null;
+            template_followup_awaiting_reply: boolean;
+            follow_up_cycle_reset_at: string | null;
+          }
+        >();
         whatsappConvs.forEach((c: any) => {
           const isInstagram = (c.channel ?? '').toLowerCase() === 'instagram';
           const waTicketId = c.ticket_id ?? ((isInstagram ? 'IG-' : 'WA-') + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
@@ -1439,6 +1450,10 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             lead_status_id: c.lead_status_id ?? null,
             assignee_id: c.assignee_id ?? null,
             meta_session_expires_at: c.meta_session_expires_at ?? null,
+            followup: c.followup ?? null,
+            fu_priority: c.fu_priority ?? null,
+            template_followup_awaiting_reply: Boolean(c.template_followup_awaiting_reply),
+            follow_up_cycle_reset_at: c.follow_up_cycle_reset_at ?? null,
           });
         });
         leadsWithStatus = leadsWithStatus.map((lead: any) => {
@@ -1455,6 +1470,10 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             assignee_id: conv.assignee_id ?? lead.assignee_id,
             assignee: conv.assignee_id != null ? (assigneeNameMap.get(normId(conv.assignee_id)) ?? lead.assignee) : lead.assignee,
             meta_session_expires_at: conv.meta_session_expires_at ?? (lead as { meta_session_expires_at?: string | null }).meta_session_expires_at ?? null,
+            followup: conv.followup ?? lead.followup,
+            fu_priority: conv.fu_priority ?? lead.fu_priority,
+            template_followup_awaiting_reply: conv.template_followup_awaiting_reply,
+            follow_up_cycle_reset_at: conv.follow_up_cycle_reset_at ?? lead.follow_up_cycle_reset_at ?? null,
           };
         });
       }
@@ -1520,6 +1539,8 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             source: sourceLabel,
             channel: channelKey,
             followup: c.followup ?? 0,
+            template_followup_awaiting_reply: Boolean(c.template_followup_awaiting_reply),
+            follow_up_cycle_reset_at: c.follow_up_cycle_reset_at ?? null,
             converted_at: null,
             created_at: c.created_at,
             updated_at: c.updated_at,

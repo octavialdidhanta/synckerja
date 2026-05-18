@@ -63,15 +63,31 @@ export function fuPriorityFromCounts(counts: FuPriorityCounts): 'High' | 'Medium
   return null;
 }
 
+function filterUpdatesAfterReset<T extends { created_at?: string | null }>(
+  updates: T[],
+  resetAfter?: string | null,
+): T[] {
+  if (!resetAfter) return updates;
+  const resetMs = new Date(resetAfter).getTime();
+  if (Number.isNaN(resetMs)) return updates;
+  return updates.filter((u) => {
+    if (!u.created_at) return false;
+    return new Date(u.created_at).getTime() > resetMs;
+  });
+}
+
 /**
  * One-shot: from raw updates, return { followupCount, fuPriority }.
+ * When resetAfter is set, only updates after that timestamp count (full cycle reset).
  */
 export function computeFollowUpAndPriority(
-  updates: Array<{ status?: string | null }>
+  updates: Array<{ status?: string | null; created_at?: string | null }>,
+  resetAfter?: string | null,
 ): { followupCount: number; fuPriority: 'High' | 'Medium' | 'Low' | null } {
-  const counts = countProspectStatuses(updates);
+  const scoped = filterUpdatesAfterReset(updates, resetAfter);
+  const counts = countProspectStatuses(scoped);
   return {
-    followupCount: updates.length,
+    followupCount: scoped.length,
     fuPriority: fuPriorityFromCounts(counts),
   };
 }

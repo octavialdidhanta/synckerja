@@ -105,10 +105,10 @@ const HomeOKRDashboardContent = () => {
   const individualStatsPending =
     readyIndividualStats && individualStats.isLoading;
 
-  const { firstError: okrTabsError } = useHomeOkrTabsAggregate();
+  const { tabs, firstError: okrTabsError } = useHomeOkrTabsAggregate();
 
-  /** Hanya org + cycles — tab OKR & empty state LCP render tanpa menunggu fetch objectives. */
-  const okrLoading = orgLoading || isLoadingCycles;
+  const okrLoading =
+    orgLoading || isLoadingCycles || tabs.company.loading || companyStats.isLoading;
 
   const okrError =
     okrTabsError ||

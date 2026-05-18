@@ -5,7 +5,15 @@ import { useInstagramMessages } from '../../hooks/useInstagramMessages';
 import { useResolveWhatsAppMedia } from '../../hooks/useResolveWhatsAppMedia';
 import { useSendWhatsAppMessage } from '../../hooks/useSendWhatsAppMessage';
 import { useSendInstagramMessage } from '../../hooks/useSendInstagramMessage';
-import type { LiveChatConversation, WhatsAppConversation, WhatsAppMessage, InstagramConversation, InstagramMessage, EmailConversation } from '../../types';
+import type {
+  LiveChatConversation,
+  WhatsAppAccount,
+  WhatsAppConversation,
+  WhatsAppMessage,
+  InstagramConversation,
+  InstagramMessage,
+  EmailConversation,
+} from '../../types';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -28,6 +36,9 @@ import {
   isOutboundBlockedForLivechat,
   isResolvedStatus,
 } from '../../constants/leadStatus';
+import { LivechatFollowUpBar } from './LivechatFollowUpBar';
+import { LivechatFollowUpDialog } from './LivechatFollowUpDialog';
+import { useWhatsAppAccounts } from '../../hooks/useWhatsAppAccounts';
 import type { Locale } from 'date-fns';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -102,6 +113,8 @@ interface ChatThreadProps {
   hideHeader?: boolean;
   /** When true, keyboard is open – use minimal bottom padding so input bar sticks to keyboard; when false, keep safe-area-bottom so position unchanged when keyboard closes. */
   keyboardOpen?: boolean;
+  /** WhatsApp accounts for template follow-up modal (defaults to org accounts from hook). */
+  waAccounts?: WhatsAppAccount[];
 }
 
 function formatMessageTime(iso: string, timeZone: string) {
@@ -323,6 +336,66 @@ function MessageStatus({ status }: { status: WhatsAppMessage['status'] | 'sendin
   return <span className="text-xs opacity-80">{status}</span>;
 }
 
+function messageStatusTitle(status: WhatsAppMessage['status'] | 'sending' | null) {
+  if (status === 'read') return 'Dibaca';
+  if (status === 'delivered') return 'Terkirim';
+  if (status === 'sending') return 'Mengirim...';
+  return 'Terkirim';
+}
+
+/** Timestamp + outbound ticks; corner = teks (sudut kanan bawah), overlay = media tanpa caption. */
+function ChatBubbleTimeMeta({
+  iso,
+  timeZone,
+  direction,
+  status,
+  variant,
+}: {
+  iso: string;
+  timeZone: string;
+  direction: string;
+  status: WhatsAppMessage['status'] | 'sending' | null;
+  variant: 'corner' | 'overlay';
+}) {
+  const time = formatMessageTime(iso, timeZone);
+  const isOutbound = direction === 'outbound';
+  const statusEl = isOutbound ? (
+    <span className="flex items-center" title={messageStatusTitle(status)}>
+      <MessageStatus status={status} />
+    </span>
+  ) : null;
+  const core = (
+    <>
+      <span>{time}</span>
+      {statusEl}
+    </>
+  );
+
+  if (variant === 'corner') {
+    return (
+      <span
+        className={`pointer-events-none absolute bottom-1 right-1.5 z-[2] inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] leading-none ${
+          isOutbound ? 'text-white/85' : 'text-gray-500'
+        }`}
+        aria-hidden
+      >
+        {core}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`pointer-events-none absolute bottom-1 right-1.5 z-[2] inline-flex items-center gap-0.5 whitespace-nowrap rounded px-1 py-px text-[10px] leading-none shadow-sm ${
+        isOutbound ? 'bg-black/25 text-white/95' : 'bg-black/35 text-white/95'
+      }`}
+      aria-hidden
+    >
+      {core}
+    </span>
+  );
+}
+
 function getMediaType(file: File): 'image' | 'video' | 'document' {
   const type = (file.type || '').toLowerCase();
   if (type.startsWith('image/')) return 'image';
@@ -465,6 +538,21 @@ function MediaPreview({
     direction === 'inbound' &&
     MEDIA_TYPES.includes(messageType);
 
+  if (messageType === 'template') {
+    return (
+      <div className="min-w-0">
+        <span
+          className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            isOutbound ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {t('whatsappInbox.templateMessageLabel', 'Template')}
+        </span>
+        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{body || '—'}</p>
+      </div>
+    );
+  }
+
   if (!mediaUrl) {
     const fallbackCaption = direction === 'inbound' ? getCaptionFromRawMetadata(rawMetadata) : null;
     const displayBody = (body && !MEDIA_TYPES.some((t) => body === `[${t}]`)) ? body : (fallbackCaption ?? (body || '[Media]'));
@@ -569,7 +657,7 @@ function MediaPreview({
       </span>
     );
   }
-  return <p className="text-sm whitespace-pre-wrap break-words">{body || '[Media]'}</p>;
+  return <p className="inline text-sm whitespace-pre-wrap break-words">{body || '[Media]'}</p>;
 }
 
 type PendingMedia = {
@@ -578,7 +666,18 @@ type PendingMedia = {
   previewUrl?: string;
 };
 
-export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnectedWhatsAppAccount, scrollToTextInChat, onScrollToTextDone, scrollToMessageId, onScrollToMessageDone, hideHeader, keyboardOpen }: ChatThreadProps) {
+export function ChatThread({
+  conversation,
+  connectedPhoneNumberIds,
+  hasNoConnectedWhatsAppAccount,
+  scrollToTextInChat,
+  onScrollToTextDone,
+  scrollToMessageId,
+  onScrollToMessageDone,
+  hideHeader,
+  keyboardOpen,
+  waAccounts: waAccountsProp,
+}: ChatThreadProps) {
   const [text, setText] = useState('');
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   type OptimisticEntry = {
@@ -612,6 +711,9 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
   } | null>(null);
   const [mediaViewer, setMediaViewer] = useState<{ url: string; type: string } | null>(null);
   const [scrollToMessageIdLocal, setScrollToMessageIdLocal] = useState<string | null>(null);
+  const [followUpDialogOpen, setFollowUpDialogOpen] = useState(false);
+  const { accounts: waAccountsFromHook } = useWhatsAppAccounts();
+  const waAccounts = waAccountsProp ?? waAccountsFromHook;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatInputBarRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -900,6 +1002,11 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
     (subscriptionStatusLoading || (subscriptionStatus?.omnichannel_paid_seat_count ?? 0) < 1);
   const hasAssignee = Boolean(conversationStatusRow?.assignee_id);
   const sendDisabledByNoAssignee = (isWhatsAppConversation || isInstagram) && !hasAssignee;
+  const showFollowUpComposer =
+    isWhatsAppConversation &&
+    (isResolvedStatus(effectiveStatusName) || isExpiredStatusName(effectiveStatusName));
+  const followUpActionDisabled =
+    sendDisabledByNoAccount || sendDisabledByNoOmnichannelAddon || sendDisabledByNoAssignee;
   const sendDisabled =
     outboundSessionBlocked ||
     sendDisabledByNoAccount ||
@@ -1716,6 +1823,26 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
               </DropdownMenu>
             ) : null;
 
+            const isMediaBubble = Boolean(
+              msg.media_url && MEDIA_TYPES.includes((msg.message_type ?? '').toLowerCase()),
+            );
+            const bodyIsPlaceholder =
+              msg.body != null && MEDIA_TYPES.some((t) => msg.body === `[${t}]`);
+            const hasVisibleTextBody = Boolean(
+              (msg.body && !bodyIsPlaceholder) ||
+                msg.message_type === 'template' ||
+                (!isMediaBubble && msg.body),
+            );
+            const hasMediaCaption = Boolean(
+              isMediaBubble &&
+                ((msg.body && !bodyIsPlaceholder) ||
+                  (msg.direction === 'inbound' && getCaptionFromRawMetadata(msg.raw_metadata))),
+            );
+            const timeOverMedia =
+              isMediaBubble &&
+              !hasMediaCaption &&
+              (msg.message_type === 'image' || msg.message_type === 'video');
+
             return (
             <React.Fragment key={msg.id}>
             <div
@@ -1747,7 +1874,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
               {msg.direction === 'inbound' && <CheckboxBtn />}
               <div
                 data-msg-bubble={msg.id}
-                className="relative max-w-[80%]"
+                className="relative w-fit max-w-[80%]"
                 style={
                   hideHeader && swipeOffset?.msgId === msg.id
                     ? isDraggingReply
@@ -1965,19 +2092,13 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                   : {})}
               >
                 <div
-                  className={`relative rounded-xl ${
-                    msg.media_url && MEDIA_TYPES.includes(msg.message_type ?? '')
-                      ? 'px-1 py-1'
-                      : 'px-2.5 py-1.5'
+                  className={`relative max-w-full rounded-xl ${
+                    isMediaBubble ? 'block px-1 py-1' : 'inline-block px-2 pt-1.5 pb-1.5 pl-2 pr-1.5'
                   } ${
                     msg.direction === 'outbound'
                       ? 'bg-[#128C7E] text-white'
                       : 'bg-white text-gray-900 shadow-sm'
-                  } ${selectionMode ? 'cursor-pointer' : ''} ${
-                    isInboundText && !hideHeader ? 'pr-10' : ''
-                  } ${
-                    msg.direction === 'outbound' && !selectionMode && !hasReplyBlock && !hideHeader ? 'pr-10' : ''
-                  }`}
+                  } ${selectionMode ? 'cursor-pointer' : ''} ${timeOverMedia ? 'pb-5' : ''}`}
                   onClick={selectionMode ? () => toggleSelectMessage(msg.id) : undefined}
                 >
                   {isInboundText && inboundDropdown && (
@@ -2037,38 +2158,57 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
                     </div>
                     );
                   })()}
-                  <div className="flex flex-col gap-0.5">
-                    <div className="w-full min-w-0">
-                      <MediaPreview
-                        messageType={msg.message_type ?? 'text'}
-                        mediaUrl={msg.media_url}
-                        body={msg.body}
-                        rawMetadata={msg.raw_metadata}
-                        isOutbound={msg.direction === 'outbound'}
-                        messageId={msg.id}
+                  {timeOverMedia ? (
+                    <div className="relative min-w-0 w-full text-left">
+                      <div className="w-full min-w-0">
+                        <MediaPreview
+                          messageType={msg.message_type ?? 'text'}
+                          mediaUrl={msg.media_url}
+                          body={msg.body}
+                          rawMetadata={msg.raw_metadata}
+                          isOutbound={msg.direction === 'outbound'}
+                          messageId={msg.id}
+                          direction={msg.direction}
+                          onResolve={resolveMedia}
+                          isResolving={isResolvingMedia && resolvingMessageId === msg.id}
+                          topRightAction={isInboundMedia ? inboundDropdown : undefined}
+                          onMediaClick={(url, type) => setMediaViewer({ url, type })}
+                        />
+                      </div>
+                      <ChatBubbleTimeMeta
+                        iso={tlIso(msg)}
+                        timeZone={browserTimeZone}
                         direction={msg.direction}
-                        onResolve={resolveMedia}
-                        isResolving={isResolvingMedia && resolvingMessageId === msg.id}
-                        topRightAction={isInboundMedia ? inboundDropdown : undefined}
-                        onMediaClick={(url, type) => setMediaViewer({ url, type })}
+                        status={(msg as { status?: string | null }).status ?? null}
+                        variant="overlay"
                       />
                     </div>
-                    <p
-                      className={`text-[10px] flex items-center justify-end gap-1 shrink-0 ${
-                        msg.direction === 'outbound' ? 'text-white/80' : 'text-gray-500'
-                      }`}
-                    >
-                      <span>{formatMessageTime(tlIso(msg), browserTimeZone)}</span>
-                      {msg.direction === 'outbound' && (() => {
-                        const msgStatus = (msg as { status?: string | null }).status ?? null;
-                        return (
-                          <span className="flex items-center" title={msgStatus === 'read' ? 'Dibaca' : msgStatus === 'delivered' ? 'Terkirim' : msgStatus === 'sending' ? 'Mengirim...' : 'Terkirim'}>
-                            <MessageStatus status={msgStatus as WhatsAppMessage['status'] | 'sending' | null} />
-                          </span>
-                        );
-                      })()}
-                    </p>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="block w-fit max-w-full min-w-0 pb-5 pr-11 text-left leading-snug [&_p]:whitespace-pre-wrap [&_p]:break-words">
+                        <MediaPreview
+                          messageType={msg.message_type ?? 'text'}
+                          mediaUrl={msg.media_url}
+                          body={msg.body}
+                          rawMetadata={msg.raw_metadata}
+                          isOutbound={msg.direction === 'outbound'}
+                          messageId={msg.id}
+                          direction={msg.direction}
+                          onResolve={resolveMedia}
+                          isResolving={isResolvingMedia && resolvingMessageId === msg.id}
+                          topRightAction={isInboundMedia ? inboundDropdown : undefined}
+                          onMediaClick={(url, type) => setMediaViewer({ url, type })}
+                        />
+                      </div>
+                      <ChatBubbleTimeMeta
+                        iso={tlIso(msg)}
+                        timeZone={browserTimeZone}
+                        direction={msg.direction}
+                        status={(msg as { status?: string | null }).status ?? null}
+                        variant="corner"
+                      />
+                    </>
+                  )}
                 </div>
               </div>
               {msg.direction === 'outbound' && <CheckboxBtn />}
@@ -2144,10 +2284,13 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             </span>
             <span>
               {blockReasonResolved
-                ? t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.')
+                ? t(
+                    'whatsappInbox.conversationResolvedFollowUpHint',
+                    'Chat sudah di-resolve. Gunakan tombol Follow-up untuk mengirim template; balasan bebas setelah customer membalas.',
+                  )
                 : t(
-                    'whatsappInbox.metaSessionExpiredCannotSend',
-                    'Sesi percakapan Meta sudah berakhir. Gunakan pesan template untuk menghubungi customer.',
+                    'whatsappInbox.metaSessionExpiredFollowUpHint',
+                    'Sesi percakapan Meta sudah berakhir. Gunakan tombol Follow-up untuk mengirim template.',
                   )}
             </span>
           </div>
@@ -2188,6 +2331,13 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             </Button>
           </div>
         )}
+        {showFollowUpComposer ? (
+          <LivechatFollowUpBar
+            compact={hideHeader}
+            disabled={followUpActionDisabled}
+            onOpen={() => setFollowUpDialogOpen(true)}
+          />
+        ) : (
         <div className={`flex flex-col rounded-xl border-2 border-border bg-background shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:border-primary/50 ${sendDisabled ? 'opacity-70' : ''} ${hideHeader ? 'min-h-[44px]' : 'min-h-[44px]'}`}>
           {replyTo && (
             <div className="flex items-start gap-2 px-2 pt-2 pb-1.5 border-b border-border bg-muted/50">
@@ -2229,16 +2379,16 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
               </Button>
             </div>
           )}
-          <div className="flex min-h-[44px] items-end">
+          <div className="flex min-h-[44px] items-center gap-0.5">
           <button
             type="button"
-            className={`shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50 ${hideHeader ? 'p-2' : 'p-2.5'}`}
+            className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50"
             disabled={isSending || isUploading || sendDisabled}
             onClick={() => !sendDisabled && fileInputRef.current?.click()}
             title={t('whatsappInbox.attachMedia', 'Attach image, video, or document')}
             aria-label={t('whatsappInbox.attachMedia', 'Attach image, video, or document')}
           >
-            <Paperclip className="w-4 h-4" />
+            <Paperclip className="h-4 w-4" />
           </button>
           <Textarea
             ref={textareaRef}
@@ -2268,7 +2418,7 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             }}
             rows={1}
             readOnly={sendDisabled}
-            className={`resize-none flex-1 self-end border-0 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none bg-transparent pr-1 pl-0 overflow-x-hidden seamless-scroll ${hideHeader ? 'min-h-[44px] py-2.5 text-base leading-normal' : 'min-h-[44px] py-2'}`}
+            className={`resize-none flex-1 border-0 bg-transparent pl-0 pr-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 overflow-x-hidden seamless-scroll ${hideHeader ? 'min-h-[36px] py-2 text-base leading-normal' : 'min-h-[36px] py-2'}`}
           />
           <button
             type="button"
@@ -2280,13 +2430,22 @@ export function ChatThread({ conversation, connectedPhoneNumberIds, hasNoConnect
             disabled={sendDisabled || (!text.trim() && !pendingMedia) || isSending || isUploading}
             title={t('whatsappInbox.send', 'Send')}
             aria-label={t('whatsappInbox.send', 'Send')}
-            className={`shrink-0 rounded-full bg-background border-2 border-border flex items-center justify-center text-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-background ${hideHeader ? 'mr-1.5 w-9 h-9' : 'mr-1.5 w-9 h-9'}`}
+            className="mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-border bg-background text-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-background"
           >
             <Send className={hideHeader ? 'w-4 h-4' : 'w-4 h-4'} strokeWidth={2.5} />
           </button>
           </div>
         </div>
+        )}
       </div>
+      {showFollowUpComposer && conversation?.source === 'whatsapp' ? (
+        <LivechatFollowUpDialog
+          open={followUpDialogOpen}
+          onOpenChange={setFollowUpDialogOpen}
+          conversation={conversation as WhatsAppConversation}
+          waAccounts={waAccounts}
+        />
+      ) : null}
       <Dialog open={!!mediaViewer} onOpenChange={(open) => !open && setMediaViewer(null)}>
         <DialogContent className="max-w-[95vw] max-h-[90vh] w-auto p-0 gap-0 overflow-hidden bg-black/95 border-0" hideCloseButton>
           <DialogTitle className="sr-only">

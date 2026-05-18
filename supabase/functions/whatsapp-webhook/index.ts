@@ -1084,6 +1084,33 @@ Deno.serve(async (req: Request) => {
                 // Sync last_message from actual latest message so preview is always correct
                 await supabase.rpc("sync_conversation_last_message", { p_conversation_id: conv.id });
 
+                // Template follow-up cycle: customer replied → reset followup, Set Status
+                const { data: convTemplateState } = await supabase
+                  .from("whatsapp_conversations")
+                  .select("template_followup_awaiting_reply, ticket_id")
+                  .eq("id", conv.id)
+                  .maybeSingle();
+                if (convTemplateState?.template_followup_awaiting_reply === true) {
+                  let linkedLeadId: string | null = null;
+                  const convTicket = (convTemplateState.ticket_id as string | null)?.trim() ?? "";
+                  if (convTicket) {
+                    const { data: leadByTicket } = await supabase
+                      .from("leads")
+                      .select("id")
+                      .eq("organization_id", orgId)
+                      .eq("ticket_id", convTicket)
+                      .maybeSingle();
+                    linkedLeadId = (leadByTicket?.id as string | undefined) ?? null;
+                  }
+                  const { error: resetErr } = await supabase.rpc("apply_template_followup_customer_reply", {
+                    p_lead_id: linkedLeadId,
+                    p_conv_id: conv.id,
+                  });
+                  if (resetErr) {
+                    console.error("apply_template_followup_customer_reply error:", resetErr);
+                  }
+                }
+
                 // Resolve-cycle tracking: first_inbound_at, re-open to Unread (Open), new cycle when Closed or new conv
                 const { data: convRow } = await supabase
                   .from("whatsapp_conversations")

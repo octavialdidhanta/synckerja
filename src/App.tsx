@@ -93,6 +93,7 @@ import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichan
 import { AuthProvider } from "@/shared/auth/contexts/AuthContext";
 import { LanguageProvider } from "@/shared/i18n/LanguageProvider";
 import { CentralizedUserDataProvider } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { CentralizedUserDataPathSync } from "@/shared/auth/contexts/CentralizedUserDataPathSync";
 import { CurrentOrgProvider } from "@/shared/auth/contexts/CurrentOrgContext";
 import { PermissionConfigurationProvider } from "@/shared/auth/page-access/usePermissionConfiguration";
 import { HrManagementRoleGuard } from "@/shared/components/HrManagementRoleGuard";
@@ -367,6 +368,11 @@ const MeetingNotesRouteElement = lazy(() =>
 const ConsultantLivechatRouteElement = lazy(() =>
   import("@/shared/components/mobile/consultantLivechatRouteElement").then((m) => ({
     default: m.ConsultantLivechatRouteElement,
+  })),
+);
+const WhatsAppTemplateFollowupsPage = lazy(() =>
+  import("@/5-3-whatsapp/pages/WhatsAppTemplateFollowupsPage").then((m) => ({
+    default: m.WhatsAppTemplateFollowupsPage,
   })),
 );
 const ConsultantLeadsManagementRouteElement = lazy(() =>
@@ -1123,6 +1129,18 @@ function AppRoutes() {
                 }
               />
               <Route
+                path="/omnichannel/livechat/template-follow-ups"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/livechat"
+                    loadingShell={<ConsultantLivechatRouteLoadingShell />}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <WhatsAppTemplateFollowupsPageSuspense />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
                 path="/operations/consultant/whatsapp/templates/recipient-lists"
                 element={<Navigate to="/omnichannel/campaign/recipient-lists" replace />}
               />
@@ -1312,6 +1330,24 @@ const WhatsAppTemplateSuspense = ({ children }: { children: ReactNode }) => (
     {children}
   </Suspense>
 );
+
+function WhatsAppTemplateFollowupsPageSuspense() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+          aria-busy
+          aria-label="Loading template follow-ups"
+        >
+          <ConsultantLivechatRouteLoadingShell />
+        </div>
+      }
+    >
+      <WhatsAppTemplateFollowupsPage />
+    </Suspense>
+  );
+}
 
 const SalesActivitiesOperationsSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
@@ -1692,6 +1728,7 @@ const App = () => (
                 }}
               >
                 <ShareIntentRouteSync />
+                <CentralizedUserDataPathSync />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <Suspense
                     fallback={
@@ -2499,6 +2536,18 @@ const App = () => (
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <ConsultantLivechatRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/omnichannel/livechat/template-follow-ups"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/livechat"
+                              loadingShell={<ConsultantLivechatRouteLoadingShell />}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <WhatsAppTemplateFollowupsPageSuspense />
                             </PageAccessGuard>
                           }
                         />

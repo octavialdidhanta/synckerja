@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { id, enUS } from 'date-fns/locale';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -140,22 +140,20 @@ export const ModalPengajuanCutiKaryawan: React.FC<ModalPengajuanCutiKaryawanProp
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className="max-w-lg w-[500px] h-[500px] max-h-[500px] overflow-y-auto p-0 scrollbar-hide seamless-scroll nested-scroll-touch-chain flex flex-col [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex h-[500px] max-h-[500px] w-[500px] max-w-lg flex-col overflow-hidden p-0"
         style={{ zIndex: 50 }}
       >
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-30">
-          <DialogHeader>
+        <div className="z-30 shrink-0 border-b border-gray-100 bg-white px-6 py-4 pr-12">
+          <DialogHeader className="space-y-0">
             <DialogTitle className="text-lg font-semibold text-gray-900">
               {t('leaveRequest.title', 'Employee Leave Request')}
             </DialogTitle>
-            <DialogDescription className="text-sm text-gray-600">
-              {t('leaveRequest.description', 'Submit a leave request by completing employee information, leave type, and desired period.')}
-            </DialogDescription>
           </DialogHeader>
         </div>
 
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 px-6 pb-24">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 px-6 py-4">
             {/* Leave Eligibility Alert */}
             <LeaveEligibilityAlert />
 
@@ -257,7 +255,7 @@ export const ModalPengajuanCutiKaryawan: React.FC<ModalPengajuanCutiKaryawanProp
                 name="leaveType" 
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-semibold">{t('leaveRequest.leaveType', 'Leave Type')} <span className="text-red-500">*</span></FormLabel>
+                    <FormLabel className="text-sm font-semibold">{t('leaveRequest.leaveTypeLabel', 'Leave Type')} <span className="text-red-500">*</span></FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -433,17 +431,17 @@ export const ModalPengajuanCutiKaryawan: React.FC<ModalPengajuanCutiKaryawanProp
             </div>
           </form>
         </Form>
+        </div>
 
-        {/* Sticky Footer */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 z-30">
+        <div className="z-30 shrink-0 border-t border-gray-200 bg-white px-6 py-4">
           <div className="flex justify-between gap-3">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1 text-sm" disabled={isLoading}>
               {t('common.cancel', 'Cancel')}
             </Button>
-            <Button 
-              type="submit" 
-              onClick={form.handleSubmit(handleSubmit)} 
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm" 
+            <Button
+              type="submit"
+              onClick={form.handleSubmit(handleSubmit)}
+              className="flex-1 bg-brand-blue text-primary-foreground hover:bg-brand-blue/90 disabled:cursor-not-allowed disabled:opacity-50 text-sm"
               disabled={isLoading || !isEligibleForRequest || eligibilityLoading}
             >
               {isLoading ? (

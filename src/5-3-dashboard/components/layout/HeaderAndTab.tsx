@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Users, MessageCircle, Instagram, Mail, Inbox, FileText, ListChecks, Megaphone, Settings } from "lucide-react";
+import { LayoutDashboard, Users, MessageCircle, Instagram, Mail, Inbox, FileText, ListChecks, Megaphone, Settings, History } from "lucide-react";
 import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
@@ -59,6 +59,14 @@ const tabs: CrmHeaderTab[] = [
     icon: Inbox,
   },
   {
+    key: "template-followups",
+    path: "/omnichannel/livechat/template-follow-ups",
+    accessPath: "/omnichannel/livechat",
+    title: "Template Follow-up",
+    titleKey: "whatsappTemplateFollowups.tabTitle",
+    icon: History,
+  },
+  {
     key: "whatsapp-campaign",
     path: "/omnichannel/campaign/whatsapp",
     accessPath: "/operations/consultant/whatsapp/templates",
@@ -107,6 +115,8 @@ export const HeaderAndTab = () => {
     location.pathname === "/omnichannel/livechat" ||
     location.pathname.startsWith("/omnichannel/livechat/");
 
+  const livechatTabKeys = new Set<string>(["livechat", "template-followups"]);
+
   const isCampaignCrmSection =
     location.pathname === "/omnichannel/campaign/whatsapp" ||
     location.pathname.startsWith("/omnichannel/campaign/whatsapp/") ||
@@ -145,7 +155,7 @@ export const HeaderAndTab = () => {
   ]);
 
   const displayedTabs = isLiveChatSection
-    ? visibleTabs.filter((tab) => tab.key === "livechat")
+    ? visibleTabs.filter((tab) => livechatTabKeys.has(tab.key))
     : isOmnichannelSettingsSection
       ? visibleTabs.filter((tab) => tab.key === "omnichannel-settings")
       : isCampaignCrmSection
@@ -177,6 +187,7 @@ export const HeaderAndTab = () => {
     if (location.pathname.startsWith("/omnichannel/integrations/whatsapp")) return "whatsapp-connect";
     if (location.pathname.startsWith("/omnichannel/integrations/instagram")) return "instagram-connect";
     if (location.pathname.startsWith("/omnichannel/integrations/email")) return "email-connect";
+    if (location.pathname.startsWith("/omnichannel/livechat/template-follow-ups")) return "template-followups";
     if (location.pathname.startsWith("/omnichannel/livechat")) return "livechat";
     if (location.pathname === "/omnichannel/settings" || location.pathname.startsWith("/omnichannel/settings/"))
       return "omnichannel-settings";

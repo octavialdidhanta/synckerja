@@ -58,6 +58,12 @@ export async function routeAfterLogin(
     return;
   }
 
+  try {
+    sessionStorage.setItem("forceRefreshUserData", "1");
+  } catch {
+    /* ignore quota / private mode */
+  }
+
   const next = safeInternalRedirectPath(redirectToParam ?? null);
   navigate(next ?? "/", { replace: true });
 }

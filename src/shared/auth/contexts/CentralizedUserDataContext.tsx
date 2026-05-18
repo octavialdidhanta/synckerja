@@ -12,6 +12,7 @@ import { useAuth } from '@/shared/auth/contexts/AuthContext';
 import type { User, Session } from '@supabase/supabase-js';
 import { logger } from '@/shared/lib/logger';
 import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
+import { forceClearCache } from '@/shared/auth/page-access/departmentPageAccessCache';
 
 // Types - focus only on 5 core tables
 interface UserData {
@@ -29,6 +30,7 @@ interface Organization {
   industry?: string;
   address?: string;
   website?: string;
+  user_id?: string;
 }
 
 interface Employee {
@@ -186,7 +188,11 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     // Only skip data fetching on auth pages if no force refresh or email verified flag
     if (!forceRefresh && !emailVerifiedFlag && (currentPath === '/login' || currentPath === '/register' || currentPath === '/verify-email')) {
       setLoading(false);
-      setCentralProfileHydrated(true);
+      if (!user?.id) {
+        setCentralProfileHydrated(true);
+      } else {
+        setCentralProfileHydrated(false);
+      }
       return;
     }
     
@@ -232,12 +238,23 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
 
     // Skip if already fetched for this user, unless force refresh or email verified flag
     if (lastUserIdRef.current === user.id && !forceRefresh && !emailVerifiedFlag) {
-      if (import.meta.env.DEV) {
-        logger.userData('CentralizedUserDataContext: Skipping fetch - already fetched for user:', user.id);
+      const cached = userDataCacheRef.current;
+      const cacheIncomplete =
+        !!cached?.data?.active_organization_id &&
+        !cached.userRole &&
+        (cached.organizationMemberRoles?.length ?? 0) === 0;
+      if (!cacheIncomplete) {
+        if (import.meta.env.DEV) {
+          logger.userData('CentralizedUserDataContext: Skipping fetch - already fetched for user:', user.id);
+        }
+        setLoading(false);
+        setCentralProfileHydrated(true);
+        return;
       }
-      setLoading(false);
-      setCentralProfileHydrated(true);
-      return;
+      if (import.meta.env.DEV) {
+        logger.userData('CentralizedUserDataContext: Incomplete cache for org user — refetching roles');
+      }
+      lastUserIdRef.current = '';
     }
 
     // If force refresh or email verified flag, reset cache
@@ -419,6 +436,18 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       };
       
       setUserData(userData);
+
+      if (organizationId) {
+        setOrganization((prev) =>
+          prev?.id === organizationId
+            ? prev
+            : mergeOrganizationState(
+                { id: organizationId, company_name: prev?.company_name ?? "" },
+                organizationId,
+                prev,
+              ),
+        );
+      }
 
       // Jangan tulis userDataCacheRef di sini: cache parsial (userRole null) bisa terbaca oleh
       // refresh berikutnya (<60s) dan menimpa state — UI profil menampilkan "—" sampai force refresh (ganti org).
@@ -713,7 +742,12 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     } finally {
       setLoading(false);
       fetchingRef.current = false;
-      setCentralProfileHydrated(true);
+      const snap = userDataCacheRef.current;
+      const rolesStillPending =
+        !!snap?.data?.active_organization_id &&
+        !snap?.userRole &&
+        (snap.organizationMemberRoles?.length ?? 0) === 0;
+      setCentralProfileHydrated(!rolesStillPending);
     }
   }, [authLoading]);
 
@@ -738,6 +772,30 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
   // Track previous organization ID to detect changes
   const previousOrgIdRef = useRef<string | undefined>();
 
+  // Fresh role/org snapshot after login (avoids stale cache → "Limited Access" on first paint).
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') {
+        lastUserIdRef.current = '';
+        fetchingRef.current = false;
+        userDataCacheRef.current = null;
+        setCentralProfileHydrated(false);
+        forceClearCache();
+        try {
+          sessionStorage.setItem('forceRefreshUserData', '1');
+        } catch {
+          /* ignore */
+        }
+        if (userRef.current && sessionRef.current) {
+          void refreshUserData();
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [refreshUserData]);
+
   // Effect to refresh data when auth changes
   useEffect(() => {
     // Reset when user changes
@@ -751,6 +809,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       setOrganizationMemberRoles([]);
       setEmployee(null);
       setLoading(false);
+      setCentralProfileHydrated(true);
       return;
     }
 
@@ -763,16 +822,29 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     const currentPath = window.location.pathname;
     if (!forceRefresh && !emailVerifiedFlag && (currentPath === '/login' || currentPath === '/register' || currentPath === '/verify-email')) {
       setLoading(false);
-      setCentralProfileHydrated(true);
+      if (!user?.id) {
+        setCentralProfileHydrated(true);
+      } else {
+        setCentralProfileHydrated(false);
+      }
       return;
     }
 
-    // Only fetch data for authenticated users on protected pages
-    // Don't reset lastUserIdRef here to allow caching to work
-    if (user && sessionRef.current && lastUserIdRef.current !== user.id) {
-      refreshUserData();
+    // Fetch on login, incomplete cache, or missing profile snapshot after auth.
+    if (user && sessionRef.current) {
+      const cached = userDataCacheRef.current;
+      const cacheIncomplete =
+        cached?.data?.user_id === user.id &&
+        !!cached.data?.active_organization_id &&
+        !cached.userRole &&
+        (cached.organizationMemberRoles?.length ?? 0) === 0;
+      const needsInitialProfile = !userData && !fetchingRef.current;
+      const needsUserSwitch = lastUserIdRef.current !== user.id;
+      if (needsUserSwitch || cacheIncomplete || needsInitialProfile) {
+        refreshUserData();
+      }
     }
-  }, [user?.id, refreshUserData]);
+  }, [user?.id, userData, refreshUserData]);
 
   // Effect to refresh data when active organization changes
   useEffect(() => {
@@ -805,8 +877,11 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
   const isAuthenticated = !!user;
   const isEmailVerified = !!userData && userData.email_verified === true; // Use email_verification_tokens.email_verified NOT auth.users.email_confirmed_at
   const hasOrganization = !!userData?.active_organization_id;
-  const isOwner = userRole === 'owner';
-  const isAdmin = userRole === 'admin';
+  const isOwner =
+    userRole === 'owner' ||
+    organizationMemberRoles.includes('owner') ||
+    (!!user?.id && !!organization?.user_id && organization.user_id === user.id);
+  const isAdmin = userRole === 'admin' || organizationMemberRoles.includes('admin');
   const displayName = userData?.full_name || user?.user_metadata?.full_name || 'User';
   const organizationName = organization?.company_name || '';
 

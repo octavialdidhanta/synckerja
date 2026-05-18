@@ -88,6 +88,8 @@ export function buildUniqueLeadStatusFilterOptions(
 /** Pilihan filter kolom FU Priority (nilai = string yang dipakai `filters.fuPriority`). */
 export const FU_PRIORITY_FILTER_CHOICES: Array<{ id: string; name: string }> = [
   { id: "fu-pfu", name: "Please Follow Up" },
+  { id: "fu-no-respon", name: "No Respon" },
+  { id: "fu-set-status", name: "Set Status" },
   { id: "fu-high", name: "High" },
   { id: "fu-medium", name: "Medium" },
   { id: "fu-low", name: "Low" },

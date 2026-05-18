@@ -55,24 +55,30 @@ export function PageAccessGuard({
     getAccessLevel,
     getDepartmentRestrictionMessage,
     configLoading,
+    rolesResolutionPending,
   } = useDepartmentAccess();
   const {
     hasOrganization,
     organization,
     employee,
     isOwner,
+    userData,
     loading: centralDataLoading,
     centralProfileHydrated,
   } = useCentralizedUserData();
 
   const pathToCheck = pagePath || location.pathname;
 
-  const isLoadingOrgData = requiresPermissions && !!user && !organization && hasOrganization;
+  const isLoadingOrgData =
+    requiresPermissions && !!user && !organization && (hasOrganization || !!userData?.active_organization_id);
+  const profileBootstrapPending =
+    requiresPermissions && !!user && (!centralProfileHydrated || !userData);
   const isLoading =
-    !centralProfileHydrated ||
+    profileBootstrapPending ||
     authLoading ||
     centralDataLoading ||
     (requiresPermissions && configLoading) ||
+    (requiresPermissions && rolesResolutionPending) ||
     isLoadingOrgData;
 
   const [showDeniedAfterDebounce, setShowDeniedAfterDebounce] = useState(false);
@@ -87,7 +93,7 @@ export function PageAccessGuard({
       setShowDeniedAfterDebounce(false);
       return;
     }
-    if (!centralProfileHydrated) {
+    if (!centralProfileHydrated || profileBootstrapPending) {
       if (denyDebounceRef.current) {
         clearTimeout(denyDebounceRef.current);
         denyDebounceRef.current = null;
@@ -114,7 +120,14 @@ export function PageAccessGuard({
         denyDebounceRef.current = null;
       }
     };
-  }, [requiresPermissions, user, pathToCheck, canAccessPage, centralProfileHydrated]);
+  }, [
+    requiresPermissions,
+    user,
+    pathToCheck,
+    canAccessPage,
+    centralProfileHydrated,
+    profileBootstrapPending,
+  ]);
 
   const isResolvingAccess =
     requiresPermissions &&
@@ -243,7 +256,13 @@ export function PageAccessGuard({
     }
   }
 
-  if (requiresPermissions && user && centralProfileHydrated && showDeniedAfterDebounce) {
+  if (
+    requiresPermissions &&
+    user &&
+    centralProfileHydrated &&
+    !profileBootstrapPending &&
+    showDeniedAfterDebounce
+  ) {
     const hasPageAccess = canAccessPage(pathToCheck);
     if (!hasPageAccess) {
       if (showAccessDeniedPage) {

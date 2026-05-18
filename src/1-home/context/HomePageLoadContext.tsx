@@ -9,7 +9,7 @@ import React, {
   useState,
 } from "react";
 
-const SKELETON_HIDE_DEBOUNCE_MS = 200;
+const SKELETON_HIDE_DEBOUNCE_MS = 220;
 
 export type HomeSectionId =
   | "motivation"
@@ -18,20 +18,23 @@ export type HomeSectionId =
   | "activity"
   | "status";
 
+/** Section yang harus siap sebelum skeleton penuh hilang (tanpa flicker). */
+const BLOCKING_HOME_SECTIONS: HomeSectionId[] = ["motivation", "profile", "okr"];
+
 export type HomeSectionStatus = {
   loading: boolean;
   error: Error | null;
 };
 
-const INITIAL: Record<HomeSectionId, HomeSectionStatus> = {
-  /** Motivation mounts after idle — does not block first paint. */
-  motivation: { loading: false, error: null },
-  profile: { loading: false, error: null },
-  /** OKR shell ringan — tidak pakai overlay penuh di HomeScreen. */
-  okr: { loading: false, error: null },
-  activity: { loading: false, error: null },
-  status: { loading: false, error: null },
-};
+function createInitialSections(): Record<HomeSectionId, HomeSectionStatus> {
+  return {
+    motivation: { loading: true, error: null },
+    profile: { loading: true, error: null },
+    okr: { loading: true, error: null },
+    activity: { loading: false, error: null },
+    status: { loading: false, error: null },
+  };
+}
 
 type HomePageLoadContextValue = {
   sections: Record<HomeSectionId, HomeSectionStatus>;
@@ -45,10 +48,12 @@ const HomePageLoadContext = createContext<HomePageLoadContextValue | null>(
 
 export function HomePageLoadProvider({ children }: { children: React.ReactNode }) {
   const [sections, setSections] =
-    useState<Record<HomeSectionId, HomeSectionStatus>>(INITIAL);
+    useState<Record<HomeSectionId, HomeSectionStatus>>(createInitialSections);
 
-  /** Hanya OKR yang menahan overlay penuh; profil punya placeholder sendiri agar LCP OKR tidak tertunda. */
-  const rawPendingLoad = useMemo(() => sections.okr.loading, [sections.okr.loading]);
+  const rawPendingLoad = useMemo(
+    () => BLOCKING_HOME_SECTIONS.some((id) => sections[id].loading),
+    [sections],
+  );
 
   const [showFullPageSkeleton, setShowFullPageSkeleton] = useState(true);
   /** After first successful reveal, ignore brief `loading` blips (refetch) — avoids full-page skeleton flicker. */

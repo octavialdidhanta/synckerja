@@ -160,6 +160,7 @@ export function LiveChatChatView({
               conversation={selectedConversation}
               connectedPhoneNumberIds={connectedPhoneNumberIds}
               hasNoConnectedWhatsAppAccount={hasNoConnectedWhatsAppAccount}
+              waAccounts={waAccounts}
               hideHeader
               keyboardOpen={isKeyboardOpen}
               scrollToTextInChat={scrollToTextInChat}

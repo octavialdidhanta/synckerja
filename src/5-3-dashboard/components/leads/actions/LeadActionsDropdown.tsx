@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Button } from "@/shared/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/components/ui/dropdown-menu";
-import { Edit, MessageCircle, MoreHorizontal, Eye, Trash2 } from "lucide-react";
+import { Edit, MessageCircle, MoreHorizontal, Eye, Trash2, Send } from "lucide-react";
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { NewLead } from '@/shared/types/leads';
 
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
@@ -11,10 +12,12 @@ interface LeadActionsDropdownProps {
   onEdit: (lead: NewLead) => void;
   onViewDetail?: (lead: NewLead) => void;
   onDelete?: (leadId: string) => void;
+  onTemplateFollowUp?: (lead: NewLead) => void;
 }
 
 /** Lead from channel: Open in Live Chat. Manual lead: dropdown with Edit, View Detail, Delete. */
-export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete }: LeadActionsDropdownProps) => {
+export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete, onTemplateFollowUp }: LeadActionsDropdownProps) => {
+  const { t } = useAppTranslation();
   const fromWhatsApp = (lead as any)._fromWhatsApp === true;
   const fromEmail = (lead as any)._fromEmail === true || (typeof lead.id === 'string' && lead.id.startsWith('email-'));
   const hasConversationId = fromWhatsApp || fromEmail;
@@ -46,6 +49,12 @@ export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete }: Le
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {onTemplateFollowUp && (
+            <DropdownMenuItem onClick={() => onTemplateFollowUp(lead)}>
+              <Send className="h-4 w-4 mr-2" />
+              {t('leadsManagement.actions.followup', 'Followup')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => onEdit(lead)}>
             <Edit className="h-4 w-4 mr-2" />
             Edit

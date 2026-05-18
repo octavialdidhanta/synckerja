@@ -12,6 +12,10 @@ export interface NewLead {
   status_id: string;
   source: string | null;
   followup: number | null;
+  /** True while awaiting customer reply after template follow-up send. */
+  template_followup_awaiting_reply?: boolean;
+  /** Manual follow-up updates before this time are excluded from count/priority. */
+  follow_up_cycle_reset_at?: string | null;
   converted_at: string | null;
   created_at: string;
   updated_at: string;

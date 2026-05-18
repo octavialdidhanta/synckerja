@@ -45,6 +45,27 @@ function getTicketIdForConversation(conv: LiveChatConversation): string {
 
 const PROSPECT_STATUS_OPTIONS = ['Hot Prospect', 'Warm Prospect', 'Cold Prospect'] as const;
 
+type ResolvePrerequisite = 'service' | 'category' | 'update' | 'prospect';
+
+function isProspectStatusValue(status: string | null | undefined): boolean {
+  if (!status?.trim()) return false;
+  return PROSPECT_STATUS_OPTIONS.some((opt) => opt === status.trim());
+}
+
+function isServiceCategoryPairValid(
+  serviceName: string,
+  categoryName: string,
+  servicesList: { id: string; name: string }[],
+  subServicesList: { service_id: string; name: string }[],
+): boolean {
+  const svc = serviceName.trim();
+  const cat = categoryName.trim();
+  if (!svc || !cat || cat === '-') return false;
+  const service = servicesList.find((s) => s.name === svc);
+  if (!service) return false;
+  return subServicesList.some((ss) => ss.service_id === service.id && ss.name === cat);
+}
+
 function maskPhoneLast4(phone: string | null | undefined): string {
   if (phone == null || phone === '') return '';
   const s = String(phone).trim();
@@ -136,6 +157,10 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
   const [dialogServiceName, setDialogServiceName] = useState<string>('');
   const [dialogCategoryName, setDialogCategoryName] = useState<string>('');
   const [dialogDescription, setDialogDescription] = useState<string>('');
+  const [dialogUpdateDetails, setDialogUpdateDetails] = useState('');
+  const [dialogProspectStatus, setDialogProspectStatus] = useState('');
+  const [resolveDialogError, setResolveDialogError] = useState<string | null>(null);
+  const [isResolveDialogSubmitting, setIsResolveDialogSubmitting] = useState(false);
   const { data: rosterAssignees = [] } = useOmnichannelRosterAssignees();
 
   const { data: servicesList = [] } = useServices();
@@ -179,8 +204,8 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
   }, [leadRow?.id, leadRow?.services, leadRow?.category]);
 
   const updateLeadServicesCategory = useCallback(
-    async (serviceName: string, categoryName: string) => {
-      if (!organizationId || !ticketId) return;
+    async (serviceName: string, categoryName: string): Promise<boolean> => {
+      if (!organizationId || !ticketId) return false;
       setIsUpdatingLead(true);
       try {
         if (!leadRow?.id) {
@@ -207,7 +232,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
           const defaultStatusId = defaultStatusRows?.[0]?.id ?? null;
           if (!defaultStatusId) {
             toast.error(t('whatsappInbox.noOpenStatus', 'No lead status found'));
-            return;
+            return false;
           }
           const createdByName = createdByDisplayName(conversation);
           const { error: insertErr } = await supabase.from('leads').insert({
@@ -239,9 +264,11 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
         queryClient.invalidateQueries({ queryKey: ['leads'] });
         queryClient.invalidateQueries({ queryKey: ['lead-by-ticket', organizationId, ticketId] });
         toast.success(t('whatsappInbox.serviceCategorySaved', 'Service and category saved'));
+        return true;
       } catch (err) {
         devLog.error('Update lead services/category:', err);
         toast.error(t('whatsappInbox.serviceCategorySaveFailed', 'Failed to save service and category'));
+        return false;
       } finally {
         setIsUpdatingLead(false);
       }
@@ -537,12 +564,83 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
       : null;
   const statusQueryKey = statusQueryKeyBase;
 
-  const handleAddUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!conversation?.id || !updateDetails.trim() || !prospectStatus) return;
-    setIsSubmitting(true);
+  const hasPersistedFollowUpForResolve = useMemo(
+    () =>
+      followUpUpdates.some(
+        (u) => Boolean(u.update_details?.trim()) && isProspectStatusValue(u.status),
+      ),
+    [followUpUpdates],
+  );
+
+  const getEffectiveServiceCategory = useCallback(() => {
+    const svc = (selectedServiceName || leadRow?.services || '').trim();
+    const cat = (
+      selectedCategoryName ||
+      (leadRow?.category && leadRow.category !== '-' ? leadRow.category : '') ||
+      ''
+    ).trim();
+    return { svc, cat };
+  }, [leadRow?.category, leadRow?.services, selectedCategoryName, selectedServiceName]);
+
+  const getResolvePrerequisiteMissing = useCallback((): ResolvePrerequisite[] => {
+    const missing: ResolvePrerequisite[] = [];
+    const { svc, cat } = getEffectiveServiceCategory();
+
+    if (!isServiceCategoryPairValid(svc, cat, servicesList, subServicesList)) {
+      if (!svc || !servicesList.some((s) => s.name === svc)) {
+        missing.push('service');
+      } else {
+        missing.push('category');
+      }
+    }
+
+    if (!isEmail && !leadRow?.id) {
+      if (!missing.includes('service')) missing.push('service');
+      if (!missing.includes('category')) missing.push('category');
+    }
+
+    const formReady = Boolean(updateDetails.trim() && prospectStatus);
+    if (formReady || hasPersistedFollowUpForResolve) {
+      return missing;
+    }
+
+    const hasAnyDetails =
+      Boolean(updateDetails.trim()) ||
+      followUpUpdates.some((u) => Boolean(u.update_details?.trim()));
+    const hasAnyProspect =
+      Boolean(prospectStatus) || followUpUpdates.some((u) => isProspectStatusValue(u.status));
+
+    if (!hasAnyDetails) missing.push('update');
+    if (!hasAnyProspect) missing.push('prospect');
+    return missing;
+  }, [
+    followUpUpdates,
+    getEffectiveServiceCategory,
+    hasPersistedFollowUpForResolve,
+    isEmail,
+    leadRow?.id,
+    prospectStatus,
+    servicesList,
+    subServicesList,
+    updateDetails,
+  ]);
+
+  const persistFollowUpUpdate = useCallback(
+    async (overrides?: { updateDetails?: string; prospectStatus?: string }): Promise<boolean> => {
+    if (!conversation?.id) return false;
+    const details = (overrides?.updateDetails ?? updateDetails).trim();
+    const prospect = (overrides?.prospectStatus ?? prospectStatus).trim();
+    if (hasPersistedFollowUpForResolve && !details && !prospect) {
+      return true;
+    }
+    if (!details || !prospect) {
+      return hasPersistedFollowUpForResolve;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
       const { data: profile } = await supabase
         .from('profiles')
@@ -551,11 +649,12 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
         .single();
       const orgId = profile?.active_organization_id;
       if (!orgId) throw new Error('No active organization');
+
       if (isEmail) {
         const { error } = await supabase.from('email_conversation_follow_up_updates').insert({
           conversation_id: conversation.id,
-          update_details: updateDetails.trim(),
-          status: prospectStatus || null,
+          update_details: details,
+          status: prospect || null,
           created_by: user.id,
           created_by_name: profile?.full_name || user.email || 'Unknown',
           organization_id: orgId,
@@ -573,29 +672,99 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
           leadUuid = leadByTicket?.id ?? null;
         }
         if (!leadUuid) {
-          toast.error(t('whatsappInbox.saveServiceCategoryFirst', 'Save service and category first to link this conversation to a lead.'));
-          return;
+          toast.error(
+            t(
+              'whatsappInbox.saveServiceCategoryFirst',
+              'Save service and category first to link this conversation to a lead.',
+            ),
+          );
+          return false;
         }
         const { error } = await supabase.from('lead_follow_up_updates').insert({
           lead_id: leadUuid,
           conversation_id: conversation.id,
-          update_details: updateDetails.trim(),
-          status: prospectStatus || null,
+          update_details: details,
+          status: prospect || null,
           created_by: user.id,
           created_by_name: profile?.full_name || user.email || 'Unknown',
           organization_id: orgId,
         });
         if (error) throw error;
       }
+
       await syncFollowUpCountAndPriority();
       await refetchFollowUps();
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success(t('whatsappInbox.followUpAdded', 'Follow-up update added successfully'));
       setUpdateDetails('');
       setProspectStatus('');
+      return true;
     } catch (err) {
-      devLog.error('Error adding follow-up update:', err);
+      devLog.error('Error persisting follow-up update:', err);
       toast.error(t('whatsappInbox.followUpAddFailed', 'Failed to add follow-up update'));
+      return false;
+    }
+    },
+    [
+    conversation?.id,
+    hasPersistedFollowUpForResolve,
+    isEmail,
+    leadRow?.id,
+    organizationId,
+    prospectStatus,
+    queryClient,
+    refetchFollowUps,
+    syncFollowUpCountAndPriority,
+    t,
+    ticketId,
+    updateDetails,
+  ]);
+
+  const openResolvePrerequisiteDialog = useCallback(() => {
+    const { svc, cat } = getEffectiveServiceCategory();
+    const latestFollowUp = followUpUpdates.find(
+      (u) => Boolean(u.update_details?.trim()) && isProspectStatusValue(u.status),
+    );
+    setDialogServiceName(svc || selectedServiceName || '');
+    setDialogCategoryName(cat || selectedCategoryName || '');
+    setDialogUpdateDetails(updateDetails.trim() || latestFollowUp?.update_details?.trim() || '');
+    setDialogProspectStatus(prospectStatus.trim() || latestFollowUp?.status?.trim() || '');
+    setResolveDialogError(null);
+    setServiceCategoryDialogOpen(true);
+    setIsFollowUpExpanded(true);
+  }, [
+    followUpUpdates,
+    getEffectiveServiceCategory,
+    prospectStatus,
+    selectedCategoryName,
+    selectedServiceName,
+    updateDetails,
+  ]);
+
+  const isResolveModalFollowUpReady = Boolean(dialogUpdateDetails.trim() && dialogProspectStatus.trim());
+
+  const ensureResolvePrerequisites = useCallback(async (): Promise<boolean> => {
+    const missing = getResolvePrerequisiteMissing();
+    if (missing.length > 0) {
+      openResolvePrerequisiteDialog();
+      return false;
+    }
+    const saved = await persistFollowUpUpdate();
+    if (!saved) {
+      openResolvePrerequisiteDialog();
+      return false;
+    }
+    return true;
+  }, [getResolvePrerequisiteMissing, openResolvePrerequisiteDialog, persistFollowUpUpdate]);
+
+  const handleAddUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!conversation?.id || !updateDetails.trim() || !prospectStatus) return;
+    setIsSubmitting(true);
+    try {
+      const ok = await persistFollowUpUpdate();
+      if (ok) {
+        toast.success(t('whatsappInbox.followUpAdded', 'Follow-up update added successfully'));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -611,10 +780,16 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     );
   }
 
-  const applyStatusChange = async (newStatusId: string, conversionDescription?: string) => {
+  const applyStatusChange = async (
+    newStatusId: string,
+    conversionDescription?: string,
+    options?: { fromResolveModal?: boolean },
+  ) => {
     const newStatus = leadStatusesForSelect.find((s) => s.id === newStatusId);
     const isResolve = isResolvedStatus(newStatus?.name ?? null);
-    if (isResolve) {
+    if (isResolve && !options?.fromResolveModal) {
+      const ready = await ensureResolvePrerequisites();
+      if (!ready) return;
       const confirmed = window.confirm(t('leadsManagement.confirmResolve', 'Yakin ingin mengubah status menjadi Resolve? Chat outbound akan diblokir sampai ada pesan masuk baru dari customer.'));
       if (!confirmed) return;
     }
@@ -680,16 +855,16 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
       return;
     }
     if (isResolve) {
-      const hasService = !!selectedServiceName?.trim();
-      const hasCategory = !!selectedCategoryName?.trim();
-      if (!hasService || !hasCategory) {
-        setPendingStatusId(newStatusId);
-        setDialogServiceName(selectedServiceName || '');
-        setDialogCategoryName(selectedCategoryName || '');
-        setDialogDescription('');
-        setServiceCategoryDialogOpen(true);
+      setPendingStatusId(newStatusId);
+      const missing = getResolvePrerequisiteMissing();
+      if (missing.length > 0) {
+        openResolvePrerequisiteDialog();
         return;
       }
+      const ready = await ensureResolvePrerequisites();
+      if (!ready) return;
+      await applyStatusChange(newStatusId);
+      return;
     }
 
     await applyStatusChange(newStatusId);
@@ -699,25 +874,89 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     pendingStatusId != null &&
     (leadStatusesForSelect.find((s) => s.id === pendingStatusId)?.name ?? '').trim().toLowerCase() === 'converted';
 
+  const isPendingResolve =
+    pendingStatusId != null &&
+    isResolvedStatus(leadStatusesForSelect.find((s) => s.id === pendingStatusId)?.name ?? null);
+
+  const resetServiceCategoryDialog = () => {
+    setServiceCategoryDialogOpen(false);
+    setPendingStatusId(null);
+    setDialogDescription('');
+    setDialogUpdateDetails('');
+    setDialogProspectStatus('');
+    setResolveDialogError(null);
+  };
+
   const handleServiceCategoryDialogSave = async () => {
     const svc = dialogServiceName?.trim();
     const cat = dialogCategoryName?.trim();
     if (!svc || !cat) {
-      toast.error(t('whatsappInbox.fillServiceAndCategoryFirst', 'Pilih Layanan dan Kategori terlebih dahulu sebelum mengubah status ke Converted atau Resolve.'));
+      setResolveDialogError(
+        t(
+          'whatsappInbox.fillServiceAndCategoryFirst',
+          'Pilih Layanan dan Kategori terlebih dahulu sebelum mengubah status ke Converted atau Resolve.',
+        ),
+      );
       return;
     }
     if (isPendingConverted && !dialogDescription.trim()) {
-      toast.error(t('whatsappInbox.fillDescriptionFirst', 'Please fill Description before continuing.'));
+      setResolveDialogError(t('whatsappInbox.fillDescriptionFirst', 'Please fill Description before continuing.'));
       return;
     }
+
     const idToApply = pendingStatusId;
     const descriptionToPass = isPendingConverted ? dialogDescription.trim() : undefined;
-    setServiceCategoryDialogOpen(false);
-    setPendingStatusId(null);
-    setDialogDescription('');
-    await updateLeadServicesCategory(svc, cat);
+
+    if (isPendingResolve) {
+      const details = dialogUpdateDetails.trim();
+      const prospect = dialogProspectStatus.trim();
+      if (!details || !prospect) {
+        setResolveDialogError(
+          t('whatsappInbox.resolveDialogValidationError', 'Lengkapi semua field yang wajib diisi.'),
+        );
+        return;
+      }
+
+      const followUpUnchanged = followUpUpdates.some(
+        (u) => u.update_details?.trim() === details && (u.status?.trim() ?? '') === prospect,
+      );
+
+      setIsResolveDialogSubmitting(true);
+      setResolveDialogError(null);
+      try {
+        const savedSvc = await updateLeadServicesCategory(svc, cat);
+        if (!savedSvc) return;
+
+        setSelectedServiceName(svc);
+        setSelectedCategoryName(cat);
+        await queryClient.refetchQueries({ queryKey: ['lead-by-ticket', organizationId, ticketId] });
+
+        if (!followUpUnchanged) {
+          const savedFollowUp = await persistFollowUpUpdate({
+            updateDetails: details,
+            prospectStatus: prospect,
+          });
+          if (!savedFollowUp) return;
+          setUpdateDetails('');
+          setProspectStatus('');
+        }
+
+        resetServiceCategoryDialog();
+        if (idToApply) await applyStatusChange(idToApply, undefined, { fromResolveModal: true });
+      } finally {
+        setIsResolveDialogSubmitting(false);
+      }
+      return;
+    }
+
+    const saved = await updateLeadServicesCategory(svc, cat);
+    if (!saved) return;
+
     setSelectedServiceName(svc);
     setSelectedCategoryName(cat);
+    await queryClient.refetchQueries({ queryKey: ['lead-by-ticket', organizationId, ticketId] });
+
+    resetServiceCategoryDialog();
     if (idToApply) await applyStatusChange(idToApply, descriptionToPass);
   };
 
@@ -729,18 +968,34 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
         </p>
       )}
 
-      {/* Popup: Pilih Layanan dan Kategori sebelum Converted/Resolve */}
-      <Dialog open={serviceCategoryDialogOpen} onOpenChange={(open) => { setServiceCategoryDialogOpen(open); if (!open) { setPendingStatusId(null); setDialogDescription(''); } }}>
+      {/* Modal: data lengkap sebelum Resolve, atau Layanan/Kategori untuk Converted */}
+      <Dialog
+        open={serviceCategoryDialogOpen}
+        onOpenChange={(open) => {
+          setServiceCategoryDialogOpen(open);
+          if (!open) resetServiceCategoryDialog();
+        }}
+      >
         <DialogContent className="sm:max-w-md" hideCloseButton={false}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
                 <AlertCircle className="h-4 w-4" />
               </span>
-              {t('whatsappInbox.selectServiceAndCategory', 'Pilih Layanan dan Kategori')}
+              {isPendingResolve
+                ? t('whatsappInbox.resolvePrerequisiteDialogTitle', 'Lengkapi data sebelum Resolve')
+                : t('whatsappInbox.selectServiceAndCategory', 'Pilih Layanan dan Kategori')}
             </DialogTitle>
             <DialogDescription>
-              {t('whatsappInbox.fillServiceAndCategoryFirst', 'Pilih Layanan dan Kategori terlebih dahulu sebelum mengubah status ke Converted atau Resolve.')}
+              {isPendingResolve
+                ? t(
+                    'whatsappInbox.resolvePrerequisiteDialogDescription',
+                    'Isi layanan, kategori, update details, dan prospect status, lalu klik Resolve.',
+                  )
+                : t(
+                    'whatsappInbox.fillServiceAndCategoryFirst',
+                    'Pilih Layanan dan Kategori terlebih dahulu sebelum mengubah status ke Converted atau Resolve.',
+                  )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -787,6 +1042,47 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
                 </SelectContent>
               </Select>
             </div>
+            {isPendingResolve && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    {t('whatsappInbox.updateDetails', 'Update Details')} <span className="text-red-500">*</span>
+                  </label>
+                  <Textarea
+                    value={dialogUpdateDetails}
+                    onChange={(e) => {
+                      setDialogUpdateDetails(e.target.value);
+                      setResolveDialogError(null);
+                    }}
+                    placeholder={t('whatsappInbox.updateDetailsPlaceholder', '')}
+                    className="min-h-[80px] resize-none text-sm bg-white border-gray-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    {t('whatsappInbox.prospectStatus', 'Prospect Status')} <span className="text-red-500">*</span>
+                  </label>
+                  <Select
+                    value={dialogProspectStatus || undefined}
+                    onValueChange={(v) => {
+                      setDialogProspectStatus(v);
+                      setResolveDialogError(null);
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-white border-gray-200">
+                      <SelectValue placeholder={t('whatsappInbox.selectProspectStatus', 'Select prospect status...')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROSPECT_STATUS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             {isPendingConverted && (
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">
@@ -801,21 +1097,34 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
                 />
               </div>
             )}
+            {resolveDialogError ? (
+              <p className="text-sm text-red-600" role="alert">
+                {resolveDialogError}
+              </p>
+            ) : null}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => { setServiceCategoryDialogOpen(false); setPendingStatusId(null); setDialogDescription(''); }}
-            >
+            <Button type="button" variant="outline" onClick={resetServiceCategoryDialog} disabled={isResolveDialogSubmitting}>
               {t('whatsappInbox.cancel', 'Batal')}
             </Button>
             <Button
               type="button"
               onClick={handleServiceCategoryDialogSave}
-              disabled={!dialogServiceName?.trim() || !dialogCategoryName?.trim() || (isPendingConverted && !dialogDescription.trim())}
+              disabled={
+                isResolveDialogSubmitting ||
+                !dialogServiceName?.trim() ||
+                !dialogCategoryName?.trim() ||
+                (isPendingConverted && !dialogDescription.trim()) ||
+                (isPendingResolve && !isResolveModalFollowUpReady)
+              }
             >
-              {t('whatsappInbox.saveAndContinue', 'Simpan dan lanjutkan')}
+              {isResolveDialogSubmitting
+                ? isPendingResolve
+                  ? t('whatsappInbox.resolving', 'Resolve...')
+                  : t('whatsappInbox.adding', 'Adding...')
+                : isPendingResolve
+                  ? t('whatsappInbox.resolveFromModal', 'Resolve')
+                  : t('whatsappInbox.saveAndContinue', 'Simpan dan lanjutkan')}
             </Button>
           </DialogFooter>
         </DialogContent>

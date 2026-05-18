@@ -263,8 +263,7 @@ export const CompanyObjectivesDetailView = ({
       : companyTabError
         ? new Error(String(companyTabError))
         : null;
-  /** Home: jangan tahan overlay/skeleton penuh — hanya laporkan error. */
-  useReportOkrTabStatus('company', false, companyTabErr);
+  useReportOkrTabStatus('company', companyTabLoading, companyTabErr);
   useReportOkrPageDetail('company', companyTabLoading, companyTabErr);
 
   // Helper function to get department name

@@ -12,6 +12,7 @@ import { NewLead } from '@/shared/types/leads';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { LeadActionsDropdown } from "@/5-3-dashboard/components/leads/actions/LeadActionsDropdown";
 import { LeadFollowUpForm } from "@/5-3-dashboard/components/leads/forms/LeadFollowUpForm";
+import { LeadTemplateFollowUpDialog } from "@/5-3-dashboard/components/leads/dialogs/LeadTemplateFollowUpDialog";
 import { EditLeadDialog } from "@/5-3-dashboard/components/leads/dialogs/EditLeadDialog";
 import { ViewLeadDialog } from "@/5-3-dashboard/components/leads/dialogs/ViewLeadDialog";
 import { ClientProfilePopup } from "@/5-3-dashboard/components/leads/dialogs/ClientProfilePopup";
@@ -186,6 +187,8 @@ export default function LeadsTableNew({
   const [selectedClientLead, setSelectedClientLead] = useState<NewLead | null>(null);
   const [isStatusHistoryOpen, setIsStatusHistoryOpen] = useState(false);
   const [statusHistoryLead, setStatusHistoryLead] = useState<NewLead | null>(null);
+  const [templateFollowUpLead, setTemplateFollowUpLead] = useState<NewLead | null>(null);
+  const [isTemplateFollowUpOpen, setIsTemplateFollowUpOpen] = useState(false);
 
   const { data: statusRows = [] } = useLeadStatusesActiveFull();
   const leadStatuses = useMemo(
@@ -292,11 +295,48 @@ export default function LeadsTableNew({
   const getFUPriorityColor = (priority?: string) => {
     const colors = {
       'High': 'bg-red-50 text-red-700 border-red-200',
-      'Medium': 'bg-yellow-50 text-yellow-700 border-yellow-200', 
+      'Medium': 'bg-yellow-50 text-yellow-700 border-yellow-200',
       'Low': 'bg-green-50 text-green-700 border-green-200',
-      'Please Follow Up': 'bg-red-100 text-red-800 border-red-400' // Darker red for follow up warning
+      'Please Follow Up': 'bg-red-100 text-red-800 border-red-400',
+      'Set Status': 'bg-slate-100 text-slate-700 border-slate-300',
+      'No Respon': 'bg-amber-50 text-amber-800 border-amber-200',
     };
     return colors[priority as keyof typeof colors] || colors.Medium;
+  };
+
+  const renderFuPriorityBadge = (lead: NewLead) => {
+    if (lead.template_followup_awaiting_reply) {
+      const noResponseLabel = t('leadsManagement.fuPriority.noResponse', 'No Respon');
+      return (
+        <Badge
+          className={`${getFUPriorityColor('No Respon')} text-xs px-3 py-1 rounded-sm font-medium border w-32 justify-center`}
+          title={t(
+            'leadsManagement.fuPriority.noResponseHint',
+            'Template follow-up terkirim; menunggu balasan customer.',
+          )}
+        >
+          {noResponseLabel}
+        </Badge>
+      );
+    }
+    const followupCount = lead.followup ?? 0;
+    if (lead.fu_priority === 'Set Status') {
+      return (
+        <Badge
+          className={`${getFUPriorityColor('Set Status')} text-xs px-3 py-1 rounded-sm font-medium border w-32 justify-center`}
+        >
+          {t('leadsManagement.fuPriority.setStatus', 'Set Status')}
+        </Badge>
+      );
+    }
+    const displayPriority = followupCount === 0 ? 'Please Follow Up' : (lead.fu_priority || 'Medium');
+    return (
+      <Badge
+        className={`${getFUPriorityColor(displayPriority)} text-xs px-3 py-1 rounded-sm font-medium border w-32 justify-center`}
+      >
+        {displayPriority}
+      </Badge>
+    );
   };
 
   // Status names that are "final" — once set, lead cannot go back to Open
@@ -1005,17 +1045,7 @@ export default function LeadsTableNew({
                     )}
                   </TableCell>
                   {/* FU Priority Column (same for regular + WhatsApp) */}
-                  <TableCell className="whitespace-nowrap">
-                    {(() => {
-                      const followupCount = lead.followup ?? 0;
-                      const displayPriority = followupCount === 0 ? 'Please Follow Up' : (lead.fu_priority || 'Medium');
-                      return (
-                        <Badge className={`${getFUPriorityColor(displayPriority)} text-xs px-3 py-1 rounded-sm font-medium border w-32 justify-center`}>
-                          {displayPriority}
-                        </Badge>
-                      );
-                    })()}
-                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{renderFuPriorityBadge(lead)}</TableCell>
                   {/* Status Column - Read-only badge from lead_statuses; no dropdown. Change status via Edit lead or View detail. */}
                   <TableCell className="whitespace-nowrap">
                     {pickerSelection ? (
@@ -1073,6 +1103,10 @@ export default function LeadsTableNew({
                         onEdit={handleEdit}
                         onViewDetail={handleViewDetail}
                         onDelete={handleDelete}
+                        onTemplateFollowUp={(l) => {
+                          setTemplateFollowUpLead(l);
+                          setIsTemplateFollowUpOpen(true);
+                        }}
                       />
                     </TableCell>
                   ) : null}
@@ -1084,6 +1118,16 @@ export default function LeadsTableNew({
         </table>
       </div>
       
+      <LeadTemplateFollowUpDialog
+        open={isTemplateFollowUpOpen}
+        onOpenChange={setIsTemplateFollowUpOpen}
+        lead={templateFollowUpLead}
+        onSent={() => {
+          if (onRefreshLeads) onRefreshLeads();
+          setTemplateFollowUpLead(null);
+        }}
+      />
+
       {/* Follow Up Update Form */}
       {selectedLead && (
         <LeadFollowUpForm
