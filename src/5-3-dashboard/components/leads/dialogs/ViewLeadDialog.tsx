@@ -53,7 +53,8 @@ export const ViewLeadDialog = ({
         (lead.utm_content ?? '').trim() ||
         (lead.utm_term ?? '').trim() ||
         (lead.landing_url ?? '').trim() ||
-        (lead.attribution_label ?? '').trim(),
+        (lead.attribution_label ?? '').trim() ||
+        (lead.gclid ?? '').trim(),
     );
 
   const getSourceColor = (source?: string) => {
@@ -185,6 +186,12 @@ export const ViewLeadDialog = ({
                   <div className="sm:col-span-2">
                     <label className="text-sm font-medium text-gray-500">Attribution label</label>
                     <p className="text-sm font-medium mt-1 break-all">{lead.attribution_label}</p>
+                  </div>
+                )}
+                {lead.gclid?.trim() && (
+                  <div className="sm:col-span-2">
+                    <label className="text-sm font-medium text-gray-500">gclid</label>
+                    <p className="text-sm font-medium mt-1 break-all font-mono">{lead.gclid}</p>
                   </div>
                 )}
                 {lead.landing_url?.trim() && (

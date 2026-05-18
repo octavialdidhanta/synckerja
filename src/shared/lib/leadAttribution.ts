@@ -93,6 +93,7 @@ export const LEAD_ATTRIBUTION_SORT_COLUMNS = [
   "utm_term",
   "landing_url",
   "attribution_label",
+  "gclid",
   "assignee",
   "followup",
   "fu_priority",
@@ -169,6 +170,7 @@ function sortComparable(row: SortableLeadRow, col: LeadAttributionSortColumn): s
     case "utm_term":
     case "landing_url":
     case "attribution_label":
+    case "gclid":
     case "assignee": {
       const v = row[col];
       if (v == null) return null;

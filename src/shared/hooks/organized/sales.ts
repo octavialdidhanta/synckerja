@@ -1136,6 +1136,12 @@ function trimAttributionLabel(v: unknown): string | null {
   return s === '' ? null : s;
 }
 
+function trimGclid(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
+
 /** Flatten `attribution` json for UI; virtual WA/IG rows have no marketing attribution. */
 function withLeadAttributionShape(lead: Record<string, unknown>): Record<string, unknown> {
   const idStr = String(lead.id ?? '');
@@ -1146,6 +1152,7 @@ function withLeadAttributionShape(lead: Record<string, unknown>): Record<string,
       ...lead,
       attribution: null,
       attribution_label: null,
+      gclid: null,
       ...z,
     };
   }
@@ -1154,6 +1161,7 @@ function withLeadAttributionShape(lead: Record<string, unknown>): Record<string,
     ...lead,
     ...flat,
     attribution_label: trimAttributionLabel(lead.attribution_label),
+    gclid: trimGclid(lead.gclid),
   };
 }
 

@@ -27,6 +27,8 @@ export interface NewLead {
   attribution?: Record<string, unknown> | null;
   /** From `leads.attribution_label`. */
   attribution_label?: string | null;
+  /** From `leads.gclid`. */
+  gclid?: string | null;
   utm_source?: string | null;
   utm_medium?: string | null;
   utm_campaign?: string | null;

@@ -146,7 +146,7 @@ interface LeadsTableNewProps {
 const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
 
 /** Extra horizontal room between Attribution label ↔ Assignee ↔ Follow Up (header + body). */
-const ATTRIBUTION_ASSIGNEE_FU_HEAD_KEYS = new Set(["attribution_label", "assignee", "followup"]);
+const ATTRIBUTION_ASSIGNEE_FU_HEAD_KEYS = new Set(["attribution_label", "gclid", "assignee", "followup"]);
 
 export default function LeadsTableNew({
   leads,
@@ -460,6 +460,7 @@ export default function LeadsTableNew({
       { key: "utm_term", label: "UTM Term", width: "w-[110px]", sortKey: "utm_term" },
       { key: "landing_url", label: "Landing URL", width: "w-[200px] max-w-[220px]", sortKey: "landing_url" },
       { key: "attribution_label", label: "Attribution label", width: "min-w-[200px] max-w-[260px]", sortKey: "attribution_label" },
+      { key: "gclid", label: "gclid", width: "min-w-[160px] max-w-[220px]", sortKey: "gclid" },
       { key: "assignee", label: "Assignee", width: "min-w-[168px] w-[168px]", sortKey: "assignee" },
       { key: "followup", label: "Follow Up", width: "min-w-[124px] w-[124px]", sortKey: "followup" },
       { key: "fu_priority", label: "FU Priority", width: "w-[120px]", sortKey: "fu_priority" },
@@ -989,6 +990,13 @@ export default function LeadsTableNew({
                     {lead.attribution_label?.trim() ? (
                       <span className="block truncate" title={lead.attribution_label}>
                         {lead.attribution_label}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="min-w-0 max-w-[220px] px-5 text-xs text-gray-800 align-middle">
+                    {lead.gclid?.trim() ? (
+                      <span className="block truncate font-mono" title={lead.gclid}>
+                        {lead.gclid}
                       </span>
                     ) : null}
                   </TableCell>
