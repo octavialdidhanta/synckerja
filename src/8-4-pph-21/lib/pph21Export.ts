@@ -1,5 +1,5 @@
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import type { jsPDF } from "jspdf";
+import { loadPdfKit } from "@/shared/lib/pdf/loadPdfKit";
 import * as XLSX from "xlsx";
 import type { CalculatePPh21Result } from "./pph21Calculator";
 import { formatCurrency } from "./pph21Calculator";
@@ -36,9 +36,13 @@ function modeLabel(mode: PPh21ExportPayload["mode"]): string {
   return mode === "gross-to-net" ? "Gaji Bruto → Take-Home Pay" : "Take-Home Pay → Gaji Bruto";
 }
 
-export function exportPPh21ToPdf(payload: PPh21ExportPayload): void {
+export async function exportPPh21ToPdf(payload: PPh21ExportPayload): Promise<void> {
+  const { jsPDF: JsPDF, autoTable } = await loadPdfKit({ withAutoTable: true });
+  if (!autoTable) {
+    throw new Error("jspdf-autotable failed to load");
+  }
   const { result, increaseResult, generatedAt } = payload;
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const doc = new JsPDF({ unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   let y = 14;
 

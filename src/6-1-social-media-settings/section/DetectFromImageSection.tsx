@@ -3,6 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { storageUploadOptions } from '@/shared/lib/storageCacheControl';
 import { toast } from 'sonner';
 import { Lightbulb, ImageIcon, Copy, User, Box, Layout, Download, Trash2, RectangleHorizontal, RectangleVertical, Square, Loader2, RefreshCw } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
@@ -1063,7 +1064,9 @@ export const DetectFromImageSection: React.FC = () => {
       try {
         const { data: signedData } = await supabase.storage
           .from('digital-asset-character-images')
-          .createSignedUrl(refPath, 3600);
+          .createSignedUrl(refPath, 60 * 60 * 24, {
+            transform: { width: 400, height: 400, resize: "contain", quality: 80 },
+          });
         signedUrl = signedData?.signedUrl ?? null;
       } catch {
         // keep signedUrl null; panel can still show name/refs
@@ -1159,7 +1162,9 @@ export const DetectFromImageSection: React.FC = () => {
       try {
         const { data: signedData, error: signedError } = await supabase.storage
           .from('digital-asset-character-images')
-          .createSignedUrl(refPath, 3600);
+          .createSignedUrl(refPath, 60 * 60 * 24, {
+            transform: { width: 400, height: 400, resize: "contain", quality: 80 },
+          });
         if (signedError || !signedData?.signedUrl) {
           toast.error(
             t('detectFromImage.errorCharacterReferenceLoadFailed', 'Failed to load character reference photo.')
@@ -1207,7 +1212,9 @@ export const DetectFromImageSection: React.FC = () => {
       try {
           const { data: signedData, error: signedError } = await supabase.storage
             .from('digital-asset-company-logos')
-            .createSignedUrl(logoEntry.logo_path, 3600);
+            .createSignedUrl(logoEntry.logo_path, 60 * 60 * 24, {
+              transform: { width: 512, height: 512, resize: "contain", quality: 80 },
+            });
           if (signedError || !signedData?.signedUrl) {
             toast.error(t('detectFromImage.errorCompanyLogoLoadFailed', 'Failed to load company logo.'));
             return;
@@ -1797,7 +1804,11 @@ export const DetectFromImageSection: React.FC = () => {
         const path = `${organizationId}/${characterId}${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('digital-asset-character-images')
-          .upload(path, selectedFile, { upsert: true, contentType: selectedFile.type || 'image/jpeg' });
+          .upload(
+            path,
+            selectedFile,
+            storageUploadOptions({ upsert: true, contentType: selectedFile.type || "image/jpeg" }),
+          );
         if (uploadError) {
           console.error(uploadError);
           toast.success(t('detectFromImage.successSaveCharacter', 'Saved to Character successfully.'));

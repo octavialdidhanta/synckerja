@@ -28,6 +28,16 @@ import { SalesActivityItemsManager } from './SalesActivityItemsManager';
 import type { SalesActivityItemsManagerHandle } from './SalesActivityItemsManager';
 import { format } from 'date-fns';
 
+function mergeActivityDetailForForm(activity: {
+  description?: string | null;
+  notes?: string | null;
+}): string {
+  const d = (activity.description ?? '').trim();
+  const n = (activity.notes ?? '').trim();
+  if (d && n) return `${d}\n\n${n}`;
+  return d || n;
+}
+
 const formSchema = z.object({
   client_name: z.string().min(1, 'Client name is required'),
   client_phone: z.string().optional(),
@@ -45,8 +55,7 @@ const formSchema = z.object({
   is_down_payment: z.boolean().optional(),
   payment_method: z.string().optional(),
   is_paid: z.boolean().optional(),
-  description: z.string().optional(),
-  notes: z.string().optional(),
+  detail: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -116,13 +125,13 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
       is_down_payment: activity.is_down_payment || false,
       payment_method: activity.payment_method ? activity.payment_method.toLowerCase() : '',
       is_paid: activity.is_paid || false,
-      description: activity.description || '',
-      notes: activity.notes || '',
+      detail: mergeActivityDetailForForm(activity),
     } : {
       date: format(new Date(), 'yyyy-MM-dd'),
       status: 'Active',
       is_down_payment: false,
       is_paid: false,
+      detail: '',
     },
   });
 
@@ -199,6 +208,8 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
         receiptUrl = publicUrl;
       }
 
+      const detailTrim = (data.detail ?? '').trim();
+
       // Prepare the data for insertion/update with correct field mapping
       const submitData = {
         organization_id: organizationId,
@@ -217,8 +228,8 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
         is_down_payment: data.is_down_payment || false,
         payment_method: data.payment_method || null,
         is_paid: data.is_paid || false,
-        description: data.description || null,
-        notes: data.notes || null,
+        description: detailTrim || null,
+        notes: null,
         receipt_url: receiptUrl,
         updated_at: new Date().toISOString(),
       };
@@ -272,7 +283,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
               organization_id: organizationId!,
               created_by: user?.id || '',
               receipt_url: effectiveReceiptUrl || null,
-              notes: data.notes || null,
+              notes: detailTrim || null,
             });
 
             devLog.debug('✅ Additional down payment history created successfully');
@@ -310,7 +321,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
               organization_id: organizationId!,
               created_by: user?.id || '',
               receipt_url: effectiveReceiptUrl || null,
-              notes: data.notes || null,
+              notes: detailTrim || null,
             });
 
             devLog.debug('✅ Final payment history created successfully');
@@ -394,7 +405,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
               organization_id: organizationId!,
               created_by: user?.id || '',
               receipt_url: effectiveReceiptUrl || null,
-              notes: data.notes || null,
+              notes: detailTrim || null,
             });
 
             devLog.debug('✅ Down payment history and income transaction created successfully');
@@ -429,7 +440,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
               organization_id: organizationId!,
               created_by: user?.id || '',
               receipt_url: effectiveReceiptUrl || null,
-              notes: data.notes || null,
+              notes: detailTrim || null,
             });
 
             devLog.debug('✅ Full payment history and income transaction created successfully');
@@ -782,30 +793,21 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
         </Card>
       </div>
 
-      {/* Description and Notes */}
+      {/* Description + notes (single field; stored on description, notes cleared) */}
       <Card className="min-w-0 overflow-hidden rounded-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Additional Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <div>
-            <Label htmlFor="description" className="text-sm">Description</Label>
+            <Label htmlFor="activity-detail" className="text-sm">
+              Description & notes
+            </Label>
             <Textarea
-              id="description"
-              {...register('description', rd)}
-              placeholder="Enter activity description"
-              rows={3}
-              className="mt-1"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="notes" className="text-sm">Notes</Label>
-            <Textarea
-              id="notes"
-              {...register('notes', rd)}
-              placeholder="Enter additional notes"
-              rows={3}
+              id="activity-detail"
+              {...register('detail', rd)}
+              placeholder="Description, internal notes, or follow-up context…"
+              rows={5}
               className="mt-1"
             />
           </div>

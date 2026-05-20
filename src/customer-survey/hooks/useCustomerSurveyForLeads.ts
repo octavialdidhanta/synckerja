@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { NewLead } from "@/shared/types/leads";
 import { supabase } from "@/shared/lib/supabaseClient";
@@ -35,6 +35,10 @@ export type CustomerSurveyHistoryEntry = {
   assigneeName: string | null;
 };
 
+function normConvId(id: string | null | undefined): string {
+  return String(id ?? "").trim().toLowerCase();
+}
+
 function parseLatestRows(raw: unknown): LatestCustomerSurvey[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -58,15 +62,18 @@ function parseLatestRows(raw: unknown): LatestCustomerSurvey[] {
 export function useCustomerSurveyLatestByConversations(
   organizationId: string | null | undefined,
   conversationIds: string[],
+  options?: { enabled?: boolean },
 ) {
   const sortedKey = useMemo(
     () => [...new Set(conversationIds.filter(Boolean))].sort().join(","),
     [conversationIds],
   );
 
+  const enabled = options?.enabled ?? true;
+
   return useQuery({
     queryKey: ["customer-survey-latest-by-conversations", organizationId, sortedKey],
-    enabled: Boolean(organizationId) && conversationIds.length > 0,
+    enabled: enabled && Boolean(organizationId) && conversationIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("customer_survey_latest_by_conversations", {
         p_organization_id: organizationId!,
@@ -91,15 +98,20 @@ export function useTicketToConversationMap(
     enabled: Boolean(organizationId) && ticketIds.length > 0,
     queryFn: async () => {
       const map = new Map<string, string>();
+      const want = new Set(ticketIds.map((t) => t.trim().toUpperCase()).filter(Boolean));
+      if (want.size === 0) return map;
+
       const { data, error } = await supabase
         .from("whatsapp_conversations")
         .select("id, ticket_id")
         .eq("organization_id", organizationId!);
       if (error) throw error;
-      const want = new Set(ticketIds.map((t) => t.toUpperCase()));
       for (const row of data ?? []) {
+        const convId = String((row as { id: string }).id);
         const tid = String((row as { ticket_id?: string }).ticket_id ?? "").trim().toUpperCase();
-        if (tid && want.has(tid)) map.set(tid, String((row as { id: string }).id));
+        if (tid && want.has(tid)) map.set(tid, convId);
+        const generated = `WA-${convId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+        if (want.has(generated)) map.set(generated, convId);
       }
       return map;
     },
@@ -127,30 +139,61 @@ export function useCustomerSurveyForLeads(
     return [...ids];
   }, [leads, ticketMapQuery.data]);
 
-  const latestQuery = useCustomerSurveyLatestByConversations(organizationId, conversationIds);
+  /** Ticket→conversation map must settle before batch survey RPC (leads table rows use ticket_id). */
+  const ticketMapReady = ticketIds.length === 0 || ticketMapQuery.isFetched;
+
+  const latestQuery = useCustomerSurveyLatestByConversations(organizationId, conversationIds, {
+    enabled: ticketMapReady,
+  });
 
   const byConversationId = useMemo(() => {
     const map = new Map<string, LatestCustomerSurvey>();
     for (const row of latestQuery.data ?? []) {
-      map.set(row.conversationId, row);
+      map.set(normConvId(row.conversationId), row);
     }
     return map;
   }, [latestQuery.data]);
 
-  const resolveConversationId = (lead: NewLead): string | null => {
-    const direct = resolveWhatsappConversationIdFromLeadId(lead);
-    if (direct) return direct;
-    const tid = (lead.ticket_id ?? "").trim().toUpperCase();
-    if (tid && ticketMapQuery.data?.has(tid)) return ticketMapQuery.data.get(tid)!;
-    return null;
-  };
+  const resolveConversationId = useCallback(
+    (lead: NewLead): string | null => {
+      const direct = resolveWhatsappConversationIdFromLeadId(lead);
+      if (direct) return normConvId(direct);
+      const tid = (lead.ticket_id ?? "").trim().toUpperCase();
+      if (tid && ticketMapQuery.data?.has(tid)) return normConvId(ticketMapQuery.data.get(tid)!);
+      return null;
+    },
+    [ticketMapQuery.data],
+  );
 
-  const getSurveyForLead = (lead: NewLead): LatestCustomerSurvey | null => {
-    if (!isWhatsappLeadForSurvey(lead)) return null;
-    const convId = resolveConversationId(lead);
-    if (!convId) return null;
-    return byConversationId.get(convId) ?? null;
-  };
+  const getSurveyForLead = useCallback(
+    (lead: NewLead): LatestCustomerSurvey | null => {
+      if (!isWhatsappLeadForSurvey(lead)) return null;
+      const convId = resolveConversationId(lead);
+      if (!convId) return null;
+      return byConversationId.get(convId) ?? null;
+    },
+    [byConversationId, resolveConversationId],
+  );
+
+  /** Stable per-lead numeric rating for table sort (same resolution as getSurveyForLead). */
+  const surveyRatingByLeadId = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const lead of leads) {
+      const leadKey = String(lead.id ?? "");
+      if (!isWhatsappLeadForSurvey(lead)) {
+        map.set(leadKey, null);
+        continue;
+      }
+      const convId = resolveConversationId(lead);
+      if (!convId) {
+        map.set(leadKey, null);
+        continue;
+      }
+      const rating = byConversationId.get(convId)?.rating;
+      map.set(leadKey, rating != null && Number.isFinite(rating) ? rating : null);
+    }
+    return map;
+  }, [leads, byConversationId, resolveConversationId]);
 
   const getSurveyFromRpcFields = (lead: NewLead & { latest_survey_rating?: number | null }): LatestCustomerSurvey | null => {
     const rating = lead.latest_survey_rating;
@@ -170,11 +213,17 @@ export function useCustomerSurveyForLeads(
   };
 
   return {
-    isLoading: latestQuery.isLoading || ticketMapQuery.isLoading,
+    isLoading:
+      (ticketIds.length > 0 && ticketMapQuery.isLoading) ||
+      (ticketMapReady && latestQuery.isLoading),
     isError: latestQuery.isError || ticketMapQuery.isError,
     getSurveyForLead,
     getSurveyFromRpcFields,
     resolveConversationId,
+    /** Changes when latest survey batch loads — use as sort dependency. */
+    latestSurveyRows: latestQuery.data,
+    surveyRatingByLeadId,
+    ticketMapReady,
     refetch: () => {
       void latestQuery.refetch();
       void ticketMapQuery.refetch();

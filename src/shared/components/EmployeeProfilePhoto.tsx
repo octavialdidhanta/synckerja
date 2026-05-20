@@ -3,6 +3,8 @@ import { Button } from '@/shared/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/shared/components/ui/avatar';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { storageUploadOptions } from '@/shared/lib/storageCacheControl';
+import { optimizePublicStorageImageUrl } from '@/shared/lib/storageDisplayUrl';
 import { toast } from 'sonner';
 import { getInitials } from '@/2-1-employees/hooks/photoUtils';
 
@@ -79,10 +81,7 @@ export const EmployeeProfilePhoto = ({
       // Upload new file
       const { data, error } = await supabase.storage
         .from('employee-profiles')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+        .upload(fileName, file, storageUploadOptions({ upsert: false, contentType: file.type }));
 
       if (error) {
         throw error;
@@ -171,8 +170,11 @@ export const EmployeeProfilePhoto = ({
     <div className="relative inline-block">
       <div className="relative group">
         <Avatar className={`${sizeClasses[size]} cursor-pointer`}>
-          <AvatarImage 
-            src={photoUrl || undefined} 
+          <AvatarImage
+            src={
+              optimizePublicStorageImageUrl(photoUrl, { width: 128, resize: "cover", quality: 80 }) ??
+              undefined
+            } 
             alt={`${employeeName} profile photo`}
             className="object-cover"
           />

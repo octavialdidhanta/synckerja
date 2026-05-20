@@ -57,7 +57,7 @@ export const PurchaseRequestPDFViewer = ({ request }: PurchaseRequestPDFViewerPr
       setError(null);
 
       try {
-        const generator = new PurchaseRequestPDFGenerator();
+        const generator = await PurchaseRequestPDFGenerator.create();
         const dataUrl = generator.generatePDF(request, organization);
         setPdfDataUrl(dataUrl);
       } catch (err) {
@@ -73,11 +73,11 @@ export const PurchaseRequestPDFViewer = ({ request }: PurchaseRequestPDFViewerPr
     }
   }, [request, organization]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!request || !pdfDataUrl) return;
 
     try {
-      const generator = new PurchaseRequestPDFGenerator();
+      const generator = await PurchaseRequestPDFGenerator.create();
       generator.generatePDF(request, organization!);
       const requestNumber = `PR-${request.id.substring(0, 8).toUpperCase()}-${format(new Date(request.created_at), 'yyyyMMdd')}`;
       const filename = `Surat-Permintaan-Pembelian-${requestNumber}.pdf`;

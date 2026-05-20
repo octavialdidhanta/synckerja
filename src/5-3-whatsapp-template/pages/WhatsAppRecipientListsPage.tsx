@@ -30,6 +30,7 @@ import { ImportRecipientListFileModal } from "@/5-3-whatsapp-template/components
 import {
   useActiveOrgOwnerRpc,
   useCreateRecipientListFromSelection,
+  formatRecipientListMutationError,
   useDeleteWhatsappRecipientList,
   useWhatsappRecipientLists,
   type WhatsappRecipientListRow,
@@ -159,17 +160,21 @@ export function WhatsAppRecipientListsPage() {
   const handleAddContacts = useCallback(
     async (args: { name: string; picks: RecipientPickerCandidate[] }) => {
       try {
-        await createList.mutateAsync({ name: args.name, picks: args.picks });
+        const result = await createList.mutateAsync({ name: args.name, picks: args.picks });
         setContactPickerOpen(false);
+        const importedCount =
+          result && typeof result === "object" && "importedCount" in result
+            ? Number((result as { importedCount: number }).importedCount)
+            : args.picks.length;
         toast({
           title: t("whatsappTemplates.recipientLists.toast.listCreatedTitle"),
           description: t("whatsappTemplates.recipientLists.toast.listCreatedDescription", {
             name: args.name,
-            count: args.picks.length,
+            count: importedCount,
           }),
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatRecipientListMutationError(e);
         toast({
           variant: "destructive",
           title: t("whatsappTemplates.recipientLists.toast.createFailedTitle"),

@@ -10,11 +10,14 @@ import { Input } from '@/shared/components/ui/input';
 
 interface ServiceManagerProps {
   onDataChange: () => void;
+  /** Called after a new service is created (e.g. auto-select in parent form). */
+  onCreated?: (name: string) => void;
 }
 
-export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDataChange }) => {
+export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDataChange, onCreated }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [draftName, setDraftName] = useState('');
   const [modalData, setModalData] = useState<{
     open: boolean;
     mode: 'add' | 'edit';
@@ -27,34 +30,18 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
 
   const [services, setServices] = useState<Service[]>([]);
   const { loading, fetchData, addData, updateData, deleteData } = useMasterData('services');
-  const hasLoadedRef = React.useRef(false);
 
-  // Stable load function - only load once on mount
   const loadServices = useCallback(async () => {
-    if (hasLoadedRef.current) return; // Prevent duplicate loads
-    hasLoadedRef.current = true;
-    try {
-      const { logger } = await import('@/shared/lib/logger');
-      logger.rateLimited('svc-load', 3000, () => logger.debug('Loading services...'));
-    } catch {
-      console.log('Loading services...');
-    }
     const data = await fetchData();
-    try {
-      const { logger } = await import('@/shared/lib/logger');
-      logger.rateLimited('svc-loaded', 3000, () => logger.debug('Services loaded:', data));
-    } catch {
-      console.log('Services loaded:', data);
-    }
     setServices(data as Service[]);
   }, [fetchData]);
 
-  // Load data only once on mount
   useEffect(() => {
-    loadServices();
-  }, []); // Empty deps - only run on mount
+    void loadServices();
+  }, [loadServices]);
 
   const handleAdd = useCallback(() => {
+    setDraftName('');
     setModalData({
       open: true,
       mode: 'add',
@@ -64,6 +51,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
   }, []);
 
   const handleEdit = useCallback((item: Service) => {
+    setDraftName(item.name);
     setModalData({
       open: true,
       mode: 'edit',
@@ -83,9 +71,12 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
     setIsOpen(false);
   }, [deleteData, loadServices, onDataChange]);
 
-  const handleSave = useCallback(async (name: string) => {
+  const handleSave = useCallback(async () => {
+    const name = draftName.trim();
+    if (!name) return;
+
     let success = false;
-    
+
     if (modalData.mode === 'add') {
       success = await addData(name);
     } else if (modalData.item) {
@@ -95,21 +86,18 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
     if (success) {
       await loadServices();
       onDataChange();
+      if (modalData.mode === 'add') {
+        onCreated?.(name);
+      }
+      setDraftName('');
       setModalData({ open: false, mode: 'add', item: null });
     }
-  }, [modalData, addData, updateData, loadServices, onDataChange]);
+  }, [modalData, draftName, addData, updateData, loadServices, onDataChange, onCreated]);
 
   const handleCloseModal = useCallback(() => {
+    setDraftName('');
     setModalData({ open: false, mode: 'add', item: null });
   }, []);
-
-  const handleSaveClick = useCallback(() => {
-    // Get the name from the input field
-    const input = document.querySelector('input[placeholder="Enter service name"]') as HTMLInputElement;
-    if (input?.value) {
-      handleSave(input.value);
-    }
-  }, [handleSave]);
 
   // Clear search when dropdown closes
   const handleDropdownChange = useCallback((open: boolean) => {
@@ -251,21 +239,33 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
       </DropdownMenu>
 
       {modalData.open && createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
-          <div className="bg-white p-6 rounded-lg w-96 shadow-2xl">
-            <h3 className="text-lg font-semibold mb-4">Service</h3>
+        <div
+          className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/50"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div
+            className="w-96 rounded-lg bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-4 text-lg font-semibold">Service</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Name</label>
-                <input
+                <label className="mb-2 block text-sm font-medium">Name</label>
+                <Input
                   type="text"
-                  value={modalData.item?.name || ''}
-                  onChange={(e) => setModalData(prev => ({
-                    ...prev,
-                    item: { ...prev.item!, name: e.target.value }
-                  }))}
-                  className="w-full p-2 border rounded"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  className="w-full"
                   placeholder="Enter service name"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleSave();
+                    }
+                  }}
                 />
               </div>
               <div className="flex justify-end space-x-2">
@@ -277,8 +277,8 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleSaveClick}
-                  disabled={loading}
+                  onClick={() => void handleSave()}
+                  disabled={loading || !draftName.trim()}
                 >
                   {loading ? 'Saving...' : 'Save'}
                 </Button>

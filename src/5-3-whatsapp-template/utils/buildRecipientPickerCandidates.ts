@@ -25,7 +25,6 @@ type LeadRow = {
 type LeadProfileRow = {
   lead_id: string;
   phone_number: string | null;
-  contact_phone: string | null;
   updated_at: string | null;
 };
 
@@ -94,20 +93,20 @@ export function buildRecipientPickerCandidates(args: {
 
     const resolved = firstNonEmptyPhone([
       lcp?.phone_number,
-      lcp?.contact_phone,
       lead.phone_number,
       waProf?.phone_number,
       wc?.customer_wa_id,
     ]);
-    if (!resolved) continue;
 
     if (ticket) leadTicketsWithCandidate.add(ticket);
 
-    const displayName = String(lead.client ?? "").trim() || pickDisplayPhone(wc?.customer_name, resolved.key);
+    const displayName =
+      String(lead.client ?? "").trim() ||
+      (resolved ? pickDisplayPhone(wc?.customer_name, resolved.key) : String(lead.ticket_id ?? lead.id));
     const priority = 100_000 + (wc ? 500 : 0);
     rows.push({
-      phoneKey: resolved.key,
-      displayPhone: pickDisplayPhone(resolved.raw, resolved.key),
+      phoneKey: resolved?.key ?? "",
+      displayPhone: resolved ? pickDisplayPhone(resolved.raw, resolved.key) : "",
       displayName,
       lead_id: lead.id,
       conversation_id: wc?.id ?? null,
@@ -143,8 +142,14 @@ export function buildRecipientPickerCandidates(args: {
   const seen = new Set<string>();
   const deduped: RecipientPickerCandidate[] = [];
   for (const r of rows) {
-    if (seen.has(r.phoneKey)) continue;
-    seen.add(r.phoneKey);
+    const rowKey =
+      r.lead_id != null
+        ? `lead:${r.lead_id}`
+        : r.conversation_id != null
+          ? `lc:${r.conversation_id}`
+          : `phone:${r.phoneKey}`;
+    if (seen.has(rowKey)) continue;
+    seen.add(rowKey);
     deduped.push(r);
   }
 

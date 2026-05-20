@@ -3,10 +3,9 @@ import { Button } from "@/shared/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
-const defaultTermsBrand = (
-  <img src="/favicon.png" alt="" className="h-12 w-auto" width={48} height={48} />
-);
+const defaultTermsBrand = <SynckerjaBrandLogo className="h-12 w-auto" width={48} height={48} />;
 
 export type TermsAndConditionsScreenProps = {
   brandMark?: ReactNode;

@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { SalesActivitiesFilters } from './SalesActivitiesFilters';
 import { SalesActivitiesMetricsCards } from './SalesActivitiesMetricsCards';
 import { SalesActivitiesTable } from './SalesActivitiesTable';
 import { SalesActivitiesOverview } from './SalesActivitiesOverview';
 import { SalesActivitiesSidebarFooter } from './SalesActivitiesSidebarFooter';
 import { SalesActivityDialog } from './SalesActivityDialog';
-import { PaymentUpdateModal } from '@/5-2-jadwal-kunjungan';
-import { CreateTaskDialog, type TaskFormData } from '@/8-2-DailyTask/section/CreateTaskDialog';
+import type { TaskFormData } from '@/8-2-DailyTask/section/CreateTaskDialog';
+
+const PaymentUpdateModal = lazy(() =>
+  import('@/5-2-jadwal-kunjungan/components/PaymentUpdateModal').then((m) => ({
+    default: m.PaymentUpdateModal,
+  })),
+);
+const CreateTaskDialog = lazy(() =>
+  import('@/8-2-DailyTask/section/CreateTaskDialog').then((m) => ({
+    default: m.CreateTaskDialog,
+  })),
+);
 import { SopSelectionPopup } from './SopSelectionPopup';
 import { useSalesActivities, type SalesActivity } from '@/shared/hooks/organized/sales';
 import { useDailyTask } from '@/8-2-DailyTask/context/DailyTaskContext';
@@ -180,25 +190,31 @@ export const SalesActivitiesPageContent = () => {
         readOnly={activityDialogReadOnly}
       />
 
-      {/* Payment Update Modal */}
-      <PaymentUpdateModal
-        open={showPaymentModal}
-        onClose={handleClosePaymentModal}
-        salesActivityId={selectedActivityForPayment?.id || ''}
-        clientName={selectedActivityForPayment?.client_name || ''}
-        viewOnly={paymentModalViewOnly}
-        onFirstPaymentSuccess={handleFirstPaymentSuccess}
-      />
+      {showPaymentModal && (
+        <Suspense fallback={null}>
+          <PaymentUpdateModal
+            open={showPaymentModal}
+            onClose={handleClosePaymentModal}
+            salesActivityId={selectedActivityForPayment?.id || ''}
+            clientName={selectedActivityForPayment?.client_name || ''}
+            viewOnly={paymentModalViewOnly}
+            onFirstPaymentSuccess={handleFirstPaymentSuccess}
+          />
+        </Suspense>
+      )}
 
-      {/* Create New Task (from first payment) - same component as /tools/daily-task */}
-      <CreateTaskDialog
-        open={showCreateTaskDialog}
-        onOpenChange={handleCreateTaskDialogOpenChange}
-        defaultTitle={createTaskPrefill?.title ?? ''}
-        defaultDescription={createTaskPrefill?.description ?? ''}
-        dismissible={!createTaskFromPayment}
-        onSubmitWithSop={createTaskFromPayment ? handleSubmitWithSop : undefined}
-      />
+      {showCreateTaskDialog && (
+        <Suspense fallback={null}>
+          <CreateTaskDialog
+            open={showCreateTaskDialog}
+            onOpenChange={handleCreateTaskDialogOpenChange}
+            defaultTitle={createTaskPrefill?.title ?? ''}
+            defaultDescription={createTaskPrefill?.description ?? ''}
+            dismissible={!createTaskFromPayment}
+            onSubmitWithSop={createTaskFromPayment ? handleSubmitWithSop : undefined}
+          />
+        </Suspense>
+      )}
 
       <SopSelectionPopup
         open={sopPopupOpen}

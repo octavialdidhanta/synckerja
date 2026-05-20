@@ -11,7 +11,14 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { getLeadStatusDisplayName } from '../utils/leadStatusDisplay';
+import { getLeadStatusDisplayName, isLeadStatusHiddenInQuickAction } from '../utils/leadStatusDisplay';
+
+/** DB names that mean conversation is resolved (Closed / Resolve). */
+function isResolvedStatusName(name: string | null | undefined): boolean {
+  if (name == null || name === '') return false;
+  const n = name.trim().toLowerCase();
+  return n === 'closed' || n === 'resolve';
+}
 
 export interface LeadStatusOption {
   id: string;
@@ -63,6 +70,8 @@ export interface LeadStatusSelectProps {
   triggerClassName?: string;
   placeholder?: string;
   isLoading?: boolean;
+  /** Hide Resolved/Closed from dropdown items (e.g. separate Resolve button in livechat). */
+  excludeResolvedOption?: boolean;
 }
 
 export function LeadStatusSelect({
@@ -74,6 +83,7 @@ export function LeadStatusSelect({
   triggerClassName = 'w-full text-sm border rounded-lg font-medium',
   placeholder,
   isLoading = false,
+  excludeResolvedOption = false,
 }: LeadStatusSelectProps) {
   const { t } = useAppTranslation();
   // Deduplicate by display name so dropdown never shows duplicate labels (e.g. same name, different id from DB)
@@ -143,11 +153,8 @@ export function LeadStatusSelect({
       </SelectTrigger>
       <SelectContent>
         {uniqueStatuses
-          .filter(
-            (s) =>
-              (s.name ?? '').trim().toLowerCase() !== 'lost' &&
-              (s.name ?? '').trim().toLowerCase() !== 'qualified'
-          )
+          .filter((s) => !isLeadStatusHiddenInQuickAction(s.name))
+          .filter((s) => !(excludeResolvedOption && isResolvedStatusName(s.name)))
           .map((status) => {
             const optionDisabled = isOptionDisabled(status.name ?? '');
             return (

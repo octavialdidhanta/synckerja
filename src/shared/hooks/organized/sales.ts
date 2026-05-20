@@ -2,7 +2,7 @@
 // TODO: Implement actual hooks based on Supabase queries
 
 import { useCallback, useEffect, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog } from '@/shared/lib/logger';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -10,7 +10,31 @@ import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentUserEmployee } from '@/1-home/components/HomeOKRDashboard/component/SectionGreetingsImport/useCurrentUserEmployee';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
+import {
+  assertSalesActivityClientContactFromSubmission,
+  getLeadSubmissionEmailForLead,
+  RESOLVE_EMAIL_REQUIRED_CODE,
+  SALES_ACTIVITY_CONTACT_REQUIRED_CODE,
+} from '@/shared/lib/leadSubmissionProfile';
+
+async function assertWaLeadSubmissionEmailBeforeResolve(
+  organizationId: string,
+  leadUuid: string | null | undefined,
+): Promise<void> {
+  if (!leadUuid) {
+    throw new Error(RESOLVE_EMAIL_REQUIRED_CODE);
+  }
+  const email = await getLeadSubmissionEmailForLead(leadUuid, organizationId);
+  if (!email) {
+    throw new Error(RESOLVE_EMAIL_REQUIRED_CODE);
+  }
+}
 import { emptyAttributionFlat, parseAttributionFields } from '@/shared/lib/leadAttribution';
+import {
+  resolveConversionLeadPayment,
+  type ConversionLeadPaymentPayload,
+} from '@/shared/lib/leadConversionFinancial';
+import { insertIncomeTransactionFromSalesFlow } from '@/shared/lib/finance/insertIncomeTransactionFromSalesFlow';
 
 // Types
 export interface SalesActivity {
@@ -92,6 +116,255 @@ async function getDefaultPrice(
   if (error || !data) return 0;
   const n = Number(data.unit_price);
   return Number.isNaN(n) || n < 0 ? 0 : n;
+}
+
+export type ConvertedSalesActivityItemInput = {
+  quantity: number;
+  unit_price: number;
+  notes?: string | null;
+  /** Per-line service (name); falls back to lead-level `services` when omitted. */
+  services?: string | null;
+  /** Per-line category (sub-service name); falls back to lead-level `category` when omitted. */
+  category?: string | null;
+};
+
+export type { ConversionLeadPaymentPayload } from '@/shared/lib/leadConversionFinancial';
+
+/** Auto-create sales_activities when lead status becomes Converted (phone/email from lead_submissions). */
+async function deleteSalesActivityCascade(activityId: string): Promise<void> {
+  const { error: actDelErr } = await supabase.from('sales_activities').delete().eq('id', activityId);
+  if (actDelErr) console.error('deleteSalesActivityCascade: activity', actDelErr);
+}
+
+async function rollbackConvertedSalesFinancial(
+  activityId: string,
+  insertedPaymentId: string | null,
+): Promise<void> {
+  if (insertedPaymentId) {
+    const { data: inc } = await supabase
+      .from('income_transactions')
+      .select('id')
+      .eq('sales_activity_payment_id', insertedPaymentId)
+      .maybeSingle();
+    if (inc?.id) {
+      const { error: incDelErr } = await supabase.from('income_transactions').delete().eq('id', inc.id);
+      if (incDelErr) console.error('rollbackConvertedSalesFinancial: income', incDelErr);
+    }
+  }
+  await deleteSalesActivityCascade(activityId);
+}
+
+async function createConvertedSalesActivity(
+  queryClient: QueryClient,
+  args: {
+    orgId: string;
+    leadId: string;
+    clientName: string;
+    createdBy: string;
+    services?: string | null;
+    category?: string | null;
+    description?: string | null;
+    logLabel: string;
+    /** When set (e.g. livechat quick action), insert these lines instead of default_prices × qty 1. */
+    conversionItems?: ConvertedSalesActivityItemInput[] | null;
+    /** When set (livechat Converted modal), records payment + income after items insert. */
+    conversionPayment?: ConversionLeadPaymentPayload | null;
+  },
+): Promise<void> {
+  const contact = await assertSalesActivityClientContactFromSubmission(args.leadId, args.orgId);
+  const useCustomItems =
+    Array.isArray(args.conversionItems) && args.conversionItems.length > 0;
+
+  let totalAmount: number;
+  let itemRows: Array<{
+    sales_activity_id: string;
+    organization_id: string;
+    service_id: string | null;
+    sub_service_id: string | null;
+    service_name: string;
+    sub_service_name: string | null;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    notes: string | null;
+  }>;
+
+  let activityServiceId: string | null = null;
+  let activitySubServiceId: string | null = null;
+
+  if (useCustomItems) {
+    totalAmount = 0;
+    itemRows = [];
+    for (const row of args.conversionItems!) {
+      const q = Number(row.quantity);
+      const p = Number(row.unit_price);
+      if (!Number.isFinite(q) || !Number.isFinite(p) || q <= 0 || p <= 0) {
+        throw new Error('invalid_conversion_items');
+      }
+      const lineTotal = q * p;
+      totalAmount += lineTotal;
+    }
+    itemRows = [];
+    for (const row of args.conversionItems!) {
+      const q = Number(row.quantity);
+      const p = Number(row.unit_price);
+      const lineTotal = q * p;
+      const lineServices = (row.services ?? args.services ?? '').trim() || null;
+      const lineCategory = (row.category ?? args.category ?? '').trim() || null;
+      const { serviceId, subServiceId, serviceName: itemServiceName, subServiceName: itemSubServiceName } =
+        await resolveServiceAndSubFromLead(supabase, args.orgId, lineServices, lineCategory);
+      itemRows.push({
+        sales_activity_id: '',
+        organization_id: args.orgId,
+        service_id: serviceId ?? null,
+        sub_service_id: subServiceId ?? null,
+        service_name: itemServiceName,
+        sub_service_name: itemSubServiceName || null,
+        quantity: q,
+        unit_price: p,
+        total_price: lineTotal,
+        notes: row.notes != null && String(row.notes).trim() !== '' ? String(row.notes).trim() : null,
+      });
+    }
+    if (itemRows.length > 0) {
+      activityServiceId = itemRows[0].service_id;
+      activitySubServiceId = itemRows[0].sub_service_id;
+    }
+  } else {
+    const { serviceId, subServiceId, serviceName: itemServiceName, subServiceName: itemSubServiceName } =
+      await resolveServiceAndSubFromLead(supabase, args.orgId, args.services, args.category);
+    activityServiceId = serviceId;
+    activitySubServiceId = subServiceId;
+    const unitPrice = await getDefaultPrice(supabase, args.orgId, serviceId, subServiceId);
+    const itemTotal = unitPrice * 1;
+    totalAmount = itemTotal;
+    itemRows = [];
+    // defer single row until activity id exists
+    itemRows.push({
+      sales_activity_id: '',
+      organization_id: args.orgId,
+      service_id: serviceId ?? null,
+      sub_service_id: subServiceId ?? null,
+      service_name: itemServiceName,
+      sub_service_name: itemSubServiceName || null,
+      quantity: 1,
+      unit_price: unitPrice,
+      total_price: itemTotal,
+      notes: null,
+    });
+  }
+
+  const { data: newActivity, error: insertErr } = await supabase
+    .from('sales_activities')
+    .insert({
+      organization_id: args.orgId,
+      lead_id: args.leadId,
+      client_name: args.clientName,
+      client_phone: contact.client_phone,
+      client_email: contact.client_email,
+      activity_type: 'Lead Conversion',
+      status: 'Converted',
+      date: new Date().toISOString().slice(0, 10),
+      created_by: args.createdBy,
+      service_id: activityServiceId ?? undefined,
+      sub_service_id: activitySubServiceId ?? undefined,
+      total_amount: totalAmount,
+      description: args.description ?? null,
+    })
+    .select('id')
+    .single();
+  if (insertErr) {
+    console.error(`${args.logLabel}: sales_activities insert failed`, insertErr);
+    throw insertErr;
+  }
+  const activityId = newActivity?.id as string | undefined;
+  if (!activityId) {
+    console.error(`${args.logLabel}: sales_activities insert returned no id`);
+    throw new Error('sales_activity_insert_no_id');
+  }
+
+  const rowsToInsert = itemRows.map((r) => ({ ...r, sales_activity_id: activityId }));
+  const { error: itemErr } = await supabase.from('sales_activity_items').insert(rowsToInsert);
+  if (itemErr) {
+    console.error(`${args.logLabel}: sales_activity_items insert failed`, itemErr);
+    const { error: delErr } = await supabase.from('sales_activities').delete().eq('id', activityId);
+    if (delErr) console.error(`${args.logLabel}: rollback sales_activities failed`, delErr);
+    throw itemErr;
+  }
+
+  if (!args.conversionPayment) {
+    queryClient.invalidateQueries({ queryKey: ['sales-activities', args.orgId] });
+    return;
+  }
+
+  let resolved: ReturnType<typeof resolveConversionLeadPayment>;
+  try {
+    resolved = resolveConversionLeadPayment(totalAmount, args.conversionPayment);
+  } catch {
+    await deleteSalesActivityCascade(activityId);
+    throw new Error('converted_sales_payment_failed');
+  }
+
+  let insertedPaymentId: string | null = null;
+  try {
+    const receiptPath = args.conversionPayment.receiptStoragePath.trim();
+    const payDate = args.conversionPayment.paymentDate.trim();
+
+    const { data: payRow, error: payErr } = await supabase
+      .from('sales_activity_payments')
+      .insert({
+        sales_activity_id: activityId,
+        organization_id: args.orgId,
+        payment_amount: resolved.paymentAmount,
+        payment_date: payDate,
+        payment_method: resolved.methodCanonical,
+        payment_type: resolved.paymentType,
+        payment_sequence: 1,
+        created_by: args.createdBy,
+        receipt_url: receiptPath,
+        notes: args.description?.trim() ? String(args.description).trim() : null,
+      })
+      .select('id')
+      .single();
+
+    if (payErr) throw payErr;
+    insertedPaymentId = (payRow?.id as string | undefined) ?? null;
+    if (!insertedPaymentId) throw new Error('payment_insert_no_id');
+
+    const { error: updActErr } = await supabase.from('sales_activities').update(resolved.activityPatch).eq('id', activityId);
+    if (updActErr) throw updActErr;
+
+    const paymentLabel = resolved.paymentType === 'final_payment' ? 'final payment' : 'down payment';
+    await insertIncomeTransactionFromSalesFlow(supabase, {
+      organizationId: args.orgId,
+      userId: args.createdBy,
+      transactionData: {
+        transaction_date: payDate,
+        amount: resolved.paymentAmount,
+        customer_name: args.clientName,
+        payment_method: resolved.methodCanonical,
+        income_type_id: null,
+        category_id: null,
+        service_id: activityServiceId,
+        sub_service_id: activitySubServiceId,
+        description: `${paymentLabel} - Lead Conversion: ${args.clientName}`,
+        receipt_url: receiptPath,
+        sales_activity_payment_id: insertedPaymentId,
+      },
+    });
+  } catch (e) {
+    console.error(`${args.logLabel}: payment/income step failed`, e);
+    await rollbackConvertedSalesFinancial(activityId, insertedPaymentId);
+    throw new Error('converted_sales_payment_failed');
+  }
+
+  queryClient.invalidateQueries({ queryKey: ['sales-activities', args.orgId] });
+  queryClient.invalidateQueries({ queryKey: ['sales-activity-payments'] });
+  queryClient.invalidateQueries({ queryKey: ['piutang-payment-verifications'] });
+  queryClient.invalidateQueries({ queryKey: ['income-transactions', args.orgId] });
+  queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
+  queryClient.invalidateQueries({ queryKey: ['income-metrics', args.orgId] });
+  queryClient.invalidateQueries({ queryKey: ['monthly-income-data', args.orgId] });
 }
 
 export interface CreateSalesActivityItemData {
@@ -888,37 +1161,12 @@ export const useIncomeTransactions = () => {
       if (!organizationId) throw new Error('Organization ID is required');
       if (!user?.id) throw new Error('User authentication required');
 
-      const {
-        receipt_url: receiptUrlRaw,
-        receipt_file: _receiptFile,
-        active_organization_id: _legacyActiveOrg,
-        organization_id: _ignoredOrg,
-        user_id: _ignoredUser,
-        created_by: _ignoredCreatedBy,
-        ...rest
-      } = transactionData;
+      const data = await insertIncomeTransactionFromSalesFlow(supabase, {
+        organizationId,
+        userId: user.id,
+        transactionData,
+      });
 
-      const insertRow: Record<string, unknown> = {
-        ...rest,
-        organization_id: organizationId,
-        user_id: user.id,
-        created_by: user.id,
-      };
-
-      const receiptUrl =
-        typeof receiptUrlRaw === 'string' ? receiptUrlRaw.trim() : '';
-      if (receiptUrl) {
-        insertRow.receipt_file_path = receiptUrl;
-      }
-      delete insertRow.receipt_url;
-
-      const { data, error } = await supabase
-        .from('income_transactions')
-        .insert(insertRow)
-        .select()
-        .single();
-
-      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['income-transactions', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['income-metrics', organizationId] });
@@ -1058,22 +1306,8 @@ export const useClientProfileStatus = (leadId: string) => {
         return data;
       }
 
-      // Only real lead UUIDs go to lead_client_profiles
-      const { data, error } = await supabase
-        .from('lead_client_profiles')
-        .select('*')
-        .eq('lead_id', leadId)
-        .eq('organization_id', organizationId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching client profile:', error);
-        return null;
-      }
-
-      return data;
+      const { fetchLeadSubmissionForProfile } = await import('@/shared/lib/leadSubmissionProfile');
+      return fetchLeadSubmissionForProfile(leadId, organizationId);
     },
     enabled: !!leadId && !!organizationId,
   });
@@ -1698,40 +1932,29 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             if (!createdBy) {
               console.error('Converted (email): no auth user for sales_activities insert (RLS requires created_by)');
             } else {
-              const { serviceId, subServiceId, serviceName: itemServiceName, subServiceName: itemSubServiceName } = await resolveServiceAndSubFromLead(supabase, orgId, (leadRow as { services?: string }).services, (leadRow as { category?: string }).category);
-              const unitPrice = await getDefaultPrice(supabase, orgId, serviceId, subServiceId);
-              const itemTotal = unitPrice * 1;
-              const { data: newActivity, error: insertErr } = await supabase.from('sales_activities').insert({
-                organization_id: orgId,
-                lead_id: leadRow.id,
-                client_name: leadRow.client ?? 'Email lead',
-                activity_type: 'Lead Conversion',
-                status: 'Converted',
-                date: new Date().toISOString().slice(0, 10),
-                created_by: createdBy,
-                service_id: serviceId ?? undefined,
-                sub_service_id: subServiceId ?? undefined,
-                total_amount: itemTotal,
-                description: lead.conversionDescription ?? null,
-              }).select('id').single();
-              if (insertErr) {
-                console.error('Converted (email): sales_activities insert failed', insertErr);
-                throw insertErr;
-              }
-              if (newActivity?.id) {
-                await supabase.from('sales_activity_items').insert({
-                  sales_activity_id: newActivity.id,
-                  organization_id: orgId,
-                  service_id: serviceId ?? null,
-                  sub_service_id: subServiceId ?? null,
-                  service_name: itemServiceName,
-                  sub_service_name: itemSubServiceName || null,
-                  quantity: 1,
-                  unit_price: unitPrice,
-                  total_price: itemTotal,
+              try {
+                await createConvertedSalesActivity(queryClient, {
+                  orgId,
+                  leadId: leadRow.id,
+                  clientName: leadRow.client ?? 'Email lead',
+                  createdBy,
+                  services: (leadRow as { services?: string }).services,
+                  category: (leadRow as { category?: string }).category,
+                  description: lead.conversionDescription ?? null,
+                  conversionItems: lead.conversionItems ?? null,
+                  conversionPayment: (lead as { conversionPayment?: ConversionLeadPaymentPayload | null })
+                    .conversionPayment ?? undefined,
+                  logLabel: 'Converted (email)',
                 });
+              } catch (err) {
+                if (err instanceof Error && err.message === SALES_ACTIVITY_CONTACT_REQUIRED_CODE) {
+                  console.error(
+                    'Converted (email): missing lead_submissions contact for lead_id=',
+                    leadRow.id,
+                  );
+                }
+                throw err;
               }
-              queryClient.invalidateQueries({ queryKey: ['sales-activities', orgId] });
             }
           }
         }
@@ -1754,6 +1977,45 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           if (statusExists?.id) safeStatusId = lead.status_id;
         }
 
+        let newStatusName = '';
+        if (safeStatusId) {
+          const { data: statusRow } = await supabase
+            .from('lead_statuses')
+            .select('name')
+            .eq('id', safeStatusId)
+            .maybeSingle();
+          newStatusName = (statusRow?.name as string) ?? '';
+        }
+
+        const orgIdForResolveCheck = lead.organization_id ?? organizationId;
+        if (isResolvedStatus(newStatusName) && orgIdForResolveCheck) {
+          const { data: convRowEarly } = await supabase
+            .from('whatsapp_conversations')
+            .select('ticket_id')
+            .eq('id', convId)
+            .maybeSingle();
+          const ticketIdEarly =
+            (convRowEarly?.ticket_id as string) ??
+            `WA-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+          const fallbackTicketIdEarly = `WA-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+          let { data: leadForEmail } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('organization_id', orgIdForResolveCheck)
+            .ilike('ticket_id', ticketIdEarly)
+            .maybeSingle();
+          if (!leadForEmail?.id && fallbackTicketIdEarly !== ticketIdEarly) {
+            const res = await supabase
+              .from('leads')
+              .select('id')
+              .eq('organization_id', orgIdForResolveCheck)
+              .ilike('ticket_id', fallbackTicketIdEarly)
+              .maybeSingle();
+            leadForEmail = res.data;
+          }
+          await assertWaLeadSubmissionEmailBeforeResolve(orgIdForResolveCheck, leadForEmail?.id);
+        }
+
         const { error: updateError } = await supabase
           .from('whatsapp_conversations')
           .update({
@@ -1765,17 +2027,6 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         if (updateError) {
           console.error('Error updating WhatsApp conversation status:', updateError);
           throw updateError;
-        }
-
-        // Resolve new status name and insert into whatsapp_conversation_status_history
-        let newStatusName = '';
-        if (safeStatusId) {
-          const { data: statusRow } = await supabase
-            .from('lead_statuses')
-            .select('name')
-            .eq('id', safeStatusId)
-            .maybeSingle();
-          newStatusName = (statusRow?.name as string) ?? '';
         }
         if (oldStatusName !== null || newStatusName !== '') {
           const { data: userData } = await supabase.auth.getUser();
@@ -1865,40 +2116,29 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             if (!createdBy) {
               console.error('Converted (wa): no auth user for sales_activities insert (RLS requires created_by)');
             } else {
-              const { serviceId, subServiceId, serviceName: itemServiceName, subServiceName: itemSubServiceName } = await resolveServiceAndSubFromLead(supabase, orgId, (leadRow as { services?: string }).services, (leadRow as { category?: string }).category);
-              const unitPrice = await getDefaultPrice(supabase, orgId, serviceId, subServiceId);
-              const itemTotal = unitPrice * 1;
-              const { data: newActivity, error: insertErr } = await supabase.from('sales_activities').insert({
-                organization_id: orgId,
-                lead_id: leadRow.id,
-                client_name: leadRow.client ?? 'WhatsApp lead',
-                activity_type: 'Lead Conversion',
-                status: 'Converted',
-                date: new Date().toISOString().slice(0, 10),
-                created_by: createdBy,
-                service_id: serviceId ?? undefined,
-                sub_service_id: subServiceId ?? undefined,
-                total_amount: itemTotal,
-                description: lead.conversionDescription ?? null,
-              }).select('id').single();
-              if (insertErr) {
-                console.error('Converted (wa): sales_activities insert failed', insertErr);
-                throw insertErr;
-              }
-              if (newActivity?.id) {
-                await supabase.from('sales_activity_items').insert({
-                  sales_activity_id: newActivity.id,
-                  organization_id: orgId,
-                  service_id: serviceId ?? null,
-                  sub_service_id: subServiceId ?? null,
-                  service_name: itemServiceName,
-                  sub_service_name: itemSubServiceName || null,
-                  quantity: 1,
-                  unit_price: unitPrice,
-                  total_price: itemTotal,
+              try {
+                await createConvertedSalesActivity(queryClient, {
+                  orgId,
+                  leadId: leadRow.id,
+                  clientName: leadRow.client ?? 'WhatsApp lead',
+                  createdBy,
+                  services: (leadRow as { services?: string }).services,
+                  category: (leadRow as { category?: string }).category,
+                  description: lead.conversionDescription ?? null,
+                  conversionItems: lead.conversionItems ?? null,
+                  conversionPayment: (lead as { conversionPayment?: ConversionLeadPaymentPayload | null })
+                    .conversionPayment ?? undefined,
+                  logLabel: 'Converted (wa)',
                 });
+              } catch (err) {
+                if (err instanceof Error && err.message === SALES_ACTIVITY_CONTACT_REQUIRED_CODE) {
+                  console.error(
+                    'Converted (wa): missing lead_submissions contact for lead_id=',
+                    leadRow.id,
+                  );
+                }
+                throw err;
               }
-              queryClient.invalidateQueries({ queryKey: ['sales-activities', orgId] });
             }
           }
         }
@@ -1917,10 +2157,24 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       if (updateData.status_id !== undefined) {
         const { data: currentLead } = await supabase
           .from('leads')
-          .select('status_id')
+          .select('status_id, ticket_id')
           .eq('id', id)
           .maybeSingle();
         oldStatusId = currentLead?.status_id ?? null;
+
+        if (organizationIdForHistory && currentLead?.ticket_id) {
+          const tid = String(currentLead.ticket_id).trim().toUpperCase();
+          if (tid.startsWith('WA-')) {
+            const { data: statusRow } = await supabase
+              .from('lead_statuses')
+              .select('name')
+              .eq('id', updateData.status_id)
+              .maybeSingle();
+            if (isResolvedStatus(statusRow?.name ?? null)) {
+              await assertWaLeadSubmissionEmailBeforeResolve(organizationIdForHistory, id);
+            }
+          }
+        }
       }
 
       // Only update valid database columns (exclude joined/computed fields like lead_status)
@@ -2197,39 +2451,27 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         if (newStatusName?.trim().toLowerCase() === 'converted' && orgId && userId) {
           const leadData = data as { client?: string; services?: string; category?: string };
           const clientName = leadData?.client ?? 'Lead';
-          const { serviceId, subServiceId, serviceName: itemServiceName, subServiceName: itemSubServiceName } = await resolveServiceAndSubFromLead(supabase, orgId, leadData?.services, leadData?.category);
-          const unitPrice = await getDefaultPrice(supabase, orgId, serviceId, subServiceId);
-          const itemTotal = unitPrice * 1;
-          const { data: newActivity, error: insertErr } = await supabase.from('sales_activities').insert({
-            organization_id: orgId,
-            lead_id: id,
-            client_name: clientName,
-            activity_type: 'Lead Conversion',
-            status: 'Converted',
-            date: new Date().toISOString().slice(0, 10),
-            created_by: userId,
-            service_id: serviceId ?? undefined,
-            sub_service_id: subServiceId ?? undefined,
-            total_amount: itemTotal,
-          }).select('id').single();
-          if (insertErr) {
-            console.error('Converted (leads): sales_activities insert failed', insertErr);
-            throw insertErr;
-          }
-          if (newActivity?.id) {
-            await supabase.from('sales_activity_items').insert({
-              sales_activity_id: newActivity.id,
-              organization_id: orgId,
-              service_id: serviceId ?? null,
-              sub_service_id: subServiceId ?? null,
-              service_name: itemServiceName,
-              sub_service_name: itemSubServiceName || null,
-              quantity: 1,
-              unit_price: unitPrice,
-              total_price: itemTotal,
+          try {
+            await createConvertedSalesActivity(queryClient, {
+              orgId,
+              leadId: id,
+              clientName,
+              createdBy: userId,
+              services: leadData?.services,
+              category: leadData?.category,
+              description: (lead as { conversionDescription?: string | null }).conversionDescription ?? null,
+              conversionItems: (lead as { conversionItems?: ConvertedSalesActivityItemInput[] | null })
+                .conversionItems ?? null,
+              conversionPayment: (lead as { conversionPayment?: ConversionLeadPaymentPayload | null })
+                .conversionPayment ?? undefined,
+              logLabel: 'Converted (leads)',
             });
+          } catch (err) {
+            if (err instanceof Error && err.message === SALES_ACTIVITY_CONTACT_REQUIRED_CODE) {
+              console.error('Converted (leads): missing lead_submissions contact for lead_id=', id);
+            }
+            throw err;
           }
-          queryClient.invalidateQueries({ queryKey: ['sales-activities', orgId] });
         }
       }
 
@@ -2246,20 +2488,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       if (leadId.startsWith('wa-')) return;
       console.log('🗑️ Starting deletion process for lead:', leadId);
 
-      // Step 1: Delete Client Profile (lead_client_profiles)
-      const { error: clientProfileError } = await supabase
-        .from('lead_client_profiles')
-        .delete()
-        .eq('lead_id', leadId);
-
-      if (clientProfileError) {
-        console.error('⚠️ Error deleting client profile:', clientProfileError);
-        // Continue deletion even if client profile delete fails
-      } else {
-        console.log('✅ Client profile deleted');
-      }
-
-      // Step 2: Delete Follow Up Updates (lead_follow_up_updates)
+      // Step 1: Delete Follow Up Updates (lead_follow_up_updates)
       const { error: followUpError } = await supabase
         .from('lead_follow_up_updates')
         .delete()

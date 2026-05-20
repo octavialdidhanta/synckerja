@@ -10,7 +10,7 @@ import { ArrowLeft, Check, ExternalLink, LinkIcon, Tag, Calendar, MessageSquare,
 import { supabase } from '@/shared/lib/supabaseClient';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { defaultTranslations, applyVariables } from '@/shared/i18n/translations';
+import { applyVariables, loadTranslationDictionary } from '@/shared/i18n/translations';
 import { devLog } from '@/shared/lib/logger';
 import { getEmbedUrl, getDirectVideoUrl, isFolderLink, isFileLink, isYouTubeLink } from '../utils/previewUtils';
 import { getCarouselImagePublicUrl } from '../hook/useCarouselImages';
@@ -105,14 +105,23 @@ function isPortraitContent(contentTypeName: string | null | undefined): boolean 
   return false;
 }
 
+let publicReviewEnDictPromise: ReturnType<typeof loadTranslationDictionary> | null = null;
+
 /** Public review page always uses English (shared link may be opened without app/Settings). */
 function usePublicReviewT() {
+  const [enDict, setEnDict] = useState<Record<string, string> | null>(null);
+
+  useEffect(() => {
+    publicReviewEnDictPromise ??= loadTranslationDictionary("en");
+    void publicReviewEnDictPromise.then(setEnDict);
+  }, []);
+
   return useCallback(
     (key: string, fallback: string, variables?: Record<string, string | number>) => {
-      const localized = defaultTranslations.en?.[key] ?? fallback;
+      const localized = enDict?.[key] ?? fallback;
       return applyVariables(localized, variables);
     },
-    [],
+    [enDict],
   );
 }
 

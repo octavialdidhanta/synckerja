@@ -51,7 +51,7 @@ export function ProfilePhotoUpload({ currentPhotoUrl, fullName, email, onPhotoUp
         }
 
         const { data, error } = await supabase.storage.from(PROFILE_PHOTO_BUCKET).upload(fileName, file, {
-          cacheControl: "3600",
+          cacheControl: "31536000",
           upsert: false,
         });
 

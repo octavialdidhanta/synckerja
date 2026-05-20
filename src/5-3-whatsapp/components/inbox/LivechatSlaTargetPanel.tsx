@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import type { Locale } from 'date-fns';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { useCrmSlaForConversation } from '@/5-3-whatsapp/hooks/useCrmSlaForConversation';
+import {
+  useCrmSlaForConversation,
+  type LivechatCrmSlaSnapshot,
+} from '@/5-3-whatsapp/hooks/useCrmSlaForConversation';
 import type { LiveChatConversation } from '../../types';
 
 function formatRemainingMs(ms: number): { label: string; overdue: boolean } {
@@ -20,7 +23,25 @@ function formatRemainingMs(ms: number): { label: string; overdue: boolean } {
   return { label: `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`, overdue: false };
 }
 
+function formatSlaStatusLabel(
+  status: string | null | undefined,
+  lateMinutes: number | null | undefined,
+  t: ReturnType<typeof useAppTranslation>['t'],
+): string {
+  const s = (status ?? '').trim().toLowerCase();
+  if (s === 'on_time') return t('whatsappInbox.slaStatusOnTime', 'On time');
+  if (s === 'late') {
+    const mins = lateMinutes != null && lateMinutes > 0 ? lateMinutes : null;
+    return mins != null
+      ? t('whatsappInbox.slaStatusLateMinutes', 'Late ({{minutes}} min)', { minutes: mins })
+      : t('whatsappInbox.slaStatusLate', 'Late');
+  }
+  if (s === 'pending') return t('whatsappInbox.slaStatusPending', 'Pending');
+  return '—';
+}
+
 function renderDueCountdown(
+  phaseLabel: string,
   dueIso: string,
   nowMs: number,
   dateFnsLocale: Locale,
@@ -35,6 +56,7 @@ function renderDueCountdown(
 
   return (
     <div className="space-y-0.5">
+      <p className="text-xs font-medium text-gray-700">{phaseLabel}</p>
       <p className="text-xs text-gray-500">{t('whatsappInbox.slaDueLine', 'Due {{datetime}}', { datetime: dueStr })}</p>
       {overdue ? (
         <p className="text-xs font-mono font-semibold tabular-nums text-red-600">
@@ -49,23 +71,52 @@ function renderDueCountdown(
   );
 }
 
+function renderResolvedSlaSummary(sla: LivechatCrmSlaSnapshot, t: ReturnType<typeof useAppTranslation>['t']) {
+  const firstLabel = formatSlaStatusLabel(sla.sla_first_reply_status, sla.sla_first_reply_late_minutes, t);
+  const resLabel = formatSlaStatusLabel(sla.sla_resolution_status, sla.sla_resolution_late_minutes, t);
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-xs font-medium text-gray-700">
+          {t('whatsappInbox.slaPhaseFirstReply', 'First reply')}
+        </p>
+        <p className="text-xs text-gray-600">{firstLabel}</p>
+      </div>
+      {sla.first_response_at ? (
+        <div>
+          <p className="text-xs font-medium text-gray-700">
+            {t('whatsappInbox.slaPhaseResolution', 'Resolution')}
+          </p>
+          <p className="text-xs text-gray-600">{resLabel}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type LivechatSlaTargetPanelProps = {
   organizationId: string | null | undefined;
   conversation: LiveChatConversation;
-  chatResolved: boolean;
+  /** True when lead status is Resolved/Closed — show summary, not live countdown. */
+  leadResolved: boolean;
 };
 
-export function LivechatSlaTargetPanel({ organizationId, conversation, chatResolved }: LivechatSlaTargetPanelProps) {
+export function LivechatSlaTargetPanel({ organizationId, conversation, leadResolved }: LivechatSlaTargetPanelProps) {
   const { t, dateFnsLocale } = useAppTranslation();
-  const { data: sla, isPending, isError } = useCrmSlaForConversation(organizationId, conversation.id, conversation.source);
+  const { data: sla, isPending, isError } = useCrmSlaForConversation(
+    organizationId,
+    conversation.id,
+    conversation.source,
+  );
 
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   useEffect(() => {
     const id = window.setInterval(() => setTick((n) => n + 1), 1000);
     return () => window.clearInterval(id);
   }, [conversation.id, organizationId]);
 
-  const nowMs = Date.now() + tick * 0;
+  const nowMs = Date.now();
 
   const wrap = (inner: React.ReactNode) => (
     <div className="border-t border-gray-100 px-3 pb-2 pt-2">{inner}</div>
@@ -80,23 +131,55 @@ export function LivechatSlaTargetPanel({ organizationId, conversation, chatResol
   }
 
   if (!sla) {
-    return wrap(<p className="text-xs text-gray-400">—</p>);
+    return wrap(
+      <p className="text-xs text-gray-500">
+        {t(
+          'whatsappInbox.slaNoCycle',
+          'No active conversation cycle for SLA tracking yet.',
+        )}
+      </p>,
+    );
   }
 
-  if (chatResolved) {
-    return null;
+  if (leadResolved) {
+    return wrap(renderResolvedSlaSummary(sla, t));
   }
 
-  // Prefer resolution countdown once first reply exists and room still open
+  const firstReplyPhase = t('whatsappInbox.slaPhaseFirstReply', 'First reply');
+  const resolutionPhase = t('whatsappInbox.slaPhaseResolution', 'Resolution');
+
   if (sla.first_response_at && !sla.resolved_at && sla.resolution_due_at) {
-    const block = renderDueCountdown(sla.resolution_due_at, nowMs, dateFnsLocale, t);
+    const block = renderDueCountdown(resolutionPhase, sla.resolution_due_at, nowMs, dateFnsLocale, t);
     if (block) return wrap(block);
   }
 
   if (!sla.first_response_at && sla.assignment_due_at) {
-    const block = renderDueCountdown(sla.assignment_due_at, nowMs, dateFnsLocale, t);
+    const block = renderDueCountdown(firstReplyPhase, sla.assignment_due_at, nowMs, dateFnsLocale, t);
     if (block) return wrap(block);
   }
 
-  return null;
+  if (!sla.first_response_at && !sla.assignment_due_at) {
+    return wrap(
+      <p className="text-xs text-gray-500">
+        {t(
+          'whatsappInbox.slaAwaitAssignee',
+          'SLA first reply starts after an assignee is set for this conversation cycle.',
+        )}
+      </p>,
+    );
+  }
+
+  if (sla.first_response_at && !sla.resolution_due_at) {
+    return wrap(
+      <p className="text-xs text-gray-500">
+        {t('whatsappInbox.slaResolutionPending', 'Resolution SLA applies after the first agent reply.')}
+      </p>,
+    );
+  }
+
+  return wrap(
+    <p className="text-xs text-gray-500">
+      {formatSlaStatusLabel(sla.sla_first_reply_status, sla.sla_first_reply_late_minutes, t)}
+    </p>,
+  );
 }

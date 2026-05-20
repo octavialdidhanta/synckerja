@@ -203,26 +203,6 @@ export function CrmPerformancePerTimeSection() {
         </div>
       </div>
 
-      {!crmPending && crmRows.length === 0 ? (
-        <p className="rounded-md border border-dashed border-amber-200 bg-amber-50/90 p-3 text-xs leading-relaxed text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-50">
-          <span className="font-medium">Belum ada data room.</span> Metrik ini memakai{' '}
-          <span className="font-mono">get_crm_first_response_time_per_room</span> (satu baris siklus terbaru per room,
-          WA/IG/email). Lead murni website tanpa room tercatat tidak muncul — itu normal. Coba perluas ke{' '}
-          <span className="font-medium">Semua periode</span> atau pastikan ada percakapan dengan siklus.
-        </p>
-      ) : null}
-
-      {!crmPending &&
-      crmRows.length > 0 &&
-      firstTableCohort.length === 0 &&
-      resolutionTableCohort.length === 0 ? (
-        <p className="rounded-md border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-          Ada {crmRows.length} room di org, tetapi tidak ada yang masuk filter periode/channel saat ini (periode first
-          reply memakai <span className="font-medium">mulai siklus</span>; resolusi memakai{' '}
-          <span className="font-medium">waktu resolve</span>). Ubah periode atau channel.
-        </p>
-      ) : null}
-
       {isCrmError ? (
         <p className="text-sm text-destructive">Could not load CRM metrics. Try again later.</p>
       ) : null}

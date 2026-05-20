@@ -8,6 +8,7 @@ import { useRegistration } from "@/0-register/hooks/useRegistration";
 import { Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react";
 import { showErrorToast } from "@/0-register/utils/error-toast";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
 export type RegistrationFormKeyboardProps = {
   submitButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -17,16 +18,7 @@ export type RegistrationFormKeyboardProps = {
   brandMark?: ReactNode;
 };
 
-const defaultRegistrationBrand = (
-  <img
-    src="/pwa-512.png"
-    alt="Synckerja"
-    className="h-14 w-auto"
-    width={512}
-    height={512}
-    decoding="async"
-  />
-);
+const defaultRegistrationBrand = <SynckerjaBrandLogo />;
 
 export function RegistrationForm(props: RegistrationFormKeyboardProps) {
   const { submitButtonRef, onKeyboardInputFocus, onKeyboardInputBlur, brandMark = defaultRegistrationBrand } = props;

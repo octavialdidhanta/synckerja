@@ -118,12 +118,21 @@ type SortableLeadRow = Record<string, unknown> & {
   lead_status?: { name?: string | null } | null;
 };
 
+export type LeadAttributionSortOptions = {
+  /** Resolves latest survey star rating when row has no `latest_survey_rating` field. */
+  getSurveyRating?: (row: SortableLeadRow) => number | null;
+};
+
 function tieBreakIds(a: SortableLeadRow, b: SortableLeadRow): number {
   return String(a.id ?? "").localeCompare(String(b.id ?? ""));
 }
 
 /** Value used for compare; null sorts last for both asc and desc. */
-function sortComparable(row: SortableLeadRow, col: LeadAttributionSortColumn): string | number | null {
+function sortComparable(
+  row: SortableLeadRow,
+  col: LeadAttributionSortColumn,
+  options?: LeadAttributionSortOptions,
+): string | number | null {
   switch (col) {
     case "created_at": {
       const raw = row.created_at;
@@ -150,6 +159,10 @@ function sortComparable(row: SortableLeadRow, col: LeadAttributionSortColumn): s
       return name === "" ? null : name.toLowerCase();
     }
     case "survey_rating": {
+      if (options?.getSurveyRating) {
+        const fromHook = options.getSurveyRating(row);
+        if (fromHook != null && Number.isFinite(fromHook)) return fromHook;
+      }
       const raw =
         (row as { latest_survey_rating?: number | null }).latest_survey_rating ??
         (row as { _latest_survey_rating?: number | null })._latest_survey_rating;
@@ -183,14 +196,15 @@ function sortComparable(row: SortableLeadRow, col: LeadAttributionSortColumn): s
 /** Null/empty values sort last for both asc and desc. */
 export function sortLeadsByAttributionColumn<T extends SortableLeadRow>(
   rows: T[],
-  state: LeadAttributionSortState
+  state: LeadAttributionSortState,
+  options?: LeadAttributionSortOptions,
 ): T[] {
   if (!state.column) return rows;
   const dir = state.direction === "asc" ? 1 : -1;
   const col = state.column;
   return [...rows].sort((a, b) => {
-    const va = sortComparable(a, col);
-    const vb = sortComparable(b, col);
+    const va = sortComparable(a, col, options);
+    const vb = sortComparable(b, col, options);
     if (va == null && vb == null) return tieBreakIds(a, b);
     if (va == null) return 1;
     if (vb == null) return -1;
@@ -210,7 +224,8 @@ export type LeadAttributionOptionKey =
   | 'utm_campaign'
   | 'utm_content'
   | 'utm_term'
-  | 'attribution_label';
+  | 'attribution_label'
+  | 'gclid';
 
 const OPTION_CAP = 100;
 

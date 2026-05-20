@@ -5,12 +5,11 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { Button } from "@/shared/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { OnboardingSplitLayout } from "@/0-onboarding/components/OnboardingSplitLayout";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
 const brandRed = "hsl(var(--brand-red))";
 
-const defaultBrandMark = (
-  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-);
+const defaultBrandMark = <SynckerjaBrandLogo />;
 
 function defaultEmailVerifiedShell(body: ReactNode) {
   return (

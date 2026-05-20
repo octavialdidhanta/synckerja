@@ -7,14 +7,15 @@ import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import type { RecipientPickerCandidate } from "@/5-3-whatsapp-template/utils/buildRecipientPickerCandidates";
 import { RECIPIENT_PICKER_MAX_SELECT } from "@/5-3-whatsapp-template/utils/buildRecipientPickerCandidates";
 import { LeadsFilters, type LeadsFilters as LeadsFiltersState } from "@/5-3-dashboard/components/leads/filters/LeadsFilters";
-import LeadsTableNew from "@/5-3-dashboard/components/leads/table/LeadsTableNew";
 import {
   FU_PRIORITY_FILTER_CHOICES,
   buildAssigneeFilterOptions,
   buildLeadSourceFilterOptions,
+  buildServicesFilterOptions,
   buildUniqueLeadStatusFilterOptions,
   useLeadsManagementFilterQueries,
 } from "@/5-3-dashboard/hooks/useLeadsManagementFilterQueries";
+import { distinctLeadAttributionValues } from "@/shared/lib/leadAttribution";
 import { useOmnichannelRosterAssignees } from "@/shared/hooks/useOrganizationOmnichannelStaff";
 import {
   useRecipientPickerFilterOptions,
@@ -27,7 +28,11 @@ import {
   surveyFromRpcItem,
   type RecipientPickerRpcItem,
 } from "@/5-3-whatsapp-template/utils/recipientPickerRpc";
-import type { SurveyRatingColumnFilterValue } from "@/5-3-dashboard/components/leads/table/LeadsTableNew";
+import LeadsTableNew, {
+  type ResolveColumnFilterValue,
+  type SurveyRatingColumnFilterValue,
+} from "@/5-3-dashboard/components/leads/table/LeadsTableNew";
+import { isResolvedLeadStatusName } from "@/5-1-leads-management/utils/leadStatusDisplay";
 import { supabase } from "@/shared/lib/supabaseClient";
 import type { NewLead } from "@/shared/types/leads";
 import {
@@ -60,6 +65,9 @@ const defaultFilters = (): LeadsFiltersState => ({
   utmContent: "all",
   utmTerm: "all",
   attributionLabel: "all",
+  gclid: "all",
+  gclidPresence: "all",
+  emailPresence: "all",
   landingUrlContains: "",
   surveyRating: "all",
 });
@@ -75,10 +83,11 @@ export function RecipientListContactPickerPanel({
   const [filters, setFilters] = useState<LeadsFiltersState>(defaultFilters);
   const [page, setPage] = useState(1);
   const pageSize = 25;
-  const [selectedByPhone, setSelectedByPhone] = useState<Map<string, RecipientPickerCandidate>>(() => new Map());
+  const [selectedByRowId, setSelectedByRowId] = useState<Map<string, RecipientPickerCandidate>>(() => new Map());
   const [selectAllBanner, setSelectAllBanner] = useState<string | null>(null);
   const [selectAllLoading, setSelectAllLoading] = useState(false);
   const [attributionSort, setAttributionSort] = useState<LeadAttributionSortState>(defaultLeadAttributionSortState);
+  const [isResolveFilter, setIsResolveFilter] = useState<ResolveColumnFilterValue>("all");
 
   const handleAttributionSort = useCallback((column: LeadAttributionSortColumn) => {
     setAttributionSort((prev) => {
@@ -111,6 +120,19 @@ export function RecipientListContactPickerPanel({
 
   const total = searchData?.total ?? 0;
   const tableRows = searchData?.items ?? [];
+
+  const tableRowsForDisplay = useMemo(() => {
+    if (isResolveFilter === "all") return tableRows;
+    return tableRows.filter((row) => {
+      const rawStatus = (
+        row.lead_status && typeof row.lead_status === "object" && "name" in row.lead_status
+          ? String((row.lead_status as { name?: string | null }).name ?? "")
+          : ""
+      ).trim();
+      const resolved = isResolvedLeadStatusName(rawStatus);
+      return isResolveFilter === "true" ? resolved : !resolved;
+    });
+  }, [tableRows, isResolveFilter]);
 
   useEffect(() => {
     setPage(1);
@@ -175,20 +197,52 @@ export function RecipientListContactPickerPanel({
     [filterOptions?.attributionLabels],
   );
 
-  const selectedPhoneKeys = useMemo(() => new Set(selectedByPhone.keys()), [selectedByPhone]);
+  const servicesFilterOptions = useMemo(() => {
+    const fromMaster = buildServicesFilterOptions(
+      tableRows.map((r) => ({ services: (r as RecipientPickerRpcItem).services })),
+      subServices,
+    );
+    const byName = new Map(fromMaster.map((o) => [o.name.toLowerCase(), o]));
+    for (const name of filterOptions?.serviceNames ?? []) {
+      const n = (name ?? "").trim();
+      if (!n) continue;
+      const key = n.toLowerCase();
+      if (!byName.has(key)) {
+        byName.set(key, { id: `__recipient_svc__${byName.size}`, name: n });
+      }
+    }
+    return [...byName.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+  }, [tableRows, subServices, filterOptions?.serviceNames]);
 
-  const onTogglePhone = useCallback(
-    (phoneKey: string, checked: boolean) => {
-      setSelectedByPhone((prev) => {
+  const gclidFilterOptions = useMemo(() => {
+    const fromRows = distinctLeadAttributionValues(
+      tableRows as unknown as Array<Record<string, string | null | undefined>>,
+      "gclid",
+    );
+    const set = new Set<string>(fromRows);
+    for (const g of filterOptions?.gclids ?? []) {
+      const n = (g ?? "").trim();
+      if (n) set.add(n);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [tableRows, filterOptions?.gclids]);
+
+  const selectedRowIds = useMemo(() => new Set(selectedByRowId.keys()), [selectedByRowId]);
+
+  const onToggleRow = useCallback(
+    (rowId: string, checked: boolean) => {
+      setSelectedByRowId((prev) => {
         const next = new Map(prev);
         if (!checked) {
-          next.delete(phoneKey);
+          next.delete(rowId);
           return next;
         }
-        const row = tableRows.find((r) => r._phone_normalized === phoneKey);
+        const row = tableRows.find((r) => String(r.id) === rowId);
         if (!row) return prev;
         if (next.size >= RECIPIENT_PICKER_MAX_SELECT) return prev;
-        next.set(phoneKey, rpcItemToRecipientPickerCandidate(row));
+        next.set(rowId, rpcItemToRecipientPickerCandidate(row));
         return next;
       });
     },
@@ -196,16 +250,16 @@ export function RecipientListContactPickerPanel({
   );
 
   const onTogglePage = useCallback(
-    (phoneKeys: string[], checked: boolean) => {
-      setSelectedByPhone((prev) => {
+    (rowIds: string[], checked: boolean) => {
+      setSelectedByRowId((prev) => {
         const next = new Map(prev);
         if (!checked) {
-          for (const k of phoneKeys) next.delete(k);
+          for (const k of rowIds) next.delete(k);
           return next;
         }
-        for (const k of phoneKeys) {
+        for (const k of rowIds) {
           if (next.size >= RECIPIENT_PICKER_MAX_SELECT) break;
-          const row = tableRows.find((r) => r._phone_normalized === k);
+          const row = tableRows.find((r) => String(r.id) === k);
           if (row) next.set(k, rpcItemToRecipientPickerCandidate(row));
         }
         return next;
@@ -249,12 +303,12 @@ export function RecipientListContactPickerPanel({
         if (error) throw error;
         const { items } = parseRecipientPickerSearchPayload(data);
         for (const it of items) {
-          merged.set(it._phone_normalized, rpcItemToRecipientPickerCandidate(it));
+          merged.set(String(it.id), rpcItemToRecipientPickerCandidate(it));
           if (merged.size >= cap) break;
         }
         if (items.length < lim) break;
       }
-      setSelectedByPhone(merged);
+      setSelectedByRowId(merged);
     } catch (e) {
       setSelectAllBanner(e instanceof Error ? e.message : String(e));
     } finally {
@@ -262,7 +316,7 @@ export function RecipientListContactPickerPanel({
     }
   }, [organizationId, filtersForRpc, t]);
 
-  const picks = useMemo(() => [...selectedByPhone.values()], [selectedByPhone]);
+  const picks = useMemo(() => [...selectedByRowId.values()], [selectedByRowId]);
 
   const handleAdd = async () => {
     const trimmed = name.trim();
@@ -374,22 +428,28 @@ export function RecipientListContactPickerPanel({
                   </div>
                 ) : null}
                 <LeadsTableNew
-                  leads={tableRows as unknown as NewLead[]}
+                  leads={tableRowsForDisplay as unknown as NewLead[]}
                   onUpdateLead={async () => {}}
                   onDeleteLead={async () => {}}
                   attributionSort={attributionSort}
                   onAttributionSort={handleAttributionSort}
                   pickerSelection={{
-                    selectedPhoneKeys,
-                    onTogglePhone,
+                    selectedPhoneKeys: selectedRowIds,
+                    onTogglePhone: onToggleRow,
                     onTogglePage,
-                    getPhoneKey: (lead) => (lead as RecipientPickerRpcItem)._phone_normalized,
+                    getPhoneKey: (lead) => String(lead.id),
                     replaceTitleColumnWithPhone: true,
+                    showEmailColumn: true,
                   }}
                   categoryColumnFilter={{
                     value: filters.category,
                     onChange: (v) => setFilters((f) => ({ ...f, category: v })),
                     options: subServices,
+                  }}
+                  servicesColumnFilter={{
+                    value: filters.services,
+                    onChange: (v) => setFilters((f) => ({ ...f, services: v })),
+                    options: servicesFilterOptions,
                   }}
                   sourceColumnFilter={{
                     value: filters.source,
@@ -446,6 +506,11 @@ export function RecipientListContactPickerPanel({
                     onChange: (v) => setFilters((f) => ({ ...f, attributionLabel: v })),
                     options: attributionLabelOptionsEmbedded,
                   }}
+                  gclidColumnFilter={{
+                    value: filters.gclid ?? "all",
+                    onChange: (v) => setFilters((f) => ({ ...f, gclid: v })),
+                    options: gclidFilterOptions,
+                  }}
                   landingUrlContainsColumnFilter={{
                     value: filters.landingUrlContains,
                     onChange: (v) => setFilters((f) => ({ ...f, landingUrlContains: v })),
@@ -454,6 +519,10 @@ export function RecipientListContactPickerPanel({
                   surveyColumnFilter={{
                     value: (filters.surveyRating ?? "all") as SurveyRatingColumnFilterValue,
                     onChange: handleSurveyRatingColumnFilterChange,
+                  }}
+                  resolveColumnFilter={{
+                    value: isResolveFilter,
+                    onChange: setIsResolveFilter,
                   }}
                 />
               </div>

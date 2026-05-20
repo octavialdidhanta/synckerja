@@ -19,6 +19,32 @@ import { id } from 'date-fns/locale';
 import { generateInvoiceNumber, generateSmartInvoiceTitle, calculatePaymentSummary } from '@/shared/utils/paymentCalculations';
 import { debounce } from '@/shared/hooks/optimizedHelpers';
 import { CreateTemplateDialog } from './CreateTemplateDialog';
+import type { InvoiceTemplate } from '@/shared/types/invoice';
+import {
+  loadInvoiceImageForPdf,
+  resolveInvoiceTemplateAssetRef,
+} from '@/shared/lib/invoiceTemplateLogo';
+
+function mergeTemplateIntoInvoiceData(
+  prev: InvoiceData,
+  template: InvoiceTemplate,
+  orgLogoUrl?: string | null,
+): InvoiceData {
+  const templateLogoUrl = resolveInvoiceTemplateAssetRef(template.company_logo_path);
+  const templateSignatureUrl = resolveInvoiceTemplateAssetRef(template.company_signature_path);
+  return {
+    ...prev,
+    companyName: template.company_name || prev.companyName,
+    companyPhone: template.company_phone || prev.companyPhone,
+    companyEmail: template.company_email || prev.companyEmail,
+    companyAddress: template.company_address || prev.companyAddress,
+    notes: template.invoice_description || prev.notes,
+    companyLogo: template.company_logo_path
+      ? templateLogoUrl || orgLogoUrl || undefined
+      : orgLogoUrl || undefined,
+    companySignature: template.company_signature_path ? templateSignatureUrl : undefined,
+  };
+}
 
 interface InvoicePreviewModalProps {
   open: boolean;
@@ -42,18 +68,15 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
   const { getPaymentHistory } = useSalesActivityPayments();
   const { items: salesActivityItems, loading: itemsLoading } = useSalesActivityItems(salesActivityId);
   const {
-    templates = [], 
-    currentTemplate, 
-    setCurrentTemplate = () => {},
-    updateField = () => {},
+    templates = [],
+    currentTemplate,
+    setCurrentTemplate,
     isSaving = false,
     hasUnsavedChanges = false,
-    createTemplate = async () => false
   } = useInvoiceTemplate();
   const [showNewTemplateDialog, setShowNewTemplateDialog] = React.useState(false);
-  const [newTemplateName, setNewTemplateName] = React.useState('');
   const { toast } = useToast();
-  
+
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<any>(null);
   
@@ -119,48 +142,100 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
   });
 
   const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [previewGenerating, setPreviewGenerating] = useState(false);
 
-  // Keep latest invoice data in ref for debounced rendering
   const invoiceDataRef = useRef<InvoiceData>(invoiceData);
+  const previewGenerationSeqRef = useRef(0);
+  const skipDebouncePreviewRef = useRef(false);
+  const modalWasOpenRef = useRef(false);
+  const previewBlobUrlRef = useRef<string | null>(null);
+
+  const revokePreviewBlobUrl = React.useCallback(() => {
+    if (previewBlobUrlRef.current) {
+      URL.revokeObjectURL(previewBlobUrlRef.current);
+      previewBlobUrlRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => revokePreviewBlobUrl(), [revokePreviewBlobUrl]);
+
   useEffect(() => {
     invoiceDataRef.current = invoiceData;
   }, [invoiceData]);
 
-  // Helper function to load image if needed
-  const loadImageIfNeeded = async (imageUrl: string | undefined): Promise<string | undefined> => {
-    if (!imageUrl) return undefined;
-    if (imageUrl.startsWith('data:')) return imageUrl;
-    
+  const runPreviewGeneration = React.useCallback(async (dataOverride?: InvoiceData) => {
+    const seq = ++previewGenerationSeqRef.current;
+    const data = dataOverride ?? invoiceDataRef.current;
+    setPreviewGenerating(true);
     try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error('Error loading image:', error);
-      return undefined;
-    }
-  };
-
-  // Debounced preview generator to prevent re-render jank on each keystroke
-  const debouncedGeneratePreview = useMemo(() => debounce(async () => {
-    try {
-      const logoData = await loadImageIfNeeded(logoUrl || undefined);
-      const generator = new InvoiceGenerator();
+      const logoSource = data.companyLogo || logoUrl || undefined;
+      const [logoData, signatureData] = await Promise.all([
+        loadInvoiceImageForPdf(logoSource, 800),
+        loadInvoiceImageForPdf(data.companySignature, 400),
+      ]);
+      const generator = await InvoiceGenerator.create();
       const pdf = generator.generateInvoice({
-        ...invoiceDataRef.current,
-        companyLogo: logoData
+        ...data,
+        companyLogo: logoData,
+        companySignature: signatureData,
       });
-      const dataUri = pdf.output('datauristring');
-      setPreviewUrl(dataUri);
+      const blob = pdf.output('blob') as Blob;
+      if (seq !== previewGenerationSeqRef.current) {
+        return;
+      }
+      if (!blob || blob.size < 200) {
+        throw new Error('Empty PDF output');
+      }
+      revokePreviewBlobUrl();
+      const blobUrl = URL.createObjectURL(blob);
+      previewBlobUrlRef.current = blobUrl;
+      setPreviewUrl(blobUrl);
     } catch (error) {
-      console.error('❌ Error generating preview (debounced):', error);
+      if (seq !== previewGenerationSeqRef.current) {
+        return;
+      }
+      console.error('❌ Error generating invoice preview:', error);
+      toast({
+        title: 'Preview failed',
+        description: 'Could not render invoice preview. Try again or remove template images.',
+        variant: 'destructive',
+      });
+    } finally {
+      if (seq === previewGenerationSeqRef.current) {
+        setPreviewGenerating(false);
+      }
     }
-  }, 500), [logoUrl]);
+  }, [logoUrl, toast, revokePreviewBlobUrl]);
+
+  const schedulePreviewAfterTemplateApply = React.useCallback(
+    (snapshot: InvoiceData) => {
+      skipDebouncePreviewRef.current = true;
+      void runPreviewGeneration(snapshot).finally(() => {
+        window.setTimeout(() => {
+          skipDebouncePreviewRef.current = false;
+        }, 700);
+      });
+    },
+    [runPreviewGeneration],
+  );
+
+  const debouncedGeneratePreview = useMemo(
+    () => debounce(() => {
+      void runPreviewGeneration();
+    }, 500),
+    [runPreviewGeneration],
+  );
+
+  const applyTemplateToInvoice = React.useCallback(
+    (template: InvoiceTemplate) => {
+      setCurrentTemplate(template);
+      const next = mergeTemplateIntoInvoiceData(invoiceDataRef.current, template, logoUrl);
+      invoiceDataRef.current = next;
+      setInvoiceData(next);
+      schedulePreviewAfterTemplateApply(next);
+    },
+    [setCurrentTemplate, logoUrl, schedulePreviewAfterTemplateApply],
+  );
 
   // Effect to update invoice data when sales activity items change
   useEffect(() => {
@@ -179,12 +254,16 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
       // Calculate totals from actual items
       const subtotal = invoiceItems.reduce((sum, item) => sum + item.amount, 0);
 
-      setInvoiceData(prev => ({
-        ...prev,
-        items: invoiceItems,
-        subtotal: subtotal,
-        total: subtotal
-      }));
+      setInvoiceData((prev) => {
+        const next = {
+          ...prev,
+          items: invoiceItems,
+          subtotal,
+          total: subtotal,
+        };
+        invoiceDataRef.current = next;
+        return next;
+      });
 
       console.log('💰 Updated invoice with actual items. Total:', subtotal);
     }
@@ -196,30 +275,27 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
     }
   }, [open, salesActivityId, currentOrg?.id]);
 
-  // Load template data when modal opens
+  // Apply persisted template once when modal opens (dropdown changes use applyTemplateToInvoice)
   useEffect(() => {
-    if (open && currentTemplate) {
-      // Load template data into invoice data
-      setInvoiceData(prev => ({
-        ...prev,
-        companyName: currentTemplate.company_name || prev.companyName,
-        companyPhone: currentTemplate.company_phone || prev.companyPhone,
-        companyEmail: currentTemplate.company_email || prev.companyEmail,
-        companyAddress: currentTemplate.company_address || prev.companyAddress,
-        notes: currentTemplate.invoice_description || prev.notes
-      }));
+    if (!open) {
+      modalWasOpenRef.current = false;
+      revokePreviewBlobUrl();
+      setPreviewUrl('');
+      return;
     }
-  }, [open, currentTemplate]);
+    const justOpened = !modalWasOpenRef.current;
+    modalWasOpenRef.current = true;
+    if (justOpened && currentTemplate) {
+      const next = mergeTemplateIntoInvoiceData(invoiceDataRef.current, currentTemplate, logoUrl);
+      invoiceDataRef.current = next;
+      setInvoiceData(next);
+      schedulePreviewAfterTemplateApply(next);
+    }
+  }, [open, currentTemplate, logoUrl, schedulePreviewAfterTemplateApply]);
 
   useEffect(() => {
-    // Only generate preview after invoice data is updated with payment info
-    if (open && invoiceData.paymentInfo) {
-      console.log('🎯 Generating preview with paymentInfo (debounced):', invoiceData.paymentInfo);
-      debouncedGeneratePreview();
-    } else if (open && !salesActivityData?.total_amount) {
-      // Generate preview for cases without payment data (new invoices)
-      debouncedGeneratePreview();
-    }
+    if (!open || skipDebouncePreviewRef.current) return;
+    debouncedGeneratePreview();
   }, [open, invoiceData, debouncedGeneratePreview]);
 
   const loadPaymentData = async () => {
@@ -306,32 +382,29 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
           console.log('📋 Using fallback single item');
         }
 
-        const updatedInvoiceData = {
-          ...invoiceData,
-          items: invoiceItems,
-          subtotal: calculatedSubtotal,
-          total: calculatedSubtotal,
-          remainingAmount: summary.remainingAmount,
-          paymentInfo: paymentData ? {
-            currentPaymentType: paymentData.payment_type,
-            currentPaymentAmount: paymentData.payment_amount,
-            totalPaid: summary.totalPaid,
-            paymentSequence: paymentData.payment_sequence || 1,
-            paymentDate: paymentData.payment_date
-          } : undefined,
-          // Add previous payments to show complete payment history
-          previousPayments: previousPayments.length > 0 ? previousPayments : undefined
-        };
-        
-        console.log('💳 Updated invoice data with paymentInfo:', updatedInvoiceData.paymentInfo);
-        console.log('💰 Payment amounts - Current:', paymentData?.payment_amount, 'Total Paid:', summary.totalPaid, 'Remaining:', summary.remainingAmount);
-        console.log('📜 Previous payments:', previousPayments);
-        console.log('🧾 Complete invoice data with previousPayments:', updatedInvoiceData);
-        
-        setInvoiceData(updatedInvoiceData);
-        
-        // Generate preview after data is updated (debounced)
-        debouncedGeneratePreview();
+        setInvoiceData((prev) => {
+          const next = {
+            ...prev,
+            items: invoiceItems,
+            subtotal: calculatedSubtotal,
+            total: calculatedSubtotal,
+            remainingAmount: summary.remainingAmount,
+            paymentInfo: paymentData
+              ? {
+                  currentPaymentType: paymentData.payment_type,
+                  currentPaymentAmount: paymentData.payment_amount,
+                  totalPaid: summary.totalPaid,
+                  paymentSequence: paymentData.payment_sequence || 1,
+                  paymentDate: paymentData.payment_date,
+                }
+              : prev.paymentInfo,
+            previousPayments: previousPayments.length > 0 ? previousPayments : undefined,
+          };
+          invoiceDataRef.current = next;
+          return next;
+        });
+
+        queueMicrotask(() => void runPreviewGeneration());
       }
     } catch (error) {
       console.error('Error loading payment data:', error);
@@ -347,32 +420,23 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
         subtotal: invoiceData.subtotal
       });
       
-      const logoData = await loadImageIfNeeded(logoUrl || undefined);
-      const generator = new InvoiceGenerator();
-      const pdf = generator.generateInvoice({
-        ...invoiceData,
-        companyLogo: logoData
-      });
-      const dataUri = pdf.output('datauristring');
-      setPreviewUrl(dataUri);
-      console.log('✅ Invoice preview generated successfully');
+      await runPreviewGeneration();
     } catch (error) {
       console.error('❌ Error generating preview:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate invoice preview",
-        variant: "destructive",
-      });
     }
   };
 
   const handleDownload = async () => {
     try {
-      const logoData = await loadImageIfNeeded(logoUrl || undefined);
-      const generator = new InvoiceGenerator();
+      const [logoData, signatureData] = await Promise.all([
+        loadInvoiceImageForPdf(invoiceData.companyLogo || logoUrl || undefined, 800),
+        loadInvoiceImageForPdf(invoiceData.companySignature, 400),
+      ]);
+      const generator = await InvoiceGenerator.create();
       const pdf = generator.generateInvoice({
         ...invoiceData,
-        companyLogo: logoData
+        companyLogo: logoData,
+        companySignature: signatureData,
       });
       const filename = `Invoice-${invoiceData.companyName.replace(/\s+/g, '')}-${invoiceData.invoiceNumber}.pdf`;
       generator.download(filename);
@@ -507,16 +571,7 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                         onChange={(e) => {
                           const template = templates.find(t => t.id === e.target.value);
                           if (template) {
-                            setCurrentTemplate(template);
-                            // Load template data immediately
-                            setInvoiceData(prev => ({
-                              ...prev,
-                              companyName: template.company_name || prev.companyName,
-                              companyPhone: template.company_phone || prev.companyPhone,
-                              companyEmail: template.company_email || prev.companyEmail,
-                              companyAddress: template.company_address || prev.companyAddress,
-                              notes: template.invoice_description || prev.notes
-                            }));
+                            applyTemplateToInvoice(template);
                           }
                         }}
                       >
@@ -809,16 +864,23 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                 <Eye className="h-4 w-4" />
                 <span className="text-sm font-medium">Invoice Preview</span>
               </div>
-              <div className="flex-1 p-2">
+              <div className="min-h-[420px] flex-1 p-2">
                 {previewUrl ? (
-                  <iframe
-                    src={previewUrl}
-                    className="w-full h-full border-0 rounded"
-                    title="Invoice Preview"
-                  />
+                  <div className="relative h-full min-h-[400px] w-full">
+                    <iframe
+                      src={previewUrl}
+                      className={`h-full min-h-[400px] w-full rounded border-0 ${previewGenerating ? 'opacity-60' : ''}`}
+                      title="Invoice Preview"
+                    />
+                    {previewGenerating ? (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded bg-white/50 text-sm text-gray-600">
+                        Updating preview…
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500">
-                    Loading preview...
+                  <div className="flex h-full min-h-[400px] w-full items-center justify-center text-gray-500">
+                    {previewGenerating ? 'Loading preview...' : 'Select a template or wait for preview...'}
                   </div>
                 )}
               </div>
@@ -841,6 +903,7 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
       <CreateTemplateDialog
         open={showNewTemplateDialog}
         onOpenChange={setShowNewTemplateDialog}
+        onTemplateCreated={applyTemplateToInvoice}
       />
     </Dialog>
   );

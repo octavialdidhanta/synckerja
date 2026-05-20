@@ -35,8 +35,7 @@ export const SectionProfile = () => {
     error: teamAvailabilityError,
   } = useTeamAvailability();
 
-  const profileSectionLoading =
-    isLoading || isTeamLoading || userDataLoading || leaveBalanceLoading;
+  const profileSectionLoading = isLoading || userDataLoading;
   const profileSectionError =
     (employeeError as Error | null | undefined) ||
     (teamAvailabilityError as Error | null | undefined) ||

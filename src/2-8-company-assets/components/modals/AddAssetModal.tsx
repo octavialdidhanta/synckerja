@@ -74,7 +74,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({ isOpen, onClose, o
       const { data, error } = await supabase.storage
         .from(bucketName)
         .upload(fileName, file, {
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: false
         });
 

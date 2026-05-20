@@ -4,7 +4,6 @@ export type LeadRowLite = { id: string; client: string | null; phone_number: str
 export type LeadProfileLite = {
   lead_id: string;
   phone_number: string | null;
-  contact_phone: string | null;
   updated_at: string | null;
 };
 export type WaConvLite = { id: string; customer_name: string | null; customer_wa_id: string | null };
@@ -47,7 +46,7 @@ export function enrichRecipientListMembers(
     const conv = m.conversation_id ? convMap.get(m.conversation_id) ?? null : null;
     const lcp = m.lead_id ? pickLatestProfile(profiles, m.lead_id) : null;
 
-    const parts = [lcp?.phone_number, lcp?.contact_phone, lead?.phone_number, conv?.customer_wa_id];
+    const parts = [lcp?.phone_number, lead?.phone_number, conv?.customer_wa_id];
     let raw = "";
     for (const p of parts) {
       const t = String(p ?? "").trim();

@@ -24,3 +24,26 @@ export function matchesLeadSurveyRatingFilter(
   if (filter === "none") return latest == null;
   return latest != null && latest.rating === Number(filter);
 }
+
+/** Numeric rating for table sort (null = no survey / not applicable → sorts last). */
+export function getLeadSurveyRatingSortValue(
+  lead: NewLead,
+  getSurveyForLead: (lead: NewLead) => LatestCustomerSurvey | null,
+): number | null {
+  if (!isWhatsappLeadForSurvey(lead)) return null;
+  const latest = getSurveyForLead(lead);
+  if (latest == null || !Number.isFinite(latest.rating)) return null;
+  return latest.rating;
+}
+
+/** Precompute ratings for every visible lead so sort uses the same source as the Rating column. */
+export function buildSurveyRatingSortByLeadId(
+  leads: ReadonlyArray<NewLead>,
+  getSurveyForLead: (lead: NewLead) => LatestCustomerSurvey | null,
+): Map<string, number | null> {
+  const map = new Map<string, number | null>();
+  for (const lead of leads) {
+    map.set(String(lead.id ?? ""), getLeadSurveyRatingSortValue(lead, getSurveyForLead));
+  }
+  return map;
+}

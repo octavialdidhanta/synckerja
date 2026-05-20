@@ -1,17 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { NewLead } from '@/shared/types/leads';
+import {
+  clientCompletenessFromSubmission,
+  fetchLeadSubmissionsForLeads,
+  type ClientProfileCompleteness,
+  type LeadSubmissionProfileRow,
+} from '@/shared/lib/leadSubmissionProfile';
 
-export type ClientStatus = 'full' | 'partial' | 'empty';
+export type ClientStatus = ClientProfileCompleteness;
 
 export function useLeadClientStatuses(leads: NewLead[]) {
   const [clientStatuses, setClientStatuses] = useState<Record<string, ClientStatus>>({});
-  const [clientProfiles, setClientProfiles] = useState<Record<string, any>>({});
+  const [clientProfiles, setClientProfiles] = useState<Record<string, LeadSubmissionProfileRow | null>>({});
 
-  // Stabilize effect dependency: only run when the set of lead IDs changes, not when array reference changes
   const leadIdsKey = useMemo(
     () => leads.map((l) => l.id).sort().join(','),
-    [leads]
+    [leads],
   );
 
   useEffect(() => {
@@ -23,7 +28,19 @@ export function useLeadClientStatuses(leads: NewLead[]) {
       }
 
       const statusMap: Record<string, ClientStatus> = {};
-      const profileMap: Record<string, any> = {};
+      const profileMap: Record<string, LeadSubmissionProfileRow | null> = {};
+
+      const uuidLeads = leads.filter(
+        (l) => !String(l.id).startsWith('wa-') && !String(l.id).startsWith('email-'),
+      );
+      const orgId = uuidLeads[0]?.organization_id;
+      const submissionByLead =
+        orgId && uuidLeads.length > 0
+          ? await fetchLeadSubmissionsForLeads(
+              uuidLeads.map((l) => l.id),
+              orgId,
+            )
+          : new Map<string, LeadSubmissionProfileRow>();
 
       for (const lead of leads) {
         try {
@@ -37,50 +54,42 @@ export function useLeadClientStatuses(leads: NewLead[]) {
             continue;
           }
 
-          const { data } =
-            isWhatsApp && conversationId
-              ? await supabase
-                  .from('whatsapp_conversation_client_profiles')
-                  .select('*')
-                  .eq('conversation_id', conversationId)
-                  .eq('organization_id', lead.organization_id)
-                  .maybeSingle()
-              : await supabase
-                  .from('lead_client_profiles')
-                  .select('*')
-                  .eq('lead_id', lead.id)
-                  .eq('organization_id', lead.organization_id)
-                  .order('updated_at', { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
+          if (isWhatsApp && conversationId) {
+            const { data } = await supabase
+              .from('whatsapp_conversation_client_profiles')
+              .select('*')
+              .eq('conversation_id', conversationId)
+              .eq('organization_id', lead.organization_id)
+              .maybeSingle();
 
-          if (!data) {
-            statusMap[lead.id] = 'empty';
-            profileMap[lead.id] = null;
-          } else {
-            profileMap[lead.id] = data;
-            const fields = [
-              data.name,
-              (data as any).code,
-              data.gender,
-              data.age,
-              data.occupation,
-              data.location,
-              (data as any).phone_number,
-              (data as any).email,
-            ];
-            const filledFields = fields.filter(
-              (field) => field !== null && field !== undefined && field !== ''
-            ).length;
-
-            if (filledFields === 0) {
+            if (!data) {
               statusMap[lead.id] = 'empty';
-            } else if (filledFields === fields.length) {
-              statusMap[lead.id] = 'full';
+              profileMap[lead.id] = null;
             } else {
-              statusMap[lead.id] = 'partial';
+              profileMap[lead.id] = null;
+              const fields = [
+                data.name,
+                (data as { code?: string }).code,
+                data.gender,
+                data.age,
+                data.occupation,
+                data.location,
+                (data as { phone_number?: string }).phone_number,
+                (data as { email?: string }).email,
+              ];
+              const filledFields = fields.filter(
+                (field) => field !== null && field !== undefined && field !== '',
+              ).length;
+              if (filledFields === 0) statusMap[lead.id] = 'empty';
+              else if (filledFields === fields.length) statusMap[lead.id] = 'full';
+              else statusMap[lead.id] = 'partial';
             }
+            continue;
           }
+
+          const submission = submissionByLead.get(lead.id) ?? null;
+          profileMap[lead.id] = submission;
+          statusMap[lead.id] = clientCompletenessFromSubmission(submission);
         } catch (error) {
           console.error('Failed to fetch client profile for lead', lead.id, error);
           statusMap[lead.id] = 'empty';
@@ -93,7 +102,6 @@ export function useLeadClientStatuses(leads: NewLead[]) {
     };
 
     fetchStatuses();
-    // Intentionally depend only on leadIdsKey so we don't re-run when `leads` is a new array reference with same IDs (avoids infinite setState loop)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadIdsKey]);
 

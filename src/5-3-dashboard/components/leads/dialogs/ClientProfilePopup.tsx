@@ -7,6 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/shared/components/ui/use-toast";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { Loader2, Edit, Save, X, User, Phone, Mail, Hash, Briefcase, MapPin } from 'lucide-react';
+import {
+  fetchLeadDisplayFallback,
+  fetchLeadSubmissionForProfile,
+  updateLeadSubmissionProfile,
+} from '@/shared/lib/leadSubmissionProfile';
 
 /** Mask 4 digit terakhir nomor telepon untuk privasi di UI. */
 function maskPhoneLast4(phone: string | null | undefined): string {
@@ -30,7 +35,7 @@ function maskEmailForDisplay(email: string | null | undefined): string {
 }
 
 interface ClientProfile {
-  id?: string;
+  submissionId?: string;
   lead_id: string;
   name: string;
   code: string;
@@ -65,6 +70,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [canEditSubmission, setCanEditSubmission] = useState(false);
   const { toast } = useToast();
 
   const [profile, setProfile] = useState<ClientProfile>({
@@ -83,7 +89,6 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
   const isEmail = leadId.startsWith('email-');
   const conversationId = isWhatsApp ? leadId.replace(/^wa-/, '') : null;
 
-  // Load existing profile when popup opens
   useEffect(() => {
     if (open && leadId) {
       loadClientProfile();
@@ -92,8 +97,8 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
 
   const loadClientProfile = async () => {
     setLoading(true);
+    setCanEditSubmission(false);
     try {
-      // Email leads: no client profile table yet; show empty form (do not query lead_client_profiles — lead_id is synthetic)
       if (isEmail) {
         setProfile({
           lead_id: leadId,
@@ -117,19 +122,21 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
           .eq('organization_id', organizationId)
           .maybeSingle();
         if (error) throw error;
+        setCanEditSubmission(true);
         if (data) {
-          const savedPhone = (data as any).phone_number || '';
+          const savedPhone = (data as { phone_number?: string }).phone_number || '';
           setProfile({
             id: data.id,
+            submissionId: data.id,
             lead_id: leadId,
             name: data.name,
-            code: (data as any).code || '',
+            code: (data as { code?: string }).code || '',
             gender: (data.gender || '') as ClientProfile['gender'],
             age: data.age ?? '',
             occupation: data.occupation || '',
             location: data.location || '',
             phone_number: savedPhone || initialPhoneNumber,
-            email: (data as any).email || ''
+            email: (data as { email?: string }).email || ''
           });
         } else {
           setProfile({
@@ -144,42 +151,38 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
             email: ''
           });
         }
+        setLoading(false);
+        return;
+      }
+
+      const submission = await fetchLeadSubmissionForProfile(leadId, organizationId);
+      if (submission) {
+        setCanEditSubmission(true);
+        setProfile({
+          submissionId: submission.id,
+          lead_id: leadId,
+          name: submission.name?.trim() || clientName,
+          code: submission.code || '',
+          gender: (submission.gender || '') as ClientProfile['gender'],
+          age: submission.age ?? '',
+          occupation: submission.occupation || '',
+          location: submission.location || '',
+          phone_number: submission.phone_number || '',
+          email: submission.email || ''
+        });
       } else {
-        const { data, error } = await supabase
-          .from('lead_client_profiles')
-          .select('*')
-          .eq('lead_id', leadId)
-          .eq('organization_id', organizationId)
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
-        if (data) {
-          setProfile({
-            id: data.id,
-            lead_id: data.lead_id,
-            name: data.name,
-            code: (data as any).code || '',
-            gender: (data.gender || '') as ClientProfile['gender'],
-            age: data.age || '',
-            occupation: data.occupation || '',
-            location: data.location || '',
-            phone_number: (data as any).phone_number || '',
-            email: (data as any).email || ''
-          });
-        } else {
-          setProfile({
-            lead_id: leadId,
-            name: clientName,
-            code: '',
-            gender: '' as ClientProfile['gender'],
-            age: '',
-            occupation: '',
-            location: '',
-            phone_number: '',
-            email: ''
-          });
-        }
+        const fallback = await fetchLeadDisplayFallback(leadId, organizationId);
+        setProfile({
+          lead_id: leadId,
+          name: fallback?.client?.trim() || clientName,
+          code: '',
+          gender: '' as ClientProfile['gender'],
+          age: '',
+          occupation: '',
+          location: '',
+          phone_number: fallback?.phone_number?.trim() || '',
+          email: ''
+        });
       }
     } catch (error) {
       console.error('Error loading client profile:', error);
@@ -223,7 +226,6 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
         location: profile.location.trim() || null,
         phone_number: profile.phone_number.trim() || null,
         email: profile.email.trim() || null,
-        organization_id: organizationId
       };
 
       if (isEmail) {
@@ -237,38 +239,31 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
       }
       if (isWhatsApp && conversationId) {
         const payload = { ...baseData, conversation_id: conversationId, updated_at: new Date().toISOString() };
-        if (profile.id) {
+        if (profile.submissionId) {
           const { error } = await supabase
             .from('whatsapp_conversation_client_profiles')
             .update(payload)
-            .eq('id', profile.id);
+            .eq('id', profile.submissionId);
           if (error) throw error;
         } else {
           const { data, error } = await supabase
             .from('whatsapp_conversation_client_profiles')
-            .insert(payload)
+            .insert({ ...payload, organization_id: organizationId })
             .select()
             .single();
           if (error) throw error;
-          setProfile(prev => ({ ...prev, id: data.id }));
+          setProfile(prev => ({ ...prev, submissionId: data.id }));
         }
+      } else if (profile.submissionId) {
+        await updateLeadSubmissionProfile(profile.submissionId, baseData);
       } else {
-        const profileData = { ...baseData, lead_id: leadId };
-        if (profile.id) {
-          const { error } = await supabase
-            .from('lead_client_profiles')
-            .update(profileData)
-            .eq('id', profile.id);
-          if (error) throw error;
-        } else {
-          const { data, error } = await supabase
-            .from('lead_client_profiles')
-            .insert(profileData)
-            .select()
-            .single();
-          if (error) throw error;
-          setProfile(prev => ({ ...prev, id: data.id }));
-        }
+        toast({
+          title: "Cannot save",
+          description: "No form submission linked to this lead. Profile is view-only.",
+          variant: "destructive"
+        });
+        setSaving(false);
+        return;
       }
 
       toast({
@@ -302,34 +297,43 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
     onClose();
   };
 
-  // Spacing: satu ukuran konsisten (4 = 1rem / 16px) untuk padding & margin
+  const showEditButton = canEditSubmission || (isWhatsApp && !isEmail);
+  const readOnlyNoSubmission = !isWhatsApp && !isEmail && !canEditSubmission;
+
   const spacing = "p-4";
   const spaceBetween = "space-y-4";
-  const fieldViewClass = "flex items-center gap-3 px-4 py-3 rounded-xl min-h-[44px] text-sm border border-sky-100/80 bg-sky-50/40 text-slate-800";
-  const labelClass = "text-xs font-medium text-sky-700/90 uppercase tracking-wider";
-  const iconSoft = "h-4 w-4 text-sky-500/80 flex-shrink-0";
+  const fieldViewClass =
+    "flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 min-h-[44px] text-sm text-foreground";
+  const sectionLabelClass = "text-xs font-medium uppercase tracking-wider text-muted-foreground";
+  const fieldIconClass = "h-4 w-4 shrink-0 text-muted-foreground";
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent hideCloseButton className="w-[min(92vw,540px,88vh)] h-[min(92vw,540px,88vh)] max-w-[92vw] max-h-[88vh] grid grid-rows-[auto_1fr_auto] gap-0 p-0 overflow-hidden rounded-2xl border border-sky-100 shadow-2xl bg-gradient-to-b from-white via-sky-50/20 to-violet-50/20">
-        {/* Header */}
-        <div className={`flex-shrink-0 ${spacing} border-b border-sky-100/80 bg-gradient-to-r from-sky-50/80 to-violet-50/50 rounded-t-2xl`}>
+      <DialogContent
+        hideCloseButton
+        className="grid h-[min(92vw,540px,88vh)] w-[min(92vw,540px,88vh)] max-h-[88vh] max-w-[92vw] grid-rows-[auto_1fr_auto] gap-0 overflow-hidden rounded-2xl border border-border bg-white p-0 shadow-lg"
+      >
+        <div className={`flex-shrink-0 border-b border-border bg-white ${spacing} rounded-t-2xl`}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0">
-              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-sky-100 to-sky-200/80 flex items-center justify-center text-sky-600 shadow-sm">
-                <User className="h-6 w-6" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <User className="h-6 w-6" aria-hidden />
               </div>
               <div className="min-w-0">
-                <DialogTitle className="text-xl font-semibold text-slate-800 truncate">Client Profile</DialogTitle>
-                <p className="text-sm text-sky-600/80 mt-1">View and edit client information</p>
+                <DialogTitle className="truncate text-xl font-semibold text-foreground">
+                  Client Profile
+                </DialogTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  View and edit client information
+                </p>
               </div>
             </div>
-            {!isEditing && !loading && (
+            {!isEditing && !loading && showEditButton && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsEditing(true)}
-                className="flex-shrink-0 border-sky-200 text-sky-700 bg-white/80 hover:bg-sky-50 hover:border-sky-300"
+                className="shrink-0"
               >
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
@@ -340,57 +344,60 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
 
         {loading ? (
           <div className={`flex flex-col items-center justify-center ${spaceBetween} ${spacing} flex-1 min-h-0`}>
-            <div className="w-12 h-12 rounded-full border-2 border-sky-100 border-t-sky-500 animate-spin flex items-center justify-center" />
-            <span className="text-sm text-sky-600/80">Loading profile...</span>
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-muted border-t-primary" aria-hidden />
+            <span className="text-sm text-muted-foreground">Loading profile...</span>
           </div>
         ) : (
           <div className={`${spaceBetween} ${spacing} min-h-0 overflow-y-auto seamless-scroll flex-1`}>
-            {/* Section: Contact */}
+            {readOnlyNoSubmission && (
+              <p className="text-sm text-amber-700/90 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                No form submission linked to this lead. Showing lead name/phone only; editing is disabled.
+              </p>
+            )}
             <section className={spaceBetween}>
-              <h3 className={labelClass}>Contact</h3>
-              <div className={`rounded-xl border border-sky-100/80 bg-white/90 shadow-sm ${spacing} ${spaceBetween}`}>
+              <h3 className={sectionLabelClass}>Contact</h3>
+              <div className={`rounded-xl border border-border bg-white ${spacing} ${spaceBetween}`}>
                 <div className={spaceBetween}>
-                  <Label htmlFor="name" className="text-slate-600 text-sm font-medium">Name *</Label>
+                  <Label htmlFor="name" className="text-sm font-medium text-foreground">Name *</Label>
                   {isEditing ? (
                     <Input id="name" value={profile.name} onChange={(e) => handleInputChange('name', e.target.value)} placeholder="Enter client name" className="h-10" />
                   ) : (
-                    <div className={fieldViewClass}><User className={iconSoft} />{profile.name || '—'}</div>
+                    <div className={fieldViewClass}><User className={fieldIconClass} />{profile.name || '—'}</div>
                   )}
                 </div>
                 <div className={spaceBetween}>
-                  <Label htmlFor="phone_number" className="text-slate-600 text-sm font-medium">Nomor Telepon</Label>
+                  <Label htmlFor="phone_number" className="text-sm font-medium text-foreground">Nomor Telepon</Label>
                   {isEditing ? (
                     <Input id="phone_number" type="tel" value={profile.phone_number} onChange={(e) => handleInputChange('phone_number', e.target.value)} placeholder="Enter phone number" className="h-10" />
                   ) : (
-                    <div className={fieldViewClass}><Phone className={iconSoft} />{profile.phone_number ? maskPhoneLast4(profile.phone_number) : '—'}</div>
+                    <div className={fieldViewClass}><Phone className={fieldIconClass} />{profile.phone_number ? maskPhoneLast4(profile.phone_number) : '—'}</div>
                   )}
                 </div>
                 <div className={spaceBetween}>
-                  <Label htmlFor="email" className="text-slate-600 text-sm font-medium">Email</Label>
+                  <Label htmlFor="email" className="text-sm font-medium text-foreground">Email</Label>
                   {isEditing ? (
                     <Input id="email" type="email" value={profile.email} onChange={(e) => handleInputChange('email', e.target.value)} placeholder="Enter email" className="h-10" />
                   ) : (
-                    <div className={fieldViewClass}><Mail className={iconSoft} />{profile.email ? maskEmailForDisplay(profile.email) : '—'}</div>
+                    <div className={fieldViewClass}><Mail className={fieldIconClass} />{profile.email ? maskEmailForDisplay(profile.email) : '—'}</div>
                   )}
                 </div>
               </div>
             </section>
 
-            {/* Section: Profile details */}
             <section className={spaceBetween}>
-              <h3 className={labelClass}>Profile details</h3>
-              <div className={`rounded-xl border border-violet-100/80 bg-white/90 shadow-sm ${spacing} ${spaceBetween}`}>
+              <h3 className={sectionLabelClass}>Profile details</h3>
+              <div className={`rounded-xl border border-border bg-white ${spacing} ${spaceBetween}`}>
                 <div className={spaceBetween}>
-                  <Label htmlFor="code" className="text-slate-600 text-sm font-medium">Code</Label>
+                  <Label htmlFor="code" className="text-sm font-medium text-foreground">Code</Label>
                   {isEditing ? (
                     <Input id="code" value={profile.code} onChange={(e) => handleInputChange('code', e.target.value)} placeholder="Client code" className="h-10" />
                   ) : (
-                    <div className={fieldViewClass}><Hash className={iconSoft} />{profile.code || '—'}</div>
+                    <div className={fieldViewClass}><Hash className={fieldIconClass} />{profile.code || '—'}</div>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className={spaceBetween}>
-                    <Label htmlFor="gender" className="text-slate-600 text-sm font-medium">Gender</Label>
+                    <Label htmlFor="gender" className="text-sm font-medium text-foreground">Gender</Label>
                     {isEditing ? (
                       <Select value={profile.gender} onValueChange={(value) => handleInputChange('gender', value)}>
                         <SelectTrigger className="h-10"><SelectValue placeholder="Select" /></SelectTrigger>
@@ -405,7 +412,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
                     )}
                   </div>
                   <div className={spaceBetween}>
-                    <Label htmlFor="age" className="text-slate-600 text-sm font-medium">Age</Label>
+                    <Label htmlFor="age" className="text-sm font-medium text-foreground">Age</Label>
                     {isEditing ? (
                       <Input id="age" type="number" value={profile.age} onChange={(e) => handleInputChange('age', e.target.value)} placeholder="Age" min="1" max="149" className="h-10" />
                     ) : (
@@ -414,19 +421,19 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
                   </div>
                 </div>
                 <div className={spaceBetween}>
-                  <Label htmlFor="occupation" className="text-slate-600 text-sm font-medium">Occupation</Label>
+                  <Label htmlFor="occupation" className="text-sm font-medium text-foreground">Occupation</Label>
                   {isEditing ? (
                     <Input id="occupation" value={profile.occupation} onChange={(e) => handleInputChange('occupation', e.target.value)} placeholder="Occupation" className="h-10" />
                   ) : (
-                    <div className={fieldViewClass}><Briefcase className={iconSoft} />{profile.occupation || '—'}</div>
+                    <div className={fieldViewClass}><Briefcase className={fieldIconClass} />{profile.occupation || '—'}</div>
                   )}
                 </div>
                 <div className={spaceBetween}>
-                  <Label htmlFor="location" className="text-slate-600 text-sm font-medium">Location</Label>
+                  <Label htmlFor="location" className="text-sm font-medium text-foreground">Location</Label>
                   {isEditing ? (
                     <Input id="location" value={profile.location} onChange={(e) => handleInputChange('location', e.target.value)} placeholder="Location" className="h-10" />
                   ) : (
-                    <div className={fieldViewClass}><MapPin className={iconSoft} />{profile.location || '—'}</div>
+                    <div className={fieldViewClass}><MapPin className={fieldIconClass} />{profile.location || '—'}</div>
                   )}
                 </div>
               </div>
@@ -434,8 +441,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
           </div>
         )}
 
-        {/* Footer - padding sama dengan header & body */}
-        <div className={`flex-shrink-0 border-t border-sky-100/80 bg-gradient-to-r from-sky-50/50 to-violet-50/30 rounded-b-2xl ${spacing}`}>
+        <div className={`flex-shrink-0 border-t border-border bg-white ${spacing} rounded-b-2xl`}>
           <DialogFooter className="flex gap-4">
             {isEditing ? (
               <>
@@ -443,12 +449,11 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
                   variant="outline"
                   onClick={() => { setIsEditing(false); loadClientProfile(); }}
                   disabled={saving}
-                  className="border-sky-200 text-sky-700 hover:bg-sky-50"
                 >
                   <X className="h-4 w-4 mr-2" />
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={saving} className="bg-sky-500 hover:bg-sky-600 text-white shadow-sm">
+                <Button onClick={handleSave} disabled={saving}>
                   {saving ? (
                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
                   ) : (
@@ -457,7 +462,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
                 </Button>
               </>
             ) : (
-              <Button variant="outline" onClick={handleClose} className="border-sky-200 text-sky-700 hover:bg-sky-50 w-full sm:w-auto">
+              <Button variant="outline" onClick={handleClose} className="w-full sm:w-auto">
                 Close
               </Button>
             )}

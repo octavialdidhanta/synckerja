@@ -151,7 +151,7 @@ export function usePPh21Calculator() {
       return;
     }
     try {
-      exportPPh21ToPdf(payload);
+      void exportPPh21ToPdf(payload);
       toast.success("PDF berhasil diunduh");
     } catch {
       toast.error("Gagal membuat PDF");

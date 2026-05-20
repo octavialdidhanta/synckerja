@@ -1,4 +1,5 @@
-import jsPDF from 'jspdf';
+import type jsPDF from "jspdf";
+import { loadPdfKit } from "@/shared/lib/pdf/loadPdfKit";
 import { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format } from 'date-fns';
@@ -18,13 +19,18 @@ export class PurchaseRequestPDFGenerator {
   private contentWidth: number;
   private currentY: number;
 
-  constructor() {
-    this.doc = new jsPDF();
+  private constructor(doc: jsPDF) {
+    this.doc = doc;
     this.pageWidth = this.doc.internal.pageSize.getWidth();
     this.pageHeight = this.doc.internal.pageSize.getHeight();
     this.margin = 20;
     this.contentWidth = this.pageWidth - (this.margin * 2);
     this.currentY = this.margin;
+  }
+
+  static async create(): Promise<PurchaseRequestPDFGenerator> {
+    const { jsPDF: JsPDF } = await loadPdfKit();
+    return new PurchaseRequestPDFGenerator(new JsPDF());
   }
 
   private checkPageBreak(neededSpace: number = 20): void {

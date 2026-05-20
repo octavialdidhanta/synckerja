@@ -1,10 +1,12 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { LeadsFilters, LeadsFilters as LeadsFiltersType } from "@/5-3-dashboard/components/leads/filters/LeadsFilters";
 import { LeadsMetricsCards } from "@/5-3-dashboard/components/leads/metrics/LeadsMetricsCards";
 import LeadsTableNew, {
+  type ResolveColumnFilterValue,
   type SurveyRatingColumnFilterValue,
 } from "@/5-3-dashboard/components/leads/table/LeadsTableNew";
+import { isResolvedLeadStatusName } from "@/5-1-leads-management/utils/leadStatusDisplay";
 import { CustomerSurveyHistoryDialog } from "@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog";
 import { useCustomerSurveyForLeads } from "@/features/customer-survey/hooks/useCustomerSurveyForLeads";
 import { matchesLeadSurveyRatingFilter } from "@/features/customer-survey/core/surveyRatingFilter";
@@ -16,8 +18,7 @@ import { Button } from "@/shared/components/ui/button";
 import { useLeads, LeadsScope } from '@/shared/hooks/organized/sales';
 import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { NewLead } from '@/shared/types/leads';
-import { useClientProfileStatus } from '@/shared/hooks/organized/sales';
-import { supabase } from '@/shared/lib/supabaseClient';
+import { useLeadClientStatuses } from '@/5-3-dashboard/hooks/useLeadClientStatuses';
 import type { LeadAttributionSortColumn } from '@/shared/lib/leadAttribution';
 import {
   defaultLeadAttributionSortState,
@@ -62,11 +63,13 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
   });
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const [surveyRatingFilter, setSurveyRatingFilter] = useState<SurveyRatingColumnFilterValue>("all");
+  const [resolveOutcomeFilter, setResolveOutcomeFilter] = useState<ResolveColumnFilterValue>("all");
   const [surveyHistoryLead, setSurveyHistoryLead] = useState<NewLead | null>(null);
   const [surveyHistoryOpen, setSurveyHistoryOpen] = useState(false);
   const { organizationId } = useCurrentOrg();
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads({ scope });
-  const { getSurveyForLead, resolveConversationId } = useCustomerSurveyForLeads(organizationId, leads);
+  const { getSurveyForLead, resolveConversationId, surveyRatingByLeadId } =
+    useCustomerSurveyForLeads(organizationId, leads);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
   const { subServices, leadSources, leadStatuses } = useLeadsManagementFilterQueries();
 
@@ -96,6 +99,10 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
 
   const handleSurveyRatingFilterChange = useCallback((value: SurveyRatingColumnFilterValue) => {
     setSurveyRatingFilter(value);
+  }, []);
+
+  const handleResolveOutcomeFilterChange = useCallback((value: ResolveColumnFilterValue) => {
+    setResolveOutcomeFilter(value);
   }, []);
 
   const handleOpenSurveyHistory = useCallback((lead: NewLead) => {
@@ -197,74 +204,7 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
     }
   };
 
-  // State to manage client profile statuses and data
-  const [clientStatuses, setClientStatuses] = useState<Record<string, 'full' | 'partial' | 'empty'>>({});
-  const [clientProfiles, setClientProfiles] = useState<Record<string, any>>({});
-
-  // Fetch client profile statuses (leads + WhatsApp conversations)
-  useEffect(() => {
-    const fetchStatuses = async () => {
-      if (leads.length === 0) return;
-
-      const statusMap: Record<string, 'full' | 'partial' | 'empty'> = {};
-      const profileMap: Record<string, any> = {};
-
-      for (const lead of leads) {
-        try {
-          const isWhatsApp = String(lead.id).startsWith('wa-');
-          const isEmail = String(lead.id).startsWith('email-');
-          const conversationId = isWhatsApp ? String(lead.id).replace(/^wa-/, '') : null;
-
-          if (isEmail) {
-            statusMap[lead.id] = 'empty';
-            profileMap[lead.id] = null;
-            continue;
-          }
-
-          const { data } = isWhatsApp && conversationId
-            ? await supabase
-                .from('whatsapp_conversation_client_profiles')
-                .select('*')
-                .eq('conversation_id', conversationId)
-                .eq('organization_id', lead.organization_id)
-                .maybeSingle()
-            : await supabase
-                .from('lead_client_profiles')
-                .select('*')
-                .eq('lead_id', lead.id)
-                .eq('organization_id', lead.organization_id)
-                .order('updated_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-          if (!data) {
-            statusMap[lead.id] = 'empty';
-            profileMap[lead.id] = null;
-          } else {
-            profileMap[lead.id] = data;
-            const fields = [data.name, (data as any).code, data.gender, data.age, data.occupation, data.location, (data as any).phone_number, (data as any).email];
-            const filledFields = fields.filter(field => field !== null && field !== undefined && field !== '').length;
-
-            if (filledFields === 0) {
-              statusMap[lead.id] = 'empty';
-            } else if (filledFields === fields.length) {
-              statusMap[lead.id] = 'full';
-            } else {
-              statusMap[lead.id] = 'partial';
-            }
-          }
-        } catch {
-          statusMap[lead.id] = 'empty';
-          profileMap[lead.id] = null;
-        }
-      }
-
-      setClientStatuses(statusMap);
-      setClientProfiles(profileMap);
-    };
-
-    fetchStatuses();
-  }, [leads]);
+  const { clientStatuses, clientProfiles } = useLeadClientStatuses(leads);
 
   // Filter leads based on selected filters
   const filteredLeads = useMemo(() => {
@@ -389,14 +329,24 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
         return false;
       }
 
+      if (resolveOutcomeFilter !== "all") {
+        const rawStatus = (lead.lead_status?.name ?? "").trim();
+        const resolved = isResolvedLeadStatusName(rawStatus);
+        if (resolveOutcomeFilter === "true" && !resolved) return false;
+        if (resolveOutcomeFilter === "false" && resolved) return false;
+      }
+
       return true;
     });
     return filtered;
-  }, [leads, filters, clientStatuses, surveyRatingFilter, getSurveyForLead]);
+  }, [leads, filters, clientStatuses, surveyRatingFilter, resolveOutcomeFilter, getSurveyForLead]);
 
   const sortedLeads = useMemo(
-    () => sortLeadsByAttributionColumn(filteredLeads, attributionSort),
-    [filteredLeads, attributionSort],
+    () =>
+      sortLeadsByAttributionColumn(filteredLeads, attributionSort, {
+        getSurveyRating: (lead) => surveyRatingByLeadId.get(String(lead.id ?? "")) ?? null,
+      }),
+    [filteredLeads, attributionSort, surveyRatingByLeadId],
   );
 
   return (
@@ -521,6 +471,10 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
                   surveyColumnFilter={{
                     value: surveyRatingFilter,
                     onChange: handleSurveyRatingFilterChange,
+                  }}
+                  resolveColumnFilter={{
+                    value: resolveOutcomeFilter,
+                    onChange: handleResolveOutcomeFilterChange,
                   }}
                 />
               </div>

@@ -12,9 +12,22 @@ import { Separator } from "@/shared/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { PROFILE_QUERY_KEY, useProfile, useUpdateProfile, type ProfileRow } from "@/shared/hooks/useProfile";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { resolveUiLanguage } from "@/shared/i18n/resolveUiLanguage";
 import { setAppLanguage, type SupportedLanguage } from "@/shared/i18n";
+import { DEFAULT_LANGUAGE } from "@/shared/i18n/translations";
 import { ProfilePhotoUpload } from "./ProfilePhotoUpload";
+
+function hasStoredProfileLocale(
+  profileLocale: string | null | undefined,
+): profileLocale is SupportedLanguage {
+  return profileLocale === "en" || profileLocale === "id";
+}
+
+function resolveProfileFormLocale(
+  profileLocale: string | null | undefined,
+): SupportedLanguage {
+  if (hasStoredProfileLocale(profileLocale)) return profileLocale;
+  return DEFAULT_LANGUAGE;
+}
 
 export type ProfileFormState = {
   full_name: string;
@@ -38,7 +51,7 @@ export function ProfileSettings({
   onFieldBlur,
   saveButtonRef,
 }: ProfileSettingsProps = {}) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: profile, isLoading, error, refetch } = useProfile();
   const updateProfile = useUpdateProfile();
@@ -51,16 +64,15 @@ export function ProfileSettings({
     location: "",
     website: "",
     profile_photo_url: null,
-    preferred_locale: "id",
+    preferred_locale: DEFAULT_LANGUAGE,
   });
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
-    const locale: SupportedLanguage =
-      profile.preferred_locale === "en" || profile.preferred_locale === "id"
-        ? profile.preferred_locale
-        : resolveUiLanguage(i18n.language);
+    const locale = resolveProfileFormLocale(profile.preferred_locale);
+    const hadStoredLocale = hasStoredProfileLocale(profile.preferred_locale);
+
     setFormData({
       full_name: profile.full_name ?? "",
       phone: profile.phone ?? "",
@@ -72,6 +84,12 @@ export function ProfileSettings({
       preferred_locale: locale,
     });
     setHasChanges(false);
+
+    if (hadStoredLocale) {
+      void setAppLanguage(locale, { clearDeviceOverride: true });
+    } else {
+      void setAppLanguage(DEFAULT_LANGUAGE, { deviceOnly: true });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid resetting the form when only i18n.language changes (e.g. user picked a new language before Save)
   }, [profile]);
 
@@ -82,7 +100,7 @@ export function ProfileSettings({
 
   const handleLocaleChange = (value: SupportedLanguage) => {
     setFormData((prev) => ({ ...prev, preferred_locale: value }));
-    setAppLanguage(value);
+    void setAppLanguage(value, { deviceOnly: true });
     setHasChanges(true);
   };
 
@@ -116,6 +134,7 @@ export function ProfileSettings({
         preferred_locale: formData.preferred_locale,
       });
       setHasChanges(false);
+      await setAppLanguage(formData.preferred_locale, { clearDeviceOverride: true });
       toast.success(t("settings.profile.toast.updateSuccess"));
     } catch {
       toast.error(t("settings.profile.toast.updateError"));
@@ -124,10 +143,7 @@ export function ProfileSettings({
 
   const handleReset = () => {
     if (!profile) return;
-    const locale: SupportedLanguage =
-      profile.preferred_locale === "en" || profile.preferred_locale === "id"
-        ? profile.preferred_locale
-        : resolveUiLanguage(i18n.language);
+    const locale = resolveProfileFormLocale(profile.preferred_locale);
     setFormData({
       full_name: profile.full_name ?? "",
       phone: profile.phone ?? "",
@@ -138,7 +154,10 @@ export function ProfileSettings({
       profile_photo_url: profile.profile_photo_url ?? null,
       preferred_locale: locale,
     });
-    setAppLanguage(locale);
+    void setAppLanguage(locale, {
+      deviceOnly: !hasStoredProfileLocale(profile.preferred_locale),
+      clearDeviceOverride: hasStoredProfileLocale(profile.preferred_locale),
+    });
     setHasChanges(false);
   };
 
@@ -184,8 +203,8 @@ export function ProfileSettings({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="id">{t("settings.profile.language.optionId")}</SelectItem>
                 <SelectItem value="en">{t("settings.profile.language.optionEn")}</SelectItem>
+                <SelectItem value="id">{t("settings.profile.language.optionId")}</SelectItem>
               </SelectContent>
             </Select>
           </div>

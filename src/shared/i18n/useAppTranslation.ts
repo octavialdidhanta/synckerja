@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { id as idLocale, enUS } from "date-fns/locale";
-import { defaultTranslations, type AppLanguage } from "./translations";
+import type { AppLanguage } from "./translationTypes";
 import { resolveUiLanguage } from "./resolveUiLanguage";
 
 function applyVariables(
@@ -25,11 +25,7 @@ export function useAppTranslation() {
 
   const t = useCallback(
     (key: string, fallback?: string, variables?: Record<string, string | number>) => {
-      const lang = language;
-      const dict = defaultTranslations[lang];
-      const fallbackText =
-        fallback ?? dict[key as keyof typeof dict] ?? defaultTranslations.en[key as keyof typeof defaultTranslations.en] ?? key;
-
+      const fallbackText = fallback ?? key;
       const translated = i18nT(key, { defaultValue: fallbackText });
       return applyVariables(translated, variables);
     },

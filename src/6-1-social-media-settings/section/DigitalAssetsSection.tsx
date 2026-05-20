@@ -7,6 +7,8 @@ import { Label } from '@/shared/components/ui/label';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { useStorageSignedImageUrl } from '@/shared/hooks/useStorageSignedImageUrl';
+import { storageUploadOptions } from '@/shared/lib/storageCacheControl';
 import { toast } from 'sonner';
 import { Plus, Check, Pencil, Trash2, User, Box, Lightbulb, ImageIcon, Download, Copy, Palette, Building2 } from 'lucide-react';
 import type {
@@ -99,26 +101,11 @@ function CompanyLogoRow({
   onDelete: () => void;
   t: (key: string, fallback?: string) => string;
 }) {
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!logo.logo_path?.trim()) {
-      setThumbUrl(null);
-      return;
-    }
-    let cancelled = false;
-    supabase.storage
-      .from('digital-asset-company-logos')
-      .createSignedUrl(logo.logo_path, 3600)
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          setThumbUrl(null);
-          return;
-        }
-        setThumbUrl(data?.signedUrl ?? null);
-      });
-    return () => { cancelled = true; };
-  }, [logo.logo_path]);
+  const { data: thumbUrl } = useStorageSignedImageUrl({
+    bucket: "digital-asset-company-logos",
+    path: logo.logo_path,
+    transform: { width: 80, height: 80, resize: "contain", quality: 75 },
+  });
   return (
     <li className="flex items-center justify-between gap-2 p-3 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100">
       <div className="min-w-0 flex-1 flex items-center gap-2">
@@ -197,49 +184,27 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
     }
   }, [organizationId, queryClient]);
 
-  useEffect(() => {
-    const path = companyLogoForm.logo_path;
-    if (!path?.trim()) {
-      setCompanyLogoPreviewUrl(null);
-      return;
-    }
-    let cancelled = false;
-    supabase.storage
-      .from('digital-asset-company-logos')
-      .createSignedUrl(path, 3600)
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.error(error);
-          setCompanyLogoPreviewUrl(null);
-          return;
-        }
-        setCompanyLogoPreviewUrl(data?.signedUrl ?? null);
-      });
-    return () => { cancelled = true; };
-  }, [companyLogoForm.logo_path]);
+  const { data: companyLogoPreviewSignedUrl } = useStorageSignedImageUrl({
+    bucket: "digital-asset-company-logos",
+    path: companyLogoForm.logo_path,
+    enabled: !companyLogoFile,
+    transform: { width: 160, height: 160, resize: "contain", quality: 80 },
+  });
 
   useEffect(() => {
-    const path = characterForm.reference_image_path;
-    if (!path?.trim()) {
-      setCharacterReferenceImageUrl(null);
-      return;
-    }
-    let cancelled = false;
-    supabase.storage
-      .from('digital-asset-character-images')
-      .createSignedUrl(path, 3600)
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.error(error);
-          setCharacterReferenceImageUrl(null);
-          return;
-        }
-        setCharacterReferenceImageUrl(data?.signedUrl ?? null);
-      });
-    return () => { cancelled = true; };
-  }, [characterForm.reference_image_path]);
+    if (companyLogoFile) return;
+    setCompanyLogoPreviewUrl(companyLogoPreviewSignedUrl ?? null);
+  }, [companyLogoFile, companyLogoPreviewSignedUrl]);
+
+  const { data: characterReferenceSignedUrl } = useStorageSignedImageUrl({
+    bucket: "digital-asset-character-images",
+    path: characterForm.reference_image_path,
+    transform: { width: 200, height: 200, resize: "contain", quality: 80 },
+  });
+
+  useEffect(() => {
+    setCharacterReferenceImageUrl(characterReferenceSignedUrl ?? null);
+  }, [characterReferenceSignedUrl]);
 
   const handleCharacterCreateNew = () => {
     setCharacterForm(emptyCharacterForm());
@@ -501,7 +466,9 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
         if (companyLogoFile) {
           const ext = getLogoExtension(companyLogoFile);
           const path = `${organizationId}/${id}.${ext}`;
-          const { error: uploadError } = await supabase.storage.from(bucket).upload(path, companyLogoFile, { upsert: true });
+          const { error: uploadError } = await supabase.storage
+            .from(bucket)
+            .upload(path, companyLogoFile, storageUploadOptions({ upsert: true, contentType: companyLogoFile.type }));
           if (uploadError) throw uploadError;
           logoPath = path;
         }
@@ -518,7 +485,9 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
         const id = crypto.randomUUID();
         const ext = getLogoExtension(companyLogoFile!);
         const path = `${organizationId}/${id}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from(bucket).upload(path, companyLogoFile!);
+        const { error: uploadError } = await supabase.storage
+          .from(bucket)
+          .upload(path, companyLogoFile!, storageUploadOptions({ contentType: companyLogoFile!.type }));
         if (uploadError) throw uploadError;
         const { error } = await supabase.from('digital_asset_company_logos').insert({
           id,

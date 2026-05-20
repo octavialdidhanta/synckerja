@@ -4,6 +4,8 @@ import { Button } from '@/shared/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/shared/components/ui/avatar';
 import { Camera, Upload, X, Loader2 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { storageUploadOptions } from '@/shared/lib/storageCacheControl';
+import { optimizePublicStorageImageUrl } from '@/shared/lib/storageDisplayUrl';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { toast } from 'sonner';
 
@@ -74,10 +76,7 @@ export const CompanyProfilePhoto = ({
       // Upload new file
       const { data, error } = await supabase.storage
         .from('company-profiles')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+        .upload(fileName, file, storageUploadOptions({ upsert: false, contentType: file.type }));
 
       if (error) {
         throw error;
@@ -166,8 +165,8 @@ export const CompanyProfilePhoto = ({
     <div className="relative inline-block flex-shrink-0">
       <div className="relative group">
         <Avatar className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 cursor-pointer">
-          <AvatarImage 
-            src={logoUrl || undefined} 
+          <AvatarImage
+            src={optimizePublicStorageImageUrl(logoUrl, { width: 128, resize: "contain", quality: 80 }) ?? undefined}
             alt={`${companyName} logo`}
             className="object-cover"
           />

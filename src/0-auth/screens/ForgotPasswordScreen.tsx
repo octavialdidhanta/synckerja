@@ -6,10 +6,9 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
-const defaultBrandMark = (
-  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-);
+const defaultBrandMark = <SynckerjaBrandLogo />;
 
 export type ForgotPasswordScreenProps = {
   brandMark?: ReactNode;

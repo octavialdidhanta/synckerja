@@ -112,12 +112,9 @@ export function LeadTemplateFollowUpDialog({
           .maybeSingle();
         let phone = String(leadRow?.phone_number ?? '').trim();
         if (!phone) {
-          const { data: profile } = await supabase
-            .from('lead_client_profiles')
-            .select('phone_number')
-            .eq('lead_id', lead.id)
-            .maybeSingle();
-          phone = String(profile?.phone_number ?? '').trim();
+          const { fetchLeadSubmissionForProfile } = await import('@/shared/lib/leadSubmissionProfile');
+          const submission = await fetchLeadSubmissionForProfile(lead.id, lead.organization_id);
+          phone = String(submission?.phone_number ?? '').trim();
         }
         setPhoneDigits(phone.replace(/\D/g, ''));
       } finally {

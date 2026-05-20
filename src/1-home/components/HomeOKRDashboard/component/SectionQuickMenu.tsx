@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parseAttendanceInstant } from '@/1-home/utils/attendanceDateTime';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { SimpleAttendanceCamera } from './SectionQuickMenuImport/SimpleAttendanceCamera';
 import { AttendanceStats } from './SectionQuickMenuImport/AttendanceStats';
 import { useAttendanceStatus } from './AttendanceStatusProvider';
-import { ModalPengajuanCutiKaryawan } from './SectionQuickMenuImport/ModalPengajuanCutiKaryawan';
+const ModalPengajuanCutiKaryawan = lazy(() =>
+  import('./SectionQuickMenuImport/ModalPengajuanCutiKaryawan').then((m) => ({
+    default: m.ModalPengajuanCutiKaryawan,
+  })),
+);
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { Clock, Camera, BarChart3, Users, Folder } from 'lucide-react';
 import { toast } from 'sonner';
@@ -198,12 +202,15 @@ export const SectionQuickMenu = ({
         </div>
       </CardContent>
       
-      {/* Modal Pengajuan Cuti */}
-      <ModalPengajuanCutiKaryawan
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-        onSubmit={handleStatusCreated}
-      />
+      {isModalOpen ? (
+        <Suspense fallback={null}>
+          <ModalPengajuanCutiKaryawan
+            isOpen={isModalOpen}
+            onClose={handleModalClose}
+            onSubmit={handleStatusCreated}
+          />
+        </Suspense>
+      ) : null}
     </Card>
   );
 };

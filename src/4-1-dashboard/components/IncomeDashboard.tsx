@@ -1,16 +1,26 @@
-import { useState, useMemo, useEffect } from 'react';
+import { lazy, Suspense, useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Calendar, TrendingUp, DollarSign, Target, Clock, History, ChevronDown } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts';
 import { useIncomeMetrics, useIncomeTransactions, useMonthlyIncomeData } from '../hooks';
 import { useIncomeMasterData } from '../hooks/useIncomeMasterData';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { formatBankInstitutionAccountLine } from '@/4-1-dashboard/utils/formatBankInstitutionAccountLine';
-import { IncomeVsExpensesChart } from './IncomeVsExpensesChart';
+const IncomeVsExpensesChart = lazy(() =>
+  import('./IncomeVsExpensesChart').then((m) => ({ default: m.IncomeVsExpensesChart })),
+);
+const IncomeDashboardMonthlyTrendChart = lazy(() =>
+  import('./IncomeDashboardMonthlyTrendChart').then((m) => ({
+    default: m.IncomeDashboardMonthlyTrendChart,
+  })),
+);
+
+const ChartSectionFallback = () => (
+  <div className="min-h-[240px] w-full animate-pulse rounded-lg bg-muted/60" aria-hidden />
+);
 import { RecentIncomeOverview } from './RecentIncomeOverview';
 import { IncomeTransactionWithRelations } from '../types';
 import { useBankAccounts, type BankAccount } from '@/shared/hooks/finance/useBankAccounts';
@@ -704,54 +714,9 @@ export function IncomeDashboard() {
             </div>
 
             <div className="min-h-[240px] w-full min-w-0 max-w-full shrink-0">
-              {monthlyData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={240} className="max-w-full min-w-0">
-                  <LineChart data={monthlyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="month"
-                      tickFormatter={(value) => value.split(' ')[0]}
-                      fontSize={10}
-                      stroke="#6b7280"
-                      tickLine={false}
-                    />
-                    <YAxis
-                      fontSize={10}
-                      stroke="#6b7280"
-                      tickLine={false}
-                      width={58}
-                      tick={{ style: { whiteSpace: 'nowrap' } }}
-                      tickFormatter={(value) => {
-                        const nbsp = '\u00A0';
-                        if (value >= 1000000) return `Rp${nbsp}${(value / 1000000).toFixed(1)}jt`;
-                        if (value >= 1000) return `Rp${nbsp}${(value / 1000).toFixed(0)}rb`;
-                        return `Rp${nbsp}${value.toLocaleString('id-ID')}`;
-                      }}
-                    />
-                    <Tooltip
-                      formatter={(value: number) => [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Income']}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="hsl(var(--brand-blue))"
-                      strokeWidth={2}
-                      dot={{ fill: 'hsl(var(--brand-blue))', strokeWidth: 2, r: 3 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full min-h-[120px] bg-gray-100 rounded flex items-center justify-center">
-                  <span className="text-gray-500 text-sm">No income data available for this year</span>
-                </div>
-              )}
+              <Suspense fallback={<ChartSectionFallback />}>
+                <IncomeDashboardMonthlyTrendChart data={monthlyData} />
+              </Suspense>
             </div>
 
             <div className="flex items-center mt-1 flex-shrink-0">
@@ -766,7 +731,9 @@ export function IncomeDashboard() {
               <div className="mb-2 grid min-h-0 min-w-0 grid-cols-1 gap-2 lg:min-h-[18rem] lg:grid-cols-2 lg:items-stretch">
                 {/* Kiri: Income vs. Expenses */}
                 <div className="flex h-full min-h-0 min-w-0 flex-col">
-                  <IncomeVsExpensesChart />
+                  <Suspense fallback={<ChartSectionFallback />}>
+                    <IncomeVsExpensesChart />
+                  </Suspense>
                 </div>
                 {/* Kanan: Net Income per Bank Account — daftar scroll di dalam kartu supaya tidak meluber */}
                 <div className="flex min-h-0 min-w-0 flex-col">

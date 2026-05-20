@@ -11,11 +11,17 @@ import { SubService, Service } from '../../../types/social-media';
 interface SubServiceManagerProps {
   onDataChange: () => void;
   services: Service[];
+  /** Pre-select parent service when adding from a line that already has a service. */
+  defaultServiceId?: string;
+  /** Called after a new category (sub-service) is created. */
+  onCreated?: (name: string) => void;
 }
 
-export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(({ onDataChange, services }) => {
+export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
+  ({ onDataChange, services, defaultServiceId = '', onCreated }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [draftName, setDraftName] = useState('');
   const [modalData, setModalData] = useState<{
     open: boolean;
     mode: 'add' | 'edit';
@@ -29,44 +35,29 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(({
   const [subServices, setSubServices] = useState<SubService[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const { loading, fetchData, addData, updateData, deleteData } = useMasterData('sub_services');
-  const hasLoadedRef = React.useRef(false);
 
-  // Stable load function - only load once on mount
   const loadSubServices = useCallback(async () => {
-    if (hasLoadedRef.current) return; // Prevent duplicate loads
-    hasLoadedRef.current = true;
-    try {
-      const { logger } = await import('@/shared/lib/logger');
-      logger.rateLimited('subsvc-load', 3000, () => logger.debug('Loading sub services...'));
-    } catch {
-      console.log('Loading sub services...');
-    }
     const data = await fetchData();
-    try {
-      const { logger } = await import('@/shared/lib/logger');
-      logger.rateLimited('subsvc-loaded', 3000, () => logger.debug('Sub services loaded:', data));
-    } catch {
-      console.log('Sub services loaded:', data);
-    }
     setSubServices(data as SubService[]);
   }, [fetchData]);
 
-  // Load data only once on mount
   useEffect(() => {
-    loadSubServices();
-  }, []); // Empty deps - only run on mount
+    void loadSubServices();
+  }, [loadSubServices]);
 
   const handleAdd = useCallback(() => {
+    setDraftName('');
     setModalData({
       open: true,
       mode: 'add',
       item: null
     });
-    setSelectedServiceId('');
+    setSelectedServiceId(defaultServiceId || '');
     setIsOpen(false);
-  }, []);
+  }, [defaultServiceId]);
 
   const handleEdit = useCallback((item: SubService) => {
+    setDraftName(item.name);
     setModalData({
       open: true,
       mode: 'edit',
@@ -87,20 +78,21 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(({
     setIsOpen(false);
   }, [deleteData, loadSubServices, onDataChange]);
 
-  const handleSave = useCallback(async (name: string) => {
+  const handleSave = useCallback(async () => {
+    const name = draftName.trim();
+    if (!name) return;
+
     if (!selectedServiceId && modalData.mode === 'add') {
       alert('Please select a service first');
       return;
     }
 
     let success = false;
-    
+
     if (modalData.mode === 'add') {
-      // For add mode, we need to include service_id
       const customData = { service_id: selectedServiceId };
       success = await addData(name, customData);
     } else if (modalData.item) {
-      // For edit mode, we might need to update service_id too
       const customData = { service_id: selectedServiceId };
       success = await updateData(modalData.item.id, name, customData);
     }
@@ -108,12 +100,26 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(({
     if (success) {
       await loadSubServices();
       onDataChange();
+      if (modalData.mode === 'add') {
+        onCreated?.(name);
+      }
+      setDraftName('');
       setModalData({ open: false, mode: 'add', item: null });
       setSelectedServiceId('');
     }
-  }, [modalData, selectedServiceId, addData, updateData, loadSubServices, onDataChange]);
+  }, [
+    modalData,
+    draftName,
+    selectedServiceId,
+    addData,
+    updateData,
+    loadSubServices,
+    onDataChange,
+    onCreated,
+  ]);
 
   const handleCloseModal = useCallback(() => {
+    setDraftName('');
     setModalData({ open: false, mode: 'add', item: null });
     setSelectedServiceId('');
   }, []);
@@ -286,21 +292,28 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(({
 
       {/* Enhanced Modal with Service Selection */}
       {modalData.open && createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999999]">
-          <div className="bg-white rounded-lg p-6 w-96 relative z-[1000000]">
-            <h2 className="text-lg font-semibold mb-4">
+        <div
+          className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/50"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div
+            className="relative w-96 rounded-lg bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-4 text-lg font-semibold">
               {modalData.mode === 'add' ? 'Add Sub Service' : 'Edit Sub Service'}
             </h2>
-            
-            {/* Service Selection */}
+
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
                 Service *
               </label>
               <select
                 value={selectedServiceId}
                 onChange={(e) => setSelectedServiceId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
                 <option value="">Select a service...</option>
@@ -312,21 +325,21 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(({
               </select>
             </div>
 
-            {/* Sub Service Name Input */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
                 Sub Service Name *
               </label>
               <input
                 type="text"
-                defaultValue={modalData.item?.name || ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter sub service name"
+                autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    const target = e.target as HTMLInputElement;
-                    handleSave(target.value);
+                    void handleSave();
                   }
                 }}
               />
@@ -341,13 +354,8 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(({
                 Cancel
               </Button>
               <Button
-                onClick={() => {
-                  const input = document.querySelector('input[placeholder="Enter sub service name"]') as HTMLInputElement;
-                  if (input?.value) {
-                    handleSave(input.value);
-                  }
-                }}
-                disabled={loading}
+                onClick={() => void handleSave()}
+                disabled={loading || !draftName.trim() || (modalData.mode === 'add' && !selectedServiceId)}
               >
                 {loading ? 'Saving...' : 'Save'}
               </Button>

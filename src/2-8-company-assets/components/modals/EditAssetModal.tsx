@@ -113,7 +113,7 @@ export const EditAssetModal = ({ isOpen, onClose, onSave, asset }: EditAssetModa
       const { data, error } = await supabase.storage
         .from(bucketName)
         .upload(fileName, file, {
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: false
         });
 

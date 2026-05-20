@@ -1,10 +1,15 @@
 import { lazy, Suspense } from "react";
 import { SectionMotivation } from "../components/SectionMotivation";
 import { SectionProfile } from "../components/SectionProfile";
-import { HomeOKRDashboard } from "../components/HomeOKRDashboard/HomeOKRDashboard";
 import { OKRSectionVisibilityProvider } from "../components/HomeOKRDashboard/OKRSectionVisibilityContext";
 import { DeferredMount } from "@/shared/components/DeferredMount";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+
+const HomeOKRDashboard = lazy(() =>
+  import("../components/HomeOKRDashboard/HomeOKRDashboard").then((m) => ({
+    default: m.HomeOKRDashboard,
+  })),
+);
 
 const SectionActivityNotifikasi = lazy(() =>
   import("../components/SectionActivityNotifikasi").then((m) => ({
@@ -59,6 +64,19 @@ function StatusSectionPlaceholder() {
   );
 }
 
+function OkrPanelPlaceholder() {
+  return (
+    <div
+      className="flex h-full min-h-[min(70vh,520px)] flex-col gap-2 rounded-lg border border-border bg-card p-3"
+      aria-hidden
+    >
+      <Skeleton className="h-[88px] w-full rounded-lg" />
+      <Skeleton className="h-9 w-full rounded-md" />
+      <Skeleton className="min-h-[280px] flex-1 rounded-lg" />
+    </div>
+  );
+}
+
 /**
  * Tanpa overlay skeleton penuh di atas konten — overlay opacity menunda LCP (teks OKR tidak terhitung).
  * Loading per-section + guard/Suspense di luar route.
@@ -93,7 +111,9 @@ export function HomeScreen({ layoutVariant = "desktop" }: { layoutVariant?: Home
 function HomeOkrPanel() {
   return (
     <OKRSectionVisibilityProvider>
-      <HomeOKRDashboard />
+      <Suspense fallback={<OkrPanelPlaceholder />}>
+        <HomeOKRDashboard />
+      </Suspense>
     </OKRSectionVisibilityProvider>
   );
 }

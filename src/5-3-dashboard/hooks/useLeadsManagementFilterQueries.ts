@@ -28,6 +28,29 @@ export function buildLeadSourceFilterOptions(
   );
 }
 
+/** Opsi filter Services: master sub-services + nilai `lead.services` yang ada di data. */
+export function buildServicesFilterOptions(
+  leads: Array<{ services?: string | null }>,
+  masterServices: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  const byName = new Map<string, { id: string; name: string }>();
+  for (const s of masterServices) {
+    const n = (s.name ?? "").trim();
+    if (n) byName.set(n, { id: s.id, name: n });
+  }
+  let seq = 0;
+  for (const l of leads) {
+    const n = (l.services ?? "").trim();
+    if (!n) continue;
+    if (!byName.has(n)) {
+      byName.set(n, { id: `__services_lead__${seq++}`, name: n });
+    }
+  }
+  return [...byName.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
 /** Opsi filter Assignee: roster omnichannel + `lead.assignee` yang ada di data. */
 export function buildAssigneeFilterOptions(
   leads: Array<{ assignee?: string | null }>,
@@ -57,7 +80,7 @@ export function buildUniqueLeadStatusFilterOptions(
 ): Array<{ id: string; name: string; label: string }> {
   const excluded = leadStatuses.filter((s) => {
     const name = (s.name?.trim().toLowerCase() ?? "");
-    return name !== "lost" && name !== "qualified";
+    return name !== "lost" && name !== "qualified" && name !== "closed" && name !== "resolve";
   });
   const canonical = ["Open", "Unread", "In Progress", "Converted", "Qualified", "Closed", "Resolve"];
   const byDisplay = (

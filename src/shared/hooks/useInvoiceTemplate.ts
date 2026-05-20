@@ -38,14 +38,23 @@ export const useInvoiceTemplate = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
+      const row = {
+        organization_id: organizationId,
+        template_name: formData.template_name.trim(),
+        company_name: formData.company_name?.trim() || null,
+        company_phone: formData.company_phone?.trim() || null,
+        company_email: formData.company_email?.trim() || null,
+        company_address: formData.company_address?.trim() || null,
+        invoice_description: formData.invoice_description?.trim() || null,
+        company_logo_path: formData.company_logo_path?.trim() || null,
+        company_signature_path: formData.company_signature_path?.trim() || null,
+        created_by: user.id,
+        is_active: true,
+      };
+
       const { data, error } = await supabase
         .from("invoice_templates")
-        .insert({
-          ...formData,
-          organization_id: organizationId,
-          created_by: user.id,
-          is_active: true,
-        })
+        .insert(row)
         .select()
         .single();
 

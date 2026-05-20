@@ -18,8 +18,8 @@ export type HomeSectionId =
   | "activity"
   | "status";
 
-/** Section yang harus siap sebelum skeleton penuh hilang (tanpa flicker). */
-const BLOCKING_HOME_SECTIONS: HomeSectionId[] = ["motivation", "profile", "okr"];
+/** Section yang harus siap sebelum skeleton penuh hilang. OKR dimuat terpisah (lazy). */
+const BLOCKING_HOME_SECTIONS: HomeSectionId[] = ["motivation", "profile"];
 
 export type HomeSectionStatus = {
   loading: boolean;

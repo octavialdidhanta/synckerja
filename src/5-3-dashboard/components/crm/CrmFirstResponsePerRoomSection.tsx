@@ -373,21 +373,12 @@ export function CrmFirstResponsePerRoomSection() {
             ) : pageRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                  {rows.length === 0 ? (
-                    <span className="block max-w-xl mx-auto leading-relaxed">
-                      <span className="font-medium text-foreground">Belum ada baris dari database.</span> Tabel ini
-                      memakai <span className="font-mono">get_crm_first_response_time_per_room</span> — hanya percakapan
-                      yang punya siklus di{' '}
-                      <span className="font-mono">whatsapp_conversation_cycles</span>,{' '}
-                      <span className="font-mono">instagram_conversation_cycles</span>, atau{' '}
-                      <span className="font-mono">email_conversation_cycles</span>. Lead di Leads Management yang murni
-                      dari <span className="font-medium">Website</span> (tanpa room dengan siklus tercatat) memang tidak
-                      tampil. Coba filter <span className="font-medium">Semua periode</span> atau uji dengan percakapan
-                      live chat yang sudah pernah inbound.
-                    </span>
-                  ) : (
-                    'Tidak ada baris untuk filter saat ini — perluas periode, channel, atau kata pencarian.'
-                  )}
+                  {rows.length === 0
+                    ? t('crm.tables.noData', 'Belum ada data.')
+                    : t(
+                        'crm.tables.noRowsForFilter',
+                        'Tidak ada baris untuk filter saat ini.',
+                      )}
                 </TableCell>
               </TableRow>
             ) : (

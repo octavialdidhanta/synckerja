@@ -17,7 +17,13 @@ import { EditLeadDialog } from "@/5-3-dashboard/components/leads/dialogs/EditLea
 import { ViewLeadDialog } from "@/5-3-dashboard/components/leads/dialogs/ViewLeadDialog";
 import { ClientProfilePopup } from "@/5-3-dashboard/components/leads/dialogs/ClientProfilePopup";
 import { LeadStatusHistoryDialog } from "@/5-3-dashboard/components/leads/dialogs/LeadStatusHistoryDialog";
-import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
+import {
+  getLeadTableStatusPresentation,
+  isResolvedLeadStatusName,
+} from '@/5-1-leads-management/utils/leadStatusDisplay';
+
+/** Hijau pekat untuk badge Converted & Resolve di tabel leads */
+const LEAD_SOLID_GREEN_BADGE = 'bg-green-700 text-white border-green-800';
 import { useClientProfileStatus } from '@/shared/hooks/organized/sales';
 import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { useLeadStatusesActiveFull } from "@/5-3-dashboard/hooks/useLeadsManagementFilterQueries";
@@ -83,9 +89,16 @@ type StatusColumnFilterConfig = {
 
 export type { SurveyRatingFilterValue as SurveyRatingColumnFilterValue } from "@/features/customer-survey/core/surveyRatingFilter";
 
+export type ResolveColumnFilterValue = "all" | "true" | "false";
+
 type SurveyColumnFilterConfig = {
   value: SurveyRatingColumnFilterValue;
   onChange: (value: SurveyRatingColumnFilterValue) => void;
+};
+
+type ResolveColumnFilterConfig = {
+  value: ResolveColumnFilterValue;
+  onChange: (value: ResolveColumnFilterValue) => void;
 };
 
 /** UTM / string attribution: nilai filter = string field lead (sama seperti bar filter lama). */
@@ -116,6 +129,7 @@ interface LeadsTableNewProps {
   onAttributionSort?: (column: LeadAttributionSortColumn) => void;
   /** Filter kategori di header kolom (filter bar atas tidak memakai Select category). */
   categoryColumnFilter?: CategoryColumnFilterConfig | null;
+  servicesColumnFilter?: CategoryColumnFilterConfig | null;
   sourceColumnFilter?: SourceColumnFilterConfig | null;
   createdByColumnFilter?: CreatedByColumnFilterConfig | null;
   assigneeColumnFilter?: AssigneeColumnFilterConfig | null;
@@ -127,11 +141,13 @@ interface LeadsTableNewProps {
   utmContentColumnFilter?: UtmStringColumnFilterConfig | null;
   utmTermColumnFilter?: UtmStringColumnFilterConfig | null;
   attributionLabelColumnFilter?: UtmStringColumnFilterConfig | null;
+  gclidColumnFilter?: UtmStringColumnFilterConfig | null;
   landingUrlContainsColumnFilter?: LandingUrlContainsColumnFilterConfig | null;
   /** Latest customer survey per WhatsApp conversation (leads page hook or RPC fields in picker). */
   getSurveyForLead?: (lead: NewLead) => LatestCustomerSurvey | null;
   onOpenSurveyHistory?: (lead: NewLead) => void;
   surveyColumnFilter?: SurveyColumnFilterConfig | null;
+  resolveColumnFilter?: ResolveColumnFilterConfig | null;
   /** Campaign recipient picker: checkbox column + read-only cells (no CRM mutations). */
   pickerSelection?: {
     selectedPhoneKeys: ReadonlySet<string>;
@@ -140,6 +156,8 @@ interface LeadsTableNewProps {
     getPhoneKey: (lead: NewLead) => string;
     /** Recipient list contact picker: reuse Title column slot for WhatsApp display phone (`_display_phone`). */
     replaceTitleColumnWithPhone?: boolean;
+    /** Recipient list contact picker: show Email column immediately after phone (`_display_email`). */
+    showEmailColumn?: boolean;
   } | null;
 }
 
@@ -156,6 +174,7 @@ export default function LeadsTableNew({
   attributionSort = defaultLeadAttributionSortState,
   onAttributionSort,
   categoryColumnFilter,
+  servicesColumnFilter,
   sourceColumnFilter,
   createdByColumnFilter,
   assigneeColumnFilter,
@@ -167,10 +186,12 @@ export default function LeadsTableNew({
   utmContentColumnFilter,
   utmTermColumnFilter,
   attributionLabelColumnFilter,
+  gclidColumnFilter,
   landingUrlContainsColumnFilter,
   getSurveyForLead,
   onOpenSurveyHistory,
   surveyColumnFilter,
+  resolveColumnFilter,
   pickerSelection = null,
 }: LeadsTableNewProps) {
   const { t } = useAppTranslation();
@@ -443,12 +464,23 @@ export default function LeadsTableNew({
       pickerSelection?.replaceTitleColumnWithPhone === true
         ? t("whatsappTemplates.recipientLists.addContactsModal.colPhone", "Phone number")
         : "Title";
+    const contactEmailCol: TableHeadCol[] =
+      pickerSelection?.showEmailColumn === true
+        ? [
+            {
+              key: "contact_email",
+              label: t("whatsappTemplates.recipientLists.addContactsModal.colEmail", "Email"),
+              width: "w-[200px] max-w-[220px]",
+            },
+          ]
+        : [];
     return [
       ...pick,
       { key: "created", label: "Created", width: "w-[100px]", sortKey: "created_at" },
       { key: "ticket", label: "Ticket ID", width: "w-[120px]", sortKey: "ticket_id" },
       { key: "client", label: "Client", width: "w-[150px]", sortKey: "client" },
       { key: "title", label: titleLabel, width: "w-[200px]", sortKey: "title" },
+      ...contactEmailCol,
       { key: "services", label: "Services", width: "w-[280px] max-w-[280px]", sortKey: "services" },
       { key: "category", label: "Category", width: "w-[200px] max-w-[200px]", sortKey: "category" },
       { key: "created_by", label: "Created By", width: "w-[120px]", sortKey: "created_by_name" },
@@ -465,6 +497,11 @@ export default function LeadsTableNew({
       { key: "followup", label: "Follow Up", width: "min-w-[124px] w-[124px]", sortKey: "followup" },
       { key: "fu_priority", label: "FU Priority", width: "w-[120px]", sortKey: "fu_priority" },
       { key: "status", label: "Status", width: "w-[120px]", sortKey: "status" },
+      {
+        key: "resolve_outcome",
+        label: t("leadsManagement.table.isResolve", "Is Resolve?"),
+        width: "w-[148px]",
+      },
       {
         key: "survey_rating",
         label: t("leadsManagement.table.surveyRating", "Rating"),
@@ -492,6 +529,34 @@ export default function LeadsTableNew({
     [t],
   );
 
+  const resolveIsFilterOptions = useMemo(
+    () => [
+      { key: "resolve-true", value: "true" as const, label: t("leadsManagement.filters.resolveTrue", "True") },
+      { key: "resolve-false", value: "false" as const, label: t("leadsManagement.filters.resolveFalse", "False") },
+    ],
+    [t],
+  );
+
+  const getStatusColorByName = (statusName: string) => {
+    if (statusName.trim().toLowerCase() === 'converted') {
+      return LEAD_SOLID_GREEN_BADGE;
+    }
+    const statusData = leadStatuses.find((s) => (s.name ?? "").trim().toLowerCase() === statusName.trim().toLowerCase());
+    if (statusData?.color) {
+      const colorMap: Record<string, string> = {
+        '#F59E0B': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+        '#10B981': LEAD_SOLID_GREEN_BADGE,
+        '#059669': LEAD_SOLID_GREEN_BADGE,
+        '#EF4444': 'bg-red-50 text-red-700 border-red-200',
+        '#6B7280': 'bg-gray-50 text-gray-700 border-gray-200',
+        '#78716C': 'bg-stone-50 text-stone-700 border-stone-200',
+        '#3B82F6': 'bg-blue-50 text-blue-700 border-blue-200',
+      };
+      return colorMap[statusData.color] ?? 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+    return 'bg-gray-50 text-gray-700 border-gray-200';
+  };
+
   const renderAttributionSortHead = (header: TableHeadCol) => {
     const sk = header.sortKey;
     if (!sk) return header.label;
@@ -513,6 +578,49 @@ export default function LeadsTableNew({
       </button>
     );
   };
+
+  const renderResolveColumnFilterDropdown = (
+    filterValue: ResolveColumnFilterValue,
+    onFilterChange: (v: ResolveColumnFilterValue) => void,
+    allLabel: string,
+    entries: Array<{ key: string; value: "true" | "false"; label: string }>,
+    ariaLabel: string,
+  ) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 text-gray-500 hover:text-gray-900"
+          aria-label={ariaLabel}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <ListFilter
+            className={cn("h-3.5 w-3.5", filterValue !== "all" && "text-primary")}
+            aria-hidden
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem
+          onSelect={() => onFilterChange("all")}
+          className={cn(filterValue === "all" && "bg-accent")}
+        >
+          {allLabel}
+        </DropdownMenuItem>
+        {entries.map((e) => (
+          <DropdownMenuItem
+            key={e.key}
+            onSelect={() => onFilterChange(e.value)}
+            className={cn(filterValue === e.value && "bg-accent")}
+          >
+            {e.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   const renderLeadColumnFilterDropdown = (
     filterValue: string,
@@ -569,6 +677,20 @@ export default function LeadsTableNew({
           aria-label={t("whatsappTemplates.recipientLists.addContactsModal.selectAllAria")}
           className="translate-y-0.5"
         />
+      );
+    }
+    if (header.key === "services" && servicesColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            servicesColumnFilter.value,
+            servicesColumnFilter.onChange,
+            t("leadsManagement.filters.allServices", "All Services"),
+            servicesColumnFilter.options.map((o) => ({ key: o.id, value: o.name, label: o.name })),
+            t("leadsManagement.table.filterServices", "Filter services"),
+          )}
+        </div>
       );
     }
     if (header.key === "category" && categoryColumnFilter) {
@@ -659,19 +781,38 @@ export default function LeadsTableNew({
         </div>
       );
     }
-    if (header.key === "survey_rating" && surveyColumnFilter) {
+    if (header.key === "resolve_outcome") {
       return (
         <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
           <span className="min-w-0 truncate font-medium text-gray-700">{header.label}</span>
-          {renderLeadColumnFilterDropdown(
-            surveyColumnFilter.value,
-            (v) => surveyColumnFilter.onChange(v as SurveyRatingColumnFilterValue),
-            t("leadsManagement.filters.allSurveyRatings", "All ratings"),
-            surveyRatingFilterOptions,
-            t("leadsManagement.table.filterSurveyRating", "Filter rating"),
-          )}
+          {resolveColumnFilter
+            ? renderResolveColumnFilterDropdown(
+                resolveColumnFilter.value,
+                resolveColumnFilter.onChange,
+                t("leadsManagement.filters.allIsResolve", "All status"),
+                resolveIsFilterOptions,
+                t("leadsManagement.table.filterIsResolve", "Filter is resolve"),
+              )
+            : null}
         </div>
       );
+    }
+    if (header.key === "survey_rating") {
+      if (surveyColumnFilter) {
+        return (
+          <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+            {renderAttributionSortHead(header)}
+            {renderLeadColumnFilterDropdown(
+              surveyColumnFilter.value,
+              (v) => surveyColumnFilter.onChange(v as SurveyRatingColumnFilterValue),
+              t("leadsManagement.filters.allSurveyRatings", "All ratings"),
+              surveyRatingFilterOptions,
+              t("leadsManagement.table.filterSurveyRating", "Filter rating"),
+            )}
+          </div>
+        );
+      }
+      return renderAttributionSortHead(header);
     }
     if (header.key === "survey_history") {
       return (
@@ -844,6 +985,24 @@ export default function LeadsTableNew({
         </div>
       );
     }
+    if (header.key === "gclid" && gclidColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            gclidColumnFilter.value,
+            gclidColumnFilter.onChange,
+            t("leadsManagement.filters.allGclids", "All gclids"),
+            gclidColumnFilter.options.map((name, i) => ({
+              key: `gclid-${i}-${name.slice(0, 24)}`,
+              value: name,
+              label: name.length > 48 ? `${name.slice(0, 45)}…` : name,
+            })),
+            t("leadsManagement.table.filterGclid", "Filter gclid"),
+          )}
+        </div>
+      );
+    }
     return renderAttributionSortHead(header);
   };
 
@@ -883,8 +1042,13 @@ export default function LeadsTableNew({
               leads.map((lead) => {
                 const phoneKey = pickerSelection ? pickerSelection.getPhoneKey(lead) : "";
                 const showPhoneInsteadOfTitle = pickerSelection?.replaceTitleColumnWithPhone === true;
+                const showEmailColumn = pickerSelection?.showEmailColumn === true;
                 const rowDisplayPhone = showPhoneInsteadOfTitle
                   ? (lead as NewLead & { _display_phone?: string | null })._display_phone
+                  : undefined;
+                const rowDisplayEmail = showEmailColumn
+                  ? (lead as NewLead & { _display_email?: string | null; email?: string | null })
+                      ._display_email ?? (lead as NewLead & { email?: string | null }).email
                   : undefined;
                 return (
                 <TableRow key={lead.id} className="hover:bg-muted/30">
@@ -942,6 +1106,18 @@ export default function LeadsTableNew({
                       </span>
                     )}
                   </TableCell>
+                  {showEmailColumn ? (
+                    <TableCell
+                      className="w-[200px] max-w-[220px] min-w-0 overflow-hidden align-middle text-sm"
+                    >
+                      <span
+                        className="block truncate leading-normal"
+                        title={rowDisplayEmail?.trim() ? rowDisplayEmail : undefined}
+                      >
+                        {rowDisplayEmail?.trim() ? rowDisplayEmail : "—"}
+                      </span>
+                    </TableCell>
+                  ) : null}
                   <TableCell className="w-[280px] max-w-[280px] min-w-0 overflow-hidden align-middle">
                     <span className="text-sm leading-normal block truncate" title={(lead.services ?? '').trim() || undefined}>
                       {lead.services?.trim() ? lead.services : '-'}
@@ -1054,36 +1230,54 @@ export default function LeadsTableNew({
                   </TableCell>
                   {/* FU Priority Column (same for regular + WhatsApp) */}
                   <TableCell className="whitespace-nowrap">{renderFuPriorityBadge(lead)}</TableCell>
-                  {/* Status Column - Read-only badge from lead_statuses; no dropdown. Change status via Edit lead or View detail. */}
+                  {/* Status — Unread / In Progress / Converted / Expired (bukan label Resolve) */}
                   <TableCell className="whitespace-nowrap">
-                    {pickerSelection ? (
-                      <Badge className={`${getStatusColor(lead)} text-xs px-3 py-1 rounded-sm font-medium border w-28 justify-center`}>
-                        {getLeadStatusDisplayName(
-                          lead.lead_status?.name ||
-                          leadStatuses.find(s => s.id === lead.status_id)?.name ||
-                          (leadStatuses.length > 0 ? leadStatuses[0].name : 'Open')
-                        )}
-                      </Badge>
-                    ) : (
-                    <div className="flex items-center gap-2">
-                      <Badge className={`${getStatusColor(lead)} text-xs px-3 py-1 rounded-sm font-medium border w-28 justify-center`}>
-                        {getLeadStatusDisplayName(
-                          lead.lead_status?.name ||
-                          leadStatuses.find(s => s.id === lead.status_id)?.name ||
-                          (leadStatuses.length > 0 ? leadStatuses[0].name : 'Open')
-                        )}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 hover:bg-muted"
-                        onClick={() => handleStatusHistoryClick(lead)}
-                        title={t('leadsManagement.viewStatusHistory', 'Lihat riwayat status')}
-                      >
-                        <Clock className="h-3 w-3 text-gray-600" />
-                      </Button>
-                    </div>
-                    )}
+                    {(() => {
+                      const { displayName: statusLabel, colorStatusName } = getLeadTableStatusPresentation(lead);
+                      const statusBadgeClass = getStatusColorByName(colorStatusName);
+                      if (pickerSelection) {
+                        return (
+                          <Badge
+                            className={`${statusBadgeClass} text-xs px-3 py-1 rounded-sm font-medium border w-28 justify-center`}
+                          >
+                            {statusLabel}
+                          </Badge>
+                        );
+                      }
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={`${statusBadgeClass} text-xs px-3 py-1 rounded-sm font-medium border w-28 justify-center`}
+                          >
+                            {statusLabel}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-muted"
+                            onClick={() => handleStatusHistoryClick(lead)}
+                            title={t("leadsManagement.viewStatusHistory", "Lihat riwayat status")}
+                          >
+                            <Clock className="h-3 w-3 text-gray-600" />
+                          </Button>
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap px-1">
+                    {(() => {
+                      const rawStatus = (lead.lead_status?.name ?? leadStatuses.find((s) => s.id === lead.status_id)?.name ?? "").trim();
+                      if (!isResolvedLeadStatusName(rawStatus)) {
+                        return <span className="inline-flex w-[132px] justify-center text-sm text-muted-foreground">—</span>;
+                      }
+                      return (
+                        <Badge
+                          className={`${LEAD_SOLID_GREEN_BADGE} text-xs px-2.5 py-1 rounded-sm font-medium border w-[132px] justify-center`}
+                        >
+                          {t("leadsManagement.resolve.badge", "Resolve")}
+                        </Badge>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="whitespace-nowrap px-2 py-1 align-middle">
                     <LeadSurveyRatingCell

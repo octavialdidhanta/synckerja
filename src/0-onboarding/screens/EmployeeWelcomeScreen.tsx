@@ -2,12 +2,11 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/shared/components/ui/button";
 import type { ReactNode } from "react";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
 const brandRed = "hsl(var(--brand-red))";
 
-const defaultBrand = (
-  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-);
+const defaultBrand = <SynckerjaBrandLogo />;
 
 export function EmployeeWelcomeSpinner() {
   return (

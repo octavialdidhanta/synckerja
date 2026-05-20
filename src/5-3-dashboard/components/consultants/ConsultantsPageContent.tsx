@@ -77,6 +77,7 @@ export const ConsultantsPageContent = () => {
     matchesSurveyRatingFilter,
     surveyHistoryDialogProps,
     refreshSurveyData,
+    surveyRatingByLeadId,
   } = useLeadsTableSurveyIntegration(organizationId, leads);
   const { clientStatuses, clientProfiles } = useLeadClientStatuses(leads);
 
@@ -315,8 +316,11 @@ export const ConsultantsPageContent = () => {
   }, [leads, filters, clientStatuses, matchesSurveyRatingFilter]);
 
   const sortedLeads = useMemo(
-    () => sortLeadsByAttributionColumn(filteredLeads, attributionSort),
-    [filteredLeads, attributionSort],
+    () =>
+      sortLeadsByAttributionColumn(filteredLeads, attributionSort, {
+        getSurveyRating: (lead) => surveyRatingByLeadId.get(String(lead.id ?? "")) ?? null,
+      }),
+    [filteredLeads, attributionSort, surveyRatingByLeadId],
   );
 
   const convertedLeads = filteredLeads.filter(lead => (lead.lead_status?.name?.trim().toLowerCase() ?? '') === 'converted').length;

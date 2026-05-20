@@ -7,6 +7,9 @@ import type { LatestCustomerSurvey } from "@/features/customer-survey/hooks/useC
 export type RecipientPickerRpcItem = NewLead & {
   _phone_normalized: string;
   _display_phone: string;
+  /** From `lead_submissions.email` (submitted then draft). */
+  email?: string | null;
+  _display_email?: string | null;
   _conversation_id: string | null;
   _picker_origin: "lead" | "livechat";
   _lead_id: string | null;

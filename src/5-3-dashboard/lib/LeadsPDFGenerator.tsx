@@ -1,7 +1,7 @@
-import jsPDF from 'jspdf';
 import { NewLead } from '@/shared/types/leads';
 import { format } from 'date-fns';
-import { LeadsFilters } from "@/5-3-dashboard/components/leads/filters/LeadsFilters";
+import type { LeadsFilters } from "@/5-3-dashboard/components/leads/filters/LeadsFilters";
+import { loadPdfKit } from "@/shared/lib/pdf/loadPdfKit";
 
 export interface FilteredData {
   leads: NewLead[];
@@ -18,12 +18,13 @@ export interface FilteredData {
     sourceAnalysis: Array<{source: string, count: number, percentage: number}>;
     servicesAnalysis: Array<{service: string, count: number}>;
     locationAnalysis: Array<{location: string, count: number}>;
-    statusAnalysis: Array<{status: string, count: number}>;
+    statusAnalysis: Array<{ status: string; displayName?: string; count: number }>;
     employeeAnalysis: Array<{employee: string, totalLeads: number, convertedLeads: number, conversionRate: number}>;
   };
 }
 
 export const generateLeadsPDF = async (data: FilteredData): Promise<void> => {
+  const { jsPDF } = await loadPdfKit();
   const doc = new jsPDF();
   
   // Page settings
@@ -83,9 +84,10 @@ export const generateLeadsPDF = async (data: FilteredData): Promise<void> => {
   
   // Status analysis using metrics  
   const statusAnalysis = data.metrics?.statusAnalysis ?? [];
-  const inProgressLeads = statusAnalysis.find(s => s.status === 'In Progress')?.count ?? 0;
-  const openLeads = statusAnalysis.find(s => s.status === 'Open')?.count ?? 0;
-  const closedLeads = statusAnalysis.find(s => s.status === 'Closed')?.count ?? 0;
+  const statusLabel = (s: { status: string; displayName?: string }) => s.displayName ?? s.status;
+  const inProgressLeads = statusAnalysis.find((s) => statusLabel(s) === 'In Progress')?.count ?? 0;
+  const openLeads = statusAnalysis.find((s) => statusLabel(s) === 'Unread')?.count ?? 0;
+  const closedLeads = statusAnalysis.find((s) => statusLabel(s) === 'Resolve')?.count ?? 0;
 
   let yPos = margin;
   
@@ -256,7 +258,7 @@ export const generateLeadsPDF = async (data: FilteredData): Promise<void> => {
   doc.text(`In Progress: ${inProgressLeads}`, 20, yPos);
   if (openLeads > 0) {
     yPos += 6;
-    doc.text(`Open: ${openLeads}`, 20, yPos);
+    doc.text(`Unread: ${openLeads}`, 20, yPos);
   }
   if (closedLeads > 0) {
     yPos += 6;

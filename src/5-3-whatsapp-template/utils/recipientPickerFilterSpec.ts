@@ -25,6 +25,9 @@ export type RecipientPickerFiltersJson = {
   utmContent: string;
   utmTerm: string;
   attributionLabel: string;
+  gclid: string;
+  gclidPresence: "all" | "has";
+  emailPresence: "all" | "has";
   landingUrlContains: string;
   dateRangeFrom: string | null;
   dateRangeTo: string | null;
@@ -49,6 +52,9 @@ export const defaultRecipientPickerFiltersJson = (): RecipientPickerFiltersJson 
   utmContent: "all",
   utmTerm: "all",
   attributionLabel: "all",
+  gclid: "all",
+  gclidPresence: "all",
+  emailPresence: "all",
   landingUrlContains: "",
   dateRangeFrom: null,
   dateRangeTo: null,
@@ -85,6 +91,9 @@ export function leadsFiltersStateToJson(filters: LeadsFilters): RecipientPickerF
     utmContent: filters.utmContent,
     utmTerm: filters.utmTerm,
     attributionLabel: filters.attributionLabel,
+    gclid: filters.gclid ?? "all",
+    gclidPresence: filters.gclidPresence === "has" ? "has" : "all",
+    emailPresence: filters.emailPresence === "has" ? "has" : "all",
     landingUrlContains: (filters.landingUrlContains ?? "").trim(),
     dateRangeFrom: from,
     dateRangeTo: to,
@@ -114,6 +123,9 @@ export function jsonToLeadsFiltersState(j: RecipientPickerFiltersJson, prev: Lea
     utmContent: j.utmContent,
     utmTerm: j.utmTerm,
     attributionLabel: j.attributionLabel,
+    gclid: j.gclid ?? "all",
+    gclidPresence: j.gclidPresence === "has" ? "has" : "all",
+    emailPresence: j.emailPresence === "has" ? "has" : "all",
     landingUrlContains: j.landingUrlContains,
     dateRange,
     surveyRating: j.surveyRating ?? "all",

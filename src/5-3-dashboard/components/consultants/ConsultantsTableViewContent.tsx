@@ -8,8 +8,7 @@ import { ScrollArea } from "@/shared/components/ui/scroll-area";
 import { useLeads } from '@/shared/hooks/organized/sales';
 import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { NewLead } from '@/shared/types/leads';
-import { useClientProfileStatus } from '@/shared/hooks/organized/sales';
-import { supabase } from '@/shared/lib/supabaseClient';
+import { useLeadClientStatuses } from '@/5-3-dashboard/hooks/useLeadClientStatuses';
 import type { LeadAttributionSortColumn } from '@/shared/lib/leadAttribution';
 import {
   defaultLeadAttributionSortState,
@@ -62,6 +61,8 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     matchesSurveyRatingFilter,
     surveyHistoryDialogProps,
     refreshSurveyData,
+    surveyRatingByLeadId,
+    latestSurveyRows,
   } = useLeadsTableSurveyIntegration(organizationId, leads);
 
   const handleRefreshLeads = useCallback(() => {
@@ -189,74 +190,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     }
   };
 
-  // State to manage client profile statuses and data
-  const [clientStatuses, setClientStatuses] = useState<Record<string, 'full' | 'partial' | 'empty'>>({});
-  const [clientProfiles, setClientProfiles] = useState<Record<string, any>>({});
-
-  // Fetch client profile statuses (leads + WhatsApp conversations)
-  useEffect(() => {
-    const fetchStatuses = async () => {
-      if (leads.length === 0) return;
-
-      const statusMap: Record<string, 'full' | 'partial' | 'empty'> = {};
-      const profileMap: Record<string, any> = {};
-
-      for (const lead of leads) {
-        try {
-          const isWhatsApp = String(lead.id).startsWith('wa-');
-          const isEmail = String(lead.id).startsWith('email-');
-          const conversationId = isWhatsApp ? String(lead.id).replace(/^wa-/, '') : null;
-
-          if (isEmail) {
-            statusMap[lead.id] = 'empty';
-            profileMap[lead.id] = null;
-            continue;
-          }
-
-          const { data } = isWhatsApp && conversationId
-            ? await supabase
-                .from('whatsapp_conversation_client_profiles')
-                .select('*')
-                .eq('conversation_id', conversationId)
-                .eq('organization_id', lead.organization_id)
-                .maybeSingle()
-            : await supabase
-                .from('lead_client_profiles')
-                .select('*')
-                .eq('lead_id', lead.id)
-                .eq('organization_id', lead.organization_id)
-                .order('updated_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-          if (!data) {
-            statusMap[lead.id] = 'empty';
-            profileMap[lead.id] = null;
-          } else {
-            profileMap[lead.id] = data;
-            const fields = [data.name, (data as any).code, data.gender, data.age, data.occupation, data.location, (data as any).phone_number, (data as any).email];
-            const filledFields = fields.filter(field => field !== null && field !== undefined && field !== '').length;
-
-            if (filledFields === 0) {
-              statusMap[lead.id] = 'empty';
-            } else if (filledFields === fields.length) {
-              statusMap[lead.id] = 'full';
-            } else {
-              statusMap[lead.id] = 'partial';
-            }
-          }
-        } catch {
-          statusMap[lead.id] = 'empty';
-          profileMap[lead.id] = null;
-        }
-      }
-
-      setClientStatuses(statusMap);
-      setClientProfiles(profileMap);
-    };
-
-    fetchStatuses();
-  }, [leads]);
+  const { clientStatuses, clientProfiles } = useLeadClientStatuses(leads);
 
   // Filter leads based on selected filters
   const filteredLeads = useMemo(() => {
@@ -366,8 +300,11 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
   }, [leads, filters, clientStatuses, matchesSurveyRatingFilter]);
 
   const sortedLeads = useMemo(
-    () => sortLeadsByAttributionColumn(filteredLeads, attributionSort),
-    [filteredLeads, attributionSort],
+    () =>
+      sortLeadsByAttributionColumn(filteredLeads, attributionSort, {
+        getSurveyRating: (lead) => surveyRatingByLeadId.get(String(lead.id ?? "")) ?? null,
+      }),
+    [filteredLeads, attributionSort, surveyRatingByLeadId, latestSurveyRows],
   );
 
   return (

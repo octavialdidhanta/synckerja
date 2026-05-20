@@ -314,7 +314,7 @@ export const LeadsFilters = ({ onNewLeadClick, onFiltersChange, filteredLeads = 
 
         <div className="flex items-center gap-2 ml-2">
           <Button 
-            onClick={() => generateLeadsPDF({ leads: filteredLeads, filters })}
+            onClick={() => void generateLeadsPDF({ leads: filteredLeads, filters })}
             variant="outline"
             className="h-8 px-3 text-xs"
           >

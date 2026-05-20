@@ -306,7 +306,7 @@ export function WhatsAppInboxPage() {
                 </main>
                 {/* Kanan: quick action - sidebar (bisa collapse agar body chat lebih luas) */}
                 <aside
-                  className="flex-shrink-0 border-l border-gray-200 flex flex-col min-h-0 bg-white transition-[width] duration-200"
+                  className="relative flex-shrink-0 border-l border-gray-200 flex flex-col min-h-0 bg-white transition-[width] duration-200"
                   style={{ width: isQuickActionExpanded ? '20rem' : '3rem', minWidth: isQuickActionExpanded ? '20rem' : '3rem' }}
                   aria-label="Quick Action"
                   aria-expanded={isQuickActionExpanded}
@@ -330,15 +330,25 @@ export function WhatsAppInboxPage() {
                       </div>
                     </>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setIsQuickActionExpanded(true)}
-                      className="flex-1 flex flex-col items-center justify-center py-4 text-gray-600 hover:bg-gray-50"
-                      title={t('whatsappInbox.expandQuickAction', 'Expand Quick Action')}
-                      aria-label={t('whatsappInbox.expandQuickAction', 'Expand Quick Action')}
-                    >
-                      <PanelRightOpen className="w-5 h-5" />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickActionExpanded(true)}
+                        className="flex-1 flex flex-col items-center justify-center py-4 text-gray-600 hover:bg-gray-50"
+                        title={t('whatsappInbox.expandQuickAction', 'Expand Quick Action')}
+                        aria-label={t('whatsappInbox.expandQuickAction', 'Expand Quick Action')}
+                      >
+                        <PanelRightOpen className="w-5 h-5" />
+                      </button>
+                      {selectedConversation ? (
+                        <div
+                          className="pointer-events-none absolute left-[-10000px] top-0 h-0 w-80 overflow-hidden opacity-0"
+                          aria-hidden
+                        >
+                          <LivechatQuickActionPanel conversation={selectedConversation} hideLeadTitle />
+                        </div>
+                      ) : null}
+                    </>
                   )}
                 </aside>
               </div>

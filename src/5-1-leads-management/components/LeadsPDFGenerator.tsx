@@ -1,7 +1,7 @@
-import jsPDF from 'jspdf';
 import { NewLead } from '@/shared/types/leads';
 import { format } from 'date-fns';
-import { LeadsFilters } from './LeadsFilters';
+import type { LeadsFilters } from './LeadsFilters';
+import { loadPdfKit } from '@/shared/lib/pdf/loadPdfKit';
 
 export interface FilteredData {
   leads: NewLead[];
@@ -23,7 +23,8 @@ export interface FilteredData {
   };
 }
 
-export const generateLeadsPDF = (data: FilteredData) => {
+export const generateLeadsPDF = async (data: FilteredData): Promise<void> => {
+  const { jsPDF } = await loadPdfKit();
   const doc = new jsPDF();
   
   // Page settings

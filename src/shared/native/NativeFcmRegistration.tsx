@@ -1,9 +1,21 @@
-import { useNativeFcmRegistration } from "@/shared/native/useNativeFcmRegistration";
-import { useLiveChatFCM } from "@/mobile/4-livechat/hooks/useLiveChatFCM";
+import { useEffect, useState, type ComponentType } from "react";
+import { Capacitor } from "@capacitor/core";
 
-/** Native-only: daftar FCM, simpan token; + foreground banner untuk Live Chat. */
+/** Native-only: daftar FCM + foreground banner Live Chat (chunk terpisah, tidak di web). */
 export function NativeFcmRegistration() {
-  useNativeFcmRegistration();
-  useLiveChatFCM();
-  return null;
+  const [Inner, setInner] = useState<ComponentType | null>(null);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let cancelled = false;
+    void import("./NativeFcmRegistrationInner").then((mod) => {
+      if (!cancelled) setInner(() => mod.default);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!Inner) return null;
+  return <Inner />;
 }

@@ -21,32 +21,17 @@ import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
+import { StandardRouteLoadingShell } from "@/shared/components/StandardRouteLoadingShell";
 import {
   AccessPermissionsPageSkeleton,
-  AddEmployeePageSkeleton,
-  ApprovalsRouteLoadingShell,
-  AttendanceGuardLoadingShell,
   CalculatorPageSkeleton,
   ClientVisitsPageSkeleton,
-  CompanyAssetsGuardLoadingShell,
-  CompanyFilesGuardLoadingShell,
   CompanyRouteSkeleton,
   ConsultantCrmDashboardPageSkeleton,
-  ConsultantLeadsManagementRouteLoadingShell,
   ConsultantLivechatRouteLoadingShell,
   ContentCalendarPageSkeleton,
-  DailyTaskReportRouteLoadingShell,
-  DailyTaskRouteLoadingShell,
-  DebtRouteLoadingShell,
   DefaultPricesPageSkeleton,
   EmailConnectPageSkeleton,
-  EmployeesPageSkeleton,
-  ExpenseDashboardRouteLoadingShell,
-  HabitTrackerPageSkeleton,
-  IncomeBankAccountRouteLoadingShell,
-  IncomeDashboardRouteLoadingShell,
-  IncomePiutangRouteLoadingShell,
-  IncomeTransactionRouteLoadingShell,
   InstagramConnectPageSkeleton,
   KolManagementCampaignsPageSkeleton,
   KolManagementContentPostPageSkeleton,
@@ -54,19 +39,13 @@ import {
   KolManagementKolManagementPageSkeleton,
   KolManagementPaymentTermsPageSkeleton,
   KolManagementRouteLoadingShell,
-  MeetingNotesRouteLoadingShell,
-  OkrRouteAccessLoadingShell,
   OmnichannelSettingsPageSkeleton,
-  OrganizationGuardLoadingShell,
   PasswordManagerPageSkeleton,
-  PaymentProcessRouteLoadingShell,
-  PayrollRouteSkeleton,
   PPh21PageSkeleton,
   PricingToolsPageSkeleton,
   ProductKnowledgePageSkeleton,
   PromoSimulationPageSkeleton,
   RecruitmentRouteSkeleton,
-  ReminderBillsRouteLoadingShell,
   RequestFormPageSkeleton,
   SalesActivitiesPageSkeleton,
   ScriptGeneratorPageSkeleton,
@@ -77,7 +56,9 @@ import {
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
-} from "@/appLazySkeletons";
+} from "@/appRouteSkeletonLoaders";
+
+const PAGE_GUARD_LOADING_SHELL = <StandardRouteLoadingShell />;
 import { DailyTaskProviderShell } from "@/shared/wrappers/DailyTaskProviderShell";
 import {
   CustomerSurveyPublicFormPage,
@@ -85,10 +66,8 @@ import {
   SurveyPublicShell,
 } from "@/features/customer-survey/public/SurveyPublicRoutes";
 // Route elements are lazy-loaded below to keep the initial JS small.
-import {
-  SubscriptionExpiryGuard,
-  SubscriptionRoleGuard,
-} from "@/10-subscription";
+import { SubscriptionExpiryGuard } from "@/10-subscription/shared/SubscriptionExpiryGuard";
+import { SubscriptionRoleGuard } from "@/10-subscription/shared/SubscriptionRoleGuard";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 import { AuthProvider } from "@/shared/auth/contexts/AuthContext";
 import { LanguageProvider } from "@/shared/i18n/LanguageProvider";
@@ -520,7 +499,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/operations/sales"
-                    loadingShell={<VisitSchedulingPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <ScheduleRouteElement />
@@ -532,7 +511,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/operations/sales"
-                    loadingShell={<ClientVisitsPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <ClientVisitRouteElement />
@@ -542,7 +521,7 @@ function AppRoutes() {
               <Route
                 path="/reports"
                 element={
-                  <PageAccessGuard requiresPermissions={false} loadingShell={<AttendanceGuardLoadingShell />}>
+                  <PageAccessGuard requiresPermissions={false} loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <MobileAttendanceReportsRouteElement />
                   </PageAccessGuard>
                 }
@@ -574,7 +553,7 @@ function AppRoutes() {
                 path="/okr/*"
                 element={
                   <PageAccessGuard
-                    loadingShell={<OkrRouteAccessLoadingShell />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-gray-100 dark:bg-muted/30"
                   >
                     <OKRPage />
@@ -586,7 +565,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/employees"
-                    loadingShell={<EmployeesPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-gray-100"
                   >
                     <EmployeePage />
@@ -598,7 +577,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/employees/reprimand"
-                    loadingShell={<EmployeesPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-gray-100"
                   >
                     <HrManagementRoleGuard showPendingSkeleton={false}>
@@ -621,7 +600,7 @@ function AppRoutes() {
               <Route
                 path="/attendance"
                 element={
-                  <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <AttendancePage />
                   </PageAccessGuard>
                 }
@@ -629,7 +608,7 @@ function AppRoutes() {
               <Route
                 path="/attendance/attendance"
                 element={
-                  <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <AttendancePage />
                   </PageAccessGuard>
                 }
@@ -637,7 +616,7 @@ function AppRoutes() {
               <Route
                 path="/attendance/settings"
                 element={
-                  <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <AttendancePage />
                   </PageAccessGuard>
                 }
@@ -647,7 +626,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/access-permissions"
-                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-background"
                   >
                     <AccessPermissionsSuspense>
@@ -661,7 +640,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/access-permissions/page-access"
-                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-background"
                   >
                     <AccessPermissionsSuspense>
@@ -675,7 +654,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/access-permissions/overview"
-                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-background"
                   >
                     <AccessPermissionsSuspense>
@@ -689,7 +668,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/access-permissions/roles"
-                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-background"
                   >
                     <AccessPermissionsSuspense>
@@ -703,7 +682,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/access-permissions/pages"
-                    loadingShell={<AccessPermissionsPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-background"
                   >
                     <AccessPermissionsSuspense>
@@ -715,7 +694,7 @@ function AppRoutes() {
               <Route
                 path="/payroll/calculations"
                 element={
-                  <PageAccessGuard loadingShell={<PayrollRouteSkeleton />}>
+                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <PayrollCalculationsPage />
                   </PageAccessGuard>
                 }
@@ -733,7 +712,7 @@ function AppRoutes() {
               <Route
                 path="/company/company-assets"
                 element={
-                  <PageAccessGuard loadingShell={<CompanyAssetsGuardLoadingShell />}>
+                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <CompanyCompanyAssetsPage />
                   </PageAccessGuard>
                 }
@@ -741,7 +720,7 @@ function AppRoutes() {
               <Route
                 path="/company/files"
                 element={
-                  <PageAccessGuard loadingShell={<CompanyFilesGuardLoadingShell />}>
+                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <CompanyFilesPage />
                   </PageAccessGuard>
                 }
@@ -751,7 +730,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/company/organization"
-                    loadingShell={<OrganizationGuardLoadingShell />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                   >
                     <CompanyOrganizationPage />
                   </PageAccessGuard>
@@ -761,7 +740,7 @@ function AppRoutes() {
               <Route
                 path="/incomes/dashboard"
                 element={
-                  <PageAccessGuard pagePath="/incomes/dashboard" loadingShell={<IncomeDashboardRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/incomes/dashboard" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <IncomeDashboardRouteElement />
                   </PageAccessGuard>
                 }
@@ -769,7 +748,7 @@ function AppRoutes() {
               <Route
                 path="/incomes/transaction/bank-account"
                 element={
-                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={<IncomeBankAccountRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <IncomeBankAccountRouteElement />
                   </PageAccessGuard>
                 }
@@ -777,7 +756,7 @@ function AppRoutes() {
               <Route
                 path="/incomes/transaction"
                 element={
-                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={<IncomeTransactionRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <IncomeTransactionRouteElement />
                   </PageAccessGuard>
                 }
@@ -785,7 +764,7 @@ function AppRoutes() {
               <Route
                 path="/incomes/piutang"
                 element={
-                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={<IncomePiutangRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/incomes/transaction" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <IncomePiutangRouteElement />
                   </PageAccessGuard>
                 }
@@ -795,7 +774,7 @@ function AppRoutes() {
               <Route
                 path="/expenses/dashboard"
                 element={
-                  <PageAccessGuard pagePath="/expenses/dashboard" loadingShell={<ExpenseDashboardRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/expenses/dashboard" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <ExpensesDashboardRouteElement />
                   </PageAccessGuard>
                 }
@@ -803,7 +782,7 @@ function AppRoutes() {
               <Route
                 path="/expenses/debt"
                 element={
-                  <PageAccessGuard pagePath="/expenses/debt" loadingShell={<DebtRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/expenses/debt" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <ExpensesDebtRouteElement />
                   </PageAccessGuard>
                 }
@@ -811,7 +790,7 @@ function AppRoutes() {
               <Route
                 path="/expenses/approvals"
                 element={
-                  <PageAccessGuard pagePath="/expenses/approvals" loadingShell={<ApprovalsRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/expenses/approvals" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <ExpensesApprovalsRouteElement />
                   </PageAccessGuard>
                 }
@@ -819,7 +798,7 @@ function AppRoutes() {
               <Route
                 path="/expenses/payment-process"
                 element={
-                  <PageAccessGuard pagePath="/expenses/payment-process" loadingShell={<PaymentProcessRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/expenses/payment-process" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <ExpensesPaymentProcessRouteElement />
                   </PageAccessGuard>
                 }
@@ -827,7 +806,7 @@ function AppRoutes() {
               <Route
                 path="/expenses/reminder-bills"
                 element={
-                  <PageAccessGuard pagePath="/expenses/reminder-bills" loadingShell={<ReminderBillsRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/expenses/reminder-bills" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <ExpensesReminderBillsRouteElement />
                   </PageAccessGuard>
                 }
@@ -868,7 +847,7 @@ function AppRoutes() {
               <Route
                 path="/tools/daily-task"
                 element={
-                  <PageAccessGuard pagePath="/tools/daily-task" loadingShell={<DailyTaskRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/tools/daily-task" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <DailyTaskRouteElement />
                   </PageAccessGuard>
                 }
@@ -876,7 +855,7 @@ function AppRoutes() {
               <Route
                 path="/tools/daily-task-report"
                 element={
-                  <PageAccessGuard pagePath="/tools/daily-task-report" loadingShell={<DailyTaskReportRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/tools/daily-task-report" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <DailyTaskReportRouteElement />
                   </PageAccessGuard>
                 }
@@ -884,7 +863,7 @@ function AppRoutes() {
               <Route
                 path="/tools/meeting-notes"
                 element={
-                  <PageAccessGuard pagePath="/tools/meeting-notes" loadingShell={<MeetingNotesRouteLoadingShell />}>
+                  <PageAccessGuard pagePath="/tools/meeting-notes" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <MeetingNotesRouteElement />
                   </PageAccessGuard>
                 }
@@ -892,7 +871,7 @@ function AppRoutes() {
               <Route
                 path="/tools/habits-tracker"
                 element={
-                  <PageAccessGuard pagePath="/tools/habits-tracker" loadingShell={<HabitTrackerPageSkeleton />}>
+                  <PageAccessGuard pagePath="/tools/habits-tracker" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <HabitTrackerRouteElement />
                   </PageAccessGuard>
                 }
@@ -900,7 +879,7 @@ function AppRoutes() {
               <Route
                 path="/tools/password-manager"
                 element={
-                  <PageAccessGuard pagePath="/tools/password-manager" loadingShell={<PasswordManagerPageSkeleton />}>
+                  <PageAccessGuard pagePath="/tools/password-manager" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <PasswordManagerSuspense>
                       <PasswordManagerPage />
                     </PasswordManagerSuspense>
@@ -910,7 +889,7 @@ function AppRoutes() {
               <Route
                 path="/tools/pph21-calculator"
                 element={
-                  <PageAccessGuard pagePath="/tools/pph21-calculator" loadingShell={<PPh21PageSkeleton />}>
+                  <PageAccessGuard pagePath="/tools/pph21-calculator" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <PPh21CalculatorSuspense>
                       <PPh21CalculatorPage />
                     </PPh21CalculatorSuspense>
@@ -920,7 +899,7 @@ function AppRoutes() {
               <Route
                 path="/tools/default-prices"
                 element={
-                  <PageAccessGuard pagePath="/tools/default-prices" loadingShell={<DefaultPricesPageSkeleton />}>
+                  <PageAccessGuard pagePath="/tools/default-prices" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <DefaultPricesSuspense>
                       <DefaultPricesPage />
                     </DefaultPricesSuspense>
@@ -930,7 +909,7 @@ function AppRoutes() {
               <Route
                 path="/tools/pricing-tools"
                 element={
-                  <PageAccessGuard pagePath="/tools/pricing-tools" loadingShell={<PricingToolsPageSkeleton />}>
+                  <PageAccessGuard pagePath="/tools/pricing-tools" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <PricingToolsSuspense>
                       <PricingToolsPage />
                     </PricingToolsSuspense>
@@ -940,7 +919,7 @@ function AppRoutes() {
               <Route
                 path="/tools/promo-simulation"
                 element={
-                  <PageAccessGuard pagePath="/tools/promo-simulation" loadingShell={<PromoSimulationPageSkeleton />}>
+                  <PageAccessGuard pagePath="/tools/promo-simulation" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <PromoSimulationSuspense>
                       <PromoSimulationPage />
                     </PromoSimulationSuspense>
@@ -951,7 +930,7 @@ function AppRoutes() {
               <Route
                 path="/tools/calculator/services"
                 element={
-                  <PageAccessGuard pagePath="/tools/calculator" loadingShell={<CalculatorPageSkeleton />}>
+                  <PageAccessGuard pagePath="/tools/calculator" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <CalculatorSuspense>
                       <CalculatorServicesPage />
                     </CalculatorSuspense>
@@ -961,7 +940,7 @@ function AppRoutes() {
               <Route
                 path="/tools/calculator/sales"
                 element={
-                  <PageAccessGuard pagePath="/tools/calculator" loadingShell={<CalculatorPageSkeleton />}>
+                  <PageAccessGuard pagePath="/tools/calculator" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <CalculatorSuspense>
                       <CalculatorSalesPage />
                     </CalculatorSuspense>
@@ -977,7 +956,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/settings"
-                    loadingShell={<OmnichannelSettingsPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <OmnichannelSettingsSuspense>
@@ -996,7 +975,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/operations/sales"
-                    loadingShell={<SalesActivitiesPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <SalesActivitiesOperationsSuspense>
@@ -1012,7 +991,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/operations/sales"
-                    loadingShell={<VisitSchedulingPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <JadwalKunjunganOperationsSuspense>
@@ -1028,7 +1007,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/operations/sales"
-                    loadingShell={<ClientVisitsPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <ClientVisitsOperationsSuspense>
@@ -1044,7 +1023,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/crm"
-                    loadingShell={<ConsultantCrmDashboardPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <ConsultantCrmDashboardSuspense>
@@ -1058,7 +1037,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/leads"
-                    loadingShell={<ConsultantLeadsManagementRouteLoadingShell />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <ConsultantLeadsManagementRouteElement />
@@ -1070,7 +1049,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/integrations/whatsapp"
-                    loadingShell={<WhatsAppConnectPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <WhatsAppConnectSuspense>
@@ -1107,7 +1086,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/integrations/email"
-                    loadingShell={<EmailConnectPageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <EmailConnectOperationsSuspense>
@@ -1121,7 +1100,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/livechat"
-                    loadingShell={<ConsultantLivechatRouteLoadingShell />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <ConsultantLivechatRouteElement />
@@ -1133,7 +1112,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/livechat"
-                    loadingShell={<ConsultantLivechatRouteLoadingShell />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <WhatsAppTemplateFollowupsPageSuspense />
@@ -1149,7 +1128,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/campaign/recipient-lists"
-                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <WhatsAppTemplateSuspense>
@@ -1163,7 +1142,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/campaign/recipient-lists"
-                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <WhatsAppTemplateSuspense>
@@ -1177,7 +1156,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/operations/consultant/whatsapp/templates"
-                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <WhatsAppTemplateSuspense>
@@ -1195,7 +1174,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/operations/consultant/whatsapp/templates"
-                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <WhatsAppTemplateSuspense>
@@ -1216,7 +1195,7 @@ function AppRoutes() {
               element={
                 <PageAccessGuard
                   pagePath="/employees/add"
-                  loadingShell={<AddEmployeePageSkeleton />}
+                  loadingShell={PAGE_GUARD_LOADING_SHELL}
                   loadingShellWrapperClassName="bg-gray-50"
                 >
                   <AddEmployeePage />
@@ -1720,13 +1699,13 @@ const App = () => (
               <CurrentOrgProvider>
               <NativeBootstrapSplashGate />
               <NativeFcmRegistration />
-              <LanguageProvider>
               <BrowserRouter
                 future={{
                   v7_relativeSplatPath: true,
                   v7_startTransition: true,
                 }}
               >
+              <LanguageProvider>
                 <ShareIntentRouteSync />
                 <CentralizedUserDataPathSync />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1856,7 +1835,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/sales"
-                              loadingShell={<VisitSchedulingPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <ScheduleRouteElement />
@@ -1868,7 +1847,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/sales"
-                              loadingShell={<ClientVisitsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <ClientVisitRouteElement />
@@ -1878,7 +1857,7 @@ const App = () => (
                         <Route
                           path="/reports"
                           element={
-                            <PageAccessGuard requiresPermissions={false} loadingShell={<AttendanceGuardLoadingShell />}>
+                            <PageAccessGuard requiresPermissions={false} loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <MobileAttendanceReportsRouteElement />
                             </PageAccessGuard>
                           }
@@ -1910,7 +1889,7 @@ const App = () => (
                           path="/okr/*"
                           element={
                             <PageAccessGuard
-                              loadingShell={<OkrRouteAccessLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100 dark:bg-muted/30"
                             >
                               <OKRPage />
@@ -1922,7 +1901,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/employees"
-                              loadingShell={<EmployeesPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <EmployeePage />
@@ -1934,7 +1913,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/employees/reprimand"
-                              loadingShell={<EmployeesPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <HrManagementRoleGuard showPendingSkeleton={false}>
@@ -1957,7 +1936,7 @@ const App = () => (
                         <Route
                           path="/attendance"
                           element={
-                            <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <AttendancePage />
                             </PageAccessGuard>
                           }
@@ -1965,7 +1944,7 @@ const App = () => (
                         <Route
                           path="/attendance/attendance"
                           element={
-                            <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <AttendancePage />
                             </PageAccessGuard>
                           }
@@ -1973,7 +1952,7 @@ const App = () => (
                         <Route
                           path="/attendance/settings"
                           element={
-                            <PageAccessGuard loadingShell={<AttendanceGuardLoadingShell />}>
+                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <AttendancePage />
                             </PageAccessGuard>
                           }
@@ -1983,7 +1962,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/access-permissions"
-                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-background"
                             >
                               <AccessPermissionsSuspense>
@@ -1997,7 +1976,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/access-permissions/page-access"
-                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-background"
                             >
                               <AccessPermissionsSuspense>
@@ -2011,7 +1990,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/access-permissions/overview"
-                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-background"
                             >
                               <AccessPermissionsSuspense>
@@ -2025,7 +2004,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/access-permissions/roles"
-                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-background"
                             >
                               <AccessPermissionsSuspense>
@@ -2039,7 +2018,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/access-permissions/pages"
-                              loadingShell={<AccessPermissionsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-background"
                             >
                               <AccessPermissionsSuspense>
@@ -2051,7 +2030,7 @@ const App = () => (
                         <Route
                           path="/payroll/calculations"
                           element={
-                            <PageAccessGuard loadingShell={<PayrollRouteSkeleton />}>
+                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <PayrollCalculationsPage />
                             </PageAccessGuard>
                           }
@@ -2069,7 +2048,7 @@ const App = () => (
                         <Route
                           path="/company/company-assets"
                           element={
-                            <PageAccessGuard loadingShell={<CompanyAssetsGuardLoadingShell />}>
+                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <CompanyCompanyAssetsPage />
                             </PageAccessGuard>
                           }
@@ -2077,7 +2056,7 @@ const App = () => (
                         <Route
                           path="/company/files"
                           element={
-                            <PageAccessGuard loadingShell={<CompanyFilesGuardLoadingShell />}>
+                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <CompanyFilesPage />
                             </PageAccessGuard>
                           }
@@ -2087,7 +2066,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/company/organization"
-                              loadingShell={<OrganizationGuardLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <CompanyOrganizationPage />
                             </PageAccessGuard>
@@ -2102,7 +2081,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/incomes/dashboard"
-                              loadingShell={<IncomeDashboardRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <IncomeDashboardRouteElement />
                             </PageAccessGuard>
@@ -2113,7 +2092,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/incomes/transaction"
-                              loadingShell={<IncomeBankAccountRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <IncomeBankAccountRouteElement />
                             </PageAccessGuard>
@@ -2124,7 +2103,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/incomes/transaction"
-                              loadingShell={<IncomeTransactionRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <IncomeTransactionRouteElement />
                             </PageAccessGuard>
@@ -2135,7 +2114,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/incomes/transaction"
-                              loadingShell={<IncomePiutangRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <IncomePiutangRouteElement />
                             </PageAccessGuard>
@@ -2154,7 +2133,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/dashboard"
-                              loadingShell={<ExpenseDashboardRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <ExpensesDashboardRouteElement />
                             </PageAccessGuard>
@@ -2165,7 +2144,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/debt"
-                              loadingShell={<DebtRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <ExpensesDebtRouteElement />
                             </PageAccessGuard>
@@ -2176,7 +2155,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/approvals"
-                              loadingShell={<ApprovalsRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <ExpensesApprovalsRouteElement />
                             </PageAccessGuard>
@@ -2187,7 +2166,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/payment-process"
-                              loadingShell={<PaymentProcessRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <ExpensesPaymentProcessRouteElement />
                             </PageAccessGuard>
@@ -2198,7 +2177,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/reminder-bills"
-                              loadingShell={<ReminderBillsRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <ExpensesReminderBillsRouteElement />
                             </PageAccessGuard>
@@ -2243,7 +2222,7 @@ const App = () => (
                         <Route
                           path="/tools/daily-task"
                           element={
-                            <PageAccessGuard pagePath="/tools/daily-task" loadingShell={<DailyTaskRouteLoadingShell />}>
+                            <PageAccessGuard pagePath="/tools/daily-task" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <DailyTaskRouteElement />
                             </PageAccessGuard>
                           }
@@ -2251,7 +2230,7 @@ const App = () => (
                         <Route
                           path="/tools/daily-task-report"
                           element={
-                            <PageAccessGuard pagePath="/tools/daily-task-report" loadingShell={<DailyTaskReportRouteLoadingShell />}>
+                            <PageAccessGuard pagePath="/tools/daily-task-report" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <DailyTaskReportRouteElement />
                             </PageAccessGuard>
                           }
@@ -2259,7 +2238,7 @@ const App = () => (
                         <Route
                           path="/tools/meeting-notes"
                           element={
-                            <PageAccessGuard pagePath="/tools/meeting-notes" loadingShell={<MeetingNotesRouteLoadingShell />}>
+                            <PageAccessGuard pagePath="/tools/meeting-notes" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <MeetingNotesRouteElement />
                             </PageAccessGuard>
                           }
@@ -2267,7 +2246,7 @@ const App = () => (
                         <Route
                           path="/tools/habits-tracker"
                           element={
-                            <PageAccessGuard pagePath="/tools/habits-tracker" loadingShell={<HabitTrackerPageSkeleton />}>
+                            <PageAccessGuard pagePath="/tools/habits-tracker" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <HabitTrackerRouteElement />
                             </PageAccessGuard>
                           }
@@ -2277,7 +2256,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/tools/password-manager"
-                              loadingShell={<PasswordManagerPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <PasswordManagerSuspense>
                                 <PasswordManagerPage />
@@ -2290,7 +2269,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/tools/pph21-calculator"
-                              loadingShell={<PPh21PageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <PPh21CalculatorSuspense>
                                 <PPh21CalculatorPage />
@@ -2303,7 +2282,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/tools/default-prices"
-                              loadingShell={<DefaultPricesPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <DefaultPricesSuspense>
                                 <DefaultPricesPage />
@@ -2316,7 +2295,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/tools/pricing-tools"
-                              loadingShell={<PricingToolsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <PricingToolsSuspense>
                                 <PricingToolsPage />
@@ -2329,7 +2308,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/tools/promo-simulation"
-                              loadingShell={<PromoSimulationPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <PromoSimulationSuspense>
                                 <PromoSimulationPage />
@@ -2346,7 +2325,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/tools/calculator"
-                              loadingShell={<CalculatorPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <CalculatorSuspense>
                                 <CalculatorServicesPage />
@@ -2359,7 +2338,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/tools/calculator"
-                              loadingShell={<CalculatorPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <CalculatorSuspense>
                                 <CalculatorSalesPage />
@@ -2376,7 +2355,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/settings"
-                              loadingShell={<OmnichannelSettingsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <OmnichannelSettingsSuspense>
@@ -2407,7 +2386,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/sales"
-                              loadingShell={<SalesActivitiesPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <SalesActivitiesOperationsSuspense>
@@ -2423,7 +2402,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/sales"
-                              loadingShell={<VisitSchedulingPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <JadwalKunjunganOperationsSuspense>
@@ -2439,7 +2418,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/sales"
-                              loadingShell={<ClientVisitsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <ClientVisitsOperationsSuspense>
@@ -2455,7 +2434,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/crm"
-                              loadingShell={<ConsultantCrmDashboardPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <ConsultantCrmDashboardSuspense>
@@ -2469,7 +2448,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/leads"
-                              loadingShell={<ConsultantLeadsManagementRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <ConsultantLeadsManagementRouteElement />
@@ -2481,7 +2460,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/integrations/whatsapp"
-                              loadingShell={<WhatsAppConnectPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <WhatsAppConnectSuspense>
@@ -2518,7 +2497,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/integrations/email"
-                              loadingShell={<EmailConnectPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <EmailConnectOperationsSuspense>
@@ -2532,7 +2511,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/livechat"
-                              loadingShell={<ConsultantLivechatRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <ConsultantLivechatRouteElement />
@@ -2544,7 +2523,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/livechat"
-                              loadingShell={<ConsultantLivechatRouteLoadingShell />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <WhatsAppTemplateFollowupsPageSuspense />
@@ -2560,7 +2539,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/campaign/recipient-lists"
-                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <WhatsAppTemplateSuspense>
@@ -2574,7 +2553,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/campaign/recipient-lists"
-                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <WhatsAppTemplateSuspense>
@@ -2588,7 +2567,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/consultant/whatsapp/templates"
-                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <WhatsAppTemplateSuspense>
@@ -2606,7 +2585,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/operations/consultant/whatsapp/templates"
-                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <WhatsAppTemplateSuspense>
@@ -2620,7 +2599,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/dashboard"
-                              loadingShell={<KolManagementDashboardPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <KolManagementDashboardSuspense>
@@ -2634,7 +2613,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/kol-management"
-                              loadingShell={<KolManagementKolManagementPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <KolManagementKolManagementSuspense>
@@ -2648,7 +2627,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/campaigns"
-                              loadingShell={<KolManagementCampaignsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <KolManagementCampaignsSuspense>
@@ -2662,7 +2641,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/content-post"
-                              loadingShell={<KolManagementContentPostPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <KolManagementContentPostSuspense>
@@ -2676,7 +2655,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/payment-terms"
-                              loadingShell={<KolManagementPaymentTermsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <KolManagementPaymentTermsSuspense>
@@ -2694,7 +2673,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
-                              loadingShell={<SocialMediaDashboardSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <SocialMediaDashboardSuspense>
@@ -2708,7 +2687,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
-                              loadingShell={<ContentCalendarPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <ContentCalendarSuspense>
@@ -2722,7 +2701,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
-                              loadingShell={<ProductKnowledgePageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <SocialMediaProductKnowledgeSuspense>
@@ -2736,7 +2715,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
-                              loadingShell={<ScriptGeneratorPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <SocialMediaScriptGeneratorSuspense>
@@ -2750,7 +2729,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
-                              loadingShell={<SocialMediaSettingsPageSkeleton />}
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-muted/40"
                             >
                               <SocialMediaSettingsSuspense>
@@ -2857,7 +2836,7 @@ const App = () => (
                         element={
                           <PageAccessGuard
                             pagePath="/employees/add"
-                            loadingShell={<AddEmployeePageSkeleton />}
+                            loadingShell={PAGE_GUARD_LOADING_SHELL}
                             loadingShellWrapperClassName="bg-gray-50"
                           >
                             <AddEmployeePage />
@@ -2874,8 +2853,8 @@ const App = () => (
                     </Routes>
                   </Suspense>
                 </div>
-              </BrowserRouter>
               </LanguageProvider>
+              </BrowserRouter>
               </CurrentOrgProvider>
             </PermissionConfigurationProvider>
           </CentralizedUserDataProvider>

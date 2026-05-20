@@ -355,12 +355,19 @@ async function resolveLeadPhoneDigits(
     .maybeSingle();
   let phone = lead?.phone_number != null ? String(lead.phone_number).trim() : "";
   if (!phone) {
-    const { data: profile } = await admin
-      .from("lead_client_profiles")
-      .select("phone_number")
+    const { data: submissions } = await admin
+      .from("lead_submissions")
+      .select("phone_number, status, submitted_at, updated_at")
       .eq("lead_id", leadId)
-      .maybeSingle();
-    phone = profile?.phone_number != null ? String(profile.phone_number).trim() : "";
+      .eq("is_active", true)
+      .order("status", { ascending: true })
+      .order("submitted_at", { ascending: false, nullsFirst: false })
+      .order("updated_at", { ascending: false });
+    const rows = submissions ?? [];
+    const submitted = rows.find((r) => r.status === "submitted");
+    const draft = rows.find((r) => r.status === "draft");
+    const picked = submitted ?? draft ?? rows[0];
+    phone = picked?.phone_number != null ? String(picked.phone_number).trim() : "";
   }
   const digits = digitsOnly(phone);
   return digits.length >= 8 ? digits : null;

@@ -13,8 +13,13 @@ export function useLeadsTableSurveyIntegration(
   const [surveyHistoryLead, setSurveyHistoryLead] = useState<NewLead | null>(null);
   const [surveyHistoryOpen, setSurveyHistoryOpen] = useState(false);
 
-  const { getSurveyForLead, resolveConversationId, refetch: refetchSurvey } =
-    useCustomerSurveyForLeads(organizationId, leads);
+  const {
+    getSurveyForLead,
+    resolveConversationId,
+    latestSurveyRows,
+    surveyRatingByLeadId,
+    refetch: refetchSurvey,
+  } = useCustomerSurveyForLeads(organizationId, leads);
 
   const handleSurveyRatingFilterChange = useCallback((value: SurveyRatingColumnFilterValue) => {
     setSurveyRatingFilter(value);
@@ -74,5 +79,8 @@ export function useLeadsTableSurveyIntegration(
     matchesSurveyRatingFilter,
     surveyHistoryDialogProps,
     refreshSurveyData,
+    getSurveyForLead,
+    latestSurveyRows,
+    surveyRatingByLeadId,
   };
 }

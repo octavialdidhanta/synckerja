@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 import { componentTagger } from "lovable-tagger";
+import { deferAppCssPlugin } from "./vite/deferAppCssPlugin";
 
 /** Must run before default resolve: legacy `@/features/share/*` meant `src/shared/*` (not `src/features/share/*`). */
 function legacyFeaturesShareResolve(): Plugin {
@@ -58,15 +59,14 @@ export default defineConfig(({ mode }) => {
   plugins: [
     legacyFeaturesShareResolve(),
     react(),
+    deferAppCssPlugin(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: [
-        "favicon.png",
+        "pwa-192.png",
+        "pwa-512.png",
         "robots.txt",
         "placeholder.svg",
-        "brand/synckerja-logo.png",
-        "brand/synckerja-logo.svg",
-        "brand/synckerja-mark.svg",
       ],
       manifest: {
         name: "Synckerja Office",
@@ -78,7 +78,7 @@ export default defineConfig(({ mode }) => {
         orientation: "portrait",
         start_url: "/",
         scope: "/",
-        lang: "id",
+        lang: "en",
         icons: [
           {
             src: "pwa-192.png",
@@ -99,35 +99,55 @@ export default defineConfig(({ mode }) => {
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,ttf}"],
-        /**
-         * Jangan precache chunk berat / route lain saat kunjungan pertama (home).
-         * Precache 400+ file (termasuk vendor-pdf ~1.1MB) memakan bandwidth dan
-         * menunda LCP di Lighthouse.
-         */
-        globIgnores: [
-          "**/vendor-pdf-*.js",
-          "**/vendor-charts-*.js",
-          "**/vendor-xlsx-*.js",
-          "**/*Skeleton*.js",
-          "**/*PageSkeleton*.js",
-          "**/*RouteLoadingShell*.js",
-          "**/*GuardLoadingShell*.js",
-          "**/*LoadingShell*.js",
+        /** Precache minimal: hindari unduh seluruh dist (~12MB) saat first visit (LCP). */
+        globPatterns: [
+          "index.html",
+          "favicon.png",
+          "pwa-192.png",
+          "pwa-512.png",
+          "brand/**/*",
+          "robots.txt",
+          "placeholder.svg",
         ],
+        globIgnores: ["**/node_modules/**"],
         navigateFallback: "/index.html",
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.destination === "script" || request.destination === "style",
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "synckerja-assets",
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 7 },
+            },
+          },
+          {
+            urlPattern: ({ url }) =>
+              url.hostname.endsWith(".supabase.co") && url.pathname.includes("/storage/v1/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "synckerja-supabase-storage",
+              expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
     mode === "development" && componentTagger(),
   ].filter(Boolean),
   build: {
     target: "es2020",
+    minify: "esbuild",
     cssCodeSplit: true,
     sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes("/shared/i18n/translations-id")) return "i18n-id";
+          if (id.includes("/shared/i18n/translations-en")) return "i18n-en";
+          if (id.includes("/locales/en.json")) return "locale-en";
+          if (id.includes("/locales/id.json")) return "locale-id";
           if (!id.includes("node_modules")) return;
           if (
             id.includes("react-dom") ||

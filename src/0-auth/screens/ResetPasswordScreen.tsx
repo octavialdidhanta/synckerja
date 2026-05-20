@@ -7,6 +7,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "@/shared/hooks/use-toast";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
 function validatePassword(pwd: string, tr: (key: string) => string): string[] {
   const errors: string[] = [];
@@ -18,9 +19,7 @@ function validatePassword(pwd: string, tr: (key: string) => string): string[] {
   return errors;
 }
 
-const defaultBrandMark = (
-  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-);
+const defaultBrandMark = <SynckerjaBrandLogo />;
 
 export type ResetPasswordScreenProps = {
   brandMark?: ReactNode;

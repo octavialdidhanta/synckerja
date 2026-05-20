@@ -15,6 +15,7 @@ import { useSidebarState } from "./useSidebarState";
 import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
 import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
 
 interface SubSidebarPanelProps {
   items: NavSubItem[];
@@ -40,7 +41,7 @@ function SidebarBrandHeader() {
         )}
       >
         <img
-          src="/pwa-192.png"
+          src={SYNCKERJA_BRAND_LOGO_SRC}
           alt={t("layout.appName")}
           width={192}
           height={192}

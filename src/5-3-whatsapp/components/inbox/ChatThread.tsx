@@ -38,6 +38,7 @@ import {
 } from '../../constants/leadStatus';
 import { LivechatFollowUpBar } from './LivechatFollowUpBar';
 import { LivechatFollowUpDialog } from './LivechatFollowUpDialog';
+import { LivechatResolveHeaderButton } from './LivechatResolveHeaderButton';
 import { useWhatsAppAccounts } from '../../hooks/useWhatsAppAccounts';
 import type { Locale } from 'date-fns';
 import { Capacitor } from '@capacitor/core';
@@ -693,8 +694,6 @@ export function ChatThread({
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticEntry | null>(null);
   const [optimisticMedia, setOptimisticMedia] = useState<OptimisticEntry | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isScrolling, setIsScrolling] = useState(false);
   const [stickyDateLabel, setStickyDateLabel] = useState<string | null>(null);
   const [stickyDateExiting, setStickyDateExiting] = useState(false);
@@ -1301,7 +1300,7 @@ export function ChatThread({
       });
       try {
         const { error: uploadError } = await supabase.storage.from(WHATSAPP_MEDIA_BUCKET).upload(path, file, {
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: false,
         });
         if (uploadError) throw new Error(uploadError.message);
@@ -1476,19 +1475,6 @@ export function ChatThread({
     );
   }
 
-  const toggleSelectMessage = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-  const exitSelectionMode = () => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  };
-
   return (
     <div className="flex-1 min-w-0 flex flex-col min-h-0 relative bg-[#efeae2] border-l border-gray-200">
       {!hideHeader && (
@@ -1504,28 +1490,8 @@ export function ChatThread({
                 <p className="text-xs text-gray-500 truncate">{maskPhoneLast4(customerId)}</p>
               )}
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0 h-9 w-9 text-gray-600 hover:text-gray-900 hover:bg-gray-200/80"
-              onClick={() => setSelectionMode((on) => !on)}
-              title={t('whatsappInbox.selectMessages', 'Select messages')}
-              aria-label={t('whatsappInbox.selectMessages', 'Select messages')}
-            >
-              <ChevronDown className="w-5 h-5 rotate-[-90deg]" />
-            </Button>
+            <LivechatResolveHeaderButton conversationId={conversation.id} />
           </div>
-          {selectionMode && (
-            <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-gray-200 bg-[#f0f2f5] text-sm">
-              <span className="text-gray-600">
-                {selectedIds.size > 0 ? `${selectedIds.size} ${t('whatsappInbox.selected', 'selected')}` : t('whatsappInbox.selectMessages', 'Select messages')}
-              </span>
-              <Button type="button" variant="ghost" size="sm" className="text-gray-600" onClick={exitSelectionMode}>
-                {t('whatsappInbox.cancel', 'Cancel')}
-              </Button>
-            </div>
-          )}
         </>
       )}
       {isWhatsAppConversation &&
@@ -1659,19 +1625,6 @@ export function ChatThread({
             const showDateSeparatorAfter = showSepAfterRevDeduped[index];
             const dateSeparatorLabel = sepLabelByRevIdx[index];
             const marginBetween = 'mb-0';
-            const CheckboxBtn = () =>
-              selectionMode ? (
-                <button
-                  type="button"
-                  onClick={() => toggleSelectMessage(msg.id)}
-                  className="shrink-0 mt-2 p-1 rounded border border-gray-400 bg-white flex items-center justify-center w-5 h-5 focus:outline-none focus:ring-2 focus:ring-[#25D366]"
-                  aria-label={selectedIds.has(msg.id) ? t('whatsappInbox.cancel', 'Cancel') : t('whatsappInbox.selectMessages', 'Select messages')}
-                >
-                  {selectedIds.has(msg.id) ? (
-                    <Check className="w-3 h-3 text-[#25D366]" />
-                  ) : null}
-                </button>
-              ) : null;
             const handleSaveAs = async () => {
               if (msg.media_url) {
                 try {
@@ -1738,7 +1691,7 @@ export function ChatThread({
                 {t('whatsappInbox.copy', 'Copy')}
               </DropdownMenuItem>
             );
-            const inboundDropdown = msg.direction === 'inbound' && !selectionMode && !hideHeader ? (
+            const inboundDropdown = msg.direction === 'inbound' && !hideHeader ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1785,7 +1738,7 @@ export function ChatThread({
             const hasReplyBlock = !!(msg.reply_to_body ?? msg.reply_to_wa_message_id ?? msg.reply_to_sender);
             const dropdownTriggerClassOutbound =
               'group h-7 w-7 flex items-center justify-center text-white/90 hover:text-white p-0 min-w-0 border-0 bg-transparent shadow-none hover:bg-transparent rounded-none';
-            const outboundDropdown = msg.direction === 'outbound' && !selectionMode && !hideHeader ? (
+            const outboundDropdown = msg.direction === 'outbound' && !hideHeader ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1871,7 +1824,6 @@ export function ChatThread({
               title={effectiveScrollToMessageId === msg.id ? t('whatsappInbox.clickToRemoveHighlight', 'Click to remove highlight') : undefined}
               aria-label={effectiveScrollToMessageId === msg.id ? t('whatsappInbox.clickToRemoveHighlight', 'Click to remove highlight') : undefined}
             >
-              {msg.direction === 'inbound' && <CheckboxBtn />}
               <div
                 data-msg-bubble={msg.id}
                 className="relative w-fit max-w-[80%]"
@@ -1887,7 +1839,7 @@ export function ChatThread({
                         }
                     : undefined
                 }
-                {...(hideHeader && !selectionMode
+                {...(hideHeader
                   ? {
                       onTouchStart: (e: React.TouchEvent) => {
                         e.stopPropagation();
@@ -2098,8 +2050,7 @@ export function ChatThread({
                     msg.direction === 'outbound'
                       ? 'bg-[#128C7E] text-white'
                       : 'bg-white text-gray-900 shadow-sm'
-                  } ${selectionMode ? 'cursor-pointer' : ''} ${timeOverMedia ? 'pb-5' : ''}`}
-                  onClick={selectionMode ? () => toggleSelectMessage(msg.id) : undefined}
+                  } ${timeOverMedia ? 'pb-5' : ''}`}
                 >
                   {isInboundText && inboundDropdown && (
                     <div className="absolute top-1 right-1" onClick={(e) => e.stopPropagation()}>
@@ -2211,7 +2162,6 @@ export function ChatThread({
                   )}
                 </div>
               </div>
-              {msg.direction === 'outbound' && <CheckboxBtn />}
             </div>
               {showDateSeparatorAfter && dateSeparatorLabel ? (
                 <DateSeparator

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { storageUploadOptions } from '@/shared/lib/storageCacheControl';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 
@@ -96,7 +97,7 @@ export function useCreateAssetAssignment() {
       if (!ALLOWED_TYPES.includes(params.file.type)) throw new Error('Allowed: PDF, JPG, PNG');
 
       const path = `${PREFIX}/${organizationId}/${params.assetId}/${Date.now()}-${params.file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, params.file, { cacheControl: '3600', upsert: false });
+      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, params.file, storageUploadOptions({ upsert: false, contentType: params.file.type }));
       if (uploadError) throw uploadError;
 
       const { data: row, error } = await supabase
@@ -138,7 +139,7 @@ export function useAssignAsset() {
       if (!ALLOWED_TYPES.includes(params.file.type)) throw new Error('Allowed: PDF, JPG, PNG');
 
       const path = `${PREFIX}/${organizationId}/${params.assetId}/${Date.now()}-${params.file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, params.file, { cacheControl: '3600', upsert: false });
+      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, params.file, storageUploadOptions({ upsert: false, contentType: params.file.type }));
       if (uploadError) throw uploadError;
 
       await supabase.from('asset_assignments').insert({
@@ -192,7 +193,7 @@ export function useHandoverAsset() {
       if (!ALLOWED_TYPES.includes(params.file.type)) throw new Error('Allowed: PDF, JPG, PNG');
 
       const path = `${PREFIX}/${organizationId}/${params.assetId}/${Date.now()}-${params.file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, params.file, { cacheControl: '3600', upsert: false });
+      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, params.file, storageUploadOptions({ upsert: false, contentType: params.file.type }));
       if (uploadError) throw uploadError;
 
       const { data: currentRows } = await supabase
@@ -283,7 +284,7 @@ export function useReturnAsset() {
       let path: string | null = null;
       if (params.file) {
         path = `${PREFIX}/${organizationId}/${params.assetId}/${Date.now()}-${params.file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, params.file, { cacheControl: '3600', upsert: false });
+        const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, params.file, storageUploadOptions({ upsert: false, contentType: params.file.type }));
         if (uploadError) throw uploadError;
       }
 

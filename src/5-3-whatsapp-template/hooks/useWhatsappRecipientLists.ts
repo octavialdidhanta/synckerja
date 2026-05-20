@@ -16,6 +16,10 @@ import {
   type WaConvLite,
 } from "@/5-3-whatsapp-template/utils/enrichRecipientListMembers";
 import {
+  buildRecipientProfileRowsFromSubmissions,
+  fetchLeadSubmissionsForOrganization,
+} from "@/shared/lib/leadSubmissionProfile";
+import {
   RECIPIENT_IMPORT_ERROR_SUMMARY_CAP,
   type RecipientImportFailure,
   type RecipientImportValidRow,
@@ -32,6 +36,48 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+/** Readable message for Supabase/PostgREST errors (avoids toast showing `[object Object]`). */
+export function formatRecipientListMutationError(e: unknown): string {
+  if (e instanceof Error && e.message.trim()) return e.message;
+  if (e && typeof e === "object") {
+    const o = e as Record<string, unknown>;
+    if (typeof o.message === "string" && o.message.trim()) return o.message;
+    if (typeof o.details === "string" && o.details.trim()) return o.details;
+    if (typeof o.hint === "string" && o.hint.trim()) return o.hint;
+  }
+  if (typeof e === "string" && e.trim()) return e;
+  return "An unexpected error occurred.";
+}
+
+function isPostgresUniqueViolation(e: unknown): boolean {
+  if (e && typeof e === "object" && "code" in e) {
+    return String((e as { code?: string }).code) === "23505";
+  }
+  return false;
+}
+
+/** One member per lead / livechat row (picker allows duplicate phone across different leads). */
+export function dedupePicksForListMembers(picks: RecipientPickerCandidate[]): RecipientPickerCandidate[] {
+  const seen = new Set<string>();
+  const out: RecipientPickerCandidate[] = [];
+  for (const p of picks) {
+    const key =
+      p.lead_id != null
+        ? `lead:${p.lead_id}`
+        : p.conversation_id != null
+          ? `lc:${p.conversation_id}`
+          : `phone:${p.phoneKey}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
+function picksWithCallablePhone(picks: RecipientPickerCandidate[]): RecipientPickerCandidate[] {
+  return picks.filter((p) => (p.phoneKey ?? "").trim().length > 0);
 }
 
 export function useActiveOrgOwnerRpc(organizationId: string | null | undefined) {
@@ -71,6 +117,8 @@ export function useRecipientPickerFilterOptions(organizationId: string | null | 
         utmContents: toStrArr("utm_contents"),
         utmTerms: toStrArr("utm_terms"),
         attributionLabels: toStrArr("attribution_labels"),
+        gclids: toStrArr("gclids"),
+        serviceNames: toStrArr("service_names"),
         sources: toStrArr("sources"),
       };
     },
@@ -132,21 +180,10 @@ export function useRecipientPickerCandidates(organizationId: string | null | und
 
       const leadIdSet = new Set(leads.map((l) => l.id));
 
-      /** Avoid huge `.in()` filters (PostgREST URL limits); scope by org then narrow in memory. */
-      let leadProfiles: {
-        lead_id: string;
-        phone_number: string | null;
-        contact_phone: string | null;
-        updated_at: string | null;
-      }[] = [];
-
+      let leadProfiles: LeadProfileLite[] = [];
       if (leadIdSet.size > 0) {
-        const { data: profData, error: profErr } = await supabase
-          .from("lead_client_profiles")
-          .select("lead_id, phone_number, contact_phone, updated_at")
-          .eq("organization_id", orgId);
-        if (profErr) throw profErr;
-        leadProfiles = (profData ?? []).filter((p) => leadIdSet.has(p.lead_id));
+        const submissionRows = await fetchLeadSubmissionsForOrganization(orgId);
+        leadProfiles = buildRecipientProfileRowsFromSubmissions(submissionRows, leadIdSet);
       }
 
       /** WA profile `phone_number` is optional in DB (migration may be missing); numbers use `customer_wa_id` on conversations. */
@@ -247,21 +284,36 @@ export function useCreateRecipientListFromSelection(organizationId: string | nul
       if (insErr) throw insErr;
       const listId = list.id as string;
 
-      const rows = args.picks.map((p) => ({
+      const deduped = dedupePicksForListMembers(args.picks);
+      const callable = picksWithCallablePhone(deduped);
+      if (callable.length === 0) {
+        throw new Error(
+          "No selected contacts have a valid WhatsApp phone number. Add a phone on the lead or Client Profile.",
+        );
+      }
+
+      const rows = callable.map((p) => ({
         list_id: listId,
         organization_id: orgId,
-        phone_normalized: p.phoneKey,
+        phone_normalized: p.phoneKey.trim(),
         lead_id: p.lead_id,
         conversation_id: p.conversation_id,
-        origin: p.lead_id ? "lead" : "livechat",
+        origin: p.lead_id ? ("lead" as const) : ("livechat" as const),
       }));
 
       for (const part of chunk(rows, 500)) {
         const { error: mErr } = await supabase.from("whatsapp_recipient_list_members").insert(part);
-        if (mErr) throw mErr;
+        if (mErr) {
+          if (isPostgresUniqueViolation(mErr)) {
+            throw new Error(
+              "Some contacts could not be added because of duplicate entries. Run the latest database migration (recipient list members per lead), then try again.",
+            );
+          }
+          throw mErr;
+        }
       }
 
-      return listId;
+      return { listId, importedCount: callable.length };
     },
     onSuccess: () => {
       if (orgId) {
@@ -466,16 +518,8 @@ export function useWhatsappRecipientListDetail(organizationId: string | null | u
         leads.push(...((data ?? []) as LeadRowLite[]));
       }
 
-      const profiles: LeadProfileLite[] = [];
-      for (const part of chunk(leadIds, 120)) {
-        const { data, error } = await supabase
-          .from("lead_client_profiles")
-          .select("lead_id, phone_number, contact_phone, updated_at")
-          .eq("organization_id", orgId)
-          .in("lead_id", part);
-        if (error) throw error;
-        profiles.push(...((data ?? []) as LeadProfileLite[]));
-      }
+      const allSubmissions = leadIds.length > 0 ? await fetchLeadSubmissionsForOrganization(orgId) : [];
+      const profiles = buildRecipientProfileRowsFromSubmissions(allSubmissions, leadIds);
 
       const conversations: WaConvLite[] = [];
       for (const part of chunk(convIds, 120)) {

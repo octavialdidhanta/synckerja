@@ -1,5 +1,5 @@
-﻿import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type jsPDF from 'jspdf';
+import { loadPdfKit } from '@/shared/lib/pdf/loadPdfKit';
 import { PDFDocument } from 'pdf-lib';
 import { format, parseISO, isValid } from 'date-fns';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -148,8 +148,12 @@ export async function generateCandidateApplicationPDF(
   language: AppLanguage,
   t: TranslateFn
 ): Promise<GeneratePdfResult> {
+  const { jsPDF: JsPDF, autoTable } = await loadPdfKit({ withAutoTable: true });
+  if (!autoTable) {
+    throw new Error('jspdf-autotable failed to load');
+  }
   const emptyStr = t('candidateApplicationPdf.empty', '—');
-  const doc = new jsPDF();
+  const doc = new JsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   const tableFullWidth = pageWidth - 2 * MARGIN;

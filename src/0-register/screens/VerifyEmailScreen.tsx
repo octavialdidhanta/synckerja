@@ -8,12 +8,11 @@ import { RefreshCw } from "lucide-react";
 import { OnboardingSplitLayout } from "@/0-onboarding/components/OnboardingSplitLayout";
 import { sendConfirmationEmail } from "@/0-register/utils/emailConfirmation";
 import { EmailOtpInput } from "@/0-register/components/EmailOtpInput";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
 const brandBlue = "hsl(var(--brand-blue))";
 
-const defaultBrandMark = (
-  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-);
+const defaultBrandMark = <SynckerjaBrandLogo />;
 
 function defaultVerifyShell(body: React.ReactNode) {
   return (

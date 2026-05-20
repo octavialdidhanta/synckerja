@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { enUS, id as idLocale } from 'date-fns/locale';
 import { HeaderAndTab } from '@/5-3-dashboard/components/layout/HeaderAndTab';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -10,14 +9,13 @@ import { Button } from '@/shared/components/ui/button';
 import { Loader2 } from 'lucide-react';
 
 export function WhatsAppTemplateFollowupsPage() {
-  const { t, i18n } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const { organizationId, loading: orgLoading } = useCurrentOrg();
   const { data: rows = [], isLoading, error } = useWhatsAppTemplateFollowups(organizationId);
-  const dateLocale = i18n.language?.startsWith('en') ? enUS : idLocale;
 
   const formatDt = (iso: string) => {
     try {
-      return format(parseISO(iso), 'dd MMM yyyy, HH:mm', { locale: dateLocale });
+      return format(parseISO(iso), 'dd MMM yyyy, HH:mm', { locale: dateFnsLocale });
     } catch {
       return iso;
     }

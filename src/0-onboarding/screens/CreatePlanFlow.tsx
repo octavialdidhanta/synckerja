@@ -16,12 +16,11 @@ import {
   planSelectable,
   sliderMaxMembers,
 } from "@/0-onboarding/utils/subscriptionPlanUtils";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
 const brandRed = "hsl(var(--brand-red))";
 
-const defaultPlanBrand = (
-  <img src="/favicon.png" alt="" className="h-14 w-auto" width={56} height={56} />
-);
+const defaultPlanBrand = <SynckerjaBrandLogo />;
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

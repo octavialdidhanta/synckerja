@@ -196,20 +196,34 @@ async function findMergeableFormLeadId(
     }
   }
 
-  // contact-lead may store E.164 on `leads.phone_number` but some pipelines only fill `lead_client_profiles.*_phone`.
-  const { data: profiles } = await supabase
-    .from("lead_client_profiles")
-    .select("lead_id, phone_number, contact_phone")
+  // contact-lead may store E.164 on `leads.phone_number` but some pipelines only fill `lead_submissions.phone_number`.
+  const { data: submissions } = await supabase
+    .from("lead_submissions")
+    .select("lead_id, phone_number, status, submitted_at, updated_at")
     .eq("organization_id", orgId)
+    .eq("is_active", true)
+    .not("lead_id", "is", null)
     .gte("created_at", since)
-    .limit(400);
+    .limit(800);
 
   const checkedProfileLeads = new Set<string>();
-  for (const p of profiles ?? []) {
-    const ph = p.contact_phone ?? p.phone_number;
+  const byLead = new Map<string, { phone_number: string | null; status: string; submitted_at: string | null; updated_at: string }>();
+  for (const s of submissions ?? []) {
+    const lid = String(s.lead_id ?? "");
+    if (!lid) continue;
+    const existing = byLead.get(lid);
+    const rank = (row: typeof s) =>
+      (row.status === "submitted" ? 0 : row.status === "draft" ? 1 : 2) * 1e15 +
+      new Date(row.submitted_at ?? 0).getTime() +
+      new Date(row.updated_at ?? 0).getTime() / 1000;
+    if (!existing || rank(s) >= rank(existing)) {
+      byLead.set(lid, s as { phone_number: string | null; status: string; submitted_at: string | null; updated_at: string });
+    }
+  }
+  for (const [lid, p] of byLead) {
+    const ph = p.phone_number;
     if (ph == null || String(ph).trim() === "") continue;
     if (!waPhonesMatch(String(ph), phone)) continue;
-    const lid = String(p.lead_id ?? "");
     if (!lid || checkedProfileLeads.has(lid)) continue;
     checkedProfileLeads.add(lid);
     const { data: leadRow } = await supabase

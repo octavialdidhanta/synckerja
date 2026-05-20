@@ -9,6 +9,7 @@ import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "@/shared/hooks/use-toast";
 import { routeAfterLogin } from "@/0-auth/lib/postLoginRouting";
+import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
 function messageForAuthError(error: AuthError, t: (key: string) => string): string {
   const code = error.code ?? "";
@@ -26,16 +27,7 @@ function messageForAuthError(error: AuthError, t: (key: string) => string): stri
   return error.message;
 }
 
-const defaultBrandMark = (
-  <img
-    src="/pwa-512.png"
-    alt="Synckerja"
-    className="h-14 w-auto"
-    width={512}
-    height={512}
-    decoding="async"
-  />
-);
+const defaultBrandMark = <SynckerjaBrandLogo fetchPriority="high" />;
 
 export type LoginScreenProps = {
   submitButtonRef?: RefObject<HTMLButtonElement | null>;

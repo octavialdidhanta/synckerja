@@ -7,7 +7,10 @@ const SectionGreetings = lazy(() =>
   import('./component/SectionGreetings').then((m) => ({ default: m.SectionGreetings })),
 );
 import { SectionQuickMenu } from './component/SectionQuickMenu';
-import { ObjectivesTab } from './component/ObjectivesTab';
+
+const ObjectivesTab = lazy(() =>
+  import('./component/ObjectivesTab').then((m) => ({ default: m.ObjectivesTab })),
+);
 import { CompanyObjectivesProgressCard } from './component/CompanyObjectivesProgressCard';
 import { DepartmentObjectivesProgressCard } from './component/DepartmentObjectivesProgressCard';
 import { IndividualObjectivesProgressCard } from './component/IndividualObjectivesProgressCard';
@@ -187,21 +190,25 @@ const HomeOKRDashboardContent = () => {
                 isLoadingCycles={isLoadingCycles}
               />
               
-              <ObjectivesTab 
-                type="company" 
-                title={`Company Objectives ${new Date().getFullYear()}`}
-                icon={Target} 
-                iconColor="text-okr-company" 
-                userRole={userRole} 
-                openKeyResults={openKeyResults} 
-                onToggleKeyResults={toggleKeyResults} 
-                stats={companyStats.data || { avgProgress: 0, totalObjectives: 0, nextDeadline: "N/A" }}
-                filters={filters} 
-                onFiltersChange={setFilters} 
-                yearQuarterSelection={yearQuarterSelection} 
-                onYearQuarterChange={setYearQuarterSelection} 
-                availableYears={availableYears} 
-              />
+              {visitedOkrTabs.has('company-objectives') ? (
+                <Suspense fallback={<Skeleton className="min-h-[200px] w-full rounded-lg" />}>
+                  <ObjectivesTab
+                    type="company"
+                    title={`Company Objectives ${new Date().getFullYear()}`}
+                    icon={Target}
+                    iconColor="text-okr-company"
+                    userRole={userRole}
+                    openKeyResults={openKeyResults}
+                    onToggleKeyResults={toggleKeyResults}
+                    stats={companyStats.data || { avgProgress: 0, totalObjectives: 0, nextDeadline: "N/A" }}
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    yearQuarterSelection={yearQuarterSelection}
+                    onYearQuarterChange={setYearQuarterSelection}
+                    availableYears={availableYears}
+                  />
+                </Suspense>
+              ) : null}
               </div>
             </TabsContent>
 
@@ -228,21 +235,25 @@ const HomeOKRDashboardContent = () => {
                 isLoadingCycles={isLoadingCycles}
               />
               
-              <ObjectivesTab 
-                type="department" 
-                title="Department Objectives" 
-                icon={Building} 
-                iconColor="text-okr-department" 
-                userRole={userRole} 
-                openKeyResults={openKeyResults} 
-                onToggleKeyResults={toggleKeyResults} 
-                stats={departmentStats.data || { avgProgress: 0, totalObjectives: 0, nextDeadline: "N/A" }}
-                filters={filters} 
-                onFiltersChange={setFilters} 
-                yearQuarterSelection={yearQuarterSelection} 
-                onYearQuarterChange={setYearQuarterSelection} 
-                availableYears={availableYears} 
-              />
+              {visitedOkrTabs.has('department-objectives') ? (
+                <Suspense fallback={<Skeleton className="min-h-[200px] w-full rounded-lg" />}>
+                  <ObjectivesTab
+                    type="department"
+                    title="Department Objectives"
+                    icon={Building}
+                    iconColor="text-okr-department"
+                    userRole={userRole}
+                    openKeyResults={openKeyResults}
+                    onToggleKeyResults={toggleKeyResults}
+                    stats={departmentStats.data || { avgProgress: 0, totalObjectives: 0, nextDeadline: "N/A" }}
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    yearQuarterSelection={yearQuarterSelection}
+                    onYearQuarterChange={setYearQuarterSelection}
+                    availableYears={availableYears}
+                  />
+                </Suspense>
+              ) : null}
               </div>
             </TabsContent>
 
@@ -268,21 +279,25 @@ const HomeOKRDashboardContent = () => {
                 isLoadingCycles={isLoadingCycles}
               />
               
-              <ObjectivesTab 
-                type="individual" 
-                title="My Individual Objectives" 
-                icon={User} 
-                iconColor="text-okr-individual" 
-                userRole={userRole} 
-                openKeyResults={openKeyResults} 
-                onToggleKeyResults={toggleKeyResults} 
-                stats={individualStats.data || { avgProgress: 0, totalObjectives: 0, nextDeadline: "N/A" }}
-                filters={filters} 
-                onFiltersChange={setFilters} 
-                yearQuarterSelection={yearQuarterSelection} 
-                onYearQuarterChange={setYearQuarterSelection} 
-                availableYears={availableYears} 
-              />
+              {visitedOkrTabs.has('individual-objectives') ? (
+                <Suspense fallback={<Skeleton className="min-h-[200px] w-full rounded-lg" />}>
+                  <ObjectivesTab
+                    type="individual"
+                    title="My Individual Objectives"
+                    icon={User}
+                    iconColor="text-okr-individual"
+                    userRole={userRole}
+                    openKeyResults={openKeyResults}
+                    onToggleKeyResults={toggleKeyResults}
+                    stats={individualStats.data || { avgProgress: 0, totalObjectives: 0, nextDeadline: "N/A" }}
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    yearQuarterSelection={yearQuarterSelection}
+                    onYearQuarterChange={setYearQuarterSelection}
+                    availableYears={availableYears}
+                  />
+                </Suspense>
+              ) : null}
               </div>
             </TabsContent>
           </Tabs>

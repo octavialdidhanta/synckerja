@@ -14,7 +14,7 @@ export const uploadCVFile = async (file: File, applicantName?: string): Promise<
     const { data, error } = await supabase.storage
       .from('recruitment-files')
       .upload(filePath, file, {
-        cacheControl: '3600',
+        cacheControl: '31536000',
         upsert: false
       });
 

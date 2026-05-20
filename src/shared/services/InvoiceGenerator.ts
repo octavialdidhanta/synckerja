@@ -1,5 +1,5 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type jsPDF from "jspdf";
+import { loadPdfKit } from "@/shared/lib/pdf/loadPdfKit";
 
 export interface InvoiceData {
   // Company Info
@@ -8,6 +8,8 @@ export interface InvoiceData {
   companyEmail: string;
   companyAddress: string;
   companyLogo?: string;
+  /** Stamp or signature image (left signature area). */
+  companySignature?: string;
   
   // Invoice Details
   invoiceNumber: string;
@@ -59,14 +61,28 @@ export interface InvoiceData {
 export class InvoiceGenerator {
   private doc: jsPDF;
   private itemsCount: number = 0;
+  private readonly autoTableFn: NonNullable<Awaited<ReturnType<typeof loadPdfKit>>["autoTable"]>;
 
-  constructor() {
-    // A5 size: 148 x 210 mm
-    this.doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: [148, 210]
+  private constructor(
+    doc: jsPDF,
+    autoTableFn: NonNullable<Awaited<ReturnType<typeof loadPdfKit>>["autoTable"]>,
+  ) {
+    this.doc = doc;
+    this.autoTableFn = autoTableFn;
+  }
+
+  /** Loads jspdf + autotable on demand (vendor-pdf chunk). */
+  static async create(): Promise<InvoiceGenerator> {
+    const { jsPDF: JsPDF, autoTable } = await loadPdfKit({ withAutoTable: true });
+    if (!autoTable) {
+      throw new Error("jspdf-autotable failed to load");
+    }
+    const doc = new JsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: [148, 210],
     });
+    return new InvoiceGenerator(doc, autoTable);
   }
 
   generateInvoice(data: InvoiceData): jsPDF {
@@ -91,17 +107,85 @@ export class InvoiceGenerator {
     return this.doc;
   }
 
+  private logoImageFormat(dataUri: string): 'PNG' | 'JPEG' {
+    if (dataUri.includes('image/jpeg') || dataUri.includes('image/jpg')) return 'JPEG';
+    return 'PNG';
+  }
+
+  private safeAddImage(
+    imageData: string,
+    format: 'PNG' | 'JPEG',
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+  ): boolean {
+    try {
+      this.doc.addImage(imageData, format, x, y, w, h);
+      return true;
+    } catch (err) {
+      if (format !== 'JPEG') {
+        try {
+          this.doc.addImage(imageData, 'JPEG', x, y, w, h);
+          return true;
+        } catch {
+          /* fall through */
+        }
+      }
+      console.warn('Invoice PDF: skipped image embed', err);
+      return false;
+    }
+  }
+
+  /** Fit image inside max box (mm) without stretching — object-fit: contain. */
+  private fitImageSizeMm(
+    imageData: string,
+    maxW: number,
+    maxH: number,
+  ): { width: number; height: number } {
+    try {
+      const props = this.doc.getImageProperties(imageData);
+      const pxW = props.width;
+      const pxH = props.height;
+      if (!pxW || !pxH) return { width: maxW, height: maxH };
+
+      const ratio = pxW / pxH;
+      let w = maxW;
+      let h = w / ratio;
+      if (h > maxH) {
+        h = maxH;
+        w = h * ratio;
+      }
+      return { width: w, height: h };
+    } catch {
+      const side = Math.min(maxW, maxH);
+      return { width: side, height: side };
+    }
+  }
+
   private addHeader(data: InvoiceData) {
-    // Company Logo (left)
+    const logoMaxW = 28;
+    const logoMaxH = 10;
+    const logoX = 10;
+    const logoY = 10;
+
+    // Company Logo (left) — preserve aspect ratio
     if (data.companyLogo) {
-      this.doc.addImage(data.companyLogo, 'PNG', 10, 10, 20, 20);
+      const fmt = this.logoImageFormat(data.companyLogo);
+      const { width: w, height: h } = this.fitImageSizeMm(
+        data.companyLogo,
+        logoMaxW,
+        logoMaxH,
+      );
+      const drawY = logoY + (logoMaxH - h) / 2;
+      this.safeAddImage(data.companyLogo, fmt, logoX, drawY, w, h);
     } else {
       // Placeholder logo box
       this.doc.setDrawColor(200, 200, 200);
-      this.doc.rect(10, 10, 20, 20);
+      this.doc.rect(logoX, logoY, logoMaxW, logoMaxH);
       this.doc.setFontSize(8);
       this.doc.setTextColor(150, 150, 150);
-      this.doc.text('LOGO', 20, 22, { align: 'center' });
+      this.doc.text('LOGO', logoX + logoMaxW / 2, logoY + logoMaxH / 2 + 1, { align: 'center' });
     }
     
     // Invoice title and company info (right)
@@ -200,7 +284,7 @@ export class InvoiceGenerator {
       this.formatCurrency(item.amount)
     ]);
 
-    autoTable(this.doc, {
+    this.autoTableFn(this.doc, {
       startY: 66,
       head: [['Item', 'Quantity', 'Price', 'Amount']],
       body: itemsData,
@@ -381,22 +465,42 @@ export class InvoiceGenerator {
     this.doc.setFont('helvetica', 'bold');
     this.doc.setTextColor(0, 0, 0);
     
+    const companyName = data?.companyName || 'Company Name';
+    const clientName = data?.clientName || 'Client Name';
+    const nameY = yPos;
+
     // Left side - Company signature
-    this.doc.text(data?.companyName || 'Company Name', 10, yPos);
-    
-    // Right side - Client signature  
-    this.doc.text(data?.clientName || 'Client Name', 100, yPos);
-    
-    yPos += 15;
-    
-    // Signature lines and space
+    this.doc.text(companyName, 10, nameY);
+
+    // Right side - Client signature
+    this.doc.text(clientName, 100, nameY);
+
+    let leftLineY = nameY + 15;
+    const sigMaxW = 35;
+    const sigMaxH = 14;
+
+    if (data?.companySignature) {
+      const fmt = this.logoImageFormat(data.companySignature);
+      const { width: sigW, height: sigH } = this.fitImageSizeMm(
+        data.companySignature,
+        sigMaxW,
+        sigMaxH,
+      );
+      const sigY = nameY + 4;
+      this.safeAddImage(data.companySignature, fmt, 10, sigY, sigW, sigH);
+      leftLineY = sigY + sigH + 3;
+    }
+
+    const rightLineY = nameY + 15;
+
+    // Signature lines
     this.doc.setDrawColor(0, 0, 0);
     this.doc.setLineWidth(0.3);
-    this.doc.line(10, yPos, 45, yPos); // Left signature line
-    this.doc.line(100, yPos, 135, yPos); // Right signature line
-    
-    yPos += 8;
-    
+    this.doc.line(10, leftLineY, 45, leftLineY);
+    this.doc.line(100, rightLineY, 135, rightLineY);
+
+    const dateY = Math.max(leftLineY, rightLineY) + 8;
+
     // Date under left signature
     this.doc.setFontSize(8);
     this.doc.setFont('helvetica', 'normal');
@@ -406,10 +510,10 @@ export class InvoiceGenerator {
       month: 'short',
       year: 'numeric'
     });
-    this.doc.text(currentDate, 10, yPos);
+    this.doc.text(currentDate, 10, dateY);
     
     // Date placeholder under right signature
-    this.doc.text('(    /    /    )', 100, yPos);
+    this.doc.text('(    /    /    )', 100, dateY);
   }
 
   private addNotes(data: InvoiceData) {

@@ -1,6 +1,5 @@
+import { SYNCKERJA_BRAND_LOGO_ALT, SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
 import { cn } from "@/shared/lib/utils";
-
-const LOGO_PNG = "/pwa-512.png";
 
 export type SynckerjaBrandMarkProps = {
   className?: string;
@@ -12,11 +11,11 @@ export function SynckerjaBrandMark({ className, size = "md" }: SynckerjaBrandMar
   const hClass = size === "sm" ? "max-h-10" : "max-h-[52px]";
   return (
     <img
-      src={LOGO_PNG}
-      alt="Synckerja"
+      src={SYNCKERJA_BRAND_LOGO_SRC}
+      alt={SYNCKERJA_BRAND_LOGO_ALT}
       className={cn("h-auto w-auto object-contain object-center", hClass, className)}
-      width={512}
-      height={512}
+      width={192}
+      height={192}
       decoding="async"
     />
   );

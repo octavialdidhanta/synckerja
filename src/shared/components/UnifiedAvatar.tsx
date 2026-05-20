@@ -1,5 +1,9 @@
 ﻿
 import React, { useState, useCallback, memo } from 'react';
+import {
+  avatarDisplayWidth,
+  optimizePublicStorageImageUrl,
+} from '@/shared/lib/storageDisplayUrl';
 import { Avatar, AvatarImage, AvatarFallback } from '@/shared/components/ui/avatar';
 // import { getPhotoUrl, getInitials } from '@/utils/photoUtils';
 // import { PhotoViewModal } from './PhotoViewModal';
@@ -77,15 +81,20 @@ export const UnifiedAvatar: React.FC<UnifiedAvatarProps> = memo(({
     
     // If it's already a full URL (from employee-profiles bucket), use it directly
     if (photoUrl.startsWith('http')) {
-      if (shouldLog) console.log('✅ Using full HTTP URL:', photoUrl);
-      return photoUrl;
+      const optimized = optimizePublicStorageImageUrl(photoUrl, {
+        width: avatarDisplayWidth(size),
+        resize: 'cover',
+        quality: 80,
+      });
+      if (shouldLog) console.log('✅ Using full HTTP URL:', optimized);
+      return optimized ?? photoUrl;
     }
     
     // Use the utility function for other formats
     const processedUrl = getPhotoUrl(photoUrl);
     if (shouldLog) console.log('🔄 Processed photo URL:', processedUrl);
     return processedUrl;
-  }, [photoUrl]);
+  }, [photoUrl, size]);
   
   const handleAvatarClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

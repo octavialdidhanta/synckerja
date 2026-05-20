@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { TrendingUp, Users, Calendar, Target, Download, FileText, BarChart3, MapPin, Loader2, User2, LineChart, ChevronDown } from 'lucide-react';
 import { generateLeadsPDF } from "@/5-3-dashboard/lib/LeadsPDFGenerator";
-import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
+import { buildLeadStatusReportAnalysis } from '@/5-1-leads-management/utils/leadStatusDisplay';
 import { useLeadsInsightsSupplementalQueries } from '@/5-3-dashboard/hooks/useLeadsInsightsSupplementalQueries';
 
 function formatDurationMs(ms: number): string {
@@ -226,29 +226,11 @@ export const LeadsInsights = ({
     };
   }).sort((a, b) => b.count - a.count);
 
-  // Status analysis — sinkron dengan sidebar quick action & kolom status tabel leads: urutan dan daftar dari lead_statuses (DB)
-  const statusAnalysis = (() => {
-    if (organizationId && leadStatusesFromDb.length > 0) {
-      const rows: { status: string; count: number }[] = leadStatusesFromDb.map((s) => ({
-        status: s.name,
-        count: leads.filter((l) => (l.lead_status?.name ?? '').trim() === s.name.trim()).length,
-      }));
-      const notSpecifiedCount = leads.filter((l) => !l.lead_status?.name || (l.lead_status.name ?? '').trim() === '').length;
-      if (notSpecifiedCount > 0) {
-        rows.push({ status: 'Not Specified', count: notSpecifiedCount });
-      }
-      return rows;
-    }
-    // Fallback tanpa organizationId: kelompokkan dari leads saja (urutan by count)
-    const statusMap = new Map<string, number>();
-    leads.forEach((lead) => {
-      const statusName = lead.lead_status?.name || 'Not Specified';
-      statusMap.set(statusName, (statusMap.get(statusName) || 0) + 1);
-    });
-    return Array.from(statusMap.entries())
-      .map(([status, count]) => ({ status, count }))
-      .sort((a, b) => b.count - a.count);
-  })();
+  // Status analysis — same list/order/labels as Livechat Quick Action (`LeadStatusSelect`)
+  const statusAnalysis = buildLeadStatusReportAnalysis(
+    leads,
+    organizationId ? leadStatusesFromDb : [],
+  );
 
   // Employee performance analysis with conversion tracking
   const unassignedLeads = leads.filter(lead => !lead.assignee || !String(lead.assignee).trim());
@@ -750,8 +732,8 @@ export const LeadsInsights = ({
               </CardHeader>
               <CardContent className="space-y-2">
                 {statusAnalysis.length > 0 ? (
-                  statusAnalysis.map((status, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
-                      <span className="text-sm text-slate-700">{getLeadStatusDisplayName(status.status)}</span>
+                  statusAnalysis.map((status) => <div key={status.displayName} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
+                      <span className="text-sm text-slate-700">{status.displayName}</span>
                       <Badge variant="outline" className="text-xs">
                         {status.count}
                       </Badge>

@@ -32,6 +32,12 @@ export interface LeadsFilters {
   utmContent: string;
   utmTerm: string;
   attributionLabel: string;
+  /** Exact match on `leads.gclid` (recipient picker RPC + optional column filter). */
+  gclid?: string;
+  /** Recipient picker toolbar: rows with `leads.gclid`. */
+  gclidPresence?: "all" | "has";
+  /** Recipient picker toolbar: rows with `lead_submissions.email`. */
+  emailPresence?: "all" | "has";
   landingUrlContains: string;
   /** Recipient picker / server RPC: exact latest survey rating 1–5, or all. */
   surveyRating: "all" | "none" | "1" | "2" | "3" | "4" | "5";
@@ -90,6 +96,9 @@ export const LeadsFilters = ({
     utmContent: 'all',
     utmTerm: 'all',
     attributionLabel: 'all',
+    gclid: 'all',
+    gclidPresence: 'all',
+    emailPresence: 'all',
     landingUrlContains: '',
     surveyRating: 'all',
   });
@@ -135,6 +144,9 @@ export const LeadsFilters = ({
       utmContent: 'all',
       utmTerm: 'all',
       attributionLabel: 'all',
+      gclid: 'all',
+      gclidPresence: 'all',
+      emailPresence: 'all',
       landingUrlContains: '',
       surveyRating: 'all',
     };
@@ -216,23 +228,61 @@ export const LeadsFilters = ({
         </Select>
 
         {variant === "embedded" ? (
-          <Select
-            value={filters.surveyRating}
-            onValueChange={(value) => updateFilters("surveyRating", value)}
-          >
-            <SelectTrigger className="h-9 w-[7.5rem] shrink-0 text-sm">
-              <SelectValue placeholder={t("leadsManagement.table.surveyRating", "Rating")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("leadsManagement.filters.allSurveyRatings", "All ratings")}</SelectItem>
-              <SelectItem value="none">{t("leadsManagement.filters.noSurveyRating", "No rating")}</SelectItem>
-              {(["1", "2", "3", "4", "5"] as const).map((n) => (
-                <SelectItem key={n} value={n}>
-                  {t("leadsManagement.filters.surveyRatingStars", "{{count}} star", { count: Number(n) })}
+          <>
+            <Select
+              value={filters.gclidPresence === "has" ? "has" : "all"}
+              onValueChange={(value) =>
+                updateFilters("gclidPresence", value === "has" ? "has" : "all")
+              }
+            >
+              <SelectTrigger className="h-9 w-[9.5rem] shrink-0 text-sm">
+                <SelectValue placeholder={t("whatsappTemplates.recipientLists.addContactsModal.filterGclid", "gclid")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("whatsappTemplates.recipientLists.addContactsModal.presenceAllGclid", "All data")}
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                <SelectItem value="has">
+                  {t("whatsappTemplates.recipientLists.addContactsModal.presenceHasGclid", "With gclid only")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.emailPresence === "has" ? "has" : "all"}
+              onValueChange={(value) =>
+                updateFilters("emailPresence", value === "has" ? "has" : "all")
+              }
+            >
+              <SelectTrigger className="h-9 w-[9.5rem] shrink-0 text-sm">
+                <SelectValue placeholder={t("whatsappTemplates.recipientLists.addContactsModal.filterEmail", "Email")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("whatsappTemplates.recipientLists.addContactsModal.presenceAllEmail", "All data")}
+                </SelectItem>
+                <SelectItem value="has">
+                  {t("whatsappTemplates.recipientLists.addContactsModal.presenceHasEmail", "With email only")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.surveyRating}
+              onValueChange={(value) => updateFilters("surveyRating", value)}
+            >
+              <SelectTrigger className="h-9 w-[7.5rem] shrink-0 text-sm">
+                <SelectValue placeholder={t("leadsManagement.table.surveyRating", "Rating")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("leadsManagement.filters.allSurveyRatings", "All ratings")}</SelectItem>
+                <SelectItem value="none">{t("leadsManagement.filters.noSurveyRating", "No rating")}</SelectItem>
+                {(["1", "2", "3", "4", "5"] as const).map((n) => (
+                  <SelectItem key={n} value={n}>
+                    {t("leadsManagement.filters.surveyRatingStars", "{{count}} star", { count: Number(n) })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
         ) : null}
 
         {/* FU Priority / Status: filter di header kolom tabel; tetap akses kelola status master */}
@@ -271,7 +321,7 @@ export const LeadsFilters = ({
           onClick={async () => {
             setIsGeneratingPDF(true);
             try {
-              generateLeadsPDF({ leads: filteredLeads, filters });
+              void generateLeadsPDF({ leads: filteredLeads, filters });
             } catch (e) {
               toast({
                 variant: 'destructive',

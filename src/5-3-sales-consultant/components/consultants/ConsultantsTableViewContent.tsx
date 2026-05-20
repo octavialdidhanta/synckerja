@@ -8,8 +8,7 @@ import { ScrollArea } from "@/shared/components/ui/scroll-area";
 import { useLeads } from '@/shared/hooks/organized/sales';
 import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { NewLead } from '@/types/leads';
-import { useClientProfileStatus } from '@/shared/hooks/organized/sales';
-import { supabase } from '@/shared/lib/supabaseClient';
+import { useLeadClientStatuses } from '@/5-3-dashboard/hooks/useLeadClientStatuses';
 import type { LeadAttributionSortColumn } from '@/shared/lib/leadAttribution';
 import {
   defaultLeadAttributionSortState,
@@ -173,85 +172,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     }
   };
 
-  // State to manage client profile statuses and data
-  const [clientStatuses, setClientStatuses] = useState<Record<string, 'full' | 'partial' | 'empty'>>({});
-  const [clientProfiles, setClientProfiles] = useState<Record<string, any>>({});
-
-  // Fetch client profile statuses
-  useEffect(() => {
-    const fetchStatuses = async () => {
-      if (leads.length === 0) return;
-      
-      const statusMap: Record<string, 'full' | 'partial' | 'empty'> = {};
-      const profileMap: Record<string, any> = {};
-      
-      for (const lead of leads) {
-        try {
-          const isWhatsApp = String(lead.id).startsWith('wa-');
-          const isEmail = String(lead.id).startsWith('email-');
-          const conversationId = isWhatsApp ? String(lead.id).replace(/^wa-/, '') : null;
-
-          if (isEmail) {
-            statusMap[lead.id] = 'empty';
-            profileMap[lead.id] = null;
-            continue;
-          }
-          if (isWhatsApp && conversationId) {
-            const { data: waData } = await supabase
-              .from('whatsapp_conversation_client_profiles')
-              .select('*')
-              .eq('conversation_id', conversationId)
-              .eq('organization_id', lead.organization_id)
-              .maybeSingle();
-            if (!waData) {
-              statusMap[lead.id] = 'empty';
-              profileMap[lead.id] = null;
-            } else {
-              profileMap[lead.id] = waData;
-              const fields = [waData.name, (waData as any).code, waData.gender, waData.age, waData.occupation, waData.location, (waData as any).phone_number, (waData as any).email];
-              const filledFields = fields.filter(field => field !== null && field !== undefined && field !== '').length;
-              statusMap[lead.id] = filledFields === 0 ? 'empty' : filledFields === fields.length ? 'full' : 'partial';
-            }
-            continue;
-          }
-
-          const { data } = await supabase
-            .from('lead_client_profiles')
-            .select('*')
-            .eq('lead_id', lead.id)
-            .eq('organization_id', lead.organization_id)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (!data) {
-            statusMap[lead.id] = 'empty';
-            profileMap[lead.id] = null;
-          } else {
-            profileMap[lead.id] = data;
-            const fields = [data.name, (data as any).code, data.gender, data.age, data.occupation, data.location, (data as any).phone_number, (data as any).email];
-            const filledFields = fields.filter(field => field !== null && field !== undefined && field !== '').length;
-            
-            if (filledFields === 0) {
-              statusMap[lead.id] = 'empty';
-            } else if (filledFields === fields.length) {
-              statusMap[lead.id] = 'full';
-            } else {
-              statusMap[lead.id] = 'partial';
-            }
-          }
-        } catch (error) {
-          statusMap[lead.id] = 'empty';
-          profileMap[lead.id] = null;
-        }
-      }
-      
-      setClientStatuses(statusMap);
-      setClientProfiles(profileMap);
-    };
-
-    fetchStatuses();
-  }, [leads]);
+  const { clientStatuses, clientProfiles } = useLeadClientStatuses(leads);
 
   // Filter leads based on selected filters
   const filteredLeads = useMemo(() => {
