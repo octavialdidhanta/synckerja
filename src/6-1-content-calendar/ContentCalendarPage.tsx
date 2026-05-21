@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { cn } from '@/shared/lib/utils';
 import { useSocialMediaData, useSocialMediaMutations } from '@/6-1-dashboard/hook/useOptimizedSocialMediaState';

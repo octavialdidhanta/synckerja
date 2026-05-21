@@ -1,4 +1,5 @@
-import { useMemo, useTransition } from "react";
+import { useMemo } from "react";
+import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, Users, Megaphone, FileText, CreditCard } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -29,8 +30,6 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useAppTranslation();
-  const [, startTransition] = useTransition();
-
   const tabs = useMemo(
     () =>
       [
@@ -90,10 +89,7 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
 
   const handleTabClick = (tab: TabId, route: string) => {
     onTabChange?.(tab);
-    // Lazy route chunks + React 18: avoid synchronous suspend on click.
-    startTransition(() => {
-      navigate(route);
-    });
+    navigate(route);
   };
 
   return (
@@ -123,6 +119,8 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
             return (
               <div
                 key={tab.id}
+                onMouseEnter={() => prefetchAppRoute(tab.route)}
+                onFocus={() => prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab.id, tab.route)}
                 className={`flex cursor-pointer items-center space-x-1.5 py-1.5 px-1 border-b font-medium text-sm transition-colors ${
                   effectiveActive

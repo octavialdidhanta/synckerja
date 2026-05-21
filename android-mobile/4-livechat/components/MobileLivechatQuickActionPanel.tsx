@@ -7,7 +7,7 @@ type MobileLivechatQuickActionPanelProps = ComponentProps<typeof LivechatQuickAc
 export function MobileLivechatQuickActionPanel(props: MobileLivechatQuickActionPanelProps) {
   return (
     <div className="flex flex-col">
-      <LivechatQuickActionPanel {...props} />
+      <LivechatQuickActionPanel {...props} useMobilePaymentHistoryShell />
       <div
         className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
         aria-hidden

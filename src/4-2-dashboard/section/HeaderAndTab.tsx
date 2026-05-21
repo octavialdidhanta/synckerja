@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart3, FileCheck, CreditCard, Bell, Receipt } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { prefetchAppRoute } from '@/shared/routing/prefetchAppRoute';
 
 interface HeaderAndTabProps {
   activeTab: string;
@@ -110,6 +111,8 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
                     handleTabClick(tab);
                   }
                 }}
+                onMouseEnter={() => prefetchAppRoute(tab.route)}
+                onFocus={() => prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab)}
                 className={`flex min-w-0 flex-shrink-0 cursor-pointer items-center space-x-1 whitespace-nowrap border-b-2 px-1 py-1.5 text-xs font-medium transition-colors sm:space-x-1.5 sm:px-2 sm:text-sm ${
                   isActive

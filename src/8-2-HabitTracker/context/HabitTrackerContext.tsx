@@ -54,6 +54,26 @@ export const HabitTrackerProvider = ({ children }: { children: React.ReactNode }
   });
   const isActiveRef = useRef(true);
   const employeeLoadingEverTrueRef = useRef(false);
+  const profileIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) {
+      profileIdRef.current = null;
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled) profileIdRef.current = data?.id ?? null;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const fetchHabits = useCallback(async () => {
     if (!organizationId || !employee?.id) return;
@@ -206,22 +226,60 @@ export const HabitTrackerProvider = ({ children }: { children: React.ReactNode }
   const addEntry = useCallback(
     async (habitId: string, date: string, count: number, notes?: string) => {
       if (!organizationId || !employee?.id || !user?.id) return;
-      const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).single();
-      const { data: newEntry, error } = await supabase
-        .from("habit_entries")
-        .insert({
-          habit_id: habitId,
-          entry_date: date,
-          count,
-          notes,
-          organization_id: organizationId,
-          employee_id: employee.id,
-          created_by: profile?.id || null,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      if (newEntry) setEntries((prev) => [...prev, newEntry]);
+
+      const tempId = `optimistic-${habitId}-${date}-${Date.now()}`;
+      const now = new Date().toISOString();
+      const optimisticEntry: HabitEntry = {
+        id: tempId,
+        habit_id: habitId,
+        entry_date: date,
+        count,
+        notes,
+        created_at: now,
+        updated_at: now,
+        organization_id: organizationId,
+        employee_id: employee.id,
+        created_by: profileIdRef.current ?? undefined,
+      };
+
+      setEntries((prev) => {
+        if (prev.some((e) => e.habit_id === habitId && e.entry_date === date)) return prev;
+        return [...prev, optimisticEntry];
+      });
+
+      try {
+        let createdBy = profileIdRef.current;
+        if (!createdBy) {
+          const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).single();
+          createdBy = profile?.id ?? null;
+          profileIdRef.current = createdBy;
+        }
+
+        const { data: newEntry, error } = await supabase
+          .from("habit_entries")
+          .insert({
+            habit_id: habitId,
+            entry_date: date,
+            count,
+            notes,
+            organization_id: organizationId,
+            employee_id: employee.id,
+            created_by: createdBy,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (newEntry) {
+          setEntries((prev) => [...prev.filter((e) => e.id !== tempId), newEntry]);
+        } else {
+          setEntries((prev) => prev.filter((e) => e.id !== tempId));
+        }
+      } catch (error) {
+        setEntries((prev) => prev.filter((e) => e.id !== tempId));
+        throw error;
+      }
     },
     [organizationId, employee?.id, user?.id],
   );
@@ -236,9 +294,22 @@ export const HabitTrackerProvider = ({ children }: { children: React.ReactNode }
   );
 
   const deleteEntry = useCallback(async (id: string) => {
-    const { error } = await supabase.from("habit_entries").delete().eq("id", id);
-    if (error) throw error;
-    setEntries((prev) => prev.filter((entry) => entry.id !== id));
+    let removed: HabitEntry | undefined;
+    setEntries((prev) => {
+      removed = prev.find((entry) => entry.id === id);
+      return prev.filter((entry) => entry.id !== id);
+    });
+
+    try {
+      const { error } = await supabase.from("habit_entries").delete().eq("id", id);
+      if (error) throw error;
+      if (id.startsWith("optimistic-")) return;
+    } catch (error) {
+      if (removed) {
+        setEntries((prev) => (prev.some((e) => e.id === removed!.id) ? prev : [...prev, removed!]));
+      }
+      throw error;
+    }
   }, []);
 
   const filteredHabits = React.useMemo(() => {

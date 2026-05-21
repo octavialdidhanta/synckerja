@@ -1,5 +1,5 @@
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { SocialMediaHeaderSkeleton } from '@/6-1-dashboard/skeletons/SocialMediaHeaderSkeleton';
+import { SocialMediaHeaderSkeletonSlot } from '@/6-1-dashboard/skeletons/SocialMediaHeaderSkeleton';
 
 type SocialMediaDashboardSkeletonMode = 'route' | 'overlay';
 
@@ -245,7 +245,7 @@ export function SocialMediaDashboardSkeleton({
       <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100">
         <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex min-h-full flex-col">
-            <SocialMediaHeaderSkeleton activeTabId={headerActiveTabId} />
+            <SocialMediaHeaderSkeletonSlot activeTabId={headerActiveTabId} />
             <DashboardBodySkeleton />
             <div
               className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
@@ -264,7 +264,7 @@ export function SocialMediaDashboardSkeleton({
           <div className="flex h-full min-h-0 flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-h-full flex-col">
-                <SocialMediaHeaderSkeleton activeTabId={headerActiveTabId} />
+                <SocialMediaHeaderSkeletonSlot activeTabId={headerActiveTabId} />
 
                 <DashboardBodySkeleton />
 

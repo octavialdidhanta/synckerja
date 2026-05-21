@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Users, AlertTriangle } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
+import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 
 interface HeaderAndTabProps {
   activeTab: string;
@@ -88,6 +89,8 @@ export const HeaderAndTab = ({ activeTab: _activeTab, onTabChange }: HeaderAndTa
                 key={tab.id}
                 role="button"
                 tabIndex={0}
+                onMouseEnter={() => tab.route && prefetchAppRoute(tab.route)}
+                onFocus={() => tab.route && prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {

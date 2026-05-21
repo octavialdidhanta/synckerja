@@ -85,6 +85,12 @@ const PaymentUpdateModal = lazy(() =>
   })),
 );
 
+const MobileLivechatPaymentHistoryModal = lazy(() =>
+  import('@/mobile/4-livechat/components/MobileLivechatPaymentHistoryModal').then((m) => ({
+    default: m.MobileLivechatPaymentHistoryModal,
+  })),
+);
+
 type ApplyStatusChangeResult = { ok: boolean; salesActivityId?: string };
 
 /** Ticket ID for lead lookup: WA-xxx, IG-xxx, EMAIL-xxx. */
@@ -178,6 +184,8 @@ interface LivechatQuickActionPanelProps {
   conversation: LiveChatConversation | null;
   /** When true, hide the lead/customer name row (e.g. when shown in mobile sheet header). */
   hideLeadTitle?: boolean;
+  /** Mobile livechat shell: fullscreen payment history modal instead of desktop dialog. */
+  useMobilePaymentHistoryShell?: boolean;
 }
 
 /** Unified row for display: from email_conversation_follow_up_updates or lead_follow_up_updates (WA, by conversation_id). */
@@ -198,7 +206,11 @@ interface ConversationStatusSnapshot {
   meta_session_expires_at?: string | null;
 }
 
-export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }: LivechatQuickActionPanelProps) {
+export function LivechatQuickActionPanel({
+  conversation,
+  hideLeadTitle = false,
+  useMobilePaymentHistoryShell = false,
+}: LivechatQuickActionPanelProps) {
   const isMobile = useIsMobile();
   const { height: visualViewportHeight, offsetTop: visualViewportOffsetTop, isKeyboardShellOpen } =
     useVisualViewport();
@@ -2206,13 +2218,22 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
 
       {paymentModalOpen && paymentModalSalesActivityId ? (
         <Suspense fallback={null}>
-          <PaymentUpdateModal
-            open={paymentModalOpen}
-            onClose={() => setPaymentModalOpen(false)}
-            salesActivityId={paymentModalSalesActivityId}
-            clientName={leadTitle}
-            variant="livechat"
-          />
+          {useMobilePaymentHistoryShell ? (
+            <MobileLivechatPaymentHistoryModal
+              open={paymentModalOpen}
+              onClose={() => setPaymentModalOpen(false)}
+              salesActivityId={paymentModalSalesActivityId}
+              clientName={leadTitle}
+            />
+          ) : (
+            <PaymentUpdateModal
+              open={paymentModalOpen}
+              onClose={() => setPaymentModalOpen(false)}
+              salesActivityId={paymentModalSalesActivityId}
+              clientName={leadTitle}
+              variant="livechat"
+            />
+          )}
         </Suspense>
       ) : null}
 

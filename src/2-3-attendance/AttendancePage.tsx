@@ -53,26 +53,24 @@ function AttendancePageContent() {
       return;
     }
 
-    const hasAccess = canAccessPage(currentPath);
-
-    if (!hasAccess) {
-      if (currentPath === "/attendance") {
-        const hasAttendanceAccess = canAccessPage("/attendance/attendance");
-        if (hasAttendanceAccess) {
-          navigate("/attendance/attendance", { replace: true });
-          return;
-        }
-      }
-
-      if (currentPath === "/attendance/attendance") {
-        const hasSettingsAccess = canAccessPage("/attendance/settings");
-        if (hasSettingsAccess) {
-          navigate("/attendance/settings", { replace: true });
-          return;
-        }
-      }
-
+    if (canAccessPage(currentPath)) {
       setIsLoading(false);
+      return;
+    }
+
+    const fallbackPath =
+      currentPath === "/attendance"
+        ? canAccessPage("/attendance/attendance")
+          ? "/attendance/attendance"
+          : canAccessPage("/attendance/settings")
+            ? "/attendance/settings"
+            : null
+        : currentPath === "/attendance/attendance" && canAccessPage("/attendance/settings")
+          ? "/attendance/settings"
+          : null;
+
+    if (fallbackPath && fallbackPath !== currentPath) {
+      navigate(fallbackPath, { replace: true });
       return;
     }
 

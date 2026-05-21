@@ -17,7 +17,13 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { HabitFormModal } from "./HabitFormModal";
 import { HabitTargetCountModal } from "./HabitTargetCountModal";
-import { isHabitActiveOnDay, isHabitCompletedOnDay } from "../utils/habitDayUtils";
+import {
+  isHabitActiveOnDay,
+  isHabitCompletedOnDay,
+  canToggleHabitCheckboxOnDay,
+  canMonthlyHabitRescheduleOnDay,
+  isFutureDayBlockedUntilTodayComplete,
+} from "../utils/habitDayUtils";
 import { getHabitAnalysis, getTotalMonthlyGoal } from "../utils/habitAnalysisUtils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isToday, isAfter, isSameMonth } from "date-fns";
 import { useToast } from "@/shared/hooks/use-toast";
@@ -179,6 +185,7 @@ export const HabitSpreadsheetView = () => {
   const handleCheckboxToggle = async (habitId: string, date: Date, checked: boolean) => {
     const habit = filteredHabits.find((h) => h.id === habitId);
     if (!habit) return;
+    if (!canToggleHabitCheckboxOnDay(habit, date, entries)) return;
     if (habit.frequency === "daily" && habit.target_count > 1) {
       setTargetCountModal({ habitId, date });
       return;
@@ -422,7 +429,9 @@ export const HabitSpreadsheetView = () => {
                             const isMonthlyHabit = habit.frequency === "monthly";
                             const isFull = entriesCount === habit.target_count;
                             const isPartial = entriesCount > 0 && entriesCount < habit.target_count;
-                            const isDayAllowed = isHabitActiveOnDay(habit, day);
+                            const isDayAllowed = canToggleHabitCheckboxOnDay(habit, day, entries);
+                            const canMonthlyReschedule = canMonthlyHabitRescheduleOnDay(habit, day, entries);
+                            const isFutureBlocked = isFutureDayBlockedUntilTodayComplete(habit, day, entries);
                             let checkboxState: boolean | "indeterminate";
                             if (isMultiEntry) checkboxState = isPartial ? "indeterminate" : isFull;
                             else checkboxState = entriesCount > 0;
@@ -430,7 +439,7 @@ export const HabitSpreadsheetView = () => {
                               <td
                                 key={`${habit.id}-${day.toISOString()}`}
                                 className={`relative z-0 border-r border-b border-brand-blue/20 px-1 text-center transition-colors ${
-                                  isDayAllowed ? "cursor-pointer hover:bg-slate-100" : isMonthlyHabit ? "cursor-pointer opacity-50 hover:opacity-70" : "cursor-not-allowed opacity-50"
+                                  isDayAllowed ? "cursor-pointer hover:bg-slate-100" : canMonthlyReschedule ? "cursor-pointer opacity-50 hover:opacity-70" : "cursor-not-allowed opacity-50"
                                 } ${
                                   isSelected
                                     ? isCurrentDay
@@ -453,7 +462,7 @@ export const HabitSpreadsheetView = () => {
                                 }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (!isDayAllowed && isMonthlyHabit) {
+                                  if (canMonthlyReschedule) {
                                     handleMonthlyHabitDateChange(habit.id, day);
                                     return;
                                   }
@@ -461,15 +470,17 @@ export const HabitSpreadsheetView = () => {
                                   handleCheckboxToggle(habit.id, day, !isFull);
                                 }}
                                 title={
-                                  !isDayAllowed
-                                    ? isWeeklyHabit
-                                      ? "Hari ini tidak dipilih untuk habit ini"
-                                      : isMonthlyHabit
-                                        ? "Klik untuk mengubah tanggal habit ini"
-                                        : "Hari ini tidak dipilih untuk habit ini"
-                                    : isMultiEntry && entriesCount > 0
-                                      ? `${entriesCount}/${habit.target_count} completed`
-                                      : undefined
+                                  isFutureBlocked
+                                    ? t("habitTracker.completeTodayFirst", "Selesaikan habit hari ini terlebih dahulu")
+                                    : !isDayAllowed
+                                      ? isWeeklyHabit
+                                        ? "Hari ini tidak dipilih untuk habit ini"
+                                        : isMonthlyHabit
+                                          ? "Klik untuk mengubah tanggal habit ini"
+                                          : "Hari ini tidak dipilih untuk habit ini"
+                                      : isMultiEntry && entriesCount > 0
+                                        ? `${entriesCount}/${habit.target_count} completed`
+                                        : undefined
                                 }
                               >
                                 <div className="flex flex-col items-center justify-center" style={{ height: "33px", maxHeight: "33px", overflow: "hidden" }}>
@@ -480,20 +491,20 @@ export const HabitSpreadsheetView = () => {
                                         <Checkbox
                                           checked={checkboxState}
                                           onCheckedChange={(checked) => {
-                                            if (!isDayAllowed && isMonthlyHabit) {
+                                            if (canMonthlyReschedule) {
                                               handleMonthlyHabitDateChange(habit.id, day);
                                               return;
                                             }
                                             if (!isDayAllowed) return;
                                             handleCheckboxToggle(habit.id, day, !!checked);
                                           }}
-                                          disabled={!isDayAllowed && !isMonthlyHabit}
-                                          className={`h-4 w-4 rounded-sm habit-grid-checkbox ${isDayAllowed || (isMonthlyHabit && !isDayAllowed) ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
+                                          disabled={!isDayAllowed && !canMonthlyReschedule}
+                                          className={`h-4 w-4 rounded-sm habit-grid-checkbox ${isDayAllowed || canMonthlyReschedule ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
                                             checkboxState === true ? "habit-grid-checkbox-checked" : ""
                                           }`}
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            if (!isDayAllowed && isMonthlyHabit) {
+                                            if (canMonthlyReschedule) {
                                               handleMonthlyHabitDateChange(habit.id, day);
                                               return;
                                             }
@@ -516,20 +527,20 @@ export const HabitSpreadsheetView = () => {
                                       <Checkbox
                                         checked={checkboxState}
                                         onCheckedChange={(checked) => {
-                                          if (!isDayAllowed && isMonthlyHabit) {
+                                          if (canMonthlyReschedule) {
                                             handleMonthlyHabitDateChange(habit.id, day);
                                             return;
                                           }
                                           if (!isDayAllowed) return;
                                           handleCheckboxToggle(habit.id, day, !!checked);
                                         }}
-                                        disabled={!isDayAllowed && !isMonthlyHabit}
-                                        className={`h-4 w-4 rounded-sm habit-grid-checkbox ${isDayAllowed || (isMonthlyHabit && !isDayAllowed) ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
+                                        disabled={!isDayAllowed && !canMonthlyReschedule}
+                                        className={`h-4 w-4 rounded-sm habit-grid-checkbox ${isDayAllowed || canMonthlyReschedule ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
                                           checkboxState === true ? "habit-grid-checkbox-checked" : ""
                                         }`}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (!isDayAllowed && isMonthlyHabit) {
+                                          if (canMonthlyReschedule) {
                                             handleMonthlyHabitDateChange(habit.id, day);
                                             return;
                                           }
@@ -593,9 +604,15 @@ export const HabitSpreadsheetView = () => {
                       <div className="text-4xl font-bold text-gray-900 w-full text-center">{Math.round(cumulativeConsistencyRate)}%</div>
                     </div>
                   </div>
-                  <div className="relative z-0 min-w-0 flex-1 flex-shrink-0 overflow-hidden" style={{ width: `${monthDays.length * 45}px`, minWidth: `${monthDays.length * 45}px` }}>
+                  <div
+                    className="relative z-0 min-w-0 flex-1 flex-shrink-0 overflow-hidden"
+                    style={{ width: `${monthDays.length * 45}px`, minWidth: `${monthDays.length * 45}px` }}
+                  >
+                    <span className="pointer-events-none absolute left-1 top-1 z-10 text-[10px] font-medium text-gray-500" aria-hidden>
+                      %
+                    </span>
                     <ResponsiveContainer width="100%" height={150}>
-                      <LineChart data={chartData} margin={{ top: 5, right: 22.5, left: 0, bottom: 5 }} barCategoryGap={0}>
+                      <LineChart data={chartData} margin={{ top: 5, right: 22.5, left: 22.5, bottom: 5 }} barCategoryGap={0}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis
                           dataKey="date"
@@ -607,18 +624,9 @@ export const HabitSpreadsheetView = () => {
                           tickMargin={8}
                           type="category"
                           scale="point"
-                          padding={{ left: 0.5, right: 0.5 }}
+                          padding={{ left: 0, right: 0 }}
                         />
-                        <YAxis
-                          tick={{ fontSize: 10 }}
-                          stroke="#6b7280"
-                          width={20}
-                          domain={[0, 100]}
-                          allowDecimals={false}
-                          ticks={[0, 25, 50, 75, 100]}
-                          tickFormatter={() => ""}
-                          label={{ value: "%", position: "insideTopLeft", style: { fontSize: 10, fill: "#6b7280" } }}
-                        />
+                        <YAxis width={0} domain={[0, 100]} allowDecimals={false} tick={false} axisLine={false} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px", fontSize: "12px" }}
                           formatter={(value: number) => [`${value}%`, t("habitTracker.dailyProgressChart", "Progress Harian")]}

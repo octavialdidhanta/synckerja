@@ -1,9 +1,7 @@
 import { Skeleton } from '@/shared/components/ui/skeleton';
+import { SocialMediaHeaderSkeletonSlot } from '@/6-1-dashboard/skeletons/SocialMediaHeaderSkeleton';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
-
-/** Lebar tab label mendekati teks asli (Dashboard, Content Calendar, …). */
-const TAB_LABEL_WIDTHS = ['w-[76px]', 'w-[116px]', 'w-[124px]', 'w-[132px]', 'w-[52px]'] as const;
 
 /** Selaras warna kartu `CalendarStats` (urutan sama). */
 const STAT_CARD_SHELL = [
@@ -15,15 +13,25 @@ const STAT_CARD_SHELL = [
   'border-green-300 bg-green-100',
 ] as const;
 
+/** Selaras baris Monthly Statistics di `ContentCalendarOverview` (overview tab). */
+const OVERVIEW_STAT_SHELL = [
+  'bg-gray-50',
+  'bg-red-50',
+  'bg-orange-50',
+  'bg-amber-50',
+  'bg-green-50',
+  'bg-green-100 border border-green-300',
+] as const;
+
 /**
  * Skeleton khusus `/digital-marketing/social-media/content-calendar` —
- * mirror struktur DOM halaman: `HeaderAndTab`, kartu `CalendarHeader`, `CalendarStats`,
- * `CalendarGrid` (header hari + sel gap-1), `CalendarGridFooter` / `MasterDataToolbar`,
- * `ContentCalendarOverview` + `ContentCalendarSidebarFooter`.
+ * mirror struktur DOM halaman: `HeaderAndTab`, `CalendarHeader`, `CalendarStats`,
+ * `CalendarGrid`, `CalendarGridFooter`, `ContentCalendarOverview` + sidebar footer.
  */
 export function ContentCalendarPageSkeleton() {
   const { t } = useAppTranslation();
   const aria = t('contentCalendar.loadingAria', 'Memuat kalender konten');
+
   return (
     <div
       className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans"
@@ -35,43 +43,21 @@ export function ContentCalendarPageSkeleton() {
         <div className="flex h-full min-h-0 flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-h-full flex-col">
-              {/* HeaderAndTab: px-1 py-3, judul text-xl + subtitle text-xs, nav space-x-6 tab underline */}
-              <div className="mb-1 flex-shrink-0">
-                <div className="px-1 py-3">
-                  <div className="mb-3 min-w-0 space-y-1.5">
-                    <Skeleton className="h-7 w-64 max-w-[min(100%,20rem)]" />
-                    <Skeleton className="h-3 w-full max-w-xl" />
-                  </div>
-                  <div className="-mb-3">
-                    <nav className="flex flex-wrap items-center gap-x-6 gap-y-1" aria-hidden>
-                      {TAB_LABEL_WIDTHS.map((w, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-1.5 border-b-2 border-transparent py-1.5 px-1"
-                        >
-                          <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
-                          <Skeleton className={cn('h-4 rounded-sm', w)} />
-                        </div>
-                      ))}
-                    </nav>
-                  </div>
-                </div>
-              </div>
+              <SocialMediaHeaderSkeletonSlot activeTabId="content-calendar" />
 
               <div className="grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-9 flex min-h-0 w-full min-w-0 flex-col gap-1 overflow-hidden">
-                  {/* CalendarHeader: rounded-md border bg-white p-2, space-y-3 */}
                   <div className="flex-shrink-0">
                     <div className="rounded-md border bg-white p-2">
                       <div className="space-y-3">
-                        <div className="flex flex-row items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex flex-row items-center justify-between">
+                          <div className="flex items-center gap-2">
                             <Skeleton className="h-5 w-5 shrink-0 rounded-sm" />
-                            <Skeleton className="h-7 w-[min(100%,14rem)] max-w-[55vw] rounded-md" />
+                            <Skeleton className="h-7 w-[min(100%,15rem)] max-w-[55vw] rounded-sm" />
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
                             <Skeleton className="h-8 w-8 rounded-md" />
-                            <Skeleton className="h-7 min-w-[200px] max-w-[220px] rounded-md" />
+                            <Skeleton className="h-7 min-w-[200px] rounded-md" />
                             <Skeleton className="h-8 w-8 rounded-md" />
                           </div>
                         </div>
@@ -98,9 +84,8 @@ export function ContentCalendarPageSkeleton() {
                     </div>
                   </div>
 
-                  {/* CalendarStats: grid + kartu border rounded-md p-4 (title row mb-3 + angka text-2xl) */}
                   <div className="flex-shrink-0">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-1.5">
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                       {Array.from({ length: 6 }).map((_, i) => (
                         <div
                           key={i}
@@ -122,10 +107,8 @@ export function ContentCalendarPageSkeleton() {
                     </div>
                   </div>
 
-                  {/* CalendarGrid container + CalendarGridFooter */}
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                     <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 max-h-[calc(100vh-320px)] flex-1 overflow-y-auto overflow-x-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      {/* Sticky weekday row: grid-cols-7 gap-1 py-2, rounded-md p-2 */}
                       <div className="-mt-4 mb-2 grid grid-cols-7 gap-1 py-2">
                         {Array.from({ length: 7 }).map((_, i) => (
                           <Skeleton
@@ -134,7 +117,6 @@ export function ContentCalendarPageSkeleton() {
                           />
                         ))}
                       </div>
-                      {/* Day cells: grid-cols-7 gap-1 pt-2, aspect-square p-2 border */}
                       <div className="grid grid-cols-7 gap-1 pt-2">
                         {Array.from({ length: 42 }).map((_, i) => (
                           <div
@@ -148,44 +130,36 @@ export function ContentCalendarPageSkeleton() {
                       </div>
                     </div>
 
-                    {/* CalendarGridFooter outer bg-white; inner px-2 py-1 border-t bg-gray-50 seperti live */}
                     <div className="flex-shrink-0 border-t border-gray-200 bg-white">
-                      <div className="border-t border-gray-200 bg-gray-50 px-2 py-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <Skeleton className="h-3 w-3 shrink-0 rounded-sm" />
-                            <Skeleton className="h-3 w-[4.5rem] rounded-sm" />
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                            {[
-                              'w-16',
-                              'w-11',
-                              'w-14',
-                              'w-16',
-                              'w-[5.5rem]',
-                            ].map((w, j) => (
+                      <div className="flex items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-2 py-1">
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-3 w-3 shrink-0 rounded-sm" />
+                          <Skeleton className="h-3 w-[4.5rem] rounded-sm" />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {['Content Types', 'Services', 'Sub Services', 'Content Pillars', 'Social Media Names'].map(
+                            (_, j) => (
                               <div key={j} className="flex items-center gap-0.5">
-                                <Skeleton className={cn('h-3 rounded-sm', w)} />
+                                <Skeleton className="h-3 w-16 rounded-sm" />
                                 <Skeleton className="h-5 w-5 shrink-0 rounded-sm" />
                               </div>
-                            ))}
-                          </div>
+                            ),
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* ContentCalendarOverview + ContentCalendarSidebarFooter */}
                 <div className="col-span-3 flex min-h-0 w-full min-w-0 flex-col overflow-hidden">
                   <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[5px] border bg-white">
                     <div className="shrink-0 border-b px-4 pb-2 pt-2">
                       <div className="mb-2 grid h-9 w-full grid-cols-3 gap-0 overflow-hidden rounded-[5px] bg-muted p-0">
-                        <Skeleton className="h-full w-full rounded-none" />
+                        <Skeleton className="h-full w-full rounded-none bg-primary/20" />
                         <Skeleton className="h-full w-full rounded-none" />
                         <Skeleton className="h-full w-full rounded-none" />
                       </div>
-                      <Skeleton className="h-3 w-36 rounded-sm" />
+                      <Skeleton className="h-3 w-28 rounded-sm" />
                     </div>
 
                     <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 seamless-scroll nested-scroll-touch-chain">
@@ -194,7 +168,10 @@ export function ContentCalendarPageSkeleton() {
                         {Array.from({ length: 6 }).map((_, i) => (
                           <div
                             key={i}
-                            className="flex items-center justify-between rounded bg-gray-50 p-2 dark:bg-slate-900/50"
+                            className={cn(
+                              'flex items-center justify-between rounded p-2',
+                              OVERVIEW_STAT_SHELL[i] ?? 'bg-gray-50',
+                            )}
                           >
                             <div className="flex min-w-0 items-center gap-2">
                               <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
@@ -209,22 +186,16 @@ export function ContentCalendarPageSkeleton() {
                           </div>
                         ))}
                       </div>
-                      <div className="space-y-2">
-                        <Skeleton className="mb-3 h-3 w-48 rounded-sm" />
-                        {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="space-y-1 rounded bg-gray-50 p-2">
-                            <Skeleton className="h-3 w-full max-w-[200px] rounded-sm" />
-                            <div className="flex items-center gap-2">
-                              <Skeleton className="h-3 w-3 rounded-sm" />
-                              <Skeleton className="h-3 w-24 rounded-sm" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     </div>
 
                     <div className="flex-shrink-0 border-t border-gray-200 bg-gray-50 px-2 py-1">
-                      <Skeleton className="h-4 w-full max-w-[min(100%,14rem)] rounded-sm" />
+                      <div className="flex min-h-8 flex-wrap items-center gap-x-1 gap-y-0.5">
+                        <Skeleton className="h-3 w-16 rounded-sm" />
+                        <Skeleton className="mx-0.5 h-3 w-1 rounded-sm opacity-40" />
+                        <Skeleton className="h-3 w-20 rounded-sm" />
+                        <Skeleton className="mx-0.5 h-3 w-1 rounded-sm opacity-40" />
+                        <Skeleton className="h-3 w-24 rounded-sm" />
+                      </div>
                     </div>
                   </div>
                 </div>

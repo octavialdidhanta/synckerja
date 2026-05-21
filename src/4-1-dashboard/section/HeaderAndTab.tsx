@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { prefetchAppRoute } from '@/shared/routing/prefetchAppRoute';
 import { BarChart3, Receipt, CircleDollarSign } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 
@@ -75,6 +76,8 @@ export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
               <button
                 key={tab.id}
                 type="button"
+                onMouseEnter={() => tab.route && prefetchAppRoute(tab.route)}
+                onFocus={() => tab.route && prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab)}
                 className={cn(
                   'flex cursor-pointer items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors',

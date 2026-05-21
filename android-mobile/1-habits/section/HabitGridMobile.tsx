@@ -18,26 +18,39 @@ import {
 import { HabitFormModal } from '@/features/8-2-HabitTracker/components/HabitFormModal';
 import { HabitTargetCountModal } from '@/features/8-2-HabitTracker/components/HabitTargetCountModal';
 import { MonthlyHabitDateChangeModal, type MonthlyHabitDateChangeModalData } from '@/mobile/1-habits/components/MonthlyHabitDateChangeModal';
-import { isHabitActiveOnDay, isHabitCompletedOnDay } from '@/features/8-2-HabitTracker/utils/habitDayUtils';
-import { getHabitAnalysis, getTotalMonthlyGoal } from '@/features/8-2-HabitTracker/utils/habitAnalysisUtils';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+  isHabitActiveOnDay,
+  isHabitCompletedOnDay,
+  canToggleHabitCheckboxOnDay,
+  canMonthlyHabitRescheduleOnDay,
+  isFutureDayBlockedUntilTodayComplete,
+} from '@/features/8-2-HabitTracker/utils/habitDayUtils';
+import { getHabitAnalysis, getTotalMonthlyGoal } from '@/features/8-2-HabitTracker/utils/habitAnalysisUtils';
 import { useToast } from '@/shared/components/ui/use-toast';
 
-const CELL_SIZE = 40;
-const GOAL_WIDTH = 52;
-const ACTUAL_WIDTH = 52;
-const PROGRESS_WIDTH = 88;
+/** Selaras `HabitSpreadsheetView` (desktop). */
+const CELL_SIZE = 45;
+const GOAL_WIDTH = 80;
+const ACTUAL_WIDTH = 80;
+const PROGRESS_WIDTH = 120;
 const NAME_WIDTH_EXPANDED = 160;
 const NAME_WIDTH_COLLAPSED = 48;
-const ACTIONS_WIDTH = 56; // edit + delete buttons revealed on swipe
+const ACTIONS_WIDTH = 56;
+const ROW_HEIGHT = 45;
+const CHART_ROW_HEIGHT = 150;
+const CHART_PLOT_HEIGHT = 110;
+const CHART_PADDING_TOP = 12;
+
+const CHART_GRID_TICKS = [0, 25, 50, 75, 100] as const;
+
+function chartPlotY(pct: number) {
+  return CHART_PADDING_TOP + CHART_PLOT_HEIGHT - (pct / 100) * CHART_PLOT_HEIGHT;
+}
+
+function chartPointCoords(index: number, pct: number) {
+  const x = CELL_SIZE / 2 + index * CELL_SIZE;
+  return { x, y: chartPlotY(pct) };
+}
 
 type HabitGridMobileProps = {
   currentMonth?: Date;
@@ -74,7 +87,9 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
   const swipeHabitIdRef = React.useRef<string | null>(null);
   const expandedHabitIdRef = React.useRef<string | null>(null);
   const setDragOffsetRef = React.useRef(setDragOffset);
+  const setSwipeStateRef = React.useRef(setSwipeState);
   setDragOffsetRef.current = setDragOffset;
+  setSwipeStateRef.current = setSwipeState;
   expandedHabitIdRef.current = expandedHabitId;
   const nameColumnWidth = isHabitColumnExpanded ? NAME_WIDTH_EXPANDED : NAME_WIDTH_COLLAPSED;
 
@@ -104,9 +119,23 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
     });
   }, [monthDays, filteredHabits, entries]);
 
+  const chartSvg = useMemo(() => {
+    const points = chartData.map((row, idx) => chartPointCoords(idx, row.pct));
+    return {
+      points,
+      polyline: points.map((p) => `${p.x},${p.y}`).join(' '),
+      width: monthDays.length * CELL_SIZE,
+    };
+  }, [chartData, monthDays.length]);
+
+  const gridMinWidth =
+    nameColumnWidth + monthDays.length * CELL_SIZE + GOAL_WIDTH + ACTUAL_WIDTH + PROGRESS_WIDTH;
+
   const handleCheckboxToggle = useCallback(async (habitId: string, date: Date, checked: boolean) => {
     const habit = filteredHabits.find((h) => h.id === habitId);
     if (!habit) return;
+
+    if (!canToggleHabitCheckboxOnDay(habit, date, entries)) return;
 
     if (habit.frequency === 'daily' && habit.target_count && habit.target_count > 1) {
       setTargetCountModal({ habitId, date });
@@ -119,10 +148,8 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
     try {
       if (checked && !existingEntry) {
         await addEntry(habitId, dateStr, 1);
-        toast({ title: t('habitTracker.entryLogged', 'Entry dicatat'), variant: 'default' });
       } else if (!checked && existingEntry) {
         await deleteEntry(existingEntry.id);
-        toast({ title: t('habitTracker.entryRemoved', 'Entry dihapus'), variant: 'default' });
       }
     } catch {
       toast({
@@ -131,7 +158,7 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
         variant: 'destructive',
       });
     }
-  }, [filteredHabits, addEntry, deleteEntry, getEntryForDate, toast, t]);
+  }, [filteredHabits, entries, addEntry, deleteEntry, getEntryForDate, toast, t]);
 
   const handleDeleteHabit = useCallback(async () => {
     if (!habitToDelete) return;
@@ -216,7 +243,6 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
     if ((e.target as HTMLElement).closest('[data-habit-name-scroll]')) return;
     const startX = e.targetTouches[0].clientX;
     const startY = e.targetTouches[0].clientY;
-    setSwipeState({ habitId, startX });
     setDragOffset(0);
     swipeStartXRef.current = startX;
     swipeStartYRef.current = startY;
@@ -233,8 +259,13 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
 
   const handleSwipeTouchEnd = useCallback(
     (habitId: string) => {
-      if (!swipeState || swipeState.habitId !== habitId) return;
+      if (swipeHabitIdRef.current !== habitId) return;
       swipeHabitIdRef.current = null;
+      if (!swipeState || swipeState.habitId !== habitId || dragOffset === 0) {
+        setSwipeState(null);
+        setDragOffset(0);
+        return;
+      }
       const threshold = 12;
       const base = expandedHabitId === habitId ? -ACTIONS_WIDTH : 0;
       const finalX = base + dragOffset;
@@ -261,12 +292,26 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
       const deltaY = clientY - swipeStartYRef.current;
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
+      // Geser horizontal grid: jangan tangkap sebagai swipe reveal kolom habit
+      if (absX > 28 && absX > absY * 1.35) {
+        swipeHabitIdRef.current = null;
+        setSwipeStateRef.current(null);
+        setDragOffsetRef.current(0);
+        return;
+      }
+      if (absY > absX * 1.15) {
+        swipeHabitIdRef.current = null;
+        setSwipeStateRef.current(null);
+        setDragOffsetRef.current(0);
+        return;
+      }
       const base = expandedHabitIdRef.current === habitId ? -ACTIONS_WIDTH : 0;
       const maxRight = -base;
       const maxLeft = -ACTIONS_WIDTH - base;
       const clamped = Math.max(maxLeft, Math.min(maxRight, deltaX));
-      if (absX > 4 && absX >= absY) {
+      if (absX > 6 && absX >= absY) {
         e.preventDefault();
+        setSwipeStateRef.current({ habitId, startX: swipeStartXRef.current });
         setDragOffsetRef.current(clamped);
       }
     };
@@ -281,12 +326,15 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
-      .checkbox-full-green[data-state="checked"] {
-        background-color: #16a34a !important;
-        border-color: #16a34a !important;
+      .habit-grid-checkbox-checked[data-state="checked"] {
+        background-color: hsl(var(--primary)) !important;
+        border-color: hsl(var(--primary)) !important;
       }
-      .checkbox-full-green[data-state="checked"] svg {
-        color: white !important;
+      .habit-grid-checkbox-checked[data-state="checked"] svg {
+        color: hsl(var(--primary-foreground)) !important;
+      }
+      .habit-grid-checkbox {
+        border-radius: 2px !important;
       }
     `;
     document.head.appendChild(style);
@@ -295,8 +343,8 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
 
   if (filteredHabits.length === 0) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <p className="text-sm text-muted-foreground text-center">
+      <div className="overflow-hidden rounded-lg border border-brand-blue/20 bg-white p-4 shadow-sm ring-1 ring-brand-blue/10">
+        <p className="text-center text-sm text-gray-500">
           {t('habitTracker.noHabitsToday', 'Tidak ada habit. Tambah habit untuk memulai.')}
         </p>
       </div>
@@ -305,34 +353,39 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
 
   return (
     <>
-      <div className="bg-card rounded-lg border border-border overflow-hidden">
-        {/* Month navigation */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/50">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPreviousMonth}>
+      <div className="flex flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white shadow-sm ring-1 ring-brand-blue/10">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-brand-blue/20 bg-brand-blue/[0.06] px-3 py-2">
+          <Button variant="ghost" size="icon" className="h-7 w-7 p-0 hover:bg-brand-blue/10" onClick={goToPreviousMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-semibold text-foreground">
+          <span className="min-w-[140px] text-center text-sm font-semibold text-gray-900">
             {format(currentMonth, 'MMMM yyyy', { locale: dateFnsLocale })}
           </span>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToNextMonth}>
+          <Button variant="ghost" size="icon" className="h-7 w-7 p-0 hover:bg-brand-blue/10" onClick={goToNextMonth}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* Grid + chart: vertical scroll (scroll-chaining.mdc §3.1) lalu horizontal scroll untuk tabel */}
+        {/* Satu scroll container (x+y): sticky header + geser jari kiri/kanan (selaras PaymentTable mobile) */}
         <div
-          className="scrollbar-hide overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain max-h-[calc(100vh-340px)] min-h-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="scrollbar-hide seamless-scroll nested-scroll-touch-chain-xy relative flex min-h-0 min-w-0 max-h-[calc(100vh-340px)] flex-1 touch-pan-x touch-pan-y flex-col overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ WebkitOverflowScrolling: 'touch' }}
           role="region"
           aria-label={t('habitTracker.habitGrid', 'Daftar habit bulanan')}
         >
-          <div className="scrollbar-hide overflow-x-auto overflow-y-visible seamless-scroll touch-pan-x min-h-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div style={{ minWidth: nameColumnWidth + monthDays.length * CELL_SIZE + GOAL_WIDTH + ACTUAL_WIDTH + PROGRESS_WIDTH }}>
-            <table className="border-collapse" style={{ minWidth: nameColumnWidth + monthDays.length * CELL_SIZE + GOAL_WIDTH + ACTUAL_WIDTH + PROGRESS_WIDTH }}>
-            <thead>
-              <tr>
+          <div className="flex w-max min-w-full flex-col" style={{ width: gridMinWidth, minWidth: gridMinWidth }}>
+            <table
+              className="border-separate border-spacing-0 bg-white"
+              style={{ width: gridMinWidth, minWidth: gridMinWidth, tableLayout: 'fixed' }}
+            >
+            <thead
+              className="sticky top-0 z-[25] border-b border-brand-blue/20 bg-brand-blue-soft"
+              style={{ boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' }}
+            >
+              <tr style={{ height: ROW_HEIGHT }}>
                 <th
-                  className="sticky left-0 z-20 border-r border-border text-left text-xs font-semibold text-foreground bg-muted shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
-                  style={{ width: nameColumnWidth, minWidth: nameColumnWidth }}
+                  className="sticky left-0 z-[50] border-b border-r border-brand-blue/20 bg-brand-blue-soft px-2 text-left text-sm font-semibold text-gray-700 shadow-[2px_0_4px_rgba(0,0,0,0.08)]"
+                  style={{ width: nameColumnWidth, minWidth: nameColumnWidth, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                 >
                   <div className="flex items-center gap-1 px-2 py-2 min-w-0">
                     {isHabitColumnExpanded ? (
@@ -366,42 +419,43 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                   return (
                     <th
                       key={day.toISOString()}
-                      className={`border-r border-border px-0.5 py-1 text-center text-[10px] font-medium ${
-                        isCurrentDay ? 'bg-primary/15 text-primary' : 'text-muted-foreground'
+                      className={`relative z-0 border-b border-r border-brand-blue/20 px-1 text-center text-xs font-medium text-gray-700 ${
+                        isCurrentDay ? 'bg-brand-blue-soft brightness-[0.97]' : 'bg-brand-blue-soft'
                       }`}
-                      style={{ width: CELL_SIZE, minWidth: CELL_SIZE }}
+                      style={{ width: CELL_SIZE, minWidth: CELL_SIZE, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                     >
-                      <div className="flex flex-col">
-                        <span>{format(day, 'EEE')}</span>
-                        <span className="font-semibold">{format(day, 'd')}</span>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-[10px] uppercase text-gray-500">{format(day, 'EEE')}</span>
+                        <span className={`text-sm font-semibold ${isCurrentDay ? 'text-primary' : 'text-gray-900'}`}>
+                          {format(day, 'd')}
+                        </span>
                       </div>
                     </th>
                   );
                 })}
                 <th
-                  className="border-r border-border px-1 py-1 text-center text-[10px] font-semibold text-muted-foreground bg-muted/50"
-                  style={{ width: GOAL_WIDTH, minWidth: GOAL_WIDTH }}
+                  className="relative z-0 border-b border-r border-gray-300 bg-gray-100 px-3 text-center text-xs font-semibold text-gray-700"
+                  style={{ width: GOAL_WIDTH, minWidth: GOAL_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                 >
                   {t('habitTracker.goal', 'Goal')}
                 </th>
                 <th
-                  className="border-r border-border px-1 py-1 text-center text-[10px] font-semibold text-muted-foreground bg-muted/50"
-                  style={{ width: ACTUAL_WIDTH, minWidth: ACTUAL_WIDTH }}
+                  className="relative z-0 border-b border-r border-gray-300 bg-gray-100 px-3 text-center text-xs font-semibold text-gray-700"
+                  style={{ width: ACTUAL_WIDTH, minWidth: ACTUAL_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                 >
                   {t('habitTracker.actual', 'Actual')}
                 </th>
                 <th
-                  className="border-r border-border px-1 py-1 text-center text-[10px] font-semibold text-muted-foreground bg-muted/50"
-                  style={{ width: PROGRESS_WIDTH, minWidth: PROGRESS_WIDTH }}
+                  className="relative z-0 border-b border-gray-300 bg-gray-100 px-3 text-center text-xs font-semibold text-gray-700"
+                  style={{ width: PROGRESS_WIDTH, minWidth: PROGRESS_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                 >
                   {t('habitTracker.progress', 'Progress')}
                 </th>
               </tr>
-              {/* Daily Stats row */}
-              <tr className="bg-muted/30 border-b border-border">
+              <tr className="border-y border-brand-blue/20 bg-brand-blue-soft" style={{ height: ROW_HEIGHT }}>
                 <td
-                  className="sticky left-0 z-20 border-r border-border px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
-                  style={{ width: nameColumnWidth, minWidth: nameColumnWidth }}
+                  className="sticky left-0 z-[40] border-b border-r border-brand-blue/20 bg-brand-blue-soft px-2 text-xs font-semibold text-gray-700 shadow-[2px_0_4px_rgba(0,0,0,0.08)]"
+                  style={{ width: nameColumnWidth, minWidth: nameColumnWidth, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                 >
                   {isHabitColumnExpanded ? t('habitTracker.dailyStats', 'Daily Stats') : ''}
                 </td>
@@ -413,12 +467,14 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                   return (
                     <td
                       key={`stats-${day.toISOString()}`}
-                      className={`border-r border-border px-0.5 py-1 text-center ${isCurrentDay ? 'bg-primary/10' : ''}`}
-                      style={{ width: CELL_SIZE, minWidth: CELL_SIZE }}
+                      className={`relative z-0 border-b border-r border-brand-blue/20 px-1 text-center ${
+                        isCurrentDay ? 'bg-brand-blue-soft brightness-[0.97]' : 'bg-brand-blue-soft'
+                      }`}
+                      style={{ width: CELL_SIZE, minWidth: CELL_SIZE, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                     >
                       <span
                         className={`text-[10px] font-bold ${
-                          isComplete ? 'bg-green-600 text-white px-1 py-0.5 rounded' : 'text-muted-foreground'
+                          isComplete ? 'rounded bg-primary px-1.5 py-0.5 text-primary-foreground' : 'text-gray-700'
                         }`}
                       >
                         {pct}%
@@ -427,19 +483,19 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                   );
                 })}
                 <td
-                  className="border-r border-border px-1 py-1 text-center bg-muted/30"
-                  style={{ width: GOAL_WIDTH, minWidth: GOAL_WIDTH }}
+                  className="relative z-0 border-b border-r border-gray-300 bg-gray-50 px-2 text-center"
+                  style={{ width: GOAL_WIDTH, minWidth: GOAL_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                 >
-                  <div className="flex items-center justify-center gap-0.5">
-                    <Target className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-[10px] font-semibold text-foreground">
+                  <div className="flex items-center justify-center gap-1">
+                    <Target className="h-3 w-3 text-gray-500" />
+                    <span className="text-xs font-semibold text-gray-900">
                       {getTotalMonthlyGoal(filteredHabits, monthDays)}
                     </span>
                   </div>
                 </td>
                 <td
-                  className="border-r border-border px-1 py-1 text-center bg-muted/30"
-                  style={{ width: ACTUAL_WIDTH, minWidth: ACTUAL_WIDTH }}
+                  className="relative z-0 border-b border-r border-gray-300 bg-gray-50 px-2 text-center"
+                  style={{ width: ACTUAL_WIDTH, minWidth: ACTUAL_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                 >
                   {(() => {
                     const totalGoal = getTotalMonthlyGoal(filteredHabits, monthDays);
@@ -451,12 +507,12 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                     );
                     return (
                       <span
-                        className={`text-[10px] font-semibold ${
+                        className={`text-xs font-semibold ${
                           totalActual >= totalGoal
-                            ? 'text-green-600'
+                            ? 'text-primary'
                             : totalActual >= totalGoal * 0.5
-                              ? 'text-blue-600'
-                              : 'text-foreground'
+                              ? 'text-primary'
+                              : 'text-gray-900'
                         }`}
                       >
                         {totalActual}
@@ -465,8 +521,8 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                   })()}
                 </td>
                 <td
-                  className="border-r border-border px-1 py-1 bg-muted/30"
-                  style={{ width: PROGRESS_WIDTH, minWidth: PROGRESS_WIDTH }}
+                  className="relative z-0 border-b border-gray-300 bg-gray-50 px-2"
+                  style={{ width: PROGRESS_WIDTH, minWidth: PROGRESS_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                 >
                   {(() => {
                     const totalGoal = getTotalMonthlyGoal(filteredHabits, monthDays);
@@ -477,17 +533,15 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                       0
                     );
                     const totalProgress = totalGoal > 0 ? Math.min((totalActual / totalGoal) * 100, 100) : 0;
-                    const progressColor =
-                      totalProgress >= 100 ? 'bg-green-500' : totalProgress >= 50 ? 'bg-blue-500' : 'bg-yellow-500';
                     return (
-                      <div className="flex items-center gap-1">
-                        <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-200">
                           <div
-                            className={`${progressColor} h-1.5 rounded-full transition-all duration-300`}
+                            className="h-2 rounded-full bg-primary transition-all duration-300"
                             style={{ width: `${Math.min(totalProgress, 100)}%` }}
                           />
                         </div>
-                        <span className="text-[9px] font-medium text-muted-foreground shrink-0">
+                        <span className="min-w-[30px] text-right text-[10px] font-medium text-gray-700">
                           {Math.round(totalProgress)}%
                         </span>
                       </div>
@@ -496,16 +550,16 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                 </td>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-white">
               {filteredHabits.map((habit) => (
-                <tr key={habit.id} className="border-b border-border">
+                <tr key={habit.id} className="group transition-colors" style={{ height: ROW_HEIGHT }}>
                   <td
-                    className="sticky left-0 z-20 border-r border-border p-0 bg-card shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
-                    style={{ width: nameColumnWidth, minWidth: nameColumnWidth }}
+                    className="sticky left-0 z-[15] border-b border-r border-gray-300 bg-white p-0 shadow-[2px_0_4px_rgba(0,0,0,0.08)] group-hover:bg-slate-50"
+                    style={{ width: nameColumnWidth, minWidth: nameColumnWidth, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                   >
                     <div
                       className="overflow-hidden touch-manipulation"
-                      style={{ width: nameColumnWidth, touchAction: 'pan-y' }}
+                      style={{ width: nameColumnWidth }}
                       data-habit-swipe-row={habit.id}
                       onTouchStart={(e) => handleSwipeTouchStart(e, habit.id)}
                       onTouchMove={(e) => handleSwipeTouchMove(e, habit.id)}
@@ -519,23 +573,29 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                         }}
                       >
                         <div
-                          className={`flex items-center gap-1 min-w-0 flex-shrink-0 py-1.5 px-2 ${!isHabitColumnExpanded ? 'justify-center' : ''}`}
+                          className={`flex items-center gap-2 min-w-0 flex-shrink-0 py-1.5 pl-2 pr-0 ${!isHabitColumnExpanded ? 'justify-center' : ''}`}
                           style={{ width: nameColumnWidth }}
                         >
                           {isHabitColumnExpanded ? (
-                            <div
-                              data-habit-name-scroll
-                              className="scrollbar-hide flex-1 min-w-0 overflow-x-auto overflow-y-hidden seamless-scroll touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                              style={{ WebkitOverflowScrolling: 'touch' }}
-                            >
-                              <span className="text-xs font-medium text-foreground whitespace-nowrap inline-block">
-                                {habit.name}
-                              </span>
-                            </div>
+                            <>
+                              <div
+                                className="h-3 w-3 flex-shrink-0 rounded-full border border-gray-300"
+                                style={{ backgroundColor: habit.color || '#3b82f6' }}
+                              />
+                              <div
+                                data-habit-name-scroll
+                                className="scrollbar-hide min-w-0 flex-1 overflow-x-auto overflow-y-hidden seamless-scroll touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                style={{ WebkitOverflowScrolling: 'touch' }}
+                              >
+                                <span className="inline-block truncate whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {habit.name}
+                                </span>
+                              </div>
+                            </>
                           ) : null}
                           <button
                             type="button"
-                            className="flex-shrink-0 p-0.5 rounded touch-manipulation text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                            className="ml-auto flex-shrink-0 rounded p-0.5 text-gray-500 transition-colors touch-manipulation hover:bg-gray-200 hover:text-gray-900"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleToggleSwipeReveal(habit.id);
@@ -548,13 +608,13 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                           </button>
                         </div>
                         <div
-                          className="flex items-center flex-shrink-0 bg-muted border-l border-border"
+                          className="flex flex-shrink-0 items-center border-l border-gray-300 bg-gray-100 pr-2"
                           style={{ width: ACTIONS_WIDTH }}
                         >
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 rounded-none"
+                            className="h-8 w-8 rounded-none hover:bg-gray-200"
                             onClick={(e) => {
                               e.stopPropagation();
                               setExpandedHabitId(null);
@@ -566,7 +626,7 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 rounded-none text-destructive"
+                            className="h-8 w-8 rounded-none text-red-600 hover:bg-red-50 hover:text-red-700"
                             onClick={(e) => {
                               e.stopPropagation();
                               setExpandedHabitId(null);
@@ -586,8 +646,9 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                     const isFull = entriesCount >= (habit.target_count ?? 1);
                     const isPartial = entriesCount > 0 && !isFull;
 
-                    // Same as desktop: day allowed = habit active on this day (excludes disabled checkboxes from daily %)
-                    const isDayAllowed = isHabitActiveOnDay(habit, day);
+                    const isDayAllowed = canToggleHabitCheckboxOnDay(habit, day, entries);
+                    const canMonthlyReschedule = canMonthlyHabitRescheduleOnDay(habit, day, entries);
+                    const isFutureBlocked = isFutureDayBlockedUntilTodayComplete(habit, day, entries);
 
                     const checkboxChecked = isMulti ? isFull : entriesCount > 0;
                     const checkboxState: boolean | 'indeterminate' = isMulti && isPartial ? 'indeterminate' : checkboxChecked;
@@ -595,45 +656,80 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                     return (
                       <td
                         key={`${habit.id}-${day.toISOString()}`}
-                        className={`border-r border-border p-0.5 text-center ${
-                          isDayAllowed ? 'cursor-pointer hover:bg-muted/50' : 'opacity-50'
-                        } ${isCurrentDay ? 'bg-primary/5' : ''}`}
-                        style={{ width: CELL_SIZE, minWidth: CELL_SIZE }}
+                        className={`relative z-0 border-b border-r border-brand-blue/20 px-1 text-center transition-colors ${
+                          isDayAllowed
+                            ? 'cursor-pointer hover:bg-slate-100'
+                            : canMonthlyReschedule
+                              ? 'cursor-pointer opacity-50 hover:opacity-70'
+                              : 'cursor-not-allowed opacity-50'
+                        } ${
+                          isCurrentDay ? 'bg-brand-blue-soft brightness-[0.98]' : 'bg-white group-hover:bg-slate-50'
+                        }`}
+                        style={{
+                          width: CELL_SIZE,
+                          minWidth: CELL_SIZE,
+                          height: ROW_HEIGHT,
+                          maxHeight: ROW_HEIGHT,
+                          verticalAlign: 'middle',
+                        }}
+                        title={
+                          isFutureBlocked
+                            ? t(
+                                'habitTracker.completeTodayFirst',
+                                'Selesaikan habit hari ini terlebih dahulu',
+                              )
+                            : undefined
+                        }
                         onClick={() => {
-                          if (!isDayAllowed && habit.frequency === 'monthly') {
+                          if (canMonthlyReschedule) {
                             handleMonthlyHabitDateChange(habit.id, day);
                             return;
                           }
                           if (!isDayAllowed) return;
-                          handleCheckboxToggle(habit.id, day, !isFull);
+                          if (isMulti) {
+                            handleCheckboxToggle(habit.id, day, !isFull);
+                          }
                         }}
                         onTouchEnd={(e) => {
-                          if (!isDayAllowed && habit.frequency === 'monthly') {
+                          if (canMonthlyReschedule) {
                             e.preventDefault();
                             handleMonthlyHabitDateChange(habit.id, day);
                           }
                         }}
                         role="button"
-                        tabIndex={!isDayAllowed && habit.frequency === 'monthly' ? 0 : undefined}
-                        onKeyDown={!isDayAllowed && habit.frequency === 'monthly' ? (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); handleMonthlyHabitDateChange(habit.id, day); } } : undefined}
+                        tabIndex={canMonthlyReschedule ? 0 : undefined}
+                        onKeyDown={
+                          canMonthlyReschedule
+                            ? (ev) => {
+                                if (ev.key === 'Enter' || ev.key === ' ') {
+                                  ev.preventDefault();
+                                  handleMonthlyHabitDateChange(habit.id, day);
+                                }
+                              }
+                            : undefined
+                        }
                       >
                         <div className="flex flex-col items-center justify-center py-0.5">
                           <Checkbox
                             checked={checkboxState}
                             onCheckedChange={(c) => {
-                              if (!isDayAllowed && habit.frequency === 'monthly') {
+                              if (canMonthlyReschedule) {
                                 handleMonthlyHabitDateChange(habit.id, day);
                                 return;
                               }
                               if (!isDayAllowed) return;
                               handleCheckboxToggle(habit.id, day, !!c);
                             }}
-                            disabled={!isDayAllowed}
-                            className={`h-4 w-4 ${checkboxState === true ? 'checkbox-full-green' : ''} ${!isDayAllowed ? 'pointer-events-none' : ''}`}
+                            disabled={!isDayAllowed && !canMonthlyReschedule}
+                            className={`habit-grid-checkbox h-4 w-4 rounded-sm ${
+                              isDayAllowed || canMonthlyReschedule
+                                ? 'cursor-pointer'
+                                : 'cursor-not-allowed opacity-50'
+                            } ${checkboxState === true ? 'habit-grid-checkbox-checked' : ''}`}
                             onClick={(e) => e.stopPropagation()}
                           />
                           {isMulti && entriesCount > 0 && (
-                            <span className={`text-[8px] font-semibold ${isFull ? 'text-green-600' : 'text-orange-600'}`}>
+                            <span className="text-[8px] font-semibold leading-none text-primary">
                               {entriesCount}/{habit.target_count}
                             </span>
                           )}
@@ -644,43 +740,41 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                   {/* Goal, Actual, Progress - same logic as desktop (shared getHabitAnalysis) */}
                   {(() => {
                     const { goal, actual, progress } = getHabitAnalysis(habit, monthDays, entries);
-                    const progressColor =
-                      progress >= 100 ? 'bg-green-500' : progress >= 50 ? 'bg-blue-500' : 'bg-yellow-500';
                     return (
                       <>
                         <td
-                          className="border-r border-border px-1 py-1 text-center bg-card"
-                          style={{ width: GOAL_WIDTH, minWidth: GOAL_WIDTH }}
+                          className="relative z-0 border-b border-r border-brand-blue/20 bg-white px-2 text-center group-hover:bg-slate-50"
+                          style={{ width: GOAL_WIDTH, minWidth: GOAL_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                         >
-                          <div className="flex items-center justify-center gap-0.5">
-                            <Target className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-[10px] font-semibold text-foreground">{goal}</span>
+                          <div className="flex items-center justify-center gap-1">
+                            <Target className="h-3 w-3 text-gray-500" />
+                            <span className="text-sm font-semibold text-gray-900">{goal}</span>
                           </div>
                         </td>
                         <td
-                          className="border-r border-border px-1 py-1 text-center bg-card"
-                          style={{ width: ACTUAL_WIDTH, minWidth: ACTUAL_WIDTH }}
+                          className="relative z-0 border-b border-r border-brand-blue/20 bg-white px-2 text-center group-hover:bg-slate-50"
+                          style={{ width: ACTUAL_WIDTH, minWidth: ACTUAL_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                         >
                           <span
-                            className={`text-[10px] font-semibold ${
-                              actual >= goal ? 'text-green-600' : actual >= goal * 0.5 ? 'text-blue-600' : 'text-foreground'
+                            className={`text-sm font-semibold ${
+                              actual >= goal ? 'text-primary' : actual >= goal * 0.5 ? 'text-primary' : 'text-gray-900'
                             }`}
                           >
                             {actual}
                           </span>
                         </td>
                         <td
-                          className="border-r border-border px-1 py-1 bg-card"
-                          style={{ width: PROGRESS_WIDTH, minWidth: PROGRESS_WIDTH }}
+                          className="relative z-0 border-b border-brand-blue/20 bg-white px-2 group-hover:bg-slate-50"
+                          style={{ width: PROGRESS_WIDTH, minWidth: PROGRESS_WIDTH, height: ROW_HEIGHT, verticalAlign: 'middle' }}
                         >
-                          <div className="flex items-center gap-1">
-                            <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-200">
                               <div
-                                className={`${progressColor} h-1.5 rounded-full transition-all duration-300`}
+                                className="h-2 rounded-full bg-primary transition-all duration-300"
                                 style={{ width: `${Math.min(progress, 100)}%` }}
                               />
                             </div>
-                            <span className="text-[9px] font-medium text-muted-foreground shrink-0">
+                            <span className="min-w-[35px] text-right text-xs font-medium text-gray-700">
                               {Math.round(progress)}%
                             </span>
                           </div>
@@ -693,82 +787,101 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
             </tbody>
           </table>
 
-            {/* Progress Harian chart - sejajar kolom tanggal, ikut scroll horizontal */}
-            <div className="flex border-t border-border bg-muted/30 flex-shrink-0">
-              <div
-                className="sticky left-0 z-20 flex-shrink-0 border-r border-border px-2 py-2 flex items-center justify-center bg-muted shadow-[2px_0_4px_rgba(0,0,0,0.06)]"
-                style={{ width: nameColumnWidth, minWidth: nameColumnWidth }}
-              >
-                {isHabitColumnExpanded && (
-                  <span className="text-xs font-semibold text-muted-foreground">
+            {/* Progress Harian: sticky bawah (selaras HabitSpreadsheetView desktop) */}
+            <div
+              className="sticky bottom-0 z-20 flex-shrink-0 border-t border-brand-blue/20 bg-brand-blue-soft"
+              style={{ boxShadow: '0 -2px 4px rgba(0, 0, 0, 0.1)' }}
+            >
+              <div className="flex" style={{ minWidth: gridMinWidth, height: CHART_ROW_HEIGHT }}>
+                <div
+                  className="sticky left-0 z-[45] flex flex-shrink-0 items-center justify-center self-stretch border-r border-brand-blue/20 bg-brand-blue-soft px-2 text-center shadow-[2px_0_4px_rgba(0,0,0,0.08)]"
+                  style={{ width: nameColumnWidth, minWidth: nameColumnWidth }}
+                >
+                  <span
+                    className={
+                      isHabitColumnExpanded
+                        ? 'text-sm font-semibold text-gray-700'
+                        : 'sr-only'
+                    }
+                  >
                     {t('habitTracker.dailyProgressChart', 'Progress Harian')}
                   </span>
-                )}
-              </div>
-              <div
-                className="flex-shrink-0 overflow-hidden"
-                style={{ width: monthDays.length * CELL_SIZE, minWidth: monthDays.length * CELL_SIZE }}
-              >
-                <ResponsiveContainer width="100%" height={140}>
-                  <LineChart
-                    data={chartData}
-                    margin={{ top: 5, right: CELL_SIZE / 2, left: 0, bottom: 5 }}
+                </div>
+                <div
+                  className="relative flex-shrink-0 border-b border-brand-blue/20 bg-brand-blue-soft"
+                  style={{ width: chartSvg.width, minWidth: chartSvg.width, height: CHART_ROW_HEIGHT }}
+                  role="img"
+                  aria-label={t('habitTracker.dailyProgressChart', 'Progress Harian')}
+                >
+                  <span className="pointer-events-none absolute left-1 top-1 z-10 text-[10px] font-medium text-gray-500">
+                    %
+                  </span>
+                  {/* Grid horizontal (di belakang garis chart) — border CSS agar terlihat di layar mobile */}
+                  <div
+                    className="pointer-events-none absolute left-0 z-0"
+                    style={{
+                      top: CHART_PADDING_TOP,
+                      width: chartSvg.width,
+                      height: CHART_PLOT_HEIGHT,
+                    }}
+                    aria-hidden
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 9 }}
-                      stroke="hsl(var(--muted-foreground))"
-                      tickLine={false}
-                      axisLine={false}
-                      interval={0}
-                      tickMargin={4}
-                      type="category"
-                      scale="point"
-                      padding={{ left: 0.5, right: 0.5 }}
+                    {CHART_GRID_TICKS.map((tick) => (
+                      <div
+                        key={tick}
+                        className="absolute left-0 right-0 border-t border-gray-300"
+                        style={{ top: (CHART_PLOT_HEIGHT * (100 - tick)) / 100 }}
+                      />
+                    ))}
+                  </div>
+                  <svg
+                    width={chartSvg.width}
+                    height={CHART_ROW_HEIGHT - 8}
+                    className="relative z-[1] block overflow-visible"
+                    aria-hidden
+                  >
+                    <polyline
+                      points={chartSvg.polyline}
+                      fill="none"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2.5}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
                     />
-                    <YAxis
-                      tick={{ fontSize: 9 }}
-                      stroke="hsl(var(--muted-foreground))"
-                      width={20}
-                      domain={[0, 100]}
-                      allowDecimals={false}
-                      ticks={[0, 25, 50, 75, 100]}
-                      tickFormatter={() => ''}
-                      label={{ value: '%', position: 'insideTopLeft', style: { fontSize: 9, fill: 'hsl(var(--muted-foreground))' } }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                      }}
-                      formatter={(value: number) => [`${value}%`, t('habitTracker.dailyProgressChart', 'Progress Harian')]}
-                      labelFormatter={(label) => `${t('habitTracker.day', 'Hari')} ${label}`}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="pct"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      dot={{ fill: '#10b981', strokeWidth: 1.5, r: 2.5 }}
-                      activeDot={{ r: 4 }}
-                      isAnimationActive={false}
-                      connectNulls={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                    {chartSvg.points.map((p, idx) => (
+                      <circle
+                        key={monthDays[idx]?.toISOString() ?? idx}
+                        cx={p.x}
+                        cy={p.y}
+                        r={3}
+                        fill="hsl(var(--primary))"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2}
+                      >
+                        <title>
+                          {t('habitTracker.day', 'Hari')} {chartData[idx]?.date}: {chartData[idx]?.pct}%
+                        </title>
+                      </circle>
+                    ))}
+                  </svg>
+                </div>
+                <div
+                  className="flex-shrink-0 border-b border-r border-brand-blue/20 bg-brand-blue-soft"
+                  style={{ width: GOAL_WIDTH, minWidth: GOAL_WIDTH }}
+                />
+                <div
+                  className="flex-shrink-0 border-b border-r border-brand-blue/20 bg-brand-blue-soft"
+                  style={{ width: ACTUAL_WIDTH, minWidth: ACTUAL_WIDTH }}
+                />
+                <div
+                  className="flex-shrink-0 border-b border-brand-blue/20 bg-brand-blue-soft"
+                  style={{ width: PROGRESS_WIDTH, minWidth: PROGRESS_WIDTH }}
+                />
               </div>
-              <div
-                className="flex-shrink-0 border-l border-border bg-muted/30"
-                style={{ width: GOAL_WIDTH + ACTUAL_WIDTH + PROGRESS_WIDTH, minWidth: GOAL_WIDTH + ACTUAL_WIDTH + PROGRESS_WIDTH }}
-              />
             </div>
           </div>
         </div>
       </div>
-    </div>
 
       <AlertDialog open={!!habitToDelete} onOpenChange={(open) => !open && setHabitToDelete(null)}>
         <AlertDialogContent>

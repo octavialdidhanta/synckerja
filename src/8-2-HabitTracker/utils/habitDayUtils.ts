@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, isAfter, startOfDay } from "date-fns";
 
 export type HabitForDay = {
   id: string;
@@ -42,4 +42,31 @@ export function isHabitCompletedOnDay(habit: HabitForDay, day: Date, entriesList
   if (habit.frequency === "monthly" || habit.frequency === "weekly") return dayEntries.length > 0;
   if (habit.target_count && habit.target_count > 1) return dayEntries.length >= habit.target_count;
   return dayEntries.length > 0;
+}
+
+/** Tanggal setelah hari ini tidak boleh diisi jika habit aktif hari ini belum selesai. */
+export function isFutureDayBlockedUntilTodayComplete(
+  habit: HabitForDay,
+  day: Date,
+  entriesList: HabitEntryForDay[],
+  referenceToday: Date = new Date(),
+): boolean {
+  const today = startOfDay(referenceToday);
+  const target = startOfDay(day);
+  if (!isAfter(target, today)) return false;
+  if (!isHabitActiveOnDay(habit, today)) return false;
+  return !isHabitCompletedOnDay(habit, today, entriesList);
+}
+
+export function canToggleHabitCheckboxOnDay(habit: HabitForDay, day: Date, entriesList: HabitEntryForDay[]): boolean {
+  if (!isHabitActiveOnDay(habit, day)) return false;
+  if (isFutureDayBlockedUntilTodayComplete(habit, day, entriesList)) return false;
+  return true;
+}
+
+export function canMonthlyHabitRescheduleOnDay(habit: HabitForDay, day: Date, entriesList: HabitEntryForDay[]): boolean {
+  if (habit.frequency !== "monthly") return false;
+  if (isHabitActiveOnDay(habit, day)) return false;
+  if (isFutureDayBlockedUntilTodayComplete(habit, day, entriesList)) return false;
+  return true;
 }

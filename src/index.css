@@ -457,6 +457,13 @@ All colors MUST be HSL.
     touch-action: pan-y;
   }
 
+  /* Wide tables/grids: allow horizontal + vertical touch pan (e.g. habit tracker, payment table). */
+  .nested-scroll-touch-chain-xy {
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+
   /* Home OKR tab: fill remaining tab height (flex) then scroll; cap by viewport */
   .home-okr-tab-scroll {
     display: flex !important;

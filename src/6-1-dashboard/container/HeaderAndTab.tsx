@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { prefetchAppRoute } from '@/shared/routing/prefetchAppRoute';
 import { LayoutDashboard, Calendar, BookOpen, Settings, FileText } from 'lucide-react';
 
 interface HeaderAndTabProps {
@@ -90,6 +91,8 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
             return (
               <div
                 key={tab.id}
+                onMouseEnter={() => prefetchAppRoute(tab.route)}
+                onFocus={() => prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab)}
                 className={`flex items-center space-x-1.5 py-1.5 px-1 border-b-2 font-medium text-sm cursor-pointer transition-colors ${
                   isActive

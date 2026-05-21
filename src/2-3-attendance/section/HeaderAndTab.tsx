@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { CalendarDays, BarChart3, Settings } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 
 interface HeaderAndTabProps {
   activeTab: string;
@@ -75,6 +76,8 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
               <button
                 key={tab.id}
                 type="button"
+                onMouseEnter={() => prefetchAppRoute(tab.route)}
+                onFocus={() => prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab)}
                 className={cn(
                   "flex cursor-pointer items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors",

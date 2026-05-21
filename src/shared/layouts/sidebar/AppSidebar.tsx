@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useTransition, type TransitionEvent } from "react";
+import { useEffect, useRef, useState, type TransitionEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
@@ -16,6 +16,7 @@ import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadge
 import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
+import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 
 interface SubSidebarPanelProps {
   items: NavSubItem[];
@@ -77,7 +78,6 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [, startTransition] = useTransition();
   const resolvedTitle = t(titleKey);
 
   return (
@@ -101,11 +101,9 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
                 <button
                   key={`${item.titleKey}-${item.path}`}
                   type="button"
-                  onClick={() =>
-                    startTransition(() => {
-                      navigate(item.path);
-                    })
-                  }
+                  onMouseEnter={() => prefetchAppRoute(item.path)}
+                  onFocus={() => prefetchAppRoute(item.path)}
+                  onClick={() => navigate(item.path)}
                   className={cn(
                     "group relative flex w-full transform-none items-center gap-3 px-4 py-3 text-left text-[15px] font-normal transition-colors duration-200",
                     isActive
@@ -143,7 +141,6 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [, startTransition] = useTransition();
   const { canAccessPage, configLoading } = useDepartmentAccess();
   const { isOwner, isAdmin } = useCentralizedUserData();
   const currentPath = location.pathname;
@@ -229,6 +226,13 @@ export function AppSidebar() {
   const panelContentMenu =
     activeMenuItem ??
     (subMenuSnapshot?.subItems && subMenuSnapshot.subItems.length > 0 ? subMenuSnapshot : null);
+
+  useEffect(() => {
+    if (!panelContentMenu?.subItems?.length) return;
+    for (const sub of panelContentMenu.subItems) {
+      prefetchAppRoute(sub.path);
+    }
+  }, [panelContentMenu?.id]);
 
   const handleSubSidebarPanelTransitionEnd = (e: TransitionEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
@@ -337,11 +341,9 @@ export function AppSidebar() {
                         {item.path && item.path !== "#" ? (
                           <button
                             type="button"
-                            onClick={() =>
-                              startTransition(() => {
-                                navigate(item.path!);
-                              })
-                            }
+                            onMouseEnter={() => prefetchAppRoute(item.path!)}
+                            onFocus={() => prefetchAppRoute(item.path!)}
+                            onClick={() => navigate(item.path!)}
                             className={cn(
                               "group relative flex h-11 w-full min-w-0 transform-none items-center justify-between rounded-none border-l-4 border-transparent px-2 text-left text-sm font-medium leading-none",
                               "text-foreground transition-[background-color,color] duration-200 ease-in-out motion-reduce:transition-none",

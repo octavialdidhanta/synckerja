@@ -130,6 +130,15 @@ export function PermissionConfigurationProvider({ children }: { children: ReactN
       return;
     }
 
+    if (cached && orgId && cached.organizationId === orgId && cached.data.length > 0) {
+      if (configurationsRef.current.length === 0) {
+        setConfigurations(cached.data);
+      }
+      setLoading(false);
+      lastHydratedOrgIdRef.current = orgId;
+      return;
+    }
+
     setLoading(true);
   }, [organization?.id, user?.id, authLoading, centralLoading, hasOrganization]);
 

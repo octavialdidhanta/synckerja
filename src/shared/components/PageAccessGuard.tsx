@@ -75,10 +75,20 @@ export function PageAccessGuard({
 
   const pathToCheck = pagePath || location.pathname;
 
+  const hadUserDataRef = useRef(false);
+  if (userData) {
+    hadUserDataRef.current = true;
+  }
+
+  /** Jangan tampilkan guard skeleton penuh saat profil sempat kosong saat refresh token (user sudah pernah ter-hydrate). */
   const profileBootstrapPending =
-    requiresPermissions && !!user && (!centralProfileHydrated || !userData);
+    requiresPermissions &&
+    !!user &&
+    !userData &&
+    !hadUserDataRef.current &&
+    (!centralProfileHydrated || centralDataLoading);
   const centralBootstrapPending =
-    centralDataLoading && (!centralProfileHydrated || !userData);
+    centralDataLoading && !userData && !hadUserDataRef.current;
   /** Jangan block guard hanya karena objek `organization` belum di-hydrate ulang — profil sudah punya org id. */
   const isLoadingOrgData =
     requiresPermissions &&
