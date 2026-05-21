@@ -32,7 +32,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 export const HabitSpreadsheetView = () => {
   const { filteredHabits, entries, addEntry, deleteEntry, deleteHabit, updateHabit } = useHabitTracker();
   const { toast } = useToast();
-  const { t, dateLocale } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [editingHabit, setEditingHabit] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -729,7 +729,7 @@ export const HabitSpreadsheetView = () => {
                     });
                     const formatDateForDisplay = (dayOfMonth: number) => {
                       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dayOfMonth);
-                      return format(date, "d MMMM yyyy", { locale: dateLocale });
+                      return format(date, "d MMMM yyyy", { locale: dateFnsLocale });
                     };
                     return (
                       <>
@@ -821,7 +821,7 @@ export const HabitSpreadsheetView = () => {
 
                   const formatDateForToast = (dayOfMonth: number) => {
                     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dayOfMonth);
-                    return format(date, "d MMMM yyyy", { locale: dateLocale });
+                    return format(date, "d MMMM yyyy", { locale: dateFnsLocale });
                   };
 
                   setMonthlyHabitConfirmModal(null);
