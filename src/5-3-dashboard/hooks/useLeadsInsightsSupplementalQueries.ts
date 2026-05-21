@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 export type WhatsappCycleMetricRow = {
@@ -36,6 +36,7 @@ export function useLeadsInsightsSupplementalQueries(organizationId: string | nul
     refetchInterval: 5_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
   });
 
   const statusesQuery = useQuery({

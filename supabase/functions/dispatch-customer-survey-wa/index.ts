@@ -259,8 +259,13 @@ async function processOneInvitation(
 
   const closing = String((settings as { closing_message?: string } | null)?.closing_message ?? "").trim();
   const surveyUrl = `${surveyOrigin}/s/${token}`;
-  const bodyText = closing.length > 0 ? `${closing}\n\n${surveyUrl}` : surveyUrl;
-  const clipped = bodyText.slice(0, 4090);
+  const customerBodyText = closing.length > 0 ? `${closing}\n\n${surveyUrl}` : surveyUrl;
+  const clipped = customerBodyText.slice(0, 4090);
+  /** Stored in DB / inbox UI only — no survey URL (customer receives full text via Meta). */
+  const agentInboxBody = (closing.length > 0 ? closing : "Customer survey invitation sent to the customer.").slice(
+    0,
+    4090,
+  );
 
   const metaUrl = `${META_API_BASE}/${resolved.phone_number_id}/messages`;
   const metaBody = {
@@ -327,7 +332,13 @@ async function processOneInvitation(
     }
   }
 
-  await insertOutboundSurveyMessage(admin, convId, waMessageId, clipped, metaData as Record<string, unknown>);
+  await insertOutboundSurveyMessage(
+    admin,
+    convId,
+    waMessageId,
+    agentInboxBody,
+    { ...(metaData as Record<string, unknown>), customer_body_sent: clipped },
+  );
 
   await admin
     .from("customer_survey_invitations")

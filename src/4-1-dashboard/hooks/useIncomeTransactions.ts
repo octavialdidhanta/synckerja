@@ -9,6 +9,13 @@ import { IncomeTransactionWithRelations, CreateIncomeTransactionData } from '../
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { deleteIncomeTransactionForOrg } from '@/shared/lib/finance/deleteIncomeTransactionForOrg';
 import { refetchIncomeModuleQueries } from '@/shared/lib/finance/refetchIncomeModuleQueries';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
+import {
+  isIncomeAllocationComplete,
+  isIncomeAllocationIncomplete,
+} from '../utils/incomeAllocationStatus';
+
+const ALLOCATION_FIELD_KEYS = ['income_type_id', 'category_id', 'bank_account_id', 'status'] as const;
 
 /** Postgres UUID columns must get NULL, not "", when unset. */
 function uuidOrNull(v: unknown): string | null {
@@ -136,6 +143,8 @@ export const useIncomeTransactions = () => {
   const { user } = useCurrentUser();
   const { organizationId } = useCurrentOrg();
   const { updateBalance } = useBankAccountBalances();
+  const { isOwner, isAdmin } = useCentralizedUserData();
+  const canAllocateIncome = isOwner || isAdmin;
 
   const { data: incomeTransactions = [], isLoading, isPending, error, refetch } = useQuery({
     queryKey: ['income-transactions', organizationId],
@@ -280,13 +289,28 @@ export const useIncomeTransactions = () => {
       const refForDb =
         refTrimmed && refTrimmed.length > 0 ? refTrimmed : null;
 
+      const bankIdForInsert = uuidOrNull(transactionData.bank_account_id);
+      const typeIdForInsert = uuidOrNull(transactionData.income_type_id);
+      const categoryIdResolved = categoryIdForInsert ?? uuidOrNull(transactionData.category_id);
+      const allocationComplete = isIncomeAllocationComplete({
+        income_type_id: typeIdForInsert,
+        category_id: categoryIdResolved,
+        bank_account_id: bankIdForInsert,
+      });
+      const statusForInsert =
+        transactionData.status === 'cancelled'
+          ? 'cancelled'
+          : allocationComplete
+            ? 'completed'
+            : 'pending';
+
       const { data, error } = await supabase
         .from('income_transactions')
         .insert({
           ...transactionData,
-          category_id: categoryIdForInsert ?? uuidOrNull(transactionData.category_id),
-          bank_account_id: uuidOrNull(transactionData.bank_account_id),
-          income_type_id: uuidOrNull(transactionData.income_type_id),
+          category_id: categoryIdResolved,
+          bank_account_id: bankIdForInsert,
+          income_type_id: typeIdForInsert,
           service_id: uuidOrNull(transactionData.service_id),
           sub_service_id: uuidOrNull(transactionData.sub_service_id),
           organization_id: organizationId,
@@ -297,15 +321,16 @@ export const useIncomeTransactions = () => {
           receipt_file_size,
           receipt_mime_type,
           transaction_reference: refForDb,
+          status: statusForInsert,
         })
         .select()
         .single();
 
       if (error) throw error;
       
-      // Update bank account balance if bank_account_id is set
+      // Credit balance only when allocation is complete (pending + preset bank waits for finance allocation)
       const bankForBalance = uuidOrNull(newTransaction.bank_account_id);
-      if (bankForBalance && data?.id) {
+      if (bankForBalance && data?.id && allocationComplete) {
         try {
           await updateBalance(
             bankForBalance,
@@ -325,6 +350,8 @@ export const useIncomeTransactions = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['income-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['income-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-income-data'] });
       queryClient.invalidateQueries({ queryKey: ['sales-activities'] });
       queryClient.invalidateQueries({ queryKey: ['bank-account-balances'] });
       queryClient.invalidateQueries({ queryKey: ['expense-metrics'] });
@@ -377,10 +404,15 @@ export const useIncomeTransactions = () => {
       custom_category_name: customCategoryFromForm,
       ...updates
     }: Partial<IncomeTransactionWithRelations> & { id: string; custom_category_name?: string }) => {
-      // Get old transaction data to calculate balance difference
+      const touchesAllocationField = ALLOCATION_FIELD_KEYS.some((key) => key in updates);
+      if (touchesAllocationField && !canAllocateIncome) {
+        throw new Error('INCOME_ALLOCATION_FORBIDDEN');
+      }
+
+      // Get old transaction data to calculate balance difference and merge allocation status
       const { data: oldTransaction } = await supabase
         .from('income_transactions')
-        .select('bank_account_id, amount')
+        .select('bank_account_id, amount, income_type_id, category_id, status')
         .eq('id', id)
         .single();
 
@@ -444,6 +476,26 @@ export const useIncomeTransactions = () => {
         }
       }
 
+      const mergedForAllocation = {
+        income_type_id:
+          'income_type_id' in cleanedUpdates
+            ? (cleanedUpdates.income_type_id as string | null)
+            : oldTransaction?.income_type_id ?? null,
+        category_id:
+          'category_id' in cleanedUpdates
+            ? (cleanedUpdates.category_id as string | null)
+            : oldTransaction?.category_id ?? null,
+        bank_account_id:
+          'bank_account_id' in cleanedUpdates
+            ? (cleanedUpdates.bank_account_id as string | null)
+            : oldTransaction?.bank_account_id ?? null,
+      };
+      if (oldTransaction?.status !== 'cancelled' && !('status' in cleanedUpdates)) {
+        cleanedUpdates.status = isIncomeAllocationComplete(mergedForAllocation)
+          ? 'completed'
+          : 'pending';
+      }
+
       const { data, error } = await supabase
         .from('income_transactions')
         .update(cleanedUpdates as Record<string, unknown>)
@@ -470,10 +522,31 @@ export const useIncomeTransactions = () => {
         oldTransaction?.amount != null ? parseFloat(oldTransaction.amount.toString()) : 0;
       const descBase = updates.description || updates.customer_name || data.description || data.customer_name || 'Transaction';
 
+      const wasAllocIncomplete =
+        oldTransaction &&
+        isIncomeAllocationIncomplete({
+          income_type_id: oldTransaction.income_type_id,
+          category_id: oldTransaction.category_id,
+          bank_account_id: oldTransaction.bank_account_id,
+        });
+      const nowAllocComplete = isIncomeAllocationComplete(mergedForAllocation);
+
       if (data?.id) {
         try {
           if (newBankAccountId) {
-            if (oldBankId && oldBankId !== newBankAccountId) {
+            if (
+              wasAllocIncomplete &&
+              nowAllocComplete &&
+              oldBankId === newBankAccountId
+            ) {
+              await updateBalance(
+                newBankAccountId,
+                newAmount,
+                'income',
+                data.id,
+                `Income: ${descBase}`
+              );
+            } else if (oldBankId && oldBankId !== newBankAccountId) {
               // Moved to another account: remove full old amount from old, add new amount to new
               await updateBalance(
                 oldBankId,
@@ -532,6 +605,9 @@ export const useIncomeTransactions = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['income-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['income-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-income-data'] });
+      queryClient.invalidateQueries({ queryKey: ['bank-account-balances'] });
       toast({
         title: t('common.success', 'Success'),
         description: t('incomes.update.success', 'Income transaction updated successfully'),
@@ -543,6 +619,19 @@ export const useIncomeTransactions = () => {
         ? aggregatePostgrestError(error as PostgrestError)
         : String(error);
       const msgUpper = aggregated.toUpperCase();
+
+      if (msgUpper.includes('INCOME_ALLOCATION_FORBIDDEN')) {
+        toast({
+          title: t('common.error', 'Error'),
+          description: t(
+            'incomes.allocation.forbiddenAllocate',
+            'Only Owner or Admin can assign income type, category, and bank account.'
+          ),
+          variant: 'destructive',
+        });
+        console.error('Error updating income transaction:', error);
+        return;
+      }
 
       if (msgUpper.includes('INCOME_HAS_ALLOCATIONS')) {
         toast({

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useServiceRequiredPlatforms } from '@/6-1-dashboard/hook/useServiceRequiredPlatforms';
 import { useScriptAIConfig } from '@/6-1-script-generator/hooks/useScriptAIConfig';
 import { HeaderAndTab } from './section/HeaderAndTab';
@@ -31,7 +31,7 @@ export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useAppTranslation();
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
 
   const { data: approvalData, isPending: approvalPending } = useSocialMediaSettingsApprovalAccess();
   const { isPending: servicesPending } = useSettingsServicesQuery();
@@ -44,7 +44,7 @@ export const SettingsPage: React.FC = () => {
 
   const hasOrg = Boolean(organizationId);
   const rawPagePending =
-    orgLoading ||
+    orgBootstrapPending ||
     (hasOrg &&
       (approvalPending ||
         servicesPending ||

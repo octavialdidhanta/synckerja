@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useMemo, useCallback } from 'react';
-import { Plus, MoreHorizontal, Edit, Trash2, Eye, FileDown } from 'lucide-react';
+import { Plus, MoreHorizontal, Edit, Trash2, Eye, FileDown, Wallet } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
@@ -11,6 +11,8 @@ import { IncomeTransactionWithRelations } from '@/4-1-dashboard/types';
 import { useBankAccounts, type BankAccount } from '@/shared/hooks/finance/useBankAccounts';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { getIncomeTransactionIdDisplay } from '@/4-1-dashboard/utils/incomeTransactionDisplayId';
+import { isIncomeAllocationIncomplete } from '@/4-1-dashboard/utils/incomeAllocationStatus';
+import { useCanAllocateIncome } from '@/4-1-dashboard/hooks/useCanAllocateIncome';
 
 const IncomeTransactionTableDialogs = lazy(() =>
   import('./IncomeTransactionTableDialogs').then((m) => ({
@@ -29,7 +31,9 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
   const [selectedTransaction, setSelectedTransaction] = useState<IncomeTransactionWithRelations | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAllocationDialogOpen, setIsAllocationDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const { canAllocateIncome } = useCanAllocateIncome();
   const { deleteIncomeTransaction, isDeleting } = useIncomeTransactions();
   const [mountDialogs, setMountDialogs] = useState(false);
   const ensureDialogs = useCallback(() => setMountDialogs(true), []);
@@ -64,6 +68,12 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
     setIsEditDialogOpen(true);
   };
 
+  const handleAllocate = (transaction: IncomeTransactionWithRelations) => {
+    ensureDialogs();
+    setSelectedTransaction(transaction);
+    setIsAllocationDialogOpen(true);
+  };
+
   const handleDelete = (transaction: IncomeTransactionWithRelations) => {
     ensureDialogs();
     setSelectedTransaction(transaction);
@@ -89,18 +99,20 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-2">
         <h2 className="text-sm font-semibold text-gray-900">Income Transactions</h2>
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 px-3 text-xs"
-          onClick={() => {
-            ensureDialogs();
-            setIsAddDialogOpen(true);
-          }}
-        >
-          <Plus className="mr-1 h-3 w-3" />
-          Add Income
-        </Button>
+        {canAllocateIncome ? (
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 px-3 text-xs"
+            onClick={() => {
+              ensureDialogs();
+              setIsAddDialogOpen(true);
+            }}
+          >
+            <Plus className="mr-1 h-3 w-3" />
+            {t('incomes.addIncome', 'Add Income')}
+          </Button>
+        ) : null}
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -136,8 +148,13 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
                 </TableCell>
               </TableRow>
             ) : (
-              transactions.map((transaction) => (
-                <TableRow key={transaction.id} className="hover:bg-gray-50">
+              transactions.map((transaction) => {
+                const needsAllocation = isIncomeAllocationIncomplete(transaction);
+                return (
+                <TableRow
+                  key={transaction.id}
+                  className={needsAllocation ? 'hover:bg-amber-50/50 border-l-2 border-l-amber-400' : 'hover:bg-gray-50'}
+                >
                   <TableCell className="w-[200px] min-w-[200px] px-3 py-2 text-xs">
                     <div className="font-medium break-words leading-snug line-clamp-2">
                       {transaction.description || 'Transaction'}
@@ -262,9 +279,16 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
                     )}
                   </TableCell>
                   <TableCell className="px-3 py-2 text-xs">
-                    <Badge variant={getStatusBadgeVariant(transaction.status)} className="text-xs">
-                      {transaction.status}
-                    </Badge>
+                    <div className="flex flex-col items-start gap-1">
+                      <Badge variant={getStatusBadgeVariant(transaction.status)} className="text-xs">
+                        {transaction.status}
+                      </Badge>
+                      {needsAllocation ? (
+                        <Badge variant="outline" className="text-xs border-amber-300 bg-amber-50 text-amber-800">
+                          {t('incomes.allocation.badgeNeedsAllocation', 'Needs allocation')}
+                        </Badge>
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell className="w-[130px] min-w-[130px] px-3 py-2 text-xs">
                     {(() => {
@@ -294,13 +318,24 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
                           <Eye className="mr-2 h-3 w-3" />
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-xs cursor-pointer"
-                          onClick={() => handleEdit(transaction)}
-                        >
-                          <Edit className="mr-2 h-3 w-3" />
-                          Edit
-                        </DropdownMenuItem>
+                        {canAllocateIncome && needsAllocation ? (
+                          <DropdownMenuItem
+                            className="text-xs cursor-pointer font-medium text-amber-800"
+                            onClick={() => handleAllocate(transaction)}
+                          >
+                            <Wallet className="mr-2 h-3 w-3" />
+                            {t('incomes.allocation.actionAllocate', 'Allocate')}
+                          </DropdownMenuItem>
+                        ) : null}
+                        {canAllocateIncome ? (
+                          <DropdownMenuItem
+                            className="text-xs cursor-pointer"
+                            onClick={() => handleEdit(transaction)}
+                          >
+                            <Edit className="mr-2 h-3 w-3" />
+                            {t('common.edit', 'Edit')}
+                          </DropdownMenuItem>
+                        ) : null}
                         <DropdownMenuItem
                           className="text-xs text-brand-red cursor-pointer"
                           disabled={!!transaction.has_income_allocations}
@@ -316,7 +351,8 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))
+              );
+              })
             )}
           </TableBody>
         </Table>
@@ -332,6 +368,8 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
             setIsViewDialogOpen={setIsViewDialogOpen}
             setIsEditDialogOpen={setIsEditDialogOpen}
             isEditDialogOpen={isEditDialogOpen}
+            isAllocationDialogOpen={isAllocationDialogOpen}
+            setIsAllocationDialogOpen={setIsAllocationDialogOpen}
             isDeleteDialogOpen={isDeleteDialogOpen}
             setIsDeleteDialogOpen={setIsDeleteDialogOpen}
             setSelectedTransaction={setSelectedTransaction}

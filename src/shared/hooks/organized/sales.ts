@@ -16,6 +16,7 @@ import {
   RESOLVE_EMAIL_REQUIRED_CODE,
   SALES_ACTIVITY_CONTACT_REQUIRED_CODE,
 } from '@/shared/lib/leadSubmissionProfile';
+import { resolveLeadConversionSalesActivity } from '@/shared/lib/sales/resolveLeadConversionSalesActivity';
 
 async function assertWaLeadSubmissionEmailBeforeResolve(
   organizationId: string,
@@ -169,8 +170,10 @@ async function createConvertedSalesActivity(
     conversionItems?: ConvertedSalesActivityItemInput[] | null;
     /** When set (livechat Converted modal), records payment + income after items insert. */
     conversionPayment?: ConversionLeadPaymentPayload | null;
+    /** Required when conversionPayment is set; org's exclusive omnichannel income bank. */
+    omnichannelBankAccountId?: string | null;
   },
-): Promise<void> {
+): Promise<string> {
   const contact = await assertSalesActivityClientContactFromSubmission(args.leadId, args.orgId);
   const useCustomItems =
     Array.isArray(args.conversionItems) && args.conversionItems.length > 0;
@@ -294,7 +297,16 @@ async function createConvertedSalesActivity(
 
   if (!args.conversionPayment) {
     queryClient.invalidateQueries({ queryKey: ['sales-activities', args.orgId] });
-    return;
+    queryClient.invalidateQueries({
+      queryKey: ['lead-conversion-sales-activity', args.orgId, args.leadId],
+    });
+    return activityId;
+  }
+
+  const omnichannelBankId = args.omnichannelBankAccountId?.trim() ?? '';
+  if (!omnichannelBankId) {
+    await deleteSalesActivityCascade(activityId);
+    throw new Error('converted_sales_omnichannel_bank_required');
   }
 
   let resolved: ReturnType<typeof resolveConversionLeadPayment>;
@@ -345,11 +357,13 @@ async function createConvertedSalesActivity(
         payment_method: resolved.methodCanonical,
         income_type_id: null,
         category_id: null,
+        bank_account_id: omnichannelBankId,
         service_id: activityServiceId,
         sub_service_id: activitySubServiceId,
         description: `${paymentLabel} - Lead Conversion: ${args.clientName}`,
         receipt_url: receiptPath,
         sales_activity_payment_id: insertedPaymentId,
+        status: 'pending',
       },
     });
   } catch (e) {
@@ -365,6 +379,10 @@ async function createConvertedSalesActivity(
   queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
   queryClient.invalidateQueries({ queryKey: ['income-metrics', args.orgId] });
   queryClient.invalidateQueries({ queryKey: ['monthly-income-data', args.orgId] });
+  queryClient.invalidateQueries({
+    queryKey: ['lead-conversion-sales-activity', args.orgId, args.leadId],
+  });
+  return activityId;
 }
 
 export interface CreateSalesActivityItemData {
@@ -1933,7 +1951,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
               console.error('Converted (email): no auth user for sales_activities insert (RLS requires created_by)');
             } else {
               try {
-                await createConvertedSalesActivity(queryClient, {
+                const salesActivityId = await createConvertedSalesActivity(queryClient, {
                   orgId,
                   leadId: leadRow.id,
                   clientName: leadRow.client ?? 'Email lead',
@@ -1944,8 +1962,11 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
                   conversionItems: lead.conversionItems ?? null,
                   conversionPayment: (lead as { conversionPayment?: ConversionLeadPaymentPayload | null })
                     .conversionPayment ?? undefined,
+                  omnichannelBankAccountId: (lead as { omnichannelBankAccountId?: string | null })
+                    .omnichannelBankAccountId ?? undefined,
                   logLabel: 'Converted (email)',
                 });
+                return { ...lead, salesActivityId };
               } catch (err) {
                 if (err instanceof Error && err.message === SALES_ACTIVITY_CONTACT_REQUIRED_CODE) {
                   console.error(
@@ -2117,7 +2138,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
               console.error('Converted (wa): no auth user for sales_activities insert (RLS requires created_by)');
             } else {
               try {
-                await createConvertedSalesActivity(queryClient, {
+                const salesActivityId = await createConvertedSalesActivity(queryClient, {
                   orgId,
                   leadId: leadRow.id,
                   clientName: leadRow.client ?? 'WhatsApp lead',
@@ -2128,8 +2149,13 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
                   conversionItems: lead.conversionItems ?? null,
                   conversionPayment: (lead as { conversionPayment?: ConversionLeadPaymentPayload | null })
                     .conversionPayment ?? undefined,
+                  omnichannelBankAccountId: (lead as { omnichannelBankAccountId?: string | null })
+                    .omnichannelBankAccountId ?? undefined,
                   logLabel: 'Converted (wa)',
                 });
+                queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
+                queryClient.invalidateQueries({ queryKey: ['lead-by-ticket'] });
+                return { ...lead, salesActivityId };
               } catch (err) {
                 if (err instanceof Error && err.message === SALES_ACTIVITY_CONTACT_REQUIRED_CODE) {
                   console.error(
@@ -2448,11 +2474,12 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           });
         }
         // Create sales_activities entry when status changes to Converted (from leads-management page)
+        let salesActivityId: string | undefined;
         if (newStatusName?.trim().toLowerCase() === 'converted' && orgId && userId) {
           const leadData = data as { client?: string; services?: string; category?: string };
           const clientName = leadData?.client ?? 'Lead';
           try {
-            await createConvertedSalesActivity(queryClient, {
+            salesActivityId = await createConvertedSalesActivity(queryClient, {
               orgId,
               leadId: id,
               clientName,
@@ -2464,6 +2491,8 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
                 .conversionItems ?? null,
               conversionPayment: (lead as { conversionPayment?: ConversionLeadPaymentPayload | null })
                 .conversionPayment ?? undefined,
+              omnichannelBankAccountId: (lead as { omnichannelBankAccountId?: string | null })
+                .omnichannelBankAccountId ?? undefined,
               logLabel: 'Converted (leads)',
             });
           } catch (err) {
@@ -2473,6 +2502,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             throw err;
           }
         }
+        return salesActivityId ? { ...data, salesActivityId } : data;
       }
 
       return data;
@@ -2549,4 +2579,29 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
     deleteLead: deleteLeadMutation.mutateAsync,
   };
 };
+
+/** Latest Lead Conversion `sales_activities` row for omnichannel livechat payment modal. */
+export function useLeadConversionSalesActivity(
+  leadId: string | null | undefined,
+  enabled: boolean,
+) {
+  const { organizationId } = useCurrentOrg();
+
+  return useQuery({
+    queryKey: ['lead-conversion-sales-activity', organizationId, leadId],
+    queryFn: async () => {
+      if (!organizationId || !leadId) return null;
+      return resolveLeadConversionSalesActivity(organizationId, leadId);
+    },
+    enabled: Boolean(enabled && organizationId && leadId),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function getSalesActivityIdFromUpdateLeadResult(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const id = (result as { salesActivityId?: unknown }).salesActivityId;
+  return typeof id === 'string' && id.trim() !== '' ? id : undefined;
+}
 

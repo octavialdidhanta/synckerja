@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { cn } from "@/shared/lib/utils";
 import {
   KOLCampaignsFilters,
@@ -18,13 +18,13 @@ import { CreateCampaignModal } from "../modals/CreateCampaignModal";
 
 const KOLCampaignsPage = () => {
   const { t } = useAppTranslation();
-  const { loading: orgLoading, organizationId } = useCurrentOrg();
+  const { orgBootstrapPending, organizationId } = useOrgBootstrapPending();
   const { campaigns, isLoading, isPending: campaignsPending } = useKOLCampaigns();
   const { isPending: performanceMetricsPending } = useCampaignPerformanceMetrics();
 
   const queriesPending =
     Boolean(organizationId) && (campaignsPending || performanceMetricsPending);
-  const rawPending = orgLoading || queriesPending;
+  const rawPending = orgBootstrapPending || queriesPending;
   const showContent = useKolDeferredShowContent(rawPending);
 
   const [filters, setFilters] = useState<KOLCampaignsFiltersType>({

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
@@ -18,7 +18,11 @@ import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 import { useVisualViewport } from '@/shared/hooks/useVisualViewport';
 import { useCapacitorKeyboardInset } from '@/shared/native/useCapacitorKeyboardInset';
-import { useLeads } from '@/shared/hooks/organized/sales';
+import {
+  getSalesActivityIdFromUpdateLeadResult,
+  useLeadConversionSalesActivity,
+  useLeads,
+} from '@/shared/hooks/organized/sales';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
@@ -30,7 +34,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog } from '@/shared/lib/logger';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { Plus, User, Clock, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { Plus, User, Clock, ChevronDown, ChevronUp, AlertCircle, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 import type {
   EmailConversation,
@@ -58,6 +62,11 @@ import {
 } from '@/5-3-whatsapp/utils/livechatConversionValidation';
 import type { ConversionLeadPaymentPayload } from '@/shared/lib/leadConversionFinancial';
 import {
+  formatOmnichannelBankCopyText,
+  formatOmnichannelBankLabel,
+  useOmnichannelIncomeBankAccount,
+} from '@/shared/hooks/finance/useOmnichannelIncomeBankAccount';
+import {
   assertLeadSubmissionEmailSaved,
   fetchLeadSubmissionForProfile,
   getLeadSubmissionEmailForLead,
@@ -69,6 +78,14 @@ import {
   isValidResolveEmailFormat,
   upsertLeadSubmissionEmailForResolve,
 } from '@/shared/lib/leadSubmissionProfile';
+
+const PaymentUpdateModal = lazy(() =>
+  import('@/5-2-jadwal-kunjungan/components/PaymentUpdateModal').then((m) => ({
+    default: m.PaymentUpdateModal,
+  })),
+);
+
+type ApplyStatusChangeResult = { ok: boolean; salesActivityId?: string };
 
 /** Ticket ID for lead lookup: WA-xxx, IG-xxx, EMAIL-xxx. */
 function getTicketIdForConversation(conv: LiveChatConversation): string {
@@ -190,6 +207,22 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
   const { t } = useAppTranslation();
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
+  const { omnichannelBank, loading: omnichannelBankLoading } = useOmnichannelIncomeBankAccount();
+  const omnichannelBankLabel = useMemo(
+    () => (omnichannelBank ? formatOmnichannelBankLabel(omnichannelBank) : null),
+    [omnichannelBank],
+  );
+  const omnichannelBankCopyText = useMemo(() => {
+    if (!omnichannelBank) return null;
+    const text = formatOmnichannelBankCopyText(omnichannelBank, {
+      header: t('whatsappInbox.conversionBankCopyHeader', 'Payment transfer details:'),
+      bankLinePrefix: t('whatsappInbox.conversionBankCopyBankLine', 'Bank:'),
+      onBehalf: t('whatsappInbox.conversionBankCopyOnBehalf', 'a.n'),
+    });
+    const hasDetail =
+      !!omnichannelBank.bank_name?.trim() || !!omnichannelBank.account_number?.trim();
+    return hasDetail ? text : null;
+  }, [omnichannelBank, t]);
   const { user: currentUser } = useCurrentUser();
   const { updateLead, deleteLead } = useLeads();
   const [updateDetails, setUpdateDetails] = useState('');
@@ -201,6 +234,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
   const [selectedCategoryName, setSelectedCategoryName] = useState<string>('');
   const [isUpdatingLead, setIsUpdatingLead] = useState(false);
   const [serviceCategoryDialogOpen, setServiceCategoryDialogOpen] = useState(false);
+  const [pendingMarkAsLead, setPendingMarkAsLead] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [dialogServiceName, setDialogServiceName] = useState<string>('');
   const [dialogCategoryName, setDialogCategoryName] = useState<string>('');
@@ -218,6 +252,9 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
   const [conversionPaymentDate, setConversionPaymentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [conversionPaymentMethod, setConversionPaymentMethod] = useState('');
   const [conversionReceiptFile, setConversionReceiptFile] = useState<File | null>(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentModalSalesActivityId, setPaymentModalSalesActivityId] = useState<string | null>(null);
+  const paymentModalAutoOpenedRef = useRef(false);
   const { data: rosterAssignees = [] } = useOmnichannelRosterAssignees();
 
   const { data: servicesList = [] } = useServices();
@@ -229,12 +266,6 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     await queryClient.refetchQueries({ queryKey: ['services', organizationId] });
     await queryClient.refetchQueries({ queryKey: ['sub_services', organizationId] });
   }, [organizationId, queryClient]);
-  const categoriesForService = selectedServiceName
-    ? (() => {
-        const svc = servicesList.find((s) => s.name === selectedServiceName);
-        return svc ? subServicesList.filter((ss) => ss.service_id === svc.id) : [];
-      })()
-    : [];
   const dialogCategoriesForService = dialogServiceName
     ? (() => {
         const svc = servicesList.find((s) => s.name === dialogServiceName);
@@ -253,12 +284,19 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     setConversionPaymentMethod('');
     setConversionReceiptFile(null);
     setPendingStatusId(null);
+    setPendingMarkAsLead(false);
+    setPaymentModalOpen(false);
+    setPaymentModalSalesActivityId(null);
+    paymentModalAutoOpenedRef.current = false;
     setServiceCategoryDialogOpen(false);
     setDialogUpdateDetails('');
     setDialogProspectStatus('');
     setDialogEmail('');
     setResolveDialogError(null);
     setIsConversionSubmitting(false);
+    setPaymentModalOpen(false);
+    setPaymentModalSalesActivityId(null);
+    paymentModalAutoOpenedRef.current = false;
   }, [conversation?.id]);
 
   const { data: leadRow } = useQuery({
@@ -364,23 +402,18 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     [organizationId, ticketId, leadRow?.id, conversation, queryClient, t]
   );
 
-  const handleServiceChange = (value: string) => {
-    setSelectedServiceName(value);
-    setSelectedCategoryName('');
-  };
-
-  const handleCategoryChange = (value: string) => {
-    setSelectedCategoryName(value);
-    // For email without a lead, do not create lead on category pick; only when user clicks "Mark as lead"
-    const isEmailNoLead = conversation?.source === 'email' && !leadRow?.id;
-    if (value && selectedServiceName && !isEmailNoLead) {
-      updateLeadServicesCategory(selectedServiceName, value);
-    }
-  };
-
-  const handleMarkAsLead = useCallback(async () => {
+  const handleMarkAsLead = useCallback(async (serviceName?: string, categoryName?: string) => {
     if (!organizationId || !ticketId || !conversation || conversation.source !== 'email') return;
-    if (!selectedServiceName?.trim() || !selectedCategoryName?.trim()) return;
+    const svc = (
+      serviceName ?? (selectedServiceName || leadRow?.services || '')
+    ).trim();
+    const cat = (
+      categoryName ??
+      (selectedCategoryName ||
+        (leadRow?.category && leadRow.category !== '-' ? leadRow.category : '') ||
+        '')
+    ).trim();
+    if (!svc || !cat) return;
     setIsMarkUnmarkLeadLoading(true);
     try {
       const clientName = (conversation as { from_display_name?: string; from_email?: string }).from_display_name
@@ -404,14 +437,14 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
         ticket_id: ticketId,
         client: clientName,
         title,
-        category: selectedCategoryName || '',
+        category: cat || '',
         created_by: '00000000-0000-0000-0000-000000000000',
         created_by_name: createdByName,
         assignee: '',
         status_id: defaultStatusId,
         organization_id: organizationId,
         source: 'Email',
-        services: selectedServiceName || null,
+        services: svc || null,
         followup: 0,
       });
       if (insertErr) throw insertErr;
@@ -424,7 +457,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     } finally {
       setIsMarkUnmarkLeadLoading(false);
     }
-  }, [organizationId, ticketId, conversation, selectedServiceName, selectedCategoryName, queryClient, t]);
+  }, [organizationId, ticketId, conversation, leadRow?.category, leadRow?.services, selectedCategoryName, selectedServiceName, queryClient, t]);
 
   const handleUnmarkAsLead = useCallback(async () => {
     if (!leadRow?.id) return;
@@ -641,6 +674,12 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     return leadStatusesForSelect.length > 0 ? leadStatusesForSelect[0].id : '';
   })();
   const currentStatus = leadStatusesForSelect.find((s) => s.id === currentStatusId);
+  const isConvertedStatus =
+    (currentStatus?.name ?? '').trim().toLowerCase() === 'converted';
+  const showLivechatPaymentHistory =
+    !isEmail && (isWhatsApp || isInstagram) && isConvertedStatus;
+  const { data: conversionSalesActivity, refetch: refetchConversionSalesActivity } =
+    useLeadConversionSalesActivity(leadRow?.id, showLivechatPaymentHistory);
   const isResolved = isResolvedStatus(currentStatus?.name ?? null);
   const isUnreadStatus = isUnreadLeadStatus(currentStatus?.name ?? null);
   const sessionLocked =
@@ -682,6 +721,47 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     ).trim();
     return { svc, cat };
   }, [leadRow?.category, leadRow?.services, selectedCategoryName, selectedServiceName]);
+
+  const openPaymentHistoryModal = useCallback((activityId?: string | null) => {
+    const id = activityId ?? conversionSalesActivity?.id ?? paymentModalSalesActivityId;
+    if (!id) return;
+    setPaymentModalSalesActivityId(id);
+    setPaymentModalOpen(true);
+  }, [conversionSalesActivity?.id, paymentModalSalesActivityId]);
+
+  const tryAutoOpenPaymentHistoryAfterConvert = useCallback(
+    (salesActivityId?: string) => {
+      if (paymentModalAutoOpenedRef.current) return;
+      const resolvedId = salesActivityId ?? conversionSalesActivity?.id;
+      if (resolvedId) {
+        paymentModalAutoOpenedRef.current = true;
+        openPaymentHistoryModal(resolvedId);
+        return;
+      }
+      void refetchConversionSalesActivity().then((res) => {
+        const fetchedId = res.data?.id;
+        if (fetchedId && !paymentModalAutoOpenedRef.current) {
+          paymentModalAutoOpenedRef.current = true;
+          openPaymentHistoryModal(fetchedId);
+        }
+      });
+    },
+    [conversionSalesActivity?.id, openPaymentHistoryModal, refetchConversionSalesActivity],
+  );
+
+  const handleMarkAsLeadClick = useCallback(() => {
+    const { svc, cat } = getEffectiveServiceCategory();
+    if (!isServiceCategoryPairValid(svc, cat, servicesList, subServicesList)) {
+      setDialogServiceName(svc || '');
+      setDialogCategoryName(cat || '');
+      setPendingMarkAsLead(true);
+      setPendingStatusId(null);
+      setResolveDialogError(null);
+      setServiceCategoryDialogOpen(true);
+      return;
+    }
+    void handleMarkAsLead(svc, cat);
+  }, [getEffectiveServiceCategory, handleMarkAsLead, servicesList, subServicesList]);
 
   const buildInitialConversionLine = useCallback(() => {
     const { svc, cat } = getEffectiveServiceCategory();
@@ -967,15 +1047,16 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
         category: string;
       }> | null;
       conversionPayment?: ConversionLeadPaymentPayload | null;
+      omnichannelBankAccountId?: string | null;
     },
-  ): Promise<boolean> => {
+  ): Promise<ApplyStatusChangeResult> => {
     const newStatus = leadStatusesForSelect.find((s) => s.id === newStatusId);
     const isResolve = isResolvedStatus(newStatus?.name ?? null);
     if (isResolve && !options?.fromResolveModal) {
       const ready = await ensureResolvePrerequisites(newStatusId);
-      if (!ready) return false;
+      if (!ready) return { ok: false };
       const confirmed = window.confirm(t('leadsManagement.confirmResolve', 'Yakin ingin mengubah status menjadi Resolve? Chat outbound akan diblokir sampai ada pesan masuk baru dari customer.'));
-      if (!confirmed) return false;
+      if (!confirmed) return { ok: false };
     }
     const isConverted =
       (newStatus?.name ?? '').trim().toLowerCase() === 'converted';
@@ -993,7 +1074,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
             'Email wajib diisi di profil lead (lead_submissions) sebelum Resolve.',
           ),
         );
-        return false;
+        return { ok: false };
       }
       const email = await getLeadSubmissionEmailForLead(leadUuid, organizationId);
       if (!email) {
@@ -1007,14 +1088,14 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
               : 'Email wajib diisi di profil lead (lead_submissions) sebelum Resolve.',
           ),
         );
-        return false;
+        return { ok: false };
       }
     }
     const oldStatusName = currentStatus?.name ?? null;
     try {
       // Use real lead UUID when available so mutation updates the correct row; pass conversation id to sync conversation status
       const idToUse = leadUuid ?? leadId;
-      await updateLead({
+      const updateResult = await updateLead({
         id: idToUse,
         status_id: newStatusId,
         organization_id: conversation.organization_id,
@@ -1022,8 +1103,12 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
         conversionDescription,
         conversionItems: options?.conversionItems ?? undefined,
         conversionPayment: options?.conversionPayment ?? undefined,
+        omnichannelBankAccountId: options?.omnichannelBankAccountId ?? undefined,
         ...(leadUuid && { whatsapp_conversation_id: conversation.id }),
       });
+      const salesActivityId = isConverted
+        ? getSalesActivityIdFromUpdateLeadResult(updateResult)
+        : undefined;
       queryClient.setQueryData([statusQueryKeyBase, conversation.id], (prev: unknown) => {
         const base =
           prev &&
@@ -1053,14 +1138,19 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
       if (isResolve && conversation.source === 'whatsapp') {
         kickSurveyDispatchAfterResolve(conversation.id);
       }
-      return true;
+      if (salesActivityId) {
+        queryClient.invalidateQueries({
+          queryKey: ['lead-conversion-sales-activity', organizationId, leadRow?.id],
+        });
+      }
+      return { ok: true, salesActivityId };
     } catch (err) {
       devLog.error('Failed to update lead status:', err);
       if (err instanceof Error && err.message === 'invalid_conversion_items') {
         toast.error(
           t('whatsappInbox.conversionSubmitFailed', 'Gagal menyimpan data konversi. Periksa quantity dan harga.'),
         );
-        return false;
+        return { ok: false };
       }
       if (err instanceof Error && err.message === 'converted_sales_payment_failed') {
         toast.error(
@@ -1069,7 +1159,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
             'Konversi gagal: pembayaran atau pendapatan tidak tersimpan. Coba lagi atau hubungi admin.',
           ),
         );
-        return false;
+        return { ok: false };
       }
       if (isResolveEmailRequiredError(err)) {
         toast.error(
@@ -1078,10 +1168,10 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
             'Email wajib diisi di profil lead (lead_submissions) sebelum Resolve.',
           ),
         );
-        return false;
+        return { ok: false };
       }
       toast.error(t('whatsappInbox.statusUpdateFailed', 'Failed to update status'));
-      return false;
+      return { ok: false };
     }
   };
 
@@ -1346,6 +1436,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
 
   const resetServiceCategoryDialog = () => {
     setServiceCategoryDialogOpen(false);
+    setPendingMarkAsLead(false);
     setPendingStatusId(null);
     setDialogUpdateDetails('');
     setDialogProspectStatus('');
@@ -1368,6 +1459,7 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
     paymentDate: conversionPaymentDate,
     paymentMethod: conversionPaymentMethod,
     receiptFile: conversionReceiptFile,
+    omnichannelBankId: omnichannelBank?.id ?? null,
   });
 
   const handleConvertedModalConfirm = async () => {
@@ -1400,12 +1492,21 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
       return;
     }
     if (!conversionFinancialReady) {
-      setResolveDialogError(
-        t(
-          'whatsappInbox.conversionFinancialIncomplete',
-          'Lengkapi Financial Information: tanggal, metode pembayaran, bukti (receipt), dan nominal DP jika memilih Down Payment.',
-        ),
-      );
+      if (!omnichannelBankLoading && !omnichannelBank?.id) {
+        setResolveDialogError(
+          t(
+            'whatsappInbox.conversionOmnichannelBankMissing',
+            'Belum ada rekening Omnichannel. Minta finance mengaktifkan toggle Omnichannel di Income → Transaction → Bank Accounts.',
+          ),
+        );
+      } else {
+        setResolveDialogError(
+          t(
+            'whatsappInbox.conversionFinancialIncomplete',
+            'Lengkapi Financial Information: tanggal, metode pembayaran, bukti (receipt), dan nominal DP jika memilih Down Payment.',
+          ),
+        );
+      }
       return;
     }
     if (!pendingStatusId) return;
@@ -1492,14 +1593,16 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
         conversionPayment.downPaymentAmount = dp;
       }
 
-      const ok = await applyStatusChange(pendingStatusId, conversionNotes.trim(), {
+      const convertResult = await applyStatusChange(pendingStatusId, conversionNotes.trim(), {
         fromResolveModal: true,
         leadUuid: leadUuidForStatus,
         conversionItems: items,
         conversionPayment,
+        omnichannelBankAccountId: omnichannelBank!.id,
       });
-      if (ok) {
+      if (convertResult.ok) {
         resetServiceCategoryDialog();
+        tryAutoOpenPaymentHistoryAfterConvert(convertResult.salesActivityId);
       }
     } catch (err) {
       if (err instanceof Error && err.message === 'invalid_resolve_email') {
@@ -1532,6 +1635,13 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
           t(
             'whatsappInbox.conversionPaymentFailed',
             'Konversi gagal: pembayaran atau pendapatan tidak tersimpan. Coba lagi atau hubungi admin.',
+          ),
+        );
+      } else if (err instanceof Error && err.message === 'converted_sales_omnichannel_bank_required') {
+        setResolveDialogError(
+          t(
+            'whatsappInbox.conversionOmnichannelBankMissing',
+            'Belum ada rekening Omnichannel. Minta finance mengaktifkan toggle Omnichannel di Income → Transaction → Bank Accounts.',
           ),
         );
       } else if (isLeadSubmissionProfileSaveError(err)) {
@@ -1627,8 +1737,8 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
               fromResolveModal: true,
               leadUuid: leadUuidForStatus,
             })
-          : false;
-        if (!statusApplied) return;
+          : { ok: false };
+        if (!statusApplied.ok) return;
 
         resetServiceCategoryDialog();
       } catch (err) {
@@ -1670,6 +1780,20 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
             t('whatsappInbox.resolveProfileSaveFailed', 'Gagal menyimpan profil lead. Coba lagi atau hubungi admin.'),
           );
         }
+      } finally {
+        setIsResolveDialogSubmitting(false);
+      }
+      return;
+    }
+
+    if (pendingMarkAsLead) {
+      setIsResolveDialogSubmitting(true);
+      setResolveDialogError(null);
+      try {
+        await handleMarkAsLead(svc, cat);
+        setSelectedServiceName(svc);
+        setSelectedCategoryName(cat);
+        resetServiceCategoryDialog();
       } finally {
         setIsResolveDialogSubmitting(false);
       }
@@ -1786,7 +1910,9 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
                 ? t('whatsappInbox.resolvePrerequisiteDialogTitle', 'Lengkapi data sebelum Resolve')
                 : isPendingConverted
                   ? t('whatsappInbox.conversionModalTitle', 'Konversi — lengkapi data penjualan')
-                  : t('whatsappInbox.selectServiceAndCategory', 'Pilih Layanan dan Kategori')}
+                  : pendingMarkAsLead
+                    ? t('whatsappInbox.markAsLeadServiceCategoryTitle', 'Pilih Layanan dan Kategori untuk lead')
+                    : t('whatsappInbox.selectServiceAndCategory', 'Pilih Layanan dan Kategori')}
             </DialogTitle>
           </DialogHeader>
           <DialogFormScrollArea
@@ -1932,6 +2058,10 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
                   setResolveDialogError(null);
                 }}
                 disabled={quickActionDropdownsDisabled || isConversionSubmitting}
+                omnichannelBankLabel={omnichannelBankLabel}
+                omnichannelBankCopyText={omnichannelBankCopyText}
+                omnichannelBankLoading={omnichannelBankLoading}
+                omnichannelBankMissing={!omnichannelBankLoading && !omnichannelBank?.id}
                 onFieldFocus={(el) => scrollServiceCategoryFieldIntoView(el)}
                 t={t}
               />
@@ -2005,6 +2135,8 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
               disabled={
                 isResolveDialogSubmitting ||
                 isConversionSubmitting ||
+                (pendingMarkAsLead &&
+                  (!dialogServiceName?.trim() || !dialogCategoryName?.trim())) ||
                 (isPendingResolve &&
                   (!dialogServiceName?.trim() ||
                     !dialogCategoryName?.trim() ||
@@ -2027,68 +2159,62 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
                 : isResolveDialogSubmitting
                   ? isPendingResolve
                     ? t('whatsappInbox.resolving', 'Resolve...')
-                    : t('whatsappInbox.adding', 'Adding...')
+                    : pendingMarkAsLead
+                      ? t('whatsappInbox.markingAsLead', 'Menandai sebagai lead…')
+                      : t('whatsappInbox.adding', 'Adding...')
                   : isPendingResolve
                     ? t('whatsappInbox.resolveFromModal', 'Resolve')
-                    : t('whatsappInbox.saveAndContinue', 'Simpan dan lanjutkan')}
+                    : pendingMarkAsLead
+                      ? t('whatsappInbox.markAsLead', 'Mark as lead')
+                      : t('whatsappInbox.saveAndContinue', 'Simpan dan lanjutkan')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Service and Category dropdowns */}
-      <div className="space-y-2">
-        <label className="text-xs font-medium text-gray-600 block">
-          {t('whatsappInbox.service', 'Service')}
-        </label>
-        <Select
-          value={selectedServiceName || undefined}
-          onValueChange={handleServiceChange}
-          disabled={isUpdatingLead || quickActionDropdownsDisabled}
-        >
-          <SelectTrigger
-            className="w-full text-sm bg-white border-gray-200 h-9"
-            title={quickActionDropdownsDisabled ? (sessionLockedTitle ?? undefined) : undefined}
-          >
-            <SelectValue placeholder={t('whatsappInbox.selectService', 'Select service')} />
-          </SelectTrigger>
-          <SelectContent>
-            {servicesList.map((s) => (
-              <SelectItem key={s.id} value={s.name}>
-                {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <label className="text-xs font-medium text-gray-600 block">
-          {t('whatsappInbox.category', 'Category')}
-        </label>
-        <Select
-          value={selectedCategoryName || undefined}
-          onValueChange={handleCategoryChange}
-          disabled={!selectedServiceName || isUpdatingLead || quickActionDropdownsDisabled}
-        >
-          <SelectTrigger
-            className="w-full text-sm bg-white border-gray-200 h-9"
-            title={quickActionDropdownsDisabled ? (sessionLockedTitle ?? undefined) : undefined}
-          >
-            <SelectValue
-              placeholder={
-                selectedServiceName
-                  ? t('whatsappInbox.selectCategory', 'Select category')
-                  : t('whatsappInbox.selectServiceFirst', 'Select service first')
-              }
-            />
-          </SelectTrigger>
-          <SelectContent>
-            {categoriesForService.map((ss) => (
-              <SelectItem key={ss.id} value={ss.name}>
-                {ss.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {showLivechatPaymentHistory && (
+        <div className="space-y-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="block w-full">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={
+                    quickActionDropdownsDisabled ||
+                    !(conversionSalesActivity?.id ?? paymentModalSalesActivityId)
+                  }
+                  onClick={() => openPaymentHistoryModal()}
+                >
+                  <Receipt className="mr-2 h-4 w-4 shrink-0" />
+                  {t('whatsappInbox.paymentInvoice', 'Payment / Invoice')}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!(conversionSalesActivity?.id ?? paymentModalSalesActivityId) ? (
+              <TooltipContent side="top" className="max-w-[240px] text-xs">
+                {t(
+                  'whatsappInbox.paymentInvoiceUnavailable',
+                  'No sales activity found for this converted lead.',
+                )}
+              </TooltipContent>
+            ) : null}
+          </Tooltip>
+        </div>
+      )}
+
+      {paymentModalOpen && paymentModalSalesActivityId ? (
+        <Suspense fallback={null}>
+          <PaymentUpdateModal
+            open={paymentModalOpen}
+            onClose={() => setPaymentModalOpen(false)}
+            salesActivityId={paymentModalSalesActivityId}
+            clientName={leadTitle}
+            variant="livechat"
+          />
+        </Suspense>
+      ) : null}
 
       {/* Email only: Mark as lead / Unmark as lead in Quick Action */}
       {isEmail && (
@@ -2104,28 +2230,14 @@ export function LivechatQuickActionPanel({ conversation, hideLeadTitle = false }
               {isMarkUnmarkLeadLoading ? '...' : t('whatsappInbox.unmarkAsLead', 'Unmark as lead')}
             </Button>
           ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="block w-full">
-                  <Button
-                    type="button"
-                    className="w-full"
-                    disabled={
-                      quickActionDropdownsDisabled ||
-                      !selectedServiceName?.trim() ||
-                      !selectedCategoryName?.trim() ||
-                      isMarkUnmarkLeadLoading
-                    }
-                    onClick={handleMarkAsLead}
-                  >
-                    {isMarkUnmarkLeadLoading ? '...' : t('whatsappInbox.markAsLead', 'Mark as lead')}
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{t('whatsappInbox.markAsLeadRequireServiceCategory', 'Select Service and Category first.')}</p>
-              </TooltipContent>
-            </Tooltip>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={quickActionDropdownsDisabled || isMarkUnmarkLeadLoading}
+              onClick={handleMarkAsLeadClick}
+            >
+              {isMarkUnmarkLeadLoading ? '...' : t('whatsappInbox.markAsLead', 'Mark as lead')}
+            </Button>
           )}
         </div>
       )}

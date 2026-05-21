@@ -34,7 +34,7 @@ import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { addExpenseSchema, AddExpenseFormData, RECURRING_FREQUENCIES } from './AddExpenseForm';
 import { useDepartmentsCrud } from '@/shared/hooks/crudMaster/useDepartmentsCrud';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { DepartmentCrudModal } from './DepartmentCrudModal';
 import { ExpenseTypeCrudModal } from './ExpenseTypeCrudModal';
 import { ExpenseCategoryCrudModal } from './ExpenseCategoryCrudModal';
@@ -152,7 +152,7 @@ export function ExpenseDashboard() {
     setSearchQuery('');
   };
 
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const location = useLocation();
   const navigate = useNavigate();
   const {
@@ -219,7 +219,7 @@ export function ExpenseDashboard() {
       balancesLoading ||
       balancesPending ||
       allExpenseCategoriesLoading);
-  const rawPendingLoad = orgLoading || dataPending;
+  const rawPendingLoad = orgBootstrapPending || dataPending;
   const showContent = useDebouncedReady(!rawPendingLoad);
 
   // Filter purchase requests that are paid/berhasil

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import type { MemberRowLite, RecipientListMemberViewRow } from "@/5-3-whatsapp-template/utils/enrichRecipientListMembers";
@@ -291,6 +291,7 @@ export function useWhatsAppCampaignRecipients(campaignId: string | null | undefi
       return rows.some((r) => r.send_status === "pending") ? 2500 : false;
     },
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 }
 

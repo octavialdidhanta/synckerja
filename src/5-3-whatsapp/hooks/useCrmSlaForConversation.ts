@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 export type LivechatCrmSlaSnapshot = {
@@ -61,5 +61,6 @@ export function useCrmSlaForConversation(
     refetchInterval: 5_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
   });
 }

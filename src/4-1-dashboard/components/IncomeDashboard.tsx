@@ -34,7 +34,7 @@ import { format } from 'date-fns';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { IncomeDashboardSkeleton } from '@/4-1-dashboard/skeletons/IncomeDashboardSkeleton';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useExpenseMetrics } from '@/shared/hooks/finance/useExpenseMetrics';
 import { cn } from '@/shared/lib/utils';
 
@@ -101,7 +101,7 @@ export function IncomeDashboard() {
   const [bankTransferDialogOpen, setBankTransferDialogOpen] = useState(false);
   const [bankTransferSource, setBankTransferSource] = useState<BankAccount | null>(null);
 
-  const { loading: orgLoading, organizationId } = useCurrentOrg();
+  const { orgBootstrapPending, organizationId } = useOrgBootstrapPending();
   const { data: metrics, isLoading: metricsLoading } = useIncomeMetrics();
   const {
     incomeTransactions,
@@ -155,8 +155,8 @@ export function IncomeDashboard() {
         matchesBankAccount = transaction.bank_account_id === selectedBankAccount;
       }
 
-      // Only include completed or pending transactions
-      const isValidStatus = transaction.status === 'completed' || transaction.status === 'pending';
+      // Only include completed transactions (pending = awaiting allocation)
+      const isValidStatus = transaction.status === 'completed';
 
       return isInDateRange && matchesType && matchesBankAccount && isValidStatus;
     });
@@ -279,7 +279,7 @@ export function IncomeDashboard() {
       balancesLoading ||
       balancesPending ||
       expensesLoading);
-  const rawPendingLoad = orgLoading || dataPending;
+  const rawPendingLoad = orgBootstrapPending || dataPending;
   const showContent = useDebouncedReady(!rawPendingLoad);
 
   return (

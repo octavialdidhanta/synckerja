@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { HeaderAndTab } from '@/5-3-dashboard/components/layout/HeaderAndTab';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useWhatsAppTemplateFollowups } from '../hooks/useWhatsAppTemplateFollowups';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
@@ -10,8 +10,8 @@ import { Loader2 } from 'lucide-react';
 
 export function WhatsAppTemplateFollowupsPage() {
   const { t, dateFnsLocale } = useAppTranslation();
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
-  const { data: rows = [], isLoading, error } = useWhatsAppTemplateFollowups(organizationId);
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
+  const { data: rows = [], isPending, error } = useWhatsAppTemplateFollowups(organizationId);
 
   const formatDt = (iso: string) => {
     try {
@@ -34,7 +34,7 @@ export function WhatsAppTemplateFollowupsPage() {
               {t('whatsappTemplateFollowups.pageIntro', 'Riwayat pengiriman template follow-up dari livechat.')}
             </p>
 
-            {orgLoading || isLoading ? (
+            {orgBootstrapPending || isPending ? (
               <div className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 <span className="sr-only">Loading</span>

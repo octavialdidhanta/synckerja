@@ -13,7 +13,7 @@ import { filterJobOpenings, type JobOpeningsFilters as FilterType } from './util
 import { Button } from '@/shared/components/ui/button';
 import { Plus } from 'lucide-react';
 import { JobOpeningModal, GenerateLinkModal } from '@/2-2-recruitment-dashboard/job-openings';
-import { useCurrentOrg } from '@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { cn } from '@/shared/lib/utils';
 import { JobOpeningsPageSkeleton } from '@/2-2-recruitment-dashboard/components/RecruitmentSkeletons';
 
@@ -30,7 +30,7 @@ export const JobOpeningsPage = () => {
   const [generateLinkModalOpen, setGenerateLinkModalOpen] = useState(false);
   const [selectedJobForLink, setSelectedJobForLink] = useState<JobOpening | null>(null);
   
-  const { loading: orgLoading } = useCurrentOrg();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   const {
     data: jobOpenings = [],
     isPending: jobOpeningsPending,
@@ -45,7 +45,7 @@ export const JobOpeningsPage = () => {
     saving,
   } = useJobOpeningsCrud();
 
-  const showFullPageSkeleton = orgLoading || jobOpeningsPending;
+  const showFullPageSkeleton = orgBootstrapPending || jobOpeningsPending;
 
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);

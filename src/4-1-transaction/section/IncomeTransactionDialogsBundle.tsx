@@ -13,10 +13,12 @@ import { cn } from "@/shared/lib/utils";
 import { MODAL_BRAND_HEADER_BAR } from "@/shared/constants/modalBrandHeaderClasses";
 import { AddIncomeForm } from "@/4-1-dashboard/components/AddIncomeForm";
 import { IncomeTransactionDialog } from "@/4-1-dashboard/components/IncomeTransactionDialog";
+import { IncomeAllocationDialog } from "@/4-1-dashboard/components/IncomeAllocationDialog";
 import { formatToRupiah } from "@/shared/utils/formatCurrency";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { IncomeTransactionListController } from "@/4-1-transaction/hooks/useIncomeTransactionListController";
 import { IncomeTransactionViewDialog } from "./IncomeTransactionViewDialog";
+import { useCanAllocateIncome } from "@/4-1-dashboard/hooks/useCanAllocateIncome";
 
 type Props = {
   ctrl: IncomeTransactionListController;
@@ -27,6 +29,7 @@ type Props = {
 
 export function IncomeTransactionDialogsBundle({ ctrl, onRefresh, omitAddDialog }: Props) {
   const { t } = useAppTranslation();
+  const { canAllocateIncome } = useCanAllocateIncome();
   const {
     isAddDialogOpen,
     setIsAddDialogOpen,
@@ -36,6 +39,8 @@ export function IncomeTransactionDialogsBundle({ ctrl, onRefresh, omitAddDialog 
     setIsViewDialogOpen,
     isEditDialogOpen,
     setIsEditDialogOpen,
+    isAllocationDialogOpen,
+    setIsAllocationDialogOpen,
     isDeleteDialogOpen,
     setIsDeleteDialogOpen,
     confirmDelete,
@@ -78,10 +83,14 @@ export function IncomeTransactionDialogsBundle({ ctrl, onRefresh, omitAddDialog 
             setSelectedTransaction(null);
           }
         }}
-        onEdit={() => {
-          setIsViewDialogOpen(false);
-          setIsEditDialogOpen(true);
-        }}
+        onEdit={
+          canAllocateIncome
+            ? () => {
+                setIsViewDialogOpen(false);
+                setIsEditDialogOpen(true);
+              }
+            : undefined
+        }
       />
 
       <IncomeTransactionDialog
@@ -89,6 +98,18 @@ export function IncomeTransactionDialogsBundle({ ctrl, onRefresh, omitAddDialog 
         open={isEditDialogOpen}
         onOpenChange={(open) => {
           setIsEditDialogOpen(open);
+          if (!open) {
+            setSelectedTransaction(null);
+            onRefresh?.();
+          }
+        }}
+      />
+
+      <IncomeAllocationDialog
+        income={selectedTransaction}
+        open={isAllocationDialogOpen}
+        onOpenChange={(open) => {
+          setIsAllocationDialogOpen(open);
           if (!open) {
             setSelectedTransaction(null);
             onRefresh?.();

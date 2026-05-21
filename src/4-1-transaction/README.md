@@ -2,6 +2,36 @@
 
 This module contains the Transaction page for Income Management (`/incomes/transaction`) and the **Piutang** sub-module (`/incomes/piutang`).
 
+## Income allocation (post–lead conversion)
+
+Payments recorded from **paid livechat conversion** create `income_transactions` with `status: pending`, **`bank_account_id`** set to the org’s exclusive **Omnichannel** bank (toggle on **Bank Accounts** tab), and **no** `income_type_id` / `category_id` (table shows **Unknown** for type/category). Bank balance is **not** updated until Owner/Admin completes allocation on `/incomes/transaction` via **Allocate** (`IncomeAllocationDialog`).
+
+Legacy or non-livechat conversions without Omnichannel may still have null `bank_account_id` until allocation.
+
+- Required to complete: income type, category (or Other + label), bank account (preset bank is locked in the allocation dialog when already set).
+- **Omnichannel bank:** exactly one active `bank_accounts` row per org with `use_for_omnichannel_income = true`. Paid livechat conversion is blocked if none is configured.
+- Only **Owner** and **Admin** can allocate or edit classification; HR can view the page.
+- Metrics and dashboard totals count **`completed`** status only.
+
+### Optional legacy SQL (run once in Supabase)
+
+```sql
+UPDATE income_transactions
+SET status = 'pending'
+WHERE status = 'completed'
+  AND (bank_account_id IS NULL OR income_type_id IS NULL OR category_id IS NULL);
+```
+
+### QA matrix (Omnichannel bank + allocation)
+
+1. No Omnichannel toggle ON → paid livechat conversion blocked with clear message.
+2. One account ON → conversion succeeds → income `pending` with `bank_account_id` filled.
+3. Bank balance unchanged immediately after conversion.
+4. After allocation (type + category) → `completed` and balance increases by transaction amount.
+5. Move Omnichannel toggle to another account → new conversions use new account; old rows keep prior `bank_account_id`.
+6. All toggles OFF → conversions blocked again.
+7. Manual income create with bank but missing type/category → no balance credit until allocation complete.
+
 ## Piutang (`piutang/`)
 
 Sales receivables from `sales_activities` (with payments). Route: **`/incomes/piutang`**. Uses the same shell as transactions (`IncomeTransactionModuleShell`). Access control matches **`/incomes/transaction`** until a dedicated ACL path exists.

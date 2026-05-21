@@ -1,6 +1,11 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { PageAccessGuard } from "@/shared/components/PageAccessGuard";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  focusManager,
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/shared/components/ui/sonner";
 import { Toaster } from "@/shared/components/ui/toaster";
@@ -77,7 +82,6 @@ import { CurrentOrgProvider } from "@/shared/auth/contexts/CurrentOrgContext";
 import { PermissionConfigurationProvider } from "@/shared/auth/page-access/usePermissionConfiguration";
 import { HrManagementRoleGuard } from "@/shared/components/HrManagementRoleGuard";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
-
 const RecruitmentSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -1672,12 +1676,20 @@ const PublicCandidateProfileThankYou = lazy(
   () => import("@/2-2-recruitment-dashboard/applications/public/CandidateProfileThankYou"),
 );
 
+/** Tab/window focus tidak memicu refetch massal (halaman-tidak-reload-otomatis). */
+focusManager.setEventListener(() => () => {});
+focusManager.setFocused(true);
+onlineManager.setEventListener(() => () => {});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       /** Satu siklus fetch per query saat load; hindari refetch kedua saat tab online lagi / remount. */
       refetchOnReconnect: false,
+      refetchOnMount: false,
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
     },
   },
 });

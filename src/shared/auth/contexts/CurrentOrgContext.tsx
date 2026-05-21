@@ -4,7 +4,6 @@ import {
   clearCurrentOrgCacheForUser,
   setCurrentOrgCacheForUser,
 } from '@/shared/auth/hooks/useCurrentOrgCache';
-
 export interface CurrentOrgContextValue {
   organizationId: string | null;
   loading: boolean;

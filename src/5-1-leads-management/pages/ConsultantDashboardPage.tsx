@@ -4,7 +4,7 @@ import { ConsultantsPageContent } from "@/5-3-dashboard/components/consultants/C
 import { HeaderAndTab } from "@/5-3-dashboard/components/layout/HeaderAndTab";
 import { useLeadsManagementFilterQueries } from "@/5-3-dashboard/hooks/useLeadsManagementFilterQueries";
 import { useOmnichannelRosterAssignees } from "@/shared/hooks/useOrganizationOmnichannelStaff";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useLeads } from "@/shared/hooks/organized/sales";
 import { LeadsManagementPageSkeleton } from "@/5-1-leads-management/skeletons/LeadsManagementPageSkeleton";
 import { cn } from "@/shared/lib/utils";
@@ -24,7 +24,7 @@ export const ConsultantDashboardPage = () => {
   const [searchParams] = useSearchParams();
   const isReportView = searchParams.get("view") === "report";
 
-  const { loading: orgLoading, organizationId } = useCurrentOrg();
+  const { orgBootstrapPending, organizationId } = useOrgBootstrapPending();
   const { initialLoadPending: leadsInitialPending } = useLeads({ scope: "all" });
   const employeesQuery = useOmnichannelRosterAssignees();
   const { metadataPending } = useLeadsManagementFilterQueries();
@@ -35,7 +35,7 @@ export const ConsultantDashboardPage = () => {
       (employeesQuery.isFetching && employeesQuery.dataUpdatedAt === 0));
 
   const rawPending =
-    orgLoading ||
+    orgBootstrapPending ||
     (Boolean(organizationId) &&
       (leadsInitialPending || employeesInitialPending || metadataPending));
 

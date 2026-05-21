@@ -18,7 +18,7 @@ export const useMonthlyIncomeData = (year?: string) => {
         .eq('organization_id', organizationId)
         .gte('transaction_date', `${selectedYear}-01-01`)
         .lt('transaction_date', `${parseInt(selectedYear) + 1}-01-01`)
-        .in('status', ['completed', 'pending']);
+        .eq('status', 'completed');
 
       if (error) throw error;
 

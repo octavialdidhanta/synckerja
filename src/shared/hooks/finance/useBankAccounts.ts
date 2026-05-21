@@ -11,6 +11,7 @@ export interface BankAccount {
   account_holder: string | null;
   organization_id: string;
   is_active: boolean;
+  use_for_omnichannel_income: boolean;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -29,6 +30,7 @@ export interface UpdateBankAccountData {
   bank_name?: string;
   account_holder?: string;
   is_active?: boolean;
+  use_for_omnichannel_income?: boolean;
 }
 
 export type UseBankAccountsOptions = {
@@ -116,6 +118,17 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
 
   const updateBankAccountMutation = useMutation({
     mutationFn: async ({ id, data: bankAccountData }: { id: string; data: UpdateBankAccountData }) => {
+      if (bankAccountData.use_for_omnichannel_income === true && organizationId) {
+        const { error: clearErr } = await supabase
+          .from('bank_accounts')
+          .update({ use_for_omnichannel_income: false })
+          .eq('organization_id', organizationId);
+        if (clearErr) {
+          console.error('Error clearing omnichannel bank flags:', clearErr);
+          throw clearErr;
+        }
+      }
+
       const { data, error } = await supabase
         .from('bank_accounts')
         .update({
@@ -135,6 +148,7 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['omnichannel-income-bank-account', organizationId] });
       toast({
         title: 'Success',
         description: 'Bank account updated successfully',
@@ -181,6 +195,7 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['omnichannel-income-bank-account', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['bank-account-balances', organizationId] });
       toast({
         title: 'Success',

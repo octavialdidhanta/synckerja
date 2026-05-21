@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { NewLead } from "@/shared/types/leads";
 import { supabase } from "@/shared/lib/supabaseClient";
 import {
@@ -84,6 +84,7 @@ export function useCustomerSurveyLatestByConversations(
     },
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 }
 

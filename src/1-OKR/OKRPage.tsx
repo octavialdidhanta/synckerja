@@ -17,7 +17,7 @@ import {
   getDefaultYearQuarterSelection,
   hasYearQuarterSelection,
 } from "@/1-home/components/HomeOKRDashboard/component/yearQuarterFilter";
-import { useCurrentOrg } from "@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useObjectiveStats } from "@/1-home/components/HomeOKRDashboard/hooks/useObjectiveStats";
 import { useOkrCycles } from "@/shared/hooks/useOkrCycles";
 import { OKRSectionVisibilityProvider } from "@/1-home/components/HomeOKRDashboard/OKRSectionVisibilityContext";
@@ -37,7 +37,7 @@ function OKRPageContent() {
   const { t } = useTranslation();
   const location = useLocation();
   const handleTabChange = useOkrHeaderTabChange();
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const { data: currentEmployee, isPending: currentEmployeePending } = useCurrentEmployee();
   const { data: cycles = [], isLoading: isLoadingCycles } = useOkrCycles(organizationId);
   const { isLoading: attendanceLoading } = useAttendanceStatus();
@@ -101,7 +101,7 @@ function OKRPageContent() {
   );
 
   const rawPageLoadPending = useMemo(() => {
-    if (orgLoading) return true;
+    if (orgBootstrapPending) return true;
     if (!organizationId) return false;
     if (isLoadingCycles || attendanceLoading) return true;
 
@@ -126,7 +126,7 @@ function OKRPageContent() {
       sidebarQueriesLoading
     );
   }, [
-    orgLoading,
+    orgBootstrapPending,
     organizationId,
     isLoadingCycles,
     attendanceLoading,

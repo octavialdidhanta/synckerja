@@ -272,9 +272,15 @@ export function isConversionFinancialValid(params: {
 
   receiptFile: File | null;
 
+  /** Org omnichannel income bank (required for paid livechat conversion). */
+  omnichannelBankId?: string | null;
+
 }): boolean {
 
-  const { lines, paymentKind, downPaymentRaw, paymentDate, paymentMethod, receiptFile } = params;
+  const { lines, paymentKind, downPaymentRaw, paymentDate, paymentMethod, receiptFile, omnichannelBankId } =
+    params;
+
+  if (!(omnichannelBankId ?? '').trim()) return false;
 
   if (!(paymentDate ?? '').trim()) return false;
 

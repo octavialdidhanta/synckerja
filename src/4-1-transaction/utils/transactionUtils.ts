@@ -1,4 +1,8 @@
 import type { IncomeTransactionFilters } from '../section/IncomeTransactionFilters';
+import {
+  isIncomeAllocationComplete,
+  isIncomeAllocationIncomplete,
+} from '@/4-1-dashboard/utils/incomeAllocationStatus';
 
 export interface IncomeTransaction {
   id: string;
@@ -7,6 +11,9 @@ export interface IncomeTransaction {
   amount: number;
   status: string;
   transaction_date: string;
+  income_type_id?: string | null;
+  category_id?: string | null;
+  bank_account_id?: string | null;
   income_types?: { name: string } | null;
   income_categories?: { name: string } | null;
   payment_method?: string | null;
@@ -45,7 +52,13 @@ export const filterTransactions = (
     // Category filter
     const matchesCategory = filters.category === 'all' || transaction.income_categories?.name === filters.category;
 
-    return matchesSearch && matchesStatus && matchesType && matchesCategory;
+    const matchesAllocation =
+      !filters.allocation ||
+      filters.allocation === 'all' ||
+      (filters.allocation === 'needs_allocation' && isIncomeAllocationIncomplete(transaction)) ||
+      (filters.allocation === 'complete' && isIncomeAllocationComplete(transaction));
+
+    return matchesSearch && matchesStatus && matchesType && matchesCategory && matchesAllocation;
   });
 };
 

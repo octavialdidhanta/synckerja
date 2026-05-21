@@ -22,7 +22,7 @@ import { SocialMediaDashboardSkeleton } from '../skeletons/SocialMediaDashboardS
 import { getDailyTasksRemindersQueryOptions } from '../data/dashboardQueryOptions';
 import { useSocialMediaDashboardSkeletonGate } from '../hook/useSocialMediaDashboardSkeletonGate';
 import { useEmployeeTargets } from '../hook/useEmployeeTargets';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 
 import BriefDialog from '../modal/BriefDialog';
 import TitleDialog from '../modal/TitleDialog';
@@ -55,7 +55,7 @@ const SocialMediaContent = () => {
   const { tab } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { loading: orgLoading } = useCurrentOrg();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   
   // Get data from context
   const {
@@ -164,7 +164,7 @@ const SocialMediaContent = () => {
 
   const hasOrg = Boolean(organizationId);
   const rawDashboardPending =
-    orgLoading ||
+    orgBootstrapPending ||
     (hasOrg &&
       (loading ||
         digitalEmployeesPending ||

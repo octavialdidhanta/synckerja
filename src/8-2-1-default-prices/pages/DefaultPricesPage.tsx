@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useDefaultPrices } from "../hooks/useDefaultPrices";
 import { DefaultPricesTable, DefaultPriceFormDialog, SopWorkflowModal } from "../components";
@@ -14,10 +14,10 @@ export default function DefaultPricesPage() {
   const [editingRow, setEditingRow] = useState<DefaultPriceRow | null>(null);
   const [sopModalRow, setSopModalRow] = useState<DefaultPriceRow | null>(null);
 
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const { rows, isLoading, create, update, delete: deleteRow, isCreating } = useDefaultPrices();
 
-  const hasPendingLoad = orgLoading || (!!organizationId && isLoading);
+  const hasPendingLoad = orgBootstrapPending || (!!organizationId && isLoading);
   const showContent = useDebouncedReady(!hasPendingLoad, 200);
 
   const handleTabChange = useCallback((tab: string) => {

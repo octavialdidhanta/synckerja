@@ -26,9 +26,29 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogTitle } from '@/shared/components/ui/dialog';
-import { Check, CheckCheck, Paperclip, FileText, X, Download, ChevronDown, Trash2, Reply, Copy, Image, Video, Music, Send } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
+import {
+  Check,
+  CheckCheck,
+  Paperclip,
+  FileText,
+  X,
+  Download,
+  ChevronDown,
+  Trash2,
+  Reply,
+  Copy,
+  Image,
+  Video,
+  Music,
+  Send,
+  ExternalLink,
+} from 'lucide-react';
 import { messageContainsContactRequest } from '../../constants/contactRequestBlockPhrases';
+import {
+  agentFacingSurveyBody,
+  isSystemCustomerSurveyMessage,
+} from '@/features/customer-survey/utils/customerSurveyAgentVisibility';
 import { isLikelyInstagramId } from '../../constants/instagramId';
 import {
   isExpiredStatusName,
@@ -415,6 +435,18 @@ const DEFAULT_EXT: Record<string, string> = {
   audio: 'mp3',
 };
 
+function isPdfMediaUrl(url: string): boolean {
+  const base = url.split('?')[0].split('#')[0].toLowerCase();
+  return base.endsWith('.pdf');
+}
+
+/** Embed PDF without heavy browser chrome where supported. */
+function pdfViewerSrc(url: string): string {
+  if (!url) return url;
+  if (url.includes('#')) return url;
+  return `${url}#toolbar=0&navpanes=0`;
+}
+
 /** Ikon tipe media untuk tampilan reply (WhatsApp-style). */
 function ReplyMediaIcon({ messageType, className }: { messageType?: string | null; className?: string }) {
   const t = (messageType ?? '').toLowerCase();
@@ -494,6 +526,255 @@ function getCaptionFromRawMetadata(raw: unknown): string | null {
   return null;
 }
 
+function formatDocumentFileSize(bytes: number | null | undefined): string | null {
+  if (bytes == null || !Number.isFinite(bytes) || bytes <= 0) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function looksLikeFileName(text: string): boolean {
+  const t = text.trim();
+  if (!t || t.length > 120) return false;
+  return /\.[a-z0-9]{2,8}$/i.test(t) && !/\s{2,}/.test(t);
+}
+
+function readDocumentNodeFromRaw(raw: unknown): {
+  fileName: string | null;
+  mimeType: string | null;
+  byteSize: number | null;
+} {
+  let fileName: string | null = null;
+  let mimeType: string | null = null;
+  let byteSize: number | null = null;
+
+  const readNode = (node: unknown) => {
+    if (!node || typeof node !== 'object') return;
+    const d = node as Record<string, unknown>;
+    if (typeof d.filename === 'string' && d.filename.trim()) fileName = d.filename.trim();
+    if (typeof d.mime_type === 'string' && d.mime_type.trim()) mimeType = d.mime_type.trim();
+    const fs = d.file_size ?? d.filesize;
+    if (typeof fs === 'number' && Number.isFinite(fs) && fs > 0) byteSize = fs;
+    else if (typeof fs === 'string' && /^\d+$/.test(fs)) byteSize = Number(fs);
+  };
+
+  if (!raw || typeof raw !== 'object') return { fileName, mimeType, byteSize };
+  const msg = raw as Record<string, unknown>;
+  readNode(msg.document);
+  const message = msg.message;
+  if (message && typeof message === 'object') readNode((message as Record<string, unknown>).document);
+  const messages = msg.messages;
+  if (Array.isArray(messages) && messages[0] && typeof messages[0] === 'object') {
+    readNode((messages[0] as Record<string, unknown>).document);
+  }
+  const value = msg.value;
+  if (value && typeof value === 'object') {
+    const v = value as Record<string, unknown>;
+    readNode(v.document);
+    if (Array.isArray(v.messages) && v.messages[0]) {
+      readNode((v.messages[0] as Record<string, unknown>).document);
+    }
+  }
+  return { fileName, mimeType, byteSize };
+}
+
+function fileNameFromMediaUrl(mediaUrl: string | null | undefined): string | null {
+  if (!mediaUrl) return null;
+  try {
+    const seg = decodeURIComponent(new URL(mediaUrl, window.location.origin).pathname.split('/').pop() ?? '');
+    if (seg && seg.includes('.')) return seg;
+  } catch {
+    const parts = mediaUrl.split('/').filter(Boolean);
+    const last = parts[parts.length - 1]?.split('?')[0] ?? '';
+    if (last.includes('.')) return decodeURIComponent(last);
+  }
+  return null;
+}
+
+function documentExtensionLabel(fileName: string, mimeType: string | null): string {
+  const fromName = fileName.split('.').pop()?.trim().toUpperCase();
+  if (fromName && fromName.length >= 2 && fromName.length <= 8) return fromName;
+  if (mimeType) {
+    if (mimeType.includes('pdf')) return 'PDF';
+    if (mimeType.includes('word') || mimeType.includes('msword')) return 'DOC';
+    if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'XLS';
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'PPT';
+    if (mimeType.startsWith('text/')) return 'TXT';
+    if (mimeType.startsWith('audio/')) return 'AUDIO';
+    if (mimeType.startsWith('video/')) return 'VIDEO';
+    const sub = mimeType.split('/')[1]?.split(';')[0]?.toUpperCase();
+    if (sub && sub.length <= 8) return sub;
+  }
+  return 'FILE';
+}
+
+function documentIconBgClass(extension: string, isOutbound: boolean): string {
+  if (extension === 'PDF') return isOutbound ? 'bg-[#e53935]' : 'bg-red-500';
+  if (['DOC', 'DOCX', 'WORD'].includes(extension)) return isOutbound ? 'bg-[#1e88e5]' : 'bg-blue-500';
+  if (['XLS', 'XLSX', 'CSV'].includes(extension)) return isOutbound ? 'bg-[#43a047]' : 'bg-green-600';
+  if (['PPT', 'PPTX'].includes(extension)) return isOutbound ? 'bg-[#fb8c00]' : 'bg-orange-500';
+  if (['MP3', 'M4A', 'OGG', 'WAV', 'AUDIO'].includes(extension)) return isOutbound ? 'bg-[#8e24aa]' : 'bg-purple-500';
+  return isOutbound ? 'bg-white/30' : 'bg-gray-500';
+}
+
+type ParsedDocumentBubble = {
+  fileName: string;
+  extension: string;
+  subtitle: string;
+  caption: string | null;
+};
+
+function parseDocumentBubbleMeta(
+  rawMetadata: unknown,
+  mediaUrl: string | null | undefined,
+  body: string | null,
+  captionFromSources: string | null,
+): ParsedDocumentBubble {
+  const fromRaw = readDocumentNodeFromRaw(rawMetadata);
+  let fileName = fromRaw.fileName ?? fileNameFromMediaUrl(mediaUrl) ?? null;
+  const isPlaceholder = body != null && MEDIA_TYPES.some((t) => body === `[${t}]`);
+  const bodyText = body && !isPlaceholder ? body.trim() : null;
+
+  let caption = captionFromSources?.trim() || null;
+  if (!caption && bodyText && !looksLikeFileName(bodyText)) {
+    caption = bodyText;
+  }
+
+  if (!fileName && bodyText && looksLikeFileName(bodyText)) {
+    fileName = bodyText;
+    if (caption === bodyText) caption = null;
+  }
+
+  if (!fileName) {
+    const extGuess = fromRaw.mimeType?.includes('pdf') || isPdfMediaUrl(mediaUrl ?? '') ? 'pdf' : 'file';
+    fileName = extGuess === 'pdf' ? 'Document.pdf' : 'Document';
+  }
+
+  const extension = documentExtensionLabel(fileName, fromRaw.mimeType);
+  const sizeLabel = formatDocumentFileSize(fromRaw.byteSize);
+  const subtitle = sizeLabel ? `${extension} • ${sizeLabel}` : extension;
+
+  return { fileName, extension, subtitle, caption };
+}
+
+function ChatDocumentBubble({
+  meta,
+  mediaUrl,
+  messageType,
+  isOutbound,
+  onMediaClick,
+  topRightAction,
+  canResolve,
+  onResolve,
+  isResolving,
+  messageId,
+  t,
+}: {
+  meta: ParsedDocumentBubble;
+  mediaUrl: string | null | undefined;
+  messageType: string;
+  isOutbound: boolean;
+  onMediaClick?: (url: string, type: string) => void;
+  topRightAction?: React.ReactNode;
+  canResolve?: boolean;
+  onResolve?: (id: string) => Promise<unknown>;
+  isResolving?: boolean;
+  messageId?: string;
+  t: (key: string, fallback?: string) => string;
+}) {
+  const cardBg = isOutbound
+    ? 'bg-[#0a5a4a]/50 hover:bg-[#0a5a4a]/65'
+    : 'bg-gray-100 hover:bg-gray-50';
+  const titleCls = isOutbound ? 'text-white' : 'text-gray-900';
+  const subCls = isOutbound ? 'text-white/75' : 'text-gray-500';
+  const captionCls = isOutbound ? 'text-white/90' : 'text-gray-600';
+  const iconBg = documentIconBgClass(meta.extension, isOutbound);
+
+  const card = (
+    <div
+      className={`flex min-w-[228px] max-w-[300px] items-center gap-3 rounded-lg border p-2.5 pr-3 shadow-sm ${
+        isOutbound ? 'border-white/15' : 'border-gray-200/80'
+      } ${cardBg} transition-colors`}
+    >
+      <div
+        className={`flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md ${iconBg}`}
+        aria-hidden
+      >
+        {messageType === 'audio' ? (
+          <Music className="h-6 w-6 text-white" />
+        ) : (
+          <span className="max-w-[38px] truncate px-0.5 text-center text-[11px] font-bold leading-none text-white">
+            {meta.extension.slice(0, 4)}
+          </span>
+        )}
+      </div>
+      <div className="min-w-0 flex-1 py-0.5">
+        <p className={`line-clamp-2 text-[15px] font-medium leading-snug ${titleCls}`} title={meta.fileName}>
+          {meta.fileName}
+        </p>
+        <p className={`mt-0.5 truncate text-xs ${subCls}`}>{meta.subtitle}</p>
+      </div>
+    </div>
+  );
+
+  if (!mediaUrl && canResolve && onResolve && messageId) {
+    return (
+      <span className="block">
+        {card}
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await onResolve(messageId);
+            } catch {
+              /* hook shows errors */
+            }
+          }}
+          disabled={isResolving}
+          className={`mt-2 text-xs font-medium underline hover:no-underline disabled:opacity-50 ${isOutbound ? 'text-white/90' : 'text-[#128C7E]'}`}
+        >
+          {isResolving ? t('whatsappInbox.loading', 'Loading...') : t('whatsappInbox.showDocument', 'Show document')}
+        </button>
+        {meta.caption ? <p className={`mt-1.5 text-sm whitespace-pre-wrap break-words ${captionCls}`}>{meta.caption}</p> : null}
+      </span>
+    );
+  }
+
+  const clickable = mediaUrl ? (
+    onMediaClick ? (
+      <button
+        type="button"
+        onClick={() => onMediaClick(mediaUrl, messageType)}
+        className="block max-w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-lg"
+      >
+        {card}
+      </button>
+    ) : (
+      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="block max-w-full rounded-lg">
+        {card}
+      </a>
+    )
+  ) : (
+    card
+  );
+
+  return (
+    <span className="block">
+      <span className="relative inline-block max-w-full">
+        {clickable}
+        {topRightAction ? (
+          <div className="absolute top-1 right-1 z-10" onClick={(e) => e.stopPropagation()}>
+            {topRightAction}
+          </div>
+        ) : null}
+      </span>
+      {meta.caption ? (
+        <p className={`mt-1.5 text-sm whitespace-pre-wrap break-words ${captionCls}`}>{meta.caption}</p>
+      ) : null}
+    </span>
+  );
+}
+
 /** Caption untuk tampilan reply: body jika bukan placeholder, else dari raw_metadata (inbound media). */
 function getMessageCaptionForReply(msg: { body: string | null; raw_metadata?: unknown; message_type?: string }): string | null {
   const isPlaceholder = msg.body != null && MEDIA_TYPES.some((t) => msg.body === `[${t}]`);
@@ -557,6 +838,24 @@ function MediaPreview({
   if (!mediaUrl) {
     const fallbackCaption = direction === 'inbound' ? getCaptionFromRawMetadata(rawMetadata) : null;
     const displayBody = (body && !MEDIA_TYPES.some((t) => body === `[${t}]`)) ? body : (fallbackCaption ?? (body || '[Media]'));
+    if (messageType === 'document' || messageType === 'audio') {
+      const docMeta = parseDocumentBubbleMeta(rawMetadata, null, body, fallbackCaption ?? displayBody);
+      return (
+        <ChatDocumentBubble
+          meta={docMeta}
+          mediaUrl={null}
+          messageType={messageType}
+          isOutbound={isOutbound}
+          onMediaClick={onMediaClick}
+          topRightAction={topRightAction}
+          canResolve={canResolve}
+          onResolve={onResolve}
+          isResolving={isResolving}
+          messageId={messageId}
+          t={t}
+        />
+      );
+    }
     if (canResolve && onResolve) {
       return (
         <span className="block">
@@ -630,32 +929,21 @@ function MediaPreview({
     );
   }
   if (messageType === 'document' || messageType === 'audio') {
+    const docMeta = parseDocumentBubbleMeta(rawMetadata, mediaUrl, body, caption);
     return (
-      <span className="block">
-        <span className="relative inline-flex items-center gap-2">
-          {onMediaClick ? (
-            <button
-              type="button"
-              onClick={() => onMediaClick(mediaUrl, messageType)}
-              className={`inline-flex items-center gap-2 text-sm font-medium underline ${textCls} cursor-pointer hover:no-underline`}
-            >
-              <FileText className="w-4 h-4 shrink-0" />
-              {caption ?? (messageType === 'document' ? 'Dokumen' : 'Audio')}
-            </button>
-          ) : (
-            <a
-              href={mediaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`inline-flex items-center gap-2 text-sm font-medium underline ${textCls}`}
-            >
-              <FileText className="w-4 h-4 shrink-0" />
-              {caption ?? (messageType === 'document' ? 'Dokumen' : 'Audio')}
-            </a>
-          )}
-          {mediaActionOverlay}
-        </span>
-      </span>
+      <ChatDocumentBubble
+        meta={docMeta}
+        mediaUrl={mediaUrl}
+        messageType={messageType}
+        isOutbound={isOutbound}
+        onMediaClick={onMediaClick}
+        topRightAction={topRightAction}
+        canResolve={canResolve}
+        onResolve={onResolve}
+        isResolving={isResolving}
+        messageId={messageId}
+        t={t}
+      />
     );
   }
   return <p className="inline text-sm whitespace-pre-wrap break-words">{body || '[Media]'}</p>;
@@ -1625,6 +1913,40 @@ export function ChatThread({
             const showDateSeparatorAfter = showSepAfterRevDeduped[index];
             const dateSeparatorLabel = sepLabelByRevIdx[index];
             const marginBetween = 'mb-0';
+
+            if (!isInstagramConversation && isSystemCustomerSurveyMessage(msg.raw_metadata)) {
+              const noticeBody = agentFacingSurveyBody(msg.body, msg.raw_metadata);
+              return (
+                <React.Fragment key={msg.id}>
+                  <div className={`flex w-full shrink-0 justify-center ${marginBetween}`}>
+                    <div
+                      className="max-w-[min(100%,28rem)] rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900"
+                      role="status"
+                    >
+                      <p className="font-medium">
+                        {t('whatsappInbox.surveySentToCustomerTitle', 'Customer survey sent')}
+                      </p>
+                      {noticeBody ? (
+                        <p className="mt-1 whitespace-pre-wrap break-words text-amber-800/90">{noticeBody}</p>
+                      ) : null}
+                      <p className="mt-1 text-[11px] text-amber-700/80">
+                        {t(
+                          'whatsappInbox.surveySentToCustomerHint',
+                          'The survey link was sent on WhatsApp to the customer only. It is hidden here so your team cannot open or fill it.',
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {showDateSeparatorAfter && dateSeparatorLabel ? (
+                    <DateSeparator
+                      key={`date-sep-${index}-${String(msg.id)}`}
+                      label={dateSeparatorLabel}
+                    />
+                  ) : null}
+                </React.Fragment>
+              );
+            }
+
             const handleSaveAs = async () => {
               if (msg.media_url) {
                 try {
@@ -2396,17 +2718,22 @@ export function ChatThread({
           waAccounts={waAccounts}
         />
       ) : null}
-      <Dialog open={!!mediaViewer} onOpenChange={(open) => !open && setMediaViewer(null)}>
-        <DialogContent className="max-w-[95vw] max-h-[90vh] w-auto p-0 gap-0 overflow-hidden bg-black/95 border-0" hideCloseButton>
+      {/* Image / video: immersive dark overlay */}
+      <Dialog
+        open={!!mediaViewer && (mediaViewer.type === 'image' || mediaViewer.type === 'video')}
+        onOpenChange={(open) => !open && setMediaViewer(null)}
+      >
+        <DialogContent
+          className="max-w-[95vw] max-h-[90vh] w-auto gap-0 overflow-hidden border-0 bg-black/95 p-0"
+          hideCloseButton
+        >
           <DialogTitle className="sr-only">
             {mediaViewer?.type === 'image'
               ? t('whatsappInbox.imagePreview', 'Image preview')
-              : mediaViewer?.type === 'video'
-                ? t('whatsappInbox.videoPreview', 'Video preview')
-                : t('whatsappInbox.mediaPreview', 'Media preview')}
+              : t('whatsappInbox.videoPreview', 'Video preview')}
           </DialogTitle>
-          {mediaViewer && (
-            <div className="relative flex items-center justify-center min-h-[200px] max-h-[90vh] p-2">
+          {mediaViewer && (mediaViewer.type === 'image' || mediaViewer.type === 'video') && (
+            <div className="relative flex min-h-[200px] max-h-[90vh] items-center justify-center p-2">
               <button
                 type="button"
                 onClick={() => setMediaViewer(null)}
@@ -2415,25 +2742,84 @@ export function ChatThread({
               >
                 <X className="h-5 w-5" />
               </button>
-              {mediaViewer.type === 'image' && (
-                <img src={mediaViewer.url} alt="" className="max-w-full max-h-[85vh] object-contain rounded" />
-              )}
-              {mediaViewer.type === 'video' && (
-                <video src={mediaViewer.url} controls autoPlay className="max-w-full max-h-[85vh] rounded" />
-              )}
-              {(mediaViewer.type === 'document' || mediaViewer.type === 'audio') && (
-                <div className="flex flex-col items-center gap-4 p-4 text-white">
-                  {mediaViewer.type === 'audio' ? (
-                    <audio src={mediaViewer.url} controls autoPlay className="w-full max-w-md" />
-                  ) : (
-                    <iframe src={mediaViewer.url} title="Document" className="w-full min-h-[70vh] max-h-[85vh] rounded bg-white" />
-                  )}
-                  <a href={mediaViewer.url} target="_blank" rel="noopener noreferrer" className="text-sm text-[#7dd3fc] underline hover:no-underline">
-                    {t('whatsappInbox.openInNewTabLink', 'Buka di tab baru')}
-                  </a>
-                </div>
+              {mediaViewer.type === 'image' ? (
+                <img src={mediaViewer.url} alt="" className="max-h-[85vh] max-w-full rounded object-contain" />
+              ) : (
+                <video
+                  src={mediaViewer.url}
+                  controls
+                  autoPlay
+                  className="max-h-[85vh] max-w-full rounded"
+                />
               )}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Document / invoice PDF: light panel aligned with ops invoice preview */}
+      <Dialog
+        open={!!mediaViewer && (mediaViewer.type === 'document' || mediaViewer.type === 'audio')}
+        onOpenChange={(open) => !open && setMediaViewer(null)}
+      >
+        <DialogContent
+          className="flex max-h-[min(90vh,920px)] w-[min(92vw,56rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0"
+          aria-describedby={undefined}
+        >
+          {mediaViewer && (mediaViewer.type === 'document' || mediaViewer.type === 'audio') && (
+            <>
+              <DialogHeader className="flex-shrink-0 flex-row items-center justify-between space-y-0 border-b border-border/60 px-4 py-3 pr-12">
+                <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+                  <FileText className="h-4 w-4 shrink-0 text-brand-blue" />
+                  {mediaViewer.type === 'audio'
+                    ? t('whatsappInbox.audioPreview', 'Audio preview')
+                    : isPdfMediaUrl(mediaViewer.url)
+                      ? t('whatsappInbox.invoiceDocumentPreview', 'Invoice preview')
+                      : t('whatsappInbox.documentPreview', 'Document preview')}
+                </DialogTitle>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => void downloadMedia(mediaViewer.url, mediaViewer.type)}
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    {t('companyAssets.downloadDocument', 'Download document')}
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 text-xs" asChild>
+                    <a href={mediaViewer.url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                      {t('whatsappInbox.openInNewTabLink', 'Open in new tab')}
+                    </a>
+                  </Button>
+                </div>
+              </DialogHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {mediaViewer.type === 'audio' ? (
+                  <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-4 rounded-lg border bg-white p-6 shadow-sm">
+                    <audio src={mediaViewer.url} controls autoPlay className="w-full" />
+                  </div>
+                ) : (
+                  <div className="mx-auto w-full overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm">
+                    <iframe
+                      src={
+                        isPdfMediaUrl(mediaViewer.url)
+                          ? pdfViewerSrc(mediaViewer.url)
+                          : mediaViewer.url
+                      }
+                      title={
+                        isPdfMediaUrl(mediaViewer.url)
+                          ? t('whatsappInbox.invoiceDocumentPreview', 'Invoice preview')
+                          : t('whatsappInbox.documentPreview', 'Document preview')
+                      }
+                      className="block h-[min(72vh,780px)] w-full min-h-[480px] border-0 bg-white"
+                    />
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

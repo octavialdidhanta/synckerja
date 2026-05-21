@@ -19,7 +19,7 @@ import { Target, Building, User } from 'lucide-react';
 import type { OkrFilterState } from './types/okr-filter';
 import type { YearQuarterSelection } from './component/FiturTimePeriod';
 import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
-import { useCurrentOrg } from './hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useObjectiveStats } from './hooks/useObjectiveStats';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import {
@@ -48,7 +48,7 @@ const HomeOKRDashboardContent = () => {
   const [yearQuarterSelection, setYearQuarterSelection] = useState<YearQuarterSelection>(
     () => getDefaultYearQuarterSelection(),
   );
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const {
     data: cycles = [],
     isLoading: isLoadingCycles
@@ -111,7 +111,7 @@ const HomeOKRDashboardContent = () => {
   const { tabs, firstError: okrTabsError } = useHomeOkrTabsAggregate();
 
   const okrLoading =
-    orgLoading || isLoadingCycles || tabs.company.loading || companyStats.isLoading;
+    orgBootstrapPending || isLoadingCycles || tabs.company.loading || companyStats.isLoading;
 
   const okrError =
     okrTabsError ||

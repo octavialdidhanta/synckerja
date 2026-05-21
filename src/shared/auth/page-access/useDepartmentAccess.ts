@@ -25,7 +25,8 @@ export {
 export const useDepartmentAccess = () => {
   const { userRole, organizationMemberRoles, employee, userData, isOwner, isAdmin, organization } =
     useCentralizedUserData();
-  const { configurations, loading: configLoading } = usePermissionConfiguration();
+  const { configurations, loading: configLoading, configBootstrapPending } =
+    usePermissionConfiguration();
 
   const departmentAccess = useMemo(() => {
     const currentDepartmentId = employee?.department_id;
@@ -331,6 +332,7 @@ export const useDepartmentAccess = () => {
       isAdmin,
       departmentName: employee?.departments?.name || employee?.department?.name,
       configLoading,
+      configBootstrapPending,
       configHash,
       rolesResolutionPending,
     };
@@ -344,6 +346,7 @@ export const useDepartmentAccess = () => {
     organization,
     configurations,
     configLoading,
+    configBootstrapPending,
   ]);
 
   const { configHash } = departmentAccess;

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useJobOpeningsCrud } from '@/2-2-recruitment-dashboard/job-openings/hooks/useJobOpeningsCrud';
 import { JobOpening } from '@/2-2-recruitment-dashboard/job-openings/hooks/jobOpeningTypes';
-import { useCurrentOrg } from '@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { cn } from '@/shared/lib/utils';
 import { RecruitmentDashboardSkeleton } from '@/2-2-recruitment-dashboard/components/RecruitmentSkeletons';
 import { HeaderAndTab, RecruitmentDashboardFooter } from './components';
@@ -70,14 +70,14 @@ function DashboardOverviewContent({ jobOpenings }: DashboardOverviewContentProps
 
 export function DashboardOverview() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const { loading: orgLoading } = useCurrentOrg();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   const { data: jobOpenings, isPending: jobOpeningsPending } = useJobOpeningsCrud();
 
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);
   }, []);
 
-  const showFullPageSkeleton = orgLoading || jobOpeningsPending;
+  const showFullPageSkeleton = orgBootstrapPending || jobOpeningsPending;
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">

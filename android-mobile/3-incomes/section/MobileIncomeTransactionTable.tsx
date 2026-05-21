@@ -7,6 +7,7 @@ import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { IncomeTransactionWithRelations } from "@/4-1-dashboard/types";
 import { getIncomeTransactionIdDisplay } from "@/4-1-dashboard/utils/incomeTransactionDisplayId";
+import { isIncomeAllocationIncomplete } from "@/4-1-dashboard/utils/incomeAllocationStatus";
 import { downloadIncomeReceiptFromTransaction } from "@/4-1-transaction/utils/incomeReceiptDownload";
 import { useMemo } from "react";
 import { useBankAccounts, type BankAccount } from "@/shared/hooks/finance/useBankAccounts";
@@ -17,8 +18,10 @@ export type MobileIncomeTransactionTableProps = {
   transactions: IncomeTransactionWithRelations[];
   isLoading?: boolean;
   onView: (transaction: IncomeTransactionWithRelations) => void;
-  onEdit: (transaction: IncomeTransactionWithRelations) => void;
+  onEdit?: (transaction: IncomeTransactionWithRelations) => void;
+  onAllocate?: (transaction: IncomeTransactionWithRelations) => void;
   onDelete: (transaction: IncomeTransactionWithRelations) => void;
+  canAllocateIncome?: boolean;
 };
 
 export function MobileIncomeTransactionTable({
@@ -26,7 +29,9 @@ export function MobileIncomeTransactionTable({
   isLoading = false,
   onView,
   onEdit,
+  onAllocate,
   onDelete,
+  canAllocateIncome = false,
 }: MobileIncomeTransactionTableProps) {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
@@ -130,8 +135,16 @@ export function MobileIncomeTransactionTable({
                 </td>
               </tr>
             ) : (
-              transactions.map((transaction) => (
-                <tr key={transaction.id} className="border-b border-border hover:bg-muted/30 active:bg-muted/50">
+              transactions.map((transaction) => {
+                const needsAllocation = isIncomeAllocationIncomplete(transaction);
+                return (
+                <tr
+                  key={transaction.id}
+                  className={cn(
+                    "border-b border-border hover:bg-muted/30 active:bg-muted/50",
+                    needsAllocation && "border-l-2 border-l-amber-400 bg-amber-50/30",
+                  )}
+                >
                   <td className="w-[200px] min-w-[200px] max-w-[200px] px-2 py-2 text-xs">
                     <div className="line-clamp-2 break-words font-medium leading-snug">
                       {transaction.description || t("incomes.transaction", "Transaction")}
@@ -222,9 +235,19 @@ export function MobileIncomeTransactionTable({
                     )}
                   </td>
                   <td className="px-3 py-2 text-center text-xs">
-                    <Badge variant={getStatusBadgeVariant(transaction.status || "")} className="mx-auto text-xs">
-                      {transaction.status}
-                    </Badge>
+                    <div className="flex flex-col items-center gap-1">
+                      <Badge variant={getStatusBadgeVariant(transaction.status || "")} className="mx-auto text-xs">
+                        {transaction.status}
+                      </Badge>
+                      {needsAllocation ? (
+                        <Badge
+                          variant="outline"
+                          className="mx-auto border-amber-300 bg-amber-50 text-[10px] text-amber-800"
+                        >
+                          {t("incomes.allocation.badgeNeedsAllocation", "Needs allocation")}
+                        </Badge>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="w-[120px] min-w-[120px] max-w-[120px] px-3 py-2 text-left text-xs">
                     {(() => {
@@ -248,13 +271,24 @@ export function MobileIncomeTransactionTable({
                       >
                         {t("common.view", "View")}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onEdit(transaction)}
-                        className="touch-manipulation rounded-sm px-1 text-xs font-medium text-foreground hover:text-foreground/80"
-                      >
-                        {t("common.edit", "Edit")}
-                      </button>
+                      {canAllocateIncome && needsAllocation && onAllocate ? (
+                        <button
+                          type="button"
+                          onClick={() => onAllocate(transaction)}
+                          className="touch-manipulation rounded-sm px-1 text-xs font-medium text-amber-800 hover:text-amber-900"
+                        >
+                          {t("incomes.allocation.actionAllocate", "Allocate")}
+                        </button>
+                      ) : null}
+                      {canAllocateIncome && onEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(transaction)}
+                          className="touch-manipulation rounded-sm px-1 text-xs font-medium text-foreground hover:text-foreground/80"
+                        >
+                          {t("common.edit", "Edit")}
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         disabled={!!transaction.has_income_allocations}
@@ -277,7 +311,8 @@ export function MobileIncomeTransactionTable({
                     </div>
                   </td>
                 </tr>
-              ))
+              );
+              })
             )}
           </tbody>
         </table>

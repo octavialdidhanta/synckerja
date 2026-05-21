@@ -13,7 +13,7 @@ import { generateScriptWithAI } from './services/scriptGeneratorAIService';
 import { toast } from 'sonner';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useScriptAIConfig } from './hooks/useScriptAIConfig';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useScriptGeneratorFormMasterData } from './hooks/useScriptGeneratorFormMasterData';
 import { useProductKnowledge } from '@/6-1-product-knowledge/hooks/useProductKnowledge';
@@ -76,7 +76,7 @@ function saveDraft(state: DraftState, organizationId: string | null | undefined)
 const ScriptGeneratorContent: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useAppTranslation();
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const draftAppliedRef = useRef(false);
   const [activeMainTab, setActiveMainTab] = useState('script-generator');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -106,7 +106,7 @@ const ScriptGeneratorContent: React.FC = () => {
 
   const hasOrg = Boolean(organizationId);
   const rawPagePending =
-    orgLoading ||
+    orgBootstrapPending ||
     (hasOrg &&
       (masterPending ||
         productKnowledgePending ||

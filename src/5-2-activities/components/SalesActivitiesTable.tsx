@@ -60,6 +60,14 @@ const getActivityTypeColor = (type: string) => {
   }
 };
 
+const ACTIVITY_BADGE_CLASS =
+  'inline-flex max-w-full shrink-0 whitespace-nowrap border px-2 py-0.5 text-xs font-medium leading-snug';
+
+const formatActivityTypeLabel = (type: string | null | undefined) => {
+  if (!type) return '-';
+  return type.replace(/_/g, ' ');
+};
+
 const formatDate = (dateString: string | null) => {
   if (!dateString) return '-';
   try {
@@ -263,14 +271,17 @@ const ActivityRow = memo(({
       <TableCell className="w-32 px-3 text-sm whitespace-nowrap">
         {formatDate(activity.date)}
       </TableCell>
-      <TableCell className="w-32 px-3">
-        <Badge className={`${getActivityTypeColor(activity.activity_type)} text-xs px-2 py-1 border`}>
-          {activity.activity_type?.replace('_', ' ').toUpperCase() || '-'}
+      <TableCell className="min-w-[7.5rem] w-36 px-3">
+        <Badge
+          className={`${getActivityTypeColor(activity.activity_type)} ${ACTIVITY_BADGE_CLASS}`}
+          title={formatActivityTypeLabel(activity.activity_type)}
+        >
+          {formatActivityTypeLabel(activity.activity_type)}
         </Badge>
       </TableCell>
       <TableCell className="w-32 px-3">
-        <Badge className={`${getStatusColor(activity.status)} text-xs px-2 py-1 border`}>
-          {activity.status?.replace('_', ' ').toUpperCase() || '-'}
+        <Badge className={`${getStatusColor(activity.status)} ${ACTIVITY_BADGE_CLASS}`}>
+          {activity.status?.replace(/_/g, ' ').toUpperCase() || '-'}
         </Badge>
       </TableCell>
       <TableCell className="w-24 px-3">
@@ -311,7 +322,7 @@ export const SalesActivitiesTable = memo(({
     { key: 'payment', label: 'Payment', width: 'w-40' },
     { key: 'description', label: 'Description', width: 'w-40' },
     { key: 'date', label: 'Date', width: 'w-32' },
-    { key: 'type', label: 'Type', width: 'w-32' },
+    { key: 'type', label: 'Type', width: 'min-w-[7.5rem] w-36' },
     { key: 'status', label: 'Status', width: 'w-32' },
     { key: 'actions', label: 'Actions', width: 'w-24' },
   ], []);

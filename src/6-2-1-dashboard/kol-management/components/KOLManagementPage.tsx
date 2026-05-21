@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { cn } from "@/shared/lib/utils";
 import type { KOLManagementFiltersType } from "../section/KOLManagementFilters";
 import { KOLManagementFilters } from "../section/KOLManagementFilters";
@@ -17,7 +17,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 const KOLManagementPage = () => {
   const { t } = useAppTranslation();
-  const { loading: orgLoading, organizationId } = useCurrentOrg();
+  const { orgBootstrapPending, organizationId } = useOrgBootstrapPending();
   const { isPending: ratingsPending } = useKOLRatings();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [filters, setFilters] = useState<KOLManagementFiltersType>({
@@ -32,7 +32,7 @@ const KOLManagementPage = () => {
 
   const queriesPending =
     Boolean(organizationId) && (profilesPending || ratingsPending);
-  const rawPending = orgLoading || queriesPending;
+  const rawPending = orgBootstrapPending || queriesPending;
   const showContent = useKolDeferredShowContent(rawPending);
 
   const handleFilterChange = useCallback(

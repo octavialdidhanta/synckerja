@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
 
@@ -17,7 +17,7 @@ export interface SubscriptionExpiryStatus {
 }
 
 export function useSubscriptionExpiry() {
-  const { organizationId, loading: orgLoading } = useActiveOrganization();
+  const { organizationId, orgBootstrapPending: orgLoading } = useOrgBootstrapPending();
 
   const queryKey = subscriptionQueryKeys.status(organizationId || "");
 

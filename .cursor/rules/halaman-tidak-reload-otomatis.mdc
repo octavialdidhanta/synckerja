@@ -1,0 +1,154 @@
+---
+description: Mencegah sensasi reload/unmount halaman saat user pindah tab atau window. Cakupan App shell (desktop + mobile), TanStack Query, permission config, subscription/org guard, dan realtime digital marketing. Pakai @rule ini saat mengubah routing, loading global, atau useQuery yang sensitif terhadap focus.
+alwaysApply: false
+---
+
+# Halaman tidak reload otomatis (tab / window)
+
+## Tujuan
+
+Saat user **pindah tab atau jendela** lalu kembali, konten halaman (draft, state form, hasil generate, posisi scroll, modal) **tidak boleh hilang** karena:
+
+- seluruh pohon route **unmount**, atau
+- **refetch massal** yang mengganti data seolah halaman dimuat ulang, atau
+- loading global yang **mengganti** children route hanya karena refetch singkat.
+
+Yang diizinkan: data **stale-while-revalidate** di latar belakang tanpa melepas route atau mereset UI yang sedang dipakai.
+
+## Ruang lingkup
+
+- **Satu** `BrowserRouter` dan **satu** `SubscriptionExpiryGuard` membungkus route di [`src/App.tsx`](src/App.tsx) — desktop + mobile lewat guard yang sama.
+- Aturan Query relevan untuk fitur baru dan halaman panjang / editor / dashboard.
+
+---
+
+## 1. SubscriptionExpiryGuard — jangan unmount `<Routes>` saat loading
+
+**File:** [`src/10-subscription/shared/SubscriptionExpiryGuard.tsx`](src/10-subscription/shared/SubscriptionExpiryGuard.tsx)
+
+**Pola saat ini (wajib dipertahankan):** guard selalu me-render `<Outlet />` saat user ada dan langganan tidak expired. **Jangan** kembali ke pola lama yang mengganti seluruh `<Routes>` dengan spinner/skeleton global saat `orgLoading` / subscription query loading — itu membuat seluruh app terasa reload.
+
+**Anti-pattern (jangan reintroduce):**
+
+- `isAnyLoading = authLoading || subscriptionLoading || orgLoading` lalu `return <Skeleton />` tanpa `{children}` / `<Outlet />`.
+
+Kasus org belum ter-resolve: halaman pakai skeleton sendiri + [`useOrgBootstrapPending`](#useorgbootstrappending).
+
+**Mobile:** [`android-mobile/main-app-port/components/SubscriptionExpiryGuardMobile.tsx`](android-mobile/main-app-port/components/SubscriptionExpiryGuardMobile.tsx) meneruskan guard yang sama.
+
+---
+
+## 2. App.tsx — TanStack Query & focus / online
+
+**File:** [`src/App.tsx`](src/App.tsx)
+
+- `focusManager.setEventListener` **no-op** + `focusManager.setFocused(true)` — tab focus tidak memicu refetch massal lewat visibility bawaan.
+- `onlineManager.setEventListener` no-op.
+- `QueryClient` default: `refetchOnWindowFocus: false`, `refetchOnReconnect: false`, `refetchOnMount: false`, `staleTime` / `gcTime` baseline.
+
+**Query per-fitur** boleh override; untuk halaman yang tidak boleh “reload” saat kembali ke tab, **jangan** aktifkan `refetchOnWindowFocus: true` tanpa `placeholderData: keepPreviousData` dan tanpa skeleton dari `isFetching`.
+
+**Pengecualian CRM / livechat:** hook CRM boleh `refetchOnWindowFocus: true` + `keepPreviousData`; halaman hanya skeleton dari `orgBootstrapPending` atau `isPending` (bukan refetch background).
+
+---
+
+## 3. Org loading — `CurrentOrgContext` & `useOrgBootstrapPending`
+
+**File:** [`src/shared/auth/contexts/CurrentOrgContext.tsx`](src/shared/auth/contexts/CurrentOrgContext.tsx)
+
+- `fetchFromProfile`: `setLoading(true)` **hanya** bila belum punya `organizationId`.
+- `refetch()` eksplisit (ganti org): boleh loading penuh.
+- `SIGNED_OUT`: `setLoading(false)` sinkron dengan clear org.
+
+**Hook halaman:** [`src/shared/auth/hooks/useOrgBootstrapPending.ts`](src/shared/auth/hooks/useOrgBootstrapPending.ts)
+
+```ts
+orgBootstrapPending = loading && !organizationId
+```
+
+Gunakan **`orgBootstrapPending`** di `showFullPageSkeleton` / `hasPendingLoad`, **bukan** `useCurrentOrg().loading` mentah.
+
+**Catatan:** Ada juga [`src/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg.ts`](src/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg.ts) (OKR legacy) — pola `hadOrgId` sama; prefer `useOrgBootstrapPending` dari shared untuk skeleton halaman.
+
+---
+
+## 4. Auth & profil terpusat
+
+**File:** [`src/shared/auth/contexts/AuthContext.tsx`](src/shared/auth/contexts/AuthContext.tsx)
+
+- `TOKEN_REFRESHED` + user id sama: hanya `setSession`, **bukan** `setUser` ulang (hindari re-render massal).
+
+**File:** [`src/shared/auth/contexts/CentralizedUserDataContext.tsx`](src/shared/auth/contexts/CentralizedUserDataContext.tsx)
+
+- Session lewat ref; jangan kosongkan `organization` saat refresh token.
+- Skip fetch ulang untuk user id yang sama (kecuali force refresh / ganti org).
+
+---
+
+## 5. Permission config & PageAccessGuard
+
+**File:** [`src/shared/auth/page-access/usePermissionConfiguration.tsx`](src/shared/auth/page-access/usePermissionConfiguration.tsx)
+
+- Ekspor `configBootstrapPending` = `loading && configurations.length === 0`.
+- `setLoading(true)` pada fetch hanya bila belum ada baris untuk org (lihat `configurationsRef` / cache).
+
+**File:** [`src/shared/components/PageAccessGuard.tsx`](src/shared/components/PageAccessGuard.tsx)
+
+- `isLoading` guard memakai `configBootstrapPending`, bukan `configLoading` penuh.
+- `centralBootstrapPending` = `centralDataLoading && (!centralProfileHydrated || !userData)`.
+- Debounce ~250ms untuk denied / loading UI tetap.
+- Dengan `loadingShell` + user sudah login: `preserveChildrenOnAccessResolve` (default **true**) → children tetap mounted, skeleton overlay absolut (hindari unmount draft/form).
+
+---
+
+## 6. Realtime digital marketing — `social_media_plans`
+
+**File:** [`src/6-1-dashboard/hook/useRealtimeSocialMedia.ts`](src/6-1-dashboard/hook/useRealtimeSocialMedia.ts), [`src/6-1-dashboard/hook/briefModalOpenRef.ts`](src/6-1-dashboard/hook/briefModalOpenRef.ts)
+
+Saat modal Brief / Title / Preview (Drive) terbuka, refetch penuh `social-media-plans` **ditunda** (`shouldDeferSocialMediaPlansRefetch()`).
+
+---
+
+## 7. CRM / WhatsApp — refresh diam-diam
+
+Hook contoh (pertahankan focus refetch + `keepPreviousData`):
+
+- [`src/5-3-dashboard/hooks/useCrmFirstResponsePerRoom.ts`](src/5-3-dashboard/hooks/useCrmFirstResponsePerRoom.ts)
+- [`src/5-3-dashboard/hooks/useLeadsInsightsSupplementalQueries.ts`](src/5-3-dashboard/hooks/useLeadsInsightsSupplementalQueries.ts)
+- [`src/5-3-whatsapp/hooks/useCrmSlaForConversation.ts`](src/5-3-whatsapp/hooks/useCrmSlaForConversation.ts)
+- [`src/customer-survey/hooks/useCustomerSurveyForLeads.ts`](src/customer-survey/hooks/useCustomerSurveyForLeads.ts)
+- [`src/5-3-whatsapp-template/hooks/useWhatsAppCampaign.ts`](src/5-3-whatsapp-template/hooks/useWhatsAppCampaign.ts)
+
+Halaman: [`src/5-3-dashboard/pages/CRMDashboardPage.tsx`](src/5-3-dashboard/pages/CRMDashboardPage.tsx) (overlay skeleton), [`src/5-3-whatsapp/pages/WhatsAppInboxPage.tsx`](src/5-3-whatsapp/pages/WhatsAppInboxPage.tsx) (`orgBootstrapPending` + `isPending` query).
+
+---
+
+## Checklist (halaman atau `useQuery` baru)
+
+- [ ] Butuh bebas refetch fokus tab: default global sudah `false`; override hanya dengan alasan produk.
+- [ ] Skeleton halaman: `useOrgBootstrapPending()`, bukan `orgLoading` mentah.
+- [ ] Loading permission / profil: stale-while-revalidate — `configBootstrapPending`, bukan `configLoading` di guard.
+- [ ] Hindari listener `visibilitychange` yang navigasi / reload kecuali kebutuhan eksplisit.
+- [ ] Modal DM yang mengunci baris plan: daftar di `briefModalOpenRef.ts`.
+- [ ] CRM focus refetch: `placeholderData: keepPreviousData`; jangan skeleton dari `isFetching`.
+
+---
+
+## File acuan (Synckerja)
+
+| Area | Path |
+|------|------|
+| App shell, Query default | [`src/App.tsx`](src/App.tsx) |
+| Subscription guard | [`src/10-subscription/shared/SubscriptionExpiryGuard.tsx`](src/10-subscription/shared/SubscriptionExpiryGuard.tsx) |
+| Org context / bootstrap hook | [`src/shared/auth/contexts/CurrentOrgContext.tsx`](src/shared/auth/contexts/CurrentOrgContext.tsx), [`src/shared/auth/hooks/useOrgBootstrapPending.ts`](src/shared/auth/hooks/useOrgBootstrapPending.ts) |
+| Auth / profil | [`src/shared/auth/contexts/AuthContext.tsx`](src/shared/auth/contexts/AuthContext.tsx), [`src/shared/auth/contexts/CentralizedUserDataContext.tsx`](src/shared/auth/contexts/CentralizedUserDataContext.tsx) |
+| Permission | [`src/shared/auth/page-access/usePermissionConfiguration.tsx`](src/shared/auth/page-access/usePermissionConfiguration.tsx), [`src/shared/auth/page-access/useDepartmentAccess.ts`](src/shared/auth/page-access/useDepartmentAccess.ts) |
+| Route access | [`src/shared/components/PageAccessGuard.tsx`](src/shared/components/PageAccessGuard.tsx) |
+| Realtime DM | [`src/6-1-dashboard/hook/useRealtimeSocialMedia.ts`](src/6-1-dashboard/hook/useRealtimeSocialMedia.ts), [`src/6-1-dashboard/hook/briefModalOpenRef.ts`](src/6-1-dashboard/hook/briefModalOpenRef.ts) |
+| Contoh overlay skeleton | [`src/5-3-dashboard/pages/CRMDashboardPage.tsx`](src/5-3-dashboard/pages/CRMDashboardPage.tsx), [`src/2-1-employees/EmployeePage.tsx`](src/2-1-employees/EmployeePage.tsx) |
+
+---
+
+## Opsional: `alwaysApply`
+
+Saat ini **`alwaysApply: false`** — aktifkan dengan `@halaman-tidak-reload-otomatis` atau ubah frontmatter ke `alwaysApply: true` bila ingin selalu aktif di Cursor.

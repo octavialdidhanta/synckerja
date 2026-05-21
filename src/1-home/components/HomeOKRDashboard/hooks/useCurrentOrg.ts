@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useCurrentOrg (Home/OKR dashboard)
  *
  * This hook provides organizationId for the OKR and home dashboard sections.
@@ -24,6 +24,8 @@ export const useCurrentOrg = () => {
   const { toast } = useToast();
   const fetchingRef = useRef(false);
   const lastUserIdRef = useRef<string>('');
+  const organizationIdRef = useRef<string | null>(null);
+  organizationIdRef.current = organizationId;
 
   const fetchCurrentOrg = useCallback(async () => {
     // Prevent duplicate fetches
@@ -33,7 +35,12 @@ export const useCurrentOrg = () => {
 
     try {
       fetchingRef.current = true;
-      
+      const hadOrgId =
+        organizationIdRef.current != null && organizationIdRef.current !== '';
+      if (!hadOrgId) {
+        setLoading(true);
+      }
+
       // Check for new organization from sessionStorage first (highest priority)
       const newOrgId = sessionStorage.getItem('newOrganizationId');
       if (newOrgId) {
@@ -276,7 +283,11 @@ export const useCurrentOrg = () => {
   };
 
   const refetch = () => {
-    setLoading(true);
+    const hadOrgId =
+      organizationIdRef.current != null && organizationIdRef.current !== '';
+    if (!hadOrgId) {
+      setLoading(true);
+    }
     setError(null);
     // Re-run the effect
     const fetchCurrentOrg = async () => {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { cn } from '@/shared/lib/utils';
 import { useSocialMediaData, useSocialMediaMutations } from '@/6-1-dashboard/hook/useOptimizedSocialMediaState';
@@ -42,12 +42,12 @@ const ContentCalendarContent: React.FC = () => {
   const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
-  const { loading: orgLoading, organizationId: activeOrgId } = useCurrentOrg();
+  const { loading: orgBootstrapPending, organizationId: activeOrgId } = useCurrentOrg();
   const { contentPlans, services, isLoading: socialDataLoading } = useSocialMediaData();
   const { addContentPlan, refreshMasterData, updateContentPlan } = useSocialMediaMutations();
 
   const dataPending = Boolean(activeOrgId) && socialDataLoading;
-  const rawPendingLoad = orgLoading || dataPending;
+  const rawPendingLoad = orgBootstrapPending || dataPending;
   const showContent = useDebouncedReady(!rawPendingLoad, 220);
   const { data: currentEmployee } = useCurrentEmployee();
   const { syncPicProduction } = useSyncPicProduction();

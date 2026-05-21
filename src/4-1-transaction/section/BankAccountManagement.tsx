@@ -2,12 +2,19 @@ import React, { useState } from 'react';
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { Switch } from '@/shared/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { useBankAccounts, BankAccount } from '@/shared/hooks/finance/useBankAccounts';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 
 export const BankAccountManagement: React.FC = () => {
-  const { bankAccounts, loading, createBankAccount, updateBankAccount, deleteBankAccount } = useBankAccounts();
+  const { t } = useAppTranslation();
+  const { bankAccounts, loading, createBankAccount, updateBankAccount, deleteBankAccount } = useBankAccounts({
+    includeInactive: true,
+  });
+  const [togglingOmnichannelId, setTogglingOmnichannelId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingBankAccount, setEditingBankAccount] = useState<BankAccount | null>(null);
   const [formData, setFormData] = useState({ 
@@ -66,6 +73,17 @@ export const BankAccountManagement: React.FC = () => {
     setIsEditing(false);
     setFormData({ name: '', account_number: '', bank_name: '', account_holder: '' });
     setEditingBankAccount(null);
+  };
+
+  const handleOmnichannelToggle = async (bankAccount: BankAccount, checked: boolean) => {
+    setTogglingOmnichannelId(bankAccount.id);
+    try {
+      await updateBankAccount(bankAccount.id, { use_for_omnichannel_income: checked });
+    } catch {
+      // Toast handled in hook
+    } finally {
+      setTogglingOmnichannelId(null);
+    }
   };
 
   return (
@@ -166,14 +184,17 @@ export const BankAccountManagement: React.FC = () => {
       ) : (
         <div className="border rounded-lg overflow-hidden flex-1 min-h-0 flex flex-col">
           <div className="overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain min-h-0 flex-1">
-            <Table>
+            <Table className="min-w-[840px] table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Name</TableHead>
-                  <TableHead className="text-xs">Bank Name</TableHead>
-                  <TableHead className="text-xs">Account Number</TableHead>
-                  <TableHead className="text-xs">Account Holder</TableHead>
-                  <TableHead className="text-xs w-24">Actions</TableHead>
+                  <TableHead className="w-[14%] text-xs">Name</TableHead>
+                  <TableHead className="w-[10%] text-xs">Bank Name</TableHead>
+                  <TableHead className="min-w-[12rem] w-[24%] text-xs">Account Number</TableHead>
+                  <TableHead className="min-w-[16rem] w-[34%] text-xs">Account Holder</TableHead>
+                  <TableHead className="text-xs w-28 shrink-0">
+                    {t('incomes.bankAccounts.omnichannelToggle', 'Omnichannel')}
+                  </TableHead>
+                  <TableHead className="text-xs w-24 shrink-0">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -185,11 +206,38 @@ export const BankAccountManagement: React.FC = () => {
                     <TableCell className="text-xs text-gray-600">
                       {bankAccount.bank_name || '-'}
                     </TableCell>
-                    <TableCell className="text-xs text-gray-600">
+                    <TableCell className="min-w-[12rem] text-xs text-gray-600 whitespace-nowrap">
                       {bankAccount.account_number || '-'}
                     </TableCell>
-                    <TableCell className="text-xs text-gray-600">
+                    <TableCell className="min-w-[16rem] text-xs leading-snug text-gray-600 break-words">
                       {bankAccount.account_holder || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {bankAccount.is_active ? (
+                        <Switch
+                          checked={!!bankAccount.use_for_omnichannel_income}
+                          disabled={togglingOmnichannelId === bankAccount.id}
+                          onCheckedChange={(checked) => handleOmnichannelToggle(bankAccount, checked)}
+                          aria-label={t(
+                            'incomes.bankAccounts.omnichannelToggleAria',
+                            'Use for livechat conversion payments',
+                          )}
+                        />
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                              <Switch checked={false} disabled aria-hidden />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t(
+                              'incomes.bankAccounts.omnichannelInactiveHint',
+                              'Activate this bank account before enabling Omnichannel.',
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -215,7 +263,7 @@ export const BankAccountManagement: React.FC = () => {
                 ))}
                 {bankAccounts.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4 text-xs text-gray-500">
+                    <TableCell colSpan={6} className="text-center py-4 text-xs text-gray-500">
                       No bank accounts found. Click "Add Bank Account" to create one.
                     </TableCell>
                   </TableRow>

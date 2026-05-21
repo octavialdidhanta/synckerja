@@ -21,7 +21,7 @@ import {
   submitDebtPayment,
   type DebtPaymentModalSubmitPayload,
 } from '@/4-2-debt/services/submitDebtPayment';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { debtDisplayBalance, resolveDebtDisplay } from '../utils/resolveDebtDisplay';
 
@@ -57,7 +57,7 @@ export const DebtPage = () => {
     loading: bankAccountsLoading,
     isPending: bankAccountsPending,
   } = useBankAccounts();
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
 
   const dataPending =
     Boolean(organizationId) &&
@@ -66,7 +66,7 @@ export const DebtPage = () => {
       balancesPending ||
       bankAccountsLoading ||
       bankAccountsPending);
-  const rawPendingLoad = orgLoading || dataPending;
+  const rawPendingLoad = orgBootstrapPending || dataPending;
   const showContent = useDebouncedReady(!rawPendingLoad);
   const { user } = useCurrentUser();
   const queryClient = useQueryClient();

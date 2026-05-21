@@ -13,10 +13,12 @@ import { cn } from '@/shared/lib/utils';
 import { MODAL_BRAND_HEADER_BAR } from '@/shared/constants/modalBrandHeaderClasses';
 import { AddIncomeForm } from '@/4-1-dashboard/components/AddIncomeForm';
 import { IncomeTransactionDialog } from '@/4-1-dashboard/components/IncomeTransactionDialog';
+import { IncomeAllocationDialog } from '@/4-1-dashboard/components/IncomeAllocationDialog';
 import { IncomeTransactionViewDialog } from './IncomeTransactionViewDialog';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import type { IncomeTransactionWithRelations } from '@/4-1-dashboard/types';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { useCanAllocateIncome } from '@/4-1-dashboard/hooks/useCanAllocateIncome';
 
 export type IncomeTransactionTableDialogsProps = {
   isAddDialogOpen: boolean;
@@ -26,6 +28,8 @@ export type IncomeTransactionTableDialogsProps = {
   setIsViewDialogOpen: (open: boolean) => void;
   setIsEditDialogOpen: (open: boolean) => void;
   isEditDialogOpen: boolean;
+  isAllocationDialogOpen: boolean;
+  setIsAllocationDialogOpen: (open: boolean) => void;
   isDeleteDialogOpen: boolean;
   setIsDeleteDialogOpen: (open: boolean) => void;
   setSelectedTransaction: (tx: IncomeTransactionWithRelations | null) => void;
@@ -42,6 +46,8 @@ export function IncomeTransactionTableDialogs({
   setIsViewDialogOpen,
   setIsEditDialogOpen,
   isEditDialogOpen,
+  isAllocationDialogOpen,
+  setIsAllocationDialogOpen,
   isDeleteDialogOpen,
   setIsDeleteDialogOpen,
   setSelectedTransaction,
@@ -50,6 +56,7 @@ export function IncomeTransactionTableDialogs({
   onRefresh,
 }: IncomeTransactionTableDialogsProps) {
   const { t } = useAppTranslation();
+  const { canAllocateIncome } = useCanAllocateIncome();
 
   return (
     <>
@@ -78,10 +85,14 @@ export function IncomeTransactionTableDialogs({
           setIsViewDialogOpen(open);
           if (!open) setSelectedTransaction(null);
         }}
-        onEdit={() => {
-          setIsViewDialogOpen(false);
-          setIsEditDialogOpen(true);
-        }}
+        onEdit={
+          canAllocateIncome
+            ? () => {
+                setIsViewDialogOpen(false);
+                setIsEditDialogOpen(true);
+              }
+            : undefined
+        }
       />
 
       <IncomeTransactionDialog
@@ -89,6 +100,18 @@ export function IncomeTransactionTableDialogs({
         open={isEditDialogOpen}
         onOpenChange={(open) => {
           setIsEditDialogOpen(open);
+          if (!open) {
+            setSelectedTransaction(null);
+            onRefresh?.();
+          }
+        }}
+      />
+
+      <IncomeAllocationDialog
+        income={selectedTransaction}
+        open={isAllocationDialogOpen}
+        onOpenChange={(open) => {
+          setIsAllocationDialogOpen(open);
           if (!open) {
             setSelectedTransaction(null);
             onRefresh?.();

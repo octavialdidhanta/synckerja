@@ -24,7 +24,7 @@ export const useIncomeMetrics = () => {
         .eq('organization_id', organizationId)
         .gte('transaction_date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
         .lt('transaction_date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`)
-        .in('status', ['completed', 'pending']);
+        .eq('status', 'completed');
 
       if (currentError) throw currentError;
 
@@ -35,7 +35,7 @@ export const useIncomeMetrics = () => {
         .eq('organization_id', organizationId)
         .gte('transaction_date', `${previousYear}-${previousMonth.toString().padStart(2, '0')}-01`)
         .lt('transaction_date', `${previousYear}-${currentMonth.toString().padStart(2, '0')}-01`)
-        .in('status', ['completed', 'pending']);
+        .eq('status', 'completed');
 
       if (previousError) throw previousError;
 
@@ -46,7 +46,7 @@ export const useIncomeMetrics = () => {
         .eq('organization_id', organizationId)
         .gte('transaction_date', `${currentYear}-01-01`)
         .lt('transaction_date', `${currentYear + 1}-01-01`)
-        .in('status', ['completed', 'pending']);
+        .eq('status', 'completed');
 
       if (yearError) throw yearError;
 
@@ -55,7 +55,7 @@ export const useIncomeMetrics = () => {
         .from('income_transactions')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', organizationId)
-        .in('status', ['completed', 'pending']);
+        .eq('status', 'completed');
 
       if (countError) throw countError;
 

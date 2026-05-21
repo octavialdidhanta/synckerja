@@ -8,7 +8,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-
 const SKELETON_HIDE_DEBOUNCE_MS = 220;
 
 export type HomeSectionId =

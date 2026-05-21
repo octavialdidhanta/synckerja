@@ -5,7 +5,7 @@ import { HeaderAndTab } from '@/6-1-content-calendar/container/HeaderAndTab';
 import { RealtimeSocialMediaProvider } from '@/6-1-dashboard/hook/RealtimeSocialMediaProvider';
 import OptimizedErrorBoundary from '@/6-1-dashboard/components/OptimizedErrorBoundary';
 import { PICFilterProvider } from '@/6-1-dashboard/context/PICFilterContext';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useScriptAIConfig } from '@/6-1-script-generator/hooks/useScriptAIConfig';
 import { useProductKnowledge } from './hooks/useProductKnowledge';
 import type { ProductKnowledge } from './hooks/useProductKnowledge';
@@ -44,7 +44,7 @@ const ProductKnowledgeContent: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useAppTranslation();
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const [activeMainTab, setActiveMainTab] = useState('product-knowledge');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('all');
@@ -72,7 +72,7 @@ const ProductKnowledgeContent: React.FC = () => {
 
   const hasOrg = Boolean(organizationId);
   const rawPagePending =
-    orgLoading ||
+    orgBootstrapPending ||
     (hasOrg &&
       (productKnowledgePending ||
         featuresPending ||

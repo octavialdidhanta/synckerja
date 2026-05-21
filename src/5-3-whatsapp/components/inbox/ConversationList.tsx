@@ -13,6 +13,7 @@ import { MessageCircle, Check, CheckCheck, Mail, User, ListChecks } from 'lucide
 import { Button } from '@/shared/components/ui/button';
 import { devLog } from '@/shared/lib/logger';
 import { isResolvedStatus } from '../../constants/leadStatus';
+import { stripSurveyLinksFromText } from '@/features/customer-survey/utils/customerSurveyAgentVisibility';
 
 /** Ikon platform chat (akun terconnect). WhatsApp, Instagram, atau Email. */
 function ChannelIcon({ channel = 'whatsapp', className }: { channel?: string; className?: string }) {
@@ -665,7 +666,22 @@ export function ConversationList({
                       </span>
                     )}
                     {(() => {
-                      const preview = isEmail ? getEmailPreviewSnippet(conv.last_message_body) : stripHtmlForPreview(conv.last_message_body);
+                      let preview = isEmail
+                        ? getEmailPreviewSnippet(conv.last_message_body)
+                        : stripHtmlForPreview(conv.last_message_body);
+                      if (!isEmail) {
+                        preview = stripSurveyLinksFromText(preview);
+                        if (
+                          !preview &&
+                          conv.last_message_body &&
+                          /\/s\/[A-Za-z0-9_-]+/i.test(conv.last_message_body)
+                        ) {
+                          preview = t(
+                            'whatsappInbox.surveySentToCustomerShort',
+                            'Survey sent to customer',
+                          );
+                        }
+                      }
                       const subject = isEmail ? (conv as { thread_subject?: string | null }).thread_subject?.trim() ?? '' : '';
                       const displayText = preview !== '' ? preview : (subject !== '' ? subject : '');
                       const showSomething = (conv.last_message_body != null && conv.last_message_body !== '' && preview !== '') || (isEmail && subject !== '');

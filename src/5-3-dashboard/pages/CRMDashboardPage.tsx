@@ -7,7 +7,7 @@ import { CrmFirstResponsePerRoomSection } from "@/5-3-dashboard/components/crm/C
 import { CrmResolutionPerRoomSection } from "@/5-3-dashboard/components/crm/CrmResolutionPerRoomSection";
 import { CrmCustomerSurveySection } from "@/5-3-dashboard/components/crm/CrmCustomerSurveySection";
 import { ConsultantCrmDashboardPageSkeleton } from "@/5-3-dashboard/skeletons/ConsultantCrmDashboardPageSkeleton";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useLeads } from "@/shared/hooks/organized/sales";
 import { cn } from "@/shared/lib/utils";
@@ -25,10 +25,10 @@ const SKELETON_HIDE_DEBOUNCE_MS = 200;
  */
 export const CRMDashboardPage = () => {
   const { t } = useAppTranslation();
-  const { loading: orgLoading, organizationId } = useCurrentOrg();
+  const { orgBootstrapPending, organizationId } = useOrgBootstrapPending();
   const { initialLoadPending: leadsPending } = useLeads({ scope: 'all' });
 
-  const dataPending = orgLoading || (!!organizationId && leadsPending);
+  const dataPending = orgBootstrapPending || (!!organizationId && leadsPending);
 
   const [showSkeletonOverlay, setShowSkeletonOverlay] = useState(true);
   const sawDataPendingRef = useRef(false);

@@ -1,4 +1,5 @@
 import { Search, RefreshCw } from 'lucide-react';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
@@ -8,6 +9,7 @@ export interface IncomeTransactionFilters {
   status: string;
   type: string;
   category: string;
+  allocation: string;
 }
 
 interface IncomeTransactionFiltersProps {
@@ -21,11 +23,13 @@ export const IncomeTransactionFilters = ({
   onFilterChange,
   onClearFilters
 }: IncomeTransactionFiltersProps) => {
+  const { t } = useAppTranslation();
   const hasActiveFilters = 
     filters.search ||
     filters.status !== 'all' ||
     filters.type !== 'all' ||
-    filters.category !== 'all';
+    filters.category !== 'all' ||
+    filters.allocation !== 'all';
 
   return (
     <div>
@@ -71,6 +75,23 @@ export const IncomeTransactionFilters = ({
             <SelectItem value="service">Service</SelectItem>
             <SelectItem value="product">Product</SelectItem>
             <SelectItem value="subscription">Subscription</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Allocation Filter */}
+        <Select
+          value={filters.allocation || 'all'}
+          onValueChange={(value) => onFilterChange('allocation', value)}
+        >
+          <SelectTrigger className="w-full sm:w-36 lg:w-44 h-9 text-sm text-gray-700 placeholder:text-gray-700 text-left">
+            <SelectValue placeholder={t('incomes.allocation.filterLabel', 'Allocation')} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t('incomes.allocation.filterAll', 'All allocation')}</SelectItem>
+            <SelectItem value="needs_allocation">
+              {t('incomes.allocation.filterNeeds', 'Needs allocation')}
+            </SelectItem>
+            <SelectItem value="complete">{t('incomes.allocation.filterComplete', 'Complete')}</SelectItem>
           </SelectContent>
         </Select>
 

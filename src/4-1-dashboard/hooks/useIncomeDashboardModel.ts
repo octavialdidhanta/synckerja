@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useBankAccounts, type BankAccount } from "@/shared/hooks/finance/useBankAccounts";
 import { useBankAccountBalances } from "@/shared/hooks/finance/useBankAccountBalances";
 import { useExpenses } from "@/shared/hooks/finance/useExpenses";
@@ -70,7 +70,7 @@ export function useIncomeDashboardModel() {
   const [bankTransferDialogOpen, setBankTransferDialogOpen] = useState(false);
   const [bankTransferSource, setBankTransferSource] = useState<BankAccount | null>(null);
 
-  const { loading: orgLoading, organizationId } = useCurrentOrg();
+  const { orgBootstrapPending, organizationId } = useOrgBootstrapPending();
   const { data: metrics, isLoading: metricsLoading } = useIncomeMetrics();
   const {
     incomeTransactions,
@@ -118,7 +118,7 @@ export function useIncomeDashboardModel() {
         matchesBankAccount = transaction.bank_account_id === selectedBankAccount;
       }
 
-      const isValidStatus = transaction.status === "completed" || transaction.status === "pending";
+      const isValidStatus = transaction.status === "completed";
 
       return isInDateRange && matchesType && matchesBankAccount && isValidStatus;
     });
@@ -265,7 +265,7 @@ export function useIncomeDashboardModel() {
       balancesLoading ||
       balancesPending ||
       expensesLoading);
-  const rawPendingLoad = orgLoading || dataPending;
+  const rawPendingLoad = orgBootstrapPending || dataPending;
 
   return {
     rawPendingLoad,

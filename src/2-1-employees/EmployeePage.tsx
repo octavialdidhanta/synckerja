@@ -10,7 +10,7 @@ import { EmployeeSidebarFooter } from './section/EmployeeSidebarFooter';
 import { useEmployees } from './hooks/useEmployees';
 import { useCurrentUser } from './hooks/useCurrentUser';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
-import { useCurrentOrg } from '@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/shared/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -29,13 +29,13 @@ export const EmployeePage = () => {
     timePeriod: 'all'
   });
   
-  const { loading: orgLoading } = useCurrentOrg();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   const { data: employees = [], isPending: employeesPending, refetch } = useEmployees();
   const { user } = useCurrentUser();
   const { userRole } = useCentralizedUserData();
   const navigate = useNavigate();
 
-  const showFullPageSkeleton = orgLoading || employeesPending;
+  const showFullPageSkeleton = orgBootstrapPending || employeesPending;
 
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);

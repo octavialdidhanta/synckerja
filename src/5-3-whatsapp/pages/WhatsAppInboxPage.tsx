@@ -21,7 +21,7 @@ import { useInstagramAccounts } from '../hooks/useInstagramAccounts';
 import { useEmailConnections } from '../hooks/useEmailConnections';
 import { useWhatsAppLivechatPageSkeletonGate } from '../hooks/useWhatsAppLivechatPageSkeletonGate';
 import { WhatsAppLivechatPageSkeleton } from '../skeletons/WhatsAppLivechatPageSkeleton';
-import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useServices } from '@/6-1-product-knowledge/hooks/useServices';
 import { useSubServices } from '@/6-1-product-knowledge/hooks/useSubServices';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -34,10 +34,10 @@ export function WhatsAppInboxPage() {
   const { t } = useAppTranslation();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const hasOrg = Boolean(organizationId);
-  const { data: waConversations = [], isLoading: waLoading, error: waError } = useWhatsAppConversations();
-  const { data: igConversations = [], isLoading: igLoading, error: igError } = useInstagramConversations();
+  const { data: waConversations = [], isPending: waPending, error: waError } = useWhatsAppConversations();
+  const { data: igConversations = [], isPending: igPending, error: igError } = useInstagramConversations();
 
   const { data: leadStatuses = [], isLoading: leadStatusesLoading } = useQuery({
     queryKey: ['lead-statuses'],
@@ -48,35 +48,35 @@ export function WhatsAppInboxPage() {
     },
     staleTime: 60_000,
   });
-  const { data: emailConversations = [], isLoading: emailLoading, error: emailError } = useEmailConversations();
-  const { accounts: waAccounts, isLoading: waAccountsLoading } = useWhatsAppAccounts();
-  const { accounts: igAccounts, isLoading: igAccountsLoading } = useInstagramAccounts();
-  const { connections: emailConnections, isLoading: emailConnectionsLoading } = useEmailConnections();
+  const { data: emailConversations = [], isPending: emailPending, error: emailError } = useEmailConversations();
+  const { accounts: waAccounts, isLoading: waAccountsPending } = useWhatsAppAccounts();
+  const { accounts: igAccounts, isLoading: igAccountsPending } = useInstagramAccounts();
+  const { connections: emailConnections, isLoading: emailConnectionsPending } = useEmailConnections();
   const { isPending: servicesPending } = useServices();
   const { isPending: subServicesPending } = useSubServices();
 
   const rawPagePending = useMemo(
     () =>
-      orgLoading ||
+      orgBootstrapPending ||
       (hasOrg &&
-        (waLoading ||
-          igLoading ||
-          emailLoading ||
-          waAccountsLoading ||
-          igAccountsLoading ||
-          emailConnectionsLoading ||
+        (waPending ||
+          igPending ||
+          emailPending ||
+          waAccountsPending ||
+          igAccountsPending ||
+          emailConnectionsPending ||
           leadStatusesLoading ||
           servicesPending ||
           subServicesPending)),
     [
-      orgLoading,
+      orgBootstrapPending,
       hasOrg,
-      waLoading,
-      igLoading,
-      emailLoading,
-      waAccountsLoading,
-      igAccountsLoading,
-      emailConnectionsLoading,
+      waPending,
+      igPending,
+      emailPending,
+      waAccountsPending,
+      igAccountsPending,
+      emailConnectionsPending,
       leadStatusesLoading,
       servicesPending,
       subServicesPending,

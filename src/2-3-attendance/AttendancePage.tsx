@@ -6,7 +6,7 @@ import { EmployeeAttendanceTab } from "@/2-3-employee-attendance";
 import { AttendanceSettings } from "@/2-3-settings";
 import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -33,7 +33,7 @@ function AttendancePageContent() {
   const navigate = useNavigate();
   const { canAccessPage, configLoading } = useDepartmentAccess();
   const { userRole, isOwner, isAdmin } = useCentralizedUserData();
-  const { loading: orgLoading } = useCurrentOrg();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
 
   const activeTab = attendanceTabFromPathname(location.pathname);
   const [currentView, setCurrentView] = useState<"table" | "calendar">("table");
@@ -90,7 +90,7 @@ function AttendancePageContent() {
   const recordsRoute = location.pathname === "/attendance/attendance";
   /** Records tab: wait for org context + section ref-counts; avoids one frame without overlay before table/sidebar report load. */
   const rawLoading =
-    isLoading || configLoading || hasPendingLoad || (recordsRoute && orgLoading);
+    isLoading || configLoading || hasPendingLoad || (recordsRoute && orgBootstrapPending);
 
   useEffect(() => {
     if (!isSettingsRoute) {

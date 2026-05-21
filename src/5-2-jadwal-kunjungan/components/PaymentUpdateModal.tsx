@@ -21,7 +21,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { deleteSalesActivityPaymentWithLinkedIncome } from '@/shared/lib/finance/deleteSalesActivityPaymentWithLinkedIncome';
 import { updateIncomeFromSalesPayment } from '@/shared/lib/finance/updateIncomeFromSalesPayment';
 import { refetchIncomeModuleQueries } from '@/shared/lib/finance/refetchIncomeModuleQueries';
-import { Plus, Calendar, CreditCard, FileText, X, Upload, TrendingUp, CheckCircle2, MoreHorizontal, Download, Edit, Trash2 } from 'lucide-react';
+import { Plus, Calendar, CreditCard, FileText, X, Upload, TrendingUp, CheckCircle2, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { InvoicePreviewModal } from './invoice';
 import { calculatePaymentSummary, calculateProgressiveRemaining } from '@/shared/utils/paymentCalculations';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
@@ -32,6 +32,8 @@ interface PaymentUpdateModalProps {
   salesActivityId: string;
   clientName?: string;
   viewOnly?: boolean;
+  /** `livechat`: inline Generate Invoice in Actions; same add-payment + invoice preview as default. */
+  variant?: 'default' | 'livechat';
   onFirstPaymentSuccess?: (payload: { title: string; description: string; service_id: string; sub_service_id: string | null }) => void;
 }
 
@@ -46,7 +48,16 @@ function parsePaymentAmountThousands(value: string): number {
   return parseFloat(value.replace(/\D/g, '')) || 0;
 }
 
-export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName, viewOnly = false, onFirstPaymentSuccess }: PaymentUpdateModalProps) => {
+export const PaymentUpdateModal = ({
+  open,
+  onClose,
+  salesActivityId,
+  clientName,
+  viewOnly = false,
+  variant = 'default',
+  onFirstPaymentSuccess,
+}: PaymentUpdateModalProps) => {
+  const isLivechatVariant = variant === 'livechat';
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [salesActivity, setSalesActivity] = useState<any>(null);
   const [paymentSummary, setPaymentSummary] = useState<any>(null);
@@ -930,44 +941,51 @@ export const PaymentUpdateModal = ({ open, onClose, salesActivityId, clientName,
                           ) : '-'}
                         </td>
                         <td className="p-3">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                              {payment.receipt_url && (
-                                <DropdownMenuItem onClick={() => window.open(payment.receipt_url, '_blank')}>
-                                  <Download className="h-4 w-4 mr-2" />
-                                  Download Receipt
+                          {isLivechatVariant ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs whitespace-nowrap"
+                              onClick={() => handleDownloadInvoice(payment)}
+                            >
+                              <FileText className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                              Generate Invoice
+                            </Button>
+                          ) : (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem onClick={() => handleDownloadInvoice(payment)}>
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Generate Invoice
                                 </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem onClick={() => handleDownloadInvoice(payment)}>
-                                <FileText className="h-4 w-4 mr-2" />
-                                Generate Invoice
-                              </DropdownMenuItem>
-                              {!viewOnly && (
-                                <>
-                                  <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => void handleDeletePayment(payment)}
-                                    className="text-red-600 hover:text-red-700"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                                {!viewOnly && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => void handleDeletePayment(payment)}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </td>
                       </tr>
                     ))}

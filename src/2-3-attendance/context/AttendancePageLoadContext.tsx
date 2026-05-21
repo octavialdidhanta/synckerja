@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 
 /**
  * Logical load groups. Multiple components may report the same id (ref-counted):
@@ -107,9 +107,9 @@ export function useReportAttendanceSection(id: string, loading: boolean) {
  * do not clear the skeleton early; combine with each panel’s own loading / `isPending`.
  */
 export function useReportAttendanceSettingsLoading(loading: boolean) {
-  const { loading: orgLoading } = useCurrentOrg();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   useReportAttendanceSection(
     attendanceLoadSectionIds.attendanceSettings,
-    Boolean(orgLoading || loading),
+    Boolean(orgBootstrapPending || loading),
   );
 }

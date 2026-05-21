@@ -29,6 +29,11 @@ export type PageAccessGuardProps = {
   loadingShell?: ReactNode;
   /** Shell background behind `loadingShell` (e.g. `bg-gray-100` for KOL modules). */
   loadingShellWrapperClassName?: string;
+  /**
+   * When true and user is signed in, keep route children mounted under an overlay skeleton
+   * during brief permission/config resolve (tab resume) instead of unmounting them.
+   */
+  preserveChildrenOnAccessResolve?: boolean;
 };
 
 const DENY_DEBOUNCE_MS = 250;
@@ -45,6 +50,7 @@ export function PageAccessGuard({
   showAccessDeniedPage = true,
   loadingShell,
   loadingShellWrapperClassName,
+  preserveChildrenOnAccessResolve = true,
 }: PageAccessGuardProps) {
   const { user, loading: authLoading } = useAuth();
   const { t } = useAppTranslation();
@@ -54,7 +60,7 @@ export function PageAccessGuard({
     canAccessPage,
     getAccessLevel,
     getDepartmentRestrictionMessage,
-    configLoading,
+    configBootstrapPending,
     rolesResolutionPending,
   } = useDepartmentAccess();
   const {
@@ -69,15 +75,23 @@ export function PageAccessGuard({
 
   const pathToCheck = pagePath || location.pathname;
 
-  const isLoadingOrgData =
-    requiresPermissions && !!user && !organization && (hasOrganization || !!userData?.active_organization_id);
   const profileBootstrapPending =
     requiresPermissions && !!user && (!centralProfileHydrated || !userData);
+  const centralBootstrapPending =
+    centralDataLoading && (!centralProfileHydrated || !userData);
+  /** Jangan block guard hanya karena objek `organization` belum di-hydrate ulang — profil sudah punya org id. */
+  const isLoadingOrgData =
+    requiresPermissions &&
+    !!user &&
+    centralProfileHydrated &&
+    !organization &&
+    !userData?.active_organization_id &&
+    (hasOrganization || centralBootstrapPending);
   const isLoading =
     profileBootstrapPending ||
-    authLoading ||
-    centralDataLoading ||
-    (requiresPermissions && configLoading) ||
+    (authLoading && !user) ||
+    centralBootstrapPending ||
+    (requiresPermissions && configBootstrapPending) ||
     (requiresPermissions && rolesResolutionPending) ||
     isLoadingOrgData;
 
@@ -170,7 +184,7 @@ export function PageAccessGuard({
    * dan tidak mirror halaman (mis. KOL dashboard).
    */
   if (loadingShell != null && guardShellBlocking) {
-    return (
+    const shellWrapper = (
       <div
         className={cn(
           "flex h-full min-h-0 min-w-0 flex-1 flex-col",
@@ -183,6 +197,27 @@ export function PageAccessGuard({
         <span className="sr-only">{t("pageAccess.loading", "Loading…")}</span>
       </div>
     );
+
+    if (preserveChildrenOnAccessResolve && user) {
+      return (
+        <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+          <div
+            className={cn(
+              "flex min-h-0 min-w-0 flex-1 flex-col",
+              "invisible pointer-events-none select-none",
+            )}
+            aria-hidden
+          >
+            {children}
+          </div>
+          <div className="absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col">
+            {shellWrapper}
+          </div>
+        </div>
+      );
+    }
+
+    return shellWrapper;
   }
 
   if (shouldShowLoading) {

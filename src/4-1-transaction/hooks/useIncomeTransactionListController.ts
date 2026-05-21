@@ -11,6 +11,7 @@ export function useIncomeTransactionListController(onRefresh?: () => void) {
   const [selectedTransaction, setSelectedTransaction] = useState<IncomeTransactionWithRelations | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAllocationDialogOpen, setIsAllocationDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteIncomeTransaction, isDeleting } = useIncomeTransactions();
 
@@ -37,6 +38,11 @@ export function useIncomeTransactionListController(onRefresh?: () => void) {
     setIsEditDialogOpen(true);
   }, []);
 
+  const handleAllocate = useCallback((transaction: IncomeTransactionWithRelations) => {
+    setSelectedTransaction(transaction);
+    setIsAllocationDialogOpen(true);
+  }, []);
+
   const handleDelete = useCallback((transaction: IncomeTransactionWithRelations) => {
     setSelectedTransaction(transaction);
     setIsDeleteDialogOpen(true);
@@ -57,6 +63,9 @@ export function useIncomeTransactionListController(onRefresh?: () => void) {
     getStatusBadgeVariant,
     handleViewDetails,
     handleEdit,
+    handleAllocate,
+    isAllocationDialogOpen,
+    setIsAllocationDialogOpen,
     handleDelete,
     isAddDialogOpen,
     setIsAddDialogOpen,

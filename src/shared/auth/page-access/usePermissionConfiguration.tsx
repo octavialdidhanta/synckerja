@@ -43,6 +43,8 @@ const CACHE_KEY_PREFIX = "perm_config_";
 export type PermissionConfigurationContextValue = {
   configurations: PermissionConfiguration[];
   loading: boolean;
+  /** True only on cold start (no rows yet for current org) — not on background refetch. */
+  configBootstrapPending: boolean;
   createPermissionConfiguration: (
     config: Omit<PermissionConfiguration, "id" | "created_at" | "updated_at">
   ) => Promise<{ success: boolean; data?: PermissionConfiguration; error?: string }>;
@@ -479,10 +481,16 @@ export function PermissionConfigurationProvider({ children }: { children: ReactN
     [configurations, organization?.id]
   );
 
+  const configBootstrapPending = useMemo(
+    () => loading && configurations.length === 0,
+    [loading, configurations.length],
+  );
+
   const value = useMemo(
     () => ({
       configurations,
       loading,
+      configBootstrapPending,
       createPermissionConfiguration,
       updatePermissionConfiguration,
       deletePermissionConfiguration,
@@ -492,6 +500,7 @@ export function PermissionConfigurationProvider({ children }: { children: ReactN
     [
       configurations,
       loading,
+      configBootstrapPending,
       createPermissionConfiguration,
       updatePermissionConfiguration,
       deletePermissionConfiguration,

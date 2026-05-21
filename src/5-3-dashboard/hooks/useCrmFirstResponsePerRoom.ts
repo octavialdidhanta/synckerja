@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 export type CrmAssigneeSegment = 'admin' | 'supervisor' | 'agent' | 'unassigned';
@@ -49,7 +49,9 @@ export function useCrmFirstResponsePerRoom(organizationId: string | null | undef
     },
     staleTime: 5_000,
     refetchInterval: 5_000,
+    /** CRM: refresh on tab focus without clearing tables (halaman-tidak-reload-otomatis). */
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
   });
 }

@@ -1,4 +1,8 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
+import { Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/shared/lib/utils';
+import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/shared/components/ui/radio-group';
@@ -32,6 +36,11 @@ export interface LivechatConversionFinancialSectionProps {
   onFieldFocus?: (el: HTMLElement) => void;
   /** Selected category name (sub-service) — used for the total row label, e.g. "Total Jasa Foto Wedding". */
   categoryLabel?: string | null;
+  omnichannelBankLabel?: string | null;
+  /** Full formatted bank details for copy-to-clipboard (share with customer). */
+  omnichannelBankCopyText?: string | null;
+  omnichannelBankLoading?: boolean;
+  omnichannelBankMissing?: boolean;
   t: (key: string, fallback?: string, variables?: Record<string, string | number>) => string;
 }
 
@@ -49,8 +58,38 @@ export function LivechatConversionFinancialSection({
   disabled = false,
   onFieldFocus,
   categoryLabel,
+  omnichannelBankLabel = null,
+  omnichannelBankCopyText = null,
+  omnichannelBankLoading = false,
+  omnichannelBankMissing = false,
   t,
 }: LivechatConversionFinancialSectionProps) {
+  const [bankDetailsCopied, setBankDetailsCopied] = useState(false);
+  const bankCopyPayload = (omnichannelBankCopyText ?? '').trim();
+  const canCopyBankDetails =
+    !omnichannelBankMissing && !omnichannelBankLoading && bankCopyPayload.length > 0;
+
+  const handleCopyBankDetails = useCallback(async () => {
+    if (!bankCopyPayload) {
+      toast.info(
+        t('whatsappInbox.conversionNoBankDetailsToCopy', 'No bank details available to copy.'),
+      );
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(bankCopyPayload);
+      setBankDetailsCopied(true);
+      toast.success(
+        t('whatsappInbox.conversionBankDetailsCopied', 'Bank details copied to clipboard.'),
+      );
+      window.setTimeout(() => setBankDetailsCopied(false), 2000);
+    } catch {
+      toast.error(
+        t('whatsappInbox.conversionBankDetailsCopyFailed', 'Could not copy bank details.'),
+      );
+    }
+  }, [bankCopyPayload, t]);
+
   const total = conversionLinesGrandTotal(lines);
   const category = (categoryLabel ?? '').trim();
   const totalRowLabel = category
@@ -64,6 +103,56 @@ export function LivechatConversionFinancialSection({
       <p className="text-sm font-semibold text-gray-900">
         {t('whatsappInbox.conversionFinancialTitle', 'Financial Information')}
       </p>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm">
+          {t('whatsappInbox.conversionOmnichannelBank', 'Destination bank account')}
+        </Label>
+        {omnichannelBankLoading ? (
+          <p className="text-xs text-muted-foreground">
+            {t('whatsappInbox.conversionOmnichannelBankLoading', 'Loading bank account…')}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+            <Input
+              value={
+                omnichannelBankMissing
+                  ? t(
+                      'whatsappInbox.conversionOmnichannelBankMissing',
+                      'Not configured. Ask finance to enable Omnichannel on a bank account under Income → Transaction → Bank Accounts.',
+                    )
+                  : (omnichannelBankLabel ?? '')
+              }
+              readOnly
+              className={cn(
+                'min-w-0 flex-1 bg-muted text-sm',
+                omnichannelBankMissing && 'border-amber-300 text-amber-900',
+              )}
+            />
+            {canCopyBankDetails ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled}
+                onClick={() => void handleCopyBankDetails()}
+                className="h-9 shrink-0 gap-1.5 border-emerald-300 bg-white px-3 text-xs font-medium text-emerald-900 hover:bg-emerald-50"
+                aria-label={t(
+                  'whatsappInbox.conversionCopyBankDetails',
+                  'Copy bank details',
+                )}
+              >
+                {bankDetailsCopied ? (
+                  <Check className="h-3.5 w-3.5" aria-hidden />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" aria-hidden />
+                )}
+                {t('whatsappInbox.conversionCopyBankDetails', 'Copy bank details')}
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </div>
 
       <div className="space-y-2">
         <Label className="text-sm">{totalRowLabel}</Label>

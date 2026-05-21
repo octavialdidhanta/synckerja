@@ -32,6 +32,9 @@ import { MobileIncomeTransactionTable } from "./MobileIncomeTransactionTable";
 import { MobileIncomeTransactionTableFooter } from "./MobileIncomeTransactionTableFooter";
 import { MobileAddIncomeTransactionModal } from "@/mobile/3-incomes/modal/MobileAddIncomeTransactionModal";
 import { useIsMobile } from "@/mobile/shared/hooks/use-mobile";
+import { useCanAllocateIncome } from "@/4-1-dashboard/hooks/useCanAllocateIncome";
+import { isIncomeAllocationIncomplete } from "@/4-1-dashboard/utils/incomeAllocationStatus";
+import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 
 type Stats = {
   isLoading: boolean;
@@ -77,9 +80,14 @@ export function MobileIncomeTransactionSection({ model, stats }: Props) {
     handleClearFilters,
   } = model;
 
+  const { canAllocateIncome } = useCanAllocateIncome();
   const listCtrl = useIncomeTransactionListController(handleRefresh);
 
   const typedTransactions = (incomeTransactions || []) as IncomeTransactionWithRelations[];
+  const needsAllocationCount = useMemo(
+    () => typedTransactions.filter((tx) => isIncomeAllocationIncomplete(tx)).length,
+    [typedTransactions],
+  );
   const types = useMemo(
     () => getUniqueIncomeTypes(typedTransactions as unknown as IncomeTransaction[]),
     [typedTransactions],
@@ -163,6 +171,29 @@ export function MobileIncomeTransactionSection({ model, stats }: Props) {
         />
       </div>
 
+      {canAllocateIncome && needsAllocationCount > 0 ? (
+        <Alert className="shrink-0 border-amber-200 bg-amber-50">
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+            <span>
+              {t(
+                "incomes.allocation.banner",
+                "{{count}} transaction(s) need Type, Category, and Bank Account before they affect balance and completed reports.",
+                { count: needsAllocationCount },
+              )}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 border-amber-300 bg-white text-xs"
+              onClick={() => setFilter("allocation", "needs_allocation")}
+            >
+              {t("incomes.allocation.filterNeeds", "Needs allocation")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <Card
         className={cn(
           "flex min-h-0 min-w-0 w-full flex-col overflow-hidden border border-border bg-card",
@@ -209,14 +240,16 @@ export function MobileIncomeTransactionSection({ model, stats }: Props) {
                     searchExpanded ? "pointer-events-none max-w-0 opacity-0" : "max-w-[320px] opacity-100",
                   )}
                 >
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-9 shrink-0 bg-brand-blue px-3 text-xs text-white hover:bg-brand-blue/90"
-                    onClick={() => listCtrl.setIsAddDialogOpen(true)}
-                  >
-                    + {t("incomes.addIncome", "Add Income")}
-                  </Button>
+                  {canAllocateIncome ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-9 shrink-0 bg-brand-blue px-3 text-xs text-white hover:bg-brand-blue/90"
+                      onClick={() => listCtrl.setIsAddDialogOpen(true)}
+                    >
+                      + {t("incomes.addIncome", "Add Income")}
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
@@ -288,6 +321,22 @@ export function MobileIncomeTransactionSection({ model, stats }: Props) {
                           ]}
                           onSelect={(v) => setFilter("category", v)}
                         />
+                        <FilterGroup
+                          title={t("incomes.allocation.filterLabel", "Allocation")}
+                          current={filters.allocation}
+                          options={[
+                            { value: "all", label: t("incomes.allocation.filterAll", "All allocation") },
+                            {
+                              value: "needs_allocation",
+                              label: t("incomes.allocation.filterNeeds", "Needs allocation"),
+                            },
+                            {
+                              value: "complete",
+                              label: t("incomes.allocation.filterComplete", "Complete"),
+                            },
+                          ]}
+                          onSelect={(v) => setFilter("allocation", v)}
+                        />
                       </div>
                       <div className="flex flex-shrink-0 items-center justify-between gap-2 border-t bg-muted/30 px-4 pb-3 pt-3">
                         <Button type="button" variant="outline" size="sm" onClick={handleClearFilters}>
@@ -316,7 +365,9 @@ export function MobileIncomeTransactionSection({ model, stats }: Props) {
                 isLoading={showPageSkeleton ? false : transactionsLoading}
                 onView={listCtrl.handleViewDetails}
                 onEdit={listCtrl.handleEdit}
+                onAllocate={listCtrl.handleAllocate}
                 onDelete={listCtrl.handleDelete}
+                canAllocateIncome={canAllocateIncome}
               />
             </div>
 

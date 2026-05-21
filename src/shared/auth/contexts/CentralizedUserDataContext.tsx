@@ -13,7 +13,6 @@ import type { User, Session } from '@supabase/supabase-js';
 import { logger } from '@/shared/lib/logger';
 import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
 import { forceClearCache } from '@/shared/auth/page-access/departmentPageAccessCache';
-
 // Types - focus only on 5 core tables
 interface UserData {
   user_id: string;
@@ -128,6 +127,9 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
   /** Snapshot org terakhir untuk callback async (timeout) — jangan setOrganization(null) saat refetch gagal. */
   const organizationStateRef = useRef<Organization | null>(null);
   organizationStateRef.current = organization;
+  /** Snapshot profil untuk refreshUserData (hindari TDZ dengan `const userData` di dalam fungsi yang sama). */
+  const userDataStateRef = useRef<UserData | null>(null);
+  userDataStateRef.current = userData;
 
   // Refs: Supabase TOKEN_REFRESHED gives a new `session` object every time — jangan jadikan
   // dependency useCallback/useEffect agar tidak re-run massal / setLoading saat pindah tab.
@@ -270,8 +272,12 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     try {
       fetchingRef.current = true;
       lastUserIdRef.current = user.id;
-      setLoading(true);
-      setCentralProfileHydrated(false);
+      const hadProfileSnapshot =
+        !!userDataStateRef.current && !!organizationStateRef.current;
+      if (!hadProfileSnapshot) {
+        setLoading(true);
+        setCentralProfileHydrated(false);
+      }
       setError(null);
       
       // Run profile and email verification in parallel with timeout; one retry on timeout
@@ -426,7 +432,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       logger.performance(`User Data Fetch (${user.id.slice(0, 8)}...)`, duration, 500);
 
 // Set user data
-      const userData: UserData = {
+      const fetchedUserData: UserData = {
         user_id: user.id,
         full_name: profileData?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
         email: profileData?.email || user.email || '',
@@ -435,7 +441,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         email_verified: verificationStatus, // Use proper verification status from database function
       };
       
-      setUserData(userData);
+      setUserData(fetchedUserData);
 
       if (organizationId) {
         setOrganization((prev) =>
@@ -560,7 +566,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             setUserRole(null);
             setOrganizationMemberRoles([]);
             setOrganization((prev) =>
-              mergeOrganizationState(null, userData.active_organization_id, prev)
+              mergeOrganizationState(null, fetchedUserData.active_organization_id, prev)
             );
           } else {
             const enrichedEmployeeData = employeeData ? {
@@ -594,17 +600,17 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             setEmployee(enrichedEmployeeData);
             setUserRole(effectiveResolvedRole);
             setOrganization((prev) =>
-              mergeOrganizationState(orgData, userData.active_organization_id, prev)
+              mergeOrganizationState(orgData, fetchedUserData.active_organization_id, prev)
             );
 
             const orgForCache = mergeOrganizationState(
               orgData,
-              userData.active_organization_id,
+              fetchedUserData.active_organization_id,
               organizationStateRef.current
             );
 
             if (employeeData?.department_id) {
-              const updatedUserData = { ...userData, department_id: employeeData.department_id };
+              const updatedUserData = { ...fetchedUserData, department_id: employeeData.department_id };
               setUserData(updatedUserData);
               userDataCacheRef.current = {
                 data: updatedUserData,
@@ -616,7 +622,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
               };
             } else {
               userDataCacheRef.current = {
-                data: userData,
+                data: fetchedUserData,
                 organization: orgForCache,
                 userRole: effectiveResolvedRole,
                 organizationMemberRoles: memberRoleList,
@@ -652,7 +658,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             setOrganizationMemberRoles([String(fallbackRole)]);
 
             userDataCacheRef.current = {
-              data: userData,
+              data: fetchedUserData,
               organization: organizationStateRef.current,
               userRole: fallbackRole,
               organizationMemberRoles: [String(fallbackRole)],
@@ -667,18 +673,18 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         // No organization found (profile tanpa active_organization_id di cabang ini)
         setEmployee(null);
         setOrganization((prev) =>
-          mergeOrganizationState(null, userData.active_organization_id, prev)
+          mergeOrganizationState(null, fetchedUserData.active_organization_id, prev)
         );
         setUserRole(null);
         setOrganizationMemberRoles([]);
 
         const orgForCache = mergeOrganizationState(
           null,
-          userData.active_organization_id,
+          fetchedUserData.active_organization_id,
           organizationStateRef.current
         );
         userDataCacheRef.current = {
-          data: userData,
+          data: fetchedUserData,
           organization: orgForCache,
           userRole: null,
           organizationMemberRoles: [],
@@ -776,8 +782,15 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
+        const alreadySignedIn =
+          !!userRef.current?.id &&
+          !!session?.user?.id &&
+          userRef.current.id === session.user.id;
+        if (alreadySignedIn) {
+          return;
+        }
         lastUserIdRef.current = '';
         fetchingRef.current = false;
         userDataCacheRef.current = null;

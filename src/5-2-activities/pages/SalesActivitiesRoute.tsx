@@ -1,7 +1,7 @@
 import { SalesOperationsSeamlessSubpageLayout } from "../layout/SalesOperationsSeamlessSubpageLayout";
 import { SalesActivitiesPageContent } from "../components/SalesActivitiesPageContent";
 import { SalesActivitiesPageSkeleton } from "../skeletons/SalesActivitiesPageSkeleton";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useSalesActivities } from "@/shared/hooks/organized/sales";
 import { useSalesActivitiesPageSkeletonGate } from "../hooks/useSalesActivitiesPageSkeletonGate";
 
@@ -10,11 +10,11 @@ import { useSalesActivitiesPageSkeletonGate } from "../hooks/useSalesActivitiesP
  * (single hidden-scrollbar scrollport inside the module).
  */
 export function SalesActivitiesRoute() {
-  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const { loading: activitiesInitialLoading } = useSalesActivities();
 
   const hasOrg = Boolean(organizationId);
-  const rawPending = orgLoading || (hasOrg && activitiesInitialLoading);
+  const rawPending = orgBootstrapPending || (hasOrg && activitiesInitialLoading);
   const showSkeleton = useSalesActivitiesPageSkeletonGate(rawPending);
 
   if (showSkeleton) {

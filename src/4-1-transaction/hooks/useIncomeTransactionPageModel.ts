@@ -53,6 +53,7 @@ const defaultFilters: IncomeTransactionPageFilters = {
   status: "all",
   type: "all",
   category: "all",
+  allocation: "all",
   period: "all",
 };
 

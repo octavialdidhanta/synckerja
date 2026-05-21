@@ -4,7 +4,7 @@ import {
   useKOLAnalyticsMonthlyTrends,
   useOptimizedCampaignPerformance,
 } from "@/shared/hooks/kol";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useKOLManagementData } from "../hooks/useKOLManagementData";
 import { useKOLCampaignsBrief } from "../hooks/useKOLCampaignsBrief";
 import { useKolDeferredShowContent } from "../hooks/useKolDeferredShowContent";
@@ -47,7 +47,7 @@ const fmtRp = (n: number) =>
 
 export const EnhancedKOLDashboard = () => {
   const { t } = useAppTranslation();
-  const { loading: orgLoading, organizationId } = useCurrentOrg();
+  const { orgBootstrapPending, organizationId } = useOrgBootstrapPending();
   const { data: campaignPerformance, isPending: campaignPending } = useOptimizedCampaignPerformance();
   const { data: analytics, isPending: analyticsPending } = useKOLAnalytics();
   const { data: monthlyTrends = [], isPending: monthlyPending } = useKOLAnalyticsMonthlyTrends();
@@ -65,7 +65,7 @@ export const EnhancedKOLDashboard = () => {
     Boolean(organizationId) &&
     (campaignPending || analyticsPending || monthlyPending || briefPending || profilesPending);
 
-  const rawPending = orgLoading || queriesPending;
+  const rawPending = orgBootstrapPending || queriesPending;
   const showContent = useKolDeferredShowContent(rawPending);
 
   const performanceChartData = useMemo(
