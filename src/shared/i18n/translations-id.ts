@@ -1313,11 +1313,7 @@ export const idTranslations: TranslationDictionary = {
   "incomes.allocation.filterNeeds": "Perlu alokasi",
   "incomes.allocation.filterComplete": "Lengkap",
   "incomes.customer": "Pelanggan",
-  "incomes.paymentMethod": "Metode pembayaran",
   "incomes.service": "Layanan",
-  "incomes.incomeType": "Tipe pemasukan",
-  "incomes.selectIncomeType": "Pilih tipe pemasukan",
-  "incomes.selectBankAccount": "Pilih rekening bank",
   "incomes.update.error.generic": "Gagal memperbarui transaksi pemasukan",
   "incomes.update.error.invalidUuid":
     "ID referensi tidak valid: kolom seperti rekening bank, tipe pemasukan, kategori, atau layanan tidak boleh berupa teks kosong. Kosongkan pilihan (placeholder) atau pilih opsi yang valid dari daftar.",

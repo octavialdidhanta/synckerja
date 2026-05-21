@@ -1312,11 +1312,7 @@ export const enTranslations: TranslationDictionary = {
   "incomes.allocation.filterNeeds": "Needs allocation",
   "incomes.allocation.filterComplete": "Complete",
   "incomes.customer": "Customer",
-  "incomes.paymentMethod": "Payment method",
   "incomes.service": "Service",
-  "incomes.incomeType": "Income type",
-  "incomes.selectIncomeType": "Select income type",
-  "incomes.selectBankAccount": "Select bank account",
   "incomes.update.error.generic": "Failed to update income transaction",
   "incomes.update.error.invalidUuid":
     "Invalid reference ID: fields such as bank account, income type, category, or service cannot be empty text. Clear the dropdown or pick a valid option from the list.",
