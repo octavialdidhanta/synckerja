@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { HeaderAndTab } from '@/4-2-dashboard/section/HeaderAndTab';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { PaymentProcessPageSkeleton } from '@/4-2-payment-process/skeletons/PaymentProcessPageSkeleton';
 
 type PaymentProcessModuleShellProps = {
@@ -41,7 +42,7 @@ export function PaymentProcessModuleShell({
                   <HeaderAndTab activeTab={activeTab} onTabChange={onTabChange} />
                 </div>
 
-                {children}
+                <ModuleShellContentGate>{children}</ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

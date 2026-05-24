@@ -14,8 +14,10 @@ import { Button } from '@/shared/components/ui/button';
 import { Plus } from 'lucide-react';
 import { JobOpeningModal, GenerateLinkModal } from '@/2-2-recruitment-dashboard/job-openings';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { cn } from '@/shared/lib/utils';
 import { JobOpeningsPageSkeleton } from '@/2-2-recruitment-dashboard/components/RecruitmentSkeletons';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 
 export const JobOpeningsPage = () => {
   const [activeTab, setActiveTab] = useState('job-openings');
@@ -45,7 +47,10 @@ export const JobOpeningsPage = () => {
     saving,
   } = useJobOpeningsCrud();
 
-  const showFullPageSkeleton = orgBootstrapPending || jobOpeningsPending;
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    orgBootstrapPending || jobOpeningsPending,
+    '/recruitment/job-openings',
+  );
 
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);
@@ -131,6 +136,7 @@ export const JobOpeningsPage = () => {
                   />
                 </div>
 
+                <ModuleShellContentGate>
                 {/* Grid Layout: 12 columns (9-3) */}
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 {/* Main Content - 9 columns */}
@@ -208,6 +214,7 @@ export const JobOpeningsPage = () => {
                   </div>
                 </div>
                 </div>
+                </ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

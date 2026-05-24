@@ -73,7 +73,12 @@ export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermiss
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-brand-blue">Owner Access</p>
-                  <p className="text-xs text-brand-blue/80">{ownerAccessible} pages accessible</p>
+                  <p className="text-xs text-brand-blue/80">
+                    {ownerAccessible} pages in DB config
+                  </p>
+                  <p className="text-brand-blue/70 mt-0.5 text-[11px]">
+                    Role Owner selalu memiliki akses runtime ke semua halaman.
+                  </p>
                 </div>
                 <div className="text-right">
                   <div className="h-2 w-2 rounded-full bg-brand-blue" />
@@ -85,7 +90,9 @@ export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermiss
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-brand-blue">Admin Access</p>
-                  <p className="text-xs text-brand-blue/80">{adminAccessible} pages accessible</p>
+                  <p className="text-xs text-brand-blue/80">
+                    {adminAccessible} pages accessible (enforced)
+                  </p>
                 </div>
                 <div className="text-right">
                   <div className="h-2 w-2 rounded-full bg-brand-blue/70" />

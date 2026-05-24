@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { pickHighestUserRoleFromRows } from "@/shared/lib/organizationRolePick";
-import { forceClearCache } from "@/shared/auth/page-access/departmentPageAccessCache";
+import { syncAfterOrganizationSwitch } from "@/shared/auth/identityQuerySync";
 
 export type OrganizationMembership = {
   organizationId: string;
@@ -124,13 +124,27 @@ export function useUserOrganizations() {
       if (error) throw error;
       return organizationId;
     },
-    onSuccess: (organizationId) => {
-      queryClient.invalidateQueries({ queryKey: userOrganizationsQueryKey });
-      forceClearCache();
+    onMutate: async (organizationId) => {
+      await queryClient.cancelQueries({ queryKey: userOrganizationsQueryKey });
+      const previous = queryClient.getQueryData<UserOrganizationsData>(userOrganizationsQueryKey);
+      if (previous) {
+        queryClient.setQueryData<UserOrganizationsData>(userOrganizationsQueryKey, {
+          ...previous,
+          activeOrganizationId: organizationId,
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _organizationId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(userOrganizationsQueryKey, context.previous);
+      }
+    },
+    onSuccess: async (organizationId) => {
       window.dispatchEvent(
         new CustomEvent("organization-switched", { detail: { organizationId } }),
       );
-      void queryClient.invalidateQueries();
+      await syncAfterOrganizationSwitch(queryClient, organizationId);
     },
   });
 

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { HeaderAndTab } from '@/5-3-dashboard/components/layout/HeaderAndTab';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
@@ -189,10 +191,14 @@ export function WhatsAppConnectPage() {
     return orgLoading || dataPending;
   }, [orgLoading, organizationId, accountsLoading, configLoading, instagramLoading]);
 
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    rawPending,
+    '/omnichannel/integrations/whatsapp',
+  );
   const [showSkeleton, setShowSkeleton] = useState(true);
 
   useEffect(() => {
-    if (rawPending) {
+    if (showFullPageSkeleton) {
       setShowSkeleton(true);
       return;
     }
@@ -200,7 +206,7 @@ export function WhatsAppConnectPage() {
       requestAnimationFrame(() => setShowSkeleton(false));
     }, 200);
     return () => clearTimeout(id);
-  }, [rawPending]);
+  }, [showFullPageSkeleton]);
   const [editingAccount, setEditingAccount] = useState<WhatsAppAccount | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<WhatsAppAccount | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -268,6 +274,7 @@ export function WhatsAppConnectPage() {
                 <HeaderAndTab />
               </div>
 
+              <ModuleShellContentGate pagePath="/omnichannel/integrations/whatsapp">
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -386,6 +393,7 @@ export function WhatsAppConnectPage() {
                   </div>
                 </div>
               </div>
+              </ModuleShellContentGate>
 
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

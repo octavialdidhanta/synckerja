@@ -13,8 +13,6 @@ import {
 } from "./navConfig";
 import { useSidebarState } from "./useSidebarState";
 import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
-import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
-import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
 import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 
@@ -141,14 +139,8 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { canAccessPage, configLoading } = useDepartmentAccess();
-  const { isOwner, isAdmin } = useCentralizedUserData();
   const currentPath = location.pathname;
 
-  const subItemsForUser = (items: NavSubItem[]) =>
-    items.filter(
-      (item) => isOwner || isAdmin || configLoading || canAccessPage(item.path),
-    );
   const {
     activeSubSidebar,
     handleMouseEnter,
@@ -445,7 +437,7 @@ export function AppSidebar() {
           {panelContentMenu?.subItems && (
             <SubSidebarPanel
               key={panelContentMenu.id}
-              items={subItemsForUser(panelContentMenu.subItems)}
+              items={panelContentMenu.subItems}
               isOpen={isSubContentVisible}
               titleKey={panelContentMenu.titleKey}
             />

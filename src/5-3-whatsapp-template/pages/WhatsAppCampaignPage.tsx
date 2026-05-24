@@ -5,6 +5,7 @@ import { enUS, id as idLocale } from "date-fns/locale";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { HeaderAndTab } from "@/5-3-dashboard/components/layout/HeaderAndTab";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useWhatsAppAccounts } from "@/5-3-whatsapp/hooks/useWhatsAppAccounts";
 import { Button } from "@/shared/components/ui/button";
@@ -50,7 +51,7 @@ function statusBadgeClass(status: string): string {
 
 /**
  * `/omnichannel/campaign/whatsapp` — campaign list + create flow;
- * `PageAccessGuard` uses legacy pagePath `/operations/consultant/whatsapp/templates` for permissions.
+ * Page access: `/omnichannel/campaign/whatsapp` (inherits `/omnichannel` when configured).
  */
 export function WhatsAppCampaignPage() {
   const { t, i18n } = useTranslation();
@@ -257,6 +258,7 @@ export function WhatsAppCampaignPage() {
               <div className="mb-1 min-w-0 shrink-0">
                 <HeaderAndTab />
               </div>
+              <ModuleShellContentGate pagePath="/omnichannel/campaign/whatsapp">
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 {viewMode === "list" ? (
                   <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
@@ -606,6 +608,7 @@ export function WhatsAppCampaignPage() {
                   </>
                 )}
               </div>
+              </ModuleShellContentGate>
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                 aria-hidden

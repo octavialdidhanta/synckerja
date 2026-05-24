@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { HeaderAndTab } from '../section';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 
 type IncomeTransactionModuleShellProps = {
   children: ReactNode;
@@ -23,7 +24,7 @@ export function IncomeTransactionModuleShell({ children }: IncomeTransactionModu
                 <HeaderAndTab />
               </div>
 
-              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+              <ModuleShellContentGate>{children}</ModuleShellContentGate>
 
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

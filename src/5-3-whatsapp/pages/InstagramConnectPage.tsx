@@ -1,5 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import { HeaderAndTab } from '@/5-3-dashboard/components/layout/HeaderAndTab';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
+import { useDepartmentAccess } from '@/shared/auth/page-access/useDepartmentAccess';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -27,9 +31,15 @@ export function InstagramConnectPage() {
   const { accounts: connectedAccounts, isLoading: accountsLoading, refetch: refetchAccounts, connectAccount, disconnectAccount, isConnecting, isDisconnecting } = useInstagramAccounts();
 
   const [igWebhookBootstrapPending, setIgWebhookBootstrapPending] = useState(false);
+  const { canAccessPage, accessDecisionPending } = useDepartmentAccess();
+  const { centralProfileHydrated } = useCentralizedUserData();
+  const hasInstagramPageAccess =
+    centralProfileHydrated &&
+    !accessDecisionPending &&
+    canAccessPage('/omnichannel/integrations/instagram');
 
   useLayoutEffect(() => {
-    if (!hasOrg || configLoading || accountsLoading) {
+    if (!hasOrg || !hasInstagramPageAccess || configLoading || accountsLoading) {
       setIgWebhookBootstrapPending(false);
       return;
     }
@@ -39,7 +49,7 @@ export function InstagramConnectPage() {
       setIgWebhookBootstrapPending(false);
       return;
     }
-    if (!config || (!('meta_access_token' in config) && !('id' in config))) {
+    if (!config?.id) {
       setIgWebhookBootstrapPending(false);
       return;
     }
@@ -57,11 +67,23 @@ export function InstagramConnectPage() {
     return () => {
       cancelled = true;
     };
-  }, [hasOrg, configLoading, accountsLoading, connectedAccounts, config, ensureInstagramVerifyToken]);
+  }, [
+    hasOrg,
+    hasInstagramPageAccess,
+    configLoading,
+    accountsLoading,
+    connectedAccounts,
+    config,
+    ensureInstagramVerifyToken,
+  ]);
 
   const blockingPagePending =
     orgLoading || (hasOrg && (configLoading || accountsLoading || igWebhookBootstrapPending));
-  const showPageSkeleton = useInstagramConnectPageSkeletonGate(blockingPagePending);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    blockingPagePending,
+    '/omnichannel/integrations/instagram',
+  );
+  const showPageSkeleton = useInstagramConnectPageSkeletonGate(showFullPageSkeleton);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [availableAccounts, setAvailableAccounts] = useState<InstagramAccountFromApi[]>([]);
   const oauthStateRef = useRef<string>('');
@@ -265,6 +287,7 @@ export function InstagramConnectPage() {
                 <HeaderAndTab />
               </div>
 
+              <ModuleShellContentGate pagePath="/omnichannel/integrations/instagram">
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -462,6 +485,7 @@ export function InstagramConnectPage() {
                   </div>
                 </div>
               </div>
+              </ModuleShellContentGate>
 
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

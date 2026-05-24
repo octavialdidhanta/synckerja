@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { HeaderAndTab } from '@/4-2-dashboard/section/HeaderAndTab';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { DebtPageSkeleton } from '@/4-2-debt/skeletons/DebtPageSkeleton';
 
 type DebtModuleShellProps = {
@@ -37,7 +38,7 @@ export function DebtModuleShell({ children, activeTab, onTabChange, showContent 
                   <HeaderAndTab activeTab={activeTab} onTabChange={onTabChange} />
                 </div>
 
-                {children}
+                <ModuleShellContentGate pagePath="/expenses/debt">{children}</ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

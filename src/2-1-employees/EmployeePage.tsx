@@ -17,8 +17,11 @@ import { Plus } from 'lucide-react';
 import { filterEmployees, type EmployeeFilters as FilterType } from './utils/employeeUtils';
 import { cn } from '@/shared/lib/utils';
 import { EmployeesPageSkeleton } from './components/EmployeesPageSkeleton';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useLocation } from 'react-router-dom';
 
 export const EmployeePage = () => {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('employees');
   const [filters, setFilters] = useState<FilterType>({
     search: '',
@@ -101,6 +104,7 @@ export const EmployeePage = () => {
                   />
                 </div>
 
+                <ModuleShellContentGate pagePath={location.pathname}>
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
                     <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -173,6 +177,7 @@ export const EmployeePage = () => {
                       </div>
                     </div>
                 </div>
+                </ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useTransition } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { HeaderAndTab } from "../section/HeaderAndTab";
+import { PageAccessContentGate } from "@/shared/components/PageAccessContentGate";
 import KOLManagementPage from "../components/KOLManagementPage";
 import { EnhancedKOLDashboard } from "../components/EnhancedKOLDashboard";
 import KOLCampaignsPage from "../components/KOLCampaignsPage";
@@ -48,7 +49,10 @@ const KolManagementDashboardPage = () => {
                 <HeaderAndTab activeTab={activeTab} />
               </div>
 
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+              <PageAccessContentGate
+                pagePath={location.pathname}
+                className="flex min-h-0 min-w-0 flex-1 flex-col"
+              >
                 {activeTab === "dashboard" ? (
                   <EnhancedKOLDashboard />
                 ) : activeTab === "kol-management" ? (
@@ -64,7 +68,7 @@ const KolManagementDashboardPage = () => {
                     {activeTab}
                   </div>
                 )}
-              </div>
+              </PageAccessContentGate>
             </div>
 
             <div

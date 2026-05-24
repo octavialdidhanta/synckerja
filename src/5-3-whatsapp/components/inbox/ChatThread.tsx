@@ -63,7 +63,7 @@ import { useWhatsAppAccounts } from '../../hooks/useWhatsAppAccounts';
 import type { Locale } from 'date-fns';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSubscription';
+import { useOmnichannelOutboundEntitlement } from '@/5-3-whatsapp/hooks/useOmnichannelOutboundEntitlement';
 
 /** Bucket yang sama dipakai untuk kirim (outbound) dan terima (webhook/resolve) media */
 const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
@@ -1190,9 +1190,7 @@ export function ChatThread({
   const browserTimeZone =
     typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
   const queryClient = useQueryClient();
-  const { subscriptionStatus, statusLoading: subscriptionStatusLoading } = useOptimizedSubscription({
-    includePlans: false,
-  });
+  const { lacksOmnichannelEntitlement, showNoAddonWarning } = useOmnichannelOutboundEntitlement();
   const isInstagram = (conversation as LiveChatConversation)?.source === 'instagram';
   const waMessagesQuery = useWhatsAppMessages(!isInstagram ? conversation?.id ?? null : null);
   const igMessagesQuery = useInstagramMessages(isInstagram ? conversation?.id ?? null : null);
@@ -1283,10 +1281,9 @@ export function ChatThread({
     isExpiredStatusName(effectiveStatusName) ||
     (!blockReasonResolved && isMetaSessionExpired(metaSessionExpiresAt));
   const sendDisabledByNoAccount = Boolean(hasNoConnectedWhatsAppAccount && isWhatsAppConversation);
-  /** WA/IG live chat outbound requires paid omnichannel add-on seats on the org subscription. */
+  /** WA/IG outbound: block only after subscription + roster resolve and no paid seats / agents. */
   const sendDisabledByNoOmnichannelAddon =
-    (isWhatsAppConversation || isInstagram) &&
-    (subscriptionStatusLoading || (subscriptionStatus?.omnichannel_paid_seat_count ?? 0) < 1);
+    (isWhatsAppConversation || isInstagram) && lacksOmnichannelEntitlement;
   const hasAssignee = Boolean(conversationStatusRow?.assignee_id);
   const sendDisabledByNoAssignee = (isWhatsAppConversation || isInstagram) && !hasAssignee;
   const showFollowUpComposer =
@@ -2516,7 +2513,7 @@ export function ChatThread({
             </span>
           </div>
         )}
-        {sendDisabledByNoOmnichannelAddon && !sendDisabledByNoAccount && (
+        {showNoAddonWarning && !sendDisabledByNoAccount && (
           <div
             className="text-sm font-medium text-sky-900 bg-sky-100 border-2 border-sky-400 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
             role="alert"

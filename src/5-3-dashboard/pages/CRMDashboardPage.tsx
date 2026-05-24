@@ -11,6 +11,8 @@ import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPendi
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useLeads } from "@/shared/hooks/organized/sales";
 import { cn } from "@/shared/lib/utils";
+import { useLocation } from "react-router-dom";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 
 const SKELETON_HIDE_DEBOUNCE_MS = 200;
 
@@ -24,6 +26,7 @@ const SKELETON_HIDE_DEBOUNCE_MS = 200;
  * Leads: `scope: 'all'` — dashboard + ringkasan memakai seluruh lead org (dibatasi RLS `leads` / `whatsapp_conversations`), bukan filter `mine`.
  */
 export const CRMDashboardPage = () => {
+  const location = useLocation();
   const { t } = useAppTranslation();
   const { orgBootstrapPending, organizationId } = useOrgBootstrapPending();
   const { initialLoadPending: leadsPending } = useLeads({ scope: 'all' });
@@ -62,6 +65,7 @@ export const CRMDashboardPage = () => {
                 <HeaderAndTab />
               </div>
 
+              <ModuleShellContentGate pagePath={location.pathname}>
               <div className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-1 gap-2 xl:grid-cols-2">
                 <div
                   className={cn(
@@ -147,6 +151,7 @@ export const CRMDashboardPage = () => {
                   </footer>
                 </div>
               </div>
+              </ModuleShellContentGate>
 
               <div
                 className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-2 [@media(max-height:760px)]:h-3"

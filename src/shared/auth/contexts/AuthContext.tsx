@@ -4,6 +4,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { forceAuthReset } from '@/shared/auth/utils/authCleanup';
 import { retryableAuthOperation } from '@/shared/lib/supabaseRetry';
+import { resetIdentityQueriesForAuthUser } from '@/shared/auth/identityQuerySync';
 
 interface AuthContextType {
   user: User | null;
@@ -111,6 +112,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setError(null);
             return;
           }
+        }
+
+        const previousUserId = userRef.current?.id;
+        const nextUserId = session?.user?.id;
+
+        if (event === 'SIGNED_OUT') {
+          resetIdentityQueriesForAuthUser(queryClient, previousUserId);
+        } else if (
+          event === 'SIGNED_IN' &&
+          previousUserId &&
+          nextUserId &&
+          previousUserId !== nextUserId
+        ) {
+          resetIdentityQueriesForAuthUser(queryClient, previousUserId);
         }
 
         // Update state synchronously

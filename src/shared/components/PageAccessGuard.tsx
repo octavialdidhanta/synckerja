@@ -4,6 +4,7 @@ import { XCircle } from "lucide-react";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
+import { buildEffectiveAccessRoles, hasOwnerRole } from "@/shared/auth/page-access/accessRoleSet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -34,6 +35,13 @@ export type PageAccessGuardProps = {
    * during brief permission/config resolve (tab resume) instead of unmounting them.
    */
   preserveChildrenOnAccessResolve?: boolean;
+  /**
+   * When true, do not replace the whole route with access denied UI — render children so
+   * App sidebar / sub-sidebar / module HeaderAndTab stay visible. Wrap main panel (below
+   * HeaderAndTab) in {@link ModuleShellContentGate} or {@link PageAccessContentGate} so tab
+   * lock icons match blocked content — not only the route guard.
+   */
+  preserveAppChromeOnDeny?: boolean;
 };
 
 const DENY_DEBOUNCE_MS = 250;
@@ -51,6 +59,7 @@ export function PageAccessGuard({
   loadingShell,
   loadingShellWrapperClassName,
   preserveChildrenOnAccessResolve = true,
+  preserveAppChromeOnDeny = true,
 }: PageAccessGuardProps) {
   const { user, loading: authLoading } = useAuth();
   const { t } = useAppTranslation();
@@ -58,17 +67,18 @@ export function PageAccessGuard({
   const location = useLocation();
   const {
     canAccessPage,
-    getAccessLevel,
     getDepartmentRestrictionMessage,
     configBootstrapPending,
     rolesResolutionPending,
+    accessDecisionPending,
   } = useDepartmentAccess();
   const {
     hasOrganization,
     organization,
     employee,
-    isOwner,
     userData,
+    userRole,
+    organizationMemberRoles,
     loading: centralDataLoading,
     centralProfileHydrated,
   } = useCentralizedUserData();
@@ -103,6 +113,7 @@ export function PageAccessGuard({
     centralBootstrapPending ||
     (requiresPermissions && configBootstrapPending) ||
     (requiresPermissions && rolesResolutionPending) ||
+    (requiresPermissions && accessDecisionPending) ||
     isLoadingOrgData;
 
   const [showDeniedAfterDebounce, setShowDeniedAfterDebounce] = useState(false);
@@ -117,7 +128,7 @@ export function PageAccessGuard({
       setShowDeniedAfterDebounce(false);
       return;
     }
-    if (!centralProfileHydrated || profileBootstrapPending) {
+    if (!centralProfileHydrated || profileBootstrapPending || accessDecisionPending) {
       if (denyDebounceRef.current) {
         clearTimeout(denyDebounceRef.current);
         denyDebounceRef.current = null;
@@ -151,12 +162,14 @@ export function PageAccessGuard({
     canAccessPage,
     centralProfileHydrated,
     profileBootstrapPending,
+    accessDecisionPending,
   ]);
 
   const isResolvingAccess =
     requiresPermissions &&
     !!user &&
     centralProfileHydrated &&
+    !accessDecisionPending &&
     !canAccessPage(pathToCheck) &&
     !showDeniedAfterDebounce;
 
@@ -258,7 +271,11 @@ export function PageAccessGuard({
     const statusLower = employeeStatus?.toLowerCase();
     const isTerminatedOrInactive = statusLower === "terminated" || statusLower === "inactive";
 
-    if (isTerminatedOrInactive && !isOwner) {
+    const ownerRoleForTerminated = hasOwnerRole(
+      buildEffectiveAccessRoles(organizationMemberRoles, userRole),
+      userRole,
+    );
+    if (isTerminatedOrInactive && !ownerRoleForTerminated) {
       if (isMobile) {
         return (
           <Suspense
@@ -306,10 +323,14 @@ export function PageAccessGuard({
     user &&
     centralProfileHydrated &&
     !profileBootstrapPending &&
+    !accessDecisionPending &&
     showDeniedAfterDebounce
   ) {
     const hasPageAccess = canAccessPage(pathToCheck);
     if (!hasPageAccess) {
+      if (preserveAppChromeOnDeny) {
+        return <>{children}</>;
+      }
       if (showAccessDeniedPage) {
         if (isMobile) {
           return (
@@ -339,22 +360,16 @@ export function PageAccessGuard({
                   "You do not have permission to view this page."
                 )}
               </p>
-              <div className="bg-muted/50 mb-6 rounded-lg p-4 text-left text-sm">
-                <p>
-                  <span className="font-medium">
-                    {t("accessDenied.accessLevel", "Access level")}:
-                  </span>{" "}
-                  {getAccessLevel()}
-                </p>
-                {getDepartmentRestrictionMessage() && (
-                  <p className="mt-2">
+              {getDepartmentRestrictionMessage() ? (
+                <div className="bg-muted/50 mb-6 rounded-lg p-4 text-left text-sm">
+                  <p>
                     <span className="font-medium">
                       {t("accessDenied.restriction", "Restriction")}:
                     </span>{" "}
                     {getDepartmentRestrictionMessage()}
                   </p>
-                )}
-              </div>
+                </div>
+              ) : null}
               <Button className="w-full" onClick={() => (window.location.href = "/")}>
                 {t("accessDenied.backToHome", "Back to home")}
               </Button>

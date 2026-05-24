@@ -11,6 +11,7 @@
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
         <item name="android:windowSplashScreenBackground">@color/splash_screen_background</item>
+        <item name="android:statusBarColor">@android:color/white</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@color/system_navigation_bar_background</item>
         <item name="android:windowLightNavigationBar">false</item>

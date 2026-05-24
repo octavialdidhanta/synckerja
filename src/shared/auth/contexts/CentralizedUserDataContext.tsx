@@ -13,6 +13,7 @@ import type { User, Session } from '@supabase/supabase-js';
 import { logger } from '@/shared/lib/logger';
 import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
 import { forceClearCache } from '@/shared/auth/page-access/departmentPageAccessCache';
+import { buildEffectiveAccessRoles, hasOwnerRole } from '@/shared/auth/page-access/accessRoleSet';
 // Types - focus only on 5 core tables
 interface UserData {
   user_id: string;
@@ -269,6 +270,10 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       userDataCacheRef.current = null; // Clear cache on force refresh
     }
 
+    let hydrationOrgId: string | undefined;
+    let hydrationRole: UserRole | undefined;
+    let hydrationMemberRoles: string[] | undefined;
+
     try {
       fetchingRef.current = true;
       lastUserIdRef.current = user.id;
@@ -366,6 +371,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       }
 
       let organizationId = profileData?.active_organization_id;
+      hydrationOrgId = organizationId;
 
       // SECURITY: If profile has an org, verify user still has active access (e.g. not resigned/terminated)
       if (organizationId) {
@@ -565,6 +571,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             setEmployee(null);
             setUserRole(null);
             setOrganizationMemberRoles([]);
+            hydrationRole = null;
+            hydrationMemberRoles = [];
             setOrganization((prev) =>
               mergeOrganizationState(null, fetchedUserData.active_organization_id, prev)
             );
@@ -596,6 +604,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             }
 
             setOrganizationMemberRoles(memberRoleList);
+            hydrationRole = effectiveResolvedRole;
+            hydrationMemberRoles = memberRoleList;
 
             setEmployee(enrichedEmployeeData);
             setUserRole(effectiveResolvedRole);
@@ -656,6 +666,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
               ? 'owner'
               : (user.user_metadata?.role as UserRole || 'employee');
             setOrganizationMemberRoles([String(fallbackRole)]);
+            hydrationRole = fallbackRole;
+            hydrationMemberRoles = [String(fallbackRole)];
 
             userDataCacheRef.current = {
               data: fetchedUserData,
@@ -677,6 +689,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         );
         setUserRole(null);
         setOrganizationMemberRoles([]);
+        hydrationRole = null;
+        hydrationMemberRoles = [];
 
         const orgForCache = mergeOrganizationState(
           null,
@@ -719,6 +733,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           : (user.user_metadata?.role as UserRole || 'employee');
         setUserRole(fallbackRole);
         setOrganizationMemberRoles([String(fallbackRole)]);
+        hydrationRole = fallbackRole;
+        hydrationMemberRoles = [String(fallbackRole)];
 
         // Update cache with fallback data
         userDataCacheRef.current = {
@@ -749,10 +765,20 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       setLoading(false);
       fetchingRef.current = false;
       const snap = userDataCacheRef.current;
+      const activeOrgId =
+        hydrationOrgId ?? snap?.data?.active_organization_id ?? userDataStateRef.current?.active_organization_id;
+      const roleForHydration =
+        hydrationRole !== undefined ? hydrationRole : (snap?.userRole ?? null);
+      const memberRolesForHydration =
+        hydrationMemberRoles !== undefined
+          ? hydrationMemberRoles
+          : (snap?.organizationMemberRoles ?? []);
+      const eff = buildEffectiveAccessRoles(memberRolesForHydration, roleForHydration);
       const rolesStillPending =
-        !!snap?.data?.active_organization_id &&
-        !snap?.userRole &&
-        (snap.organizationMemberRoles?.length ?? 0) === 0;
+        !!activeOrgId &&
+        !hasOwnerRole(eff, roleForHydration) &&
+        !roleForHydration &&
+        memberRolesForHydration.length === 0;
       setCentralProfileHydrated(!rolesStillPending);
     }
   }, [authLoading]);
@@ -766,10 +792,17 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     }
     
     logger.userData('CentralizedUserDataContext: Resetting cache and forcing refresh...');
+    setCentralProfileHydrated(false);
+    setLoading(true);
+    setUserRole(null);
+    setOrganizationMemberRoles([]);
+    setEmployee(null);
+    setOrganization(null);
     lastUserIdRef.current = '';
     fetchingRef.current = false;
-    userDataCacheRef.current = null; // Clear cache so sidebar/context get fresh org name
-    previousOrgIdRef.current = undefined; // Allow org-change effect to run if needed
+    userDataCacheRef.current = null;
+    previousOrgIdRef.current = undefined;
+    forceClearCache();
     
     await refreshUserData();
   }, [refreshUserData]);

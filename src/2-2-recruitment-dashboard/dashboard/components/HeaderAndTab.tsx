@@ -1,6 +1,8 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Briefcase, Users, FileText, ClipboardList } from "lucide-react";
+import { Briefcase, Users, FileText, ClipboardList, Lock } from "lucide-react";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
+import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 
@@ -13,6 +15,7 @@ export const HeaderAndTab = ({ activeTab: _activeTab, onTabChange }: HeaderAndTa
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useAppTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
 
   const tabs = [
     {
@@ -101,6 +104,7 @@ export const HeaderAndTab = ({ activeTab: _activeTab, onTabChange }: HeaderAndTa
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = getActiveTab() === tab.id;
+            const locked = isTabLocked(tab.route);
 
             return (
               <div
@@ -116,15 +120,24 @@ export const HeaderAndTab = ({ activeTab: _activeTab, onTabChange }: HeaderAndTa
                     handleTabClick(tab);
                   }
                 }}
-                className={`flex cursor-pointer items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "border-brand-blue text-brand-blue"
-                    : "border-transparent text-muted-foreground hover:border-brand-blue/30 hover:text-brand-blue"
-                }`}
+                title={
+                  locked
+                    ? t("accessDenied.message", "You do not have permission to view this page.")
+                    : tab.description
+                }
+                className={cn(
+                  "flex cursor-pointer items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors",
+                  locked
+                    ? "border-transparent text-muted-foreground opacity-60"
+                    : isActive
+                      ? "border-brand-blue text-brand-blue"
+                      : "border-transparent text-muted-foreground hover:border-brand-blue/30 hover:text-brand-blue",
+                )}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
               >
                 <Icon className="h-4 w-4" />
                 <span>{tab.label}</span>
+                {locked ? <Lock className="ml-1 h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </div>
             );
           })}

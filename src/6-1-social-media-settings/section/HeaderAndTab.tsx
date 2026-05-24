@@ -1,6 +1,9 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, BookOpen, Settings, FileText } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, Settings, FileText, Lock } from 'lucide-react';
+import { useHeaderTabPageAccess } from '@/shared/auth/page-access/useHeaderTabPageAccess';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { cn } from '@/shared/lib/utils';
 
 interface HeaderAndTabProps {
   activeMainTab: string;
@@ -9,6 +12,8 @@ interface HeaderAndTabProps {
 
 export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabProps) => {
   const location = useLocation();
+  const { t } = useAppTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
 
   const tabs = [
     {
@@ -83,20 +88,30 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = getActiveTab() === tab.id;
-            
+            const locked = isTabLocked(tab.route);
+
             return (
               <div
                 key={tab.id}
                 onClick={() => handleTabClick(tab)}
-                className={`flex items-center space-x-1.5 py-1.5 px-1 border-b-2 font-medium text-sm cursor-pointer transition-colors ${
-                  isActive
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-                }`}
+                title={
+                  locked
+                    ? t('accessDenied.message', 'You do not have permission to view this page.')
+                    : tab.description
+                }
+                className={cn(
+                  'flex cursor-pointer items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors',
+                  locked
+                    ? 'border-transparent text-muted-foreground opacity-60'
+                    : isActive
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                )}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
+                {locked ? <Lock className="ml-1 h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </div>
             );
           })}

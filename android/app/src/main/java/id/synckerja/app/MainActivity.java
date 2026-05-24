@@ -46,9 +46,8 @@ public class MainActivity extends BridgeActivity {
         SplashScreen.installSplashScreen(this);
         // Edge-to-edge (synckerja-reference): sebelum super.onCreate agar WebView + insets konsisten.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        /** Referensi: status bar transparan di native; warna/ikon di-set @capacitor/status-bar dari JS — hindari
-         * dobel inset (spasi header–status bar) saat Activity putih opaque + `safe-area-top` + plugin. */
-        setStatusBarColorCompat(Color.TRANSPARENT);
+        /** Cold start: strip status bar putih + ikon gelap sebelum JS/Capacitor StatusBar aktif. */
+        applyLightStatusBarAppearance();
         // Custom plugins MUST register before super.onCreate() so Capacitor bridge exposes them
         // to JS (PluginHeaders). Otherwise: "ShareIntent plugin is not implemented on android".
         ActivityResultLauncher<PickVisualMediaRequest> photoPickLauncher =
@@ -106,6 +105,17 @@ public class MainActivity extends BridgeActivity {
     @SuppressWarnings("deprecation")
     private void setStatusBarColorCompat(int color) {
         getWindow().setStatusBarColor(color);
+    }
+
+    /** Putih opak + ikon sistem gelap (jam/baterai). Halaman gelap menimpa lewat @capacitor/status-bar di JS. */
+    private void applyLightStatusBarAppearance() {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        setStatusBarColorCompat(Color.WHITE);
+        WindowInsetsControllerCompat controller =
+            WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (controller != null) {
+            controller.setAppearanceLightStatusBars(true);
+        }
     }
 
     /** Window#setNavigationBarColor is deprecated from API 35; still used for solid nav bar over WebView. */

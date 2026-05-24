@@ -28,6 +28,8 @@ import {
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
 import { ContentCalendarPageSkeleton } from './skeletons/ContentCalendarPageSkeleton';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 
 const ContentCalendarContent: React.FC = () => {
   const navigate = useNavigate();
@@ -48,7 +50,11 @@ const ContentCalendarContent: React.FC = () => {
 
   const dataPending = Boolean(activeOrgId) && socialDataLoading;
   const rawPendingLoad = orgBootstrapPending || dataPending;
-  const showContent = useDebouncedReady(!rawPendingLoad, 220);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    rawPendingLoad,
+    '/digital-marketing/social-media/content-calendar',
+  );
+  const showContent = useDebouncedReady(!showFullPageSkeleton, 220);
   const { data: currentEmployee } = useCurrentEmployee();
   const { syncPicProduction } = useSyncPicProduction();
 
@@ -405,6 +411,7 @@ const ContentCalendarContent: React.FC = () => {
                   />
                 </div>
 
+                <ModuleShellContentGate pagePath="/digital-marketing/social-media/content-calendar">
                 <div className="grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-9 flex min-h-0 w-full min-w-0 flex-col gap-1 overflow-hidden">
                     <div className="flex-shrink-0">
@@ -463,6 +470,7 @@ const ContentCalendarContent: React.FC = () => {
                     />
                   </div>
                 </div>
+                </ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { HeaderAndTab } from "@/5-3-dashboard/components/layout/HeaderAndTab";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import {
   AlertDialog,
@@ -282,6 +283,7 @@ export function WhatsAppTemplatePage() {
               <div className="mb-1 min-w-0 shrink-0">
                 <HeaderAndTab />
               </div>
+              <ModuleShellContentGate pagePath="/omnichannel/campaign/templates">
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -373,6 +375,7 @@ export function WhatsAppTemplatePage() {
                   </div>
                 </div>
               </div>
+              </ModuleShellContentGate>
             </div>
           </div>
         </div>

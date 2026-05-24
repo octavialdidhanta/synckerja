@@ -5,6 +5,7 @@ import {
   CONSULTANT_LEADS_MANAGEMENT_PATH,
   CONSULTANT_LIVECHAT_PATH,
 } from "@/mobile/4-leads-management/shared/consultantCrmNavPaths";
+import { useFilteredNavByPageAccess } from "@/shared/auth/page-access/useFilteredNavByPageAccess";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
@@ -25,6 +26,8 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useAppTranslation();
+  const { filterNavItems } = useFilteredNavByPageAccess();
+  const visibleNavItems = filterNavItems(navItems);
 
   const handleNavClick = (path: string, search?: string) => {
     navigate(search ? { pathname: path, search } : path);
@@ -42,7 +45,14 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
       className={`mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card ${className ?? "safe-area-padding-bottom-capped"}`.trim()}
     >
       <div
-        className={`mx-auto grid max-w-md ${showThreeItemBar ? "min-h-[52px] grid-cols-3" : hideItems ? "min-h-[52px] grid-cols-1 place-items-center" : "grid-cols-5"}`.trim()}
+        className={`mx-auto grid max-w-md ${showThreeItemBar ? "min-h-[52px] grid-cols-3" : hideItems ? "min-h-[52px] grid-cols-1 place-items-center" : ""}`.trim()}
+        style={
+          !showThreeItemBar && !hideItems
+            ? {
+                gridTemplateColumns: `repeat(${Math.max(visibleNavItems.length, 1)}, minmax(0, 1fr))`,
+              }
+            : undefined
+        }
       >
         {showThreeItemBar ? (
           <>
@@ -83,7 +93,7 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
             </button>
           </>
         ) : !hideItems ? (
-          navItems.map(({ icon: Icon, label, path }) => {
+          visibleNavItems.map(({ icon: Icon, label, path }) => {
             const isActive = location.pathname === path;
             return (
               <button

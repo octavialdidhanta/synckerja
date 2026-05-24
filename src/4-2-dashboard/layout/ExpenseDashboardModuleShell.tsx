@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { HeaderAndTab } from '../section/HeaderAndTab';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { ExpenseDashboardSkeleton } from '../skeletons/ExpenseDashboardSkeleton';
 
 type ExpenseDashboardModuleShellProps = {
@@ -42,7 +43,7 @@ export function ExpenseDashboardModuleShell({
                 <HeaderAndTab activeTab={activeTab} onTabChange={onTabChange} />
               </div>
 
-              {children}
+              <ModuleShellContentGate>{children}</ModuleShellContentGate>
 
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getConversationTicketId } from '../components/inbox/ConversationList';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,6 +20,8 @@ import { useWhatsAppAccounts } from '../hooks/useWhatsAppAccounts';
 import { useInstagramAccounts } from '../hooks/useInstagramAccounts';
 import { useEmailConnections } from '../hooks/useEmailConnections';
 import { useWhatsAppLivechatPageSkeletonGate } from '../hooks/useWhatsAppLivechatPageSkeletonGate';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { WhatsAppLivechatPageSkeleton } from '../skeletons/WhatsAppLivechatPageSkeleton';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useServices } from '@/6-1-product-knowledge/hooks/useServices';
@@ -27,6 +29,7 @@ import { useSubServices } from '@/6-1-product-knowledge/hooks/useSubServices';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { cn } from '@/shared/lib/utils';
 import type { LiveChatConversation, WhatsAppConversation, InstagramConversation } from '../types';
+import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSubscription';
 
 type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `email:${string}`;
 
@@ -36,6 +39,13 @@ export function WhatsAppInboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const hasOrg = Boolean(organizationId);
+  const { refreshSubscriptionStatus } = useOptimizedSubscription({ includePlans: false });
+
+  /** Warm subscription status before ChatThread mounts (avoids stale "no addon" on mobile). */
+  useEffect(() => {
+    if (!organizationId) return;
+    refreshSubscriptionStatus();
+  }, [organizationId, refreshSubscriptionStatus]);
   const { data: waConversations = [], isPending: waPending, error: waError } = useWhatsAppConversations();
   const { data: igConversations = [], isPending: igPending, error: igError } = useInstagramConversations();
 
@@ -82,7 +92,8 @@ export function WhatsAppInboxPage() {
       subServicesPending,
     ],
   );
-  const showSkeleton = useWhatsAppLivechatPageSkeletonGate(rawPagePending);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(rawPagePending, '/omnichannel/livechat');
+  const showSkeleton = useWhatsAppLivechatPageSkeletonGate(showFullPageSkeleton);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isQuickActionExpanded, setIsQuickActionExpanded] = useState(true);
   const [conversationSearch, setConversationSearch] = useState('');
@@ -200,6 +211,7 @@ export function WhatsAppInboxPage() {
               <div className="flex-shrink-0">
                 <HeaderAndTab />
               </div>
+              <ModuleShellContentGate pagePath="/omnichannel/livechat">
               <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-row max-w-full rounded-lg border border-gray-200 shadow-sm bg-white max-h-[calc(100vh-120px)]">
                 {/* Kiri: daftar conversation - sidebar */}
                 <aside className="flex-shrink-0 border-r border-gray-200 flex flex-col min-h-0 bg-white" style={{ width: '20rem', minWidth: '20rem' }} aria-label="Conversations">
@@ -352,6 +364,7 @@ export function WhatsAppInboxPage() {
                   )}
                 </aside>
               </div>
+              </ModuleShellContentGate>
             </div>
         </div>
         </div>

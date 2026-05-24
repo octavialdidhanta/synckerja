@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
 import { ToolsHeaderAndTab } from "@/shared/layouts/tools";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { DailyTaskPageSkeleton } from "../skeletons/DailyTaskPageSkeleton";
 
 type DailyTaskModuleShellProps = {
@@ -36,7 +37,7 @@ export function DailyTaskModuleShell({
                   <ToolsHeaderAndTab activeTab={activeTab} onTabChange={onTabChange} />
                 </div>
 
-                {children}
+                <ModuleShellContentGate>{children}</ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

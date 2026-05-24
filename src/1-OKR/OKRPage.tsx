@@ -32,6 +32,7 @@ import { useOkrPageSkeletonGate } from "./hooks/useOkrPageSkeletonGate";
 import { getOkrActiveTabFromPath } from "./utils/okrPaths";
 import { OkrPageDetailLoadProvider, useOkrPageDetailTabs } from "./context/OkrPageDetailLoadContext";
 import { HeaderAndTab, OKRSidebar, OKRSidebarFooter } from "./section";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 
 function OKRPageContent() {
   const { t } = useTranslation();
@@ -165,6 +166,7 @@ function OKRPageContent() {
               <div className="mb-1 flex-shrink-0">
                 <HeaderAndTab onTabChange={handleTabChange} />
               </div>
+              <ModuleShellContentGate pagePath={location.pathname}>
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-9 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch overflow-hidden">
                   <Card className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col border border-border">
@@ -290,6 +292,7 @@ function OKRPageContent() {
                   <OKRSidebarFooter totalCycles={cycles.length} activeCycleId={activeCycleId} />
                 </div>
               </div>
+              </ModuleShellContentGate>
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                 aria-hidden

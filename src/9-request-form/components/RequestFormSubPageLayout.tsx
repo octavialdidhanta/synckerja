@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { HeaderAndTab } from "@/9-request-form/pages/Purchase/section/HeaderAndTab";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 
 /** Single main vertical scroll + card body for all request-form sub-routes. */
 export function RequestFormSubPageLayout({ children }: { children: ReactNode }) {
@@ -10,9 +11,11 @@ export function RequestFormSubPageLayout({ children }: { children: ReactNode }) 
           <div className="mb-1 flex-shrink-0">
             <HeaderAndTab />
           </div>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-            {children}
-          </div>
+          <ModuleShellContentGate>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+              {children}
+            </div>
+          </ModuleShellContentGate>
         </div>
       </div>
       <div

@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Megaphone, FileText, CreditCard } from "lucide-react";
+import { LayoutDashboard, Users, Megaphone, FileText, CreditCard, Lock } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
+import { cn } from "@/shared/lib/utils";
 
 type TabId = "dashboard" | "kol-management" | "campaigns" | "content-post" | "payment-terms";
 
@@ -30,6 +32,7 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useAppTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
   const tabs = useMemo(
     () =>
       [
@@ -115,6 +118,7 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
               tab.route !== "/kol-management/dashboard" &&
               location.pathname === tab.route;
             const effectiveActive = isActive || isActiveByLocation;
+            const locked = isTabLocked(tab.route);
 
             return (
               <div
@@ -122,11 +126,19 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
                 onMouseEnter={() => prefetchAppRoute(tab.route)}
                 onFocus={() => prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab.id, tab.route)}
-                className={`flex cursor-pointer items-center space-x-1.5 py-1.5 px-1 border-b font-medium text-sm transition-colors ${
-                  effectiveActive
-                    ? "border-brand-blue text-brand-blue"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                title={
+                  locked
+                    ? t("accessDenied.message", "You do not have permission to view this page.")
+                    : tab.description
+                }
+                className={cn(
+                  "flex cursor-pointer items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors",
+                  locked
+                    ? "border-transparent text-gray-400 opacity-70"
+                    : effectiveActive
+                      ? "border-brand-blue text-brand-blue"
+                      : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700",
+                )}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
                 aria-label={tab.description}
                 role="button"
@@ -139,6 +151,7 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
               >
                 <Icon className="h-4 w-4" />
                 <span>{tab.label}</span>
+                {locked ? <Lock className="ml-1 h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </div>
             );
           })}

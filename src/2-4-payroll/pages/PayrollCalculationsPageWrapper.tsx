@@ -14,6 +14,7 @@ import { PayrollMetricsCards } from "../components/dashboard/PayrollMetricsCards
 import { PayrollSidebar } from "../components/sidebar/PayrollSidebar";
 import { EmployeeDetailView } from "../views/EmployeeDetailView";
 import { HeaderAndTab } from "./HeaderAndTab";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { PayrollRouteSkeleton } from "../components/PayrollRouteSkeleton";
 import { formatPayrollDataError } from "../lib/payrollQueryErrors";
 
@@ -236,6 +237,7 @@ export default function PayrollCalculationsPage() {
                 <HeaderAndTab />
               </div>
 
+              <ModuleShellContentGate>
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-1 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch xl:grid-cols-12">
                 {selectedEmployee ? (
                   <div className="col-span-full flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
@@ -311,6 +313,7 @@ export default function PayrollCalculationsPage() {
                   </>
                 )}
               </div>
+              </ModuleShellContentGate>
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                 aria-hidden

@@ -6,8 +6,10 @@ import {
   OMNICHANNEL_SETTINGS_SECTIONS,
   parseOmnichannelSettingsSectionSlug,
   omnichannelSettingsPath,
+  omnichannelSettingsSectionPagePath,
   type OmnichannelSettingsSectionId,
 } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { OmnichannelSettingsSidebar } from "@/5-3-dashboard/omnichannel-settings/components/sidebar/OmnichannelSettingsSidebar";
 import { UserManagementSection } from "@/5-3-dashboard/omnichannel-settings/components/user-management/UserManagementSection";
 import { SlaManagementSection } from "@/5-3-dashboard/omnichannel-settings/components/sla/SlaManagementSection";
@@ -75,12 +77,14 @@ export function OmnichannelSettingsWorkspace() {
 
       <div className="col-span-12 flex min-h-0 min-w-0 flex-col overflow-hidden md:col-span-9 lg:h-full">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[5px] border border-border bg-card shadow-sm lg:h-full">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full">
-            {activeSection === "user-management" ? <UserManagementSection /> : null}
-            {activeSection === "sla" ? <SlaManagementSection /> : null}
-            {activeSection === "survey" ? <CustomerSurveySettingsShell /> : null}
-            {activeSection === "target" ? <CustomerSurveyTargetSettingsShell /> : null}
-          </div>
+          <ModuleShellContentGate pagePath={omnichannelSettingsSectionPagePath(activeSection)}>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full">
+              {activeSection === "user-management" ? <UserManagementSection /> : null}
+              {activeSection === "sla" ? <SlaManagementSection /> : null}
+              {activeSection === "survey" ? <CustomerSurveySettingsShell /> : null}
+              {activeSection === "target" ? <CustomerSurveyTargetSettingsShell /> : null}
+            </div>
+          </ModuleShellContentGate>
         </div>
       </div>
     </div>

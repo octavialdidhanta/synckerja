@@ -6,9 +6,15 @@ const config: CapacitorConfig = {
   webDir: "dist",
   backgroundColor: "#f5f5f5",
   android: {
-    backgroundColor: "#f5f5f5",
+    /** Selaras strip status bar putih; area konten mobile tetap bisa abu terang di CSS. */
+    backgroundColor: "#ffffff",
   },
   plugins: {
+    StatusBar: {
+      overlaysWebView: false,
+      backgroundColor: "#ffffff",
+      style: "LIGHT",
+    },
     LocalNotifications: {
       smallIcon: "app_brand_logo",
     },

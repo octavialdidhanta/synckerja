@@ -40,11 +40,9 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
   useEffect(() => {
     // Instagram connect page runs ensure before hiding skeleton (embedded); avoid duplicate work.
     if (!isInstagram || embedded || hasEnsuredIgToken.current || verifyToken) return;
-    if (!config || (config.instagram_verify_token ?? '').trim() !== '') return;
-    // Only ensure when a meta_config row exists (has meta_access_token or id); otherwise upsert/update can 406
-    if (!('meta_access_token' in config) && !('id' in config)) {
-      return;
-    }
+    if ((config?.instagram_verify_token ?? '').trim() !== '') return;
+    // Only update when organization_meta_config row exists (avoid partial upsert 400)
+    if (!config?.id) return;
     hasEnsuredIgToken.current = true;
     ensureInstagramVerifyToken().catch(() => {
       hasEnsuredIgToken.current = false;

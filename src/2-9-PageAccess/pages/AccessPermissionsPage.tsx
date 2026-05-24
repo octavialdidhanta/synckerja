@@ -11,6 +11,7 @@ import { usePermissionConfiguration } from '@/shared/auth/page-access/usePermiss
 import { HeaderAndTab } from '@/2-9-PageAccess/section/HeaderAndTab';
 import { PageAccessTab } from '@/2-9-PageAccess/section/PageAccessTab';
 import { AccessPermissionsPageSkeleton } from '@/2-9-PageAccess/skeletons/AccessPermissionsPageSkeleton';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 
 const ROLE_DESCRIPTIONS = {
   owner: {
@@ -19,7 +20,7 @@ const ROLE_DESCRIPTIONS = {
     color: 'border-brand-blue/30 bg-brand-blue/10 text-brand-blue',
   },
   admin: {
-    title: 'Administrator',
+    title: 'Admin',
     description: 'Administrative access to most features',
     color: 'border-brand-blue/25 bg-brand-blue/10 text-brand-blue',
   },
@@ -37,12 +38,12 @@ export const AccessPermissionsConfig = () => {
     getAccessLevel,
     getDepartmentRestrictionMessage,
     canAccessPage,
-    configLoading
+    configBootstrapPending,
+    accessDecisionPending,
   } = useDepartmentAccess();
   
   const {
     configurations,
-    loading: permissionLoading,
   } = usePermissionConfiguration();
   
   const navigate = useNavigate();
@@ -62,7 +63,8 @@ export const AccessPermissionsConfig = () => {
   
   const activeTab = getActiveTabFromPath();
   const [routeSkeletonGate, setRouteSkeletonGate] = useState(true);
-  const initialPending = configLoading || permissionLoading || bootstrapLoading || routeSkeletonGate;
+  const initialPending =
+    configBootstrapPending || accessDecisionPending || bootstrapLoading || routeSkeletonGate;
   const [showSkeleton, setShowSkeleton] = useState(initialPending);
 
   const accessPaths = {
@@ -101,14 +103,9 @@ export const AccessPermissionsConfig = () => {
     return () => window.clearTimeout(hideTimer);
   }, [initialPending]);
   
-  const hasAccessToAnyTab =
-    canAccessPage(accessPaths.overview) ||
-    canAccessPage(accessPaths.pageAccess) ||
-    canAccessPage(accessPaths.roles);
-  
   // Auto-redirect logic - only run once when component mounts or path changes
   useEffect(() => {
-    if (configLoading) return;
+    if (configBootstrapPending || accessDecisionPending) return;
 
     const currentPath = location.pathname;
 
@@ -129,7 +126,14 @@ export const AccessPermissionsConfig = () => {
       const dest = firstAccessiblePath();
       if (dest) navigate(dest, { replace: true });
     }
-  }, [location.pathname, configLoading, canAccessPage, firstAccessiblePath, navigate]);
+  }, [
+    location.pathname,
+    configBootstrapPending,
+    accessDecisionPending,
+    canAccessPage,
+    firstAccessiblePath,
+    navigate,
+  ]);
 
   // Define handleTabChange callback BEFORE conditional returns (Rules of Hooks)
   const handleTabChange = useCallback((tab: string) => {
@@ -162,20 +166,6 @@ export const AccessPermissionsConfig = () => {
     return <AccessPermissionsPageSkeleton />;
   }
 
-  if (!hasAccessToAnyTab) {
-    return (
-      <div className="bg-background flex min-h-0 flex-1 flex-col items-center justify-center p-6">
-        <div className="bg-card border-border mx-auto max-w-md rounded-lg border p-6 shadow-sm">
-          <div className="text-center">
-            <XCircle className="text-destructive mx-auto mb-4 h-16 w-16" />
-            <h2 className="text-foreground mb-2 text-xl font-semibold">Access Denied</h2>
-            <p className="text-muted-foreground">You don&apos;t have permission to access this page.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (activeTab === 'pages') {
     return <PageAccessTab />;
   }
@@ -197,7 +187,8 @@ export const AccessPermissionsConfig = () => {
                     onTabChange={handleTabChange} 
                   />
                 </div>
-                
+
+                <ModuleShellContentGate pagePath={location.pathname}>
                 <div className="border-border bg-card min-h-0 flex-1 overflow-y-auto rounded-lg border p-6 shadow-sm">
                   {activeTab === 'overview' && (
                     <div className="space-y-6">
@@ -331,6 +322,7 @@ export const AccessPermissionsConfig = () => {
                   )}
 
                 </div>
+                </ModuleShellContentGate>
           </div>
         </div>
       </div>

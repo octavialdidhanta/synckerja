@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { pickProfilePhotoUrl } from "@/shared/lib/profilePhotoStorage";
+import { useAuth } from "@/shared/auth/contexts/AuthContext";
+import { profileQueryKey } from "@/shared/auth/identityQuerySync";
 
 export const PROFILE_QUERY_KEY = "profile" as const;
 
@@ -55,11 +57,14 @@ async function fetchProfile(): Promise<ProfileRow | null> {
     .eq("profile_id", user.id)
     .maybeSingle();
 
-  const { data: employeeData } = await supabase
+  const employeeQuery = supabase
     .from("employees")
     .select("profile_photo_url")
-    .eq("user_id", user.id)
-    .maybeSingle();
+    .eq("user_id", user.id);
+  if (profileData.active_organization_id) {
+    employeeQuery.eq("organization_id", profileData.active_organization_id);
+  }
+  const { data: employeeData } = await employeeQuery.maybeSingle();
 
   const photoUrl =
     detailsData?.profile_photo_url ||
@@ -79,9 +84,11 @@ async function fetchProfile(): Promise<ProfileRow | null> {
 }
 
 export function useProfile() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: [PROFILE_QUERY_KEY],
+    queryKey: profileQueryKey(user?.id),
     queryFn: fetchProfile,
+    enabled: !!user?.id,
   });
 }
 
@@ -122,8 +129,13 @@ export function useUpdateProfile() {
         })
         .eq("user_id", user.id);
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [PROFILE_QUERY_KEY] });
+    onSuccess: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user?.id) {
+        await queryClient.invalidateQueries({ queryKey: profileQueryKey(user.id) });
+      }
       void queryClient.invalidateQueries({ queryKey: ["profile-preferred-locale"] });
     },
   });

@@ -26,6 +26,8 @@ import {
 } from './hooks/useDigitalAssetsListQueries';
 import { SocialMediaSettingsPageSkeleton } from './skeletons/SocialMediaSettingsPageSkeleton';
 import { useSocialMediaSettingsPageSkeletonGate } from './hooks/useSocialMediaSettingsPageSkeletonGate';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -55,7 +57,11 @@ export const SettingsPage: React.FC = () => {
         brandColorsPending ||
         companyLogosPending));
 
-  const showPageSkeleton = useSocialMediaSettingsPageSkeletonGate(rawPagePending);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    rawPagePending,
+    '/digital-marketing/social-media/settings',
+  );
+  const showPageSkeleton = useSocialMediaSettingsPageSkeletonGate(showFullPageSkeleton);
 
   const [activeSection, setActiveSection] = useState('approval-access');
   const [activeMainTab, setActiveMainTab] = useState('settings');
@@ -190,6 +196,7 @@ export const SettingsPage: React.FC = () => {
                       <HeaderAndTab activeMainTab={activeMainTab} handleTabChange={handleTabChange} />
                     </div>
 
+                    <ModuleShellContentGate pagePath="/digital-marketing/social-media/settings">
                     <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
                       <div className="col-span-12 flex min-h-0 flex-col overflow-hidden md:col-span-3 lg:h-full">
                         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[5px] border border-border bg-card shadow-sm lg:h-full">
@@ -293,6 +300,7 @@ export const SettingsPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    </ModuleShellContentGate>
 
                     <div
                       className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

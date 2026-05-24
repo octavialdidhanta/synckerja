@@ -2,9 +2,11 @@ import { useState, useCallback } from 'react';
 import { useJobOpeningsCrud } from '@/2-2-recruitment-dashboard/job-openings/hooks/useJobOpeningsCrud';
 import { JobOpening } from '@/2-2-recruitment-dashboard/job-openings/hooks/jobOpeningTypes';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { cn } from '@/shared/lib/utils';
 import { RecruitmentDashboardSkeleton } from '@/2-2-recruitment-dashboard/components/RecruitmentSkeletons';
 import { HeaderAndTab, RecruitmentDashboardFooter } from './components';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 
 interface DashboardOverviewContentProps {
   jobOpenings: JobOpening[] | undefined;
@@ -77,7 +79,10 @@ export function DashboardOverview() {
     setActiveTab(tab);
   }, []);
 
-  const showFullPageSkeleton = orgBootstrapPending || jobOpeningsPending;
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    orgBootstrapPending || jobOpeningsPending,
+    '/recruitment',
+  );
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
@@ -94,6 +99,7 @@ export function DashboardOverview() {
                 <div className="mb-1 flex-shrink-0">
                   <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
                 </div>
+                <ModuleShellContentGate>
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
                     <div className="flex min-h-full min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
@@ -104,6 +110,7 @@ export function DashboardOverview() {
                     </div>
                   </div>
                 </div>
+                </ModuleShellContentGate>
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                   aria-hidden

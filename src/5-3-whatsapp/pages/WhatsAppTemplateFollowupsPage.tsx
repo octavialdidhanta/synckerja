@@ -7,11 +7,21 @@ import { useWhatsAppTemplateFollowups } from '../hooks/useWhatsAppTemplateFollow
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Button } from '@/shared/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
+import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
+import { cn } from '@/shared/lib/utils';
 
 export function WhatsAppTemplateFollowupsPage() {
   const { t, dateFnsLocale } = useAppTranslation();
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const { data: rows = [], isPending, error } = useWhatsAppTemplateFollowups(organizationId);
+  const rawPagePending = orgBootstrapPending || (Boolean(organizationId) && isPending);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    rawPagePending,
+    '/omnichannel/livechat/template-follow-ups',
+  );
+  const showContent = useDebouncedReady(!showFullPageSkeleton, 220);
 
   const formatDt = (iso: string) => {
     try {
@@ -24,8 +34,15 @@ export function WhatsAppTemplateFollowupsPage() {
   return (
     <div className="relative flex h-screen flex-col bg-gray-100">
       <HeaderAndTab />
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
+      <div
+        className={cn(
+          'flex min-h-0 flex-1 flex-col px-4 pb-4',
+          !showContent && 'pointer-events-none invisible select-none',
+        )}
+        aria-hidden={!showContent}
+      >
         <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <ModuleShellContentGate pagePath="/omnichannel/livechat/template-follow-ups">
           <div className="min-h-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <h1 className="text-lg font-semibold text-slate-900">
               {t('whatsappTemplateFollowups.pageTitle', 'Log follow-up template')}
@@ -97,6 +114,7 @@ export function WhatsAppTemplateFollowupsPage() {
               </div>
             )}
           </div>
+          </ModuleShellContentGate>
         </div>
       </div>
     </div>

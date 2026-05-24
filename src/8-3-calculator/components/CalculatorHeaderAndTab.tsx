@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, TrendingUp } from "lucide-react";
+import { BarChart3, TrendingUp, Lock } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
+import { cn } from "@/shared/lib/utils";
 
 const tabs = [
   {
@@ -24,6 +26,7 @@ export function CalculatorHeaderAndTab() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useAppTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
 
   const activeKey = useMemo(() => {
     const match = tabs.find((tab) => location.pathname.startsWith(tab.path));
@@ -46,21 +49,31 @@ export function CalculatorHeaderAndTab() {
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeKey === tab.key;
+            const locked = isTabLocked(tab.path);
 
             return (
               <button
                 key={tab.key}
                 type="button"
                 onClick={() => navigate(tab.path)}
-                className={`flex items-center space-x-1.5 border-b-2 py-1.5 px-1 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:border-primary/30 hover:text-foreground"
-                }`}
+                title={
+                  locked
+                    ? t("accessDenied.message", "You do not have permission to view this page.")
+                    : undefined
+                }
+                className={cn(
+                  "flex items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors",
+                  locked
+                    ? "border-transparent text-muted-foreground opacity-60"
+                    : isActive
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                )}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
               >
                 <Icon className="h-4 w-4" />
                 <span>{t(tab.titleKey, tab.fallbackTitle)}</span>
+                {locked ? <Lock className="ml-1 h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </button>
             );
           })}

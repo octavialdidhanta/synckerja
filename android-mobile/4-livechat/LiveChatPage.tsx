@@ -19,6 +19,8 @@ import { useLiveChatInboundNotification } from './hooks/useLiveChatInboundNotifi
 import { LiveChatAppBadgeSync } from '@/5-3-whatsapp/components/LiveChatAppBadgeSync';
 import { CONSULTANT_LIVECHAT_PATH } from '@/mobile/4-leads-management/shared/consultantCrmNavPaths';
 import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
+import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSubscription';
 
 type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `email:${string}`;
 
@@ -34,6 +36,14 @@ export default function LiveChatPage() {
 
 function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string }) {
   useStatusBarStyle('livechat');
+  const { organizationId } = useOrgBootstrapPending();
+  const { refreshSubscriptionStatus } = useOptimizedSubscription({ includePlans: false });
+
+  useEffect(() => {
+    if (!organizationId) return;
+    refreshSubscriptionStatus();
+  }, [organizationId, refreshSubscriptionStatus]);
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const ticketId = searchParams.get('ticket_id');

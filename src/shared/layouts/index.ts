@@ -1,3 +1,5 @@
+export { ModuleHeaderBelowContentGate } from "./ModuleHeaderBelowContentGate";
+export { ModuleShellContentGate } from "./ModuleShellContentGate";
 export { AdaptiveAppLayout } from "./AdaptiveAppLayout";
 export { AppShellLayout } from "./AppShellLayout";
 export { StandardLayout } from "./StandardLayout";

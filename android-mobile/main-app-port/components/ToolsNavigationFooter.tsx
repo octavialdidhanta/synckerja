@@ -7,6 +7,7 @@ import {
   TOOLS_DAILY_TASK_REPORT_PATH,
   toolsDailyTaskHref,
 } from "@/mobile/5-daily-task/shared/toolsDailyTaskPath";
+import { useFilteredNavByPageAccess } from "@/shared/auth/page-access/useFilteredNavByPageAccess";
 
 const NAV_LABELS: Record<string, string> = {
   "toolsNav.dailyTask": "Daily Task",
@@ -34,13 +35,18 @@ export const ToolsNavigationFooter = ({ className }: ToolsNavigationFooterProps)
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useAppTranslation();
+  const { filterNavItems } = useFilteredNavByPageAccess();
+  const visibleNavItems = filterNavItems(navItems);
 
   return (
     <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
       <div
-        className={`mx-auto grid max-w-md grid-cols-5 ${className ? className : "safe-area-padding-bottom-capped"}`.trim()}
+        className={`mx-auto grid max-w-md ${className ? className : "safe-area-padding-bottom-capped"}`.trim()}
+        style={{
+          gridTemplateColumns: `repeat(${Math.max(visibleNavItems.length, 1)}, minmax(0, 1fr))`,
+        }}
       >
-        {navItems.map(({ icon: Icon, labelKey, path }) => {
+        {visibleNavItems.map(({ icon: Icon, labelKey, path }) => {
           const label = t(labelKey, NAV_LABELS[labelKey] ?? labelKey);
           // Check if current path matches
           let isActive = false;

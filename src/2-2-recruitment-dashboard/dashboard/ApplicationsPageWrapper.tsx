@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { cn } from '@/shared/lib/utils';
 import { useJobApplications } from '@/2-2-recruitment-dashboard/applications/hooks/useJobApplications';
 import { RecruitmentApplicationsSkeleton } from '@/2-2-recruitment-dashboard/components/RecruitmentSkeletons';
 import { HeaderAndTab } from './components';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { ApplicationsPage } from '@/2-2-recruitment-dashboard/applications/dashboard/ApplicationsPage';
 
 export const ApplicationsPageWrapper = () => {
@@ -15,7 +17,10 @@ export const ApplicationsPageWrapper = () => {
     setActiveTab(tab);
   }, []);
 
-  const showFullPageSkeleton = orgBootstrapPending || applicationsPending;
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    orgBootstrapPending || applicationsPending,
+    '/recruitment/applications',
+  );
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
@@ -32,11 +37,13 @@ export const ApplicationsPageWrapper = () => {
                 <div className="mb-1 flex-shrink-0">
                   <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
                 </div>
+                <ModuleShellContentGate>
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
                     <ApplicationsPage />
                   </div>
                 </div>
+                </ModuleShellContentGate>
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                   aria-hidden

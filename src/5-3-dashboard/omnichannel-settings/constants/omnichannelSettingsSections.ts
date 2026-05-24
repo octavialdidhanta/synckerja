@@ -74,3 +74,8 @@ export function omnichannelSettingsPath(sectionId: OmnichannelSettingsSectionId)
     "user-management";
   return `/omnichannel/settings/${slug}`;
 }
+
+/** Page Access path for a settings section (sidebar lock + content gate). */
+export function omnichannelSettingsSectionPagePath(sectionId: OmnichannelSettingsSectionId): string {
+  return omnichannelSettingsPath(sectionId);
+}

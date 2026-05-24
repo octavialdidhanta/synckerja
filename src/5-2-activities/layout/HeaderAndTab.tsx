@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, Calendar, Users } from "lucide-react";
+import { Activity, Calendar, Users, Lock } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
+import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 const tabs = [
   {
@@ -25,6 +27,8 @@ const tabs = [
 ];
 
 export const HeaderAndTab = () => {
+  const { t } = useAppTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -47,18 +51,26 @@ export const HeaderAndTab = () => {
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeKey === tab.key;
-            
+            const locked = isTabLocked(tab.path);
+
             return (
               <div
                 key={tab.key}
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => navigate(tab.path)}
+                title={
+                  locked
+                    ? t("accessDenied.message", "You do not have permission to view this page.")
+                    : undefined
+                }
                 className={cn(
                   "group flex cursor-pointer items-center gap-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors",
-                  isActive
-                    ? "border-brand-blue text-brand-blue"
-                    : "border-transparent text-muted-foreground hover:border-surface-border hover:text-foreground",
+                  locked
+                    ? "border-transparent text-muted-foreground opacity-60"
+                    : isActive
+                      ? "border-brand-blue text-brand-blue"
+                      : "border-transparent text-muted-foreground hover:border-surface-border hover:text-foreground",
                 )}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
               >
@@ -76,6 +88,7 @@ export const HeaderAndTab = () => {
                 >
                   {tab.title}
                 </span>
+                {locked ? <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </div>
             );
           })}

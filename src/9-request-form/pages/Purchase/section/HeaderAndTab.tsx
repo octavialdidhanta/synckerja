@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { ShoppingCart, Receipt, DollarSign, CreditCard } from "lucide-react";
+import { ModuleTabNavItem } from "@/shared/auth/page-access/ModuleTabNavItem";
 
 interface HeaderAndTabProps {
   activeTab?: string;
@@ -15,28 +16,24 @@ export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
       id: "purchase",
       label: "Purchase",
       icon: ShoppingCart,
-      description: "Submit purchase requests for items and services",
       route: "/request-form/purchase",
     },
     {
       id: "reimbursement",
       label: "Reimbursement",
       icon: Receipt,
-      description: "Request reimbursement for expenses",
       route: "/request-form/reimbursement",
     },
     {
       id: "cash-advance",
       label: "Cash Advance",
       icon: DollarSign,
-      description: "Request cash advance for business needs",
       route: "/request-form/cash-advance",
     },
     {
       id: "loan",
       label: "Loan",
       icon: CreditCard,
-      description: "Request loans and financial assistance",
       route: "/request-form/loan",
     },
   ];
@@ -58,6 +55,8 @@ export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
     return "purchase";
   };
 
+  const activeTabId = getActiveTab();
+
   return (
     <div className="px-1 py-3">
       <div className="mb-3">
@@ -68,27 +67,17 @@ export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
       </div>
 
       <div className="-mb-3">
-        <nav className="flex flex-wrap gap-x-6 gap-y-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = getActiveTab() === tab.id;
-
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => handleTabClick(tab)}
-                className={`flex cursor-pointer items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        <nav className="flex flex-wrap gap-x-6 gap-y-1" role="tablist">
+          {tabs.map((tab) => (
+            <ModuleTabNavItem
+              key={tab.id}
+              pagePath={tab.route}
+              label={tab.label}
+              icon={tab.icon}
+              isActive={activeTabId === tab.id}
+              onActivate={() => handleTabClick(tab)}
+            />
+          ))}
         </nav>
       </div>
     </div>

@@ -1159,7 +1159,7 @@ function AppRoutes() {
                 path="/omnichannel/campaign/whatsapp"
                 element={
                   <PageAccessGuard
-                    pagePath="/operations/consultant/whatsapp/templates"
+                    pagePath="/omnichannel/campaign/whatsapp"
                     loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
@@ -1177,7 +1177,7 @@ function AppRoutes() {
                 path="/omnichannel/campaign/templates"
                 element={
                   <PageAccessGuard
-                    pagePath="/operations/consultant/whatsapp/templates"
+                    pagePath="/omnichannel/campaign/templates"
                     loadingShell={PAGE_GUARD_LOADING_SHELL}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
@@ -2578,7 +2578,7 @@ const App = () => (
                           path="/omnichannel/campaign/whatsapp"
                           element={
                             <PageAccessGuard
-                              pagePath="/operations/consultant/whatsapp/templates"
+                              pagePath="/omnichannel/campaign/whatsapp"
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
@@ -2596,7 +2596,7 @@ const App = () => (
                           path="/omnichannel/campaign/templates"
                           element={
                             <PageAccessGuard
-                              pagePath="/operations/consultant/whatsapp/templates"
+                              pagePath="/omnichannel/campaign/templates"
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
@@ -2611,6 +2611,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/dashboard"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2625,6 +2626,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/kol-management"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2639,6 +2641,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/campaigns"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2653,6 +2656,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/content-post"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2667,6 +2671,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/kol-management/payment-terms"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2685,6 +2690,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2699,6 +2705,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2713,6 +2720,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2727,6 +2735,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
@@ -2741,6 +2750,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
+                              preserveAppChromeOnDeny
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                               loadingShellWrapperClassName="bg-muted/40"
                             >
@@ -2754,8 +2764,7 @@ const App = () => (
                           path="/digital-marketing/traffic"
                           element={
                             <PageAccessGuard
-                              // Reuse Digital Marketing permission scope (prefix match).
-                              pagePath="/digital-marketing/social-media"
+                              pagePath="/digital-marketing/traffic"
                               loadingShell={
                                 <TrafficMobileAwareLoadingShell />
                               }

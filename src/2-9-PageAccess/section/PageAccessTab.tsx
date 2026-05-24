@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { HeaderAndTab } from './HeaderAndTab';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Button } from '@/shared/components/ui/button';
@@ -7,13 +7,15 @@ import { Switch } from '@/shared/components/ui/switch';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import { Loader2, Plus, Edit, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { usePermissionConfiguration, PermissionConfiguration } from '@/shared/auth/page-access/usePermissionConfiguration';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { EmployeeMultiSelect } from '@/2-9-PageAccess/components/employee-multi-select';
 import { AccessPermissionsOverview } from '@/2-9-PageAccess/components/AccessPermissionsOverview';
 import { AccessPermissionsTableFooter } from '@/2-9-PageAccess/components/AccessPermissionsTableFooter';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 
 const ROLE_DESCRIPTIONS = {
   owner: {
@@ -22,7 +24,7 @@ const ROLE_DESCRIPTIONS = {
     color: 'border-brand-blue/30 bg-brand-blue/10 text-brand-blue',
   },
   admin: {
-    title: 'Administrator',
+    title: 'Admin',
     description: 'Can manage employees and most features',
     color: 'border-brand-blue/25 bg-brand-blue/10 text-brand-blue',
   },
@@ -41,7 +43,18 @@ interface CreatePageFormData {
   exception_paths: string[];
 }
 
+function matchesPathSearch(config: PermissionConfiguration, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const path = (config.page_path ?? '').toLowerCase();
+  if (path.includes(q)) return true;
+  const title = (config.page_title ?? '').toLowerCase();
+  if (title.includes(q)) return true;
+  return (config.exception_paths ?? []).some((p) => (p ?? '').toLowerCase().includes(q));
+}
+
 export const PageAccessTab = () => {
+  const { t } = useAppTranslation();
   const { organization } = useCentralizedUserData();
   
   const {
@@ -55,6 +68,7 @@ export const PageAccessTab = () => {
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState('page-access');
+  const [pathSearch, setPathSearch] = useState('');
   const [pendingRowId, setPendingRowId] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -79,6 +93,13 @@ export const PageAccessTab = () => {
       document.body.style.overflow = previousOverflow;
     };
   }, [showCreateDialog, showEditDialog]);
+
+  const filteredConfigurations = useMemo(
+    () => configurations.filter((config) => matchesPathSearch(config, pathSearch)),
+    [configurations, pathSearch],
+  );
+
+  const pathSearchActive = pathSearch.trim().length > 0;
 
   const getRoleAccess = (config: PermissionConfiguration, role: string) => {
     return config.roles_allowed?.includes(role) || false;
@@ -258,21 +279,43 @@ export const PageAccessTab = () => {
                   />
                 </div>
 
+                <ModuleShellContentGate pagePath="/access-permissions/page-access">
                 <div className="grid h-[min(1400px,calc(100dvh-120px))] min-h-[600px] min-w-0 w-full flex-none grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:h-[min(1180px,calc(100dvh-115px))] [@media(max-height:760px)]:h-[min(1000px,calc(100dvh-110px))]">
                   <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
                     <div className="bg-card border-border flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border shadow-sm">
                         {/* Card Header */}
-                        <div className="border-border flex-shrink-0 border-b px-4 py-2">
-                          <div className="flex items-center justify-between">
-                            <div>
+                        <div className="border-border flex-shrink-0 border-b px-4 py-3">
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="min-w-0 flex-1">
                               <h2 className="text-lg font-semibold text-foreground">Page Access Configuration</h2>
                               <p className="text-muted-foreground mt-1 text-sm">
                                 Configure which roles can access specific pages and features
                               </p>
                             </div>
-                            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                            <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                              <div className="relative min-w-0 flex-1 sm:min-w-[220px] sm:max-w-md">
+                                <Search
+                                  className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                                  aria-hidden
+                                />
+                                <Input
+                                  type="search"
+                                  value={pathSearch}
+                                  onChange={(e) => setPathSearch(e.target.value)}
+                                  placeholder={t(
+                                    'pageAccess.config.searchPathPlaceholder',
+                                    'Search by path, title, or exception path…',
+                                  )}
+                                  className="h-9 pl-9"
+                                  aria-label={t(
+                                    'pageAccess.config.searchPathAria',
+                                    'Search page access paths',
+                                  )}
+                                />
+                              </div>
+                              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
                               <DialogTrigger asChild>
-                                <Button>
+                                <Button className="h-9 shrink-0 whitespace-nowrap">
                                   <Plus className="w-4 h-4 mr-2" />
                                   Add New Page
                                 </Button>
@@ -402,13 +445,23 @@ export const PageAccessTab = () => {
                 </DialogFooter>
                               </DialogContent>
                             </Dialog>
+                            </div>
                           </div>
                         </div>
                         
                         {/* Scrollable Table Content - satu scroll container per panel */}
                         <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-auto pb-6">
                           <div className="p-4">
-                            {loading ? null : (
+                            {loading ? null : filteredConfigurations.length === 0 ? (
+                              <p className="text-muted-foreground py-12 text-center text-sm">
+                                {pathSearchActive
+                                  ? t('pageAccess.config.searchNoResults', 'No pages match your search.')
+                                  : t(
+                                      'pageAccess.config.empty',
+                                      'No page access configurations yet. Add a page to get started.',
+                                    )}
+                              </p>
+                            ) : (
                               <div className="relative w-full min-h-0">
                                 <Table>
                                   <TableHeader>
@@ -425,7 +478,7 @@ export const PageAccessTab = () => {
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
-                                    {configurations.map(config => (
+                                    {filteredConfigurations.map(config => (
                                       <TableRow key={config.id}>
                                         <TableCell className="text-center">
                                           <div className="font-medium">{config.page_title}</div>
@@ -469,7 +522,12 @@ export const PageAccessTab = () => {
                                               id={`${config.id}-${role}`} 
                                               checked={role === 'owner' ? true : getRoleAccess(config, role)} 
                                               onCheckedChange={() => void toggleRoleAccess(config, role)} 
-                                              disabled={saving || pendingRowId === config.id || role === 'owner'} 
+                                              disabled={saving || pendingRowId === config.id || role === 'owner'}
+                                              title={
+                                                role === 'owner'
+                                                  ? 'Role Owner selalu memiliki akses penuh ke semua halaman.'
+                                                  : undefined
+                                              }
                                             />
                                           </TableCell>
                                         ))}
@@ -506,7 +564,16 @@ export const PageAccessTab = () => {
                         {/* Table Footer */}
                         <div className="border-border bg-muted/40 mt-2 flex-shrink-0 rounded-md border px-4 py-2">
                           <AccessPermissionsTableFooter 
-                            totalConfigurations={configurations.length}
+                            totalConfigurations={
+                              pathSearchActive
+                                ? filteredConfigurations.length
+                                : configurations.length
+                            }
+                            totalLabel={
+                              pathSearchActive
+                                ? t('pageAccess.config.footerFiltered', 'Matching pages')
+                                : undefined
+                            }
                             lastUpdated={
                               configurations.length
                                 ? [...configurations].sort((a, b) =>
@@ -525,6 +592,7 @@ export const PageAccessTab = () => {
                     </div>
                   </div>
                 </div>
+                </ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

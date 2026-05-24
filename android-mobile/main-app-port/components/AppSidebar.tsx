@@ -26,6 +26,7 @@ import {
 } from "@/mobile/4-leads-management/shared/consultantCrmNavPaths";
 import { SUBSCRIPTION_OVERVIEW_PATH } from "@/mobile/6-subscription/shared/mobileSubscriptionNavPaths";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useFilteredNavByPageAccess } from "@/shared/auth/page-access/useFilteredNavByPageAccess";
 
 type SidebarNavItem = {
   url: string;
@@ -57,6 +58,10 @@ function itemLabel(item: SidebarNavItem, t: ReturnType<typeof useAppTranslation>
 
 export function AppSidebar() {
   const { t } = useAppTranslation();
+  const { filterNavItems } = useFilteredNavByPageAccess();
+  const visibleMenuItems = filterNavItems(
+    menuItems.map((item) => ({ ...item, path: item.url })),
+  );
   const isMobile = useIsMobile();
   const { isMobile: sidebarMobile, setOpenMobile } = useSidebar();
   const { organizations, activeOrganization } = useOrganizationList();
@@ -104,7 +109,7 @@ export function AppSidebar() {
 
           <SidebarGroupContent className="px-2 pb-2">
             <SidebarMenu className="space-y-0.5">
-              {menuItems.map((item) => (
+              {visibleMenuItems.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <NavLink
                     to={item.url}

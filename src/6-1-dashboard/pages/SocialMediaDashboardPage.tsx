@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useDeferredValue } from "react";
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { PageAccessContentGate } from '@/shared/components/PageAccessContentGate';
 import { Tabs, TabsContent } from "@/shared/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -54,6 +55,7 @@ import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
 const SocialMediaContent = () => {
   const { tab } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { orgBootstrapPending } = useOrgBootstrapPending();
   
@@ -1346,6 +1348,10 @@ const SocialMediaContent = () => {
                         />
                       </div>
 
+                      <PageAccessContentGate
+                        pagePath={location.pathname}
+                        className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col"
+                      >
                       <Tabs value={activeMainTab} onValueChange={handleTabChange} className="mt-0 flex min-h-0 flex-1 flex-col">
                         <TabsContent
                           value="dashboard"
@@ -1458,6 +1464,7 @@ const SocialMediaContent = () => {
                           </div>
                         </TabsContent>
                       </Tabs>
+                      </PageAccessContentGate>
 
                       <div
                         className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

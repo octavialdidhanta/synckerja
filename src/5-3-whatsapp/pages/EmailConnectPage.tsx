@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HeaderAndTab } from '@/5-3-dashboard/components/layout/HeaderAndTab';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -54,10 +56,14 @@ export function EmailConnectPage() {
     useEmailConnections();
 
   const hasPendingLoad = orgLoading || (!!organizationId && connectionsLoading);
-  const [showSkeleton, setShowSkeleton] = useState(hasPendingLoad);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    hasPendingLoad,
+    '/omnichannel/integrations/email',
+  );
+  const [showSkeleton, setShowSkeleton] = useState(showFullPageSkeleton);
 
   useEffect(() => {
-    if (hasPendingLoad) {
+    if (showFullPageSkeleton) {
       setShowSkeleton(true);
       return;
     }
@@ -70,7 +76,7 @@ export function EmailConnectPage() {
       window.clearTimeout(hideTimer);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [hasPendingLoad]);
+  }, [showFullPageSkeleton]);
   const [isAddingEmail, setIsAddingEmail] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -166,6 +172,7 @@ export function EmailConnectPage() {
                 <HeaderAndTab />
               </div>
 
+              <ModuleShellContentGate pagePath="/omnichannel/integrations/email">
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -426,6 +433,7 @@ export function EmailConnectPage() {
                   </div>
                 </div>
               </div>
+              </ModuleShellContentGate>
 
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

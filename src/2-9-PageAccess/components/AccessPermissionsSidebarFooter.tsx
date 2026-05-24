@@ -1,4 +1,6 @@
 import { Shield, Building2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { formatOrganizationRole } from '@/shared/lib/formatOrganizationRole';
 
 interface AccessPermissionsSidebarFooterProps {
   userRole: string;
@@ -11,14 +13,9 @@ export const AccessPermissionsSidebarFooter = ({
   organizationName,
   totalPages
 }: AccessPermissionsSidebarFooterProps) => {
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'owner': return 'Organization Owner';
-      case 'admin': return 'Administrator';
-      case 'employee': return 'Employee';
-      default: return role;
-    }
-  };
+  const { t } = useTranslation();
+
+  const getRoleDisplayName = (role: string) => formatOrganizationRole(t, role);
 
   const getRoleColor = (role: string) => {
     switch (role) {

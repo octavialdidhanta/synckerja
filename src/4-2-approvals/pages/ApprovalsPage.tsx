@@ -16,6 +16,8 @@ import { cn } from '@/shared/lib/utils';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { ApprovalsModuleShell } from '../layout/ApprovalsModuleShell';
 import { ApprovalsPageSkeleton } from '@/4-2-approvals/skeletons/ApprovalsPageSkeleton';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useLocation } from 'react-router-dom';
 
 /** Header ikut scroll + baseline `/expenses/debt` (Seamless Page Scroll Layout) */
 
@@ -26,6 +28,7 @@ const TABLE_SECTION =
   'flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';
 
 export const ApprovalsPage = () => {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('approvals');
   const [filters, setFilters] = useState<ApprovalFiltersType>({
     search: '',
@@ -86,6 +89,7 @@ export const ApprovalsPage = () => {
             <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
           </div>
 
+          <ModuleShellContentGate pagePath={location.pathname}>
           <div className={GRID_MAIN}>
             <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-9">
               <div className="flex h-full min-w-0 flex-1 flex-col gap-2">
@@ -151,6 +155,7 @@ export const ApprovalsPage = () => {
               </div>
             </div>
           </div>
+          </ModuleShellContentGate>
         </ApprovalsModuleShell>
       </div>
       {!showContent ? (

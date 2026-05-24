@@ -4,6 +4,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { useToast } from "@/shared/hooks/use-toast";
 import { clearCurrentOrgCacheForUser, setCurrentOrgCacheForUser } from "@/shared/auth/hooks/useCurrentOrgCache";
 import { userOrganizationsQueryKey } from "@/shared/hooks/useUserOrganizations";
+import { syncAfterOrganizationSwitch } from "@/shared/auth/identityQuerySync";
 import { logger } from "@/shared/lib/logger";
 
 export interface OrganizationItem {
@@ -112,8 +113,8 @@ export function useOrganizationList() {
         setCurrentOrgCacheForUser(user.id, organizationId);
         window.dispatchEvent(new CustomEvent("organization-switched", { detail: { organizationId } }));
 
+        await syncAfterOrganizationSwitch(queryClient, organizationId);
         await queryClient.invalidateQueries({ queryKey });
-        await queryClient.invalidateQueries({ queryKey: userOrganizationsQueryKey });
 
         toast({
           title: "Berhasil",

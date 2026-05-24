@@ -1,7 +1,10 @@
 import { useTranslation } from "react-i18next";
+import { Lock } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import {
   OMNICHANNEL_SETTINGS_SECTIONS,
+  omnichannelSettingsSectionPagePath,
   type OmnichannelSettingsSectionId,
 } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 
@@ -12,6 +15,7 @@ type OmnichannelSettingsSidebarProps = {
 
 export function OmnichannelSettingsSidebar({ activeSection, onSectionChange }: OmnichannelSettingsSidebarProps) {
   const { t } = useTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
 
   return (
     <div className="space-y-2">
@@ -20,16 +24,24 @@ export function OmnichannelSettingsSidebar({ activeSection, onSectionChange }: O
         const isActive = activeSection === section.id;
         const title = t(section.titleKey);
         const description = t(section.descriptionKey);
+        const sectionPath = omnichannelSettingsSectionPagePath(section.id);
+        const locked = isTabLocked(sectionPath);
 
         return (
           <button
             key={section.id}
             type="button"
+            title={
+              locked
+                ? t("accessDenied.message", "You do not have permission to view this page.")
+                : undefined
+            }
             onClick={() => {
               onSectionChange(section.id);
             }}
             className={cn(
               "group w-full rounded-[5px] p-3 text-left transition-all duration-200 ease-out",
+              locked && "opacity-70",
               isActive
                 ? "border-2 border-primary/50 bg-accent shadow-sm"
                 : "border border-border bg-card hover:border-primary/30 hover:bg-muted/60",
@@ -48,7 +60,10 @@ export function OmnichannelSettingsSidebar({ activeSection, onSectionChange }: O
               </div>
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <h3 className="truncate text-sm font-medium text-foreground">{title}</h3>
+                  <h3 className="truncate text-sm font-medium text-foreground">
+                    {title}
+                    {locked ? <Lock className="ml-1 inline h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
+                  </h3>
                   <span
                     className={cn(
                       "ml-1 inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",

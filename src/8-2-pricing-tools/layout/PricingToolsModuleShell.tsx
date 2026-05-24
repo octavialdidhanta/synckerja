@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
 import { PricingToolsHeaderAndTab } from "../components/PricingToolsHeaderAndTab";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { PricingToolsPageSkeleton } from "../skeletons/PricingToolsPageSkeleton";
 
 type PricingToolsModuleShellProps = {
@@ -32,7 +33,7 @@ export function PricingToolsModuleShell({
                   <PricingToolsHeaderAndTab />
                 </div>
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  {children}
+                  <ModuleShellContentGate>{children}</ModuleShellContentGate>
                 </div>
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

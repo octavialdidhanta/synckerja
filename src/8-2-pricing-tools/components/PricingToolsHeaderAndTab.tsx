@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Calculator, Percent, Tag } from "lucide-react";
+import { Calculator, Lock, Percent, Tag } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { useDepartmentAccess } from "@/shared/layouts/sidebar/useDepartmentAccess";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 
 const DEFAULT_PRICES_PATH = "/tools/default-prices";
 const PRICING_TOOLS_PATH = "/tools/pricing-tools";
@@ -39,7 +39,7 @@ export function PricingToolsHeaderAndTab() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useAppTranslation();
-  const { canAccessPage } = useDepartmentAccess();
+  const { isTabLocked } = useHeaderTabPageAccess();
 
   const activeId = useMemo(() => {
     if (location.pathname.startsWith(PROMO_SIMULATION_PATH)) return "promo-simulation";
@@ -67,20 +67,22 @@ export function PricingToolsHeaderAndTab() {
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeId === tab.id;
-            const locked = !canAccessPage(tab.path);
+            const locked = isTabLocked(tab.path);
             const label = t(tab.titleKey, tab.fallbackTitle);
 
             return (
               <button
                 key={tab.id}
                 type="button"
-                disabled={locked}
-                onClick={() => {
-                  if (!locked) navigate(tab.path);
-                }}
-                className={`flex items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors ${
+                onClick={() => navigate(tab.path)}
+                title={
                   locked
-                    ? "cursor-not-allowed border-transparent text-muted-foreground opacity-50"
+                    ? t("accessDenied.message", "You do not have permission to view this page.")
+                    : undefined
+                }
+                className={`flex items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
+                  locked
+                    ? "border-transparent text-muted-foreground opacity-60"
                     : isActive
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:border-primary/30 hover:text-foreground"
@@ -89,6 +91,7 @@ export function PricingToolsHeaderAndTab() {
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden />
                 <span>{label}</span>
+                {locked ? <Lock className="ml-1 h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </button>
             );
           })}

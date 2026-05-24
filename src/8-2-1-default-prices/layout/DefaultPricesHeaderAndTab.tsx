@@ -1,6 +1,6 @@
 import { Tag, Calculator, Lock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useDepartmentAccess } from "@/shared/layouts/sidebar/useDepartmentAccess";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 const DEFAULT_PRICES_PATH = "/tools/default-prices";
@@ -14,11 +14,11 @@ export type DefaultPricesHeaderAndTabProps = {
 export function DefaultPricesHeaderAndTab({ activeTab, onTabChange }: DefaultPricesHeaderAndTabProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { canAccessPage } = useDepartmentAccess();
+  const { isTabLocked } = useHeaderTabPageAccess();
   const { t } = useAppTranslation();
 
-  const defaultLocked = !canAccessPage(DEFAULT_PRICES_PATH);
-  const pricingLocked = !canAccessPage(PRICING_TOOLS_PATH);
+  const defaultLocked = isTabLocked(DEFAULT_PRICES_PATH);
+  const pricingLocked = isTabLocked(PRICING_TOOLS_PATH);
 
   const defaultLabel = t("sidebar.tools.defaultPrices.title", "Default Prices");
   const pricingLabel = t("sidebar.tools.pricingTools.title", "Alat Harga");
@@ -42,15 +42,13 @@ export function DefaultPricesHeaderAndTab({ activeTab, onTabChange }: DefaultPri
         <nav className="flex flex-wrap gap-x-6 gap-y-1" aria-label={t("defaultPrices.header.toolsNav", "Navigasi alat harga")}>
           <div
             role="button"
-            tabIndex={defaultLocked ? -1 : 0}
+            tabIndex={0}
             onClick={() => {
-              if (!defaultLocked) {
-                onTabChange("default-prices");
-                navigate(DEFAULT_PRICES_PATH);
-              }
+              onTabChange("default-prices");
+              navigate(DEFAULT_PRICES_PATH);
             }}
             onKeyDown={(e) => {
-              if (!defaultLocked && (e.key === "Enter" || e.key === " ")) {
+              if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 onTabChange("default-prices");
                 navigate(DEFAULT_PRICES_PATH);
@@ -77,10 +75,7 @@ export function DefaultPricesHeaderAndTab({ activeTab, onTabChange }: DefaultPri
 
           <button
             type="button"
-            disabled={pricingLocked}
-            onClick={() => {
-              if (!pricingLocked) navigate(PRICING_TOOLS_PATH);
-            }}
+            onClick={() => navigate(PRICING_TOOLS_PATH)}
             className={`flex items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors ${
               pricingLocked
                 ? "cursor-not-allowed border-transparent text-muted-foreground opacity-60"

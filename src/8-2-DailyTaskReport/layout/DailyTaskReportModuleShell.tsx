@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
 import { ToolsHeaderAndTab } from "@/shared/layouts/tools";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { DailyTaskReportPageSkeleton } from "../skeletons/DailyTaskReportPageSkeleton";
 
 type DailyTaskReportModuleShellProps = {
@@ -33,7 +34,7 @@ export function DailyTaskReportModuleShell({
                 </div>
 
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  {children}
+                  <ModuleShellContentGate>{children}</ModuleShellContentGate>
                 </div>
 
                 <div

@@ -21,6 +21,8 @@ import { useServices } from './hooks/useServices';
 import { useSubServices } from './hooks/useSubServices';
 import { ProductKnowledgePageSkeleton } from './skeletons/ProductKnowledgePageSkeleton';
 import { useProductKnowledgePageSkeletonGate } from './hooks/useProductKnowledgePageSkeletonGate';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { ProductKnowledgeTable } from './components/ProductKnowledgeTable';
 import { ProductKnowledgeFilters } from './components/ProductKnowledgeFilters';
 import { ProductKnowledgeTableFooter } from './components/ProductKnowledgeTableFooter';
@@ -85,7 +87,11 @@ const ProductKnowledgeContent: React.FC = () => {
         scriptBreakdownTemplatesPending ||
         scriptAiPending));
 
-  const showPageSkeleton = useProductKnowledgePageSkeletonGate(rawPagePending);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    rawPagePending,
+    '/digital-marketing/social-media/product-knowledge',
+  );
+  const showPageSkeleton = useProductKnowledgePageSkeletonGate(showFullPageSkeleton);
 
   const handleTabChange = (newTab: string) => {
     setActiveMainTab(newTab);
@@ -342,6 +348,7 @@ const ProductKnowledgeContent: React.FC = () => {
                       />
                     </div>
 
+                    <ModuleShellContentGate pagePath="/digital-marketing/social-media/product-knowledge">
                     <div className="grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                       <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col gap-0 overflow-hidden">
                         <div className="min-h-0 flex-shrink-0">
@@ -406,6 +413,7 @@ const ProductKnowledgeContent: React.FC = () => {
                         />
                       </div>
                     </div>
+                    </ModuleShellContentGate>
 
                     <div
                       className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

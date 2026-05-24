@@ -1,10 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { LayoutDashboard, Users, MessageCircle, Instagram, Mail, Inbox, FileText, ListChecks, Megaphone, Settings, History } from "lucide-react";
-import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
-import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { Lock } from "lucide-react";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 
 type CrmHeaderTab = {
@@ -69,7 +69,7 @@ const tabs: CrmHeaderTab[] = [
   {
     key: "whatsapp-campaign",
     path: "/omnichannel/campaign/whatsapp",
-    accessPath: "/operations/consultant/whatsapp/templates",
+    accessPath: "/omnichannel/campaign/whatsapp",
     title: "WhatsApp Campaign",
     titleKey: "whatsappTemplates.campaignRoute.tabTitle",
     icon: Megaphone,
@@ -77,7 +77,7 @@ const tabs: CrmHeaderTab[] = [
   {
     key: "whatsapp-templates",
     path: "/omnichannel/campaign/templates",
-    accessPath: "/operations/consultant/whatsapp/templates",
+    accessPath: "/omnichannel/campaign/templates",
     title: "WhatsApp Template",
     titleKey: "sidebar.operations.whatsappTemplates.title",
     icon: FileText,
@@ -93,6 +93,7 @@ const tabs: CrmHeaderTab[] = [
   {
     key: "omnichannel-settings",
     path: OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO,
+    accessPath: "/omnichannel/settings",
     title: "Settings",
     titleKey: "sidebar.operations.settings.title",
     icon: Settings,
@@ -103,13 +104,9 @@ export const HeaderAndTab = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { canAccessPage, configLoading } = useDepartmentAccess();
-  const { isOwner, isAdmin } = useCentralizedUserData();
+  const { isTabLocked: isPageTabLocked } = useHeaderTabPageAccess();
 
-  const canSeeCrmPath = (path: string) =>
-    isOwner || isAdmin || configLoading || canAccessPage(path);
-
-  const visibleTabs = tabs.filter((tab) => canSeeCrmPath(tabAccessPath(tab)));
+  const isTabLocked = (tab: (typeof tabs)[number]) => isPageTabLocked(tabAccessPath(tab));
 
   const isLiveChatSection =
     location.pathname === "/omnichannel/livechat" ||
@@ -155,31 +152,16 @@ export const HeaderAndTab = () => {
   ]);
 
   const displayedTabs = isLiveChatSection
-    ? visibleTabs.filter((tab) => livechatTabKeys.has(tab.key))
+    ? tabs.filter((tab) => livechatTabKeys.has(tab.key))
     : isOmnichannelSettingsSection
-      ? visibleTabs.filter((tab) => tab.key === "omnichannel-settings")
+      ? tabs.filter((tab) => tab.key === "omnichannel-settings")
       : isCampaignCrmSection
-        ? visibleTabs.filter((tab) => campaignCrmTabKeys.has(tab.key))
+        ? tabs.filter((tab) => campaignCrmTabKeys.has(tab.key))
         : isIntegrationsSection
-          ? visibleTabs.filter((tab) => integrationTabKeys.has(tab.key))
+          ? tabs.filter((tab) => integrationTabKeys.has(tab.key))
           : isCrmCoreSection
-            ? visibleTabs.filter((tab) => crmCoreTabKeys.has(tab.key))
-            : visibleTabs;
-
-  useEffect(() => {
-    if (configLoading || isOwner || isAdmin) return;
-    const match = [...tabs]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find(
-        (tab) =>
-          location.pathname === tab.path || location.pathname.startsWith(`${tab.path}/`),
-      );
-    if (!match) return;
-    if (!canAccessPage(tabAccessPath(match))) {
-      const next = tabs.find((tab) => canAccessPage(tabAccessPath(tab)));
-      if (next) navigate(next.path, { replace: true });
-    }
-  }, [configLoading, isOwner, isAdmin, location.pathname, canAccessPage, navigate]);
+            ? tabs.filter((tab) => crmCoreTabKeys.has(tab.key))
+            : tabs;
 
   const activeKey = useMemo(() => {
     if (location.pathname === "/omnichannel/leads" || location.pathname.startsWith("/omnichannel/leads/"))
@@ -244,32 +226,37 @@ export const HeaderAndTab = () => {
           {displayedTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeKey === tab.key;
-            
+            const locked = isTabLocked(tab);
+
             return (
               <div
                 key={tab.key}
                 role="button"
                 tabIndex={0}
-                onClick={() => {
-                  if (!canSeeCrmPath(tabAccessPath(tab))) return;
-                  navigate(tab.path);
-                }}
+                onClick={() => navigate(tab.path)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    if (!canSeeCrmPath(tabAccessPath(tab))) return;
                     navigate(tab.path);
                   }
                 }}
+                title={
+                  locked
+                    ? t("accessDenied.message", "You do not have permission to view this page.")
+                    : undefined
+                }
                 className={`flex items-center space-x-1.5 py-1.5 px-1 border-b-2 font-medium text-sm cursor-pointer transition-colors ${
-                  isActive
-                    ? "border-brand-blue text-brand-blue"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-surface-border"
+                  locked
+                    ? "border-transparent text-gray-400 opacity-70"
+                    : isActive
+                      ? "border-brand-blue text-brand-blue"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-surface-border"
                 }`}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.titleKey ? t(tab.titleKey) : tab.title}</span>
+                {locked ? <Lock className="ml-1 h-3.5 w-3.5" aria-hidden /> : null}
               </div>
             );
           })}

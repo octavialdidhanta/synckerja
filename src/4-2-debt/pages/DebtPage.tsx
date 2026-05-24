@@ -2,13 +2,12 @@ import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { DollarSign } from 'lucide-react';
-import { HeaderAndTab } from '@/4-2-dashboard/section/HeaderAndTab';
+import { DebtModuleShell } from '@/4-2-debt/layout/DebtModuleShell';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { cn } from '@/shared/lib/utils';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
-import { DebtPageSkeleton } from '@/4-2-debt/skeletons/DebtPageSkeleton';
 import { useDebts } from '../hooks';
 import { DebtTable, DebtForm, DebtPaymentHistoryModal } from '../components';
 import { DebtPaymentModal } from '../components/DebtPaymentModal';
@@ -32,9 +31,6 @@ import { debtDisplayBalance, resolveDebtDisplay } from '../utils/resolveDebtDisp
  */
 const DEBT_MAIN_GRID =
   'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-1 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]';
-
-const MAIN_SCROLL =
-  'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 export const DebtPage = () => {
   const [activeTab, setActiveTab] = useState('debt');
@@ -67,7 +63,8 @@ export const DebtPage = () => {
       bankAccountsLoading ||
       bankAccountsPending);
   const rawPendingLoad = orgBootstrapPending || dataPending;
-  const showContent = useDebouncedReady(!rawPendingLoad);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(rawPendingLoad, '/expenses/debt');
+  const showShellContent = useDebouncedReady(!showFullPageSkeleton);
   const { user } = useCurrentUser();
   const queryClient = useQueryClient();
 
@@ -193,22 +190,12 @@ export const DebtPage = () => {
   }, [activeDebts]);
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div
-        className={cn(
-          'flex min-h-0 w-full min-w-0 flex-1 flex-col',
-          !showContent && 'pointer-events-none invisible select-none',
-        )}
-        aria-hidden={!showContent}
+    <>
+      <DebtModuleShell
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        showContent={showShellContent}
       >
-        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
-          <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
-            <div className={cn(MAIN_SCROLL, 'min-w-0')}>
-              <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
-                <div className="mb-1 min-w-0 flex-shrink-0">
-                  <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
-                </div>
-
                 <div className={DEBT_MAIN_GRID}>
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
                     <div className="min-w-0 shrink-0">
@@ -322,25 +309,7 @@ export const DebtPage = () => {
                     </div>
                   </div>
                 </div>
-
-                <div
-                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                  aria-hidden
-                />
-              </div>
-              <div className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-4" aria-hidden />
-            </div>
-          </div>
-        </div>
-      </div>
-      {!showContent ? (
-        <div
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-gray-100"
-          aria-busy
-        >
-          <DebtPageSkeleton />
-        </div>
-      ) : null}
+      </DebtModuleShell>
 
       {/* Add/Edit Form */}
       <DebtForm
@@ -460,7 +429,7 @@ export const DebtPage = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 };
 

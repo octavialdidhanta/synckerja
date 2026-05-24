@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { HeaderAndTab } from "@/2-1-employees/section/HeaderAndTab";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useCurrentOrg } from "@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg";
 import { cn } from "@/shared/lib/utils";
 import { useEmployees } from "../hooks/useEmployees";
@@ -270,6 +271,7 @@ export const ReprimandManagementPage = () => {
                   <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
                 </div>
 
+                <ModuleShellContentGate pagePath="/employees/reprimand">
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
                     <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -310,6 +312,7 @@ export const ReprimandManagementPage = () => {
                     </div>
                   </div>
                 </div>
+                </ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

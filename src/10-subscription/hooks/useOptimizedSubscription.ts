@@ -206,8 +206,8 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
       return mapped;
     },
     enabled: !!organizationId,
-    /** Keep omnichannel seat counts aligned across `/subscription/plans` and `/omnichannel/settings` when navigating. */
-    staleTime: 0,
+    /** Seat counts stay fresh via invalidateQueries (buy seats / roster changes); avoid refetch-on-mount flash in live chat. */
+    staleTime: 30_000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,

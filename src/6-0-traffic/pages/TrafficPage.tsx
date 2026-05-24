@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { HeaderAndTab } from "../container/HeaderAndTab";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { Button } from "@/shared/components/ui/button";
 import { BarChart3 } from "lucide-react";
 import { UtmTrackingTable, type UtmTableMetricsSlice } from "../components/UtmTrackingTable";
@@ -473,6 +474,7 @@ export default function TrafficPage() {
                 <HeaderAndTab />
               </div>
 
+              <ModuleShellContentGate>
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
                   <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -995,6 +997,7 @@ export default function TrafficPage() {
                 </div>
                 </div>
               </div>
+              </ModuleShellContentGate>
 
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

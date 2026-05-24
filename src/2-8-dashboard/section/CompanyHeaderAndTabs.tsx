@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, FileText, Network, Package } from "lucide-react";
-import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
+import { LayoutDashboard, FileText, Lock, Network, Package } from "lucide-react";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 type CompanyHeaderAndTabsProps = {
@@ -13,7 +13,7 @@ type CompanyHeaderAndTabsProps = {
 export function CompanyHeaderAndTabs({ onTabChange }: CompanyHeaderAndTabsProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { canAccessPage } = useDepartmentAccess();
+  const { isTabLocked } = useHeaderTabPageAccess();
   const { t } = useAppTranslation();
 
   const tabs = [
@@ -49,13 +49,13 @@ export function CompanyHeaderAndTabs({ onTabChange }: CompanyHeaderAndTabsProps)
 
   const handleTabClick = useCallback(
     (tab: (typeof tabs)[0]) => {
-      if (tab.route && canAccessPage(tab.route)) {
+      if (tab.route) {
         navigate(tab.route);
       } else {
         onTabChange?.(tab.id);
       }
     },
-    [canAccessPage, navigate, onTabChange],
+    [navigate, onTabChange],
   );
 
   const getActiveTabId = () => {
@@ -85,25 +85,30 @@ export function CompanyHeaderAndTabs({ onTabChange }: CompanyHeaderAndTabsProps)
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTabId === tab.id;
-            const canAccess = canAccessPage(tab.route);
+            const locked = isTabLocked(tab.route);
             const label = t(tab.labelKey, tab.labelFallback);
 
             return (
               <button
                 key={tab.id}
                 type="button"
-                disabled={!canAccess}
-                onClick={() => canAccess && handleTabClick(tab)}
-                className={`flex items-center gap-1.5 border-b-2 py-1.5 px-1 text-sm font-medium transition-colors ${
-                  canAccess
-                    ? isActive
-                      ? "cursor-pointer border-primary text-primary"
-                      : "cursor-pointer border-transparent text-muted-foreground hover:border-border hover:text-foreground"
-                    : "cursor-not-allowed border-transparent text-muted-foreground opacity-50"
+                onClick={() => handleTabClick(tab)}
+                title={
+                  locked
+                    ? t("accessDenied.message", "You do not have permission to view this page.")
+                    : undefined
+                }
+                className={`flex items-center gap-1.5 border-b-2 py-1.5 px-1 text-sm font-medium transition-colors cursor-pointer ${
+                  locked
+                    ? "border-transparent text-muted-foreground opacity-60"
+                    : isActive
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden />
                 <span>{label}</span>
+                {locked ? <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </button>
             );
           })}

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CompanyHeaderAndTabs } from "@/2-8-dashboard/section";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 
 type CompanyModuleShellProps = {
   children: ReactNode;
@@ -19,7 +20,7 @@ export function CompanyModuleShell({ children }: CompanyModuleShellProps) {
               <div className="mb-1 shrink-0">
                 <CompanyHeaderAndTabs />
               </div>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+              <ModuleShellContentGate>{children}</ModuleShellContentGate>
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                 aria-hidden

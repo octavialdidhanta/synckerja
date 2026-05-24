@@ -1,8 +1,8 @@
 import React, { useMemo } from "react";
 import { Calculator, CheckSquare, FileText, Key, Lock, Target } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useDepartmentAccess } from "@/shared/layouts/sidebar/useDepartmentAccess";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 
 export type ToolsTabMode = "default" | "password-manager-only" | "pph21-calculator-only";
 
@@ -60,7 +60,7 @@ export function ToolsHeaderAndTab({
   toolsTabMode = "default",
 }: ToolsHeaderAndTabProps) {
   const navigate = useNavigate();
-  const { canAccessPage } = useDepartmentAccess();
+  const { isTabLocked } = useHeaderTabPageAccess();
   const { t } = useAppTranslation();
 
   const toolTabs: ToolTabItem[] = useMemo(() => {
@@ -133,16 +133,12 @@ export function ToolsHeaderAndTab({
           {toolTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
-            const isLocked = tab.path ? !canAccessPage(tab.path) : false;
+            const isLocked = tab.path ? isTabLocked(tab.path) : false;
 
             return (
               <div
                 key={tab.id}
-                onClick={() => {
-                  if (!isLocked) {
-                    handleTabClick(tab);
-                  }
-                }}
+                onClick={() => handleTabClick(tab)}
                 className={`flex items-center space-x-1.5 py-1.5 px-1 border-b-2 font-medium text-sm transition-colors ${
                   isLocked
                     ? "border-transparent text-gray-400 cursor-not-allowed opacity-60"
@@ -151,7 +147,11 @@ export function ToolsHeaderAndTab({
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 cursor-pointer"
                 }`}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
-                title={isLocked ? "You do not have permission to access this tab" : tab.description}
+                title={
+                  isLocked
+                    ? t("accessDenied.message", "You do not have permission to view this page.")
+                    : tab.description
+                }
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>

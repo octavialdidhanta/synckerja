@@ -6,7 +6,7 @@ import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAcce
 import { Button } from '@/shared/components/ui/button';
 
 export interface AccessDeniedPageProps {
-  /** Optional custom message (e.g. for terminated employee). When set, access level/restriction from useDepartmentAccess are not shown. */
+  /** Optional custom message (e.g. for terminated employee). When set, department restriction from useDepartmentAccess is not shown. */
   deniedReason?: string;
 }
 
@@ -19,10 +19,9 @@ export interface AccessDeniedPageProps {
 export function AccessDeniedPage({ deniedReason }: AccessDeniedPageProps) {
   const { t } = useAppTranslation();
   const navigate = useNavigate();
-  const { getAccessLevel, getDepartmentRestrictionMessage } = useDepartmentAccess();
+  const { getDepartmentRestrictionMessage } = useDepartmentAccess();
 
   const restrictionMessage = getDepartmentRestrictionMessage();
-  const accessLevel = getAccessLevel();
 
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col bg-gray-50 font-sans overflow-x-hidden overflow-y-auto overscroll-none touch-pan-y" style={{ overscrollBehavior: 'none' }}>
@@ -42,22 +41,14 @@ export function AccessDeniedPage({ deniedReason }: AccessDeniedPageProps) {
                 {deniedReason ?? t('accessDenied.message', 'Anda tidak memiliki izin untuk mengakses halaman ini.')}
               </p>
 
-              {!deniedReason && (accessLevel || restrictionMessage) && (
-                <div className="bg-gray-50 rounded-lg p-4 mb-6 text-sm text-gray-700 space-y-2">
-                  {accessLevel && (
-                    <p>
-                      <span className="font-medium">{t('accessDenied.accessLevel', 'Level Akses')}:</span>{' '}
-                      {accessLevel}
-                    </p>
-                  )}
-                  {restrictionMessage && (
-                    <p>
-                      <span className="font-medium">{t('accessDenied.restriction', 'Pembatasan')}:</span>{' '}
-                      {restrictionMessage}
-                    </p>
-                  )}
+              {!deniedReason && restrictionMessage ? (
+                <div className="bg-gray-50 rounded-lg p-4 mb-6 text-sm text-gray-700">
+                  <p>
+                    <span className="font-medium">{t('accessDenied.restriction', 'Pembatasan')}:</span>{' '}
+                    {restrictionMessage}
+                  </p>
                 </div>
-              )}
+              ) : null}
 
               <Button
                 onClick={() => navigate('/', { replace: true })}

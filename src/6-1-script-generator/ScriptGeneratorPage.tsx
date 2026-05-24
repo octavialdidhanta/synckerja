@@ -23,6 +23,8 @@ import { useProductKnowledgeHooks } from '@/6-1-product-knowledge/hooks/useProdu
 import { useKeywords } from '@/6-1-product-knowledge/hooks/useKeywords';
 import { ScriptGeneratorPageSkeleton } from './skeletons/ScriptGeneratorPageSkeleton';
 import { useScriptGeneratorPageSkeletonGate } from './hooks/useScriptGeneratorPageSkeletonGate';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { Button } from '@/shared/components/ui/button';
 import {
   defaultModelForTextAIProvider,
@@ -116,7 +118,11 @@ const ScriptGeneratorContent: React.FC = () => {
         keywordsPending ||
         scriptAiPending));
 
-  const showPageSkeleton = useScriptGeneratorPageSkeletonGate(rawPagePending);
+  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+    rawPagePending,
+    '/digital-marketing/social-media/script-generator',
+  );
+  const showPageSkeleton = useScriptGeneratorPageSkeletonGate(showFullPageSkeleton);
   // Use draft synchronously for first paint when org is ready but effect hasn't run yet (removes refresh flicker)
   const draftForPaint = organizationId && !draftAppliedRef.current ? loadDraft(organizationId) : null;
   const effectiveGeneratedPrompt = draftForPaint !== null ? draftForPaint.generatedPrompt : generatedPrompt;
@@ -286,6 +292,7 @@ const ScriptGeneratorContent: React.FC = () => {
                   />
                 </div>
 
+                <ModuleShellContentGate pagePath="/digital-marketing/social-media/script-generator">
                 {/* Desktop: tinggi pita tetap + isi panel scroll di dalam; mobile: stack + scroll halaman */}
                 <div
                   className={`grid w-full min-w-0 flex-1 grid-cols-1 gap-2 min-h-[calc(100vh-120px)] items-stretch lg:max-h-[calc(100vh-120px)] lg:overflow-hidden lg:grid-rows-1 lg:[grid-template-rows:minmax(0,1fr)] ${
@@ -455,6 +462,7 @@ const ScriptGeneratorContent: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                </ModuleShellContentGate>
 
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

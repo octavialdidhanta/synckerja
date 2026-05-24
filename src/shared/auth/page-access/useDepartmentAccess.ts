@@ -1,4 +1,6 @@
 import { useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { formatAccessLevelLabel } from "@/shared/lib/formatOrganizationRole";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { usePermissionConfiguration } from "./usePermissionConfiguration";
 import { logger } from "@/shared/lib/logger";
@@ -8,13 +10,11 @@ import {
   clearAccessCache,
   forceClearCache,
 } from "./departmentPageAccessCache";
-import { buildEffectiveAccessRoles } from "./accessRoleSet";
+import { buildEffectiveAccessRoles, hasOwnerRole } from "./accessRoleSet";
 
 const CROSS_DEPARTMENT_PAGES = ["/employees", "/reports", "/company", "/organization"];
 
 const isDev = import.meta.env.DEV;
-
-const loggedOverridePaths = new Set<string>();
 
 export {
   clearAccessCache,
@@ -22,14 +22,27 @@ export {
   forceClearCache,
 } from "./departmentPageAccessCache";
 
+export { hasOwnerRole } from "./accessRoleSet";
+
 export const useDepartmentAccess = () => {
-  const { userRole, organizationMemberRoles, employee, userData, isOwner, isAdmin, organization } =
-    useCentralizedUserData();
+  const { t } = useTranslation();
+  const {
+    userRole,
+    organizationMemberRoles,
+    employee,
+    userData,
+    isOwner,
+    isAdmin,
+    organization,
+    centralProfileHydrated,
+  } = useCentralizedUserData();
   const { configurations, loading: configLoading, configBootstrapPending } =
     usePermissionConfiguration();
 
   const departmentAccess = useMemo(() => {
     const currentDepartmentId = employee?.department_id;
+    const eff = buildEffectiveAccessRoles(organizationMemberRoles, userRole);
+    const ownerRole = hasOwnerRole(eff, userRole);
 
     const configHash = configurations.map((c) => `${c.id}-${c.updated_at}`).join("|");
 
@@ -40,6 +53,22 @@ export const useDepartmentAccess = () => {
       clearAccessCache();
     }
 
+    const rolesResolutionPending = Boolean(
+      userData?.active_organization_id &&
+        !!organization &&
+        organizationMemberRoles.length === 0 &&
+        !userRole &&
+        !ownerRole,
+    );
+
+    const accessDecisionPending =
+      configBootstrapPending ||
+      rolesResolutionPending ||
+      Boolean(
+        userData?.active_organization_id &&
+          (!centralProfileHydrated || (!organization && !configLoading)),
+      );
+
     const canAccessPage = (pagePath: string): boolean => {
       const normalizePath = (p?: string) => {
         if (!p) return "/";
@@ -49,11 +78,10 @@ export const useDepartmentAccess = () => {
         return s.toLowerCase();
       };
 
-      const eff = buildEffectiveAccessRoles(organizationMemberRoles, userRole);
-      const treatsAsOwner = isOwner || userRole === "owner" || eff.includes("owner");
-      const treatsAsAdmin = isAdmin || userRole === "admin" || eff.includes("admin");
+      const effForPath = buildEffectiveAccessRoles(organizationMemberRoles, userRole);
+      const hasOwner = hasOwnerRole(effForPath, userRole);
 
-      if (employee && organization && !treatsAsOwner) {
+      if (employee && organization && !hasOwner) {
         const employeeStatus =
           (employee as { status?: string; employee_status_name?: string }).status ||
           (employee as { employee_status_name?: string }).employee_status_name;
@@ -72,56 +100,27 @@ export const useDepartmentAccess = () => {
         }
       }
 
-      if (treatsAsOwner) {
+      if (hasOwner) {
         return true;
       }
 
-      if (treatsAsAdmin) {
+      if (accessDecisionPending) {
         return true;
-      }
-
-      const normalizedPath = normalizePath(pagePath);
-      if (normalizedPath === "/company/files") {
-        const allowedRoles = ["owner", "admin", "employee", "hr"];
-        if (eff.some((r) => allowedRoles.includes(r))) {
-          if (isDev && !loggedOverridePaths.has(pagePath)) {
-            loggedOverridePaths.add(pagePath);
-            setTimeout(() => {
-              loggedOverridePaths.delete(pagePath);
-            }, 5 * 60 * 1000);
-          }
-          const cacheKey = `${normalizedPath}-${eff.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
-          accessCache.set(cacheKey, {
-            result: true,
-            timestamp: Date.now(),
-            configHash,
-          });
-          return true;
-        }
       }
 
       if (configLoading) {
-        // Do not deny while permission matrix is still loading (avoids "Limited Access" flash on login).
         return true;
       }
 
       if (userData?.active_organization_id && !organization) {
-        // Org id known from profile but org row not hydrated yet (common right after login redirect).
         return true;
       }
 
-      if (userData?.active_organization_id && eff.length === 0 && !treatsAsOwner && !treatsAsAdmin) {
-        // Org member but roles not resolved yet — treat as pending, not denied.
+      if (userData?.active_organization_id && effForPath.length === 0) {
         return true;
       }
 
-      if (userData && employee && eff.length === 0) {
-        const np = normalizePath(pagePath);
-
-        if (np === "/company/files" && employee) {
-          return true;
-        }
-
+      if (userData && employee && effForPath.length === 0) {
         if (userData.active_organization_id) {
           return true;
         }
@@ -133,7 +132,7 @@ export const useDepartmentAccess = () => {
 
       const verbosePermissions = import.meta.env.VITE_VERBOSE_PERMISSIONS === "true";
 
-      const cacheKey = `${current}-${eff.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
+      const cacheKey = `${current}-${effForPath.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
       const cached = accessCache.get(cacheKey);
       if (
         cached &&
@@ -159,7 +158,7 @@ export const useDepartmentAccess = () => {
 
       const pickMostSpecific = (list: typeof matchingConfigs) => list[0];
 
-      let config: (typeof matchingConfigs)[number] | undefined;
+      let configsToEvaluate: typeof matchingConfigs;
       if (current === "/") {
         const homeMatches = matchingConfigs
           .filter((c) => {
@@ -173,88 +172,83 @@ export const useDepartmentAccess = () => {
         const legacyDashboard = homeMatches.filter(
           (c) => normalizePath(c.page_path) === "/dashboard",
         );
-        config = pickMostSpecific(exactRoot) || pickMostSpecific(legacyDashboard);
-      }
-      if (config == null) {
-        config = pickMostSpecific(matchingConfigs);
+        const homeConfig = pickMostSpecific(exactRoot) || pickMostSpecific(legacyDashboard);
+        configsToEvaluate = homeConfig ? [homeConfig] : [];
+      } else {
+        configsToEvaluate = matchingConfigs;
       }
 
       if (isDev && verbosePermissions) {
-        logger.debug(`PERMISSION DEBUG: ${pagePath}`, { current, userRole, eff, config });
-      }
-
-      if (!config) {
-        const result = false;
-        accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
-        return result;
-      }
-
-      if (config.exception_paths && config.exception_paths.length > 0) {
-        const isExceptionPath = config.exception_paths.some((exceptionPath) => {
-          const ex = normalizePath(exceptionPath);
-          return current === ex || current.startsWith(ex + "/");
+        logger.debug(`PERMISSION DEBUG: ${pagePath}`, {
+          current,
+          userRole,
+          eff: effForPath,
+          configsToEvaluate,
         });
-
-        if (isExceptionPath) {
-          const result = true;
-          accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
-          return result;
-        }
       }
 
-      if (config.is_active === false) {
-        const result = false;
-        accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
-        return result;
-      }
-
-      if (treatsAsOwner || treatsAsAdmin) {
+      // No row in Page Access matrix → do not lock/deny (only configured paths are restricted).
+      if (configsToEvaluate.length === 0) {
         const result = true;
         accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
         return result;
       }
 
-      if (current === "/company/files") {
-        const allowedRoles = ["owner", "admin", "employee", "hr"];
-        if (eff.some((r) => allowedRoles.includes(r))) {
-          const result = true;
-          accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
-          return result;
-        }
-      }
+      const isExceptionPathForConfig = (cfg: (typeof matchingConfigs)[number]) =>
+        (cfg.exception_paths ?? []).some((exceptionPath) => {
+          const ex = normalizePath(exceptionPath);
+          return current === ex || current.startsWith(`${ex}/`);
+        });
 
-      if (eff.length === 0) {
-        const result = false;
+      if (configsToEvaluate.some(isExceptionPathForConfig)) {
+        const result = true;
         accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
         return result;
       }
 
-      const allowedInConfig = (config.roles_allowed || []).map((r) => (r || "").toLowerCase().trim());
-      const hasRoleAccess = eff.some((r) => allowedInConfig.includes(r));
-
-      const isException =
-        !!employee?.id && (config.exceptions || []).includes(employee.id);
-
-      let finalResult = hasRoleAccess || isException;
-
-      const allowedJobLevels = (config.job_levels_allowed || [])
-        .map((l) => (l || "").toLowerCase().trim())
-        .filter(Boolean);
-      if (finalResult && allowedJobLevels.length > 0 && !isException) {
-        const emp = employee as
-          | (typeof employee & {
-              job_level_id?: string | null;
-              job_levels?: { id?: string; name?: string } | null;
-            })
-          | null;
-        const levelId = (emp?.job_level_id || emp?.job_levels?.id || "").toLowerCase();
-        const levelName = (emp?.job_levels?.name || "").toLowerCase();
-        const levelMatches = allowedJobLevels.some(
-          (token) =>
-            (levelId && token === levelId) || (levelName && token === levelName),
-        );
-        finalResult = levelMatches;
+      if (hasOwnerRole(effForPath, userRole)) {
+        const result = true;
+        accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
+        return result;
       }
+
+      const configAllowsUser = (config: (typeof matchingConfigs)[number]): boolean => {
+        if (config.is_active === false) return false;
+
+        if (effForPath.length === 0) return false;
+
+        const allowedInConfig = (config.roles_allowed || []).map((r) => (r || "").toLowerCase().trim());
+        const hasRoleAccess = effForPath.some((r) => allowedInConfig.includes(r));
+
+        const isException =
+          !!employee?.id && (config.exceptions || []).includes(employee.id);
+
+        let finalResult = hasRoleAccess || isException;
+
+        const allowedJobLevels = (config.job_levels_allowed || [])
+          .map((l) => (l || "").toLowerCase().trim())
+          .filter(Boolean);
+        if (finalResult && allowedJobLevels.length > 0 && !isException) {
+          const emp = employee as
+            | (typeof employee & {
+                job_level_id?: string | null;
+                job_levels?: { id?: string; name?: string } | null;
+              })
+            | null;
+          const levelId = (emp?.job_level_id || emp?.job_levels?.id || "").toLowerCase();
+          const levelName = (emp?.job_levels?.name || "").toLowerCase();
+          const levelMatches = allowedJobLevels.some(
+            (token) =>
+              (levelId && token === levelId) || (levelName && token === levelName),
+          );
+          finalResult = levelMatches;
+        }
+
+        return finalResult;
+      };
+
+      // Hierarchical paths: every matching ancestor must allow (e.g. `/omnichannel` off blocks `/omnichannel/settings/...`).
+      const finalResult = configsToEvaluate.every(configAllowsUser);
 
       accessCache.set(cacheKey, {
         result: finalResult,
@@ -270,16 +264,16 @@ export const useDepartmentAccess = () => {
     };
 
     const canAccessDepartment = (targetDepartmentId?: string): boolean => {
-      const eff = buildEffectiveAccessRoles(organizationMemberRoles, userRole);
-      if (isOwner || isAdmin || eff.includes("owner") || eff.includes("admin")) {
+      const effDept = buildEffectiveAccessRoles(organizationMemberRoles, userRole);
+      if (isOwner || isAdmin || effDept.includes("owner") || effDept.includes("admin")) {
         return true;
       }
 
-      if (eff.includes("hr")) {
+      if (effDept.includes("hr")) {
         return true;
       }
 
-      if (eff.includes("employee") || eff.includes("manager") || eff.includes("member")) {
+      if (effDept.includes("employee") || effDept.includes("manager") || effDept.includes("member")) {
         return !targetDepartmentId || targetDepartmentId === currentDepartmentId;
       }
 
@@ -290,13 +284,8 @@ export const useDepartmentAccess = () => {
       return CROSS_DEPARTMENT_PAGES.some((crossDeptPage) => pagePath.startsWith(crossDeptPage));
     };
 
-    const getAccessLevel = (): string => {
-      if (isOwner) return "Full Access (Owner)";
-      if (isAdmin) return "Full Access (Admin)";
-      if (userRole === "hr") return "HR Access (Employee Management)";
-      if (userRole === "employee") return "Department Access Only";
-      return "Limited Access";
-    };
+    const getAccessLevel = (): string =>
+      formatAccessLevelLabel(t, userRole, organizationMemberRoles);
 
     const getDepartmentRestrictionMessage = (): string | null => {
       if (isOwner || isAdmin || userRole === "hr") return null;
@@ -309,15 +298,6 @@ export const useDepartmentAccess = () => {
 
       return null;
     };
-
-    const rolesResolutionPending = Boolean(
-      userData?.active_organization_id &&
-        !!organization &&
-        organizationMemberRoles.length === 0 &&
-        !userRole &&
-        !isOwner &&
-        !isAdmin,
-    );
 
     return {
       canAccessPage,
@@ -335,6 +315,7 @@ export const useDepartmentAccess = () => {
       configBootstrapPending,
       configHash,
       rolesResolutionPending,
+      accessDecisionPending,
     };
   }, [
     userRole,
@@ -347,6 +328,8 @@ export const useDepartmentAccess = () => {
     configurations,
     configLoading,
     configBootstrapPending,
+    centralProfileHydrated,
+    t,
   ]);
 
   const { configHash } = departmentAccess;

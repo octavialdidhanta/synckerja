@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, FileCheck, CreditCard, Bell, Receipt } from 'lucide-react';
+import { BarChart3, FileCheck, CreditCard, Bell, Receipt, Lock } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { prefetchAppRoute } from '@/shared/routing/prefetchAppRoute';
+import { useHeaderTabPageAccess } from '@/shared/auth/page-access/useHeaderTabPageAccess';
+import { cn } from '@/shared/lib/utils';
 
 interface HeaderAndTabProps {
   activeTab: string;
@@ -11,6 +13,7 @@ interface HeaderAndTabProps {
 
 export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
   const { t } = useAppTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -99,6 +102,7 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = getActiveTab() === tab.id;
+            const locked = isTabLocked(tab.route);
 
             return (
               <div
@@ -114,15 +118,24 @@ export const HeaderAndTab = ({ activeTab, onTabChange }: HeaderAndTabProps) => {
                 onMouseEnter={() => prefetchAppRoute(tab.route)}
                 onFocus={() => prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab)}
-                className={`flex min-w-0 flex-shrink-0 cursor-pointer items-center space-x-1 whitespace-nowrap border-b-2 px-1 py-1.5 text-xs font-medium transition-colors sm:space-x-1.5 sm:px-2 sm:text-sm ${
-                  isActive
-                    ? 'border-brand-blue text-brand-blue'
-                    : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
-                }`}
+                title={
+                  locked
+                    ? t('accessDenied.message', 'You do not have permission to view this page.')
+                    : undefined
+                }
+                className={cn(
+                  'flex min-w-0 flex-shrink-0 cursor-pointer items-center space-x-1 whitespace-nowrap border-b-2 px-1 py-1.5 text-xs font-medium transition-colors sm:space-x-1.5 sm:px-2 sm:text-sm',
+                  locked
+                    ? 'border-transparent text-muted-foreground opacity-60'
+                    : isActive
+                      ? 'border-brand-blue text-brand-blue'
+                      : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                )}
                 style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
               >
                 <Icon className="h-3 w-3 flex-shrink-0 sm:h-4 sm:w-4" />
                 <span className="truncate">{t(tab.labelKey, tab.labelFallback)}</span>
+                {locked ? <Lock className="ml-1 h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </div>
             );
           })}

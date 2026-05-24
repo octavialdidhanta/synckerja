@@ -24,3 +24,12 @@ export function buildEffectiveAccessRoles(
   }
   return [...set];
 }
+
+/** Owner role only — excludes org-founder `isOwner` when their `user_roles` row is not `owner`. */
+export function hasOwnerRole(
+  effectiveRoles: string[],
+  primaryRole: string | null | undefined,
+): boolean {
+  const role = (primaryRole || "").toLowerCase().trim();
+  return role === "owner" || effectiveRoles.includes("owner");
+}

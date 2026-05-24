@@ -10,7 +10,8 @@ import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Separator } from "@/shared/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { PROFILE_QUERY_KEY, useProfile, useUpdateProfile, type ProfileRow } from "@/shared/hooks/useProfile";
+import { useProfile, useUpdateProfile, type ProfileRow } from "@/shared/hooks/useProfile";
+import { profileQueryKey } from "@/shared/auth/identityQuerySync";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { setAppLanguage, type SupportedLanguage } from "@/shared/i18n";
 import { DEFAULT_LANGUAGE } from "@/shared/i18n/translations";
@@ -107,9 +108,11 @@ export function ProfileSettings({
   const handlePhotoUpdate = (photoUrl: string | null) => {
     setFormData((prev) => ({ ...prev, profile_photo_url: photoUrl }));
     setHasChanges(true);
-    queryClient.setQueryData<ProfileRow | null>([PROFILE_QUERY_KEY], (prev) =>
-      prev ? { ...prev, profile_photo_url: photoUrl } : prev,
-    );
+    if (profile?.user_id) {
+      queryClient.setQueryData<ProfileRow | null>(profileQueryKey(profile.user_id), (prev) =>
+        prev ? { ...prev, profile_photo_url: photoUrl } : prev,
+      );
+    }
     if (profile?.user_id) {
       void supabase
         .from("employees")

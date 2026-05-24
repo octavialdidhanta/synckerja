@@ -4,7 +4,7 @@ import { App } from "@capacitor/app";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { refreshNativeSafeAreaChromeInsets } from "@/shared/hooks/useNativeSafeAreaCssVars";
 
-const ANDROID_LIGHT_STATUS_BG = "#ffffff";
+const ANDROID_LIGHT_STATUS_BG = "#FFFFFFFF";
 /** Header gelap: latar status bar gelap + Style.Dark (ikon terang). */
 const ANDROID_DARK_STATUS_BG = "#0f172a";
 

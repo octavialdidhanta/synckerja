@@ -1,7 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { prefetchAppRoute } from '@/shared/routing/prefetchAppRoute';
-import { BarChart3, Receipt, CircleDollarSign } from 'lucide-react';
+import { BarChart3, Receipt, CircleDollarSign, Lock } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { useHeaderTabPageAccess } from '@/shared/auth/page-access/useHeaderTabPageAccess';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface HeaderAndTabProps {
   activeTab?: string;
@@ -9,6 +11,8 @@ interface HeaderAndTabProps {
 }
 
 export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
+  const { t } = useAppTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -71,6 +75,7 @@ export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = getActiveTab() === tab.id;
+            const locked = isTabLocked(tab.route);
 
             return (
               <button
@@ -79,15 +84,23 @@ export const HeaderAndTab = ({ onTabChange }: HeaderAndTabProps) => {
                 onMouseEnter={() => tab.route && prefetchAppRoute(tab.route)}
                 onFocus={() => tab.route && prefetchAppRoute(tab.route)}
                 onClick={() => handleTabClick(tab)}
+                title={
+                  locked
+                    ? t('accessDenied.message', 'You do not have permission to view this page.')
+                    : undefined
+                }
                 className={cn(
                   'flex cursor-pointer items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+                  locked
+                    ? 'border-transparent text-muted-foreground opacity-60'
+                    : isActive
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
                 )}
               >
                 <Icon className="h-4 w-4" />
                 <span>{tab.label}</span>
+                {locked ? <Lock className="ml-1 h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </button>
             );
           })}

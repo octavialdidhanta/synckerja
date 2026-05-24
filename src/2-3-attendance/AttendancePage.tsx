@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { HeaderAndTab } from "./section/HeaderAndTab";
 import { DashboardOverview } from "@/2-3-dashboard";
 import { EmployeeAttendanceTab } from "@/2-3-employee-attendance";
 import { AttendanceSettings } from "@/2-3-settings";
-import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
-import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { cn } from "@/shared/lib/utils";
@@ -30,9 +29,6 @@ function AttendancePageContent() {
   const { t } = useAppTranslation();
   const { hasPendingLoad } = useAttendancePageLoad();
   const location = useLocation();
-  const navigate = useNavigate();
-  const { canAccessPage, configLoading } = useDepartmentAccess();
-  const { userRole, isOwner, isAdmin } = useCentralizedUserData();
   const { orgBootstrapPending } = useOrgBootstrapPending();
 
   const activeTab = attendanceTabFromPathname(location.pathname);
@@ -41,41 +37,8 @@ function AttendancePageContent() {
   const [settingsSkeletonVisible, setSettingsSkeletonVisible] = useState(true);
 
   useEffect(() => {
-    if (configLoading) {
-      setIsLoading(true);
-      return;
-    }
-
-    const currentPath = location.pathname;
-
-    if (isOwner || userRole === "owner" || isAdmin || userRole === "admin") {
-      setIsLoading(false);
-      return;
-    }
-
-    if (canAccessPage(currentPath)) {
-      setIsLoading(false);
-      return;
-    }
-
-    const fallbackPath =
-      currentPath === "/attendance"
-        ? canAccessPage("/attendance/attendance")
-          ? "/attendance/attendance"
-          : canAccessPage("/attendance/settings")
-            ? "/attendance/settings"
-            : null
-        : currentPath === "/attendance/attendance" && canAccessPage("/attendance/settings")
-          ? "/attendance/settings"
-          : null;
-
-    if (fallbackPath && fallbackPath !== currentPath) {
-      navigate(fallbackPath, { replace: true });
-      return;
-    }
-
     setIsLoading(false);
-  }, [location.pathname, canAccessPage, configLoading, isOwner, isAdmin, userRole, navigate]);
+  }, [location.pathname]);
 
   /** Navigation is performed inside `HeaderAndTab` via `navigate()`; tab state is URL-derived. */
   const handleTabChange = useCallback((_tab: string) => {}, []);
@@ -88,7 +51,7 @@ function AttendancePageContent() {
   const recordsRoute = location.pathname === "/attendance/attendance";
   /** Records tab: wait for org context + section ref-counts; avoids one frame without overlay before table/sidebar report load. */
   const rawLoading =
-    isLoading || configLoading || hasPendingLoad || (recordsRoute && orgBootstrapPending);
+    isLoading || hasPendingLoad || (recordsRoute && orgBootstrapPending);
 
   useEffect(() => {
     if (!isSettingsRoute) {
@@ -133,6 +96,7 @@ function AttendancePageContent() {
                 <div className="mb-1 flex-shrink-0">
                   <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
                 </div>
+                <ModuleShellContentGate pagePath={location.pathname}>
                 <div
                   className={cn(
                     "grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch",
@@ -163,6 +127,7 @@ function AttendancePageContent() {
                     )}
                   </div>
                 </div>
+                </ModuleShellContentGate>
                 <div
                   className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                   aria-hidden
