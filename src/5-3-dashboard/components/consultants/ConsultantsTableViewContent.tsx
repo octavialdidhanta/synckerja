@@ -24,6 +24,7 @@ import {
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useLeadsTableSurveyIntegration } from '@/5-3-dashboard/hooks/useLeadsTableSurveyIntegration';
+import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
 import { CustomerSurveyHistoryDialog } from '@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog';
 
 interface ConsultantsTableViewContentProps {
@@ -56,6 +57,10 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { organizationId } = useCurrentOrg();
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
+  const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
+    organizationId,
+    leads,
+  );
   const {
     surveyTableProps,
     matchesSurveyRatingFilter,
@@ -409,6 +414,9 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                     value: filters.landingUrlContains,
                     onChange: handleLandingUrlContainsChange,
                   }}
+                  showGoogleAdsSyncColumn
+                  getGoogleAdsSyncForLead={getSyncForLead}
+                  googleAdsSyncLoading={googleAdsSyncLoading}
                   {...surveyTableProps}
                 />
               </div>

@@ -32,6 +32,7 @@ import {
   buildUniqueLeadStatusFilterOptions,
   useLeadsManagementFilterQueries,
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
+import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
 
 interface LeadsTableViewContentProps {
   // No props needed now, using the hook
@@ -68,6 +69,10 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
   const [surveyHistoryOpen, setSurveyHistoryOpen] = useState(false);
   const { organizationId } = useCurrentOrg();
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads({ scope });
+  const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
+    organizationId,
+    leads,
+  );
   const { getSurveyForLead, resolveConversationId, surveyRatingByLeadId } =
     useCustomerSurveyForLeads(organizationId, leads);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
@@ -466,6 +471,9 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
                     value: filters.landingUrlContains,
                     onChange: handleLandingUrlContainsChange,
                   }}
+                  showGoogleAdsSyncColumn
+                  getGoogleAdsSyncForLead={getSyncForLead}
+                  googleAdsSyncLoading={googleAdsSyncLoading}
                   getSurveyForLead={getSurveyForLead}
                   onOpenSurveyHistory={handleOpenSurveyHistory}
                   surveyColumnFilter={{

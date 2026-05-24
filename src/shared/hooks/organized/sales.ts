@@ -16,6 +16,8 @@ import {
   RESOLVE_EMAIL_REQUIRED_CODE,
   SALES_ACTIVITY_CONTACT_REQUIRED_CODE,
 } from '@/shared/lib/leadSubmissionProfile';
+import { invalidateGoogleAdsConversionUploads } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
+import { kickGoogleAdsConversionAfterConverted } from '@/shared/lib/kickGoogleAdsConversionAfterConverted';
 import { resolveLeadConversionSalesActivity } from '@/shared/lib/sales/resolveLeadConversionSalesActivity';
 
 async function assertWaLeadSubmissionEmailBeforeResolve(
@@ -300,6 +302,11 @@ async function createConvertedSalesActivity(
     queryClient.invalidateQueries({
       queryKey: ['lead-conversion-sales-activity', args.orgId, args.leadId],
     });
+    kickGoogleAdsConversionAfterConverted({
+      leadId: args.leadId,
+      organizationId: args.orgId,
+      salesActivityId: activityId,
+    });
     return activityId;
   }
 
@@ -381,6 +388,11 @@ async function createConvertedSalesActivity(
   queryClient.invalidateQueries({ queryKey: ['monthly-income-data', args.orgId] });
   queryClient.invalidateQueries({
     queryKey: ['lead-conversion-sales-activity', args.orgId, args.leadId],
+  });
+  kickGoogleAdsConversionAfterConverted({
+    leadId: args.leadId,
+    organizationId: args.orgId,
+    salesActivityId: activityId,
   });
   return activityId;
 }
@@ -2509,6 +2521,9 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads', organizationId] });
+      if (organizationId) {
+        invalidateGoogleAdsConversionUploads(organizationId);
+      }
     },
   });
 

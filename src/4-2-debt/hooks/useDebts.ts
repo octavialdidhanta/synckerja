@@ -127,16 +127,23 @@ export const useDebts = () => {
 
         if (isOnlineLoan) {
           const currentDebtAmount = currentDebt?.debt_amount ?? 0;
+          const currentPaid = currentDebt?.paid_amount ?? 0;
+          const outstanding = Math.max(0, currentDebtAmount - currentPaid);
           updateData.debt_amount = currentDebtAmount;
-          updateData.paid_amount = currentDebt?.paid_amount ?? 0;
-          updateData.available_limit = Math.max(0, newLimit - currentDebtAmount);
+          updateData.paid_amount = currentPaid;
+          updateData.available_limit = Math.max(0, newLimit - outstanding);
         } else {
-          if (newAvailable != null && newAvailable > 0) {
+          const paid = currentDebt?.paid_amount ?? 0;
+          if (newAvailable != null && newAvailable >= 0) {
+            const outstanding = Math.max(0, newLimit - newAvailable);
             updateData.available_limit = newAvailable;
-            updateData.debt_amount = newLimit - newAvailable;
+            // debt_amount = total charged (outstanding + paid); jangan simpan outstanding saja
+            updateData.debt_amount = outstanding + paid;
+            updateData.remaining_debt = outstanding;
           } else {
             updateData.available_limit = newLimit;
-            updateData.debt_amount = 0;
+            updateData.debt_amount = paid > 0 ? paid : 0;
+            updateData.remaining_debt = 0;
           }
         }
       }

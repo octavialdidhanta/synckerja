@@ -47,6 +47,8 @@ import {
   LeadSurveyHistoryCell,
   LeadSurveyRatingCell,
 } from "@/5-3-dashboard/components/leads/table/LeadSurveyTableCells";
+import { LeadGoogleAdsSyncCell } from "@/5-3-dashboard/components/leads/table/LeadGoogleAdsSyncCell";
+import type { GoogleAdsSyncUploadRecord } from "@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap";
 
 type CategoryColumnFilterConfig = {
   value: string;
@@ -159,6 +161,10 @@ interface LeadsTableNewProps {
     /** Recipient list contact picker: show Email column immediately after phone (`_display_email`). */
     showEmailColumn?: boolean;
   } | null;
+  /** Google Ads offline conversion sync status (omnichannel leads table). */
+  showGoogleAdsSyncColumn?: boolean;
+  getGoogleAdsSyncForLead?: (lead: NewLead) => GoogleAdsSyncUploadRecord | null;
+  googleAdsSyncLoading?: boolean;
 }
 
 const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
@@ -193,6 +199,9 @@ export default function LeadsTableNew({
   surveyColumnFilter,
   resolveColumnFilter,
   pickerSelection = null,
+  showGoogleAdsSyncColumn = false,
+  getGoogleAdsSyncForLead,
+  googleAdsSyncLoading = false,
 }: LeadsTableNewProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -497,6 +506,15 @@ export default function LeadsTableNew({
       { key: "followup", label: "Follow Up", width: "min-w-[124px] w-[124px]", sortKey: "followup" },
       { key: "fu_priority", label: "FU Priority", width: "w-[120px]", sortKey: "fu_priority" },
       { key: "status", label: "Status", width: "w-[120px]", sortKey: "status" },
+      ...(showGoogleAdsSyncColumn && !pickerSelection
+        ? [
+            {
+              key: "google_ads_sync",
+              label: t("leadsManagement.table.googleAdsSync", "Sync Google Ads"),
+              width: "w-[110px]",
+            },
+          ]
+        : []),
       {
         key: "resolve_outcome",
         label: t("leadsManagement.table.isResolve", "Is Resolve?"),
@@ -512,7 +530,7 @@ export default function LeadsTableNew({
       { key: "survey_comment", label: t("leadsManagement.table.surveyComment", "Keterangan"), width: "w-[160px] max-w-[200px]" },
       ...(pickerSelection ? [] : [{ key: "actions" as const, label: "Actions", width: "w-[100px]" }]),
     ];
-  }, [pickerSelection, t]);
+  }, [pickerSelection, showGoogleAdsSyncColumn, t]);
 
   const tableColCount = tableHeaders.length;
 
@@ -779,6 +797,13 @@ export default function LeadsTableNew({
             t("leadsManagement.table.filterStatus", "Filter status"),
           )}
         </div>
+      );
+    }
+    if (header.key === "google_ads_sync") {
+      return (
+        <span className="min-w-0 truncate font-medium text-gray-700" title={header.label}>
+          {header.label}
+        </span>
       );
     }
     if (header.key === "resolve_outcome") {
@@ -1264,6 +1289,17 @@ export default function LeadsTableNew({
                       );
                     })()}
                   </TableCell>
+                  {showGoogleAdsSyncColumn && !pickerSelection ? (
+                    <TableCell className="whitespace-nowrap px-1">
+                      <LeadGoogleAdsSyncCell
+                        isConverted={
+                          getCurrentLeadStatusName(lead).trim().toLowerCase() === 'converted'
+                        }
+                        sync={getGoogleAdsSyncForLead?.(lead) ?? null}
+                        loading={googleAdsSyncLoading}
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell className="whitespace-nowrap px-1">
                     {(() => {
                       const rawStatus = (lead.lead_status?.name ?? leadStatuses.find((s) => s.id === lead.status_id)?.name ?? "").trim();

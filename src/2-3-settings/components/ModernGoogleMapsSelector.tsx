@@ -438,14 +438,22 @@ export const ModernGoogleMapsSelector = ({
 
       toast({
         title: t('officeLocation.locationSelected', 'Location Selected'),
-        description: applyVariables(t('officeLocation.coordinatesFormat', 'Coordinates: {{lat}}, {{lng}}'), { lat: lat.toFixed(6), lng: lng.toFixed(6) }),
+        description: t('officeLocation.coordinatesFormat', {
+          defaultValue: 'Coordinates: {{lat}}, {{lon}}',
+          lat: lat.toFixed(6),
+          lon: lng.toFixed(6),
+        }),
       });
 
     } catch (error) {
       console.warn('⚠️ Geocoding failed, using basic location:', error);
       
       const location: LocationData = {
-        address: applyVariables(t('officeLocation.locationFormat', 'Location ({{lat}}, {{lng}})'), { lat: lat.toFixed(6), lng: lng.toFixed(6) }),
+        address: t('officeLocation.locationFormat', {
+          defaultValue: 'Location ({{lat}}, {{lon}})',
+          lat: lat.toFixed(6),
+          lon: lng.toFixed(6),
+        }),
         formatted_address: `${lat}, ${lng}`,
         latitude: lat,
         longitude: lng,
@@ -457,7 +465,11 @@ export const ModernGoogleMapsSelector = ({
 
       toast({
         title: t('officeLocation.locationSelected', 'Location Selected'),
-        description: applyVariables(t('officeLocation.coordinatesFormat', 'Coordinates: {{lat}}, {{lng}}'), { lat: lat.toFixed(6), lng: lng.toFixed(6) }),
+        description: t('officeLocation.coordinatesFormat', {
+          defaultValue: 'Coordinates: {{lat}}, {{lon}}',
+          lat: lat.toFixed(6),
+          lon: lng.toFixed(6),
+        }),
       });
     }
   }, [isLoaded, onLocationSelect, toast, updateMarkerPosition, t]);
@@ -547,7 +559,11 @@ export const ModernGoogleMapsSelector = ({
             
             // Fallback to basic coordinates
             const location: LocationData = {
-              address: applyVariables(t('officeLocation.currentLocationFormat', 'Current Location ({{lat}}, {{lng}})'), { lat: lat.toFixed(6), lng: lng.toFixed(6) }),
+              address: t('officeLocation.currentLocationFormat', {
+                defaultValue: 'Current Location ({{lat}}, {{lon}})',
+                lat: lat.toFixed(6),
+                lon: lng.toFixed(6),
+              }),
               formatted_address: `${lat}, ${lng}`,
               latitude: lat,
               longitude: lng,
@@ -761,7 +777,11 @@ export const ModernGoogleMapsSelector = ({
             <p className="text-xs text-green-600 mt-1">{selectedLocation.formatted_address}</p>
             {selectedLocation.latitude !== 0 && selectedLocation.longitude !== 0 && (
               <p className="text-xs text-green-600 mt-1">
-                {applyVariables(t('officeLocation.coordinatesFormat', 'Coordinates: {{lat}}, {{lng}}'), { lat: selectedLocation.latitude.toFixed(6), lng: selectedLocation.longitude.toFixed(6) })}
+                {t('officeLocation.coordinatesFormat', {
+                  defaultValue: 'Coordinates: {{lat}}, {{lon}}',
+                  lat: selectedLocation.latitude.toFixed(6),
+                  lon: selectedLocation.longitude.toFixed(6),
+                })}
               </p>
             )}
             {selectedLocation.google_place_id && (

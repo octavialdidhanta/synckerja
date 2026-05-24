@@ -25,32 +25,48 @@ export function calculateDebtUtilization(limit: number, used: number): number {
   return Math.round((used / limit) * 100);
 }
 
+function hasCreditLineTracking(debt: DebtLike): boolean {
+  const lim = debt.limit_amount ?? 0;
+  return lim > 0 && debt.available_limit != null && Number.isFinite(debt.available_limit);
+}
+
 /**
- * Outstanding balance for UI: match `payableDebts` / DebtPaymentModal.
- * Expense triggers (withdrawal_from_balance) bump `debt_amount`; many paths do not sync `remaining_debt`
- * on every spend. Preferring `remaining_debt` whenever it is > 0 would freeze the UI after new card
- * expenses — always derive from `debt_amount − paid_amount`, which triggers maintain for all debt types.
+ * Sisa hutang / plafon terpakai untuk UI (kolom Debt, total, modal bayar).
+ *
+ * - Kartu kredit & sejenis (ada plafon + available_limit): `limit_amount − available_limit`.
+ *   Pembayaran menaikkan available_limit; expense menurunkannya — paid_amount tidak dikurangkan lagi
+ *   (menghindari double-count setelah edit debt yang men-set debt_amount = limit − available).
+ * - Pinjaman Online: `debt_amount − paid_amount` (debt_amount = SUM expense, dipelihara trigger/RPC).
+ * - Lainnya tanpa plafon: `debt_amount − paid_amount`.
  */
 export function effectiveOutstandingBalance(debt: DebtLike): number {
+  if (debt.debt_type === 'Pinjaman Online') {
+    return Math.max(0, (debt.debt_amount ?? 0) - (debt.paid_amount ?? 0));
+  }
+
+  if (hasCreditLineTracking(debt)) {
+    const lim = debt.limit_amount ?? 0;
+    const avail = debt.available_limit ?? 0;
+    return Math.max(0, lim - avail);
+  }
+
   return Math.max(0, (debt.debt_amount ?? 0) - (debt.paid_amount ?? 0));
 }
 
 /**
  * Single source for debt row display (desktop + mobile).
- * Pinjaman Online: remaining-based (remaining_debt / debt_amount - paid).
- * Kartu kredit & lainnya: debt_amount di DB = total pemakaian (selaras SUM expense di dashboard);
- * sisa tagihan = remaining_debt (atau debt_amount - paid). Limit tersedia = plafon - sisa tagihan
- * (sama dengan available_limit yang dipelihara trigger, tidak memakai debt_amount mentah di kolom Debt).
  */
 export function resolveDebtDisplay(debt: DebtLike): ResolvedDebtDisplay {
   const isOnlineLoan = debt.debt_type === 'Pinjaman Online';
+  const lim = debt.limit_amount ?? 0;
+  const remaining = effectiveOutstandingBalance(debt);
 
   if (isOnlineLoan) {
-    const remaining = effectiveOutstandingBalance(debt);
-    const lim = debt.limit_amount ?? 0;
     const displayLimitAmount = debt.limit_amount;
-    const displayAvailableLimit = Math.max(0, lim - remaining);
-    const displayDebtAmount = remaining;
+    const displayAvailableLimit =
+      debt.available_limit != null && Number.isFinite(debt.available_limit)
+        ? Math.max(0, debt.available_limit)
+        : Math.max(0, lim - remaining);
     const displayPaidAmount =
       debt.paid_amount !== undefined && debt.paid_amount !== null && debt.paid_amount > 0
         ? debt.paid_amount
@@ -63,24 +79,23 @@ export function resolveDebtDisplay(debt: DebtLike): ResolvedDebtDisplay {
     return {
       displayLimitAmount,
       displayAvailableLimit,
-      displayDebtAmount,
+      displayDebtAmount: remaining,
       displayPaidAmount,
       displayInterest,
       utilization,
     };
   }
 
-  const lim = debt.limit_amount ?? 0;
-  const remaining = effectiveOutstandingBalance(debt);
-  const displayDebtAmount = remaining;
-  const displayAvailableLimit = Math.max(0, lim - remaining);
+  const displayAvailableLimit = hasCreditLineTracking(debt)
+    ? Math.max(0, debt.available_limit ?? 0)
+    : Math.max(0, lim - remaining);
   const displayPaidAmount = debt.paid_amount ?? null;
-  const utilization = calculateDebtUtilization(lim, displayDebtAmount);
+  const utilization = calculateDebtUtilization(lim, remaining);
 
   return {
     displayLimitAmount: debt.limit_amount,
     displayAvailableLimit,
-    displayDebtAmount,
+    displayDebtAmount: remaining,
     displayPaidAmount,
     displayInterest: null,
     utilization,

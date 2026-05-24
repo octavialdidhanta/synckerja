@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/mobile-app/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/mobile-app/components/ui/tabs";
 import { useExpenseBreakdown } from "@/mobile/2-expense/hooks/useExpenseBreakdown";
@@ -6,6 +6,7 @@ import { useMonthlyExpenseData } from "@/shared/hooks/finance/useMonthlyExpenseD
 import { MonthlyComparisonChart } from "@/mobile/2-expense/section/dashboard/MonthlyComparisonChart";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { aggregateExpenseTotalsByKey, sortedBreakdownEntries } from "@/shared/hooks/finance/expenseBreakdownBars";
 
 function formatCurrency(amount: number) {
   return `Rp ${amount.toLocaleString("id-ID")}`;
@@ -57,6 +58,21 @@ export function ExpenseBreakdownSection(props: ExpenseBreakdownSectionProps = {}
     isFilteredData && props.periodLabel ? props.periodLabel : t("expenses.breakdownYtdLabel", "YTD");
   const monthlyData = useMonthlyExpenseData(allExpenses);
 
+  const breakdownOverviewTotal = useMemo(
+    () => allExpenses.reduce((sum, expense) => sum + (expense.amount ?? 0), 0),
+    [allExpenses],
+  );
+  const breakdownCategoryTotal = useMemo(
+    () => allExpensesForCategoryBreakdown.reduce((sum, expense) => sum + (expense.amount ?? 0), 0),
+    [allExpensesForCategoryBreakdown],
+  );
+  const breakdownHeaderTotal =
+    breakdownTab === "category"
+      ? breakdownCategoryTotal
+      : breakdownTab === "monthly"
+        ? totalExpenses
+        : breakdownOverviewTotal;
+
   /** Hook-only usage (no parent data): avoid a second skeleton; page-level shell handles initial load. */
   if (props.allExpenses === undefined && hookData.isLoading) {
     return null;
@@ -71,7 +87,7 @@ export function ExpenseBreakdownSection(props: ExpenseBreakdownSectionProps = {}
           </h3>
           <div className="min-w-0 flex-shrink-0 text-right">
             <div className="text-xs text-muted-foreground">{totalLabel}</div>
-            <div className="truncate text-base font-semibold sm:text-lg">{formatCurrency(totalExpenses)}</div>
+            <div className="truncate text-base font-semibold sm:text-lg">{formatCurrency(breakdownHeaderTotal)}</div>
           </div>
         </div>
 
@@ -100,16 +116,13 @@ export function ExpenseBreakdownSection(props: ExpenseBreakdownSectionProps = {}
               >
                 <div className="flex min-h-0 flex-nowrap items-end justify-start gap-3 pb-0 pt-2">
                   {(() => {
-                    const expenseTypeTotals = allExpenses.reduce(
-                      (acc, expense) => {
-                        const type = expense.expense_type || "Uncategorized";
-                        acc[type] = (acc[type] || 0) + expense.amount;
-                        return acc;
-                      },
-                      {} as Record<string, number>,
+                    const expenseTypeTotals = aggregateExpenseTotalsByKey(
+                      allExpenses,
+                      (expense) => expense.expense_type || "Uncategorized",
+                      (expense) => expense.amount,
                     );
                     const maxAmount = Math.max(...Object.values(expenseTypeTotals), 0);
-                    return Object.entries(expenseTypeTotals).map(([expenseType, amount], index) => {
+                    return sortedBreakdownEntries(expenseTypeTotals).map(([expenseType, amount], index) => {
                       const heightPercentage = maxAmount > 0 ? (amount / maxAmount) * 80 : 0;
                       const colorClass = BAR_COLORS[index % BAR_COLORS.length];
                       return (
@@ -159,16 +172,13 @@ export function ExpenseBreakdownSection(props: ExpenseBreakdownSectionProps = {}
               >
                 <div className="flex min-h-0 flex-nowrap items-end justify-start gap-3 pb-0 pt-2">
                   {(() => {
-                    const categoryTotals = allExpensesForCategoryBreakdown.reduce(
-                      (acc, expense) => {
-                        const cat = expense.category || "Uncategorized";
-                        acc[cat] = (acc[cat] || 0) + expense.amount;
-                        return acc;
-                      },
-                      {} as Record<string, number>,
+                    const categoryTotals = aggregateExpenseTotalsByKey(
+                      allExpensesForCategoryBreakdown,
+                      (expense) => expense.category || "Uncategorized",
+                      (expense) => expense.amount,
                     );
                     const maxAmount = Math.max(...Object.values(categoryTotals), 0);
-                    return Object.entries(categoryTotals).map(([category, amount], index) => {
+                    return sortedBreakdownEntries(categoryTotals).map(([category, amount], index) => {
                       const heightPercentage = maxAmount > 0 ? (amount / maxAmount) * 80 : 0;
                       const colorClass = BAR_COLORS[index % BAR_COLORS.length];
                       return (

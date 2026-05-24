@@ -21,6 +21,7 @@ import { useDebtsForExpense } from "@/shared/hooks/finance/useDebtsForExpense";
 import { useExpenseCategories, type ExpenseCategory } from "@/shared/hooks/finance/useExpenseCategories";
 import { useExpenses, type Expense } from "@/shared/hooks/finance/useExpenses";
 import { useExpenseTypes, type ExpenseType } from "@/shared/hooks/finance/useExpenseTypes";
+import { filterExpensesBySearch } from "@/shared/hooks/finance/expenseTableSearch";
 
 export type DateFilterValue =
   | "all-dates"
@@ -300,26 +301,15 @@ export function useExpenseTable() {
     return filtered;
   }, [combinedSorted, dateRange, expenseTypeFilter, departmentFilter, withdrawalFilter]);
 
-  const filteredBySearch = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return allExpenses;
-    return allExpenses.filter((expense) => {
-      const hay = [
-        expense.expense_name,
-        expense.request_title,
-        expense.requester_name,
-        expense.expense_type,
-        expense.category,
-        expense.department,
-        expense.transaction_reference,
-        expense.description,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }, [allExpenses, searchQuery]);
+  const filteredBySearch = useMemo(
+    () => filterExpensesBySearch(allExpenses, searchQuery),
+    [allExpenses, searchQuery],
+  );
+
+  const filteredBySearchForCategoryBreakdown = useMemo(
+    () => filterExpensesBySearch(allExpensesForCategoryBreakdown, searchQuery),
+    [allExpensesForCategoryBreakdown, searchQuery],
+  );
 
   const totalExpenses = useMemo(
     () => allExpenses.reduce((sum, expense) => sum + (expense.amount ?? 0), 0),
@@ -381,6 +371,7 @@ export function useExpenseTable() {
     allExpenses,
     allExpensesForCategoryBreakdown,
     filteredBySearch,
+    filteredBySearchForCategoryBreakdown,
     totalExpenses,
     totalCount,
     currentMonthTotal,

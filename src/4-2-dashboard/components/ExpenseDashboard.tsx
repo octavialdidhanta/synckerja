@@ -40,6 +40,8 @@ import { ExpenseTypeCrudModal } from './ExpenseTypeCrudModal';
 import { ExpenseCategoryCrudModal } from './ExpenseCategoryCrudModal';
 import { usePurchaseRequests, PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { ExpenseTableFooter } from './ExpenseTableFooter';
+import { filterExpensesBySearch } from '@/shared/hooks/finance/expenseTableSearch';
+import { aggregateExpenseTotalsByKey, sortedBreakdownEntries } from '@/shared/hooks/finance/expenseBreakdownBars';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { openSupabaseFinanceReceiptOrInvoice } from '@/shared/utils/openSupabaseSignedFile';
 import { AttendanceDateRangePicker } from '@/shared/calendar/AttendanceDateRangePicker';
@@ -948,6 +950,29 @@ export function ExpenseDashboard() {
   ]);
 
   const totalExpenses = allExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+
+  const tableFilteredExpenses = useMemo(
+    () => filterExpensesBySearch(allExpenses, searchQuery),
+    [allExpenses, searchQuery],
+  );
+
+  const categoryBreakdownFilteredExpenses = useMemo(
+    () => filterExpensesBySearch(allExpensesForCategoryBreakdown, searchQuery),
+    [allExpensesForCategoryBreakdown, searchQuery],
+  );
+
+  const tableFilteredTotal = useMemo(
+    () => tableFilteredExpenses.reduce((sum, expense) => sum + expense.amount, 0),
+    [tableFilteredExpenses],
+  );
+
+  const categoryBreakdownFilteredTotal = useMemo(
+    () => categoryBreakdownFilteredExpenses.reduce((sum, expense) => sum + expense.amount, 0),
+    [categoryBreakdownFilteredExpenses],
+  );
+
+  const breakdownHeaderTotal =
+    breakdownTab === 'category' ? categoryBreakdownFilteredTotal : tableFilteredTotal;
   const currentMonthTotal = allExpenses
     .filter(expense => {
       const expenseDate = new Date(expense.create_date);
@@ -1105,7 +1130,7 @@ export function ExpenseDashboard() {
             <div className="flex justify-between items-center mb-4 gap-2 min-w-0">
               <h3 className="text-base sm:text-lg font-semibold truncate">Expense Breakdown</h3>
               <div className="text-right min-w-0">
-                <div className="text-base sm:text-lg font-semibold truncate">{formatCurrency(totalExpenses)}</div>
+                <div className="text-base sm:text-lg font-semibold truncate">{formatCurrency(breakdownHeaderTotal)}</div>
               </div>
             </div>
 
@@ -1116,21 +1141,20 @@ export function ExpenseDashboard() {
               </TabsList>
 
               <TabsContent value="overview" className="mt-0">
-                {allExpenses.length > 0 ? (
+                {tableFilteredExpenses.length > 0 ? (
                   <>
                     <div className="flex items-end justify-center gap-1 pt-2 px-2 pb-0 min-w-0">
                       {(() => {
-                        // Calculate expense type totals (by expense_type, not category)
-                        const expenseTypeTotals = allExpenses.reduce((acc, expense) => {
-                          const expenseType = expense.expense_type || 'Uncategorized';
-                          acc[expenseType] = (acc[expenseType] || 0) + expense.amount;
-                          return acc;
-                        }, {} as Record<string, number>);
+                        const expenseTypeTotals = aggregateExpenseTotalsByKey(
+                          tableFilteredExpenses,
+                          (expense) => expense.expense_type || 'Uncategorized',
+                          (expense) => expense.amount,
+                        );
 
-                        const maxAmount = Math.max(...Object.values(expenseTypeTotals));
+                        const maxAmount = Math.max(...Object.values(expenseTypeTotals), 0);
                         const colors = ['bg-green-500', 'bg-green-400', 'bg-brand-blue', 'bg-brand-blue/70', 'bg-brand-blue/90', 'bg-brand-blue/60', 'bg-brand-blue/50', 'bg-brand-blue/30'];
                         
-                        return Object.entries(expenseTypeTotals).map(([expenseType, amount], index) => {
+                        return sortedBreakdownEntries(expenseTypeTotals).map(([expenseType, amount], index) => {
                           const heightPercentage = maxAmount > 0 ? (amount / maxAmount) * 80 : 0;
                           const colorClass = colors[index % colors.length];
                           
@@ -1163,21 +1187,20 @@ export function ExpenseDashboard() {
               </TabsContent>
 
               <TabsContent value="category" className="mt-0">
-                {allExpensesForCategoryBreakdown.length > 0 ? (
+                {categoryBreakdownFilteredExpenses.length > 0 ? (
                   <>
                     <div className="flex items-end justify-center gap-1 pt-2 px-2 pb-0 min-w-0">
                       {(() => {
-                        // Tab Expense Category tidak ikut filter kategori: pakai allExpensesForCategoryBreakdown
-                        const categoryTotals = allExpensesForCategoryBreakdown.reduce((acc, expense) => {
-                          const category = expense.category || 'Uncategorized';
-                          acc[category] = (acc[category] || 0) + expense.amount;
-                          return acc;
-                        }, {} as Record<string, number>);
+                        const categoryTotals = aggregateExpenseTotalsByKey(
+                          categoryBreakdownFilteredExpenses,
+                          (expense) => expense.category || 'Uncategorized',
+                          (expense) => expense.amount,
+                        );
 
-                        const maxAmount = Math.max(...Object.values(categoryTotals));
+                        const maxAmount = Math.max(...Object.values(categoryTotals), 0);
                         const colors = ['bg-green-500', 'bg-green-400', 'bg-brand-blue', 'bg-brand-blue/70', 'bg-brand-blue/90', 'bg-brand-blue/60', 'bg-brand-blue/50', 'bg-brand-blue/30'];
                         
-                        return Object.entries(categoryTotals).map(([category, amount], index) => {
+                        return sortedBreakdownEntries(categoryTotals).map(([category, amount], index) => {
                           const heightPercentage = maxAmount > 0 ? (amount / maxAmount) * 80 : 0;
                           const colorClass = colors[index % colors.length];
                           
@@ -1521,16 +1544,14 @@ export function ExpenseDashboard() {
                       No expenses found. Click "Add Expense" to create your first expense.
                     </td>
                   </tr>
+                ) : tableFilteredExpenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={15} className="py-8 text-center text-gray-500">
+                      {t('expenses.tableNoSearchResults', 'No expenses match your search.')}
+                    </td>
+                  </tr>
                 ) : (
-                  allExpenses
-                    .filter(expense => {
-                      const q = searchQuery.toLowerCase();
-                      return (
-                        expense.expense_name.toLowerCase().includes(q) ||
-                        expense.category.toLowerCase().includes(q) ||
-                        (expense.transaction_reference || '').toLowerCase().includes(q)
-                      );
-                    })
+                  tableFilteredExpenses
                     .map((expense) => {
                       // Check if this is a paid purchase request
                       const isPaidPurchaseRequest = paidPurchaseRequests.some(pr => pr.id === expense.id);
@@ -1663,8 +1684,8 @@ export function ExpenseDashboard() {
 
         {/* Footer */}
         <ExpenseTableFooter 
-          totalExpenses={totalExpenses}
-          totalCount={allExpenses.length}
+          totalExpenses={tableFilteredTotal}
+          totalCount={tableFilteredExpenses.length}
           isLoading={expensesLoading || isLoadingPurchaseRequests}
         />
                 </div>

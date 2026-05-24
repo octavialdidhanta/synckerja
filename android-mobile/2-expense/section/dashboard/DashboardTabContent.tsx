@@ -155,9 +155,8 @@ export function DashboardTabContent() {
         </div>
         <div className="shrink-0">
           <ExpenseBreakdownSection
-            allExpenses={expenseTable.allExpenses}
-            allExpensesForCategoryBreakdown={expenseTable.allExpensesForCategoryBreakdown}
-            totalExpenses={expenseTable.totalExpenses}
+            allExpenses={expenseTable.filteredBySearch}
+            allExpensesForCategoryBreakdown={expenseTable.filteredBySearchForCategoryBreakdown}
             periodLabel={periodLabel}
           />
         </div>

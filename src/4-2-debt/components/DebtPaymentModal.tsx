@@ -41,6 +41,7 @@ import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { toast } from 'sonner';
 import { getPayableDebts } from '../utils/payableDebts';
+import { effectiveOutstandingBalance } from '../utils/resolveDebtDisplay';
 import type { ExpenseReceiptAutofillData } from '@/mobile/shared/services/analyzeExpenseReceiptWithAI';
 import { isValidDebtPaymentBankAccountId, type DebtPaymentModalSubmitPayload } from '../services/submitDebtPayment';
 import { IncomeAllocationOptionalSection } from '@/4-1-dashboard/components/IncomeAllocationOptionalSection';
@@ -344,19 +345,7 @@ export const DebtPaymentModal = ({
     }
   };
 
-  const calculateRemainingDebt = () => {
-    if (!selectedDebt) return 0;
-    const fallback = Math.max(0, selectedDebt.debt_amount - (selectedDebt.paid_amount ?? 0));
-    return selectedDebt.remaining_debt != null && selectedDebt.remaining_debt !== undefined
-      ? selectedDebt.remaining_debt > 0
-        ? selectedDebt.remaining_debt
-        : fallback > 0
-          ? fallback
-          : 0
-      : fallback;
-  };
-
-  const remainingDebt = calculateRemainingDebt();
+  const remainingDebt = selectedDebt ? effectiveOutstandingBalance(selectedDebt) : 0;
 
   const handleSubmit = async () => {
     if (!selectedDebt || !paymentAmountNum || paymentAmountNum <= 0) {
@@ -387,7 +376,7 @@ export const DebtPaymentModal = ({
       return;
     }
 
-    const rem = calculateRemainingDebt();
+    const rem = selectedDebt ? effectiveOutstandingBalance(selectedDebt) : 0;
     if (rem === 0) {
       const confirmed = window.confirm(
         t(
@@ -634,15 +623,7 @@ export const DebtPaymentModal = ({
                     <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 px-4 pb-4 seamless-scroll">
                       <div className="flex flex-col gap-0 rounded-md border bg-card">
                         {payableDebts.map((debt) => {
-                          const fallback = Math.max(0, debt.debt_amount - (debt.paid_amount ?? 0));
-                          const remaining =
-                            debt.remaining_debt != null && debt.remaining_debt !== undefined
-                              ? debt.remaining_debt > 0
-                                ? debt.remaining_debt
-                                : fallback > 0
-                                  ? fallback
-                                  : 0
-                              : fallback;
+                          const remaining = effectiveOutstandingBalance(debt);
                           const label = `${debt.debt_name} - ${t('debt.payment.remainingDebt', 'Remaining Debt')}: ${formatToRupiah(remaining)}`;
                           return (
                             <button
@@ -680,15 +661,7 @@ export const DebtPaymentModal = ({
                   </SelectTrigger>
                   <SelectContent>
                     {payableDebts.map((debt) => {
-                      const fallback = Math.max(0, debt.debt_amount - (debt.paid_amount ?? 0));
-                      const remaining =
-                        debt.remaining_debt != null && debt.remaining_debt !== undefined
-                          ? debt.remaining_debt > 0
-                            ? debt.remaining_debt
-                            : fallback > 0
-                              ? fallback
-                              : 0
-                          : fallback;
+                      const remaining = effectiveOutstandingBalance(debt);
                       return (
                         <SelectItem key={debt.id} value={debt.id}>
                           {debt.debt_name} - {t('debt.payment.remainingDebt', 'Remaining Debt')}: {formatToRupiah(remaining)}
@@ -708,7 +681,7 @@ export const DebtPaymentModal = ({
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600 dark:text-muted-foreground">{t('debt.payment.totalDebt', 'Total Debt')}:</span>
-                  <span className="text-sm font-semibold text-brand-red">{formatToRupiah(calculateRemainingDebt())}</span>
+                  <span className="text-sm font-semibold text-brand-red">{formatToRupiah(remainingDebt)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600 dark:text-muted-foreground">{t('debt.payment.remainingDebt', 'Remaining Debt')}:</span>

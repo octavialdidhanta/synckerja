@@ -31,6 +31,7 @@ import {
   useLeadsManagementFilterQueries,
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
 import { useLeadsTableSurveyIntegration } from '@/5-3-dashboard/hooks/useLeadsTableSurveyIntegration';
+import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
 import { CustomerSurveyHistoryDialog } from '@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog';
 
 export const ConsultantsPageContent = () => {
@@ -63,6 +64,11 @@ export const ConsultantsPageContent = () => {
   });
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { leads, createLead, updateLead, deleteLead, refetch } = useLeads({ scope: 'all' });
+  const { organizationId } = useCurrentOrg();
+  const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
+    organizationId,
+    leads,
+  );
 
   const handleAttributionSort = useCallback((column: LeadAttributionSortColumn) => {
     setAttributionSort((prev) => {
@@ -71,7 +77,6 @@ export const ConsultantsPageContent = () => {
     });
   }, []);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
-  const { organizationId } = useCurrentOrg();
   const {
     surveyTableProps,
     matchesSurveyRatingFilter,
@@ -516,6 +521,9 @@ export const ConsultantsPageContent = () => {
                       value: filters.landingUrlContains,
                       onChange: handleLandingUrlContainsChange,
                     }}
+                    showGoogleAdsSyncColumn
+                    getGoogleAdsSyncForLead={getSyncForLead}
+                    googleAdsSyncLoading={googleAdsSyncLoading}
                     {...surveyTableProps}
                   />
                 </div>
