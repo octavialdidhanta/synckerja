@@ -3,6 +3,7 @@ import { useIncomeTransactionPageModel } from "@/4-1-transaction/hooks/useIncome
 import { useIncomeTransactionDashboardStats } from "@/4-1-transaction/hooks/useIncomeTransactionDashboardStats";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { MobileIncomeTransactionSection } from "../section/MobileIncomeTransactionSection";
+import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 export default function MobileIncomeTransactionPage() {
   const { t } = useAppTranslation();
@@ -13,6 +14,7 @@ export default function MobileIncomeTransactionPage() {
     <MobileIncomesShell
       title={t("incomes.pageTitle", "Incomes")}
       subtitle={t("incomes.transactionTitle", "Income")}
+      pagePath={MOBILE_PAGE_PATH.incomesTransaction}
     >
       <MobileIncomeTransactionSection model={model} stats={stats} />
     </MobileIncomesShell>

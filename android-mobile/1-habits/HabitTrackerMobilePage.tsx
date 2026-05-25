@@ -19,6 +19,8 @@ import { useNotificationBadgeCount } from '@/shared/hooks/useNotificationBadgeCo
 import { NotificationsModal } from '@/mobile-app/components/NotificationsModal';
 import { useAuth } from '@/shared/auth/contexts/AuthContext';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
 
 function getGreetingKey(hour: number): 'morning' | 'noon' | 'afternoon' | 'night' {
   if (hour >= 18) return 'night';
@@ -142,7 +144,10 @@ const HabitTrackerMobilePage = () => {
                   </div>
                 </header>
 
-                <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative">
+                <ModuleShellContentGate
+                  pagePath={MOBILE_PAGE_PATH.toolsHabitsTracker}
+                  className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+                >
                   <HabitTrackerMobileContent />
                   <div className="pointer-events-none fixed right-4 z-40 flex justify-end bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px)+0.75rem)] max-[380px]:right-3">
                     <Button
@@ -154,7 +159,7 @@ const HabitTrackerMobilePage = () => {
                       {t('habitTracker.addHabit', 'Tambah habit')}
                     </Button>
                   </div>
-                </div>
+                </ModuleShellContentGate>
 
                 <NavigationFooter className="safe-area-bottom-lower" />
               </div>

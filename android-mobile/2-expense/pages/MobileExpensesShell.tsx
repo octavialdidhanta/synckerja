@@ -12,6 +12,7 @@ import {
   useExpenseTabs,
 } from "@/mobile/2-expense/shared/ExpenseTabs";
 import { ExpenseDashboardRefreshContext } from "@/mobile/2-expense/ExpenseDashboardRefreshContext";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
 const INDICATOR_HEIGHT = 56;
@@ -21,6 +22,8 @@ export type MobileExpensesShellProps = {
   /** Title/subtitle are shown in the header (per mobile-tools-layout-android rule). */
   title: string;
   subtitle: string;
+  /** Page Access path — must match App.tsx PageAccessGuard for this tab. */
+  pagePath: string;
   /** Which tab is active for bottom nav highlighting and route sync. */
   initialTab?: ExpenseTabKey;
   children: ReactNode;
@@ -33,6 +36,7 @@ export type MobileExpensesShellProps = {
 export function MobileExpensesShell({
   title,
   subtitle,
+  pagePath,
   initialTab = "dashboard",
   children,
 }: MobileExpensesShellProps) {
@@ -185,7 +189,9 @@ export function MobileExpensesShell({
                       tanpa `min-h-0` di sini agar scrollHeight tetap mengikuti konten panjang + padding bawah.
                     */}
                     <div className="content-padding-above-nav-default mx-auto flex min-w-0 w-full max-w-md flex-1 flex-col space-y-1 px-2 pt-2">
-                      {children}
+                      <ModuleShellContentGate pagePath={pagePath} className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        {children}
+                      </ModuleShellContentGate>
                     </div>
                   </ExpenseDashboardRefreshContext.Provider>
                 </div>

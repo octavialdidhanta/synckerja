@@ -21,6 +21,8 @@ import { CONSULTANT_LIVECHAT_PATH } from '@/mobile/4-leads-management/shared/con
 import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSubscription';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
 
 type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `email:${string}`;
 
@@ -29,7 +31,12 @@ export default function LiveChatPage() {
   return (
     <>
       <LiveChatAppBadgeSync />
-      <LiveChatPageInner t={t} />
+      <ModuleShellContentGate
+        pagePath={MOBILE_PAGE_PATH.omnichannelLivechat}
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
+      >
+        <LiveChatPageInner t={t} />
+      </ModuleShellContentGate>
     </>
   );
 }

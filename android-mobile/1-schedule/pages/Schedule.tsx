@@ -16,6 +16,8 @@ import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { Button } from "@/shared/components/ui/button";
 import { Loader2, Calendar, Clock, RefreshCw } from "lucide-react";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -131,7 +133,10 @@ const Schedule = () => {
             <div></div>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <ModuleShellContentGate
+            pagePath={MOBILE_PAGE_PATH.schedule}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
             <div
               ref={listScrollRef}
               className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -257,7 +262,7 @@ const Schedule = () => {
               </div>
               )}
             </div>
-          </div>
+          </ModuleShellContentGate>
 
           {/* Spacer so content doesn't scroll under the fixed footer */}
           <NavigationFooter className="safe-area-bottom-lower" />

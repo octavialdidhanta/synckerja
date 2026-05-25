@@ -38,6 +38,8 @@ import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { getCurrentPosition } from "@/mobile-app/utils/geolocation";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { logger } from "@/shared/lib/logger";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -877,7 +879,10 @@ export default function ClientVisit() {
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <ModuleShellContentGate
+            pagePath={MOBILE_PAGE_PATH.clientVisit}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
             <div
               ref={listScrollRef}
               className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -1021,7 +1026,7 @@ export default function ClientVisit() {
                 </div>
               )}
             </div>
-          </div>
+          </ModuleShellContentGate>
 
           {/* Spacer so content doesn't scroll under the fixed footer */}
           <NavigationFooter className="safe-area-bottom-lower" />

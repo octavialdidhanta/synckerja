@@ -16,12 +16,19 @@ import { InitiativeMobileTab } from '@/mobile/5-initiative/InitiativePage';
 import { MobileToolsDailyTaskPageSkeletonOverlay } from '@/mobile/5-daily-task/pages/MobileToolsDailyTaskPageSkeletonOverlay';
 import { useMobileDailyTaskPageSkeletonGate } from '@/mobile/5-daily-task/hooks/useMobileDailyTaskPageSkeletonGate';
 import { cn } from '@/shared/lib/utils';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 
 function DailyTaskPageBody() {
   const { mainFixedStyle, isKeyboardShellOpen } = useVisualViewport();
   const [searchParams] = useSearchParams();
   const view = searchParams.get('view');
-  const { showPageSkeleton } = useMobileDailyTaskPageSkeletonGate(view);
+  const { showPageSkeleton: dataPendingSkeleton } = useMobileDailyTaskPageSkeletonGate(view);
+  const { showFullPageSkeleton: showPageSkeleton } = useModulePageOverlaySkeleton(
+    dataPendingSkeleton,
+    MOBILE_PAGE_PATH.toolsDailyTask,
+  );
 
   return (
     <div className="flex min-h-screen min-w-0 w-full bg-background">
@@ -35,7 +42,10 @@ function DailyTaskPageBody() {
         style={mainFixedStyle}
         aria-hidden={showPageSkeleton}
       >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <ModuleShellContentGate
+          pagePath={MOBILE_PAGE_PATH.toolsDailyTask}
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        >
           {view === 'jobdesc' ? (
             <JobDescPage />
           ) : view === 'summary' ? (
@@ -45,7 +55,7 @@ function DailyTaskPageBody() {
           ) : (
             <DailyTaskLayout />
           )}
-        </div>
+        </ModuleShellContentGate>
         {!isKeyboardShellOpen ? (
           <ToolsNavigationFooter className="safe-area-bottom-lower" />
         ) : null}

@@ -15,6 +15,9 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Button } from '@/shared/components/ui/button';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -213,7 +216,11 @@ function DailyTaskReportMobileContent() {
     setMinSettleDone(true);
   }, [blockingLoad]);
 
-  const showPageSkeleton = (blockingLoad || !minSettleDone) && !isRefreshing;
+  const dataPendingSkeleton = (blockingLoad || !minSettleDone) && !isRefreshing;
+  const { showFullPageSkeleton: showPageSkeleton } = useModulePageOverlaySkeleton(
+    dataPendingSkeleton,
+    MOBILE_PAGE_PATH.toolsDailyTaskReport,
+  );
 
   return (
     <div className="flex min-h-screen min-w-0 w-full bg-background">
@@ -242,14 +249,17 @@ function DailyTaskReportMobileContent() {
           <div />
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <ModuleShellContentGate
+          pagePath={MOBILE_PAGE_PATH.toolsDailyTaskReport}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
           <DailyTaskReportScrollContent
             blockingLoad={blockingLoad}
             isRefreshing={isRefreshing}
             setIsRefreshing={setIsRefreshing}
             refreshReport={refreshReport}
           />
-        </div>
+        </ModuleShellContentGate>
 
         <ToolsNavigationFooter className="safe-area-bottom-lower" />
       </main>

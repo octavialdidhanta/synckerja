@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Clock, CreditCard, Home, MessageCircle, Receipt, UserPlus, Wallet } from "lucide-react";
+import { BarChart3, Clock, CreditCard, Home, Lock, MessageCircle, Receipt, UserPlus, Wallet } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import {
@@ -27,6 +27,8 @@ import {
 import { SUBSCRIPTION_OVERVIEW_PATH } from "@/mobile/6-subscription/shared/mobileSubscriptionNavPaths";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useFilteredNavByPageAccess } from "@/shared/auth/page-access/useFilteredNavByPageAccess";
+import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
+import { mobileSidebarPagePathForUrl } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 type SidebarNavItem = {
   url: string;
@@ -58,6 +60,7 @@ function itemLabel(item: SidebarNavItem, t: ReturnType<typeof useAppTranslation>
 
 export function AppSidebar() {
   const { t } = useAppTranslation();
+  const { isTabLocked } = useHeaderTabPageAccess();
   const { filterNavItems } = useFilteredNavByPageAccess();
   const visibleMenuItems = filterNavItems(
     menuItems.map((item) => ({ ...item, path: item.url })),
@@ -109,7 +112,10 @@ export function AppSidebar() {
 
           <SidebarGroupContent className="px-2 pb-2">
             <SidebarMenu className="space-y-0.5">
-              {visibleMenuItems.map((item) => (
+              {visibleMenuItems.map((item) => {
+                const pagePath = mobileSidebarPagePathForUrl(item.url);
+                const locked = isTabLocked(pagePath);
+                return (
                 <SidebarMenuItem key={item.url}>
                   <NavLink
                     to={item.url}
@@ -117,9 +123,15 @@ export function AppSidebar() {
                     onClick={() => {
                       if (sidebarMobile) setOpenMobile(false);
                     }}
+                    title={
+                      locked
+                        ? t("accessDenied.message", "You do not have permission to view this page.")
+                        : undefined
+                    }
                     className={({ isActive }) =>
                       [
                         "flex items-center gap-3 px-3 py-2 rounded-lg w-full min-w-0 transition-colors",
+                        locked && "opacity-70",
                         isActive ? "text-primary font-medium" : "text-foreground hover:bg-primary/10",
                       ].join(" ")
                     }
@@ -127,7 +139,10 @@ export function AppSidebar() {
                     {({ isActive }) => (
                       <>
                         <item.icon className="h-4 w-4 flex-shrink-0" />
-                        <span className="font-medium truncate min-w-0 flex-1">{itemLabel(item, t)}</span>
+                        <span className="font-medium truncate min-w-0 flex-1 flex items-center gap-1">
+                          {itemLabel(item, t)}
+                          {locked ? <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
+                        </span>
                         <span
                           className={`flex-shrink-0 flex items-center justify-center rounded-full p-1 transition-colors ${
                             isActive ? "bg-primary/10 ring-1 ring-primary/20" : "bg-muted/40 ring-1 ring-border/50"
@@ -146,7 +161,8 @@ export function AppSidebar() {
                     )}
                   </NavLink>
                 </SidebarMenuItem>
-              ))}
+              );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

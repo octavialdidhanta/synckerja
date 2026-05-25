@@ -8,6 +8,8 @@ import {
   SUBSCRIPTION_OVERVIEW_PATH,
   SUBSCRIPTION_PLANS_PATH,
 } from "@/mobile/6-subscription/shared/mobileSubscriptionNavPaths";
+import { MobileNavTabButton } from "@/shared/auth/page-access/MobileNavTabButton";
+import { SUBSCRIPTION_TAB_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 export type SubscriptionTabKey = "overview" | "plans" | "management";
 
@@ -53,18 +55,15 @@ const SubscriptionBottomTabsComponent: React.FC<SubscriptionBottomTabsProps> = (
           {tabItems.map(({ key, icon: Icon }) => {
             const isActive = activeTab === key;
             return (
-              <button
+              <MobileNavTabButton
                 key={key}
-                type="button"
-                onClick={() => onTabChange(key)}
-                className={cn(
-                  "flex flex-col items-center py-2 px-1 transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon className="h-5 w-5 mb-1" />
-                <span className="text-xs font-medium">{labels[key]}</span>
-              </button>
+                pagePath={SUBSCRIPTION_TAB_PAGE_PATH[key]}
+                label={labels[key]}
+                icon={Icon}
+                isActive={isActive}
+                onActivate={() => onTabChange(key)}
+                labelClassName="text-xs font-medium"
+              />
             );
           })}
         </div>
@@ -104,4 +103,3 @@ export const useSubscriptionTabs = (initialTab: SubscriptionTabKey) => {
 
   return { activeTab, handleTabChange, setActiveTabOnLocationChange };
 };
-

@@ -6,13 +6,18 @@ import {
   CONSULTANT_LIVECHAT_PATH,
 } from "@/mobile/4-leads-management/shared/consultantCrmNavPaths";
 import { useFilteredNavByPageAccess } from "@/shared/auth/page-access/useFilteredNavByPageAccess";
+import { MobileNavTabButton } from "@/shared/auth/page-access/MobileNavTabButton";
+import {
+  MOBILE_PAGE_PATH,
+  mobileFooterPagePathForRoute,
+} from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Calendar, label: "Schedule", path: "/schedule" },
   { icon: MapPin, label: "Client Visit", path: "/client-visit" },
   { icon: BarChart3, label: "Reports", path: "/reports" },
-  { icon: User, label: "Profile", path: "/profile" }
+  { icon: User, label: "Profile", path: "/profile" },
 ];
 
 interface NavigationFooterProps {
@@ -56,56 +61,62 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
       >
         {showThreeItemBar ? (
           <>
-            <button
-              type="button"
-              onClick={() => !isLiveChatPage && handleNavClick(CONSULTANT_LIVECHAT_PATH)}
-              className={`flex flex-col items-center justify-center py-2 transition-colors ${
-                isLiveChatPage ? "text-primary" : "text-muted-foreground hover:text-foreground"
-              }`}
-              aria-current={isLiveChatPage ? "page" : undefined}
-            >
-              <MessageCircle className="h-5 w-5 mb-1" aria-hidden />
-              <span className="text-xs font-medium">{t("sidebar.operations.livechat.title", "Live Chat")}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => !isLeadsListView && handleNavClick(CONSULTANT_LEADS_MANAGEMENT_PATH)}
-              className={`flex flex-col items-center justify-center py-2 transition-colors ${
-                isLeadsListView ? "text-primary" : "text-muted-foreground hover:text-foreground"
-              }`}
-              aria-current={isLeadsListView ? "page" : undefined}
-            >
-              <UserPlus className="h-5 w-5 mb-1" aria-hidden />
-              <span className="text-xs font-medium">{t("sidebar.operations.leadsManagement.title", "Leads")}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() =>
+            <MobileNavTabButton
+              pagePath={MOBILE_PAGE_PATH.omnichannelLivechat}
+              label={t("sidebar.operations.livechat.title", "Live Chat")}
+              icon={MessageCircle}
+              isActive={isLiveChatPage}
+              onActivate={() => !isLiveChatPage && handleNavClick(CONSULTANT_LIVECHAT_PATH)}
+              labelClassName="text-xs font-medium"
+            />
+            <MobileNavTabButton
+              pagePath={MOBILE_PAGE_PATH.omnichannelLeads}
+              label={t("sidebar.operations.leadsManagement.title", "Leads")}
+              icon={UserPlus}
+              isActive={isLeadsListView}
+              onActivate={() => !isLeadsListView && handleNavClick(CONSULTANT_LEADS_MANAGEMENT_PATH)}
+              labelClassName="text-xs font-medium"
+            />
+            <MobileNavTabButton
+              pagePath={MOBILE_PAGE_PATH.omnichannelLeads}
+              label={t("sidebar.operations.leadsManagement.report", "Report")}
+              icon={FileBarChart}
+              isActive={isReportView}
+              onActivate={() =>
                 !isReportView && handleNavClick(CONSULTANT_LEADS_MANAGEMENT_PATH, "?view=report")
               }
-              className={`flex flex-col items-center justify-center py-2 transition-colors ${
-                isReportView ? "text-primary" : "text-muted-foreground hover:text-foreground"
-              }`}
-              aria-current={isReportView ? "page" : undefined}
-            >
-              <FileBarChart className="h-5 w-5 mb-1" aria-hidden />
-              <span className="text-xs font-medium">{t("sidebar.operations.leadsManagement.report", "Report")}</span>
-            </button>
+              labelClassName="text-xs font-medium"
+            />
           </>
         ) : !hideItems ? (
           visibleNavItems.map(({ icon: Icon, label, path }) => {
             const isActive = location.pathname === path;
+            const pagePath = mobileFooterPagePathForRoute(path);
+            if (!pagePath) {
+              return (
+                <button
+                  key={path}
+                  type="button"
+                  onClick={() => handleNavClick(path)}
+                  className={`flex flex-col items-center py-2 px-1 transition-colors ${
+                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-5 w-5 mb-1" />
+                  <span className="text-xs font-medium">{label}</span>
+                </button>
+              );
+            }
             return (
-              <button
+              <MobileNavTabButton
                 key={path}
-                onClick={() => handleNavClick(path)}
-                className={`flex flex-col items-center py-2 px-1 transition-colors ${
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5 mb-1" />
-                <span className="text-xs font-medium">{label}</span>
-              </button>
+                pagePath={pagePath}
+                label={label}
+                icon={Icon}
+                isActive={isActive}
+                onActivate={() => handleNavClick(path)}
+                labelClassName="text-xs font-medium"
+              />
             );
           })
         ) : null}

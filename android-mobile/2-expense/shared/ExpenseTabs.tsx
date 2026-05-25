@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Wallet, CheckCircle2, CreditCard, ReceiptText } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { MobileNavTabButton } from "@/shared/auth/page-access/MobileNavTabButton";
+import { EXPENSE_TAB_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 export type ExpenseTabKey = "dashboard" | "debt" | "approvals" | "payment" | "bills";
 
@@ -67,19 +69,16 @@ const ExpenseBottomTabsComponent = ({
         {tabItems.map(({ key, icon: Icon }) => {
           const isActive = activeTab === key;
           return (
-            <button
+            <MobileNavTabButton
               key={key}
-              type="button"
-              onClick={() => onTabChange(key)}
-              className={cn(
-                "flex flex-col items-center px-1 py-2",
-                expenseTabPressable,
-                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="mb-1 h-5 w-5" aria-hidden />
-              <span className="text-center text-xs font-medium leading-tight">{labels[key]}</span>
-            </button>
+              pagePath={EXPENSE_TAB_PAGE_PATH[key]}
+              label={labels[key]}
+              icon={Icon}
+              isActive={isActive}
+              onActivate={() => onTabChange(key)}
+              className={expenseTabPressable}
+              labelClassName="text-center text-xs font-medium leading-tight"
+            />
           );
         })}
       </div>

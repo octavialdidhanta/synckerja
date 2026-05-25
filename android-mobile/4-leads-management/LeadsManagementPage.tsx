@@ -8,6 +8,8 @@ import { useVisualViewport } from '@/shared/hooks/useVisualViewport';
 import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 import { LeadsManagementLayout } from './section/LeadsManagementLayout';
 import { LeadsReportSummaryView } from './report';
+import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
 
 export default function LeadsManagementPage() {
   useStatusBarStyle('light');
@@ -28,7 +30,12 @@ export default function LeadsManagementPage() {
             className="fixed inset-x-0 z-0 flex min-h-0 w-full min-w-0 flex-col bg-background"
             style={mainFixedStyle}
           >
-            {isReportView ? <LeadsReportSummaryView /> : <LeadsManagementLayout />}
+            <ModuleShellContentGate
+              pagePath={MOBILE_PAGE_PATH.omnichannelLeads}
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
+            >
+              {isReportView ? <LeadsReportSummaryView /> : <LeadsManagementLayout />}
+            </ModuleShellContentGate>
             <NavigationFooter hideItems className="safe-area-bottom-lower" />
           </main>
         </div>

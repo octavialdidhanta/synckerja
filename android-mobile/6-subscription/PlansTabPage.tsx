@@ -16,6 +16,8 @@ import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganiz
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -181,7 +183,10 @@ const PlansTabPage = memo(() => {
               <div />
             </header>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ModuleShellContentGate
+              pagePath={MOBILE_PAGE_PATH.subscriptionPlans}
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            >
               <div
                 ref={listScrollRef}
                 className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -222,7 +227,7 @@ const PlansTabPage = memo(() => {
                   </div>
                 </div>
               </div>
-            </div>
+            </ModuleShellContentGate>
 
             <SubscriptionBottomTabs activeTab={activeTab} onTabChange={handleTabChange} className="safe-area-bottom-lower" />
           </main>

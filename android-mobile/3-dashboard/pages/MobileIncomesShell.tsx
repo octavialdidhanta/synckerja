@@ -9,6 +9,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { IncomeBottomTabs } from "@/mobile/3-incomes/shared/IncomeBottomTabs";
 import { IncomeDashboardRefreshContext } from "@/mobile/3-dashboard/IncomeDashboardRefreshContext";
 import { cn } from "@/shared/lib/utils";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 
 /**
  * Shared fixed-viewport mobile shell for `/incomes/*` routes (dashboard, transaction, bank).
@@ -22,6 +23,7 @@ const PULL_RESISTANCE = 0.55;
 export type MobileIncomesShellProps = {
   title: string;
   subtitle: string;
+  pagePath: string;
   children: ReactNode;
   /**
    * Hanya untuk route yang perlu kolom konten mengisi tinggi viewport di atas tab (mis. daftar bank sedikit).
@@ -33,6 +35,7 @@ export type MobileIncomesShellProps = {
 export function MobileIncomesShell({
   title,
   subtitle,
+  pagePath,
   children,
   stretchScrollContent = false,
 }: MobileIncomesShellProps) {
@@ -183,7 +186,9 @@ export function MobileIncomesShell({
                       stretchScrollContent && "min-h-0 flex-1",
                     )}
                   >
-                    {children}
+                    <ModuleShellContentGate pagePath={pagePath} className="flex min-h-0 min-w-0 flex-1 flex-col">
+                      {children}
+                    </ModuleShellContentGate>
                   </div>
                 </IncomeDashboardRefreshContext.Provider>
                 </div>

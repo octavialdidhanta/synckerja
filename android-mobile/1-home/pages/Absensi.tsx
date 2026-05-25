@@ -36,6 +36,8 @@ import {
   formatLocalDateYmd,
   parseAttendanceInstant,
 } from "@/1-home/utils/attendanceDateTime";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 function getGreetingKey(hour: number): 'morning' | 'noon' | 'afternoon' | 'night' {
   if (hour >= 18) return 'night';
@@ -889,7 +891,10 @@ const Absensi = () => {
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <ModuleShellContentGate
+            pagePath={MOBILE_PAGE_PATH.home}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
             <div
               ref={listScrollRef}
               className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll"
@@ -1026,7 +1031,7 @@ const Absensi = () => {
                 </div>
               )}
             </div>
-          </div>
+          </ModuleShellContentGate>
 
           <NavigationFooter className="safe-area-bottom-lower" />
         </main>

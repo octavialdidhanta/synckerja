@@ -1,6 +1,8 @@
 import { BarChart3 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { MobileNavTabButton } from "@/shared/auth/page-access/MobileNavTabButton";
+import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 const WEB_TRAFFIC_PATH = "/digital-marketing/traffic";
 
@@ -15,6 +17,7 @@ export function WebTrafficNavigationFooter({ className }: WebTrafficNavigationFo
   const { t } = useAppTranslation();
 
   const isActive = location.pathname === WEB_TRAFFIC_PATH;
+  const label = t("traffic.page.title", "Web Traffic");
 
   return (
     <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
@@ -23,19 +26,15 @@ export function WebTrafficNavigationFooter({ className }: WebTrafficNavigationFo
           className ?? "safe-area-padding-bottom-capped"
         }`.trim()}
       >
-        <button
-          type="button"
-          onClick={() => !isActive && navigate(WEB_TRAFFIC_PATH)}
-          className={`flex flex-col items-center justify-center py-2 px-1 transition-colors ${
-            isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-          }`}
-          aria-current={isActive ? "page" : undefined}
-        >
-          <BarChart3 className="mb-1 h-5 w-5" aria-hidden />
-          <span className="text-xs font-medium">{t("traffic.page.title", "Web Traffic")}</span>
-        </button>
+        <MobileNavTabButton
+          pagePath={MOBILE_PAGE_PATH.digitalMarketingTraffic}
+          label={label}
+          icon={BarChart3}
+          isActive={isActive}
+          onActivate={() => !isActive && navigate(WEB_TRAFFIC_PATH)}
+          labelClassName="text-xs font-medium"
+        />
       </div>
     </nav>
   );
 }
-

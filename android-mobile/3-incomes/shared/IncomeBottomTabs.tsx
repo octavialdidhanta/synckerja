@@ -8,6 +8,8 @@ import {
 } from "@/mobile/3-dashboard/shared/mobileIncomesNavPaths";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { MobileNavTabButton } from "@/shared/auth/page-access/MobileNavTabButton";
+import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 type IncomeBottomTabsProps = {
   className?: string;
@@ -31,53 +33,51 @@ export function IncomeBottomTabs({ className }: IncomeBottomTabsProps) {
       pathname.startsWith(`${MOBILE_INCOMES_TRANSACTION_PATH}/`)) &&
     !isPiutang;
 
+  const tabs = [
+    {
+      pagePath: MOBILE_PAGE_PATH.incomesDashboard,
+      label: t("incomes.dashboardSubtitle", "Dashboard"),
+      icon: BarChart3,
+      isActive: isDashboard,
+      onActivate: () => navigate(MOBILE_INCOMES_DASHBOARD_PATH),
+    },
+    {
+      pagePath: MOBILE_PAGE_PATH.incomesTransaction,
+      label: t("incomes.transactionTitle", "Income"),
+      icon: Wallet,
+      isActive: isTransaction && !isBankAcc,
+      onActivate: () => navigate(MOBILE_INCOMES_TRANSACTION_PATH),
+    },
+    {
+      pagePath: MOBILE_PAGE_PATH.incomesPiutang,
+      label: t("incomes.piutangTitle", "Piutang"),
+      icon: CircleDollarSign,
+      isActive: isPiutang,
+      onActivate: () => navigate(MOBILE_INCOMES_PIUTANG_PATH),
+    },
+    {
+      pagePath: MOBILE_PAGE_PATH.incomesTransaction,
+      label: t("incomes.bankAccTitle", "Bank Acc"),
+      icon: Landmark,
+      isActive: isBankAcc,
+      onActivate: () => navigate(MOBILE_INCOMES_BANK_ACCOUNT_PATH),
+    },
+  ] as const;
+
   return (
     <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
       <div className={cn("mx-auto grid min-h-[52px] w-full max-w-md grid-cols-4", className)}>
-        <button
-          type="button"
-          onClick={() => navigate(MOBILE_INCOMES_DASHBOARD_PATH)}
-          className={cn(
-            "flex flex-col items-center px-1 py-2 transition-colors",
-            isDashboard ? "text-primary" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <BarChart3 className="mb-1 h-5 w-5" />
-          <span className="text-xs font-medium">{t("incomes.dashboardSubtitle", "Dashboard")}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate(MOBILE_INCOMES_TRANSACTION_PATH)}
-          className={cn(
-            "flex flex-col items-center px-1 py-2 transition-colors",
-            isTransaction && !isBankAcc ? "text-primary" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Wallet className="mb-1 h-5 w-5" />
-          <span className="text-xs font-medium">{t("incomes.transactionTitle", "Income")}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate(MOBILE_INCOMES_PIUTANG_PATH)}
-          className={cn(
-            "flex flex-col items-center px-1 py-2 transition-colors",
-            isPiutang ? "text-primary" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <CircleDollarSign className="mb-1 h-5 w-5" />
-          <span className="text-xs font-medium">{t("incomes.piutangTitle", "Piutang")}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate(MOBILE_INCOMES_BANK_ACCOUNT_PATH)}
-          className={cn(
-            "flex flex-col items-center px-1 py-2 transition-colors",
-            isBankAcc ? "text-primary" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Landmark className="mb-1 h-5 w-5" />
-          <span className="text-xs font-medium">{t("incomes.bankAccTitle", "Bank Acc")}</span>
-        </button>
+        {tabs.map((tab) => (
+          <MobileNavTabButton
+            key={tab.label}
+            pagePath={tab.pagePath}
+            label={tab.label}
+            icon={tab.icon}
+            isActive={tab.isActive}
+            onActivate={tab.onActivate}
+            labelClassName="text-xs font-medium"
+          />
+        ))}
       </div>
     </nav>
   );

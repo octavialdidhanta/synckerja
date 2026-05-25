@@ -17,6 +17,8 @@ import { MobileTopPagesTableCard } from "@/mobile/6-0-web-traffic/components/Mob
 import { MobileClickDetailsDialog } from "@/mobile/6-0-web-traffic/components/MobileClickDetailsDialog";
 import { MobileTopBlogPagesTableCard } from "@/mobile/6-0-web-traffic/components/MobileTopBlogPagesTableCard";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { useToast } from "@/shared/components/ui/use-toast";
 import {
@@ -383,7 +385,10 @@ export default function MobileWebTrafficPage() {
           </Button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <ModuleShellContentGate
+          pagePath={MOBILE_PAGE_PATH.digitalMarketingTraffic}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
           <div
             ref={listScrollRef}
             className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -636,7 +641,7 @@ export default function MobileWebTrafficPage() {
               />
             </div>
           </div>
-        </div>
+        </ModuleShellContentGate>
 
         <CustomDatePicker
           isOpen={showCustomDatePicker}
