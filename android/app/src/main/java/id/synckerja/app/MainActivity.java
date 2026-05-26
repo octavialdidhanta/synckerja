@@ -25,6 +25,11 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.core.os.BundleCompat;
 import androidx.core.splashscreen.SplashScreen;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginHandle;
+import ee.forgr.capacitor.social.login.GoogleProvider;
+import ee.forgr.capacitor.social.login.ModifiedMainActivityForSocialLoginPlugin;
+import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -32,7 +37,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends BridgeActivity {
+public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
 
     private static final String TAG = "MainActivity";
     private static final long MAX_SHARE_BYTES = 10L * 1024 * 1024;
@@ -80,6 +85,31 @@ public class MainActivity extends BridgeActivity {
         setIntent(intent);
         NotificationLaunchStore.captureFromIntent(intent);
         handleShareIntent(intent);
+    }
+
+    /** Required by @capgo/capacitor-social-login for Google authorization intents. */
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode >= GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MIN
+            && requestCode < GoogleProvider.REQUEST_AUTHORIZE_GOOGLE_MAX) {
+            PluginHandle pluginHandle = getBridge().getPlugin("SocialLogin");
+            if (pluginHandle != null) {
+                Plugin plugin = pluginHandle.getInstance();
+                if (plugin instanceof SocialLoginPlugin) {
+                    ((SocialLoginPlugin) plugin).handleGoogleLoginIntent(requestCode, data);
+                } else {
+                    Log.i(TAG, "Google activity result: plugin is not SocialLoginPlugin");
+                }
+            } else {
+                Log.i(TAG, "Google activity result: SocialLogin plugin handle is null");
+            }
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    @Override
+    public void IHaveModifiedTheMainActivityForTheUseWithSocialLoginPlugin() {
+        // Marker for Capgo Social Login — must be implemented when MainActivity is customized.
     }
 
     @Override

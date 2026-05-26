@@ -39,8 +39,11 @@ export function useSendEmailReply() {
           attachments: params.attachments?.length ? params.attachments : undefined,
         }),
       });
-      const json = await res.json().catch(() => ({}));
+      const json = await res.json().catch(() => ({})) as { error?: string; code?: string };
       if (!res.ok) {
+        if (json?.code === 'NOT_ASSIGNEE' && typeof json.error === 'string') {
+          throw new Error(json.error);
+        }
         const msg = typeof json?.error === 'string' ? json.error : 'Failed to send reply';
         throw new Error(msg);
       }

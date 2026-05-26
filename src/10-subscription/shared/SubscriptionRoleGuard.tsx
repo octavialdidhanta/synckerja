@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useUserOrganizations } from "@/shared/hooks/useUserOrganizations";
 import { useToolsModuleMobileViewport } from "@/shared/hooks/useToolsModuleMobileViewport";
 import { SubscriptionShellSkeleton } from "@/10-subscription/shared/SubscriptionShellSkeleton";
+import { SubscriptionOverviewRouteLoadingShell } from "@/10-subscription/shared/SubscriptionOverviewRouteLoadingShell";
+import { SubscriptionPlansRouteLoadingShell } from "@/10-subscription/shared/SubscriptionPlansRouteLoadingShell";
 import { MobileSubscriptionRoleGuardLoadingShell } from "@/mobile/6-subscription/pages/MobileSubscriptionRoleGuardLoadingShell";
 
 function canManageSubscription(role: string | undefined): boolean {
@@ -31,10 +33,24 @@ export function SubscriptionRoleGuard() {
         </div>
       );
     }
+    const isOverviewRoute =
+      pathname === "/subscription/overview" || pathname === "/subscription";
+    const isPlansRoute = pathname === "/subscription/plans";
+
     return (
-      <div className="flex min-h-0 flex-1 flex-col" aria-busy="true" aria-label={t("subscription.roleGuard.loading")}>
+      <div
+        className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col"
+        aria-busy="true"
+        aria-label={t("subscription.roleGuard.loading")}
+      >
         <span className="sr-only">{t("subscription.roleGuard.loading")}</span>
-        <SubscriptionShellSkeleton />
+        {isOverviewRoute ? (
+          <SubscriptionOverviewRouteLoadingShell />
+        ) : isPlansRoute ? (
+          <SubscriptionPlansRouteLoadingShell />
+        ) : (
+          <SubscriptionShellSkeleton />
+        )}
       </div>
     );
   }

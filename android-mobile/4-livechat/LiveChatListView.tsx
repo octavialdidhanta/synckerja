@@ -21,7 +21,7 @@ import type { LiveChatConversation } from '@/5-3-whatsapp/types';
 import type { WhatsAppAccount } from '@/5-3-whatsapp/types';
 import { MobileConversationList } from './components/MobileConversationList';
 import { MobileSearchConversationPopup } from './components/MobileSearchConversationPopup';
-import { NavigationFooter } from '@/mobile-app/components/NavigationFooter';
+import { ConsultantCrmNavigationFooter } from '@/mobile/4-leads-management/components/ConsultantCrmNavigationFooter';
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -408,7 +408,7 @@ export function LiveChatListView({
             </div>
 
             {/* Footer bar without nav icons; space for custom livechat navigation */}
-            <NavigationFooter hideItems className="safe-area-bottom-lower" />
+            <ConsultantCrmNavigationFooter className="safe-area-bottom-lower" />
           </main>
         </div>
       </SidebarProvider>

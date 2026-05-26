@@ -36,7 +36,9 @@ When multiple rows match a URL (e.g. `/omnichannel` and `/omnichannel/settings`)
 
 - Same `canAccessPage` / `PageAccessGuard` / `ModuleShellContentGate` as desktop.
 - **`android-mobile/*` shells** must wrap main content in `ModuleShellContentGate` with the same `pagePath` as `App.tsx` (see [`mobileRoutePagePaths.ts`](../shared/auth/page-access/mobileRoutePagePaths.ts)).
-- **Navigation:** items stay **visible** with a **padlock** when locked (`MobileNavTabButton`, `MobileSidebarNavItem`) — not hidden. `useFilteredNavByPageAccess` remains a pass-through; enforcement is on the content gate.
+- **Sidebar drawer:** menu items stay **visible** with a **padlock** when locked (`AppSidebar` / `MobileSidebarNavItem`) — not hidden.
+- **Bottom footer:** tabs stay **visible** without a padlock (`MobileNavTabButton`); tap still navigates; enforcement is on the content gate only.
+- `useFilteredNavByPageAccess` remains a pass-through on both chrome layers.
 - Native always uses mobile shells via `useToolsModuleMobileViewport()` (Capacitor) or viewport ≤1023px.
 
 ## Department scope

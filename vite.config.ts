@@ -149,21 +149,24 @@ export default defineConfig(({ mode }) => {
           if (id.includes("/locales/en.json")) return "locale-en";
           if (id.includes("/locales/id.json")) return "locale-id";
           if (!id.includes("node_modules")) return;
+          // Semua paket yang memanggil React.* harus satu chunk agar tidak undefined saat load.
           if (
             id.includes("react-dom") ||
             id.includes("/react/") ||
             id.includes("scheduler") ||
-            id.includes("react-router")
+            id.includes("react-router") ||
+            id.includes("@tanstack/react-query") ||
+            id.includes("lucide-react") ||
+            id.includes("@radix-ui") ||
+            id.includes("react-i18next") ||
+            id.includes("recharts") ||
+            id.includes("@floating-ui")
           ) {
             return "vendor-react";
           }
-          if (id.includes("@tanstack/react-query")) return "vendor-query";
           if (id.includes("@supabase")) return "vendor-supabase";
-          if (id.includes("@radix-ui")) return "vendor-radix";
-          if (id.includes("lucide-react")) return "vendor-icons";
           if (id.includes("date-fns")) return "vendor-date";
-          if (id.includes("i18next") || id.includes("react-i18next")) return "vendor-i18n";
-          if (id.includes("recharts")) return "vendor-charts";
+          if (id.includes("i18next")) return "vendor-i18n";
           if (id.includes("xlsx")) return "vendor-xlsx";
           if (
             id.includes("jspdf") ||

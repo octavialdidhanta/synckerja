@@ -1,6 +1,11 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  assertSenderIsActiveAssignee,
+  jsonGateError,
+  resolveEmployeeForOmnichannelSend,
+} from "./omnichannelAssigneeGate.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -172,6 +177,14 @@ Deno.serve(async (req: Request) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+        const senderRes = await resolveEmployeeForOmnichannelSend(
+          supabase,
+          user.id,
+          conv.organization_id as string,
+        );
+        if (!senderRes.ok) return jsonGateError(senderRes, corsHeaders);
+        const assigneeMismatch = assertSenderIsActiveAssignee(conv.assignee_id, senderRes.employeeId);
+        if (assigneeMismatch) return jsonGateError(assigneeMismatch, corsHeaders);
         const leadStatusId = conv?.lead_status_id ?? null;
         if (leadStatusId) {
           const { data: statusRow } = await supabase

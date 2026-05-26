@@ -3,12 +3,33 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useRegistration } from "@/0-register/hooks/useRegistration";
-import { Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { showErrorToast } from "@/0-register/utils/error-toast";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
+import { startGoogleSignIn } from "@/0-auth/lib/googleSignIn";
+import { AuthDivider, GoogleSignInButton } from "@/0-auth/components/GoogleSignInButton";
+import { toast } from "@/shared/hooks/use-toast";
+import { PasswordRequirementGrid } from "@/0-register/components/PasswordRequirementGrid";
+import {
+  authFormBottomSpacerClass,
+  authFormEyeIconClass,
+  authFormFieldGap,
+  authFormFooterTextClass,
+  authFormFormClass,
+  authFormGoogleSectionClass,
+  authFormHeaderLogoWrapper,
+  authFormInputClass,
+  authFormInputWithToggleClass,
+  authFormLabelClass,
+  authFormPasswordToggleClass,
+  authFormRootClass,
+  authFormSubmitClass,
+  authFormSubtitleClass,
+  authFormTitleClass,
+} from "@/0-auth/styles/authFormStyles";
 
 export type RegistrationFormKeyboardProps = {
   submitButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -18,7 +39,7 @@ export type RegistrationFormKeyboardProps = {
   brandMark?: ReactNode;
 };
 
-const defaultRegistrationBrand = <SynckerjaBrandLogo />;
+const defaultRegistrationBrand = <SynckerjaBrandLogo className="h-10 w-auto sm:h-12" width={48} height={48} />;
 
 export function RegistrationForm(props: RegistrationFormKeyboardProps) {
   const { submitButtonRef, onKeyboardInputFocus, onKeyboardInputBlur, brandMark = defaultRegistrationBrand } = props;
@@ -30,13 +51,14 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [emailStatus, setEmailStatus] = useState<{
     type: "success" | "error" | null;
     message: string;
   }>({ type: null, message: "" });
 
+  const navigate = useNavigate();
   const { register, loading, error, emailSuggestion, acceptEmailSuggestion } = useRegistration();
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const brandBlue = "hsl(var(--brand-blue))";
   const brandRed = "hsl(var(--brand-red))";
@@ -52,9 +74,7 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newPassword = e.target.value;
-    setPassword(newPassword);
-    setPasswordErrors(validatePassword(newPassword));
+    setPassword(e.target.value);
   };
 
   useEffect(() => {
@@ -97,29 +117,82 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
     }
   };
 
-  const inputClass =
-    "h-12 border-slate-200 bg-white focus-visible:ring-[hsl(var(--brand-blue))]";
+  const onGoogleRegister = async () => {
+    setGoogleLoading(true);
+    try {
+      const { error: oauthErr, completedInApp } = await startGoogleSignIn({
+        mode: "register",
+        navigate,
+      });
+      if (oauthErr === "access_denied") {
+        toast({ title: t("auth.google.errors.accessDenied"), variant: "destructive" });
+        setGoogleLoading(false);
+        return;
+      }
+      if (oauthErr === "android_oauth_misconfigured") {
+        toast({
+          title: t("auth.google.errors.androidMisconfiguredTitle"),
+          description: t("auth.google.errors.androidMisconfiguredDescription"),
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+      if (oauthErr === "google_account_reauth_failed") {
+        toast({
+          title: t("auth.google.errors.reauthFailedTitle"),
+          description: t("auth.google.errors.reauthFailedDescription"),
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+      if (oauthErr === "not_configured") {
+        toast({
+          title: t("auth.google.errors.generic"),
+          description: t("auth.google.errors.notConfigured"),
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+      if (oauthErr) {
+        toast({
+          title: t("auth.google.errors.generic"),
+          description: oauthErr,
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+      if (completedInApp) {
+        setGoogleLoading(false);
+      }
+    } catch {
+      toast({ title: t("auth.google.errors.generic"), variant: "destructive" });
+      setGoogleLoading(false);
+    }
+  };
+
+  const authBusy = loading || googleLoading;
+  const showPasswordHints = password.length > 0;
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col">
-        <div className="mb-2 flex w-full justify-center">{brandMark}</div>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            {t("auth.register.title")}
-          </h1>
-          <p className="mt-2 text-sm text-slate-600 sm:text-base">{t("auth.register.subtitle")}</p>
-        </div>
-      </div>
+    <div className={authFormRootClass}>
+      <header className="flex flex-col items-center text-center">
+        <div className={authFormHeaderLogoWrapper}>{brandMark}</div>
+        <h1 className={authFormTitleClass}>{t("auth.register.title")}</h1>
+        <p className={authFormSubtitleClass}>{t("auth.register.subtitle")}</p>
+      </header>
 
       {error && (
-        <Alert variant="destructive">
-          <AlertDescription>
+        <Alert variant="destructive" className="py-2">
+          <AlertDescription className="text-sm">
             {error}
             {emailSuggestion && (
               <button
                 type="button"
-                className="mt-2 block font-semibold underline hover:opacity-90"
+                className="mt-1 block font-semibold underline hover:opacity-90"
                 style={{ color: brandBlue }}
                 onClick={() => setEmail(acceptEmailSuggestion(emailSuggestion))}
               >
@@ -132,23 +205,33 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
 
       {emailStatus.type && (
         <Alert
-          className={
+          className={`py-2 ${
             emailStatus.type === "error"
               ? "border-red-200 bg-red-50"
               : "border-brand-blue/30 bg-brand-blue/10"
-          }
+          }`}
         >
           <AlertDescription
-            className={emailStatus.type === "error" ? "text-red-700" : "text-[hsl(var(--brand-blue))]"}
+            className={`text-sm ${emailStatus.type === "error" ? "text-red-700" : "text-[hsl(var(--brand-blue))]"}`}
           >
             {emailStatus.message}
           </AlertDescription>
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="fullName" className="text-slate-800">
+      <section className={authFormGoogleSectionClass} aria-label={t("auth.google.continueRegister")}>
+        <GoogleSignInButton
+          mode="register"
+          loading={googleLoading}
+          disabled={authBusy}
+          onClick={() => void onGoogleRegister()}
+        />
+        <AuthDivider />
+      </section>
+
+      <form onSubmit={handleSubmit} className={authFormFormClass}>
+        <div className={authFormFieldGap}>
+          <Label htmlFor="fullName" className={authFormLabelClass}>
             {t("auth.register.fullName")}
           </Label>
           <Input
@@ -158,12 +241,14 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
             onFocus={onKeyboardInputFocus}
             onBlur={onKeyboardInputBlur}
             required
-            disabled={loading}
-            className={inputClass}
+            disabled={authBusy}
+            className={authFormInputClass}
+            autoComplete="name"
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="email" className="text-slate-800">
+
+        <div className={authFormFieldGap}>
+          <Label htmlFor="email" className={authFormLabelClass}>
             {t("auth.register.email")}
           </Label>
           <Input
@@ -174,12 +259,14 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
             onFocus={onKeyboardInputFocus}
             onBlur={onKeyboardInputBlur}
             required
-            disabled={loading}
-            className={inputClass}
+            disabled={authBusy}
+            className={authFormInputClass}
+            autoComplete="email"
           />
         </div>
-        <div className="auth-input-scroll-margin space-y-2">
-          <Label htmlFor="password" className="text-slate-800">
+
+        <div className={`auth-input-scroll-margin ${authFormFieldGap}`}>
+          <Label htmlFor="password" className={authFormLabelClass}>
             {t("auth.register.password")}
           </Label>
           <div className="relative">
@@ -191,45 +278,26 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
               onFocus={onKeyboardInputFocus}
               onBlur={onKeyboardInputBlur}
               required
-              disabled={loading}
-              className={`${inputClass} pr-11`}
+              disabled={authBusy}
+              className={authFormInputWithToggleClass}
+              autoComplete="new-password"
             />
             <button
               type="button"
               tabIndex={-1}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none"
+              className={authFormPasswordToggleClass}
               onClick={() => setShowPassword(!showPassword)}
-              disabled={loading}
+              disabled={authBusy}
               aria-label={showPassword ? t("auth.login.hidePassword") : t("auth.login.showPassword")}
             >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              {showPassword ? <EyeOff className={authFormEyeIconClass} /> : <Eye className={authFormEyeIconClass} />}
             </button>
           </div>
-          {password && (
-            <div className="text-xs space-y-1 mt-2">
-              <p className="font-medium">{t("auth.register.passwordRulesTitle")}</p>
-              <ul className="space-y-1">
-                {[
-                  { ok: password.length >= 8, label: t("auth.register.ruleLen") },
-                  { ok: /[0-9]/.test(password), label: t("auth.register.ruleNum") },
-                  { ok: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password), label: t("auth.register.ruleSpec") },
-                  { ok: /[A-Z]/.test(password), label: t("auth.register.ruleUp") },
-                  { ok: /[a-z]/.test(password), label: t("auth.register.ruleLow") },
-                ].map((row) => (
-                  <li
-                    key={row.label}
-                    className={`flex items-center gap-1 ${row.ok ? "text-[hsl(var(--brand-blue))]" : "text-[hsl(var(--brand-red))]"}`}
-                  >
-                    {row.ok ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                    {row.label}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {showPasswordHints ? <PasswordRequirementGrid password={password} /> : null}
         </div>
-        <div className="auth-input-scroll-margin space-y-2">
-          <Label htmlFor="confirmPassword" className="text-slate-800">
+
+        <div className={`auth-input-scroll-margin ${authFormFieldGap}`}>
+          <Label htmlFor="confirmPassword" className={authFormLabelClass}>
             {t("auth.register.confirmPassword")}
           </Label>
           <div className="relative">
@@ -241,50 +309,59 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
               onFocus={onKeyboardInputFocus}
               onBlur={onKeyboardInputBlur}
               required
-              disabled={loading}
-              className={`${inputClass} pr-11`}
+              disabled={authBusy}
+              className={authFormInputWithToggleClass}
+              autoComplete="new-password"
             />
             <button
               type="button"
               tabIndex={-1}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none"
+              className={authFormPasswordToggleClass}
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              disabled={loading}
+              disabled={authBusy}
               aria-label={
                 showConfirmPassword ? t("auth.login.hidePassword") : t("auth.login.showPassword")
               }
             >
-              {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              {showConfirmPassword ? (
+                <EyeOff className={authFormEyeIconClass} />
+              ) : (
+                <Eye className={authFormEyeIconClass} />
+              )}
             </button>
           </div>
         </div>
+
         <Button
           ref={submitButtonRef}
           type="submit"
-          className="h-12 w-full text-base font-semibold text-white shadow-md transition-colors hover:opacity-[0.92]"
+          className={authFormSubmitClass}
           style={{ backgroundColor: brandRed }}
-          disabled={loading}
+          disabled={authBusy}
         >
           {loading ? t("auth.register.submitting") : t("auth.register.submit")}
         </Button>
-        <div className="space-y-2">
-          <p className="text-center text-xs text-slate-600">
+
+        <footer className="space-y-2 pt-0.5 text-center">
+          <p className="text-[10px] leading-snug text-slate-500 sm:text-xs">
             {t("auth.register.termsPrefix")}{" "}
-            <a href="#" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+            <Link to="/policy/terms" className="font-semibold hover:underline" style={{ color: brandBlue }}>
               {t("auth.register.terms")}
-            </a>{" "}
+            </Link>{" "}
             {t("auth.register.termsAnd")}{" "}
-            <a href="#" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+            <Link to="/policy/privacy" className="font-semibold hover:underline" style={{ color: brandBlue }}>
               {t("auth.register.privacy")}
-            </a>
+            </Link>
+            .
           </p>
-          <p className="text-center text-sm text-slate-600">
+          <p className={authFormFooterTextClass}>
             {t("auth.register.hasAccount")}{" "}
             <Link to="/login" className="font-semibold hover:underline" style={{ color: brandBlue }}>
               {t("auth.register.login")}
             </Link>
           </p>
-        </div>
+        </footer>
+        <div className={authFormBottomSpacerClass} aria-hidden />
       </form>
     </div>
   );

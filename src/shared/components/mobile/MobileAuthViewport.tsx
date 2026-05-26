@@ -10,6 +10,11 @@ export type MobileAuthViewportProps = {
   keyboardPaddingBottom: number;
   /** True when native keyboard open or visual viewport compressed (mobile web). */
   keyboardOpen: boolean;
+  /**
+   * `center` — short forms (login): vertically centered when keyboard closed.
+   * `form` — tall forms (register): centered when keyboard closed, scroll from top when keyboard open.
+   */
+  contentAlign?: "center" | "form";
   className?: string;
   innerClassName?: string;
 };
@@ -22,9 +27,12 @@ export function MobileAuthViewport({
   panelRef,
   keyboardPaddingBottom,
   keyboardOpen,
+  contentAlign = "center",
   className,
   innerClassName,
 }: MobileAuthViewportProps) {
+  const isFormLayout = contentAlign === "form";
+
   return (
     <div
       className={cn(
@@ -39,9 +47,17 @@ export function MobileAuthViewport({
         <div
           ref={panelRef}
           className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-x-hidden px-5 py-6",
+            "flex min-h-0 flex-1 flex-col overflow-x-hidden px-4 py-3 sm:px-5 sm:py-6",
             scrollHide,
-            keyboardOpen ? "overflow-y-auto justify-start" : "overflow-y-hidden items-center justify-center",
+            isFormLayout || keyboardOpen
+              ? "items-stretch overflow-y-auto"
+              : "items-center overflow-y-hidden",
+            keyboardOpen
+              ? "justify-start"
+              : isFormLayout
+                ? "justify-center"
+                : "justify-center",
+            isFormLayout && "safe-area-padding-bottom-capped",
             innerClassName,
           )}
         >

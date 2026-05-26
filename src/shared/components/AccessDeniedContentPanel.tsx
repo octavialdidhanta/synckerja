@@ -21,7 +21,7 @@ export function AccessDeniedContentPanel({
   return (
     <div
       className={cn(
-        "flex min-h-[min(24rem,50vh)] flex-1 flex-col items-center justify-center rounded-lg border border-border bg-card p-6",
+        "flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center rounded-lg border border-border bg-card p-6",
         className,
       )}
       role="alert"

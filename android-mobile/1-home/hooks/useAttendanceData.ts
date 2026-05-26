@@ -4,6 +4,40 @@ import { logger } from "@/shared/lib/logger";
 import { useRealtimeAttendance } from "@/mobile-app/hooks/useRealtimeData";
 import { formatLocalDateYmd } from "@/1-home/utils/attendanceDateTime";
 
+/** Prefer open session (checked in, not out); else latest row for the local calendar day. */
+async function fetchTodayAttendanceRecord(employeeId: string, today: string) {
+  const { data: openRows, error: openError } = await supabase
+    .from("attendance_records")
+    .select("*")
+    .eq("employee_id", employeeId)
+    .eq("attendance_date", today)
+    .not("check_in_time", "is", null)
+    .is("check_out_time", null)
+    .order("check_in_at", { ascending: false })
+    .limit(1);
+
+  if (openError) {
+    logger.error("Error fetching open attendance session:", openError);
+  }
+  if (openRows?.[0]) {
+    return openRows[0];
+  }
+
+  const { data: latestRows, error: latestError } = await supabase
+    .from("attendance_records")
+    .select("*")
+    .eq("employee_id", employeeId)
+    .eq("attendance_date", today)
+    .order("check_in_at", { ascending: false })
+    .limit(1);
+
+  if (latestError) {
+    logger.error("Error fetching latest attendance for today:", latestError);
+  }
+
+  return latestRows?.[0] ?? null;
+}
+
 export const useAttendanceData = () => {
   const [todayAttendance, setTodayAttendance] = useState<any>(null);
   const [officeLocation, setOfficeLocation] = useState<any>(null);
@@ -93,12 +127,7 @@ export const useAttendanceData = () => {
 
       // Today's row by local calendar (UTC date breaks clock-out updates near midnight in non-UTC zones)
       const today = formatLocalDateYmd(new Date());
-      const { data: attendanceRaw } = await supabase
-        .from('attendance_records')
-        .select('*')
-        .eq('employee_id', employee.id)
-        .eq('attendance_date', today)
-        .maybeSingle();
+      const attendanceRaw = await fetchTodayAttendanceRecord(employee.id, today);
       setTodayAttendance(attendanceRaw as unknown as any);
 
       // Get office location
@@ -237,6 +266,10 @@ export const useAttendanceData = () => {
 
   const clearError = () => setError(null);
 
+  const mergeTodayAttendance = (record: Record<string, unknown> | null) => {
+    setTodayAttendance(record);
+  };
+
   // Setup realtime attendance updates - only when organizationId is available
   const { isConnected: realtimeConnected } = useRealtimeAttendance(
     activeOrganizationId && activeOrganizationId.length > 0 ? activeOrganizationId : 'skip',
@@ -288,6 +321,7 @@ export const useAttendanceData = () => {
     error,
     realtimeConnected,
     refetch: fetchAttendanceData,
+    mergeTodayAttendance,
     clearError,
     userForPresence,
     organizationId: activeOrganizationId ?? '',

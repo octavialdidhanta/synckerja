@@ -19,6 +19,9 @@ const DesktopLoginPage = lazy(() => import("@/0-auth").then((m) => ({ default: m
 const DesktopGoogleOAuthCallbackPage = lazy(() =>
   import("@/0-auth").then((m) => ({ default: m.GoogleOAuthCallbackPage })),
 );
+const DesktopSupabaseSsoCallbackPage = lazy(() =>
+  import("@/0-auth").then((m) => ({ default: m.SupabaseSsoCallbackPage })),
+);
 const DesktopForgotPasswordPage = lazy(() =>
   import("@/0-auth").then((m) => ({ default: m.ForgotPasswordPage })),
 );
@@ -53,6 +56,9 @@ const AndroidMobileLoginPage = lazy(() =>
 const AndroidMobileGoogleOAuthCallbackPage = lazy(() =>
   import("@/mobile/0-auth").then((m) => ({ default: m.MobileGoogleOAuthCallbackPage })),
 );
+const AndroidMobileSupabaseSsoCallbackPage = lazy(() =>
+  import("@/mobile/0-auth").then((m) => ({ default: m.MobileSupabaseSsoCallbackPage })),
+);
 const AndroidMobileForgotPasswordPage = lazy(() =>
   import("@/mobile/0-auth").then((m) => ({ default: m.MobileForgotPasswordPage })),
 );
@@ -86,6 +92,9 @@ const AndroidMobileTermsAndConditionsPage = lazy(() =>
 const IosMobileLoginPage = lazy(() => import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileLoginPage })));
 const IosMobileGoogleOAuthCallbackPage = lazy(() =>
   import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileGoogleOAuthCallbackPage })),
+);
+const IosMobileSupabaseSsoCallbackPage = lazy(() =>
+  import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileSupabaseSsoCallbackPage })),
 );
 const IosMobileForgotPasswordPage = lazy(() =>
   import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileForgotPasswordPage })),
@@ -136,6 +145,21 @@ export function GoogleOAuthCallbackRouteElement() {
         <IosMobileGoogleOAuthCallbackPage />
       ) : (
         <AndroidMobileGoogleOAuthCallbackPage />
+      )}
+    </AuthSurfaceSuspense>
+  );
+}
+
+export function SupabaseSsoCallbackRouteElement() {
+  const { isDesktop, isIosNative } = useAuthSurface();
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopSupabaseSsoCallbackPage />
+      ) : isIosNative ? (
+        <IosMobileSupabaseSsoCallbackPage />
+      ) : (
+        <AndroidMobileSupabaseSsoCallbackPage />
       )}
     </AuthSurfaceSuspense>
   );

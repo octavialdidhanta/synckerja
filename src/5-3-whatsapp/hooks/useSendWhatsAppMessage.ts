@@ -48,8 +48,11 @@ export function useSendWhatsAppMessage() {
           reply_to_sender: params.reply_to_sender ?? null,
         }),
       });
-      const json = await res.json().catch(() => ({}));
+      const json = await res.json().catch(() => ({})) as { error?: string; code?: string; details?: unknown };
       if (!res.ok) {
+        if (json?.code === 'NOT_ASSIGNEE' && typeof json.error === 'string') {
+          throw new Error(json.error);
+        }
         const serverMsg = typeof json?.error === 'string' ? json.error : null;
         const metaMsg = json?.details?.error?.message ?? json?.details?.error_message;
         const rawMsg = serverMsg || metaMsg || (typeof json?.error === 'string' ? json.error : null) || 'Failed to send';

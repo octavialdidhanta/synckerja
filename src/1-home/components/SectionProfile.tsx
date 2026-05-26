@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Card, CardContent } from '@/shared/components/ui/card';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 import { User, Calendar, Home, Coffee } from 'lucide-react';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useEmployeeLeaveBalance } from '@/2-1-employees/MyInfo/LeavePermit/hooks/useEmployeeLeaveBalance';
-import { SectionQuickMenu } from './HomeOKRDashboard/component/SectionQuickMenu';
 import { EmployeeProfilePhoto } from '@/shared/components/EmployeeProfilePhoto';
 import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
 import { useUserData } from '@/shared/auth/hooks/useUserData';
@@ -13,6 +13,34 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from 'date-fns';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
+
+const SectionQuickMenu = lazy(() =>
+  import('./HomeOKRDashboard/component/SectionQuickMenu').then((m) => ({
+    default: m.SectionQuickMenu,
+  })),
+);
+
+function ProfileColumnSkeleton() {
+  return (
+    <div className="flex h-full flex-col gap-2" aria-hidden>
+      <Card className="p-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-16 w-16 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+        </div>
+      </Card>
+      <Skeleton className="min-h-[200px] flex-1 rounded-lg" />
+    </div>
+  );
+}
+
+function QuickMenuPlaceholder() {
+  return <Skeleton className="min-h-[200px] w-full flex-1 rounded-lg" aria-hidden />;
+}
 
 export const SectionProfile = () => {
   const { t, dateFnsLocale } = useAppTranslation();
@@ -35,7 +63,8 @@ export const SectionProfile = () => {
     error: teamAvailabilityError,
   } = useTeamAvailability();
 
-  const profileSectionLoading = isLoading || userDataLoading;
+  const profileSectionLoading =
+    isLoading || userDataLoading || leaveBalanceLoading || isTeamLoading;
   const profileSectionError =
     (employeeError as Error | null | undefined) ||
     (teamAvailabilityError as Error | null | undefined) ||
@@ -106,7 +135,7 @@ export const SectionProfile = () => {
   };
 
   if (profileSectionLoading) {
-    return null;
+    return <ProfileColumnSkeleton />;
   }
 
 
@@ -192,10 +221,12 @@ export const SectionProfile = () => {
 
         {/* Absensi Online - Flex Grow untuk mengisi sisa space */}
         <div className="flex-1 min-h-0">
-          <SectionQuickMenu 
-            isTeamLoading={isTeamLoading}
-            displayTeamData={teamAvailability || []}
-          />
+          <Suspense fallback={<QuickMenuPlaceholder />}>
+            <SectionQuickMenu
+              isTeamLoading={isTeamLoading}
+              displayTeamData={teamAvailability || []}
+            />
+          </Suspense>
         </div>
 
       </div>

@@ -19,6 +19,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 import { CONSULTANT_LIVECHAT_PATH } from '@/mobile/4-leads-management/shared/consultantCrmNavPaths';
+import { LeadAssigneePickerSheet } from './LeadAssigneePickerSheet';
 
 type LeadWithAssigneeId = NewLead & { assignee_id?: string | null };
 
@@ -126,24 +127,32 @@ export function ViewLeadDialogMobile({
             : 'fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-w-md max-h-[90vh] rounded-lg p-6 gap-4'
         )}
         fullscreenAnimation={isMobile}
+        hideCloseButton
       >
         <DialogHeader
           className={cn(
-            'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left',
+            'flex-shrink-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 text-left',
             isMobile ? 'safe-area-top px-4 pt-4 pb-3' : 'px-6 pt-6 pb-4'
           )}
         >
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-lg font-semibold truncate">
+              <DialogTitle className="text-lg font-semibold truncate text-brand-blue-deep">
                 {lead.title}
               </DialogTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 {lead.ticket_id ? `Lead - ${lead.ticket_id}` : t('leadsManagement.page.title', 'Leads')}
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 shrink-0">
-              <X className="h-4 w-4" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-9 w-9 shrink-0 text-brand-blue hover:bg-brand-blue/10 hover:text-brand-blue-deep"
+              aria-label={t('layout.sheetClose', 'Close')}
+            >
+              <X className="h-4 w-4 shrink-0" aria-hidden />
             </Button>
           </div>
         </DialogHeader>
@@ -159,24 +168,32 @@ export function ViewLeadDialogMobile({
                 <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
                 {t('leadsManagement.filter.assignee', 'PIC')}
               </h3>
-              <Select
-                value={currentAssigneeId || 'unassigned'}
-                onValueChange={(v) => handleAssigneeChange(v === 'unassigned' ? '' : v)}
-              >
-                <SelectTrigger className="w-full h-10 text-sm bg-background">
-                  <SelectValue placeholder={t('leadsManagement.filter.allAssignees', 'Pilih PIC')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">
-                    {t('leadsManagement.card.unassigned', 'Tidak ada PIC')}
-                  </SelectItem>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.full_name || emp.email}
+              {isMobile ? (
+                <LeadAssigneePickerSheet
+                  value={currentAssigneeId}
+                  employees={employees}
+                  onChange={handleAssigneeChange}
+                />
+              ) : (
+                <Select
+                  value={currentAssigneeId || 'unassigned'}
+                  onValueChange={(v) => handleAssigneeChange(v === 'unassigned' ? '' : v)}
+                >
+                  <SelectTrigger className="w-full h-10 text-sm bg-background">
+                    <SelectValue placeholder={t('leadsManagement.filter.allAssignees', 'Pilih PIC')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">
+                      {t('leadsManagement.card.unassigned', 'Tidak ada PIC')}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id}>
+                        {emp.full_name || emp.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </section>
 

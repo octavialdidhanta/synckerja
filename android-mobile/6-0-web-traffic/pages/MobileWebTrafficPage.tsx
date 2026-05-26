@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppSidebar } from "@/mobile-app/components/AppSidebar";
-import { SidebarProvider, SidebarTrigger } from "@/mobile-app/components/ui/sidebar";
+import { SidebarProvider } from "@/mobile-app/components/ui/sidebar";
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { Button } from "@/shared/components/ui/button";
@@ -19,6 +19,11 @@ import { MobileTopBlogPagesTableCard } from "@/mobile/6-0-web-traffic/components
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
+import { WebTrafficMobileShellHeader } from "@/mobile/6-0-web-traffic/components/WebTrafficMobileShellHeader";
+import { ToolsMobileDenyGateArea } from "@/mobile-app/components/ToolsMobileDenyGateArea";
+import { useMobileToolsShellLayout } from "@/shared/hooks/useMobileToolsShellLayout";
+import { useToolsMobilePageAccess } from "@/mobile-app/hooks/useToolsMobilePageAccess";
+import { cn } from "@/shared/lib/utils";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { useToast } from "@/shared/components/ui/use-toast";
 import {
@@ -51,7 +56,7 @@ type TrafficSyncResponseBody = {
   message?: unknown;
 };
 
-export default function MobileWebTrafficPage() {
+function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean }) {
   useStatusBarStyle("light");
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -359,36 +364,17 @@ export default function MobileWebTrafficPage() {
       <div className="min-h-screen flex w-full bg-muted/70">
         <AppSidebar />
         <main className="fixed inset-x-0 z-0 flex flex-col bg-muted/70" style={mainFixedStyle}>
-        <header className="safe-area-top sticky top-0 z-30 flex flex-shrink-0 items-center justify-between border-b border-border bg-card p-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <SidebarTrigger className="md:hidden shrink-0" />
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold leading-tight text-foreground">
-                {t("traffic.page.title", "Web Traffic")}
-              </h1>
-            </div>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            aria-label={t("common.refresh", "Refresh")}
-            onClick={handleSync}
-            disabled={dashboardQuery.isFetching || isRefreshing}
-          >
-            {isRefreshing || dashboardQuery.isFetching ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
-            ) : (
-              <RefreshCw className="h-4 w-4 text-muted-foreground" aria-hidden />
-            )}
-          </Button>
-        </header>
+        <WebTrafficMobileShellHeader
+          onSync={handleSync}
+          syncDisabled={dashboardQuery.isFetching || isRefreshing}
+          isSyncing={isRefreshing || dashboardQuery.isFetching}
+        />
 
         <ModuleShellContentGate
           pagePath={MOBILE_PAGE_PATH.digitalMarketingTraffic}
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
+          {hasPageAccess ? (
           <div
             ref={listScrollRef}
             className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -641,6 +627,7 @@ export default function MobileWebTrafficPage() {
               />
             </div>
           </div>
+          ) : null}
         </ModuleShellContentGate>
 
         <CustomDatePicker
@@ -670,5 +657,41 @@ export default function MobileWebTrafficPage() {
       />
     </SidebarProvider>
   );
+}
+
+export default function MobileWebTrafficPage() {
+  useStatusBarStyle("light");
+  const { isKeyboardShellOpen } = useVisualViewport();
+  const { outerShellClassName, mainShellClassName, mainShellStyle } = useMobileToolsShellLayout();
+  const pagePath = MOBILE_PAGE_PATH.digitalMarketingTraffic;
+  const { hasPageAccess, showDenyShellHeader } = useToolsMobilePageAccess(pagePath);
+
+  if (showDenyShellHeader) {
+    return (
+      <SidebarProvider>
+        <div className={cn(outerShellClassName, "bg-muted/70")}>
+          <AppSidebar />
+          <main
+            className={cn(
+              "z-0 flex w-full min-w-0 max-w-none flex-col bg-muted/70",
+              mainShellClassName,
+            )}
+            style={mainShellStyle}
+          >
+            <WebTrafficMobileShellHeader />
+            <ToolsMobileDenyGateArea
+              pagePath={pagePath}
+              contentPaddingClass="content-padding-above-nav-default"
+            />
+            {!isKeyboardShellOpen ? (
+              <WebTrafficNavigationFooter className="safe-area-bottom-lower" />
+            ) : null}
+          </main>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  return <MobileWebTrafficPageContent hasPageAccess={hasPageAccess} />;
 }
 

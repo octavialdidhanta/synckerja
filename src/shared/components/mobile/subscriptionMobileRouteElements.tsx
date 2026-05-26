@@ -1,5 +1,7 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { SubscriptionShellSkeleton } from "@/10-subscription/shared/SubscriptionShellSkeleton";
+import { SubscriptionOverviewRouteLoadingShell } from "@/10-subscription/shared/SubscriptionOverviewRouteLoadingShell";
+import { SubscriptionPlansRouteLoadingShell } from "@/10-subscription/shared/SubscriptionPlansRouteLoadingShell";
 import MobileSubscriptionOverviewPage from "@/mobile/6-subscription/OverviewTabPage";
 import MobileSubscriptionPlansPage from "@/mobile/6-subscription/PlansTabPage";
 import MobileSubscriptionManagementPage from "@/mobile/6-subscription/ManagementTabPage";
@@ -9,12 +11,18 @@ const DesktopSubscriptionOverviewPage = lazy(() => import("@/10-subscription/ove
 const DesktopSubscriptionPlansPage = lazy(() => import("@/10-subscription/plans/PlansPage"));
 const DesktopSubscriptionManagementPage = lazy(() => import("@/10-subscription/management/ManagementPage"));
 
-function ShellSuspense({ children }: { children: ReactNode }) {
+function ShellSuspense({
+  children,
+  fallback,
+}: {
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
   return (
     <Suspense
       fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100" aria-busy>
-          <SubscriptionShellSkeleton />
+        <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden bg-gray-100" aria-busy>
+          {fallback ?? <SubscriptionShellSkeleton />}
         </div>
       }
     >
@@ -31,7 +39,7 @@ export function SubscriptionOverviewRouteElement() {
   const useMobileShell = useToolsModuleMobileViewport();
   if (!useMobileShell) {
     return (
-      <ShellSuspense>
+      <ShellSuspense fallback={<SubscriptionOverviewRouteLoadingShell />}>
         <DesktopSubscriptionOverviewPage />
       </ShellSuspense>
     );
@@ -44,7 +52,7 @@ export function SubscriptionPlansRouteElement() {
   const useMobileShell = useToolsModuleMobileViewport();
   if (!useMobileShell) {
     return (
-      <ShellSuspense>
+      <ShellSuspense fallback={<SubscriptionPlansRouteLoadingShell />}>
         <DesktopSubscriptionPlansPage />
       </ShellSuspense>
     );

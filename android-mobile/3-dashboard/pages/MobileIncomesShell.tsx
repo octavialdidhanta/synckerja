@@ -138,11 +138,10 @@ export function MobileIncomesShell({
                 aria-label={t("incomes.scrollArea", "Income content")}
               >
                 {/*
-                  `min-h-full` (tanpa `flex-1` di kolom ini): jika `flex-1` + `padding-bottom` pada anak,
-                  tinggi kolom terkunci ke viewport dan konten panjang bisa menimpa padding bawah — scroll
-                  tidak cukup jauh di atas tab `fixed`. Jarak ke tab = `content-padding-above-nav-default`.
+                  `flex-1` + `min-h-full`: selaras `MobileExpensesShell` — area gate/deny memenuhi tinggi
+                  antara header dan tab; scroll panjang tetap lewat `content-padding-above-nav-default`.
                 */}
-                <div className="flex min-h-full min-w-0 shrink-0 flex-col">
+                <div className="flex min-h-full min-w-0 flex-1 flex-col">
                 <div
                   className="flex min-h-0 shrink-0 items-center justify-center overflow-hidden text-sm text-muted-foreground"
                   style={{
@@ -182,8 +181,8 @@ export function MobileIncomesShell({
                   */}
                   <div
                     className={cn(
-                      "content-padding-above-nav-default mx-auto flex min-w-0 w-full max-w-md flex-col gap-1 px-2 pt-2",
-                      stretchScrollContent && "min-h-0 flex-1",
+                      "content-padding-above-nav-default mx-auto flex min-w-0 w-full max-w-md flex-1 flex-col space-y-1 px-2 pt-2",
+                      stretchScrollContent && "min-h-0",
                     )}
                   >
                     <ModuleShellContentGate pagePath={pagePath} className="flex min-h-0 min-w-0 flex-1 flex-col">

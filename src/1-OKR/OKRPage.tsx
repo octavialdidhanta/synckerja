@@ -1,17 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import {
   AttendanceStatusProvider,
-  useAttendanceStatus,
 } from "@/1-home/components/HomeOKRDashboard/component/AttendanceStatusProvider";
-import { CompanyObjectivesProgressCard } from "@/1-home/components/HomeOKRDashboard/component/CompanyObjectivesProgressCard";
-import { DepartmentObjectivesProgressCard } from "@/1-home/components/HomeOKRDashboard/component/DepartmentObjectivesProgressCard";
-import { IndividualObjectivesProgressCard } from "@/1-home/components/HomeOKRDashboard/component/IndividualObjectivesProgressCard";
 import type { YearQuarterSelection } from "@/1-home/components/HomeOKRDashboard/component/FiturTimePeriod";
-import { CompanyObjectivesDetailView } from "@/1-home/components/HomeOKRDashboard/component/ObjectivesTabImport/CompanyObjectivesDetailView";
-import { DepartmentObjectivesView } from "@/1-home/components/HomeOKRDashboard/component/ObjectivesTabImport/DepartmentObjectivesView";
-import { IndividualObjectivesView } from "@/1-home/components/HomeOKRDashboard/component/ObjectivesTabImport/IndividualObjectivesView";
 import {
   filterCyclesByYearQuarter,
   getDefaultYearQuarterSelection,
@@ -22,8 +15,10 @@ import { useObjectiveStats } from "@/1-home/components/HomeOKRDashboard/hooks/us
 import { useOkrCycles } from "@/shared/hooks/useOkrCycles";
 import { OKRSectionVisibilityProvider } from "@/1-home/components/HomeOKRDashboard/OKRSectionVisibilityContext";
 import { Card, CardContent } from "@/shared/components/ui/card";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 import { useCurrentEmployee } from "@/shared/hooks/useCurrentEmployee";
+import { DeferredMount } from "@/shared/components/DeferredMount";
 import { CompanyObjectivePageSkeleton } from "./components/CompanyObjectivePageSkeleton";
 import { DepartmentObjectivePageSkeleton } from "./components/DepartmentObjectivePageSkeleton";
 import { IndividualObjectivePageSkeleton } from "./components/IndividualObjectivePageSkeleton";
@@ -31,8 +26,65 @@ import { useOkrHeaderTabChange } from "./hooks/useOkrHeaderTabChange";
 import { useOkrPageSkeletonGate } from "./hooks/useOkrPageSkeletonGate";
 import { getOkrActiveTabFromPath } from "./utils/okrPaths";
 import { OkrPageDetailLoadProvider, useOkrPageDetailTabs } from "./context/OkrPageDetailLoadContext";
-import { HeaderAndTab, OKRSidebar, OKRSidebarFooter } from "./section";
+import { HeaderAndTab, OKRSidebarFooter } from "./section";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+
+const CompanyObjectivesProgressCard = lazy(() =>
+  import("@/1-home/components/HomeOKRDashboard/component/CompanyObjectivesProgressCard").then((m) => ({
+    default: m.CompanyObjectivesProgressCard,
+  })),
+);
+const DepartmentObjectivesProgressCard = lazy(() =>
+  import("@/1-home/components/HomeOKRDashboard/component/DepartmentObjectivesProgressCard").then((m) => ({
+    default: m.DepartmentObjectivesProgressCard,
+  })),
+);
+const IndividualObjectivesProgressCard = lazy(() =>
+  import("@/1-home/components/HomeOKRDashboard/component/IndividualObjectivesProgressCard").then((m) => ({
+    default: m.IndividualObjectivesProgressCard,
+  })),
+);
+
+const CompanyObjectivesDetailView = lazy(() =>
+  import("@/1-home/components/HomeOKRDashboard/component/ObjectivesTabImport/CompanyObjectivesDetailView").then(
+    (m) => ({ default: m.CompanyObjectivesDetailView }),
+  ),
+);
+const DepartmentObjectivesView = lazy(() =>
+  import("@/1-home/components/HomeOKRDashboard/component/ObjectivesTabImport/DepartmentObjectivesView").then(
+    (m) => ({ default: m.DepartmentObjectivesView }),
+  ),
+);
+const IndividualObjectivesView = lazy(() =>
+  import("@/1-home/components/HomeOKRDashboard/component/ObjectivesTabImport/IndividualObjectivesView").then(
+    (m) => ({ default: m.IndividualObjectivesView }),
+  ),
+);
+
+const OKRSidebar = lazy(() =>
+  import("./section/OKRSidebar").then((m) => ({ default: m.OKRSidebar })),
+);
+
+const progressCardFallback = <Skeleton className="h-24 w-full rounded-lg" />;
+const detailListFallback = (
+  <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" aria-hidden>
+    <Skeleton className="h-14 w-full shrink-0 rounded-lg" />
+    <Skeleton className="min-h-[8rem] w-full flex-1 rounded-lg" />
+    <Skeleton className="h-28 w-full shrink-0 rounded-lg" />
+  </div>
+);
+
+function OkrSidebarPlaceholder() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-16 w-full rounded-lg" />
+      ))}
+      <Skeleton className="h-20 w-full rounded-md" />
+      <Skeleton className="h-20 w-full rounded-md" />
+    </div>
+  );
+}
 
 function OKRPageContent() {
   const { t } = useTranslation();
@@ -41,7 +93,6 @@ function OKRPageContent() {
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const { data: currentEmployee, isPending: currentEmployeePending } = useCurrentEmployee();
   const { data: cycles = [], isLoading: isLoadingCycles } = useOkrCycles(organizationId);
-  const { isLoading: attendanceLoading } = useAttendanceStatus();
   const detailTabs = useOkrPageDetailTabs();
 
   const activeTab = useMemo(
@@ -49,16 +100,13 @@ function OKRPageContent() {
     [location.pathname],
   );
 
+  const isCompanyTab = activeTab === "company-objectives";
+  const isDepartmentTab = activeTab === "department-objectives";
+  const isIndividualTab = activeTab === "individual-objectives";
+
   const [yearQuarterSelection, setYearQuarterSelection] = useState<YearQuarterSelection>(() =>
     getDefaultYearQuarterSelection(),
   );
-  const [sidebarQueriesLoading, setSidebarQueriesLoading] = useState(false);
-
-  useEffect(() => {
-    if (!organizationId) {
-      setSidebarQueriesLoading(false);
-    }
-  }, [organizationId]);
 
   const availableYears =
     cycles.length > 0
@@ -87,67 +135,62 @@ function OKRPageContent() {
         : undefined;
   const statsEnabled = !!organizationId && !isLoadingCycles;
 
-  const companyStats = useObjectiveStats(organizationId, "company", cycleIdsForStats, statsEnabled);
+  const companyStats = useObjectiveStats(
+    organizationId,
+    "company",
+    cycleIdsForStats,
+    statsEnabled && isCompanyTab,
+  );
   const departmentStats = useObjectiveStats(
     organizationId,
     "department",
     cycleIdsForStats,
-    statsEnabled,
+    statsEnabled && isDepartmentTab,
   );
   const individualStats = useObjectiveStats(
     organizationId,
     "individual",
     cycleIdsForStats,
-    statsEnabled,
+    statsEnabled && isIndividualTab,
   );
 
   const rawPageLoadPending = useMemo(() => {
     if (orgBootstrapPending) return true;
     if (!organizationId) return false;
-    if (isLoadingCycles || attendanceLoading) return true;
+    if (isLoadingCycles) return true;
 
-    if (activeTab === "company-objectives") {
-      return (
-        companyStats.isLoading ||
-        detailTabs.company.loading ||
-        sidebarQueriesLoading
-      );
+    if (isCompanyTab) {
+      return companyStats.isLoading || detailTabs.company.loading;
     }
-    if (activeTab === "department-objectives") {
+    if (isDepartmentTab) {
       return (
         departmentStats.isLoading ||
         detailTabs.department.loading ||
-        sidebarQueriesLoading ||
         currentEmployeePending
       );
     }
-    return (
-      individualStats.isLoading ||
-      detailTabs.individual.loading ||
-      sidebarQueriesLoading
-    );
+    return individualStats.isLoading || detailTabs.individual.loading;
   }, [
     orgBootstrapPending,
     organizationId,
     isLoadingCycles,
-    attendanceLoading,
-    activeTab,
+    isCompanyTab,
+    isDepartmentTab,
     companyStats.isLoading,
     departmentStats.isLoading,
     individualStats.isLoading,
     detailTabs.company.loading,
     detailTabs.department.loading,
     detailTabs.individual.loading,
-    sidebarQueriesLoading,
     currentEmployeePending,
   ]);
 
   const showLoadOverlay = useOkrPageSkeletonGate(rawPageLoadPending);
 
   const PageSkeleton =
-    activeTab === "company-objectives"
+    isCompanyTab
       ? CompanyObjectivePageSkeleton
-      : activeTab === "department-objectives"
+      : isDepartmentTab
         ? DepartmentObjectivePageSkeleton
         : IndividualObjectivePageSkeleton;
 
@@ -161,146 +204,165 @@ function OKRPageContent() {
       >
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
-              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="flex min-h-full flex-col">
-              <div className="mb-1 flex-shrink-0">
-                <HeaderAndTab onTabChange={handleTabChange} />
-              </div>
-              <ModuleShellContentGate pagePath={location.pathname}>
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                <div className="col-span-9 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch overflow-hidden">
-                  <Card className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col border border-border">
-                    <CardContent className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col p-0 sm:p-6">
-                      {activeTab === "company-objectives" ? (
-                        <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
-                          <div className="shrink-0">
-                            <CompanyObjectivesProgressCard
-                              enhancedCompanyObjectives={[]}
-                              calculateOverallProgress={() => companyStats.data?.avgProgress || 0}
-                              activeObjectives={[]}
-                              draftObjectives={[]}
-                              completedObjectives={[]}
-                              loading={false}
-                              error={companyStats.error?.message || null}
-                              stats={companyStats.data}
-                              organizationId={organizationId}
-                              yearQuarterSelection={yearQuarterSelection}
-                              onYearQuarterChange={setYearQuarterSelection}
-                              availableYears={availableYears}
-                              isLoadingCycles={false}
-                            />
-                          </div>
-                          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
-                            {organizationId ? (
-                              <CompanyObjectivesDetailView
-                                organizationId={organizationId}
-                                yearQuarterSelection={yearQuarterSelection}
-                                onYearQuarterChange={setYearQuarterSelection}
-                                okrStandaloneUi
-                              />
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : activeTab === "department-objectives" ? (
-                        <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
-                          <div className="shrink-0">
-                            <DepartmentObjectivesProgressCard
-                              enhancedDepartmentObjectives={[]}
-                              calculateOverallProgress={() => departmentStats.data?.avgProgress || 0}
-                              activeObjectives={[]}
-                              draftObjectives={[]}
-                              completedObjectives={[]}
-                              loading={false}
-                              error={departmentStats.error?.message || null}
-                              organizationId={organizationId}
-                              cycleId={activeCycleId}
-                              departmentId={currentEmployee?.departments?.id || undefined}
-                              yearQuarterSelection={yearQuarterSelection}
-                              onYearQuarterChange={setYearQuarterSelection}
-                              availableYears={availableYears}
-                              isLoadingCycles={false}
-                            />
-                          </div>
-                          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
-                            {organizationId ? (
-                              <DepartmentObjectivesView
-                                organizationId={organizationId}
-                                cycleId={activeCycleId}
-                                cycleIds={filteredCycleIds ?? []}
-                              />
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
-                          <div className="shrink-0">
-                            <IndividualObjectivesProgressCard
-                              enhancedIndividualObjectives={[]}
-                              calculateOverallProgress={() => individualStats.data?.avgProgress || 0}
-                              activeObjectives={[]}
-                              draftObjectives={[]}
-                              completedObjectives={[]}
-                              loading={false}
-                              error={individualStats.error?.message || null}
-                              organizationId={organizationId}
-                              cycleId={activeCycleId}
-                              yearQuarterSelection={yearQuarterSelection}
-                              onYearQuarterChange={setYearQuarterSelection}
-                              availableYears={availableYears}
-                              isLoadingCycles={false}
-                            />
-                          </div>
-                          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
-                            {organizationId ? (
-                              <IndividualObjectivesView
-                                organizationId={organizationId}
-                                cycleId={activeCycleId}
-                                cycleIds={filteredCycleIds ?? []}
-                              />
-                            ) : null}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-h-full flex-col">
+                <div className="mb-1 flex-shrink-0">
+                  <HeaderAndTab onTabChange={handleTabChange} />
                 </div>
+                <ModuleShellContentGate pagePath={location.pathname}>
+                  <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+                    <div className="col-span-9 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch overflow-hidden">
+                      <Card className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col border border-border">
+                        <CardContent className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col p-0 sm:p-6">
+                          {isCompanyTab ? (
+                            <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
+                              <div className="shrink-0">
+                                <Suspense fallback={progressCardFallback}>
+                                  <CompanyObjectivesProgressCard
+                                    enhancedCompanyObjectives={[]}
+                                    calculateOverallProgress={() => companyStats.data?.avgProgress || 0}
+                                    activeObjectives={[]}
+                                    draftObjectives={[]}
+                                    completedObjectives={[]}
+                                    loading={false}
+                                    error={companyStats.error?.message || null}
+                                    stats={companyStats.data}
+                                    organizationId={organizationId}
+                                    yearQuarterSelection={yearQuarterSelection}
+                                    onYearQuarterChange={setYearQuarterSelection}
+                                    availableYears={availableYears}
+                                    isLoadingCycles={false}
+                                  />
+                                </Suspense>
+                              </div>
+                              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
+                                {organizationId ? (
+                                  <Suspense fallback={detailListFallback}>
+                                    <CompanyObjectivesDetailView
+                                      organizationId={organizationId}
+                                      yearQuarterSelection={yearQuarterSelection}
+                                      onYearQuarterChange={setYearQuarterSelection}
+                                      okrStandaloneUi
+                                    />
+                                  </Suspense>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : isDepartmentTab ? (
+                            <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
+                              <div className="shrink-0">
+                                <Suspense fallback={progressCardFallback}>
+                                  <DepartmentObjectivesProgressCard
+                                    enhancedDepartmentObjectives={[]}
+                                    calculateOverallProgress={() => departmentStats.data?.avgProgress || 0}
+                                    activeObjectives={[]}
+                                    draftObjectives={[]}
+                                    completedObjectives={[]}
+                                    loading={false}
+                                    error={departmentStats.error?.message || null}
+                                    organizationId={organizationId}
+                                    cycleId={activeCycleId}
+                                    departmentId={currentEmployee?.departments?.id || undefined}
+                                    yearQuarterSelection={yearQuarterSelection}
+                                    onYearQuarterChange={setYearQuarterSelection}
+                                    availableYears={availableYears}
+                                    isLoadingCycles={false}
+                                  />
+                                </Suspense>
+                              </div>
+                              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
+                                {organizationId ? (
+                                  <Suspense fallback={detailListFallback}>
+                                    <DepartmentObjectivesView
+                                      organizationId={organizationId}
+                                      cycleId={activeCycleId}
+                                      cycleIds={filteredCycleIds ?? []}
+                                    />
+                                  </Suspense>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
+                              <div className="shrink-0">
+                                <Suspense fallback={progressCardFallback}>
+                                  <IndividualObjectivesProgressCard
+                                    enhancedIndividualObjectives={[]}
+                                    calculateOverallProgress={() => individualStats.data?.avgProgress || 0}
+                                    activeObjectives={[]}
+                                    draftObjectives={[]}
+                                    completedObjectives={[]}
+                                    loading={false}
+                                    error={individualStats.error?.message || null}
+                                    organizationId={organizationId}
+                                    cycleId={activeCycleId}
+                                    yearQuarterSelection={yearQuarterSelection}
+                                    onYearQuarterChange={setYearQuarterSelection}
+                                    availableYears={availableYears}
+                                    isLoadingCycles={false}
+                                  />
+                                </Suspense>
+                              </div>
+                              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
+                                {organizationId ? (
+                                  <Suspense fallback={detailListFallback}>
+                                    <IndividualObjectivesView
+                                      organizationId={organizationId}
+                                      cycleId={activeCycleId}
+                                      cycleIds={filteredCycleIds ?? []}
+                                    />
+                                  </Suspense>
+                                ) : null}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
 
-                <div className="col-span-3 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch rounded-lg border border-border bg-card shadow-sm">
-                  <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-semibold text-foreground">{t("layout.okr.sidebar.title")}</h3>
-                        <p className="mt-1 text-xs text-muted-foreground">{t("layout.okr.sidebar.subtitle")}</p>
+                    <div className="col-span-3 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch rounded-lg border border-border bg-card shadow-sm">
+                      <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-semibold text-foreground">
+                              {t("layout.okr.sidebar.title")}
+                            </h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {t("layout.okr.sidebar.subtitle")}
+                            </p>
+                          </div>
+                        </div>
                       </div>
+
+                      <div className="min-h-0 flex-1">
+                        <div className="h-full min-h-0 p-4">
+                          <DeferredMount fallback={<OkrSidebarPlaceholder />} idleTimeoutMs={800} delayMs={120}>
+                            <Suspense fallback={<OkrSidebarPlaceholder />}>
+                              <OKRSidebar
+                                activeTab={activeTab}
+                                organizationId={organizationId ?? undefined}
+                                companyStats={companyStats.data}
+                                departmentStats={departmentStats.data}
+                                individualStats={individualStats.data}
+                                cycleIds={filteredCycleIds ?? []}
+                              />
+                            </Suspense>
+                          </DeferredMount>
+                        </div>
+                      </div>
+
+                      <OKRSidebarFooter totalCycles={cycles.length} activeCycleId={activeCycleId} />
                     </div>
                   </div>
-
-                  <div className="min-h-0 flex-1">
-                    <div className="h-full min-h-0 p-4">
-                      <OKRSidebar
-                        activeTab={activeTab}
-                        organizationId={organizationId ?? undefined}
-                        companyStats={companyStats.data}
-                        departmentStats={departmentStats.data}
-                        individualStats={individualStats.data}
-                        cycleIds={filteredCycleIds ?? []}
-                        onSidebarQueriesLoadingChange={setSidebarQueriesLoading}
-                      />
-                    </div>
-                  </div>
-
-                  <OKRSidebarFooter totalCycles={cycles.length} activeCycleId={activeCycleId} />
-                </div>
-              </div>
-              </ModuleShellContentGate>
-              <div
-                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
-                </div>
+                </ModuleShellContentGate>
+                <div
+                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                  aria-hidden
+                />
               </div>
             </div>
           </div>
+        </div>
       </div>
 
       {showLoadOverlay ? (

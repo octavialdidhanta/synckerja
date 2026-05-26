@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { DesktopWarning } from '@/mobile-app/components/DesktopWarning';
-import { SidebarProvider, SidebarTrigger } from '@/mobile-app/components/ui/sidebar';
+import { SidebarProvider } from '@/mobile-app/components/ui/sidebar';
 import { AppSidebar } from '@/mobile-app/components/AppSidebar';
 import { ToolsNavigationFooter } from '@/mobile-app/components/ToolsNavigationFooter';
+import { ToolsMobileShellHeader } from '@/mobile-app/components/ToolsMobileShellHeader';
+import { ToolsMobileDenyGateArea } from '@/mobile-app/components/ToolsMobileDenyGateArea';
+import { useToolsMobilePageAccess } from '@/mobile-app/hooks/useToolsMobilePageAccess';
 import { useVisualViewport } from '@/shared/hooks/useVisualViewport';
 import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 import { MeetingNotesProvider, useMeetingNotes } from '@/8-1-meeting-notes/context/MeetingNotesContext';
@@ -146,7 +149,6 @@ const MeetingNotesScrollContent = ({
 
 function MeetingNotesMobileContent() {
   const { mainFixedStyle } = useVisualViewport();
-  const { t } = useAppTranslation();
   const { initialLoading, isLoading, refreshMeetingPoints } = useMeetingNotes();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [minSettleDone, setMinSettleDone] = useState(true);
@@ -186,10 +188,22 @@ function MeetingNotesMobileContent() {
     setMinSettleDone(true);
   }, [blockingLoad]);
 
+  const pagePath = MOBILE_PAGE_PATH.toolsMeetingNotes;
+  const { hasPageAccess, showDenyShellHeader } = useToolsMobilePageAccess(pagePath);
+
   const dataPendingSkeleton = (blockingLoad || !minSettleDone) && !isRefreshing;
   const { showFullPageSkeleton: showPageSkeleton } = useModulePageOverlaySkeleton(
     dataPendingSkeleton,
-    MOBILE_PAGE_PATH.toolsMeetingNotes,
+    pagePath,
+  );
+
+  const scrollContent = (
+    <MeetingNotesScrollContent
+      blockingLoad={blockingLoad}
+      isRefreshing={isRefreshing}
+      setIsRefreshing={setIsRefreshing}
+      refreshMeetingPoints={refreshMeetingPoints}
+    />
   );
 
   return (
@@ -205,28 +219,20 @@ function MeetingNotesMobileContent() {
         style={mainFixedStyle}
         aria-hidden={showPageSkeleton}
       >
-        <header className="flex-shrink-0 sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card p-3 safe-area-top">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="md:hidden" />
-            <div>
-              <h1 className="text-base font-semibold text-foreground">{t('meetingNotes.page.title', 'Meeting Notes')}</h1>
-              <p className="text-xs text-muted-foreground">{t('meetingNotes.page.subtitle', 'Catat dan tindak lanjuti poin rapat')}</p>
-            </div>
-          </div>
-          <div />
-        </header>
-
-        <ModuleShellContentGate
-          pagePath={MOBILE_PAGE_PATH.toolsMeetingNotes}
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        >
-          <MeetingNotesScrollContent
-            blockingLoad={blockingLoad}
-            isRefreshing={isRefreshing}
-            setIsRefreshing={setIsRefreshing}
-            refreshMeetingPoints={refreshMeetingPoints}
+        <ToolsMobileShellHeader variant="meetingNotes" />
+        {showDenyShellHeader ? (
+          <ToolsMobileDenyGateArea
+            pagePath={pagePath}
+            contentPaddingClass="content-padding-above-nav-meeting-notes"
           />
-        </ModuleShellContentGate>
+        ) : (
+          <ModuleShellContentGate
+            pagePath={pagePath}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            {hasPageAccess ? scrollContent : null}
+          </ModuleShellContentGate>
+        )}
 
         <ToolsNavigationFooter className="safe-area-bottom-lower" />
       </main>

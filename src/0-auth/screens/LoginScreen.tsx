@@ -9,6 +9,25 @@ import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "@/shared/hooks/use-toast";
 import { routeAfterLogin } from "@/0-auth/lib/postLoginRouting";
+import { startGoogleSignIn } from "@/0-auth/lib/googleSignIn";
+import { AuthDivider, GoogleSignInButton } from "@/0-auth/components/GoogleSignInButton";
+import {
+  authFormEyeIconClass,
+  authFormFieldGap,
+  authFormFooterTextClass,
+  authFormForgotLinkClass,
+  authFormFormClass,
+  authFormGoogleSectionClass,
+  authFormHeaderLogoWrapper,
+  authFormInputClass,
+  authFormInputWithToggleClass,
+  authFormLabelClass,
+  authFormPasswordToggleClass,
+  authFormRootClass,
+  authFormSubmitClass,
+  authFormTitleClass,
+  authFormBottomSpacerClass,
+} from "@/0-auth/styles/authFormStyles";
 import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 
 function messageForAuthError(error: AuthError, t: (key: string) => string): string {
@@ -27,7 +46,7 @@ function messageForAuthError(error: AuthError, t: (key: string) => string): stri
   return error.message;
 }
 
-const defaultBrandMark = <SynckerjaBrandLogo fetchPriority="high" />;
+const defaultBrandMark = <SynckerjaBrandLogo className="h-10 w-auto sm:h-12" width={48} height={48} />;
 
 export type LoginScreenProps = {
   submitButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -49,6 +68,7 @@ export function LoginScreen({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     const reason = searchParams.get("reason");
@@ -114,23 +134,88 @@ export function LoginScreen({
     }
   };
 
+  const onGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      const { error, completedInApp } = await startGoogleSignIn({
+        mode: "login",
+        redirectToParam: searchParams.get("redirectTo"),
+        navigate,
+      });
+      if (error === "access_denied") {
+        toast({ title: t("auth.google.errors.accessDenied"), variant: "destructive" });
+        setGoogleLoading(false);
+        return;
+      }
+      if (error === "android_oauth_misconfigured") {
+        toast({
+          title: t("auth.google.errors.androidMisconfiguredTitle"),
+          description: t("auth.google.errors.androidMisconfiguredDescription"),
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+      if (error === "google_account_reauth_failed") {
+        toast({
+          title: t("auth.google.errors.reauthFailedTitle"),
+          description: t("auth.google.errors.reauthFailedDescription"),
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+      if (error === "not_configured") {
+        toast({
+          title: t("auth.google.errors.generic"),
+          description: t("auth.google.errors.notConfigured"),
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+      if (error) {
+        toast({
+          title: t("auth.google.errors.generic"),
+          description: error.length > 120 ? `${error.slice(0, 120)}…` : error,
+          variant: "destructive",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+      if (completedInApp) {
+        setGoogleLoading(false);
+      }
+    } catch {
+      toast({ title: t("auth.google.errors.generic"), variant: "destructive" });
+      setGoogleLoading(false);
+    }
+  };
+
+  const authBusy = loading || googleLoading;
   const brandBlue = "hsl(var(--brand-blue))";
   const brandRed = "hsl(var(--brand-red))";
 
   return (
-    <div className="w-full max-w-md space-y-8">
-      <div className="flex flex-col">
-        <div className="mb-2 flex w-full justify-center">{brandMark}</div>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            {t("auth.login.welcomeTitle")}
-          </h1>
-        </div>
-      </div>
+    <div className={authFormRootClass}>
+      <header className="flex flex-col items-center text-center">
+        <div className={authFormHeaderLogoWrapper}>{brandMark}</div>
+        <h1 className={authFormTitleClass}>{t("auth.login.welcomeTitle")}</h1>
+      </header>
 
-      <form onSubmit={onSubmit} className="space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="login-email" className="text-slate-800">
+      <section className={authFormGoogleSectionClass} aria-label={t("auth.google.continueLogin")}>
+        <GoogleSignInButton
+          mode="login"
+          loading={googleLoading}
+          disabled={authBusy}
+          onClick={() => void onGoogleSignIn()}
+        />
+        <AuthDivider />
+      </section>
+
+      <form onSubmit={onSubmit} className={authFormFormClass}>
+        <div className={authFormFieldGap}>
+          <Label htmlFor="login-email" className={authFormLabelClass}>
             {t("auth.login.email")}
           </Label>
           <Input
@@ -142,20 +227,17 @@ export function LoginScreen({
             onFocus={onFieldFocus}
             onBlur={onFieldBlur}
             required
-            disabled={loading}
-            className="h-12 border-slate-200 bg-white focus-visible:ring-[hsl(var(--brand-blue))]"
+            disabled={authBusy}
+            className={authFormInputClass}
           />
         </div>
 
-        <div className="space-y-2">
+        <div className={`auth-input-scroll-margin ${authFormFieldGap}`}>
           <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="login-password" className="text-slate-800">
+            <Label htmlFor="login-password" className={authFormLabelClass}>
               {t("auth.login.password")}
             </Label>
-            <Link
-              to="/forgot-password"
-              className="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--brand-blue))] hover:underline"
-            >
+            <Link to="/forgot-password" className={authFormForgotLinkClass}>
               {t("auth.login.forgotPassword")}
             </Link>
           </div>
@@ -169,17 +251,18 @@ export function LoginScreen({
               onFocus={onFieldFocus}
               onBlur={onFieldBlur}
               required
-              disabled={loading}
-              className="h-12 border-slate-200 bg-white pr-11 focus-visible:ring-[hsl(var(--brand-blue))] auth-input-scroll-margin"
+              disabled={authBusy}
+              className={authFormInputWithToggleClass}
             />
             <button
               type="button"
               tabIndex={-1}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              className={authFormPasswordToggleClass}
               onClick={() => setShowPassword((v) => !v)}
+              disabled={authBusy}
               aria-label={showPassword ? t("auth.login.hidePassword") : t("auth.login.showPassword")}
             >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              {showPassword ? <EyeOff className={authFormEyeIconClass} /> : <Eye className={authFormEyeIconClass} />}
             </button>
           </div>
         </div>
@@ -187,20 +270,22 @@ export function LoginScreen({
         <Button
           ref={submitButtonRef}
           type="submit"
-          className="h-12 w-full text-base font-semibold text-white shadow-md transition-colors hover:opacity-[0.92]"
+          className={authFormSubmitClass}
           style={{ backgroundColor: brandRed }}
-          disabled={loading}
+          disabled={authBusy}
         >
           {loading ? t("auth.login.submitting") : t("auth.login.submit")}
         </Button>
-      </form>
 
-      <p className="text-center text-sm text-slate-600">
-        {t("auth.login.noAccount")}{" "}
-        <Link to="/register" className="font-semibold hover:underline" style={{ color: brandBlue }}>
-          {t("auth.login.register")}
-        </Link>
-      </p>
+        <p className={authFormFooterTextClass}>
+          {t("auth.login.noAccount")}{" "}
+          <Link to="/register" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+            {t("auth.login.register")}
+          </Link>
+        </p>
+
+        <div className={authFormBottomSpacerClass} aria-hidden />
+      </form>
     </div>
   );
 }

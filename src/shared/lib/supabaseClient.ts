@@ -41,7 +41,7 @@ if (!url || !anonKey) {
  * acquire timeout for positive values (see `processLockWithMinAcquireTimeout`).
  */
 /** Increment when Supabase client options change so HMR/open tabs pick up the new config (singleton survives reload). */
-const SUPABASE_SINGLETON_REVISION = 2;
+const SUPABASE_SINGLETON_REVISION = 3;
 
 declare global {
   interface Window {
@@ -60,6 +60,7 @@ function createSupabaseClient(): SupabaseClient {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: "pkce",
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
       /**
        * Default browser `navigatorLock` (Web Locks API) times out at 5s, then another waiter
        * may `steal` the lock — the previous holder gets `AbortError: Lock broken... steal`.

@@ -1,7 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardList, Target, Timer, Users } from "lucide-react";
+import { ClipboardList, Megaphone, Target, Timer, Users } from "lucide-react";
 
-export type OmnichannelSettingsSectionId = "user-management" | "sla" | "survey" | "target";
+export type OmnichannelSettingsSectionId =
+  | "user-management"
+  | "sla"
+  | "survey"
+  | "target"
+  | "google-ads";
 
 export type OmnichannelSettingsSectionMeta = {
   id: OmnichannelSettingsSectionId;
@@ -44,6 +49,14 @@ export const OMNICHANNEL_SETTINGS_SECTIONS: OmnichannelSettingsSectionMeta[] = [
     icon: Target,
     titleKey: "omnichannel.settings.customerSurveyTarget.sidebarTitle",
     descriptionKey: "omnichannel.settings.customerSurveyTarget.sidebarDescription",
+    status: "active",
+  },
+  {
+    id: "google-ads",
+    urlSlug: "google-ads",
+    icon: Megaphone,
+    titleKey: "omnichannel.settings.googleAds.sidebarTitle",
+    descriptionKey: "omnichannel.settings.googleAds.sidebarDescription",
     status: "active",
   },
 ];

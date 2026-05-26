@@ -1,9 +1,6 @@
 import { memo, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
-import { DesktopWarning } from "@/mobile-app/components/DesktopWarning";
-import { AppSidebar } from "@/mobile-app/components/AppSidebar";
-import { SidebarProvider, SidebarTrigger } from "@/mobile-app/components/ui/sidebar";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
-import { useMobileToolsShellLayout } from "@/shared/hooks/useMobileToolsShellLayout";
+import { MobileSubscriptionPageShell } from "@/mobile/6-subscription/components/MobileSubscriptionPageShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/mobile-app/components/ui/card";
 import { Button } from "@/mobile-app/components/ui/button";
 import { ManagementTabPageSkeleton } from "./ManagementTabPageSkeleton";
@@ -15,11 +12,9 @@ import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { MobileCurrentPlanCard } from "./section/management/MobileCurrentPlanCard";
 import { MobileSubscriptionStats } from "./section/management/MobileSubscriptionStats";
 import { MobilePaymentHistory } from "./section/management/MobilePaymentHistory";
-import { SubscriptionBottomTabs, useSubscriptionTabs } from "@/mobile/6-subscription/shared/SubscriptionTabs";
+import { useSubscriptionTabs } from "@/mobile/6-subscription/shared/SubscriptionTabs";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { RefreshCw, Loader2 } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 const PULL_THRESHOLD = 52;
@@ -29,8 +24,6 @@ const PULL_RESISTANCE = 0.55;
 
 const ManagementTabPage = memo(() => {
   useStatusBarStyle("light");
-  const { outerShellClassName, mainShellClassName, mainShellStyle, mobileHeaderChrome } =
-    useMobileToolsShellLayout();
   useOptimizedPerformanceMonitor("ManagementTabPageMobile");
   const { t } = useAppTranslation();
   const { activeTab, handleTabChange, setActiveTabOnLocationChange } = useSubscriptionTabs("management");
@@ -164,80 +157,53 @@ const ManagementTabPage = memo(() => {
   }
 
   return (
-    <DesktopWarning>
-      <SidebarProvider>
-        <div className={outerShellClassName}>
-          <AppSidebar />
-
-          <main className={mainShellClassName} style={mainShellStyle}>
-            <header
-              className={cn(mobileHeaderChrome.className, "min-h-0")}
-              style={mobileHeaderChrome.style}
-            >
-              <div className="flex items-center gap-2">
-                <SidebarTrigger className="md:hidden" />
-                <div>
-                  <h1 className="text-base font-semibold text-foreground">{t("subscription.management.pageTitle", "Subscription Management")}</h1>
-                  <p className="text-xs text-muted-foreground">{t("subscription.management.pageSubtitle", "Current plan, stats, and payment history")}</p>
-                </div>
-              </div>
-              <div />
-            </header>
-
-            <ModuleShellContentGate
-              pagePath={MOBILE_PAGE_PATH.subscriptionManagement}
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
-            >
-              <div
-                ref={listScrollRef}
-                className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-              >
-                {/*
-                  Pola selaras android-mobile/rules/mobile-tools-layout-android.mdc + MobileExpensesShell:
-                  `min-h-full` + `flex-1` agar area scroll terisi; wrapper `content-padding-above-nav-default`
-                  pakai `flex-1 flex-col` tanpa `min-h-0` supaya padding-bawah ikut scrollHeight (kartu terakhir tidak menempel tab).
-                */}
-                <div className="flex min-h-full min-w-0 flex-1 flex-col">
-                  <div
-                    className="flex min-h-0 shrink-0 items-center justify-center overflow-hidden text-sm text-muted-foreground"
-                    style={{
-                      height: pullDistance > 0 ? Math.min(pullDistance, MAX_PULL) : isRefreshing ? INDICATOR_HEIGHT : 0,
-                      minHeight: 0,
-                      transition: isPulling ? "none" : "height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), min-height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-                    }}
-                  >
-                    {isRefreshing ? (
-                      <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden />
-                    ) : pullDistance >= PULL_THRESHOLD ? (
-                      <span className="whitespace-nowrap text-xs font-medium text-primary">
-                        {t("common.pullToRefresh.release", "Lepas untuk refresh")}
-                      </span>
-                    ) : (
-                      <RefreshCw
-                        className="h-5 w-5 shrink-0 opacity-80"
-                        style={{
-                          transform: `rotate(${Math.min((pullDistance / PULL_THRESHOLD) * 180, 180)}deg)`,
-                          transition: isPulling ? "none" : "transform 0.2s ease-out",
-                        }}
-                        aria-hidden
-                      />
-                    )}
-                  </div>
-                  <div className="content-padding-above-nav-default mx-auto flex min-w-0 w-full max-w-md flex-1 flex-col space-y-1 px-2 pt-2">
-                    {content}
-                  </div>
-                </div>
-              </div>
-            </ModuleShellContentGate>
-
-            <SubscriptionBottomTabs activeTab={activeTab} onTabChange={handleTabChange} className="safe-area-bottom-lower" />
-          </main>
+    <MobileSubscriptionPageShell
+      pagePath={MOBILE_PAGE_PATH.subscriptionManagement}
+      headerVariant="management"
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+    >
+      <div
+        ref={listScrollRef}
+        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="flex min-h-full min-w-0 flex-1 flex-col">
+          <div
+            className="flex min-h-0 shrink-0 items-center justify-center overflow-hidden text-sm text-muted-foreground"
+            style={{
+              height: pullDistance > 0 ? Math.min(pullDistance, MAX_PULL) : isRefreshing ? INDICATOR_HEIGHT : 0,
+              minHeight: 0,
+              transition: isPulling
+                ? "none"
+                : "height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), min-height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+            }}
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden />
+            ) : pullDistance >= PULL_THRESHOLD ? (
+              <span className="whitespace-nowrap text-xs font-medium text-primary">
+                {t("common.pullToRefresh.release", "Lepas untuk refresh")}
+              </span>
+            ) : (
+              <RefreshCw
+                className="h-5 w-5 shrink-0 opacity-80"
+                style={{
+                  transform: `rotate(${Math.min((pullDistance / PULL_THRESHOLD) * 180, 180)}deg)`,
+                  transition: isPulling ? "none" : "transform 0.2s ease-out",
+                }}
+                aria-hidden
+              />
+            )}
+          </div>
+          <div className="content-padding-above-nav-default mx-auto flex min-w-0 w-full max-w-md flex-1 flex-col space-y-1 px-2 pt-2">
+            {content}
+          </div>
         </div>
-      </SidebarProvider>
-    </DesktopWarning>
+      </div>
+    </MobileSubscriptionPageShell>
   );
 });
 

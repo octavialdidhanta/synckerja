@@ -11,6 +11,7 @@ import { LeadsSidebarFooter } from "@/5-3-dashboard/components/leads/table/Leads
 import { useLeads } from '@/shared/hooks/organized/sales';
 import type { CreateLeadData } from '@/shared/types/leads';
 import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
+import { useLeadsReportIdleAccess } from '@/5-3-dashboard/leads-report';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useLeadClientStatuses } from "@/5-3-dashboard/hooks/useLeadClientStatuses";
 import { Button } from '@/shared/components/ui/button';
@@ -32,6 +33,7 @@ import {
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
 import { useLeadsTableSurveyIntegration } from '@/5-3-dashboard/hooks/useLeadsTableSurveyIntegration';
 import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
+import { useGoogleAdsIntegrationEnabled } from '@/google-ads/hooks/useGoogleAdsIntegrationEnabled';
 import { CustomerSurveyHistoryDialog } from '@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog';
 
 export const ConsultantsPageContent = () => {
@@ -65,6 +67,7 @@ export const ConsultantsPageContent = () => {
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { leads, createLead, updateLead, deleteLead, refetch } = useLeads({ scope: 'all' });
   const { organizationId } = useCurrentOrg();
+  const { data: googleAdsIntegrationEnabled = false } = useGoogleAdsIntegrationEnabled(organizationId);
   const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
     organizationId,
     leads,
@@ -77,6 +80,11 @@ export const ConsultantsPageContent = () => {
     });
   }, []);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
+  const {
+    canViewIdleAgents,
+    omnichannelRoster,
+    omnichannelRosterLoading,
+  } = useLeadsReportIdleAccess();
   const {
     surveyTableProps,
     matchesSurveyRatingFilter,
@@ -521,7 +529,7 @@ export const ConsultantsPageContent = () => {
                       value: filters.landingUrlContains,
                       onChange: handleLandingUrlContainsChange,
                     }}
-                    showGoogleAdsSyncColumn
+                    showGoogleAdsSyncColumn={googleAdsIntegrationEnabled}
                     getGoogleAdsSyncForLead={getSyncForLead}
                     googleAdsSyncLoading={googleAdsSyncLoading}
                     {...surveyTableProps}
@@ -549,12 +557,16 @@ export const ConsultantsPageContent = () => {
             </div>
             <div className="scrollbar-hide flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <LeadsInsights 
-                leads={filteredLeads} 
+                leads={filteredLeads}
+                allLeads={leads}
                 filters={filters} 
                 clientStatuses={clientStatuses} 
                 clientProfiles={clientProfiles}
                 allEmployees={employees}
                 organizationId={organizationId ?? undefined}
+                canViewIdleAgents={canViewIdleAgents}
+                omnichannelRoster={omnichannelRoster}
+                omnichannelRosterLoading={omnichannelRosterLoading}
               />
             </div>
             <LeadsSidebarFooter 

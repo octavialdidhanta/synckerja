@@ -25,6 +25,7 @@ import {
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useLeadsTableSurveyIntegration } from '@/5-3-dashboard/hooks/useLeadsTableSurveyIntegration';
 import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
+import { useGoogleAdsIntegrationEnabled } from '@/google-ads/hooks/useGoogleAdsIntegrationEnabled';
 import { CustomerSurveyHistoryDialog } from '@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog';
 
 interface ConsultantsTableViewContentProps {
@@ -56,6 +57,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
   });
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { organizationId } = useCurrentOrg();
+  const { data: googleAdsIntegrationEnabled = false } = useGoogleAdsIntegrationEnabled(organizationId);
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
   const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
     organizationId,
@@ -414,7 +416,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                     value: filters.landingUrlContains,
                     onChange: handleLandingUrlContainsChange,
                   }}
-                  showGoogleAdsSyncColumn
+                  showGoogleAdsSyncColumn={googleAdsIntegrationEnabled}
                   getGoogleAdsSyncForLead={getSyncForLead}
                   googleAdsSyncLoading={googleAdsSyncLoading}
                   {...surveyTableProps}

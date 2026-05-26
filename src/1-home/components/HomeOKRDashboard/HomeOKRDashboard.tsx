@@ -6,14 +6,27 @@ import { Skeleton } from '@/shared/components/ui/skeleton';
 const SectionGreetings = lazy(() =>
   import('./component/SectionGreetings').then((m) => ({ default: m.SectionGreetings })),
 );
-import { SectionQuickMenu } from './component/SectionQuickMenu';
 
 const ObjectivesTab = lazy(() =>
   import('./component/ObjectivesTab').then((m) => ({ default: m.ObjectivesTab })),
 );
-import { CompanyObjectivesProgressCard } from './component/CompanyObjectivesProgressCard';
-import { DepartmentObjectivesProgressCard } from './component/DepartmentObjectivesProgressCard';
-import { IndividualObjectivesProgressCard } from './component/IndividualObjectivesProgressCard';
+const CompanyObjectivesProgressCard = lazy(() =>
+  import('./component/CompanyObjectivesProgressCard').then((m) => ({
+    default: m.CompanyObjectivesProgressCard,
+  })),
+);
+const DepartmentObjectivesProgressCard = lazy(() =>
+  import('./component/DepartmentObjectivesProgressCard').then((m) => ({
+    default: m.DepartmentObjectivesProgressCard,
+  })),
+);
+const IndividualObjectivesProgressCard = lazy(() =>
+  import('./component/IndividualObjectivesProgressCard').then((m) => ({
+    default: m.IndividualObjectivesProgressCard,
+  })),
+);
+
+const progressCardFallback = <Skeleton className="h-24 w-full rounded-lg" />;
 import { AttendanceStatusProvider } from './component/AttendanceStatusProvider';
 import { Target, Building, User } from 'lucide-react';
 import type { OkrFilterState } from './types/okr-filter';
@@ -173,22 +186,23 @@ const HomeOKRDashboardContent = () => {
               className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
               <div className="space-y-4" role="region" aria-label="Objectives list">
-              {/* Company Objectives Progress Overview */}
-              <CompanyObjectivesProgressCard
-                enhancedCompanyObjectives={[]} // Will be populated by ObjectivesTab
-                calculateOverallProgress={() => companyStats.data?.avgProgress || 0}
-                activeObjectives={[]} // Will be populated by ObjectivesTab
-                draftObjectives={[]} // Will be populated by ObjectivesTab
-                completedObjectives={[]} // Will be populated by ObjectivesTab
-                loading={companyStats.isLoading}
-                error={companyStats.error?.message || null}
-                stats={companyStats.data}
-                organizationId={organizationId}
-                yearQuarterSelection={yearQuarterSelection}
-                onYearQuarterChange={setYearQuarterSelection}
-                availableYears={availableYears}
-                isLoadingCycles={isLoadingCycles}
-              />
+              <Suspense fallback={progressCardFallback}>
+                <CompanyObjectivesProgressCard
+                  enhancedCompanyObjectives={[]}
+                  calculateOverallProgress={() => companyStats.data?.avgProgress || 0}
+                  activeObjectives={[]}
+                  draftObjectives={[]}
+                  completedObjectives={[]}
+                  loading={companyStats.isLoading}
+                  error={companyStats.error?.message || null}
+                  stats={companyStats.data}
+                  organizationId={organizationId}
+                  yearQuarterSelection={yearQuarterSelection}
+                  onYearQuarterChange={setYearQuarterSelection}
+                  availableYears={availableYears}
+                  isLoadingCycles={isLoadingCycles}
+                />
+              </Suspense>
               
               {visitedOkrTabs.has('company-objectives') ? (
                 <Suspense fallback={<Skeleton className="min-h-[200px] w-full rounded-lg" />}>
@@ -217,23 +231,26 @@ const HomeOKRDashboardContent = () => {
               className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
               <div className="space-y-4" role="region" aria-label="Objectives list">
-              {/* Department Objectives Progress Overview */}
-              <DepartmentObjectivesProgressCard
-                enhancedDepartmentObjectives={[]} // Will be populated by ObjectivesTab
-                calculateOverallProgress={() => departmentStats.data?.avgProgress || 0}
-                activeObjectives={[]} // Will be populated by ObjectivesTab
-                draftObjectives={[]} // Will be populated by ObjectivesTab
-                completedObjectives={[]} // Will be populated by ObjectivesTab
-                loading={departmentStats.isLoading}
-                error={departmentStats.error?.message || null}
-                organizationId={organizationId}
-                cycleId={activeCycleId}
-                departmentId={currentEmployee?.departments?.id || undefined}
-                yearQuarterSelection={yearQuarterSelection}
-                onYearQuarterChange={setYearQuarterSelection}
-                availableYears={availableYears}
-                isLoadingCycles={isLoadingCycles}
-              />
+              {visitedOkrTabs.has('department-objectives') ? (
+                <Suspense fallback={progressCardFallback}>
+                  <DepartmentObjectivesProgressCard
+                    enhancedDepartmentObjectives={[]}
+                    calculateOverallProgress={() => departmentStats.data?.avgProgress || 0}
+                    activeObjectives={[]}
+                    draftObjectives={[]}
+                    completedObjectives={[]}
+                    loading={departmentStats.isLoading}
+                    error={departmentStats.error?.message || null}
+                    organizationId={organizationId}
+                    cycleId={activeCycleId}
+                    departmentId={currentEmployee?.departments?.id || undefined}
+                    yearQuarterSelection={yearQuarterSelection}
+                    onYearQuarterChange={setYearQuarterSelection}
+                    availableYears={availableYears}
+                    isLoadingCycles={isLoadingCycles}
+                  />
+                </Suspense>
+              ) : null}
               
               {visitedOkrTabs.has('department-objectives') ? (
                 <Suspense fallback={<Skeleton className="min-h-[200px] w-full rounded-lg" />}>
@@ -262,23 +279,26 @@ const HomeOKRDashboardContent = () => {
               className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
             >
               <div className="space-y-4" role="region" aria-label="Objectives list">
-              {/* Individual Objectives Progress Overview */}
-              <IndividualObjectivesProgressCard
-                enhancedIndividualObjectives={[]} // Will be populated by ObjectivesTab
-                calculateOverallProgress={() => individualStats.data?.avgProgress || 0}
-                activeObjectives={[]} // Will be populated by ObjectivesTab
-                draftObjectives={[]} // Will be populated by ObjectivesTab
-                completedObjectives={[]} // Will be populated by ObjectivesTab
-                loading={individualStats.isLoading}
-                error={individualStats.error?.message || null}
-                organizationId={organizationId}
-                cycleId={activeCycleId}
-                yearQuarterSelection={yearQuarterSelection}
-                onYearQuarterChange={setYearQuarterSelection}
-                availableYears={availableYears}
-                isLoadingCycles={isLoadingCycles}
-              />
-              
+              {visitedOkrTabs.has('individual-objectives') ? (
+                <Suspense fallback={progressCardFallback}>
+                  <IndividualObjectivesProgressCard
+                    enhancedIndividualObjectives={[]}
+                    calculateOverallProgress={() => individualStats.data?.avgProgress || 0}
+                    activeObjectives={[]}
+                    draftObjectives={[]}
+                    completedObjectives={[]}
+                    loading={individualStats.isLoading}
+                    error={individualStats.error?.message || null}
+                    organizationId={organizationId}
+                    cycleId={activeCycleId}
+                    yearQuarterSelection={yearQuarterSelection}
+                    onYearQuarterChange={setYearQuarterSelection}
+                    availableYears={availableYears}
+                    isLoadingCycles={isLoadingCycles}
+                  />
+                </Suspense>
+              ) : null}
+
               {visitedOkrTabs.has('individual-objectives') ? (
                 <Suspense fallback={<Skeleton className="min-h-[200px] w-full rounded-lg" />}>
                   <ObjectivesTab

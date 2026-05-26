@@ -1,6 +1,11 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  assertSenderIsActiveAssignee,
+  jsonGateError,
+  resolveEmployeeForOmnichannelSend,
+} from "./omnichannelAssigneeGate.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -210,6 +215,15 @@ Deno.serve(async (req: Request) => {
         );
       }
       if (convRow?.organization_id) {
+        const senderRes = await resolveEmployeeForOmnichannelSend(
+          supabaseAdmin,
+          user.id,
+          convRow.organization_id as string,
+        );
+        if (!senderRes.ok) return jsonGateError(senderRes, corsHeaders);
+        const mismatch = assertSenderIsActiveAssignee(convRow.assignee_id, senderRes.employeeId);
+        if (mismatch) return jsonGateError(mismatch, corsHeaders);
+
         const pnId = convRow.phone_number_id != null ? String(convRow.phone_number_id).trim() || null : null;
         const current = pnId
           ? await tryAccount(convRow.organization_id, pnId)

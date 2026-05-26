@@ -40,6 +40,9 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { logger } from "@/shared/lib/logger";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
+import { OperationsMobileShellHeader } from "@/mobile-app/components/OperationsMobileShellHeader";
+import { ToolsMobileDenyGateArea } from "@/mobile-app/components/ToolsMobileDenyGateArea";
+import { useToolsMobilePageAccess } from "@/mobile-app/hooks/useToolsMobilePageAccess";
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -850,39 +853,10 @@ export default function ClientVisit() {
   }, [handlePullRefresh]);
 
   const { mainFixedStyle } = useVisualViewport();
+  const pagePath = MOBILE_PAGE_PATH.clientVisit;
+  const { hasPageAccess, showDenyShellHeader } = useToolsMobilePageAccess(pagePath);
 
-  return (
-    <DesktopWarning>
-      <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <AppSidebar />
-
-        {/* Layout per android-mobile/rules/mobile-tools-layout-android.mdc */}
-        <main className="flex flex-col bg-background fixed inset-x-0 z-0" style={mainFixedStyle}>
-          <header className="flex-shrink-0 sticky top-0 z-30 flex items-center justify-between p-3 bg-card border-b border-border safe-area-top">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="md:hidden" />
-              <div>
-                <h1 className="text-base font-semibold text-foreground">{t("clientVisit.pageTitle", "Client Visit")}</h1>
-                <p className="text-xs text-muted-foreground">{t("clientVisit.pageSubtitle", "Kunjungan dan aktivitas client")}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <RealtimeStatusIndicator
-                isConnected={realtimeConnected}
-                onlineUsers={totalOnline}
-                className="text-xs md:hidden"
-              />
-              <div className="hidden md:block">
-                <RealtimeStatusIndicator isConnected={realtimeConnected} onlineUsers={totalOnline} />
-              </div>
-            </div>
-          </header>
-
-          <ModuleShellContentGate
-            pagePath={MOBILE_PAGE_PATH.clientVisit}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
-          >
+  const scrollContent = (
             <div
               ref={listScrollRef}
               className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -1026,9 +1000,54 @@ export default function ClientVisit() {
                 </div>
               )}
             </div>
-          </ModuleShellContentGate>
+  );
 
-          {/* Spacer so content doesn't scroll under the fixed footer */}
+  return (
+    <DesktopWarning>
+      <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-background">
+        <AppSidebar />
+
+        <main className="flex min-h-0 flex-col bg-background fixed inset-x-0 z-0" style={mainFixedStyle}>
+          {showDenyShellHeader ? (
+            <>
+              <OperationsMobileShellHeader variant="clientVisit" />
+              <ToolsMobileDenyGateArea
+                pagePath={pagePath}
+                contentPaddingClass="content-padding-above-nav-client-visit"
+              />
+            </>
+          ) : (
+            <>
+              <header className="flex-shrink-0 sticky top-0 z-30 flex items-center justify-between p-3 bg-card border-b border-border safe-area-top">
+                <div className="flex items-center gap-2">
+                  <SidebarTrigger className="md:hidden" />
+                  <div>
+                    <h1 className="text-base font-semibold text-foreground">{t("clientVisit.pageTitle", "Client Visit")}</h1>
+                    <p className="text-xs text-muted-foreground">{t("clientVisit.pageSubtitle", "Kunjungan dan aktivitas client")}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RealtimeStatusIndicator
+                    isConnected={realtimeConnected}
+                    onlineUsers={totalOnline}
+                    className="text-xs md:hidden"
+                  />
+                  <div className="hidden md:block">
+                    <RealtimeStatusIndicator isConnected={realtimeConnected} onlineUsers={totalOnline} />
+                  </div>
+                </div>
+              </header>
+
+              <ModuleShellContentGate
+                pagePath={pagePath}
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              >
+                {hasPageAccess ? scrollContent : null}
+              </ModuleShellContentGate>
+            </>
+          )}
+
           <NavigationFooter className="safe-area-bottom-lower" />
         </main>
 

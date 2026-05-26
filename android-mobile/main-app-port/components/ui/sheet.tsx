@@ -52,14 +52,16 @@ interface SheetContentProps
   VariantProps<typeof sheetVariants> {
   /** When true, use z-20 so sidebar stays behind drawer (z-20) and nav footer (z-30) / native strip (z-40) stay on top. */
   underSafeArea?: boolean;
+  /** Optional overlay z-index override (e.g. z-[60] when sheet opens inside another modal). */
+  overlayClassName?: string;
 }
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, underSafeArea = false, ...props }, ref) => (
+>(({ side = "right", className, children, underSafeArea = false, overlayClassName, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay className={cn(underSafeArea && "z-20")} />
+    <SheetOverlay className={cn(underSafeArea && "z-20", overlayClassName)} />
     <SheetPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), underSafeArea && "z-20", className)}

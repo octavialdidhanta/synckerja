@@ -22,6 +22,8 @@ import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVa
 import { NativeBootstrapSplashGate } from "@/shared/components/mobile/NativeBootstrapSplashGate";
 import { NativeFcmRegistration } from "@/shared/native/NativeFcmRegistration";
 import { ShareIntentRouteSync } from "@/shared/native/ShareIntentRouteSync";
+import { NativeGoogleAuthInit } from "@/0-auth/native/NativeGoogleAuthInit";
+import { NativeSupabaseOAuthBridge } from "@/0-auth/native/NativeSupabaseOAuthBridge";
 import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
@@ -186,7 +188,8 @@ const WhatsAppCampaignPage = lazy(() =>
 );
 
 // Keep initial bundle small: lazy-load large desktop modules/pages.
-const OKRPage = lazy(() => import("@/1-OKR").then((m) => ({ default: m.OKRPage })));
+import { OkrRouteElement } from "@/1-OKR/OkrRouteElement";
+import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
 const SettingsPage = lazy(() => import("@/1-home").then((m) => ({ default: m.SettingsPage })));
 const TransferOwnershipPage = lazy(() =>
   import("@/1-home").then((m) => ({ default: m.TransferOwnershipPage })),
@@ -239,6 +242,11 @@ const LoginRouteElement = lazy(() =>
 const GoogleOAuthCallbackRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
     default: m.GoogleOAuthCallbackRouteElement,
+  })),
+);
+const SupabaseSsoCallbackRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
+    default: m.SupabaseSsoCallbackRouteElement,
   })),
 );
 const ForgotPasswordRouteElement = lazy(() =>
@@ -418,6 +426,7 @@ function AppRoutes() {
         <Route path="/login" element={<LoginRouteElement />} />
         <Route path="/first-login" element={<FirstLoginRouteElement />} />
         <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
+        <Route path="/auth/sso/callback" element={<SupabaseSsoCallbackRouteElement />} />
         <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
         <Route path="/reset-password" element={<ResetPasswordRouteElement />} />
         <Route path="/register" element={<RegisterRouteElement />} />
@@ -557,10 +566,10 @@ function AppRoutes() {
                 path="/okr/*"
                 element={
                   <PageAccessGuard
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                    loadingShell={<OkrRouteAccessLoadingShell />}
                     loadingShellWrapperClassName="bg-gray-100 dark:bg-muted/30"
                   >
-                    <OKRPage />
+                    <OkrRouteElement />
                   </PageAccessGuard>
                 }
               />
@@ -1720,6 +1729,8 @@ const App = () => (
               <LanguageProvider>
                 <ShareIntentRouteSync />
                 <CentralizedUserDataPathSync />
+                <NativeGoogleAuthInit />
+                <NativeSupabaseOAuthBridge />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <Suspense
                     fallback={
@@ -1742,6 +1753,7 @@ const App = () => (
                   <Route path="/login" element={<LoginRouteElement />} />
                   <Route path="/first-login" element={<FirstLoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
+                  <Route path="/auth/sso/callback" element={<SupabaseSsoCallbackRouteElement />} />
                   <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
                   <Route path="/reset-password" element={<ResetPasswordRouteElement />} />
                   <Route path="/register" element={<RegisterRouteElement />} />
@@ -1901,10 +1913,10 @@ const App = () => (
                           path="/okr/*"
                           element={
                             <PageAccessGuard
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShell={<OkrRouteAccessLoadingShell />}
                               loadingShellWrapperClassName="bg-gray-100 dark:bg-muted/30"
                             >
-                              <OKRPage />
+                              <OkrRouteElement />
                             </PageAccessGuard>
                           }
                         />

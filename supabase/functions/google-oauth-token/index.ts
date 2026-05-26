@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { googleDriveOAuthRedirectAllowlist } from "../_shared/googleDriveOAuthConfig.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -8,22 +9,6 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
-
-const DEFAULT_REDIRECT_ALLOWLIST = [
-  "http://localhost:8080/auth/google/callback",
-  "https://office.synckerja.com/auth/google/callback",
-];
-
-function getAllowedRedirectUris(): string[] {
-  const raw = Deno.env.get("GOOGLE_OAUTH_REDIRECT_URI_ALLOWLIST");
-  if (raw == null || raw.trim() === "") {
-    return DEFAULT_REDIRECT_ALLOWLIST;
-  }
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -88,7 +73,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Missing redirect_uri" }, 400);
     }
 
-    const allowed = getAllowedRedirectUris();
+    const allowed = googleDriveOAuthRedirectAllowlist();
     if (!allowed.includes(redirectUri)) {
       console.warn("google-oauth-token: redirect_uri not allowlisted", redirectUri);
       return json({ error: "redirect_uri is not allowed" }, 400);

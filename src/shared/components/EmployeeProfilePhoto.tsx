@@ -174,9 +174,11 @@ export const EmployeeProfilePhoto = ({
             src={
               optimizePublicStorageImageUrl(photoUrl, { width: 128, resize: "cover", quality: 80 }) ??
               undefined
-            } 
+            }
             alt={`${employeeName} profile photo`}
             className="object-cover"
+            loading="lazy"
+            decoding="async"
           />
           <AvatarFallback className="text-lg font-semibold bg-secondary text-secondary-foreground">
             {getInitials(employeeName)}

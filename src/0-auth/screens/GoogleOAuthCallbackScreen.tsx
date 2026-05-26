@@ -4,6 +4,8 @@ import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/shared/lib/supabaseClient";
 import {
   GOOGLE_DRIVE_OAUTH_SUCCESS_MESSAGE_TYPE,
+  getGoogleOAuthRedirectUri,
+  getGoogleOAuthRedirectUriForCallback,
   GOOGLE_OAUTH_REFRESH_HINT_KEY,
   GOOGLE_OAUTH_STATE_STORAGE_KEY,
 } from "@/shared/lib/googleDriveOAuth";
@@ -75,7 +77,7 @@ export function GoogleOAuthCallbackScreen() {
         return;
       }
 
-      const redirectUri = `${window.location.origin}/auth/google/callback`;
+      const redirectUri = getGoogleOAuthRedirectUriForCallback();
       const { data, error } = await supabase.functions.invoke<{
         ok?: boolean;
         scope?: string | null;
@@ -148,6 +150,16 @@ export function GoogleOAuthCallbackScreen() {
             {oauthError}
             {oauthErrorDescription ? ` — ${oauthErrorDescription}` : null}
           </p>
+          {oauthError === "redirect_uri_mismatch" ? (
+            <p className="mt-3 text-muted-foreground">
+              Tambahkan URI ini di Google Cloud Console → OAuth client (tipe Web) → Authorized redirect
+              URIs, lalu coba lagi:
+              <code className="mt-1 block break-all rounded bg-muted px-2 py-1 text-xs">
+                {getGoogleOAuthRedirectUri()}
+              </code>
+              Gunakan OAuth client <strong>GOOGLE_CLIENT_ID</strong> (Drive), bukan client Google Ads.
+            </p>
+          ) : null}
         </div>
       ) : !code ? (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">

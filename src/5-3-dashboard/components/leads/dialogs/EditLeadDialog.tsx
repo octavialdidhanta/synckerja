@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -19,6 +20,7 @@ interface LeadStatus {
 
 /** Same sentinel as `LeadsTableNew` — Radix Select needs a non-empty string for “unassigned”. */
 const ASSIGNEE_SELECT_UNASSIGNED = '__lead_assignee_unassigned__';
+const GOOGLE_ADS_ACCOUNT_DEFAULT = '__google_ads_org_default__';
 
 interface EditLeadDialogProps {
   open: boolean;
@@ -38,7 +40,24 @@ export const EditLeadDialog = ({
   const [formData, setFormData] = useState<Partial<NewLead>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
+
+  const { data: googleAdsAccounts = [] } = useQuery({
+    queryKey: ['google-ads-accounts-picker', organizationId],
+    enabled: open && Boolean(organizationId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('organization_google_ads_accounts')
+        .select('id, label, customer_id, is_default')
+        .eq('organization_id', organizationId!)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 60_000,
+  });
 
   // Fetch lead statuses from database
   useEffect(() => {
@@ -54,6 +73,7 @@ export const EditLeadDialog = ({
           .single();
 
         if (!profile?.active_organization_id) return;
+        setOrganizationId(profile.active_organization_id);
 
         const { data, error } = await supabase
           .from('lead_statuses')
@@ -85,7 +105,8 @@ export const EditLeadDialog = ({
         assignee_id: (lead as NewLead & { assignee_id?: string | null }).assignee_id ?? null,
         fu_priority: lead.fu_priority,
         status_id: lead.status_id || undefined, // Use status_id instead of status
-        source: lead.source
+        source: lead.source,
+        google_ads_account_id: lead.google_ads_account_id ?? null,
       });
     }
   }, [lead]);
@@ -121,7 +142,7 @@ export const EditLeadDialog = ({
     }
   };
 
-  const handleFieldChange = (field: string, value: string) => {
+  const handleFieldChange = (field: string, value: string | null) => {
     setFormData(prev => ({ 
       ...prev, 
       [field]: value,
@@ -263,6 +284,45 @@ export const EditLeadDialog = ({
               </SelectContent>
             </Select>
           </div>
+
+          {googleAdsAccounts.length > 0 ? (
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">
+                {t('leadsManagement.googleAdsAccount.label')}
+              </label>
+              <Select
+                value={
+                  formData.google_ads_account_id
+                    ? String(formData.google_ads_account_id)
+                    : GOOGLE_ADS_ACCOUNT_DEFAULT
+                }
+                onValueChange={(value) => {
+                  handleFieldChange(
+                    'google_ads_account_id',
+                    value === GOOGLE_ADS_ACCOUNT_DEFAULT ? null : value,
+                  );
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={GOOGLE_ADS_ACCOUNT_DEFAULT}>
+                    {t('leadsManagement.googleAdsAccount.default')}
+                  </SelectItem>
+                  {googleAdsAccounts.map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {(acc.label || acc.customer_id) +
+                        (acc.is_default ? ` (${t('omnichannel.settings.googleAds.defaultBadge')})` : '')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('leadsManagement.googleAdsAccount.hint')}
+              </p>
+            </div>
+          ) : null}
 
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1">

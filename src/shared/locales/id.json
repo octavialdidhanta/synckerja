@@ -101,6 +101,27 @@
       "successBody": "Akun Anda aktif. Masuk untuk melanjutkan.",
       "goLogin": "Lanjut ke login"
     },
+    "google": {
+      "continueLogin": "Lanjutkan dengan Google",
+      "continueRegister": "Daftar dengan Google",
+      "redirecting": "Mengalihkan ke Google…",
+      "signingIn": "Masuk dengan Google…",
+      "orDivider": "atau",
+      "registerTermsPrefix": "Dengan melanjutkan Google, Anda menyetujui",
+      "callbackLoading": "Menyelesaikan masuk dengan Google…",
+      "callbackErrorTitle": "Masuk dengan Google gagal",
+      "backToLogin": "Kembali ke login",
+      "errors": {
+        "generic": "Tidak dapat masuk dengan Google. Coba lagi atau gunakan email dan kata sandi.",
+        "accessDenied": "Masuk dengan Google dibatalkan.",
+        "androidMisconfiguredTitle": "Masuk Google gagal di Android",
+        "androidMisconfiguredDescription": "Desktop bisa masih berhasil karena memakai OAuth redirect Supabase (pengaturan di Dashboard). Android native butuh langkah tambahan: OAuth client Android di Google Cloud (package id.synckerja.app) dengan SHA-1 yang sama dengan APK yang di-install (cek .\\gradlew.bat :app:signingReport). Bukan berarti Web client ID di Supabase salah. Setelah ubah SHA-1: npm run build, npx cap sync android, install ulang.",
+        "reauthFailedTitle": "Google tidak bisa memverifikasi akun",
+        "reauthFailedDescription": "Android melaporkan Account reauth failed (bukan dibatalkan). Di emulator: pakai image Google Play, tambah akun Google di Settings, update Google Play services, atau uji di HP fisik. Periksa juga SHA-1 OAuth Android untuk build ini dan akun sebagai Test user jika app OAuth masih Testing.",
+        "noSession": "Tidak ada sesi setelah masuk dengan Google. Coba lagi.",
+        "notConfigured": "Login Google native belum dikonfigurasi. Set VITE_GOOGLE_SSO_WEB_CLIENT_ID (dan VITE_GOOGLE_SSO_IOS_CLIENT_ID di iOS) saat build, serta tambahkan OAuth client Android/iOS di Google Cloud."
+      }
+    },
     "login": {
       "welcomeTitle": "Synckerja Office",
       "email": "Alamat email *",

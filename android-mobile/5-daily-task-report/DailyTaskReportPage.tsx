@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { DesktopWarning } from '@/mobile-app/components/DesktopWarning';
-import { SidebarProvider, SidebarTrigger } from '@/mobile-app/components/ui/sidebar';
+import { SidebarProvider } from '@/mobile-app/components/ui/sidebar';
 import { AppSidebar } from '@/mobile-app/components/AppSidebar';
 import { ToolsNavigationFooter } from '@/mobile-app/components/ToolsNavigationFooter';
+import { ToolsMobileShellHeader } from '@/mobile-app/components/ToolsMobileShellHeader';
+import { ToolsMobileDenyGateArea } from '@/mobile-app/components/ToolsMobileDenyGateArea';
+import { useToolsMobilePageAccess } from '@/mobile-app/hooks/useToolsMobilePageAccess';
 import { useVisualViewport } from '@/shared/hooks/useVisualViewport';
 import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 import { DailyTaskReportProvider, useDailyTaskReport } from '@/8-2-DailyTaskReport/context/ReportContext';
@@ -176,7 +179,6 @@ const DailyTaskReportScrollContent = ({
 
 function DailyTaskReportMobileContent() {
   const { mainFixedStyle } = useVisualViewport();
-  const { t } = useAppTranslation();
   const { initialLoading, loading, refreshReport } = useDailyTaskReport();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [minSettleDone, setMinSettleDone] = useState(true);
@@ -216,10 +218,22 @@ function DailyTaskReportMobileContent() {
     setMinSettleDone(true);
   }, [blockingLoad]);
 
+  const pagePath = MOBILE_PAGE_PATH.toolsDailyTaskReport;
+  const { hasPageAccess, showDenyShellHeader } = useToolsMobilePageAccess(pagePath);
+
   const dataPendingSkeleton = (blockingLoad || !minSettleDone) && !isRefreshing;
   const { showFullPageSkeleton: showPageSkeleton } = useModulePageOverlaySkeleton(
     dataPendingSkeleton,
-    MOBILE_PAGE_PATH.toolsDailyTaskReport,
+    pagePath,
+  );
+
+  const scrollContent = (
+    <DailyTaskReportScrollContent
+      blockingLoad={blockingLoad}
+      isRefreshing={isRefreshing}
+      setIsRefreshing={setIsRefreshing}
+      refreshReport={refreshReport}
+    />
   );
 
   return (
@@ -228,38 +242,26 @@ function DailyTaskReportMobileContent() {
 
       <main
         className={cn(
-          'fixed inset-x-0 z-0 flex flex-col bg-background',
+          'fixed inset-x-0 z-0 flex min-h-0 flex-col bg-background',
           showPageSkeleton && 'pointer-events-none invisible select-none',
         )}
         style={mainFixedStyle}
         aria-hidden={showPageSkeleton}
       >
-        <header className="safe-area-top sticky top-0 z-30 flex flex-shrink-0 items-center justify-between border-b border-border bg-card p-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <SidebarTrigger className="md:hidden" />
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold text-foreground">
-                {t('dailyTaskReport.page.title', 'Daily Task Report')}
-              </h1>
-              <p className="truncate text-xs text-muted-foreground">
-                {t('dailyTaskReport.page.subtitle', 'Ringkasan performa dan progress tugas')}
-              </p>
-            </div>
-          </div>
-          <div />
-        </header>
-
-        <ModuleShellContentGate
-          pagePath={MOBILE_PAGE_PATH.toolsDailyTaskReport}
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        >
-          <DailyTaskReportScrollContent
-            blockingLoad={blockingLoad}
-            isRefreshing={isRefreshing}
-            setIsRefreshing={setIsRefreshing}
-            refreshReport={refreshReport}
+        <ToolsMobileShellHeader variant="dailyTaskReport" />
+        {showDenyShellHeader ? (
+          <ToolsMobileDenyGateArea
+            pagePath={pagePath}
+            contentPaddingClass="content-padding-above-nav-daily-task-report"
           />
-        </ModuleShellContentGate>
+        ) : (
+          <ModuleShellContentGate
+            pagePath={pagePath}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            {hasPageAccess ? scrollContent : null}
+          </ModuleShellContentGate>
+        )}
 
         <ToolsNavigationFooter className="safe-area-bottom-lower" />
       </main>

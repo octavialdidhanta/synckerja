@@ -48,6 +48,7 @@ import {
   OMNICHANNEL_SETTINGS_CARD_TITLE_CLASS,
 } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsCardHeader";
 import { cn } from "@/shared/lib/utils";
+import { useOmnichannelStaffPresence } from "@/5-3-dashboard/hooks/useOmnichannelStaffPresence";
 
 const ROLE_FILTER_DB: OmnichannelStaffRole[] = ["agent", "supervisor", "admin"];
 
@@ -100,6 +101,7 @@ export function UserManagementSection() {
   const [additionalSeats, setAdditionalSeats] = useState(1);
 
   const { data: roster = [], isPending: rosterLoading } = useOrganizationOmnichannelStaff();
+  const { isUserOnline } = useOmnichannelStaffPresence();
   const { data: candidates = [], isPending: candidatesLoading } = useOmnichannelStaffAddCandidates(roster);
   const { subscriptionStatus, refreshSubscriptionStatus, statusFetching } = useOptimizedSubscription({
     includePlans: false,
@@ -187,16 +189,21 @@ export function UserManagementSection() {
 
   const rows: OmnichannelUserManagementRow[] = useMemo(
     () =>
-      roster.map((r) => ({
-        rosterId: r.id,
-        employeeId: r.employee_id,
-        fullName: r.employees?.full_name ?? "",
-        presenceStatus: "offline" as const,
-        phone: "",
-        email: r.employees?.email ?? "",
-        role: r.role,
-      })),
-    [roster],
+      roster.map((r) => {
+        const userId = r.employees?.user_id ?? null;
+        const presenceStatus =
+          userId && isUserOnline(userId) ? ("online" as const) : ("offline" as const);
+        return {
+          rosterId: r.id,
+          employeeId: r.employee_id,
+          fullName: r.employees?.full_name ?? "",
+          presenceStatus,
+          phone: "",
+          email: r.employees?.email ?? "",
+          role: r.role,
+        };
+      }),
+    [roster, isUserOnline],
   );
 
   const filteredRows = useMemo(() => {

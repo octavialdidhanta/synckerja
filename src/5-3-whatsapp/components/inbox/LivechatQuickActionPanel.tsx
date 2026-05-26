@@ -25,6 +25,13 @@ import {
 } from '@/shared/hooks/organized/sales';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
+import {
+  canSendAsActiveAssignee,
+  getAssigneeActionBlockReason,
+  isAssignedToOtherAgent,
+  readConversationAssigneeIdFromQueryCache,
+} from '../../utils/assigneeSendGate';
 import { useOmnichannelRosterAssignees } from '@/shared/hooks/useOrganizationOmnichannelStaff';
 import { LeadStatusSelect } from '@/5-1-leads-management/components/LeadStatusSelect';
 import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
@@ -236,6 +243,8 @@ export function LivechatQuickActionPanel({
     return hasDetail ? text : null;
   }, [omnichannelBank, t]);
   const { user: currentUser } = useCurrentUser();
+  const { employee } = useCentralizedUserData();
+  const currentEmployeeId = employee?.id ?? null;
   const { updateLead, deleteLead } = useLeads();
   const [updateDetails, setUpdateDetails] = useState('');
   const [prospectStatus, setProspectStatus] = useState<string>('');
@@ -341,9 +350,49 @@ export function LivechatQuickActionPanel({
     else setSelectedCategoryName('');
   }, [leadRow?.id, leadRow?.services, leadRow?.category]);
 
+  const notifyAssigneeActionBlocked = useCallback(
+    (reason: 'unassigned' | 'not_assignee', assigneeName?: string | null) => {
+      if (reason === 'unassigned') {
+        toast.error(
+          t(
+            'whatsappInbox.assignFromLeadsFirst',
+            'Tetapkan assignee di Leads Management sebelum membalas.',
+          ),
+        );
+        return;
+      }
+      if (assigneeName?.trim()) {
+        toast.error(
+          t(
+            'whatsappInbox.sendOnlyAssignedAgentNamed',
+            'Hanya {{name}} (assignee) yang dapat membalas chat ini.',
+            { name: assigneeName.trim() },
+          ),
+        );
+        return;
+      }
+      toast.error(
+        t(
+          'whatsappInbox.sendOnlyAssignedAgent',
+          'Hanya agen yang ditetapkan (assignee) pada chat ini yang dapat membalas.',
+        ),
+      );
+    },
+    [t],
+  );
+
   const updateLeadServicesCategory = useCallback(
     async (serviceName: string, categoryName: string): Promise<boolean> => {
       if (!organizationId || !ticketId) return false;
+      const cachedAssigneeId = readConversationAssigneeIdFromQueryCache(queryClient, conversation);
+      const blockReason = getAssigneeActionBlockReason(cachedAssigneeId, currentEmployeeId);
+      if (blockReason) {
+        notifyAssigneeActionBlocked(
+          blockReason,
+          rosterAssignees.find((e) => e.id === cachedAssigneeId)?.full_name ?? null,
+        );
+        return false;
+      }
       setIsUpdatingLead(true);
       try {
         if (!leadRow?.id) {
@@ -411,11 +460,30 @@ export function LivechatQuickActionPanel({
         setIsUpdatingLead(false);
       }
     },
-    [organizationId, ticketId, leadRow?.id, conversation, queryClient, t]
+    [
+      organizationId,
+      ticketId,
+      leadRow?.id,
+      conversation,
+      queryClient,
+      t,
+      currentEmployeeId,
+      notifyAssigneeActionBlocked,
+      rosterAssignees,
+    ]
   );
 
   const handleMarkAsLead = useCallback(async (serviceName?: string, categoryName?: string) => {
     if (!organizationId || !ticketId || !conversation || conversation.source !== 'email') return;
+    const cachedAssigneeId = readConversationAssigneeIdFromQueryCache(queryClient, conversation);
+    const blockReason = getAssigneeActionBlockReason(cachedAssigneeId, currentEmployeeId);
+    if (blockReason) {
+      notifyAssigneeActionBlocked(
+        blockReason,
+        rosterAssignees.find((e) => e.id === cachedAssigneeId)?.full_name ?? null,
+      );
+      return;
+    }
     const svc = (
       serviceName ?? (selectedServiceName || leadRow?.services || '')
     ).trim();
@@ -473,6 +541,15 @@ export function LivechatQuickActionPanel({
 
   const handleUnmarkAsLead = useCallback(async () => {
     if (!leadRow?.id) return;
+    const cachedAssigneeId = readConversationAssigneeIdFromQueryCache(queryClient, conversation);
+    const blockReason = getAssigneeActionBlockReason(cachedAssigneeId, currentEmployeeId);
+    if (blockReason) {
+      notifyAssigneeActionBlocked(
+        blockReason,
+        rosterAssignees.find((e) => e.id === cachedAssigneeId)?.full_name ?? null,
+      );
+      return;
+    }
     setIsMarkUnmarkLeadLoading(true);
     try {
       await deleteLead(leadRow.id);
@@ -605,6 +682,39 @@ export function LivechatQuickActionPanel({
   const conversationCreatedAt = conversationStatusRow?.created_at ?? null;
   const conversationAssigneeId = conversationStatusRow?.assignee_id ?? null;
 
+  const { data: quickActionAssigneeEmployee } = useQuery({
+    queryKey: ['omnichannel-assignee-display', conversationAssigneeId],
+    queryFn: async () => {
+      if (!conversationAssigneeId) return null;
+      const { data, error } = await supabase
+        .from('employees')
+        .select('full_name, email')
+        .eq('id', conversationAssigneeId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { full_name?: string | null; email?: string | null } | null;
+    },
+    enabled: Boolean(conversationAssigneeId && isAssignedToOtherAgent(conversationAssigneeId, currentEmployeeId)),
+    staleTime: 60_000,
+  });
+  const quickActionAssigneeDisplayName =
+    (quickActionAssigneeEmployee?.full_name && String(quickActionAssigneeEmployee.full_name).trim()) ||
+    (quickActionAssigneeEmployee?.email && String(quickActionAssigneeEmployee.email).trim()) ||
+    rosterAssignees.find((e) => e.id === conversationAssigneeId)?.full_name ||
+    null;
+
+  const requireActiveAssigneeForQuickAction = useCallback((): boolean => {
+    const reason = getAssigneeActionBlockReason(conversationAssigneeId, currentEmployeeId);
+    if (!reason) return true;
+    notifyAssigneeActionBlocked(reason, quickActionAssigneeDisplayName);
+    return false;
+  }, [
+    conversationAssigneeId,
+    currentEmployeeId,
+    notifyAssigneeActionBlocked,
+    quickActionAssigneeDisplayName,
+  ]);
+
   const { data: followUpUpdates = [], refetch: refetchFollowUps } = useQuery({
     queryKey: [isEmail ? 'email-conversation-follow-ups' : 'wa-lead-follow-up-updates', conversation?.id],
     queryFn: async (): Promise<FollowUpUpdateRow[]> => {
@@ -700,20 +810,32 @@ export function LivechatQuickActionPanel({
       statusName: currentStatus?.name ?? null,
       metaSessionExpiresAt: conversationStatusRow?.meta_session_expires_at ?? null,
     });
-  const quickActionDropdownsDisabled = isUnreadStatus || sessionLocked;
-  const sessionLockedTitle = sessionLocked
-    ? isResolved
-      ? t('whatsappInbox.chatResolvedNoActions', 'Chat sudah di-resolve')
-      : t(
-          'whatsappInbox.metaSessionLockedNoActions',
-          'Sesi percakapan Meta sudah berakhir — gunakan template untuk membalas',
-        )
-    : isUnreadStatus
-      ? t(
-          'whatsappInbox.quickActionDisabledWhileUnread',
-          'Balas pesan terlebih dahulu — quick action aktif setelah status bukan Unread.',
-        )
-      : null;
+  const assigneeQuickActionLocked = !canSendAsActiveAssignee(conversationAssigneeId, currentEmployeeId);
+  const quickActionDropdownsDisabled = isUnreadStatus || sessionLocked || assigneeQuickActionLocked;
+  const sessionLockedTitle = isUnreadStatus
+    ? t(
+        'whatsappInbox.quickActionDisabledWhileUnread',
+        'Balas pesan terlebih dahulu — quick action aktif setelah status bukan Unread.',
+      )
+    : sessionLocked
+      ? isResolved
+        ? t('whatsappInbox.chatResolvedNoActions', 'Chat sudah di-resolve')
+        : t(
+            'whatsappInbox.metaSessionLockedNoActions',
+            'Sesi percakapan Meta sudah berakhir — gunakan template untuk membalas',
+          )
+      : assigneeQuickActionLocked
+        ? quickActionAssigneeDisplayName
+          ? t(
+              'whatsappInbox.sendOnlyAssignedAgentNamed',
+              'Hanya {{name}} (assignee) yang dapat membalas chat ini.',
+              { name: quickActionAssigneeDisplayName },
+            )
+          : t(
+              'whatsappInbox.sendOnlyAssignedAgent',
+              'Hanya agen yang ditetapkan (assignee) pada chat ini yang dapat membalas.',
+            )
+        : null;
   const statusQueryKey = statusQueryKeyBase;
 
   const hasPersistedFollowUpForResolve = useMemo(
@@ -1020,6 +1142,7 @@ export function LivechatQuickActionPanel({
 
   const handleAddUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireActiveAssigneeForQuickAction()) return;
     if (!conversation?.id || !updateDetails.trim() || !prospectStatus) return;
     setIsSubmitting(true);
     try {
@@ -1062,6 +1185,7 @@ export function LivechatQuickActionPanel({
       omnichannelBankAccountId?: string | null;
     },
   ): Promise<ApplyStatusChangeResult> => {
+    if (!requireActiveAssigneeForQuickAction()) return { ok: false };
     const newStatus = leadStatusesForSelect.find((s) => s.id === newStatusId);
     const isResolve = isResolvedStatus(newStatus?.name ?? null);
     if (isResolve && !options?.fromResolveModal) {
@@ -1139,6 +1263,7 @@ export function LivechatQuickActionPanel({
           lead_status_id: newStatusId,
           last_inbound_at: lastInboundAt,
           created_at: conversationCreatedAt,
+          ...(isResolve ? { assignee_id: null } : {}),
         };
       });
       await queryClient.invalidateQueries({ queryKey: [statusQueryKey, conversation.id] });
@@ -1188,6 +1313,7 @@ export function LivechatQuickActionPanel({
   };
 
   const handleStatusChange = async (newStatusId: string) => {
+    if (!requireActiveAssigneeForQuickAction()) return;
     const newStatus = leadStatusesForSelect.find((s) => s.id === newStatusId);
     const newStatusNameNorm = (newStatus?.name ?? '').trim().toLowerCase();
     const isConverted = newStatusNameNorm === 'converted';
@@ -1248,8 +1374,9 @@ export function LivechatQuickActionPanel({
 
   const handleResolveClick = useCallback(() => {
     if (!resolveStatusOption?.id) return;
+    if (!requireActiveAssigneeForQuickAction()) return;
     void handleStatusChange(resolveStatusOption.id);
-  }, [resolveStatusOption?.id, handleStatusChange]);
+  }, [resolveStatusOption?.id, handleStatusChange, requireActiveAssigneeForQuickAction]);
 
   const resolveButtonDisabled =
     !resolveStatusOption || isResolved || quickActionDropdownsDisabled;
@@ -1475,6 +1602,7 @@ export function LivechatQuickActionPanel({
   });
 
   const handleConvertedModalConfirm = async () => {
+    if (!requireActiveAssigneeForQuickAction()) return;
     const firstLine = conversionLines[0];
     const svc = firstLine?.serviceName?.trim() ?? '';
     const cat = firstLine?.categoryName?.trim() ?? '';
@@ -1675,6 +1803,7 @@ export function LivechatQuickActionPanel({
   };
 
   const handleServiceCategoryDialogSave = async () => {
+    if (!requireActiveAssigneeForQuickAction()) return;
     const svc = dialogServiceName?.trim();
     const cat = dialogCategoryName?.trim();
     if (!svc || !cat) {

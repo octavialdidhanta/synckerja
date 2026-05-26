@@ -14,11 +14,16 @@ import { useMotivations } from './ModalMotivationForm/useMotivations';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 
 export const SectionMotivation = () => {
   const { t } = useAppTranslation();
   const { programs, isLoading: programsLoading, error: programsError } = useLatestTrainingPrograms();
-  const { data: employeeData } = useCurrentUserEmployee();
+  const {
+    data: employeeData,
+    isLoading: employeeLoading,
+    error: employeeError,
+  } = useCurrentUserEmployee();
   const {
     motivations,
     isLoading: motivationsLoading,
@@ -27,10 +32,12 @@ export const SectionMotivation = () => {
     updateMotivation,
   } = useMotivations();
 
-  const motivationSectionLoading = programsLoading || motivationsLoading;
+  const motivationSectionLoading =
+    programsLoading || motivationsLoading || employeeLoading;
   const motivationSectionError =
     (motivationError as Error | null | undefined) ||
     (programsError as Error | null | undefined) ||
+    (employeeError as Error | null | undefined) ||
     null;
   useReportHomeSectionStatus(
     'motivation',
@@ -115,7 +122,9 @@ export const SectionMotivation = () => {
   };
 
   if (motivationSectionLoading) {
-    return null;
+    // Keep placeholder visible until all motivation + training program data is ready.
+    // This prevents the skeleton from disappearing while the section is still loading.
+    return <Skeleton className="h-[50px] w-full rounded-lg" aria-hidden />;
   }
 
   if (motivationSectionError) {

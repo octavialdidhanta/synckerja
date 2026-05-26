@@ -51,6 +51,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Supabase Google OAuth return (id.synckerja.app://auth/sso/callback) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="id.synckerja.app" android:host="auth" android:path="/sso/callback" />
+            </intent-filter>
+
             <!-- Share from gallery / files: images and PDF -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

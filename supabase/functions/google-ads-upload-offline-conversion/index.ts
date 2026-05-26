@@ -2,15 +2,16 @@
  * Upload offline click conversion to Google Ads when a CRM lead becomes Converted.
  *
  * Deploy: supabase functions deploy google-ads-upload-offline-conversion
- * Secrets: GOOGLE_ADS_CLIENT_ID, GOOGLE_ADS_CLIENT_SECRET, GOOGLE_ADS_REFRESH_TOKEN,
- *           GOOGLE_ADS_DEVELOPER_TOKEN, GOOGLE_ADS_CUSTOMER_ID, GOOGLE_ADS_CONVERSION_ACTION_ID
- * Optional: GOOGLE_ADS_LOGIN_CUSTOMER_ID (MCC)
+ * Platform secrets: GOOGLE_ADS_CLIENT_ID, GOOGLE_ADS_CLIENT_SECRET, GOOGLE_ADS_DEVELOPER_TOKEN,
+ *   GOOGLE_ADS_CONFIG_ENCRYPTION_KEY, GOOGLE_ADS_OAUTH_REDIRECT_URI, APP_PUBLIC_URL
+ * Per-org: organization_google_ads_connections + organization_google_ads_connection_tokens + accounts
  *
  * Invoke (authenticated): POST { lead_id, organization_id, sales_activity_id? }
  */
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrgGoogleAdsForUpload } from "../_shared/googleAdsOrgResolver.ts";
 import {
   fetchGoogleAdsAccessToken,
   formatConversionDateTimeWib,
@@ -19,7 +20,6 @@ import {
   hashUserIdentifiers,
   mergeClickIds,
   parseClickIdsFromAttribution,
-  readGoogleAdsConfig,
   uploadClickConversion,
 } from "./googleAdsHelpers.ts";
 
@@ -46,6 +46,8 @@ type LogRow = {
   skip_reason: string | null;
   error_message: string | null;
   google_ads_partial_failure: unknown;
+  google_ads_account_id: string | null;
+  customer_id_snapshot: string | null;
 };
 
 async function upsertLog(
@@ -76,11 +78,6 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
     return json({ error: "Server misconfigured" }, 500);
-  }
-
-  const adsConfig = readGoogleAdsConfig();
-  if (!adsConfig) {
-    return json({ error: "Google Ads is not configured on the server" }, 500);
   }
 
   const authHeader = req.headers.get("Authorization") ?? "";
@@ -138,7 +135,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: lead, error: leadErr } = await admin
     .from("leads")
-    .select("id, organization_id, gclid, converted_at, attribution")
+    .select("id, organization_id, gclid, converted_at, attribution, google_ads_account_id")
     .eq("id", leadId)
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -146,6 +143,12 @@ Deno.serve(async (req: Request) => {
   if (leadErr || !lead?.id) {
     return json({ error: "Lead not found" }, 404);
   }
+
+  const leadAccountId = lead.google_ads_account_id != null
+    ? String(lead.google_ads_account_id)
+    : null;
+
+  const resolved = await resolveOrgGoogleAdsForUpload(admin, organizationId, leadAccountId);
 
   const attrIds = parseClickIdsFromAttribution(lead.attribution);
   const columnGclid = lead.gclid != null ? String(lead.gclid).trim() : null;
@@ -174,6 +177,10 @@ Deno.serve(async (req: Request) => {
   const hasClick = hasAnyClickId(clickIds);
   const hasContact = hasHashableContact(hashed);
 
+  const accountIdForLog = resolved?.account.accountId === "legacy-global"
+    ? null
+    : resolved?.account.accountId ?? null;
+
   const baseLog: LogRow = {
     organization_id: organizationId,
     lead_id: leadId,
@@ -183,7 +190,15 @@ Deno.serve(async (req: Request) => {
     skip_reason: null,
     error_message: null,
     google_ads_partial_failure: null,
+    google_ads_account_id: accountIdForLog,
+    customer_id_snapshot: resolved?.config.customerId ?? null,
   };
+
+  if (!resolved) {
+    baseLog.skip_reason = "google_ads_not_configured";
+    await upsertLog(admin, baseLog);
+    return json({ ok: true, skipped: true, reason: baseLog.skip_reason }, 200);
+  }
 
   if (!hasClick && !hasContact) {
     baseLog.skip_reason = "no_gclid_or_contact";
@@ -208,8 +223,8 @@ Deno.serve(async (req: Request) => {
   );
 
   try {
-    const accessToken = await fetchGoogleAdsAccessToken(adsConfig);
-    const upload = await uploadClickConversion(adsConfig, accessToken, {
+    const accessToken = await fetchGoogleAdsAccessToken(resolved.config);
+    const upload = await uploadClickConversion(resolved.config, accessToken, {
       clickIds,
       conversionDateTime,
       conversionValue,

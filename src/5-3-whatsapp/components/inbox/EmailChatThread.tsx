@@ -11,6 +11,11 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from '@/shared/components/ui/button';
 import { EmailComposePopup } from './EmailComposePopup';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
+import {
+  isAssignedToOtherAgent,
+  isConversationUnassigned,
+} from '../../utils/assigneeSendGate';
 
 /** Scoped CSS: email body fits viewport; override fixed widths; full-width content tables; collapse spacer columns. */
 const emailBodyResponsiveStyles = `
@@ -141,6 +146,8 @@ function isVerificationEmail(msg: EmailMessage): boolean {
 
 export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadProps) {
   const { t } = useAppTranslation();
+  const { employee } = useCentralizedUserData();
+  const currentEmployeeId = employee?.id ?? null;
   const { data: convStatus } = useQuery({
     queryKey: ['email-conversation-status', conversation.id],
     queryFn: async () => {
@@ -154,7 +161,30 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
     },
     refetchInterval: 5000,
   });
-  const sendBlocked = !convStatus?.assignee_id;
+  const conversationAssigneeId = convStatus?.assignee_id ?? null;
+  const sendBlockedUnassigned = isConversationUnassigned(conversationAssigneeId);
+  const sendBlockedNotAssignee = isAssignedToOtherAgent(conversationAssigneeId, currentEmployeeId);
+  const sendBlocked = sendBlockedUnassigned || sendBlockedNotAssignee;
+
+  const { data: assigneeEmployeeRow } = useQuery({
+    queryKey: ['omnichannel-assignee-display', conversationAssigneeId],
+    queryFn: async () => {
+      if (!conversationAssigneeId) return null;
+      const { data, error } = await supabase
+        .from('employees')
+        .select('full_name, email')
+        .eq('id', conversationAssigneeId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { full_name?: string | null; email?: string | null } | null;
+    },
+    enabled: sendBlockedNotAssignee && Boolean(conversationAssigneeId),
+    staleTime: 60_000,
+  });
+  const assigneeDisplayName =
+    (assigneeEmployeeRow?.full_name && String(assigneeEmployeeRow.full_name).trim()) ||
+    (assigneeEmployeeRow?.email && String(assigneeEmployeeRow.email).trim()) ||
+    null;
   const { data: messages = [], isLoading, isError, refetch } = useEmailMessages(conversation.id);
   const { sendReply, isSending } = useSendEmailReply();
   const [composeOpen, setComposeOpen] = useState(false);
@@ -218,7 +248,21 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
     attachments: Array<{ filename: string; content: string }>;
   }) => {
     if (sendBlocked) {
-      toast.error(t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.'));
+      if (sendBlockedUnassigned) {
+        toast.error(
+          t(
+            'whatsappInbox.assignFromLeadsFirst',
+            'Tetapkan assignee di Leads Management sebelum membalas.',
+          ),
+        );
+      } else {
+        toast.error(
+          t(
+            'whatsappInbox.sendOnlyAssignedAgent',
+            'Hanya agen yang ditetapkan (assignee) pada chat ini yang dapat membalas.',
+          ),
+        );
+      }
       return;
     }
     try {
@@ -320,9 +364,17 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
                     onClick={() => handleReplyToMessage(msg)}
                     disabled={isSending || sendBlocked}
                     title={
-                      sendBlocked
-                        ? t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.')
-                        : t('emailConnect.replyFromMessage', 'Reply and quote this message')
+                      sendBlockedUnassigned
+                        ? t(
+                            'whatsappInbox.assignFromLeadsFirst',
+                            'Tetapkan assignee di Leads Management sebelum membalas.',
+                          )
+                        : sendBlockedNotAssignee
+                          ? t(
+                              'whatsappInbox.sendOnlyAssignedAgent',
+                              'Hanya agen yang ditetapkan (assignee) pada chat ini yang dapat membalas.',
+                            )
+                          : t('emailConnect.replyFromMessage', 'Reply and quote this message')
                     }
                   >
                     <Reply className="w-3.5 h-3.5 mr-1.5 shrink-0" />
@@ -337,7 +389,21 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
       <div className="flex-shrink-0 sticky bottom-0 left-0 right-0 z-10 pt-1 pb-2.5 px-3 border-t border-slate-700 bg-slate-800 safe-area-bottom">
         {sendBlocked ? (
           <p className="mb-2 text-center text-xs text-amber-200 px-1">
-            {t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.')}
+            {sendBlockedUnassigned
+              ? t(
+                  'whatsappInbox.assignFromLeadsFirst',
+                  'Tetapkan assignee di Leads Management sebelum membalas.',
+                )
+              : assigneeDisplayName
+                ? t(
+                    'whatsappInbox.sendOnlyAssignedAgentNamed',
+                    'Hanya {{name}} (assignee) yang dapat membalas chat ini.',
+                    { name: assigneeDisplayName },
+                  )
+                : t(
+                    'whatsappInbox.sendOnlyAssignedAgent',
+                    'Hanya agen yang ditetapkan (assignee) pada chat ini yang dapat membalas.',
+                  )}
           </p>
         ) : null}
         <Button

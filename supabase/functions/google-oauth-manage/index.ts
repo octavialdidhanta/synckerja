@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { googleDriveOAuthRedirectUri } from "../_shared/googleDriveOAuthConfig.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -60,7 +61,9 @@ Deno.serve(async (req: Request) => {
     if (action === "oauth_client_config") {
       /** Public OAuth web client id (same as Google Cloud). Lets production work when VITE_GOOGLE_CLIENT_ID was missing at build time but GOOGLE_CLIENT_ID is set on Edge Functions. */
       const clientId = (Deno.env.get("GOOGLE_CLIENT_ID") ?? "").trim();
-      return json({ clientId }, 200);
+      const requestOrigin = body.origin != null ? String(body.origin).trim() : "";
+      const redirectUri = googleDriveOAuthRedirectUri(requestOrigin || undefined);
+      return json({ clientId, redirectUri }, 200);
     }
 
     if (action === "status") {

@@ -29,6 +29,8 @@ export interface NewLead {
   attribution_label?: string | null;
   /** From `leads.gclid`. */
   gclid?: string | null;
+  /** Optional override for per-brand Google Ads upload (`organization_google_ads_accounts.id`). */
+  google_ads_account_id?: string | null;
   utm_source?: string | null;
   utm_medium?: string | null;
   utm_campaign?: string | null;

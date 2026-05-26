@@ -1735,12 +1735,18 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           if (!conv) return lead;
           const statusId = conv.lead_status_id ?? lead.status_id;
           const status = conv.lead_status_id ? statusMap.get(normId(conv.lead_status_id)) ?? null : null;
+          const convAssigneeId = conv.assignee_id ?? null;
           return {
             ...lead,
             status_id: statusId,
-            lead_status: status || lead.lead_status,
-            assignee_id: conv.assignee_id ?? lead.assignee_id,
-            assignee: conv.assignee_id != null ? (assigneeNameMap.get(normId(conv.assignee_id)) ?? lead.assignee) : lead.assignee,
+            // Never keep stale leads-row status when conversation has lead_status_id (Resolved shows as In Progress in table UI).
+            lead_status: conv.lead_status_id ? status : lead.lead_status,
+            // Livechat + send gate use whatsapp_conversations.assignee_id — do not show stale leads-row assignee when conv is cleared (e.g. after resolve).
+            assignee_id: convAssigneeId,
+            assignee:
+              convAssigneeId != null
+                ? (assigneeNameMap.get(normId(convAssigneeId)) ?? lead.assignee ?? '')
+                : '',
             meta_session_expires_at: conv.meta_session_expires_at ?? (lead as { meta_session_expires_at?: string | null }).meta_session_expires_at ?? null,
             followup: conv.followup ?? lead.followup,
             fu_priority: conv.fu_priority ?? lead.fu_priority,
@@ -1888,6 +1894,31 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
   // Update lead mutation
   const updateLeadMutation = useMutation({
+    onMutate: async (lead: { id?: string; assignee_id?: string | null; assignee?: string | null }) => {
+      if (!lead?.id) return undefined;
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const snapshots = queryClient.getQueriesData<unknown[]>({ queryKey: ['leads'] });
+      const nextAssigneeId = lead.assignee_id ?? null;
+      const nextAssigneeName = (lead.assignee && String(lead.assignee).trim()) || '';
+      queryClient.setQueriesData<unknown[]>({ queryKey: ['leads'] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((row) => {
+          const r = row as { id?: string };
+          if (r.id !== lead.id) return row;
+          return {
+            ...row,
+            assignee_id: nextAssigneeId,
+            assignee: nextAssigneeId ? nextAssigneeName : '',
+          };
+        });
+      });
+      return { snapshots };
+    },
+    onError: (_err, _lead, context) => {
+      context?.snapshots?.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
+    },
     mutationFn: async (lead: any) => {
       // Email conversation: update email_conversations.lead_status_id, sync to leads, create sales_activities on Converted
       if (lead?.id && String(lead.id).startsWith('email-')) {
@@ -1904,19 +1935,6 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             .maybeSingle();
           if (statusExists?.id) safeStatusId = lead.status_id;
         }
-        const emailConvPatch: Record<string, unknown> = {
-          lead_status_id: safeStatusId,
-          updated_at: new Date().toISOString(),
-        };
-        const emailAssignee = (lead as { assignee_id?: string | null }).assignee_id;
-        if (emailAssignee !== undefined) {
-          emailConvPatch.assignee_id = emailAssignee;
-        }
-        const { error: updateError } = await supabase.from('email_conversations').update(emailConvPatch).eq('id', convId);
-        if (updateError) {
-          console.error('Error updating email conversation status:', updateError);
-          throw updateError;
-        }
         let newStatusName = '';
         if (safeStatusId) {
           const { data: statusRow } = await supabase
@@ -1926,15 +1944,57 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             .maybeSingle();
           newStatusName = (statusRow?.name as string) ?? '';
         }
+        const oldEmailStatusName = lead.lead_status?.name ?? null;
+        const clearEmailAssigneeOnResolve =
+          isResolvedStatus(newStatusName) && !isResolvedStatus(oldEmailStatusName);
+        let emailPriorAssigneeId: string | null = null;
+        if (clearEmailAssigneeOnResolve) {
+          const { data: emailConvBefore } = await supabase
+            .from('email_conversations')
+            .select('assignee_id')
+            .eq('id', convId)
+            .maybeSingle();
+          emailPriorAssigneeId = (emailConvBefore?.assignee_id as string | null) ?? null;
+        }
+        const emailConvPatch: Record<string, unknown> = {
+          lead_status_id: safeStatusId,
+          updated_at: new Date().toISOString(),
+        };
+        if (clearEmailAssigneeOnResolve) {
+          emailConvPatch.assignee_id = null;
+          const handlerId =
+            emailPriorAssigneeId ?? (lead as { assignee_id?: string | null }).assignee_id ?? null;
+          if (handlerId) emailConvPatch.last_handling_assignee_id = handlerId;
+        } else {
+          const emailAssignee = (lead as { assignee_id?: string | null }).assignee_id;
+          if (emailAssignee !== undefined) {
+            emailConvPatch.assignee_id = emailAssignee;
+          }
+        }
+        const { error: updateError } = await supabase.from('email_conversations').update(emailConvPatch).eq('id', convId);
+        if (updateError) {
+          console.error('Error updating email conversation status:', updateError);
+          throw updateError;
+        }
         const ticketId = 'EMAIL-' + convId.replace(/-/g, '').slice(0, 8).toUpperCase();
         if (orgId && safeStatusId) {
+          const emailLeadPatch: {
+            status_id: string;
+            updated_at: string;
+            assignee_id?: null;
+            assignee?: string;
+          } = { status_id: safeStatusId, updated_at: new Date().toISOString() };
+          if (clearEmailAssigneeOnResolve) {
+            emailLeadPatch.assignee_id = null;
+            emailLeadPatch.assignee = '';
+          }
           await supabase
             .from('leads')
-            .update({ status_id: safeStatusId, updated_at: new Date().toISOString() })
+            .update(emailLeadPatch)
             .eq('organization_id', orgId)
             .eq('ticket_id', ticketId);
         }
-        if (isResolvedStatus(newStatusName)) {
+        if (clearEmailAssigneeOnResolve) {
           const now = new Date().toISOString();
           const { error: emCycleErr } = await supabase
             .from('email_conversation_cycles')
@@ -1991,17 +2051,30 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             }
           }
         }
+        if (clearEmailAssigneeOnResolve) {
+          return { ...lead, assignee_id: null, assignee: '' };
+        }
         return lead;
       }
       // WhatsApp conversation: update lead_status_id and record status history
       if (lead?.id && String(lead.id).startsWith('wa-')) {
         const convId = String(lead.id).replace(/^wa-/, '');
-        const oldStatusName = lead.lead_status?.name ?? null;
+        const onlyAssigneeUpdate = (lead as { _onlyAssigneeUpdate?: boolean })._onlyAssigneeUpdate === true;
+        const statusIdNorm = (id: string | null | undefined) =>
+          id == null || String(id).trim() === '' ? '' : String(id).trim().toLowerCase();
+
+        const { data: convBefore } = await supabase
+          .from('whatsapp_conversations')
+          .select('lead_status_id, assignee_id, ticket_id, organization_id')
+          .eq('id', convId)
+          .maybeSingle();
+
+        const priorStatusId = (convBefore?.lead_status_id as string | null | undefined) ?? null;
 
         // FK: only set lead_status_id if it exists in lead_statuses (avoids 23503 when id is stale/deleted).
         // Uses same client/RLS as dropdown; ensure lead_statuses RLS allows global (organization_id IS NULL) statuses.
         let safeStatusId: string | null = null;
-        if (lead.status_id) {
+        if (!onlyAssigneeUpdate && lead.status_id) {
           const { data: statusExists } = await supabase
             .from('lead_statuses')
             .select('id')
@@ -2010,18 +2083,38 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           if (statusExists?.id) safeStatusId = lead.status_id;
         }
 
+        const effectiveStatusId = onlyAssigneeUpdate ? priorStatusId : (safeStatusId ?? priorStatusId);
+        const statusChanged =
+          !onlyAssigneeUpdate &&
+          effectiveStatusId != null &&
+          statusIdNorm(effectiveStatusId) !== statusIdNorm(priorStatusId);
+
+        let oldStatusNameFromDb = '';
+        if (priorStatusId) {
+          const { data: oldStatusRow } = await supabase
+            .from('lead_statuses')
+            .select('name')
+            .eq('id', priorStatusId)
+            .maybeSingle();
+          oldStatusNameFromDb = (oldStatusRow?.name as string) ?? '';
+        }
+
         let newStatusName = '';
-        if (safeStatusId) {
+        if (effectiveStatusId) {
           const { data: statusRow } = await supabase
             .from('lead_statuses')
             .select('name')
-            .eq('id', safeStatusId)
+            .eq('id', effectiveStatusId)
             .maybeSingle();
           newStatusName = (statusRow?.name as string) ?? '';
         }
 
         const orgIdForResolveCheck = lead.organization_id ?? organizationId;
-        if (isResolvedStatus(newStatusName) && orgIdForResolveCheck) {
+        const transitioningToResolve =
+          statusChanged &&
+          isResolvedStatus(newStatusName) &&
+          !isResolvedStatus(oldStatusNameFromDb);
+        if (transitioningToResolve && orgIdForResolveCheck) {
           const { data: convRowEarly } = await supabase
             .from('whatsapp_conversations')
             .select('ticket_id')
@@ -2049,25 +2142,39 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           await assertWaLeadSubmissionEmailBeforeResolve(orgIdForResolveCheck, leadForEmail?.id);
         }
 
+        // Option A: clear live assignee only when status newly becomes Resolve/Closed (not on assignee-only edits while already resolved).
+        const clearAssigneeOnResolve = transitioningToResolve;
+        const priorWaAssigneeId =
+          (convBefore?.assignee_id as string | null | undefined) ??
+          (lead.assignee_id as string | null | undefined) ??
+          null;
+
+        const convUpdatePayload: Record<string, unknown> = {
+          assignee_id: clearAssigneeOnResolve ? null : (lead.assignee_id ?? null),
+          updated_at: new Date().toISOString(),
+        };
+        if (clearAssigneeOnResolve && priorWaAssigneeId) {
+          convUpdatePayload.last_handling_assignee_id = priorWaAssigneeId;
+        }
+        if (statusChanged && effectiveStatusId) {
+          convUpdatePayload.lead_status_id = effectiveStatusId;
+        }
+
         const { error: updateError } = await supabase
           .from('whatsapp_conversations')
-          .update({
-            lead_status_id: safeStatusId,
-            assignee_id: lead.assignee_id ?? null,
-            updated_at: new Date().toISOString(),
-          })
+          .update(convUpdatePayload)
           .eq('id', convId);
         if (updateError) {
           console.error('Error updating WhatsApp conversation status:', updateError);
           throw updateError;
         }
-        if (oldStatusName !== null || newStatusName !== '') {
+        if (statusChanged && (oldStatusNameFromDb || newStatusName)) {
           const { data: userData } = await supabase.auth.getUser();
           const userId = userData?.user?.id ?? null;
           const userName = userData?.user?.user_metadata?.full_name || userData?.user?.email || null;
           await supabase.from('whatsapp_conversation_status_history').insert({
             conversation_id: convId,
-            old_status: oldStatusName,
+            old_status: oldStatusNameFromDb,
             new_status: newStatusName || 'Open',
             changed_at: new Date().toISOString(),
             changed_by: userId,
@@ -2098,11 +2205,17 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         const ticketId = (convRow?.ticket_id as string) ?? `WA-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
         const fallbackTicketId = `WA-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
         if (orgId) {
-          const leadUpdatePayload: { status_id?: string; assignee_id: string | null; updated_at: string } = {
-            assignee_id: lead.assignee_id ?? null,
+          const leadUpdatePayload: {
+            status_id?: string;
+            assignee_id: string | null;
+            assignee?: string;
+            updated_at: string;
+          } = {
+            assignee_id: clearAssigneeOnResolve ? null : (lead.assignee_id ?? null),
             updated_at: new Date().toISOString(),
           };
-          if (safeStatusId != null) leadUpdatePayload.status_id = safeStatusId;
+          if (clearAssigneeOnResolve) leadUpdatePayload.assignee = '';
+          if (statusChanged && effectiveStatusId != null) leadUpdatePayload.status_id = effectiveStatusId;
           // Find lead row by ticket_id (case-insensitive); try conversation ticket_id then fallback WA-{convId} so /leads-management stays in sync
           let { data: leadRowByTicket } = await supabase
             .from('leads')
@@ -2183,15 +2296,29 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         // Sync UI: invalidate leads list and lead-by-ticket so Quick Action and /omnichannel/leads stay in sync
         queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['lead-by-ticket'] });
-        return lead;
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-conversation-status', convId] });
+        if (clearAssigneeOnResolve) {
+          return { ...lead, assignee_id: null, assignee: '' };
+        }
+        const empName =
+          lead.assignee && String(lead.assignee).trim()
+            ? String(lead.assignee).trim()
+            : '';
+        return {
+          ...lead,
+          assignee_id: lead.assignee_id ?? null,
+          assignee: clearAssigneeOnResolve ? '' : empName,
+        };
       }
       const { id, lead_status, organization_id: leadOrgId, whatsapp_conversation_id: whatsappConvId, ...updateData } = lead;
+      const onlyAssigneeUpdateRegular = (lead as { _onlyAssigneeUpdate?: boolean })._onlyAssigneeUpdate === true;
       const organizationIdForHistory = leadOrgId ?? organizationId;
       const hadAssigneeUpdate = updateData.assignee_id !== undefined;
-      const hadStatusUpdate = updateData.status_id !== undefined;
+      const hadStatusUpdate = !onlyAssigneeUpdateRegular && updateData.status_id !== undefined;
 
       // Ambil status lama dari DB untuk catat ke lead_status_history
       let oldStatusId: string | null = null;
+      let clearAssigneeOnResolve = false;
       if (updateData.status_id !== undefined) {
         const { data: currentLead } = await supabase
           .from('leads')
@@ -2200,15 +2327,17 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           .maybeSingle();
         oldStatusId = currentLead?.status_id ?? null;
 
+        const { data: newStatusRow } = await supabase
+          .from('lead_statuses')
+          .select('name')
+          .eq('id', updateData.status_id)
+          .maybeSingle();
+        clearAssigneeOnResolve = isResolvedStatus(newStatusRow?.name ?? null);
+
         if (organizationIdForHistory && currentLead?.ticket_id) {
           const tid = String(currentLead.ticket_id).trim().toUpperCase();
           if (tid.startsWith('WA-')) {
-            const { data: statusRow } = await supabase
-              .from('lead_statuses')
-              .select('name')
-              .eq('id', updateData.status_id)
-              .maybeSingle();
-            if (isResolvedStatus(statusRow?.name ?? null)) {
+            if (clearAssigneeOnResolve) {
               await assertWaLeadSubmissionEmailBeforeResolve(organizationIdForHistory, id);
             }
           }
@@ -2229,6 +2358,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         followup: updateData.followup,
         converted_at: updateData.converted_at,
         ticket_id: updateData.ticket_id,
+        google_ads_account_id: updateData.google_ads_account_id,
         updated_at: new Date().toISOString(),
       };
 
@@ -2238,6 +2368,15 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           delete validFields[key as keyof typeof validFields];
         }
       });
+
+      if (onlyAssigneeUpdateRegular) {
+        delete validFields.status_id;
+      }
+
+      if (clearAssigneeOnResolve) {
+        validFields.assignee_id = null;
+        validFields.assignee = '';
+      }
 
       const { data, error } = await supabase
         .from('leads')
@@ -2315,8 +2454,50 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             : null;
 
         const convPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-        if (hadAssigneeUpdate) convPatch.assignee_id = updatedLead.assignee_id ?? null;
-        if (hadStatusUpdate && newStatusIdForConv != null) convPatch.lead_status_id = newStatusIdForConv;
+        let clearConvAssigneeOnResolve = false;
+        if (hadStatusUpdate && newStatusIdForConv != null) {
+          convPatch.lead_status_id = newStatusIdForConv;
+          const { data: convStatusRowForPatch } = await supabase
+            .from('lead_statuses')
+            .select('name')
+            .eq('id', newStatusIdForConv)
+            .maybeSingle();
+          if (isResolvedStatus((convStatusRowForPatch?.name as string) ?? null)) {
+            clearConvAssigneeOnResolve = true;
+            convPatch.assignee_id = null;
+          }
+        } else if (hadAssigneeUpdate) {
+          convPatch.assignee_id = updatedLead.assignee_id ?? null;
+        }
+
+        if (clearConvAssigneeOnResolve) {
+          const priorFromLead = updatedLead.assignee_id ?? null;
+          if (igSyncId) {
+            const { data: igBefore } = await supabase
+              .from('instagram_conversations')
+              .select('assignee_id')
+              .eq('id', igSyncId)
+              .maybeSingle();
+            const handlerId = (igBefore?.assignee_id as string | null) ?? priorFromLead;
+            if (handlerId) convPatch.last_handling_assignee_id = handlerId;
+          } else if (emailSyncId) {
+            const { data: emBefore } = await supabase
+              .from('email_conversations')
+              .select('assignee_id')
+              .eq('id', emailSyncId)
+              .maybeSingle();
+            const handlerId = (emBefore?.assignee_id as string | null) ?? priorFromLead;
+            if (handlerId) convPatch.last_handling_assignee_id = handlerId;
+          } else if (targetConvId) {
+            const { data: waBefore } = await supabase
+              .from('whatsapp_conversations')
+              .select('assignee_id')
+              .eq('id', targetConvId)
+              .maybeSingle();
+            const handlerId = (waBefore?.assignee_id as string | null) ?? priorFromLead;
+            if (handlerId) convPatch.last_handling_assignee_id = handlerId;
+          }
+        }
 
         if (igSyncId) {
           const { error: igConvSyncErr } = await supabase

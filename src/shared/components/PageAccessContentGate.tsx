@@ -41,7 +41,7 @@ export function PageAccessContentGate({ pagePath, children, className }: PageAcc
   if (!canAccessPage(pagePath)) {
     return (
       <AccessDeniedContentPanel
-        className={className}
+        className={cn("h-full min-h-0", className)}
         restrictionMessage={getDepartmentRestrictionMessage()}
       />
     );

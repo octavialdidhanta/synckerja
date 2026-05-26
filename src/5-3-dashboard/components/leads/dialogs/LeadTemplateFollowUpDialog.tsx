@@ -24,6 +24,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import type { NewLead } from '@/shared/types/leads';
 import { useWhatsAppAccounts } from '@/5-3-whatsapp/hooks/useWhatsAppAccounts';
 import { useSendWhatsAppTemplateFollowup } from '@/5-3-whatsapp/hooks/useSendWhatsAppTemplateFollowup';
+import { getFollowUpSendErrorMessage } from '@/5-3-whatsapp/utils/followUpSendError';
 import {
   buildLivechatFollowUpPrefill,
   slotCountForTemplateComponents,
@@ -194,7 +195,7 @@ export function LeadTemplateFollowUpDialog({
       onOpenChange(false);
       onSent?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('whatsappInbox.followUp.sendFailed', 'Gagal mengirim follow-up.'));
+      toast.error(getFollowUpSendErrorMessage(e, t));
     }
   }, [
     componentsJson,

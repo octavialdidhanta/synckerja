@@ -1,8 +1,6 @@
 import { memo, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
-import { DesktopWarning } from "@/mobile-app/components/DesktopWarning";
-import { AppSidebar } from "@/mobile-app/components/AppSidebar";
-import { SidebarProvider, SidebarTrigger } from "@/mobile-app/components/ui/sidebar";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
+import { MobileSubscriptionPageShell } from "@/mobile/6-subscription/components/MobileSubscriptionPageShell";
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/mobile-app/components/ui/card";
 import { Button } from "@/mobile-app/components/ui/button";
@@ -13,11 +11,9 @@ import { useNextBillingFromPayments } from "@/10-subscription/hooks/useNextBilli
 import { useSubscriptionAnalytics } from "@/10-subscription/hooks/useSubscriptionAnalytics";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { CurrentSubscription, EmployeeGrowthChart, UsageMetricsCards } from "@/10-subscription/overview/section";
-import { SubscriptionBottomTabs, useSubscriptionTabs } from "@/mobile/6-subscription/shared/SubscriptionTabs";
+import { useSubscriptionTabs } from "@/mobile/6-subscription/shared/SubscriptionTabs";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { RefreshCw, Loader2 } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 
 const PULL_THRESHOLD = 52;
@@ -210,84 +206,54 @@ const OverviewTabPage = memo(() => {
   );
 
   return (
-    <DesktopWarning>
-      <SidebarProvider>
-        {/* Layout per android-mobile/rules/mobile-tools-layout-android.mdc */}
-        <div className="flex min-h-screen w-full bg-background">
-          <AppSidebar />
-
-          <main
-            className={cn(
-              "fixed inset-x-0 z-0 flex flex-col bg-background",
-              showPageSkeleton && "pointer-events-none invisible select-none",
-            )}
-            style={mainFixedStyle}
-            aria-hidden={showPageSkeleton}
+    <MobileSubscriptionPageShell
+      pagePath={MOBILE_PAGE_PATH.subscriptionOverview}
+      headerVariant="overview"
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+      mainFixedStyle={mainFixedStyle}
+      showPageSkeleton={showPageSkeleton}
+      skeletonOverlay={showPageSkeleton ? <MobileSubscriptionOverviewPageSkeletonOverlay /> : null}
+    >
+      <div
+        ref={listScrollRef}
+        className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {showPullChrome && (
+          <div
+            className="flex shrink-0 items-center justify-center overflow-hidden text-sm text-muted-foreground"
+            style={{
+              height: pullDistance > 0 ? Math.min(pullDistance, MAX_PULL) : isRefreshing ? INDICATOR_HEIGHT : 0,
+              minHeight: 0,
+              transition: isPulling
+                ? "none"
+                : "height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), min-height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+            }}
           >
-            <header className="safe-area-top sticky top-0 z-30 flex flex-shrink-0 items-center justify-between border-b border-border bg-card p-3">
-              <div className="flex items-center gap-2">
-                <SidebarTrigger className="md:hidden" />
-                <div>
-                  <h1 className="text-base font-semibold text-foreground">{t("subscription.overview.pageTitle", "Subscription Overview")}</h1>
-                  <p className="text-xs text-muted-foreground">{t("subscription.overview.pageSubtitle", "Plan status and usage")}</p>
-                </div>
-              </div>
-              <div />
-            </header>
-
-            <ModuleShellContentGate
-              pagePath={MOBILE_PAGE_PATH.subscriptionOverview}
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
-            >
-              <div
-                ref={listScrollRef}
-                className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-              >
-                {showPullChrome && (
-                  <div
-                    className="flex shrink-0 items-center justify-center overflow-hidden text-sm text-muted-foreground"
-                    style={{
-                      height: pullDistance > 0 ? Math.min(pullDistance, MAX_PULL) : isRefreshing ? INDICATOR_HEIGHT : 0,
-                      minHeight: 0,
-                      transition: isPulling
-                        ? "none"
-                        : "height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), min-height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-                    }}
-                  >
-                    {isRefreshing ? (
-                      <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden />
-                    ) : pullDistance >= PULL_THRESHOLD ? (
-                      <span className="whitespace-nowrap text-xs font-medium text-primary">
-                        {t("common.pullToRefresh.release", "Lepas untuk refresh")}
-                      </span>
-                    ) : (
-                      <RefreshCw
-                        className="h-5 w-5 shrink-0 opacity-80"
-                        style={{
-                          transform: `rotate(${Math.min((pullDistance / PULL_THRESHOLD) * 180, 180)}deg)`,
-                          transition: isPulling ? "none" : "transform 0.2s ease-out",
-                        }}
-                        aria-hidden
-                      />
-                    )}
-                  </div>
-                )}
-                <div className="mx-auto w-full max-w-md space-y-1 px-2 pt-2 content-padding-above-nav-default">
-                  {content}
-                </div>
-              </div>
-            </ModuleShellContentGate>
-
-            <SubscriptionBottomTabs activeTab={activeTab} onTabChange={handleTabChange} className="safe-area-bottom-lower" />
-          </main>
-
-          {showPageSkeleton ? <MobileSubscriptionOverviewPageSkeletonOverlay /> : null}
-        </div>
-      </SidebarProvider>
-    </DesktopWarning>
+            {isRefreshing ? (
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden />
+            ) : pullDistance >= PULL_THRESHOLD ? (
+              <span className="whitespace-nowrap text-xs font-medium text-primary">
+                {t("common.pullToRefresh.release", "Lepas untuk refresh")}
+              </span>
+            ) : (
+              <RefreshCw
+                className="h-5 w-5 shrink-0 opacity-80"
+                style={{
+                  transform: `rotate(${Math.min((pullDistance / PULL_THRESHOLD) * 180, 180)}deg)`,
+                  transition: isPulling ? "none" : "transform 0.2s ease-out",
+                }}
+                aria-hidden
+              />
+            )}
+          </div>
+        )}
+        <div className="mx-auto w-full max-w-md space-y-1 px-2 pt-2 content-padding-above-nav-default">{content}</div>
+      </div>
+    </MobileSubscriptionPageShell>
   );
 });
 

@@ -4,6 +4,9 @@ import { DesktopWarning } from '@/mobile-app/components/DesktopWarning';
 import { SidebarProvider } from '@/mobile-app/components/ui/sidebar';
 import { AppSidebar } from '@/mobile-app/components/AppSidebar';
 import { ToolsNavigationFooter } from '@/mobile-app/components/ToolsNavigationFooter';
+import { ToolsMobileShellHeader, type ToolsMobileShellHeaderVariant } from '@/mobile-app/components/ToolsMobileShellHeader';
+import { ToolsMobileDenyGateArea } from '@/mobile-app/components/ToolsMobileDenyGateArea';
+import { useToolsMobilePageAccess } from '@/mobile-app/hooks/useToolsMobilePageAccess';
 import { useVisualViewport } from '@/shared/hooks/useVisualViewport';
 import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
@@ -20,15 +23,37 @@ import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate'
 import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 
+function dailyTaskHeaderVariant(view: string | null): ToolsMobileShellHeaderVariant {
+  if (view === 'initiative') return 'initiative';
+  if (view === 'jobdesc') return 'jobdesc';
+  if (view === 'summary') return 'summary';
+  return 'dailyTask';
+}
+
 function DailyTaskPageBody() {
   const { mainFixedStyle, isKeyboardShellOpen } = useVisualViewport();
   const [searchParams] = useSearchParams();
   const view = searchParams.get('view');
+  const pagePath = MOBILE_PAGE_PATH.toolsDailyTask;
+  const { hasPageAccess, showDenyShellHeader } = useToolsMobilePageAccess(pagePath);
+  const headerVariant = dailyTaskHeaderVariant(view);
+
   const { showPageSkeleton: dataPendingSkeleton } = useMobileDailyTaskPageSkeletonGate(view);
   const { showFullPageSkeleton: showPageSkeleton } = useModulePageOverlaySkeleton(
     dataPendingSkeleton,
-    MOBILE_PAGE_PATH.toolsDailyTask,
+    pagePath,
   );
+
+  const pageContent =
+    view === 'jobdesc' ? (
+      <JobDescPage />
+    ) : view === 'summary' ? (
+      <DailyTaskSummaryView />
+    ) : view === 'initiative' ? (
+      <InitiativeMobileTab />
+    ) : (
+      <DailyTaskLayout />
+    );
 
   return (
     <div className="flex min-h-screen min-w-0 w-full bg-background">
@@ -42,20 +67,23 @@ function DailyTaskPageBody() {
         style={mainFixedStyle}
         aria-hidden={showPageSkeleton}
       >
-        <ModuleShellContentGate
-          pagePath={MOBILE_PAGE_PATH.toolsDailyTask}
-          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-        >
-          {view === 'jobdesc' ? (
-            <JobDescPage />
-          ) : view === 'summary' ? (
-            <DailyTaskSummaryView />
-          ) : view === 'initiative' ? (
-            <InitiativeMobileTab />
-          ) : (
-            <DailyTaskLayout />
-          )}
-        </ModuleShellContentGate>
+        {showDenyShellHeader ? (
+          <>
+            <ToolsMobileShellHeader variant={headerVariant} />
+            <ToolsMobileDenyGateArea
+              pagePath={pagePath}
+              contentPaddingClass="content-padding-above-nav-daily-task"
+            />
+          </>
+        ) : (
+          <ModuleShellContentGate
+            pagePath={pagePath}
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          >
+            {hasPageAccess ? pageContent : null}
+          </ModuleShellContentGate>
+        )}
+
         {!isKeyboardShellOpen ? (
           <ToolsNavigationFooter className="safe-area-bottom-lower" />
         ) : null}

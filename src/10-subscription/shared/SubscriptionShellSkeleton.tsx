@@ -6,7 +6,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
  */
 export function SubscriptionShellSkeleton() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-gray-100 font-sans">
+    <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col bg-gray-100 font-sans">
       <div className="shrink-0 px-4">
         <div className="px-1 py-3">
           <div className="mb-3">

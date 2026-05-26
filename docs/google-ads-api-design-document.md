@@ -23,7 +23,7 @@ This allows us to:
 - Improve measurement using **enhanced conversions for leads** (hashed email and phone)
 - Optimize our own Google Ads campaigns for customer **711-398-0725**
 
-The integration is for **our own Google Ads account only**. We do not offer this as a public API product to third-party advertisers.
+The integration was initially built for **vialdi.id’s own Google Ads account**. As of May 2026 (v2), Synckerja supports **per-organization Google Ads connections** on the same platform developer token (see §10).
 
 ---
 
@@ -146,9 +146,28 @@ Upload is **idempotent per lead** (one row per `lead_id` in `google_ads_conversi
 
 ---
 
-## 10. Summary
+## 10. Multi-tenant architecture (v2)
 
-Synckerja uploads **offline click conversions** to our own Google Ads account when leads convert in CRM. The design is server-side, OAuth-secured, internal-only, and limited to conversion upload—supporting accurate campaign measurement for vialdi.id.
+| Layer | Responsibility |
+|-------|----------------|
+| Platform | One `GOOGLE_ADS_DEVELOPER_TOKEN`, one GCP OAuth client, `GOOGLE_ADS_CONFIG_ENCRYPTION_KEY` |
+| Per organization | OAuth refresh token (encrypted), optional MCC `login_customer_id`, `is_active` toggle |
+| Per brand | Rows in `organization_google_ads_accounts` (customer ID + conversion action ID; one default) |
+| Per lead | Optional `google_ads_account_id` override |
+
+**OAuth flow:** Admin opens `/omnichannel/settings/google-ads` → `google-ads-oauth-start` → Google consent → `google-ads-oauth-callback` stores encrypted refresh token → settings UI manages accounts.
+
+**Upload path:** `google-ads-upload-offline-conversion` resolves org connection + account (lead override → default) → `uploadClickConversions` (API v24).
+
+**Tenant isolation:** Edge Functions use service role to read only the requesting org’s token and account rows; no cross-org customer IDs.
+
+**Agency note:** When vialdi.id operates a client org in Synckerja, the client org must complete **Connect with Google** using the **client’s** Google account that has access to the target customer IDs.
+
+---
+
+## 11. Summary
+
+Synckerja uploads **offline click conversions** to Google Ads when CRM leads convert. v2 adds **per-organization OAuth** and **multi-brand accounts** on one platform developer token. The design remains server-side, internal-only, and limited to conversion upload.
 
 ---
 

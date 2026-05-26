@@ -30,7 +30,6 @@ import { useLeadStatusesActiveFull } from "@/5-3-dashboard/hooks/useLeadsManagem
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { cn } from "@/shared/lib/utils";
-import { isOutboundBlockedForLivechat, isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
 import type { LeadAttributionSortColumn, LeadAttributionSortState } from '@/shared/lib/leadAttribution';
 import { defaultLeadAttributionSortState } from '@/shared/lib/leadAttribution';
 import {
@@ -260,7 +259,8 @@ export default function LeadsTableNew({
         ...lead,
         assignee_id: assigneeId,
         assignee: emp ? (emp.full_name || emp.email) : "",
-      };
+        _onlyAssigneeUpdate: true,
+      } as NewLead & { assignee_id?: string | null; _onlyAssigneeUpdate?: boolean };
     } else {
       updatedLead = { ...lead, [field]: value };
     }
@@ -378,15 +378,9 @@ export default function LeadsTableNew({
       (name) => getCurrentLeadStatusName(lead).toLowerCase() === name.toLowerCase()
     );
 
-  const isRowSessionLocked = (l: NewLead) => {
-    const name = getCurrentLeadStatusName(l);
-    const src = (l.source ?? '').trim().toLowerCase();
-    const meta = l.meta_session_expires_at ?? null;
-    if (src === 'whatsapp' || src === 'instagram') {
-      return isOutboundBlockedForLivechat({ statusName: name, metaSessionExpiresAt: meta });
-    }
-    return isResolvedStatus(name);
-  };
+  /** Assignee tidak boleh diubah setelah chat di-resolve (selaras livechat / Option A). */
+  const isAssigneeSelectDisabled = (l: NewLead) =>
+    isResolvedLeadStatusName(getCurrentLeadStatusName(l));
 
   // Get Status with soft colors - rectangular style
   const getStatusColor = (lead: NewLead) => {
@@ -1207,13 +1201,25 @@ export default function LeadsTableNew({
                     ) : (
                     <Select
                       value={
-                        (lead as NewLead & { assignee_id?: string | null }).assignee_id ??
-                        employees.find((e) => (e.full_name || e.email) === lead.assignee)?.id ??
-                        ASSIGNEE_SELECT_UNASSIGNED
+                        (lead as NewLead & { assignee_id?: string | null }).assignee_id != null &&
+                        String((lead as NewLead & { assignee_id?: string | null }).assignee_id).trim() !== ''
+                          ? String((lead as NewLead & { assignee_id?: string | null }).assignee_id)
+                          : ASSIGNEE_SELECT_UNASSIGNED
                       }
                       onValueChange={(value) => handleFieldUpdate(lead.id, "assignee_id", value)}
                     >
-                      <SelectTrigger className="w-full h-8 text-xs" disabled={isRowSessionLocked(lead)}>
+                      <SelectTrigger
+                        className="w-full h-8 text-xs"
+                        disabled={isAssigneeSelectDisabled(lead)}
+                        title={
+                          isAssigneeSelectDisabled(lead)
+                            ? t(
+                                'leadsManagement.table.assigneeDisabledWhenResolved',
+                                'Assignee cannot be changed after the chat is resolved.',
+                              )
+                            : undefined
+                        }
+                      >
                         <SelectValue placeholder={t("leadsManagement.table.assigneePlaceholder", "Select assignee")} />
                       </SelectTrigger>
                       <SelectContent>

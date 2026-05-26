@@ -143,6 +143,7 @@ const Absensi = () => {
     error,
     realtimeConnected,
     refetch,
+    mergeTodayAttendance,
     clearError,
     userForPresence,
     organizationId,
@@ -280,8 +281,11 @@ const Absensi = () => {
     return t("mobileHome.hoursMinutesFormat", "{{hours}} jam {{minutes}} menit", { hours, minutes });
   };
 
+  const hasCheckedIn = Boolean(todayAttendance?.check_in_time);
+  const hasCheckedOut = Boolean(todayAttendance?.check_out_time);
+
   const handleClockIn = () => {
-    if (todayAttendance?.check_in_time) {
+    if (todayAttendance?.check_in_time || lastCheckInTimeRef.current) {
         toast({
           title: t("mobileHome.alreadyClockIn", "Sudah Clock In"),
           description: t("mobileHome.alreadyClockInDesc", "Anda sudah melakukan clock in hari ini"),
@@ -643,12 +647,36 @@ const Absensi = () => {
           sessionStorage.removeItem('lateReason');
         }
 
+        const todayKey = formatLocalDateYmd(checkInTime);
+        const { data: existingOpenRaw } = await supabase
+          .from("attendance_records")
+          .select("*")
+          .eq("employee_id", employee.id)
+          .eq("attendance_date", todayKey)
+          .not("check_in_time", "is", null)
+          .is("check_out_time", null)
+          .order("check_in_at", { ascending: false })
+          .limit(1);
+        const existingOpen = (existingOpenRaw as unknown as Array<{ check_in_time?: string }> | null)?.[0];
+
+        if (existingOpen?.check_in_time) {
+          mergeTodayAttendance(existingOpen as Record<string, unknown>);
+          lastCheckInTimeRef.current = existingOpen.check_in_time ?? null;
+          toast({
+            title: t("mobileHome.alreadyClockIn", "Sudah Clock In"),
+            description: t("mobileHome.alreadyClockInDesc", "Anda sudah melakukan clock in hari ini"),
+            variant: "destructive",
+            duration: 4000,
+          });
+          return;
+        }
+
         const { data: insertedRecordData, error: insertError } = await supabase
           .from('attendance_records')
           .insert(attendanceData)
-          .select()
+          .select('*')
           .single();
-        const insertedRecord = insertedRecordData as unknown as { id: string; check_in_time: string } | null;
+        const insertedRecord = insertedRecordData as unknown as Record<string, unknown> | null;
 
         if (insertError) {
           logger.error('Clock in error:', insertError);
@@ -661,7 +689,11 @@ const Absensi = () => {
           return;
         }
 
-        if (insertedRecord) lastCheckInTimeRef.current = insertedRecord.check_in_time;
+        if (insertedRecord) {
+          const checkInTimeValue = insertedRecord.check_in_time as string | undefined;
+          if (checkInTimeValue) lastCheckInTimeRef.current = checkInTimeValue;
+          mergeTodayAttendance(insertedRecord);
+        }
 
         // Create attendance validation record
         const validationData = insertedRecord ? {
@@ -749,6 +781,13 @@ const Absensi = () => {
           return;
         }
 
+        mergeTodayAttendance({
+          ...(todayAttendance ?? {}),
+          check_out_time: dateToPostgresLocalWallTime(checkOutTime),
+          check_out_at: checkOutTime.toISOString(),
+          working_hours_minutes,
+        });
+
         toast({
           title: t("mobileHome.clockOutSuccess", "Clock Out Berhasil"),
           description: t("mobileHome.clockOutSuccessDesc", "Selamat! Anda telah menyelesaikan hari kerja"),
@@ -762,8 +801,7 @@ const Absensi = () => {
         }, 500);
       }
 
-      // Refresh attendance data
-      refetch();
+      await refetch();
     } catch (error) {
       logger.error('Attendance error:', error);
       toast({
@@ -975,7 +1013,12 @@ const Absensi = () => {
                         workingHours={calculateWorkingHours()}
                       />
 
-                      <AttendanceActions onClockIn={handleClockIn} onClockOut={handleClockOut} />
+                      <AttendanceActions
+                        onClockIn={handleClockIn}
+                        onClockOut={handleClockOut}
+                        clockInDisabled={hasCheckedIn}
+                        clockOutDisabled={!hasCheckedIn || hasCheckedOut}
+                      />
                     </div>
                   </div>
 

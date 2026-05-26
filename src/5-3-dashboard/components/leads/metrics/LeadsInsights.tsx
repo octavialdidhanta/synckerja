@@ -5,11 +5,16 @@ import { Progress } from '@/shared/components/ui/progress';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
-import { TrendingUp, Users, Calendar, Target, Download, FileText, BarChart3, MapPin, Loader2, User2, LineChart, ChevronDown } from 'lucide-react';
+import { TrendingUp, Users, Calendar, Target, Download, FileText, BarChart3, MapPin, Loader2, User2, LineChart } from 'lucide-react';
+import { LeadsReportTabDropdown } from '@/5-3-dashboard/leads-report';
+import type { LeadsReportTabId } from '@/5-3-dashboard/leads-report';
 import { generateLeadsPDF } from "@/5-3-dashboard/lib/LeadsPDFGenerator";
 import { buildLeadStatusReportAnalysis } from '@/5-1-leads-management/utils/leadStatusDisplay';
 import { useLeadsInsightsSupplementalQueries } from '@/5-3-dashboard/hooks/useLeadsInsightsSupplementalQueries';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import type { OrganizationOmnichannelStaffRow } from '@/shared/hooks/useOrganizationOmnichannelStaff';
+import { IdleAgentsTab } from '@/5-3-dashboard/components/leads/metrics/IdleAgentsTab';
+import { cn } from '@/shared/lib/utils';
 
 function formatDurationMs(ms: number): string {
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
@@ -21,6 +26,8 @@ function formatDurationMs(ms: number): string {
 
 interface LeadsInsightsProps {
   leads: NewLead[];
+  /** Unfiltered org leads — used to infer idle duration across page refresh. */
+  allLeads?: NewLead[];
   filters?: any;
   clientStatuses?: Record<string, 'full' | 'partial' | 'empty'>;
   clientProfiles?: Record<string, any>;
@@ -28,18 +35,25 @@ interface LeadsInsightsProps {
   allEmployees?: Array<{ id: string; full_name: string; email: string }>;
   /** When provided, fetch WhatsApp cycle metrics (response time, time to resolve) per assignee. */
   organizationId?: string;
-  /** Controlled active tab (overview | source-performance | consultant-performance). When set, onActiveTabChange is required. */
+  /** Controlled active tab (overview | source-performance | consultant-performance | idle-agents). When set, onActiveTabChange is required. */
   activeTab?: string;
+  /** Owner or omnichannel roster admin — shows Idle Agents tab. */
+  canViewIdleAgents?: boolean;
+  omnichannelRoster?: OrganizationOmnichannelStaffRow[];
+  omnichannelRosterLoading?: boolean;
   /** Callback when tab changes (for mobile drawer). */
   onActiveTabChange?: (tab: string) => void;
   /** When true, hide the tab dropdown (e.g. when tab is controlled from a drawer). */
   hideTabDropdown?: boolean;
+  /** When true (desktop default), Idle Agents appears in the tab dropdown when `canViewIdleAgents`. */
+  dropdownIncludeIdleAgents?: boolean;
   /** When true (e.g. mobile report view), sections use tighter spacing and stronger borders. */
   denserSections?: boolean;
 }
 
 export const LeadsInsights = ({
   leads,
+  allLeads,
   filters,
   clientStatuses = {},
   clientProfiles = {},
@@ -48,23 +62,39 @@ export const LeadsInsights = ({
   activeTab: activeTabProp,
   onActiveTabChange,
   hideTabDropdown = false,
+  dropdownIncludeIdleAgents = true,
   denserSections = false,
+  canViewIdleAgents = false,
+  omnichannelRoster = [],
+  omnichannelRosterLoading = false,
 }: LeadsInsightsProps) => {
+  const { t } = useAppTranslation();
   const [internalTab, setInternalTab] = useState('overview');
   const isControlled = activeTabProp !== undefined;
   const activeTab = isControlled ? activeTabProp : internalTab;
   const setActiveTab = isControlled ? (onActiveTabChange ?? (() => {})) : setInternalTab;
 
+  useEffect(() => {
+    if (!canViewIdleAgents && activeTab === 'idle-agents') {
+      setActiveTab('overview');
+    }
+  }, [canViewIdleAgents, activeTab, setActiveTab]);
+
   const sectionCardClass = (base: string) => {
     let result = base.replace("border-none", "border border-border");
     if (denserSections) {
       result = result.replace(/shadow-sm|shadow/g, "shadow-none");
+      result = cn(result, "w-full min-w-0");
     }
     return result;
   };
 
   const sectionSpacingClass = denserSections ? 'space-y-1 mt-1' : 'space-y-3 mt-4';
   const outerSpacingClass = denserSections ? 'space-y-1' : 'space-y-4';
+  /** Selaras `IdleAgentsTab` saat mobile report (`denserSections`). */
+  const reportCardHeaderClass = denserSections ? 'space-y-1.5 p-4 pb-2' : 'pb-3';
+  const reportCardContentClass = (...extra: (string | undefined)[]) =>
+    cn(denserSections ? 'p-4 pt-0' : undefined, ...extra);
 
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
@@ -393,41 +423,24 @@ export const LeadsInsights = ({
   };
   return <div className={`${outerSpacingClass} min-w-0 max-w-full`}>
       {/* Dropdown for different views - hidden on mobile when tab is controlled via drawer */}
-      {!hideTabDropdown && (
-      <div className="w-full">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full justify-between">
-              {activeTab === 'overview' && 'Overview'}
-              {activeTab === 'source-performance' && 'Source Performance'}
-              {activeTab === 'consultant-performance' && 'Consultant Performance'}
-              <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-full">
-            <DropdownMenuItem onClick={() => setActiveTab('overview')}>
-              Overview
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setActiveTab('source-performance')}>
-              Source Performance
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setActiveTab('consultant-performance')}>
-              Consultant Performance
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        </div>
-      )}
+      {!hideTabDropdown ? (
+        <LeadsReportTabDropdown
+          activeTab={activeTab}
+          onTabChange={(tab: LeadsReportTabId) => setActiveTab(tab)}
+          includeIdleAgents={dropdownIncludeIdleAgents}
+          canViewIdleAgents={canViewIdleAgents}
+        />
+      ) : null}
         {activeTab === 'overview' && <div className={sectionSpacingClass}>
           {/* Conversion Metrics */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/5")}>
-            <CardHeader className="pb-3">
+            <CardHeader className={reportCardHeaderClass}>
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <Target className="h-4 w-4 text-brand-blue" />
                 Conversion Metrics
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className={reportCardContentClass('space-y-3')}>
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div className="bg-white/70 rounded-lg border border-border p-3">
                   <div className="text-lg font-bold text-brand-red">{convertedCount}</div>
@@ -471,13 +484,13 @@ export const LeadsInsights = ({
 
           {/* Date Range Info */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-slate-50 to-gray-50")}>
-            <CardHeader className="pb-3">
+            <CardHeader className={reportCardHeaderClass}>
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-slate-600" />
                 Date
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className={reportCardContentClass()}>
               <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                 <div className="text-sm font-medium text-slate-800">
                   {filters?.dateRange?.from && filters?.dateRange?.to ? `${new Date(filters.dateRange.from).toLocaleDateString('en-US')} - ${new Date(filters.dateRange.to).toLocaleDateString('en-US')}` : 'All Data'}
@@ -489,13 +502,13 @@ export const LeadsInsights = ({
 
           {/* Source Analysis */}
           {sourceAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/5")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-brand-blue" />
                   Lead Source
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className={reportCardContentClass('space-y-2')}>
                 {sourceAnalysis.map(source => <div key={source.source} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                     <span className="text-sm text-slate-700">{source.source}</span>
                     <div className="flex items-center gap-2">
@@ -510,13 +523,13 @@ export const LeadsInsights = ({
 
           {/* Data Overview */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
-            <CardHeader className="pb-3">
+            <CardHeader className={reportCardHeaderClass}>
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-brand-blue" />
                 Data Summary
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className={reportCardContentClass('space-y-3')}>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-white/70 rounded-lg border border-border p-3">
                   <div className="text-lg font-bold text-brand-blue">{completeDataCount}</div>
@@ -536,13 +549,13 @@ export const LeadsInsights = ({
 
           {/* Services Analysis */}
           {servicesAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <FileText className="h-4 w-4 text-brand-blue" />
                   Services
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className={reportCardContentClass('space-y-2')}>
                 {servicesAnalysis.map((service, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                     <span className="text-sm text-slate-700">{service.service}</span>
                     <Badge variant="outline" className="text-xs">
@@ -554,13 +567,13 @@ export const LeadsInsights = ({
 
           {/* Category Analysis */}
           {categoryAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-blue-soft/60")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <FileText className="h-4 w-4 text-brand-blue" />
                   Category Analysis
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className={reportCardContentClass('space-y-2')}>
                 {categoryAnalysis.map((category, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                     <span className="text-sm text-slate-700">{category.category}</span>
                     <div className="flex items-center gap-2">
@@ -575,13 +588,13 @@ export const LeadsInsights = ({
 
           {/* Gender Distribution Analysis */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
-            <CardHeader className="pb-3">
+            <CardHeader className={reportCardHeaderClass}>
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <Users className="h-4 w-4 text-brand-blue" />
                 Gender Distribution
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className={reportCardContentClass('space-y-2')}>
               <div className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                 <span className="text-sm text-slate-700">Laki-laki</span>
                 <div className="flex items-center gap-2">
@@ -620,13 +633,13 @@ export const LeadsInsights = ({
 
           {/* Enhanced Location Analysis */}
           {enhancedLocationAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/10")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-brand-blue" />
                   Location Distribution
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className={reportCardContentClass('space-y-2')}>
                 {enhancedLocationAnalysis.map((location, index) => <div key={index} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                     <span className="text-sm text-slate-700">{location.location}</span>
                     <div className="flex items-center gap-2">
@@ -641,13 +654,13 @@ export const LeadsInsights = ({
 
           {/* Priority Analysis */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
-            <CardHeader className="pb-3">
+            <CardHeader className={reportCardHeaderClass}>
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <Target className="h-4 w-4 text-brand-blue" />
                 Priority Analysis
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className={reportCardContentClass('space-y-2')}>
               <div className="flex justify-between items-center p-2 bg-white/70 rounded border border-border">
                 <span className="text-sm text-slate-700">Hot Prospect</span>
                 <Badge variant="destructive" className="bg-brand-red/15 text-brand-red">
@@ -671,13 +684,13 @@ export const LeadsInsights = ({
 
           {/* Employee Performance */}
           {employeeAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/5")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <User2 className="h-4 w-4 text-brand-blue" />
                   Employee Performance
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className={reportCardContentClass('space-y-3')}>
                 {isCycleMetricsError && organizationId && (
                   <div className="text-xs text-amber-600 py-2">Gagal memuat metrik siklus</div>
                 )}
@@ -724,13 +737,13 @@ export const LeadsInsights = ({
 
           {/* Status Analysis - Always displayed below Employee Performance */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <Users className="h-4 w-4 text-brand-blue" />
                   Status
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className={reportCardContentClass('space-y-2')}>
                 {statusAnalysis.length > 0 ? (
                   statusAnalysis.map((status) => <div key={status.displayName} className="flex items-center justify-between p-2 bg-white/70 rounded border border-border">
                       <span className="text-sm text-slate-700">{status.displayName}</span>
@@ -750,13 +763,13 @@ export const LeadsInsights = ({
         {activeTab === 'source-performance' && <div className={sectionSpacingClass}>
           {/* Source Performance Header */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-slate-50 to-gray-50")}>
-            <CardHeader className="pb-3">
+            <CardHeader className={reportCardHeaderClass}>
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <LineChart className="h-4 w-4 text-slate-600" />
                 Source Performance Analytics
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className={reportCardContentClass()}>
               <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                 <div className="text-sm font-medium text-slate-800">
                   Lead generation and conversion performance by source
@@ -768,13 +781,13 @@ export const LeadsInsights = ({
 
           {/* Source Performance Analysis */}
           {sourcePerformanceAnalysis.length > 0 ? <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-brand-blue" />
                   Source Conversion Performance
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className={reportCardContentClass('space-y-3')}>
                 {sourcePerformanceAnalysis.map((source, index) => <div key={source.source} className="p-3 bg-white/70 rounded-lg border border-border space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-slate-700">{source.source}</span>
@@ -887,7 +900,7 @@ export const LeadsInsights = ({
                   </div>)}
               </CardContent>
             </Card> : <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-gray-50 to-slate-50")}>
-              <CardContent className="p-6 text-center">
+              <CardContent className={reportCardContentClass('text-center')}>
                 <div className="text-sm text-slate-600">No source performance data available</div>
                 <div className="text-xs text-slate-500 mt-1">Data will appear when leads have assigned sources</div>
               </CardContent>
@@ -895,13 +908,13 @@ export const LeadsInsights = ({
 
           {/* Top performing source highlight */}
           {sourcePerformanceAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/10")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <Target className="h-4 w-4 text-brand-blue" />
                   Best Performing Source
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className={reportCardContentClass()}>
                 <div className="bg-white/70 rounded-lg border border-border p-3">
                   <div className="text-center">
                     <div className="text-lg font-bold text-slate-800">{sourcePerformanceAnalysis[0].source}</div>
@@ -920,13 +933,13 @@ export const LeadsInsights = ({
         {activeTab === 'consultant-performance' && <div className={sectionSpacingClass}>
           {/* Consultant Performance Header */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-slate-50 to-gray-50")}>
-            <CardHeader className="pb-3">
+            <CardHeader className={reportCardHeaderClass}>
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <User2 className="h-4 w-4 text-slate-600" />
                 Sales Consultant Performance
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className={reportCardContentClass()}>
               <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                 <div className="text-sm font-medium text-slate-800">
                   Individual consultant performance metrics and analytics
@@ -939,13 +952,13 @@ export const LeadsInsights = ({
 
           {/* Consultant Performance Analysis */}
           {employeeAnalysis.length > 0 ? <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/5")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <Users className="h-4 w-4 text-brand-blue" />
                   Consultant Performance Details
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className={reportCardContentClass('space-y-3')}>
                 {employeeAnalysis.map((consultant, index) => {
                   const isConsultantLead = (lead: NewLead) =>
                     lead.assignee === consultant.employee || (leadAssigneeId(lead) && consultant.employeeIds.includes(leadAssigneeId(lead)!));
@@ -1081,7 +1094,7 @@ export const LeadsInsights = ({
                 })}
               </CardContent>
             </Card> : <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-gray-50 to-slate-50")}>
-              <CardContent className="p-6 text-center">
+              <CardContent className={reportCardContentClass('text-center')}>
                 <div className="text-sm text-slate-600">No consultant performance data available</div>
                 <div className="text-xs text-slate-500 mt-1">Data will appear when leads have assigned consultants</div>
               </CardContent>
@@ -1089,13 +1102,13 @@ export const LeadsInsights = ({
 
           {/* Top performing consultant highlight */}
           {employeeAnalysis.length > 0 && <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-brand-red/10")}>
-              <CardHeader className="pb-3">
+              <CardHeader className={reportCardHeaderClass}>
                 <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <Target className="h-4 w-4 text-brand-blue" />
                   Top Performing Consultant
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className={reportCardContentClass()}>
                 <div className="bg-white/70 rounded-lg border border-border p-3">
                   <div className="text-center">
                     <div className="text-lg font-bold text-slate-800">{employeeAnalysis[0].employee}</div>
@@ -1112,13 +1125,13 @@ export const LeadsInsights = ({
 
           {/* Overall consultant statistics */}
           <Card className={sectionCardClass("border-none shadow-sm bg-gradient-to-r from-brand-blue-soft to-background")}>
-            <CardHeader className="pb-3">
+            <CardHeader className={reportCardHeaderClass}>
               <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-brand-blue" />
                 Team Statistics
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className={reportCardContentClass()}>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white/70 rounded-lg border border-border p-3 text-center">
                   <div className="text-lg font-bold text-slate-800">{employeeAnalysis.length}</div>
@@ -1134,5 +1147,15 @@ export const LeadsInsights = ({
             </CardContent>
           </Card>
           </div>}
+
+        {canViewIdleAgents && activeTab === 'idle-agents' ? (
+          <IdleAgentsTab
+            filteredLeads={leads}
+            allLeads={allLeads ?? leads}
+            omnichannelRoster={omnichannelRoster}
+            rosterLoading={omnichannelRosterLoading}
+            denserSections={denserSections}
+          />
+        ) : null}
     </div>;
 };

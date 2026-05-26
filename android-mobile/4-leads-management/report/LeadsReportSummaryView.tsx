@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { SidebarTrigger } from '@/mobile-app/components/ui/sidebar';
 import { Button } from '@/shared/components/ui/button';
-import { Download, Loader2, Filter, BarChart3, LineChart, User2, RefreshCw } from 'lucide-react';
+import { Download, Loader2, Filter, RefreshCw } from 'lucide-react';
 import { useLeads } from '@/shared/hooks/organized/sales';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -14,9 +14,17 @@ import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 import { MobileConsultantLeadsReportPageSkeletonOverlay } from '../pages/MobileConsultantLeadsReportPageSkeletonOverlay';
 import { useLeadsInsightsSupplementalQueries } from '@/5-3-dashboard/hooks/useLeadsInsightsSupplementalQueries';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/mobile-app/components/ui/sheet';
-import { Separator } from '@/mobile-app/components/ui/separator';
 import { useToast } from '@/shared/components/ui/use-toast';
+import {
+  useLeadsReportIdleAccess,
+  useLeadsReportTabState,
+} from '@/5-3-dashboard/leads-report';
+import { LeadsReportFilterSheet } from './components/LeadsReportFilterSheet';
+import { LeadsReportTabDrawer } from './components/LeadsReportTabDrawer';
+import {
+  MOBILE_LEADS_REPORT_CONTENT_CLASS,
+  MOBILE_LEADS_REPORT_HEADER_CLASS,
+} from './mobileLeadsReportLayout';
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -61,7 +69,12 @@ export function LeadsReportSummaryView() {
   const [filters, setFilters] = useState<LeadsFilters>(defaultFilters);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>('overview');
+  const {
+    canViewIdleAgents,
+    omnichannelRoster,
+    omnichannelRosterLoading,
+  } = useLeadsReportIdleAccess();
+  const { activeTab, setActiveTab } = useLeadsReportTabState(canViewIdleAgents);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -280,7 +293,7 @@ export function LeadsReportSummaryView() {
     <>
       <header
         className={cn(
-          'safe-area-top sticky top-0 z-30 flex flex-shrink-0 items-center justify-between border-b border-border bg-card p-3',
+          MOBILE_LEADS_REPORT_HEADER_CLASS,
           suppressLiveContent,
         )}
         aria-hidden={showPageSkeleton}
@@ -327,87 +340,15 @@ export function LeadsReportSummaryView() {
         )}
       </header>
 
-      {isMobile && (
-        <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
-          <SheetContent
-            side="bottom"
-            className="max-h-[85vh] p-0 gap-0 flex flex-col rounded-t-2xl [&>button]:hidden"
-            underSafeArea
-          >
-            {/* Handle bar untuk bottom sheet */}
-            <div className="flex justify-center pt-2 pb-1 shrink-0">
-              <div className="w-10 h-1 rounded-full bg-muted-foreground/30" aria-hidden />
-            </div>
-            <SheetHeader className="flex flex-col gap-0 bg-primary text-primary-foreground px-4 py-3 shrink-0">
-              <SheetTitle className="text-base font-semibold text-center text-primary-foreground">
-                {t('leadsManagement.reportSummary.title', 'Report Summary')}
-              </SheetTitle>
-            </SheetHeader>
-            <Separator className="bg-primary/20 shrink-0" />
-            <div className="overflow-y-auto flex flex-col bg-background min-h-0 safe-area-bottom">
-              <div className="px-3 py-3 space-y-0.5">
-                {[
-                  { id: 'overview', label: 'Overview', icon: BarChart3 },
-                  { id: 'source-performance', label: 'Source Performance', icon: LineChart },
-                  { id: 'consultant-performance', label: 'Consultant Performance', icon: User2 },
-                ].map((item) => {
-                  const isActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTab(item.id);
-                      }}
-                      className={[
-                        'flex items-center gap-3 px-3 py-2.5 rounded-lg w-full min-w-0 transition-colors text-left',
-                        isActive ? 'text-primary font-medium bg-primary/10' : 'text-foreground hover:bg-primary/10',
-                      ].join(' ')}
-                    >
-                      <item.icon className="h-4 w-4 flex-shrink-0" />
-                      <span className="font-medium truncate min-w-0 flex-1">{item.label}</span>
-                      <span
-                        className={`flex-shrink-0 flex items-center justify-center rounded-full p-1 transition-colors ${
-                          isActive ? 'bg-primary/10 ring-1 ring-primary/20' : 'bg-muted/40 ring-1 ring-border/50'
-                        }`}
-                        aria-hidden
-                      >
-                        <span
-                          className={`w-2.5 h-2.5 rounded-full border-2 transition-colors ${
-                            isActive ? 'bg-primary border-primary shadow-sm' : 'bg-transparent border-muted-foreground/30'
-                          }`}
-                        />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <Separator className="bg-border" />
-              <div className="p-3">
-                <Button
-                  onClick={() => {
-                    generatePDFReport();
-                    setFilterDrawerOpen(false);
-                  }}
-                  disabled={isGeneratingPDF || !filteredLeads.length}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
-                >
-                  {isGeneratingPDF ? (
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-                  ) : (
-                    <Download className="h-4 w-4 shrink-0" aria-hidden />
-                  )}
-                  <span>
-                    {isGeneratingPDF
-                      ? t('leadsManagement.reportSummary.generating', 'Generating...')
-                      : t('leadsManagement.reportSummary.downloadPdf', 'Download PDF')}
-                  </span>
-                </Button>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
+      {isMobile ? (
+        <LeadsReportFilterSheet
+          open={filterDrawerOpen}
+          onOpenChange={setFilterDrawerOpen}
+          isGeneratingPDF={isGeneratingPDF}
+          canDownload={filteredLeads.length > 0}
+          onDownloadPdf={generatePDFReport}
+        />
+      ) : null}
 
       <div
         className={cn(
@@ -453,16 +394,24 @@ export function LeadsReportSummaryView() {
               )}
             </div>
           )}
-          <div className="mx-auto w-full min-w-0 max-w-md space-y-1 px-2 pt-2 content-padding-above-nav-leads-management">
+          <div className={MOBILE_LEADS_REPORT_CONTENT_CLASS}>
+            <LeadsReportTabDrawer activeTab={activeTab} onTabChange={setActiveTab} />
             <LeadsInsights
               leads={filteredLeads}
+              allLeads={leads}
               filters={filters}
               clientStatuses={clientStatuses}
               clientProfiles={clientProfiles}
               allEmployees={employees}
               organizationId={organizationId ?? undefined}
               denserSections={true}
-              {...(isMobile ? { activeTab, onActiveTabChange: setActiveTab, hideTabDropdown: true } : {})}
+              activeTab={activeTab}
+              onActiveTabChange={setActiveTab}
+              hideTabDropdown
+              dropdownIncludeIdleAgents={false}
+              canViewIdleAgents={canViewIdleAgents}
+              omnichannelRoster={omnichannelRoster}
+              omnichannelRosterLoading={omnichannelRosterLoading}
             />
           </div>
         </div>

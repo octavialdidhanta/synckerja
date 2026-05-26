@@ -1,5 +1,4 @@
 import { lazy, Suspense } from "react";
-import { SectionMotivation } from "../components/SectionMotivation";
 import { SectionProfile } from "../components/SectionProfile";
 import { OKRSectionVisibilityProvider } from "../components/HomeOKRDashboard/OKRSectionVisibilityContext";
 import { DeferredMount } from "@/shared/components/DeferredMount";
@@ -8,6 +7,12 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 const HomeOKRDashboard = lazy(() =>
   import("../components/HomeOKRDashboard/HomeOKRDashboard").then((m) => ({
     default: m.HomeOKRDashboard,
+  })),
+);
+
+const SectionMotivation = lazy(() =>
+  import("../components/SectionMotivation").then((m) => ({
+    default: m.SectionMotivation,
   })),
 );
 
@@ -64,6 +69,10 @@ function StatusSectionPlaceholder() {
   );
 }
 
+function MotivationPlaceholder() {
+  return <Skeleton className="h-[50px] w-full rounded-lg" aria-hidden />;
+}
+
 function OkrPanelPlaceholder() {
   return (
     <div
@@ -88,7 +97,11 @@ export function HomeScreen({ layoutVariant = "desktop" }: { layoutVariant?: Home
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
           <div className="flex min-h-full min-h-0 flex-col">
             <div className="mb-2 mt-2 min-h-[50px] flex-shrink-0">
-              <SectionMotivation />
+              <DeferredMount fallback={<MotivationPlaceholder />} idleTimeoutMs={2000} delayMs={400}>
+                <Suspense fallback={<MotivationPlaceholder />}>
+                  <SectionMotivation />
+                </Suspense>
+              </DeferredMount>
             </div>
 
             {layoutVariant === "desktop" ? <HomeDesktopGrid /> : <HomeMobileStack />}

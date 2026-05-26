@@ -31,9 +31,9 @@ export function AuthSplitLayout({
       >
         <div
           ref={scrollPanelRef}
-          className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-x-hidden overflow-y-auto px-5 py-8 sm:px-10 seamless-scroll lg:py-12"
+          className="scrollbar-hide seamless-scroll flex min-h-0 flex-1 flex-col items-stretch justify-start overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-10 sm:py-8 lg:items-center lg:justify-center lg:py-12"
         >
-          {children}
+          <div className="mx-auto w-full max-w-md">{children}</div>
         </div>
       </div>
     </div>

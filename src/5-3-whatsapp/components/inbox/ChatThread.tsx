@@ -64,6 +64,11 @@ import type { Locale } from 'date-fns';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useOmnichannelOutboundEntitlement } from '@/5-3-whatsapp/hooks/useOmnichannelOutboundEntitlement';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
+import {
+  isAssignedToOtherAgent,
+  isConversationUnassigned,
+} from '../../utils/assigneeSendGate';
 
 /** Bucket yang sama dipakai untuk kirim (outbound) dan terima (webhook/resolve) media */
 const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
@@ -71,6 +76,10 @@ const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
 /** Composer textarea: grow with Shift+Enter; cap visible height (~this many lines) then scroll */
 const CHAT_COMPOSER_MAX_LINES = 5;
 const CHAT_COMPOSER_MIN_HEIGHT_PX = 44;
+/** Horizontal inset shared by message list + composer (must stay matched). */
+const CHAT_THREAD_GUTTER_CLASS = 'px-2';
+/** Light gap between last bubble and composer (outside scroll area). */
+const CHAT_MESSAGES_ABOVE_COMPOSER_GAP_CLASS = 'gap-1.5';
 
 /** No-op: previously unlocked notification sound on user gesture. Bell sound removed. */
 function unlockInboundNotificationAudio() {
@@ -1190,6 +1199,8 @@ export function ChatThread({
   const browserTimeZone =
     typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
   const queryClient = useQueryClient();
+  const { employee } = useCentralizedUserData();
+  const currentEmployeeId = employee?.id ?? null;
   const { lacksOmnichannelEntitlement, showNoAddonWarning } = useOmnichannelOutboundEntitlement();
   const isInstagram = (conversation as LiveChatConversation)?.source === 'instagram';
   const waMessagesQuery = useWhatsAppMessages(!isInstagram ? conversation?.id ?? null : null);
@@ -1284,18 +1295,45 @@ export function ChatThread({
   /** WA/IG outbound: block only after subscription + roster resolve and no paid seats / agents. */
   const sendDisabledByNoOmnichannelAddon =
     (isWhatsAppConversation || isInstagram) && lacksOmnichannelEntitlement;
-  const hasAssignee = Boolean(conversationStatusRow?.assignee_id);
-  const sendDisabledByNoAssignee = (isWhatsAppConversation || isInstagram) && !hasAssignee;
+  const conversationAssigneeId = conversationStatusRow?.assignee_id ?? null;
+  const assigneeGateApplies = isWhatsAppConversation || isInstagram;
+  const sendDisabledByNoAssignee =
+    assigneeGateApplies && isConversationUnassigned(conversationAssigneeId);
+  const sendDisabledByNotAssignee =
+    assigneeGateApplies &&
+    isAssignedToOtherAgent(conversationAssigneeId, currentEmployeeId);
+  const hasAssignee = !isConversationUnassigned(conversationAssigneeId);
   const showFollowUpComposer =
     isWhatsAppConversation &&
     (isResolvedStatus(effectiveStatusName) || isExpiredStatusName(effectiveStatusName));
   const followUpActionDisabled =
-    sendDisabledByNoAccount || sendDisabledByNoOmnichannelAddon || sendDisabledByNoAssignee;
+    sendDisabledByNoAccount || sendDisabledByNoOmnichannelAddon;
   const sendDisabled =
     outboundSessionBlocked ||
     sendDisabledByNoAccount ||
     sendDisabledByNoOmnichannelAddon ||
-    sendDisabledByNoAssignee;
+    sendDisabledByNoAssignee ||
+    sendDisabledByNotAssignee;
+
+  const { data: assigneeEmployeeRow } = useQuery({
+    queryKey: ['omnichannel-assignee-display', conversationAssigneeId],
+    queryFn: async () => {
+      if (!conversationAssigneeId) return null;
+      const { data, error } = await supabase
+        .from('employees')
+        .select('full_name, email')
+        .eq('id', conversationAssigneeId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { full_name?: string | null; email?: string | null } | null;
+    },
+    enabled: sendDisabledByNotAssignee && Boolean(conversationAssigneeId),
+    staleTime: 60_000,
+  });
+  const assigneeDisplayName =
+    (assigneeEmployeeRow?.full_name && String(assigneeEmployeeRow.full_name).trim()) ||
+    (assigneeEmployeeRow?.email && String(assigneeEmployeeRow.email).trim()) ||
+    null;
 
   const isInstagramConversation = isInstagram;
   const isSending = isSendingWhatsApp || isSendingInstagram;
@@ -1549,7 +1587,19 @@ export function ChatThread({
             ),
           );
         } else if (sendDisabledByNoAssignee) {
-          toast.error(t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.'));
+          toast.error(
+            t(
+              'whatsappInbox.assignFromLeadsFirst',
+              'Tetapkan assignee di Leads Management sebelum membalas.',
+            ),
+          );
+        } else if (sendDisabledByNotAssignee) {
+          toast.error(
+            t(
+              'whatsappInbox.sendOnlyAssignedAgent',
+              'Hanya agen yang ditetapkan (assignee) pada chat ini yang dapat membalas.',
+            ),
+          );
         } else if (blockReasonResolved) {
           toast.error(
             t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.'),
@@ -1613,7 +1663,7 @@ export function ChatThread({
       }
       // Optimistic media dihapus saat pesan asli ada di list (useEffect hasMatchingRealMessage)
     },
-    [conversation, customerId, send, isInstagramConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, blockReasonResolved, blockReasonExpiredOrMeta]
+    [conversation, customerId, send, isInstagramConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, sendDisabledByNotAssignee, blockReasonResolved, blockReasonExpiredOrMeta]
   );
 
   /** Blokir pesan yang meminta kontak. Default ON; set VITE_WHATSAPP_BLOCK_CONTACT_REQUESTS=false untuk nonaktifkan. */
@@ -1633,7 +1683,19 @@ export function ChatThread({
           ),
         );
       } else if (sendDisabledByNoAssignee) {
-        toast.error(t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.'));
+        toast.error(
+          t(
+            'whatsappInbox.assignFromLeadsFirst',
+            'Tetapkan assignee di Leads Management sebelum membalas.',
+          ),
+        );
+      } else if (sendDisabledByNotAssignee) {
+        toast.error(
+          t(
+            'whatsappInbox.sendOnlyAssignedAgent',
+            'Hanya agen yang ditetapkan (assignee) pada chat ini yang dapat membalas.',
+          ),
+        );
       } else if (blockReasonResolved) {
         toast.error(t('whatsappInbox.conversationResolvedCannotSend', 'Chat sudah di-resolve. Kirim pesan tidak diizinkan sampai ada pesan masuk baru dari customer.'));
       } else if (blockReasonExpiredOrMeta) {
@@ -1800,7 +1862,7 @@ export function ChatThread({
             </p>
           </div>
         )}
-      <div className="relative flex-1 min-h-0 flex flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {stickyDateVisible && (
           <div
             className="pointer-events-none absolute left-0 right-0 top-2 z-20 px-2 transition-all duration-200 ease-out"
@@ -1818,21 +1880,12 @@ export function ChatThread({
             </div>
           </div>
         )}
+        <div
+          className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${CHAT_THREAD_GUTTER_CLASS} ${CHAT_MESSAGES_ABOVE_COMPOSER_GAP_CLASS}`}
+        >
       <div
         ref={messagesScrollRef}
-        className={`flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pl-2 pr-2 pt-6 min-h-0 bg-[#efeae2] flex flex-col-reverse gap-y-1 ${
-          replyTo
-            ? hideHeader
-              ? keyboardOpen
-                ? 'pb-[7rem]'
-                : 'pb-[calc(7rem+max(var(--safe-area-inset-bottom,0px),env(safe-area-inset-bottom,0px)+0.5rem))]'
-              : 'pb-[140px]'
-            : hideHeader
-              ? keyboardOpen
-                ? 'pb-[4rem]'
-                : 'pb-[calc(3.5rem+max(var(--safe-area-inset-bottom,0px),env(safe-area-inset-bottom,0px)+0.5rem))]'
-              : 'pb-[84px]'
-        }`}
+        className="flex min-h-0 flex-1 flex-col-reverse gap-y-1 overflow-x-hidden overflow-y-auto bg-[#efeae2] pt-6 scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden"
         {...(hideHeader ? { onTouchStart: unlockInboundNotificationAudio } : {})}
       >
         {isLoading ? (
@@ -2494,14 +2547,14 @@ export function ChatThread({
           })()
         )}
       </div>
-      </div>
       <div
         ref={chatInputBarRef}
-        className={`flex-shrink-0 absolute bottom-0 left-0 right-0 z-10 bg-[#efeae2] ${hideHeader ? 'px-1 pt-2' : 'px-4 pt-4'} ${keyboardOpen ? 'pb-2' : 'pb-[max(0.5rem,calc(env(safe-area-inset-bottom,0px)+0.5rem))]'}`}
+        className={`z-10 w-full min-w-0 flex-shrink-0 bg-[#efeae2] ${keyboardOpen ? 'pb-2' : 'pb-[max(0.5rem,calc(env(safe-area-inset-bottom,0px)+0.5rem))]'}`}
       >
+        <div className="flex w-full min-w-0 flex-col gap-1.5">
         {sendDisabledByNoAccount && (
           <div
-            className="text-sm font-medium text-slate-800 bg-slate-100 border-2 border-slate-300 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
+            className="text-sm font-medium text-slate-800 bg-slate-100 border-2 border-slate-300 rounded-lg px-3 py-2.5 flex items-center gap-2"
             role="alert"
             aria-live="assertive"
           >
@@ -2515,7 +2568,7 @@ export function ChatThread({
         )}
         {showNoAddonWarning && !sendDisabledByNoAccount && (
           <div
-            className="text-sm font-medium text-sky-900 bg-sky-100 border-2 border-sky-400 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
+            className="text-sm font-medium text-sky-900 bg-sky-100 border-2 border-sky-400 rounded-lg px-3 py-2.5 flex items-center gap-2"
             role="alert"
             aria-live="assertive"
           >
@@ -2530,21 +2583,64 @@ export function ChatThread({
             </span>
           </div>
         )}
-        {sendDisabledByNoAssignee && !sendDisabledByNoAccount && !sendDisabledByNoOmnichannelAddon && (
+        {sendDisabledByNoAssignee &&
+          !showFollowUpComposer &&
+          !sendDisabledByNoAccount &&
+          !sendDisabledByNoOmnichannelAddon && (
           <div
-            className="text-sm font-medium text-slate-900 bg-violet-50 border-2 border-violet-300 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
+            className="text-sm font-medium text-slate-900 bg-violet-50 border-2 border-violet-300 rounded-lg px-3 py-2.5 flex items-center gap-2"
             role="alert"
             aria-live="polite"
           >
             <span className="flex-shrink-0 w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center text-white text-xs" aria-hidden>
               !
             </span>
-            <span>{t('whatsappInbox.sendRequiresAssignee', 'Tetapkan agen (assignee) pada percakapan ini sebelum mengirim pesan.')}</span>
+            <span>
+              {t(
+                'whatsappInbox.assignFromLeadsFirst',
+                'Tetapkan assignee di Leads Management sebelum membalas.',
+              )}
+            </span>
           </div>
         )}
-        {outboundSessionBlocked && !sendDisabledByNoAccount && !sendDisabledByNoOmnichannelAddon && !sendDisabledByNoAssignee && (
+        {sendDisabledByNotAssignee &&
+          !showFollowUpComposer &&
+          !sendDisabledByNoAccount &&
+          !sendDisabledByNoOmnichannelAddon && (
           <div
-            className="text-sm font-medium text-amber-800 bg-amber-100 border-2 border-amber-400 rounded-lg px-3 py-2.5 mb-2 flex items-center gap-2"
+            className="text-sm font-medium text-slate-900 bg-amber-50 border-2 border-amber-300 rounded-lg px-3 py-2.5 flex items-center gap-2"
+            role="alert"
+            aria-live="polite"
+          >
+            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-white text-xs" aria-hidden>
+              !
+            </span>
+            <span>
+              {assigneeDisplayName
+                ? t('whatsappInbox.sendOnlyAssignedAgentNamed', 'Hanya {{name}} (assignee) yang dapat membalas chat ini.', {
+                    name: assigneeDisplayName,
+                  })
+                : t(
+                    'whatsappInbox.sendOnlyAssignedAgent',
+                    'Hanya agen yang ditetapkan (assignee) pada chat ini yang dapat membalas.',
+                  )}
+            </span>
+          </div>
+        )}
+        {showFollowUpComposer && !hasAssignee && !sendDisabledByNoAccount && !sendDisabledByNoOmnichannelAddon && (
+          <div
+            className="text-sm text-slate-800 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2.5"
+            role="status"
+          >
+            {t(
+              'whatsappInbox.followUp.autoAssignHint',
+              'Saat Anda mengirim follow-up, Anda akan otomatis ditetapkan sebagai agen percakapan ini.',
+            )}
+          </div>
+        )}
+        {outboundSessionBlocked && !sendDisabledByNoAccount && !sendDisabledByNoOmnichannelAddon && !sendDisabledByNoAssignee && !sendDisabledByNotAssignee && (
+          <div
+            className="text-sm font-medium text-amber-800 bg-amber-100 border-2 border-amber-400 rounded-lg px-3 py-2.5 flex items-center gap-2"
             role="alert"
             aria-live="assertive"
           >
@@ -2572,7 +2668,7 @@ export function ChatThread({
           onChange={handleFileSelect}
         />
         {pendingMedia && (
-          <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-gray-100 border border-gray-200">
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-100 border border-gray-200">
             {pendingMedia.previewUrl ? (
               <img
                 src={pendingMedia.previewUrl}
@@ -2607,7 +2703,7 @@ export function ChatThread({
             onOpen={() => setFollowUpDialogOpen(true)}
           />
         ) : (
-        <div className={`flex flex-col rounded-xl border-2 border-border bg-background shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:border-primary/50 ${sendDisabled ? 'opacity-70' : ''} ${hideHeader ? 'min-h-[44px]' : 'min-h-[44px]'}`}>
+        <div className={`flex w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0 ${sendDisabled ? 'opacity-70' : ''} min-h-[44px]`}>
           {replyTo && (
             <div className="flex items-start gap-2 px-2 pt-2 pb-1.5 border-b border-border bg-muted/50">
               <div className="flex items-start gap-2 min-w-0 flex-1">
@@ -2699,13 +2795,16 @@ export function ChatThread({
             disabled={sendDisabled || (!text.trim() && !pendingMedia) || isSending || isUploading}
             title={t('whatsappInbox.send', 'Send')}
             aria-label={t('whatsappInbox.send', 'Send')}
-            className="mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-border bg-background text-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-background"
+            className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-background"
           >
             <Send className={hideHeader ? 'w-4 h-4' : 'w-4 h-4'} strokeWidth={2.5} />
           </button>
           </div>
         </div>
         )}
+        </div>
+      </div>
+        </div>
       </div>
       {showFollowUpComposer && conversation?.source === 'whatsapp' ? (
         <LivechatFollowUpDialog

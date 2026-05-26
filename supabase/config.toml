@@ -37,6 +37,10 @@ verify_jwt = false
 [functions.google-maps-key]
 verify_jwt = false
 
+# Native Google Sign-In (public web/iOS client ids for Capacitor; no user JWT).
+[functions.google-sso-public-config]
+verify_jwt = false
+
 [functions.calculate-prorate]
 verify_jwt = false
 
@@ -101,4 +105,17 @@ verify_jwt = false
 
 # Cron / scheduler calls with x-customer-survey-dispatch-secret; dispatches pending survey WhatsApp messages (service role inside).
 [functions.dispatch-customer-survey-wa]
+verify_jwt = false
+
+# Google Ads per-tenant: user JWT validated inside; OAuth callback has no JWT.
+[functions.google-ads-upload-offline-conversion]
+verify_jwt = false
+
+[functions.google-ads-oauth-start]
+verify_jwt = false
+
+[functions.google-ads-oauth-callback]
+verify_jwt = false
+
+[functions.google-ads-config]
 verify_jwt = false

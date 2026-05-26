@@ -59,12 +59,23 @@ export const AttendanceStatusProvider = ({ children }: AttendanceStatusProviderP
         .select('id, full_name')
         .eq('user_id', user.id)
         .eq('organization_id', organizationId)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (employeeError || !employee) {
+      if (employeeError) {
         if (import.meta.env?.DEV) {
-          console.error('❌ Employee not found:', employeeError);
+          console.warn('⚠️ Failed to fetch employee for attendance status:', employeeError);
         }
+        setIsLoading(false);
+        return;
+      }
+      if (!employee) {
+        // Normal for some users/orgs (e.g. owner without employee row yet).
+        // Keep state stable and do not treat as an error.
+        setTodayRecord(null);
+        setHasCheckedIn(false);
+        setHasCheckedOut(false);
         setIsLoading(false);
         return;
       }

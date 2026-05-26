@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SubscriptionSectionLayout } from "@/10-subscription/shared/SubscriptionSectionLayout";
 import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
@@ -7,7 +7,6 @@ import { useNextBillingFromPayments } from "@/10-subscription/hooks/useNextBilli
 import { useSubscriptionAnalytics } from "@/10-subscription/hooks/useSubscriptionAnalytics";
 import { useOptimizedPerformanceMonitor } from "@/10-subscription/hooks/useOptimizedPerformanceMonitor";
 import { useOrganizationOmnichannelStaff } from "@/shared/hooks/useOrganizationOmnichannelStaff";
-import { cn } from "@/shared/lib/utils";
 import {
   CurrentSubscription,
   EmployeeGrowthChart,
@@ -18,49 +17,6 @@ import {
   OverviewSidebarFooter,
   UsageMetricsCards,
 } from "@/10-subscription/overview/section";
-
-function OverviewPageSkeleton() {
-  return (
-    <div className="grid min-h-[calc(100dvh-210px)] w-full min-w-0 max-w-full flex-1 grid-cols-12 gap-2 [@media(max-height:900px)]:min-h-[760px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[860px]">
-      <div className="col-span-12 flex min-h-0 min-w-0 flex-col md:col-span-9">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          <div className="border-b border-border px-4 py-3">
-            <div className="h-4 w-44 animate-pulse rounded bg-muted" />
-            <div className="mt-2 h-3 w-72 animate-pulse rounded bg-muted" />
-          </div>
-          <div className="space-y-4 p-4">
-            <div className="h-40 animate-pulse rounded bg-muted/60" />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={`overview-metric-skeleton-${i}`} className="h-24 animate-pulse rounded bg-muted/60" />
-              ))}
-            </div>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="h-64 animate-pulse rounded bg-muted/60" />
-              <div className="h-64 animate-pulse rounded bg-muted/60" />
-            </div>
-            <div className="grid grid-cols-1 gap-1.5 md:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={`overview-usage-skeleton-${i}`} className="h-20 animate-pulse rounded bg-muted/60" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="col-span-12 flex min-h-0 min-w-0 flex-col md:col-span-3">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card p-4">
-          <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-          <div className="mt-2 h-3 w-40 animate-pulse rounded bg-muted" />
-          <div className="mt-4 space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={`overview-sidebar-skeleton-${i}`} className="h-8 animate-pulse rounded bg-muted/60" />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const OverviewTabContent = memo(
   function OverviewTabContent({
@@ -196,8 +152,6 @@ export default function OverviewPage() {
   const { data: omnichannelRoster = [], isPending: omnichannelRosterPending } = useOrganizationOmnichannelStaff();
 
   const [isFooterRefreshing, setIsFooterRefreshing] = useState(false);
-  const [initialOverviewReady, setInitialOverviewReady] = useState(false);
-  const [skeletonVisible, setSkeletonVisible] = useState(true);
 
   const handleOverviewFooterRefresh = useCallback(async () => {
     setIsFooterRefreshing(true);
@@ -209,61 +163,21 @@ export default function OverviewPage() {
     }
   }, [refreshSubscriptionStatus, refetchAnalytics]);
 
-  const initialBootstrapping =
-    !organizationId ||
-    statusLoading ||
-    analyticsLoading ||
-    paymentsLoading ||
-    (!subscriptionStatus && !statusError);
-
-  useEffect(() => {
-    if (initialOverviewReady) return;
-
-    if (initialBootstrapping) {
-      setSkeletonVisible(true);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setInitialOverviewReady(true);
-      setSkeletonVisible(false);
-    }, 180);
-
-    return () => window.clearTimeout(timer);
-  }, [initialBootstrapping, initialOverviewReady]);
-
-  const showShellSkeleton = !initialOverviewReady && skeletonVisible;
-
   return (
     <SubscriptionSectionLayout>
-      <div className="relative box-border flex min-h-0 min-h-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden px-4 pb-2 pt-1">
-        <div
-          className={cn(
-            "flex min-h-0 min-w-0 flex-1 flex-col",
-            showShellSkeleton && "pointer-events-none invisible",
-          )}
-        >
-          <OverviewTabContent
-            subscriptionStatus={subscriptionStatus}
-            analytics={analytics}
-            refreshSubscriptionStatus={refreshSubscriptionStatus}
-            nextBillingOverride={nextBillingOverride}
-            nextBillingLoading={initialOverviewReady ? paymentsLoading : false}
-            onFooterRefresh={handleOverviewFooterRefresh}
-            isFooterRefreshing={isFooterRefreshing}
-            omnichannelRosterActiveCount={omnichannelRoster.length}
-            omnichannelRosterPending={omnichannelRosterPending}
-          />
-          <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
-        </div>
-        {showShellSkeleton ? (
-          <div
-            className="absolute inset-0 z-10 scrollbar-hide seamless-scroll nested-scroll-touch-chain overflow-y-auto overflow-x-hidden bg-gray-100 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            aria-busy="true"
-          >
-            <OverviewPageSkeleton />
-          </div>
-        ) : null}
+      <div className="box-border flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden px-4 pb-2 pt-1">
+        <OverviewTabContent
+          subscriptionStatus={subscriptionStatus}
+          analytics={analytics}
+          refreshSubscriptionStatus={refreshSubscriptionStatus}
+          nextBillingOverride={nextBillingOverride}
+          nextBillingLoading={paymentsLoading}
+          onFooterRefresh={handleOverviewFooterRefresh}
+          isFooterRefreshing={isFooterRefreshing}
+          omnichannelRosterActiveCount={omnichannelRoster.length}
+          omnichannelRosterPending={omnichannelRosterPending}
+        />
+        <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
       </div>
     </SubscriptionSectionLayout>
   );

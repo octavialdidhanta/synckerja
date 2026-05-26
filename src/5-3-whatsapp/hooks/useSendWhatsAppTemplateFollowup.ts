@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import type { WhatsAppMessage } from '../types';
+import { FollowUpSendError } from '../utils/followUpSendError';
 
 export interface SendWhatsAppTemplateFollowupParams {
   conversation_id?: string;
@@ -33,13 +34,16 @@ export function useSendWhatsAppTemplateFollowup() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         const serverMsg = typeof json?.error === 'string' ? json.error : 'Failed to send follow-up';
-        throw new Error(serverMsg);
+        const code = typeof json?.code === 'string' ? json.code : undefined;
+        throw new FollowUpSendError(serverMsg, code);
       }
       return json as {
         success?: boolean;
         message?: WhatsAppMessage | null;
         followup_id?: string | null;
         lead_status_id?: string | null;
+        assignee_id?: string | null;
+        assignee_auto_assigned?: boolean;
         conversation_id?: string;
         conversation_created?: boolean;
         lead_id?: string;
@@ -60,13 +64,18 @@ export function useSendWhatsAppTemplateFollowup() {
       if (conversationId) {
         const statusQueryKey = ['whatsapp-conversation-status', conversationId] as const;
         const statusIdFromBackend = data?.lead_status_id ?? null;
-        if (statusIdFromBackend) {
+        const assigneeIdFromBackend = data?.assignee_id ?? null;
+        if (statusIdFromBackend || assigneeIdFromBackend) {
           queryClient.setQueryData(statusQueryKey, (prev: unknown) => {
             const base =
               prev && typeof prev === 'object' && prev !== null && !Array.isArray(prev)
                 ? (prev as Record<string, unknown>)
                 : {};
-            return { ...base, lead_status_id: statusIdFromBackend };
+            return {
+              ...base,
+              ...(statusIdFromBackend ? { lead_status_id: statusIdFromBackend } : {}),
+              ...(assigneeIdFromBackend ? { assignee_id: assigneeIdFromBackend } : {}),
+            };
           });
         }
         queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });

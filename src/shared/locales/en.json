@@ -101,6 +101,27 @@
       "successBody": "Your account is active. Log in to continue.",
       "goLogin": "Continue to login"
     },
+    "google": {
+      "continueLogin": "Continue with Google",
+      "continueRegister": "Sign up with Google",
+      "redirecting": "Redirecting to Google…",
+      "signingIn": "Signing in with Google…",
+      "orDivider": "or",
+      "registerTermsPrefix": "By continuing with Google, you agree to our",
+      "callbackLoading": "Completing Google sign-in…",
+      "callbackErrorTitle": "Google sign-in failed",
+      "backToLogin": "Back to login",
+      "errors": {
+        "generic": "Could not sign in with Google. Try again or use email and password.",
+        "accessDenied": "Google sign-in was cancelled.",
+        "androidMisconfiguredTitle": "Google sign-in failed on Android",
+        "androidMisconfiguredDescription": "Desktop can still work because it uses Supabase OAuth redirect (Dashboard settings). Native Android needs an extra step: an Android OAuth client in Google Cloud (package id.synckerja.app) whose SHA-1 matches the APK you install (see .\\gradlew.bat :app:signingReport). That does not mean your Supabase Web client ID is wrong. After fixing SHA-1: npm run build, npx cap sync android, reinstall.",
+        "reauthFailedTitle": "Google could not verify the account",
+        "reauthFailedDescription": "Android reported Account reauth failed (not a cancel). On emulator: use a Google Play image, add a Google account in Settings, update Google Play services, or test on a physical phone. Also verify Android OAuth SHA-1 for this build and that the account is a Test user if the OAuth app is in Testing.",
+        "noSession": "No active session after Google sign-in. Try again.",
+        "notConfigured": "Native Google sign-in is not configured. Set VITE_GOOGLE_SSO_WEB_CLIENT_ID (and VITE_GOOGLE_SSO_IOS_CLIENT_ID on iOS) in the app build, and add Android/iOS OAuth clients in Google Cloud."
+      }
+    },
     "login": {
       "welcomeTitle": "Synckerja Office",
       "email": "Email address *",

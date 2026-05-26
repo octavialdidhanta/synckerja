@@ -9,7 +9,7 @@ const MobileSchedule = lazy(() => import("@/mobile/1-schedule/pages/Schedule"));
 const MobileClientVisit = lazy(() => import("@/mobile/1-client-visit/pages/ClientVisit"));
 const MobileAttendanceReports = lazy(() => import("@/mobile/1-reports/pages/Reports"));
 const MobileProfileParity = lazy(() => import("@/mobile/1-profile/pages/Profile"));
-const DesktopModernHomePage = lazy(() => import("@/1-home").then((m) => ({ default: m.ModernHomePage })));
+const DesktopModernHomePage = lazy(() => import("@/1-home/pages/ModernHomePage"));
 const DesktopProfileSettings = lazy(() =>
   import("@/1-home/settings").then((m) => ({ default: m.ProfileSettings })),
 );

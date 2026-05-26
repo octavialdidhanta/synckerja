@@ -17,10 +17,16 @@
     "android:open": "npx cap open android",
     "android:prepare": "npm run build && npx cap sync android",
     "supabase:db:push": "npx supabase db push",
-    "supabase:functions:deploy:google-ads": "npx supabase functions deploy google-ads-upload-offline-conversion"
+    "supabase:functions:deploy:google-ads": "npx supabase functions deploy google-ads-upload-offline-conversion",
+    "supabase:functions:deploy:google-ads-oauth-start": "npx supabase functions deploy google-ads-oauth-start",
+    "supabase:functions:deploy:google-ads-oauth-callback": "npx supabase functions deploy google-ads-oauth-callback",
+    "supabase:functions:deploy:google-ads-config": "npx supabase functions deploy google-ads-config",
+    "supabase:functions:deploy:google-ads-all": "npx supabase functions deploy google-ads-upload-offline-conversion && npx supabase functions deploy google-ads-oauth-start && npx supabase functions deploy google-ads-oauth-callback && npx supabase functions deploy google-ads-config",
+    "supabase:functions:deploy:wa-followup": "npx supabase functions deploy send-whatsapp-template-followup"
   },
   "dependencies": {
     "@capacitor/app": "^8.0.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/camera": "^8.0.0",
     "@capacitor/core": "^8.3.0",
     "@capacitor/geolocation": "^8.0.0",
@@ -31,6 +37,7 @@
     "@capacitor/screen-orientation": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.0",
     "@capacitor/status-bar": "^8.0.0",
+    "@capgo/capacitor-social-login": "^8.3.22",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

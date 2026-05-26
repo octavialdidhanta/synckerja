@@ -13,6 +13,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 
 interface SectionStatusKaryawanProps {
   statusCreatedTrigger?: number;
@@ -128,7 +129,18 @@ export const SectionStatusKaryawan = ({ statusCreatedTrigger }: SectionStatusKar
   };
 
   if (loading) {
-    return null;
+    // Keep placeholder visible until the status list query is ready.
+    // This avoids the Home loading skeleton disappearing while the section is still loading.
+    return (
+      <div
+        className="grid min-h-[4.5rem] grid-cols-2 gap-2 md:grid-cols-4"
+        aria-hidden
+      >
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-lg" />
+        ))}
+      </div>
+    );
   }
 
   return (

@@ -33,6 +33,7 @@ import {
   useLeadsManagementFilterQueries,
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
 import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
+import { useGoogleAdsIntegrationEnabled } from '@/google-ads/hooks/useGoogleAdsIntegrationEnabled';
 
 interface LeadsTableViewContentProps {
   // No props needed now, using the hook
@@ -68,6 +69,7 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
   const [surveyHistoryLead, setSurveyHistoryLead] = useState<NewLead | null>(null);
   const [surveyHistoryOpen, setSurveyHistoryOpen] = useState(false);
   const { organizationId } = useCurrentOrg();
+  const { data: googleAdsIntegrationEnabled = false } = useGoogleAdsIntegrationEnabled(organizationId);
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads({ scope });
   const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
     organizationId,
@@ -471,7 +473,7 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
                     value: filters.landingUrlContains,
                     onChange: handleLandingUrlContainsChange,
                   }}
-                  showGoogleAdsSyncColumn
+                  showGoogleAdsSyncColumn={googleAdsIntegrationEnabled}
                   getGoogleAdsSyncForLead={getSyncForLead}
                   googleAdsSyncLoading={googleAdsSyncLoading}
                   getSurveyForLead={getSurveyForLead}

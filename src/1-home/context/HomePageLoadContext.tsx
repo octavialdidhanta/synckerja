@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-const SKELETON_HIDE_DEBOUNCE_MS = 220;
+const SKELETON_HIDE_DEBOUNCE_MS = 120;
 
 export type HomeSectionId =
   | "motivation"
@@ -17,8 +17,19 @@ export type HomeSectionId =
   | "activity"
   | "status";
 
-/** Section yang harus siap sebelum skeleton penuh hilang. OKR dimuat terpisah (lazy). */
-const BLOCKING_HOME_SECTIONS: HomeSectionId[] = ["motivation", "profile"];
+/**
+ * Tidak menahan overlay skeleton penuh — LCP (greeting OKR / layout) tidak tertutup
+ * menunggu section kritis home siap. Tiap section punya placeholder sendiri,
+ * namun untuk hard refresh / route resume kita butuh skeleton full yang hanya
+ * hilang saat semua section utama sudah selesai fetch.
+ */
+const BLOCKING_HOME_SECTIONS: HomeSectionId[] = [
+  "motivation",
+  "profile",
+  "okr",
+  "activity",
+  "status",
+];
 
 export type HomeSectionStatus = {
   loading: boolean;
@@ -30,8 +41,10 @@ function createInitialSections(): Record<HomeSectionId, HomeSectionStatus> {
     motivation: { loading: true, error: null },
     profile: { loading: true, error: null },
     okr: { loading: true, error: null },
-    activity: { loading: false, error: null },
-    status: { loading: false, error: null },
+    // Default `true` agar full-page skeleton tidak menghilang sebelum section
+    // sempat melaporkan status loading pertamanya.
+    activity: { loading: true, error: null },
+    status: { loading: true, error: null },
   };
 }
 
@@ -54,7 +67,9 @@ export function HomePageLoadProvider({ children }: { children: React.ReactNode }
     [sections],
   );
 
-  const [showFullPageSkeleton, setShowFullPageSkeleton] = useState(true);
+  const [showFullPageSkeleton, setShowFullPageSkeleton] = useState(
+    () => BLOCKING_HOME_SECTIONS.length > 0,
+  );
   /** After first successful reveal, ignore brief `loading` blips (refetch) — avoids full-page skeleton flicker. */
   const hasRevealedContentRef = useRef(false);
 
