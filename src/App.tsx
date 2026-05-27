@@ -60,6 +60,7 @@ import {
   SocialMediaSettingsPageSkeleton,
   SocialMediaShellSkeleton,
   TrafficPageSkeleton,
+  GoogleAdsMetricsPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
@@ -140,6 +141,7 @@ const SocialMediaProductKnowledgePage = lazy(() => import("@/6-1-product-knowled
 const SocialMediaScriptGeneratorPage = lazy(() => import("@/6-1-script-generator/ScriptGeneratorPage"));
 const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings/SettingsPage"));
 const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
+const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
 const MobileWebTrafficPage = lazy(() => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPage"));
 const MobileWebTrafficPageSkeleton = lazy(
   () => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPageSkeleton"),
@@ -1602,6 +1604,20 @@ function TrafficMobileAwareRouteElement() {
   );
 }
 
+function GoogleAdsMetricsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <GoogleAdsMetricsPageSkeleton />
+        </div>
+      }
+    >
+      <GoogleAdsMetricsPage />
+    </Suspense>
+  );
+}
+
 const SocialMediaProductKnowledgeSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -2783,6 +2799,18 @@ const App = () => (
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <TrafficMobileAwareRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/google-ads"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/google-ads"
+                              loadingShell={<GoogleAdsMetricsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <GoogleAdsMetricsPageRouteElement />
                             </PageAccessGuard>
                           }
                         />

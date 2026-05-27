@@ -153,6 +153,19 @@ export function useGoogleAdsSettings(organizationId: string | null | undefined) 
     onSuccess: invalidate,
   });
 
+  const syncAccessibleAccounts = useMutation({
+    mutationFn: async () => {
+      if (!organizationId) throw new Error("No organization");
+      const data = await invokeConfig(organizationId, "syncAccessibleAccounts");
+      return data as {
+        imported?: number;
+        skipped?: Array<{ customer_id: string; reason: string }>;
+        accounts?: unknown[];
+      };
+    },
+    onSuccess: invalidate,
+  });
+
   return {
     ...query,
     startOAuth,
@@ -165,5 +178,6 @@ export function useGoogleAdsSettings(organizationId: string | null | undefined) 
     listAccessibleCustomers,
     listConversionActions,
     importLegacy,
+    syncAccessibleAccounts,
   };
 }

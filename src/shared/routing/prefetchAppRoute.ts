@@ -13,6 +13,10 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-0-traffic/pages/TrafficPage"),
   },
   {
+    prefix: "/digital-marketing/google-ads",
+    prefetch: () => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"),
+  },
+  {
     prefix: "/kol-management/dashboard",
     prefetch: () =>
       import("@/6-2-1-dashboard/kol-management/pages/KolManagementDashboardPage").then((m) => ({

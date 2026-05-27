@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -51,6 +52,7 @@ export function GoogleAdsSettingsShell() {
     listAccessibleCustomers,
     listConversionActions,
     importLegacy,
+    syncAccessibleAccounts,
   } = useGoogleAdsSettings(organizationId);
 
   const [mccDraft, setMccDraft] = useState("");
@@ -195,6 +197,26 @@ export function GoogleAdsSettingsShell() {
           <Skeleton className="h-40 w-full max-w-2xl" />
         ) : (
           <div className="max-w-2xl space-y-6">
+            <Alert>
+              <AlertTitle>
+                {t("omnichannel.settings.googleAds.developerTokenTitle", "Google Ads API developer token")}
+              </AlertTitle>
+              <AlertDescription className="text-sm">
+                {t(
+                  "omnichannel.settings.googleAds.developerTokenBody",
+                  "Production customer accounts require a developer token with Basic or Standard access. Test-only tokens only work with test accounts.",
+                )}{" "}
+                <a
+                  href="https://ads.google.com/aw/apicenter"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-primary underline"
+                >
+                  {t("omnichannel.settings.googleAds.apiCenterLink", "Open API Center")}
+                </a>
+              </AlertDescription>
+            </Alert>
+
             <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
               <h3 className="text-sm font-semibold">{t("omnichannel.settings.googleAds.connectionTitle")}</h3>
               <p className="text-xs text-muted-foreground">
@@ -347,12 +369,49 @@ export function GoogleAdsSettingsShell() {
             </section>
 
             <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">{t("omnichannel.settings.googleAds.accountsTitle")}</h3>
-                <Button type="button" size="sm" variant="outline" disabled={!oauthConnected} onClick={openAddAccount}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  {t("omnichannel.settings.googleAds.addAccount")}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!oauthConnected || syncAccessibleAccounts.isPending}
+                    onClick={async () => {
+                      try {
+                        const result = await syncAccessibleAccounts.mutateAsync();
+                        const imported = result.imported ?? 0;
+                        if (imported > 0) {
+                          toast.success(
+                            t("omnichannel.settings.googleAds.syncImported", {
+                              defaultValue: "Imported {{count}} account(s).",
+                              count: imported,
+                            }),
+                          );
+                        } else {
+                          toast.message(
+                            t("omnichannel.settings.googleAds.syncUpToDate", {
+                              defaultValue: "No new accounts to import from Google.",
+                            }),
+                          );
+                        }
+                      } catch (e) {
+                        toast.error((e as Error).message);
+                      }
+                    }}
+                  >
+                    {syncAccessibleAccounts.isPending ? (
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-1 h-4 w-4" />
+                    )}
+                    {t("omnichannel.settings.googleAds.syncFromGoogle", "Sync from Google")}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={!oauthConnected} onClick={openAddAccount}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    {t("omnichannel.settings.googleAds.addAccount")}
+                  </Button>
+                </div>
               </div>
               {accounts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("omnichannel.settings.googleAds.noAccounts")}</p>

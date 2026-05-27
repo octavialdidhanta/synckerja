@@ -10,11 +10,10 @@ import {
   requireOrgAdmin,
 } from "../_shared/googleAdsAuth.ts";
 import { resolveOrgGoogleAdsForUpload } from "../_shared/googleAdsOrgResolver.ts";
+import { gaqlSearch } from "../_shared/googleAdsGaql.ts";
 import {
   fetchGoogleAdsAccessToken,
-  googleAdsApiVersion,
   listAccessibleCustomerIds,
-  parseGoogleAdsErrorMessage,
   readGoogleAdsConfig,
   type GoogleAdsConfig,
 } from "../google-ads-upload-offline-conversion/googleAdsHelpers.ts";
@@ -35,42 +34,6 @@ async function buildRuntimeConfig(
     requireUploadsEnabled: false,
   });
   return resolved?.config ?? null;
-}
-
-async function gaqlSearch<T extends Record<string, unknown>>(
-  config: GoogleAdsConfig,
-  accessToken: string,
-  customerId: string,
-  query: string,
-): Promise<T[]> {
-  const apiVersion = googleAdsApiVersion();
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${accessToken}`,
-    "developer-token": config.developerToken,
-    "Content-Type": "application/json",
-  };
-  if (config.loginCustomerId) headers["login-customer-id"] = config.loginCustomerId;
-
-  const res = await fetch(
-    `https://googleads.googleapis.com/${apiVersion}/customers/${customerId}/googleAds:search`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ query }),
-    },
-  );
-  const text = await res.text();
-  let json: Record<string, unknown> = {};
-  try {
-    json = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-  } catch {
-    json = { raw: text };
-  }
-  if (!res.ok) {
-    throw new Error(parseGoogleAdsErrorMessage(json));
-  }
-  const results = json.results as T[] | undefined;
-  return results ?? [];
 }
 
 Deno.serve(async (req: Request) => {
@@ -357,6 +320,101 @@ Deno.serve(async (req: Request) => {
       }, { onConflict: "organization_id" });
       return googleAdsJson({ ok: false, error: msg }, 200);
     }
+  }
+
+  if (action === "syncAccessibleAccounts") {
+    const config = await buildRuntimeConfig(admin, organizationId);
+    if (!config) {
+      return googleAdsJson({ error: "Connect Google Ads first" }, 400);
+    }
+
+    let accessToken: string;
+    try {
+      accessToken = await fetchGoogleAdsAccessToken(config);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return googleAdsJson({ error: msg, code: "TOKEN_REFRESH_FAILED" }, 401);
+    }
+
+    const accessibleIds = await listAccessibleCustomerIds(config, accessToken);
+    const { data: existingRows } = await admin
+      .from("organization_google_ads_accounts")
+      .select("customer_id, is_default, sort_order")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true);
+
+    const existingSet = new Set(
+      (existingRows ?? []).map((r) => String(r.customer_id).replace(/\D/g, "")),
+    );
+    let hasDefault = (existingRows ?? []).some((r) => r.is_default === true);
+    const sortOrders = (existingRows ?? []).map((r) => Number(r.sort_order) || 0);
+    let sortOrder = sortOrders.length > 0 ? Math.max(...sortOrders) + 1 : 0;
+
+    const skipped: Array<{ customer_id: string; reason: string }> = [];
+    const imported: Record<string, unknown>[] = [];
+
+    for (const rawId of accessibleIds) {
+      const cid = digitsOnly(rawId, 10);
+      if (!cid || existingSet.has(cid)) continue;
+
+      const runtime: GoogleAdsConfig = { ...config, customerId: cid };
+      let conversionActionId = "";
+      try {
+        const convRows = await gaqlSearch<{ conversionAction?: { id?: string } }>(
+          runtime,
+          accessToken,
+          cid,
+          "SELECT conversion_action.id FROM conversion_action WHERE conversion_action.status = 'ENABLED' LIMIT 1",
+        );
+        conversionActionId = digitsOnly(
+          convRows[0]?.conversionAction?.id != null
+            ? String(convRows[0].conversionAction.id)
+            : "",
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        skipped.push({ customer_id: cid, reason: `conversion_fetch_failed: ${msg.slice(0, 120)}` });
+        continue;
+      }
+
+      if (!conversionActionId) {
+        skipped.push({ customer_id: cid, reason: "no_conversion_action" });
+        continue;
+      }
+
+      const makeDefault = !hasDefault;
+      const { data: inserted, error: insertErr } = await admin
+        .from("organization_google_ads_accounts")
+        .insert({
+          organization_id: organizationId,
+          label: `Account ${cid}`,
+          customer_id: cid,
+          conversion_action_id: conversionActionId,
+          is_default: makeDefault,
+          is_active: true,
+          sort_order: sortOrder,
+        })
+        .select()
+        .maybeSingle();
+
+      if (insertErr) {
+        skipped.push({ customer_id: cid, reason: insertErr.message.slice(0, 120) });
+        continue;
+      }
+
+      if (inserted) {
+        imported.push(inserted);
+        existingSet.add(cid);
+        sortOrder += 1;
+        if (makeDefault) hasDefault = true;
+      }
+    }
+
+    return googleAdsJson({
+      imported: imported.length,
+      skipped,
+      accounts: imported,
+    }, 200);
   }
 
   if (action === "importLegacyEnvSecrets") {

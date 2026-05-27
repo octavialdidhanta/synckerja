@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.google-ads-config]
 verify_jwt = false
+
+[functions.google-ads-metrics]
+verify_jwt = false

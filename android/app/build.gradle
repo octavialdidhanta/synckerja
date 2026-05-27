@@ -7,8 +7,9 @@ android {
         applicationId "id.synckerja.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 19
-        versionName "1.1.9"
+        versionCode 23
+        versionName "1.2.3"
+        versionName "1.2.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -18,8 +19,13 @@ android {
     }
     buildTypes {
         release {
+            // Capacitor/WebView: keep false unless proguard-rules are expanded for all plugins.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Embed native debug symbols in the AAB for Play Console (crash/ANR deobfuscation).
+            ndk {
+                debugSymbolLevel 'FULL'
+            }
         }
     }
 }

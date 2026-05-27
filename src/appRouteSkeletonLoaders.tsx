@@ -334,3 +334,9 @@ export const TrafficPageSkeleton = createDeferredSkeleton(() =>
     default: m.TrafficPageSkeleton,
   })),
 );
+
+export const GoogleAdsMetricsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-google-ads/skeletons/GoogleAdsMetricsPageSkeleton").then((m) => ({
+    default: m.GoogleAdsMetricsPageSkeleton,
+  })),
+);
