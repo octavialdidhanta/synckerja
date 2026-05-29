@@ -21,9 +21,16 @@ import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { ContentPlan } from '@/6-1-dashboard/types/social-media';
 import GoogleDriveLinkDialog from '@/6-1-dashboard/modal/GoogleDriveLinkDialog';
+import { useOptimizedSocialMediaMutations } from '@/6-1-dashboard/hook/useOptimizedSocialMediaMutations';
+import { getGoogleDriveLinkNonEmptyUpdates } from '@/6-1-dashboard/utils/googleDriveLinkSavePolicy';
 import { Dialog, DialogContent } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { DailyTaskModuleShell } from '../layout/DailyTaskModuleShell';
+import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
+import {
+  completeStepAndCreateApprovalFromDriveLink,
+  revertStepCompletionFromDriveLinkRemovalWithRpc,
+} from '../services/completionApprovalService';
 
 const DailyTaskPage = () => {
   return (
@@ -41,6 +48,8 @@ const DailyTaskContent = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { organizationId, loading: organizationLoading } = useCurrentOrg();
   const queryClient = useQueryClient();
+  const { data: currentEmployee } = useCurrentEmployee();
+  const { updateContentPlan } = useOptimizedSocialMediaMutations();
   const { tasks, filteredTasks, isLoading, setFilters, setExpandedTasks, setHighlightedTask, scrollToStep } = useDailyTask();
   const [sidebarTab, setSidebarTab] = useState<'summary' | 'initiative' | 'jobdesc'>('summary');
   const [initiativeStats, setInitiativeStats] = useState<InitiativeStats>({ totalItems: 0, unassignedItems: 0 });
@@ -52,6 +61,7 @@ const DailyTaskContent = () => {
   });
   const [createTemplateSheetOpen, setCreateTemplateSheetOpen] = useState(false);
   const appliedNavParamsRef = useRef(false);
+  const appliedViewRef = useRef(false);
 
   // Preview modal from "View Content" in Task Summary Pending Approval (same as Comment Notifications on dashboard)
   const [previewPlanIdForModal, setPreviewPlanIdForModal] = useState<string | null>(null);
@@ -94,22 +104,66 @@ const DailyTaskContent = () => {
   // Apply URL params from Home (standalone SectionActivityNotifikasi) after tasks are loaded
   useEffect(() => {
     if (isLoading || tasks.length === 0 || appliedNavParamsRef.current) return;
-    const taskId = searchParams.get('taskId');
-    const stepId = searchParams.get('stepId');
+    const legacyTaskId = searchParams.get('taskId');
+    const legacyStepId = searchParams.get('stepId');
+    const taskId = searchParams.get('task_id') ?? legacyTaskId;
+    const stepId = searchParams.get('task_step_id') ?? legacyStepId;
+    const subStepId = searchParams.get('task_steps_to_steps_id');
     const search = searchParams.get('search');
     const action = searchParams.get('action');
-    if (!taskId) return;
+    if (!taskId && !stepId && !subStepId) return;
 
     appliedNavParamsRef.current = true;
     if (search) setFilters(prev => ({ ...prev, search }));
-    setExpandedTasks(prev => new Set([...prev, taskId]));
-    setHighlightedTask(taskId);
-    setTimeout(() => setHighlightedTask(null), 3000);
-    if (action === 'scroll' && stepId) {
+    if (taskId) {
+      setExpandedTasks(prev => new Set([...prev, taskId]));
+      setHighlightedTask(taskId);
+      setTimeout(() => setHighlightedTask(null), 3000);
+    }
+    // If only step/substep is provided, expand the parent task first.
+    const resolveParentTaskId = (stepIdOrSubId: string, kind: 'step' | 'substep') => {
+      const list = tasks as unknown as Array<any>;
+      if (kind === 'step') {
+        const step = list.flatMap((t) => (t?.steps ?? [])).find((s) => s?.id === stepIdOrSubId);
+        return step?.task_id ?? null;
+      }
+      const sub = list
+        .flatMap((t) => (t?.steps ?? []))
+        .flatMap((s) => (s?.subSteps ?? s?.substeps ?? []))
+        .find((ss) => ss?.id === stepIdOrSubId);
+      // Substep rows usually have parent_step_id; step has task_id.
+      const parentStepId = sub?.parent_step_id ?? null;
+      if (!parentStepId) return null;
+      const parentStep = list.flatMap((t) => (t?.steps ?? [])).find((s) => s?.id === parentStepId);
+      return parentStep?.task_id ?? null;
+    };
+    const parentFromStep = !taskId && stepId ? resolveParentTaskId(stepId, 'step') : null;
+    const parentFromSub = !taskId && !stepId && subStepId ? resolveParentTaskId(subStepId, 'substep') : null;
+    const parentTaskId = parentFromStep ?? parentFromSub ?? null;
+    if (parentTaskId) {
+      setExpandedTasks(prev => new Set([...prev, parentTaskId]));
+      setHighlightedTask(parentTaskId);
+      setTimeout(() => setHighlightedTask(null), 3000);
+    }
+    if (stepId) {
       setTimeout(() => scrollToStep(stepId), 400);
+    }
+    if (action === 'scroll' && legacyStepId) {
+      setTimeout(() => scrollToStep(legacyStepId), 400);
     }
     setSearchParams({}, { replace: true });
   }, [isLoading, tasks.length, searchParams, setFilters, setExpandedTasks, setHighlightedTask, scrollToStep, setSearchParams]);
+
+  // Deep link: /tools/daily-task?view=jobdesc (completion notifications)
+  useEffect(() => {
+    if (appliedViewRef.current) return;
+    const view = (searchParams.get('view') ?? '').trim().toLowerCase();
+    if (!view) return;
+    appliedViewRef.current = true;
+    if (view === 'jobdesc') setSidebarTab('jobdesc');
+    else if (view === 'initiative') setSidebarTab('initiative');
+    else if (view === 'summary') setSidebarTab('summary');
+  }, [searchParams, setSidebarTab]);
 
   const showContent = useDebouncedReady(
     !organizationLoading && (!organizationId || !isLoading),
@@ -269,16 +323,55 @@ const DailyTaskContent = () => {
           googleDriveLink={previewPlan.google_drive_link || ''}
           productionApproved={previewPlan.production_approved || false}
           onSave={link => {
-            const normalized = link?.trim() ? link : null;
-            supabase
-              .from('social_media_plans')
-              .update({
-                google_drive_link: normalized,
-                ...(normalized ? {} : { production_status: null }),
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', previewPlan.id)
-              .then(() => {});
+            if (!organizationId) return;
+            const trimmed = (link ?? '').trim();
+            const nowIso = new Date().toISOString();
+            const prevTrimmed = (previewPlan.google_drive_link ?? '').trim();
+            const prevWasEmpty = prevTrimmed.length === 0;
+            const nextIsEmpty = trimmed.length === 0;
+
+            if (trimmed.length > 0) {
+              const updates = {
+                ...getGoogleDriveLinkNonEmptyUpdates(
+                  previewPlan,
+                  trimmed,
+                  currentEmployee?.id ?? undefined
+                ),
+                updated_at: nowIso,
+              };
+              updateContentPlan(previewPlan.id, updates);
+
+              // First time link becomes non-empty: auto-complete linked step + create pending approval.
+              // This is idempotent (service checks existing pending + skip for steps with sub-steps).
+              if (prevWasEmpty) {
+                completeStepAndCreateApprovalFromDriveLink({
+                  organizationId,
+                  socialMediaPlanId: previewPlan.id,
+                }).then(() => {}).catch(() => {});
+              }
+            } else {
+              // Clearing link: reopen linked step + reject pending approval (handled by optimized mutation hook)
+              updateContentPlan(previewPlan.id, {
+                google_drive_link: null,
+                production_status: null,
+                updated_at: nowIso,
+              });
+
+              // First time link becomes empty: ensure step is reopened + pending approval rejected.
+              if (!prevWasEmpty && nextIsEmpty) {
+                revertStepCompletionFromDriveLinkRemovalWithRpc({
+                  organizationId,
+                  socialMediaPlanId: previewPlan.id,
+                  rejectedByEmployeeId: currentEmployee?.id ?? undefined,
+                }).then(() => {}).catch(() => {});
+              }
+            }
+
+            // Keep preview cache reasonably fresh (no forced loading spinners)
+            queryClient.invalidateQueries({
+              queryKey: ['social-media-plan', previewPlan.id],
+              refetchType: 'none',
+            });
           }}
           socialMediaPlanId={previewPlan.id}
           planTitle={previewPlan.title ?? undefined}

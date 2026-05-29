@@ -1,471 +1,50 @@
-export type MetricEntity = "campaign" | "ad_group" | "ad";
+import {
+  adCreativeToPreviewLine,
+  extractAdCreative,
+} from "./googleAdsAdCreative.ts";
+import { METRIC_CATALOG } from "./googleAdsMetricsCatalog/metricsData.ts";
 
-export type MetricCategory =
-  | "performance"
-  | "conversions"
-  | "viewability"
-  | "competitive"
-  | "gmail";
+export type {
+  MetricCategory,
+  MetricDef,
+  MetricEntity,
+  MetricValueKind,
+} from "./googleAdsMetricsCatalog/types.ts";
 
-export type MetricValueKind = "micros" | "rate" | "count" | "fraction";
+export {
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+  DEFAULT_METRIC_KEYS,
+  IDENTITY_COLUMNS_API,
+  KEYWORD_VIEW_EXCLUDED_METRIC_KEYS,
+  MAX_METRICS_PER_REQUEST,
+  RECOMMENDED_METRIC_KEYS,
+} from "./googleAdsMetricsCatalog/types.ts";
 
-export type MetricDef = {
-  key: string;
-  label: string;
-  category: MetricCategory;
-  gaqlField: string;
-  valueKind: MetricValueKind;
-  entities: MetricEntity[];
-  sortable: boolean;
-  description: string;
-};
+export { getMetricCatalog, getMetricCatalogForApi } from "./googleAdsMetricsCatalog/catalogApi.ts";
 
-export const DEFAULT_METRIC_KEYS = ["impressions", "clicks", "ctr", "spent"] as const;
+import type { MetricDef, MetricEntity, MetricValueKind } from "./googleAdsMetricsCatalog/types.ts";
+import {
+  DEFAULT_METRIC_KEYS,
+  KEYWORD_VIEW_EXCLUDED_METRIC_KEYS,
+  MAX_METRICS_PER_REQUEST,
+} from "./googleAdsMetricsCatalog/types.ts";
 
-export const MAX_METRICS_PER_REQUEST = 30;
-
-const ALL_ENTITIES: MetricEntity[] = ["campaign", "ad_group", "ad"];
-
-const METRIC_CATALOG: MetricDef[] = [
-  // PERFORMANCE
-  {
-    key: "impressions",
-    label: "Impr.",
-    category: "performance",
-    gaqlField: "metrics.impressions",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Jumlah tayangan iklan.",
-  },
-  {
-    key: "clicks",
-    label: "Clicks",
-    category: "performance",
-    gaqlField: "metrics.clicks",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Jumlah klik.",
-  },
-  {
-    key: "ctr",
-    label: "CTR",
-    category: "performance",
-    gaqlField: "metrics.ctr",
-    valueKind: "rate",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Click-through rate (klik / tayangan).",
-  },
-  {
-    key: "spent",
-    label: "Cost",
-    category: "performance",
-    gaqlField: "metrics.cost_micros",
-    valueKind: "micros",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Biaya iklan (dari cost_micros).",
-  },
-  {
-    key: "avg_cpc",
-    label: "Avg. CPC",
-    category: "performance",
-    gaqlField: "metrics.average_cpc",
-    valueKind: "micros",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Biaya rata-rata per klik.",
-  },
-  {
-    key: "avg_cpm",
-    label: "Avg. CPM",
-    category: "performance",
-    gaqlField: "metrics.average_cpm",
-    valueKind: "micros",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Biaya rata-rata per 1000 tayangan.",
-  },
-  {
-    key: "avg_cpv",
-    label: "Avg. CPV",
-    category: "performance",
-    gaqlField: "metrics.average_cpv",
-    valueKind: "micros",
-    entities: ALL_ENTITIES,
-    sortable: false,
-    description: "Biaya rata-rata per view.",
-  },
-  {
-    key: "avg_cost",
-    label: "Avg. cost",
-    category: "performance",
-    gaqlField: "metrics.average_cost",
-    valueKind: "micros",
-    entities: ALL_ENTITIES,
-    sortable: false,
-    description: "Biaya rata-rata per interaksi.",
-  },
-  {
-    key: "engagements",
-    label: "Engagements",
-    category: "performance",
-    gaqlField: "metrics.engagements",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Jumlah engagement.",
-  },
-  {
-    key: "engagement_rate",
-    label: "Engagement rate",
-    category: "performance",
-    gaqlField: "metrics.engagement_rate",
-    valueKind: "rate",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Tingkat engagement.",
-  },
-  {
-    key: "interactions",
-    label: "Interactions",
-    category: "performance",
-    gaqlField: "metrics.interactions",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Jumlah interaksi.",
-  },
-  {
-    key: "interaction_rate",
-    label: "Interaction rate",
-    category: "performance",
-    gaqlField: "metrics.interaction_rate",
-    valueKind: "rate",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Tingkat interaksi.",
-  },
-  {
-    key: "invalid_clicks",
-    label: "Invalid clicks",
-    category: "performance",
-    gaqlField: "metrics.invalid_clicks",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Klik tidak valid.",
-  },
-  {
-    key: "invalid_click_rate",
-    label: "Invalid click rate",
-    category: "performance",
-    gaqlField: "metrics.invalid_click_rate",
-    valueKind: "rate",
-    entities: ALL_ENTITIES,
-    sortable: false,
-    description: "Persentase klik tidak valid.",
-  },
-  // CONVERSIONS
-  {
-    key: "conversions",
-    label: "Conversions",
-    category: "conversions",
-    gaqlField: "metrics.conversions",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Jumlah konversi.",
-  },
-  {
-    key: "conv_rate",
-    label: "Conv. rate",
-    category: "conversions",
-    gaqlField: "metrics.conversions_from_interactions_rate",
-    valueKind: "rate",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Tingkat konversi dari interaksi.",
-  },
-  {
-    key: "conv_value",
-    label: "Conv. value",
-    category: "conversions",
-    gaqlField: "metrics.conversions_value",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Nilai konversi.",
-  },
-  {
-    key: "cost_per_conv",
-    label: "Cost / conv.",
-    category: "conversions",
-    gaqlField: "metrics.cost_per_conversion",
-    valueKind: "micros",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Biaya per konversi.",
-  },
-  {
-    key: "value_per_conv",
-    label: "Value / conv.",
-    category: "conversions",
-    gaqlField: "metrics.value_per_conversion",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: false,
-    description: "Nilai per konversi.",
-  },
-  {
-    key: "all_conversions",
-    label: "All conv.",
-    category: "conversions",
-    gaqlField: "metrics.all_conversions",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Semua konversi (termasuk view-through).",
-  },
-  {
-    key: "all_conv_rate",
-    label: "All conv. rate",
-    category: "conversions",
-    gaqlField: "metrics.all_conversions_from_interactions_rate",
-    valueKind: "rate",
-    entities: ALL_ENTITIES,
-    sortable: false,
-    description: "Tingkat semua konversi.",
-  },
-  {
-    key: "all_conv_value",
-    label: "All conv. value",
-    category: "conversions",
-    gaqlField: "metrics.all_conversions_value",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Nilai semua konversi.",
-  },
-  {
-    key: "cost_per_all_conv",
-    label: "Cost / all conv.",
-    category: "conversions",
-    gaqlField: "metrics.cost_per_all_conversions",
-    valueKind: "micros",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Biaya per semua konversi.",
-  },
-  // VIEWABILITY
-  {
-    key: "measurable_impressions",
-    label: "Measurable impr.",
-    category: "viewability",
-    gaqlField: "metrics.measurable_impressions",
-    valueKind: "count",
-    entities: ALL_ENTITIES,
-    sortable: true,
-    description: "Tayangan yang terukur.",
-  },
-  {
-    key: "measurable_rate",
-    label: "Measurable rate",
-    category: "viewability",
-    gaqlField: "metrics.measurable_rate",
-    valueKind: "rate",
-    entities: ALL_ENTITIES,
-    sortable: false,
-    description: "Tingkat tayangan terukur.",
-  },
-  {
-    key: "measurable_cost",
-    label: "Measurable cost",
-    category: "viewability",
-    gaqlField: "metrics.measurable_cost_micros",
-    valueKind: "micros",
-    entities: ALL_ENTITIES,
-    sortable: false,
-    description: "Biaya tayangan terukur.",
-  },
-  // COMPETITIVE (Search / auction — campaign & ad group)
-  {
-    key: "search_impression_share",
-    label: "Search impr. share",
-    category: "competitive",
-    gaqlField: "metrics.search_impression_share",
-    valueKind: "fraction",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Bagian tayangan di jaringan Search.",
-  },
-  {
-    key: "search_budget_lost_is",
-    label: "Search lost IS (budget)",
-    category: "competitive",
-    gaqlField: "metrics.search_budget_lost_impression_share",
-    valueKind: "fraction",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Tayangan Search hilang karena anggaran.",
-  },
-  {
-    key: "search_rank_lost_is",
-    label: "Search lost IS (rank)",
-    category: "competitive",
-    gaqlField: "metrics.search_rank_lost_impression_share",
-    valueKind: "fraction",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Tayangan Search hilang karena peringkat iklan.",
-  },
-  {
-    key: "search_click_share",
-    label: "Search click share",
-    category: "competitive",
-    gaqlField: "metrics.search_click_share",
-    valueKind: "fraction",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Bagian klik di jaringan Search.",
-  },
-  {
-    key: "search_exact_match_is",
-    label: "Exact match impr. share",
-    category: "competitive",
-    gaqlField: "metrics.search_exact_match_impression_share",
-    valueKind: "fraction",
-    entities: ["campaign", "ad_group"],
-    sortable: false,
-    description: "Impression share untuk exact match.",
-  },
-  {
-    key: "content_impression_share",
-    label: "Display impr. share",
-    category: "competitive",
-    gaqlField: "metrics.content_impression_share",
-    valueKind: "fraction",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Bagian tayangan di jaringan Display.",
-  },
-  {
-    key: "absolute_top_impr_pct",
-    label: "Abs. top impr. %",
-    category: "competitive",
-    gaqlField: "metrics.absolute_top_impression_percentage",
-    valueKind: "fraction",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Persentase tayangan di posisi paling atas.",
-  },
-  {
-    key: "top_impr_pct",
-    label: "Top impr. %",
-    category: "competitive",
-    gaqlField: "metrics.top_impression_percentage",
-    valueKind: "fraction",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Persentase tayangan di atas hasil organik.",
-  },
-  // GMAIL (campaign-level engagement)
-  {
-    key: "gmail_forwards",
-    label: "Gmail forwards",
-    category: "gmail",
-    gaqlField: "metrics.gmail_forwards",
-    valueKind: "count",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Jumlah forward di Gmail.",
-  },
-  {
-    key: "gmail_saves",
-    label: "Gmail saves",
-    category: "gmail",
-    gaqlField: "metrics.gmail_saves",
-    valueKind: "count",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Jumlah save di Gmail.",
-  },
-  {
-    key: "gmail_secondary_clicks",
-    label: "Gmail secondary clicks",
-    category: "gmail",
-    gaqlField: "metrics.gmail_secondary_clicks",
-    valueKind: "count",
-    entities: ["campaign", "ad_group"],
-    sortable: true,
-    description: "Klik sekunder di Gmail (expand, dll.).",
-  },
-];
 
 const METRIC_BY_KEY = new Map(METRIC_CATALOG.map((m) => [m.key, m]));
 
-export function getMetricCatalog(entity?: MetricEntity): MetricDef[] {
-  if (!entity) return [...METRIC_CATALOG];
-  return METRIC_CATALOG.filter((m) => m.entities.includes(entity));
-}
-
-export function getMetricCatalogForApi(entity?: MetricEntity): {
-  categories: Array<{
-    id: MetricCategory;
-    label: string;
-    metrics: Array<{
-      key: string;
-      label: string;
-      description: string;
-      entities: MetricEntity[];
-      valueKind: MetricValueKind;
-      defaultSelected: boolean;
-      sortable: boolean;
-    }>;
-  }>;
-} {
-  const defs = getMetricCatalog(entity);
-  const categoryOrder: MetricCategory[] = [
-    "performance",
-    "conversions",
-    "viewability",
-    "competitive",
-    "gmail",
-  ];
-  const categoryLabels: Record<MetricCategory, string> = {
-    performance: "PERFORMANCE",
-    conversions: "CONVERSIONS",
-    viewability: "VIEWABILITY",
-    competitive: "COMPETITIVE",
-    gmail: "GMAIL",
-  };
-  const defaultSet = new Set<string>(DEFAULT_METRIC_KEYS);
-
-  return {
-    categories: categoryOrder
-      .map((id) => ({
-        id,
-        label: categoryLabels[id],
-        metrics: defs
-          .filter((m) => m.category === id)
-          .map((m) => ({
-            key: m.key,
-            label: m.label,
-            description: m.description,
-            entities: m.entities,
-            valueKind: m.valueKind,
-            defaultSelected: defaultSet.has(m.key),
-            sortable: m.sortable,
-          })),
-      }))
-      .filter((c) => c.metrics.length > 0),
-  };
-}
 
 export function buildMetricsKey(keys: string[]): string {
   return [...keys].sort().join("|");
+}
+
+/** Never warn the UI about keyword_view metrics Google cannot return (expected omission). */
+export function filterClientUnsupportedMetrics(
+  entity: MetricEntity,
+  keys: string[],
+): string[] {
+  if (entity !== "keyword") return keys;
+  return keys.filter((k) => !KEYWORD_VIEW_EXCLUDED_METRIC_KEYS.has(k));
 }
 
 export function resolveMetrics(
@@ -532,12 +111,28 @@ const IDENTITY_SELECT: Record<MetricEntity, string[]> = {
     "ad_group_ad.ad.expanded_text_ad.headline_part1",
     "ad_group_ad.ad.expanded_text_ad.headline_part2",
     "ad_group_ad.ad.expanded_text_ad.headline_part3",
+    "ad_group_ad.ad.expanded_text_ad.description",
+    "ad_group_ad.ad.expanded_text_ad.description2",
+    "ad_group_ad.ad.final_urls",
+    "ad_group_ad.ad.responsive_search_ad.headlines",
+    "ad_group_ad.ad.responsive_search_ad.descriptions",
     "ad_group.name",
     "campaign.name",
   ],
+  keyword: [
+    "ad_group_criterion.criterion_id",
+    "ad_group_criterion.keyword.text",
+    "ad_group_criterion.keyword.match_type",
+    "ad_group_criterion.status",
+    "ad_group.id",
+    "ad_group.name",
+    "campaign.id",
+    "campaign.name",
+    "campaign.status",
+  ],
 };
 
-/** Scalar-only identity (no nested ad-type fields) — GAQL fallback when creative fields fail. */
+/** Scalar-only identity (no nested ad-type fields) â€” GAQL fallback when creative fields fail. */
 const AD_IDENTITY_MINIMAL: string[] = [
   "ad_group_ad.ad.id",
   "ad_group_ad.status",
@@ -547,59 +142,292 @@ const AD_IDENTITY_MINIMAL: string[] = [
   "campaign.name",
 ];
 
-function extractAdPreview(ad: Record<string, unknown> | undefined): string {
-  if (!ad) return "";
-
-  const rsa = (ad.responsiveSearchAd ?? ad.responsive_search_ad) as
-    | Record<string, unknown>
-    | undefined;
-  const headlines = rsa?.headlines;
-  if (Array.isArray(headlines) && headlines.length > 0) {
-    const texts = headlines
-      .map((h) => {
-        const item = h as Record<string, unknown>;
-        const text = item.text ?? (item.asset as Record<string, unknown> | undefined)?.text;
-        return text != null ? String(text).trim() : "";
-      })
-      .filter(Boolean);
-    if (texts.length > 0) return texts.slice(0, 3).join(" · ");
-  }
-
-  const eta = (ad.expandedTextAd ?? ad.expanded_text_ad) as Record<string, unknown> | undefined;
-  if (eta) {
-    const parts = [
-      eta.headlinePart1,
-      eta.headline_part1,
-      eta.headlinePart2,
-      eta.headline_part2,
-      eta.headlinePart3,
-      eta.headline_part3,
-    ]
-      .map((p) => (p != null ? String(p).trim() : ""))
-      .filter(Boolean);
-    if (parts.length > 0) return parts.join(" | ");
-  }
-
-  const name = ad.name;
-  if (name != null && String(name).trim()) return String(name).trim();
-  return "";
-}
-
 const STATUS_WHERE: Record<MetricEntity, string> = {
   campaign: "campaign.status = 'ENABLED'",
   ad_group: "ad_group.status = 'ENABLED'",
   ad: "ad_group_ad.status = 'ENABLED'",
+  keyword: "ad_group_criterion.status = 'ENABLED'",
 };
 
 const FROM_RESOURCE: Record<MetricEntity, string> = {
   campaign: "campaign",
   ad_group: "ad_group",
   ad: "ad_group_ad",
+  keyword: "keyword_view",
 };
+
+/** UI identity column key → GAQL ORDER BY field (already in identity SELECT). */
+export const IDENTITY_SORT_GAQL: Record<MetricEntity, Record<string, string>> = {
+  campaign: {
+    name: "campaign.name",
+    status: "campaign.status",
+    channel: "campaign.advertising_channel_type",
+  },
+  ad_group: {
+    name: "ad_group.name",
+    campaign: "campaign.name",
+    status: "ad_group.status",
+  },
+  keyword: {
+    keyword: "ad_group_criterion.keyword.text",
+    match_type: "ad_group_criterion.keyword.match_type",
+    campaign: "campaign.name",
+    ad_group: "ad_group.name",
+    status: "ad_group_criterion.status",
+  },
+  ad: {
+    preview: "ad_group_ad.ad.name",
+    status: "ad_group_ad.status",
+  },
+};
+
+export function isIdentitySortField(entity: MetricEntity, field: string): boolean {
+  return Boolean(IDENTITY_SORT_GAQL[entity]?.[field]);
+}
+
+/** Google Ads KeywordMatchType enum (numeric API values). */
+const MATCH_TYPE_BY_NUMBER: Record<number, string> = {
+  2: "exact",
+  3: "phrase",
+  4: "broad",
+};
+
+/** Canonical lowercase key for sorting — keep in sync with `formatKeywordMatchType.ts` on web. */
+export function formatKeywordMatchTypeForSort(raw: unknown): string {
+  if (raw == null || raw === "") return "";
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const mapped = MATCH_TYPE_BY_NUMBER[raw];
+    if (mapped) return mapped;
+  }
+  const s = String(raw).trim();
+  if (!s) return "";
+  const asNum = Number(s);
+  if (Number.isFinite(asNum) && MATCH_TYPE_BY_NUMBER[asNum]) {
+    return MATCH_TYPE_BY_NUMBER[asNum];
+  }
+  return s
+    .replace(/^KEYWORD_MATCH_TYPE_/i, "")
+    .replace(/_/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function identitySortValue(
+  entity: MetricEntity,
+  identity: Record<string, unknown>,
+  field: string,
+): string {
+  switch (entity) {
+    case "keyword":
+      if (field === "keyword") return String(identity.keyword_text ?? "").toLowerCase();
+      if (field === "match_type") {
+        return formatKeywordMatchTypeForSort(identity.match_type);
+      }
+      if (field === "campaign") return String(identity.campaign_name ?? "");
+      if (field === "ad_group") return String(identity.ad_group_name ?? "");
+      if (field === "status") return String(identity.status ?? "");
+      break;
+    case "campaign":
+      if (field === "name") return String(identity.name ?? "");
+      if (field === "status") return String(identity.status ?? "");
+      if (field === "channel") return String(identity.channel_type ?? "");
+      break;
+    case "ad_group":
+      if (field === "name") return String(identity.name ?? "");
+      if (field === "campaign") return String(identity.campaign_name ?? "");
+      if (field === "status") return String(identity.status ?? "");
+      break;
+    case "ad":
+      if (field === "preview") {
+        return String(identity.ad_preview ?? identity.ad_type ?? "");
+      }
+      if (field === "status") return String(identity.status ?? "");
+      break;
+  }
+  return "";
+}
+
+function metricSortNumber(
+  value: number | null | undefined,
+  ascending: boolean,
+): number {
+  if (value == null || !Number.isFinite(value)) {
+    return ascending ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+  }
+  return value;
+}
+
+/** Sort full result set in memory (identity + metric columns), then slice for Show rows. */
+export function sortNormalizedMetricsRows<
+  T extends { id: string; identity: Record<string, unknown>; metrics: Record<string, number | null> },
+>(
+  rows: T[],
+  sortKey: string,
+  entity: MetricEntity,
+): T[] {
+  const [field, dirRaw] = sortKey.split(":");
+  const ascending = dirRaw === "asc";
+  const dir = ascending ? 1 : -1;
+  const sortByIdentity = isIdentitySortField(entity, field);
+
+  return [...rows].sort((a, b) => {
+    let cmp = 0;
+    if (sortByIdentity) {
+      const as = identitySortValue(entity, a.identity, field);
+      const bs = identitySortValue(entity, b.identity, field);
+      cmp = as.localeCompare(bs, undefined, { sensitivity: "base", numeric: true });
+    } else {
+      const an = metricSortNumber(a.metrics[field], ascending);
+      const bn = metricSortNumber(b.metrics[field], ascending);
+      if (an < bn) cmp = -1;
+      else if (an > bn) cmp = 1;
+    }
+    if (cmp !== 0) return cmp * dir;
+    return a.id.localeCompare(b.id) * dir;
+  });
+}
+
+export function paginateMetricsRows<T>(
+  rows: T[],
+  pageOffset: number,
+  pageSize: number,
+): { pageRows: T[]; totalRowCount: number; nextOffset: number | null } {
+  const totalRowCount = rows.length;
+  const safeOffset = Math.max(0, Math.min(pageOffset, totalRowCount));
+  const pageRows = rows.slice(safeOffset, safeOffset + pageSize);
+  const nextOffset = safeOffset + pageSize < totalRowCount ? safeOffset + pageSize : null;
+  return { pageRows, totalRowCount, nextOffset };
+}
+
+export type GoogleAdsMetricsSummaryTotals = {
+  impressions: number;
+  clicks: number;
+  spent: number;
+  /** Aggregate CTR = clicks / impressions (fraction); null when no impressions. */
+  ctr: number | null;
+  conversions: number;
+  /** Aggregated values for metrics fetched in the report (catalog + conversion actions). */
+  by_key: Record<string, number | null>;
+};
+
+export const SUMMARY_METRIC_KEYS = ["impressions", "clicks", "spent", "conversions"] as const;
+
+function sumMetricValue(metrics: Record<string, number | null>, key: string): number {
+  const n = Number(metrics[key]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isRateLikeMetricKey(key: string, valueKind?: MetricValueKind): boolean {
+  if (key === "ctr" || key.endsWith("_rate") || key.endsWith("_share")) return true;
+  return valueKind === "rate" || valueKind === "fraction";
+}
+
+/** Sum KPI metrics across the full filtered result set (not a single table page). */
+export function computeSummaryTotals(rows: NormalizedMetricsRow[]): GoogleAdsMetricsSummaryTotals {
+  let impressions = 0;
+  let clicks = 0;
+  let spent = 0;
+  let conversions = 0;
+  const sums: Record<string, number> = {};
+  const rateSums: Record<string, number> = {};
+  const rateCounts: Record<string, number> = {};
+
+  for (const row of rows) {
+    impressions += sumMetricValue(row.metrics, "impressions");
+    clicks += sumMetricValue(row.metrics, "clicks");
+    spent += sumMetricValue(row.metrics, "spent");
+    conversions += sumMetricValue(row.metrics, "conversions");
+
+    for (const [key, raw] of Object.entries(row.metrics)) {
+      if (raw == null || !Number.isFinite(raw)) continue;
+      const def = METRIC_BY_KEY.get(key);
+      if (isRateLikeMetricKey(key, def?.valueKind)) {
+        rateSums[key] = (rateSums[key] ?? 0) + raw;
+        rateCounts[key] = (rateCounts[key] ?? 0) + 1;
+      } else {
+        sums[key] = (sums[key] ?? 0) + raw;
+      }
+    }
+  }
+
+  const ctr = impressions > 0 ? clicks / impressions : null;
+  const by_key: Record<string, number | null> = { ...sums };
+  by_key.impressions = impressions;
+  by_key.clicks = clicks;
+  by_key.spent = spent;
+  by_key.conversions = conversions;
+  by_key.ctr = ctr;
+  for (const key of Object.keys(rateSums)) {
+    if (key === "ctr") continue;
+    const n = rateCounts[key] ?? 0;
+    by_key[key] = n > 0 ? rateSums[key]! / n : null;
+  }
+
+  return { impressions, clicks, spent, ctr, conversions, by_key };
+}
+
+/** Ensure summary-bar metrics (and defaults) are included in GAQL fetch. */
+export function ensureSummaryFetchMetricDefs(
+  metricDefs: MetricDef[],
+  entity: MetricEntity,
+  extraKeys?: string | string[],
+): MetricDef[] {
+  let out = ensureSummaryMetricDefs(metricDefs, entity);
+  const keys = (
+    Array.isArray(extraKeys) ? extraKeys : extraKeys ? [extraKeys] : []
+  )
+    .map((k) => String(k).trim())
+    .filter(Boolean);
+  const seen = new Set(out.map((d) => d.key));
+  for (const key of keys) {
+    if (seen.has(key)) continue;
+    const def = METRIC_BY_KEY.get(key);
+    if (!def || !def.entities.includes(entity)) continue;
+    if (entity === "keyword" && KEYWORD_VIEW_EXCLUDED_METRIC_KEYS.has(key)) continue;
+    out = [...out, def];
+    seen.add(key);
+  }
+  return out;
+}
+
+/** Include sort metric in GAQL fetch even when hidden from the column picker. */
+export function ensureSortMetricDefs(
+  metricDefs: MetricDef[],
+  sortKey: string,
+  entity: MetricEntity,
+): MetricDef[] {
+  const field = sortKey.split(":")[0] ?? "";
+  if (!field || isIdentitySortField(entity, field)) return metricDefs;
+  if (metricDefs.some((d) => d.key === field)) return metricDefs;
+  const def = METRIC_BY_KEY.get(field);
+  if (!def || !def.entities.includes(entity)) return metricDefs;
+  if (entity === "keyword" && KEYWORD_VIEW_EXCLUDED_METRIC_KEYS.has(field)) return metricDefs;
+  return [...metricDefs, def];
+}
+
+/** Include summary-bar metrics in GAQL fetch even when not in the column picker. */
+export function ensureSummaryMetricDefs(
+  metricDefs: MetricDef[],
+  entity: MetricEntity,
+): MetricDef[] {
+  let out = [...metricDefs];
+  for (const key of SUMMARY_METRIC_KEYS) {
+    if (out.some((d) => d.key === key)) continue;
+    const def = METRIC_BY_KEY.get(key);
+    if (!def || !def.entities.includes(entity)) continue;
+    if (entity === "keyword" && KEYWORD_VIEW_EXCLUDED_METRIC_KEYS.has(key)) continue;
+    out = [...out, def];
+  }
+  return out;
+}
 
 export type GaqlBuildOptions = {
   /** When true, ad entity uses minimal identity fields only (no ETA nested fields). */
   adIdentityMinimal?: boolean;
+  /** Daily rows for correct summation across stacked historical date windows. */
+  segmentByDate?: boolean;
+  /** GAQL metrics required in SELECT (e.g. ORDER BY field not in visible columns). */
+  additionalGaqlFields?: string[];
 };
 
 export function buildSelectClause(
@@ -614,17 +442,39 @@ export function buildSelectClause(
   const fields = [
     ...identity,
     "customer.currency_code",
+    ...(options?.segmentByDate ? ["segments.date"] : []),
     ...metricDefs.map((m) => m.gaqlField),
+    ...(options?.additionalGaqlFields ?? []),
   ];
   return [...new Set(fields)].join(", ");
 }
 
-export function buildSortField(sortKey: string, metricDefs: MetricDef[]): string {
+export function buildSortField(
+  sortKey: string,
+  entity: MetricEntity,
+  metricDefs: MetricDef[],
+): string {
   const [field] = sortKey.split(":");
+  const identityGaql = IDENTITY_SORT_GAQL[entity]?.[field];
+  if (identityGaql) return identityGaql;
   const def = METRIC_BY_KEY.get(field) ?? metricDefs.find((m) => m.key === field);
   if (def?.sortable) return def.gaqlField;
   const spent = METRIC_BY_KEY.get("spent");
   return spent?.gaqlField ?? "metrics.impressions";
+}
+
+/** Parse resource id from API value or composite row key `{customerId}-{resourceId}`. */
+export function parseGoogleAdsResourceId(raw: string | null | undefined): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const lastDash = s.lastIndexOf("-");
+  if (lastDash > 0 && lastDash < s.length - 1) {
+    const tail = s.slice(lastDash + 1).replace(/\D/g, "");
+    if (tail.length >= 8 && tail.length <= 20) return tail;
+  }
+  const digits = s.replace(/\D/g, "");
+  if (digits.length >= 8 && digits.length <= 20) return digits;
+  return "";
 }
 
 export function buildGaqlQuery(opts: {
@@ -635,18 +485,122 @@ export function buildGaqlQuery(opts: {
   sortKey: string;
   pageSize: number;
   adIdentityMinimal?: boolean;
+  segmentByDate?: boolean;
+  /** When set, limits rows to one campaign (resource id only, not composite). */
+  campaignFilterId?: string;
+  /** When set, limits rows to one ad group (resource id only, not composite). */
+  adGroupFilterId?: string;
 }): string {
+  const [sortField] = opts.sortKey.split(":");
+  // Identity sort is applied in memory after full fetch; keep GAQL order stable.
+  const orderField = isIdentitySortField(opts.entity, sortField)
+    ? opts.entity === "keyword"
+      ? "ad_group_criterion.criterion_id"
+      : opts.entity === "campaign"
+        ? "campaign.id"
+        : opts.entity === "ad_group"
+          ? "ad_group.id"
+          : "ad_group_ad.ad.id"
+    : buildSortField(opts.sortKey, opts.entity, opts.metricDefs);
+  const identityForSelect =
+    opts.entity === "ad" && opts.adIdentityMinimal
+      ? AD_IDENTITY_MINIMAL
+      : IDENTITY_SELECT[opts.entity];
+  const selectedGaql = new Set([
+    ...identityForSelect,
+    ...opts.metricDefs.map((m) => m.gaqlField),
+  ]);
+  const additionalGaqlFields = selectedGaql.has(orderField) ? [] : [orderField];
+
   const select = buildSelectClause(opts.entity, opts.metricDefs, {
     adIdentityMinimal: opts.adIdentityMinimal,
+    segmentByDate: opts.segmentByDate,
+    additionalGaqlFields,
   });
   const from = FROM_RESOURCE[opts.entity];
   const parts = [`SELECT ${select}`, `FROM ${from}`, `WHERE ${opts.dateClause}`];
-  if (opts.statusFilter === "enabled_only") {
+  const campaignId = parseGoogleAdsResourceId(opts.campaignFilterId);
+  if (campaignId && opts.entity === "campaign") {
+    parts.push(`AND campaign.id = '${campaignId}'`);
+  }
+  if (
+    campaignId &&
+    (opts.entity === "ad_group" || opts.entity === "ad" || opts.entity === "keyword")
+  ) {
+    parts.push(`AND campaign.id = '${campaignId}'`);
+  }
+  const adGroupId = parseGoogleAdsResourceId(opts.adGroupFilterId);
+  if (
+    adGroupId &&
+    (opts.entity === "ad_group" || opts.entity === "ad" || opts.entity === "keyword")
+  ) {
+    parts.push(`AND ad_group.id = '${adGroupId}'`);
+  }
+  if (opts.entity === "keyword") {
+    appendKeywordScopeFilters(parts, opts.statusFilter);
+  } else if (opts.statusFilter === "enabled_only") {
     parts.push(`AND ${STATUS_WHERE[opts.entity]}`);
   }
-  const orderField = buildSortField(opts.sortKey, opts.metricDefs);
   const direction = opts.sortKey.endsWith(":asc") ? "ASC" : "DESC";
   parts.push(`ORDER BY ${orderField} ${direction}`);
+  parts.push(`LIMIT ${opts.pageSize}`);
+  return parts.join("\n");
+}
+
+/** Google Ads â€œKeyword/Campaign status: Allâ€ = positive keywords, any status (incl. REMOVED). */
+function appendKeywordScopeFilters(
+  parts: string[],
+  statusFilter: "all" | "enabled_only",
+): void {
+  parts.push("AND ad_group_criterion.type = 'KEYWORD'");
+  parts.push("AND ad_group_criterion.negative = FALSE");
+  if (statusFilter === "enabled_only") {
+    parts.push(`AND ${STATUS_WHERE.keyword}`);
+    parts.push("AND campaign.status = 'ENABLED'");
+    parts.push("AND ad_group.status = 'ENABLED'");
+  }
+}
+
+const KEYWORD_INVENTORY_IDENTITY = [
+  "ad_group_criterion.criterion_id",
+  "ad_group_criterion.keyword.text",
+  "ad_group_criterion.keyword.match_type",
+  "ad_group_criterion.status",
+  "ad_group.id",
+  "ad_group.name",
+  "campaign.id",
+  "campaign.name",
+  "campaign.status",
+];
+
+/** All positive keywords (no date segment) â€” matches Google Ads Keywords table row count. */
+export function buildKeywordInventoryGaqlQuery(opts: {
+  statusFilter: "all" | "enabled_only";
+  campaignFilterId?: string;
+  adGroupFilterId?: string;
+  pageSize: number;
+}): string {
+  const select = KEYWORD_INVENTORY_IDENTITY.join(", ");
+  const parts = [
+    `SELECT ${select}`,
+    `FROM ad_group_criterion`,
+    `WHERE ad_group_criterion.type = 'KEYWORD'`,
+    `AND ad_group_criterion.negative = FALSE`,
+  ];
+  if (opts.statusFilter === "enabled_only") {
+    parts.push(`AND ${STATUS_WHERE.keyword}`);
+    parts.push("AND campaign.status = 'ENABLED'");
+    parts.push("AND ad_group.status = 'ENABLED'");
+  }
+  const campaignId = parseGoogleAdsResourceId(opts.campaignFilterId);
+  if (campaignId) {
+    parts.push(`AND campaign.id = '${campaignId}'`);
+  }
+  const adGroupId = parseGoogleAdsResourceId(opts.adGroupFilterId);
+  if (adGroupId) {
+    parts.push(`AND ad_group.id = '${adGroupId}'`);
+  }
+  parts.push("ORDER BY ad_group_criterion.criterion_id ASC");
   parts.push(`LIMIT ${opts.pageSize}`);
   return parts.join("\n");
 }
@@ -667,8 +621,8 @@ export function normalizeGaqlRow(
   raw: Record<string, unknown>,
   metricDefs: MetricDef[],
 ): NormalizedMetricsRow {
-  const campaign = raw.campaign as Record<string, unknown> | undefined;
-  const adGroup = raw.adGroup as Record<string, unknown> | undefined;
+  const campaign = (raw.campaign ?? raw.Campaign) as Record<string, unknown> | undefined;
+  const adGroup = (raw.adGroup ?? raw.ad_group) as Record<string, unknown> | undefined;
   const adGroupAd = raw.adGroupAd as Record<string, unknown> | undefined;
   const ad = adGroupAd?.ad as Record<string, unknown> | undefined;
   const metricsRaw = (raw.metrics ?? {}) as Record<string, unknown>;
@@ -678,6 +632,7 @@ export function normalizeGaqlRow(
 
   if (entity === "campaign" && campaign) {
     id = String(campaign.id ?? "");
+    identity.campaign_id = id;
     identity.name = campaign.name ?? "";
     identity.status = campaign.status ?? "";
     identity.channel_type = campaign.advertisingChannelType ?? campaign.advertising_channel_type ?? "";
@@ -685,6 +640,7 @@ export function normalizeGaqlRow(
     id = String(adGroup.id ?? "");
     identity.name = adGroup.name ?? "";
     identity.status = adGroup.status ?? "";
+    identity.campaign_id = campaign?.id != null ? String(campaign.id) : "";
     identity.campaign_name = campaign?.name ?? "";
   } else if (entity === "ad" && adGroupAd) {
     id = String(ad?.id ?? "");
@@ -692,8 +648,25 @@ export function normalizeGaqlRow(
     identity.ad_type = ad?.type ?? "";
     identity.ad_group_name = adGroup?.name ?? "";
     identity.campaign_name = campaign?.name ?? "";
-    const preview = extractAdPreview(ad);
+    const creative = extractAdCreative(ad);
+    identity.ad_creative = creative;
+    const preview = adCreativeToPreviewLine(creative);
     identity.ad_preview = preview || (id ? `Ad ${id}` : "");
+  } else if (entity === "keyword") {
+    const agc = (raw.adGroupCriterion ?? raw.ad_group_criterion) as
+      | Record<string, unknown>
+      | undefined;
+    const kw = (agc?.keyword ?? agc?.Keyword) as Record<string, unknown> | undefined;
+    id = String(agc?.criterionId ?? agc?.criterion_id ?? "");
+    identity.criterion_id = id;
+    identity.keyword_text = kw?.text ?? "";
+    identity.match_type = kw?.matchType ?? kw?.match_type ?? "";
+    identity.status = agc?.status ?? "";
+    identity.ad_group_id = adGroup?.id != null ? String(adGroup.id) : "";
+    identity.ad_group_name = adGroup?.name ?? "";
+    identity.campaign_id = campaign?.id != null ? String(campaign.id) : "";
+    identity.campaign_name = campaign?.name ?? "";
+    identity.campaign_status = campaign?.status ?? "";
   }
 
   const metrics: Record<string, number | null> = {};
@@ -737,6 +710,153 @@ export function rowPassesDeliveryFilter(
   return impr > 0 || spent > 0;
 }
 
+/** Stable resource id for merging rows (handles MCC composite row keys). */
+export function entityResourceKey(
+  entity: MetricEntity,
+  row: NormalizedMetricsRow,
+): string {
+  if (entity === "campaign") {
+    return parseGoogleAdsResourceId(String(row.identity.campaign_id ?? row.id ?? ""));
+  }
+  if (entity === "ad_group") {
+    return parseGoogleAdsResourceId(String(row.id ?? ""));
+  }
+  if (entity === "keyword") {
+    const compositeId = String(row.id ?? "");
+    const mccMatch = /^(\d{10})-(\d+)$/.exec(compositeId);
+    const customerId = mccMatch?.[1] ?? "";
+    const campaignId = parseGoogleAdsResourceId(String(row.identity.campaign_id ?? ""));
+    const adGroupId = parseGoogleAdsResourceId(String(row.identity.ad_group_id ?? ""));
+    let criterionId = parseGoogleAdsResourceId(String(row.identity.criterion_id ?? ""));
+    if (!criterionId && mccMatch?.[2] && !compositeId.includes("|")) {
+      criterionId = parseGoogleAdsResourceId(mccMatch[2]);
+    }
+    if (!campaignId || !adGroupId || !criterionId) return "";
+    const parts = [customerId, campaignId, adGroupId, criterionId].filter(Boolean);
+    return parts.join("|");
+  }
+  return parseGoogleAdsResourceId(String(row.id ?? ""));
+}
+
+/** Sum metrics when GAQL returns multiple rows per resource (e.g. per-day slices in a page). */
+export function mergeMetricsRowsByEntity(
+  entity: MetricEntity,
+  rows: NormalizedMetricsRow[],
+): NormalizedMetricsRow[] {
+  const map = new Map<string, NormalizedMetricsRow>();
+
+  for (const row of rows) {
+    const key = entityResourceKey(entity, row);
+    if (!key) continue;
+
+    const existing = map.get(key);
+    if (!existing) {
+      const displayId =
+        entity === "keyword"
+          ? String(row.identity.criterion_id ?? row.id ?? key)
+          : key;
+      map.set(key, {
+        id: displayId,
+        identity: { ...row.identity },
+        metrics: { ...row.metrics },
+      });
+      continue;
+    }
+
+    for (const [metricKey, value] of Object.entries(row.metrics)) {
+      if (value == null) continue;
+      const prev = existing.metrics[metricKey];
+      existing.metrics[metricKey] = pickNum(prev) + pickNum(value);
+    }
+
+    const impr = pickNum(existing.metrics.impressions);
+    const clicks = pickNum(existing.metrics.clicks);
+    if (impr > 0) {
+      if (existing.metrics.ctr != null) {
+        const ctr = clicks / impr;
+        existing.metrics.ctr = ctr;
+        existing.metrics.ctr_percent = ctr * 100;
+      }
+    }
+  }
+
+  return [...map.values()];
+}
+
+/**
+ * Inventory (ad_group_criterion) = row list matching Google â€œstatus: Allâ€.
+ * keyword_view rows only added when no inventory match (reporting-only), then deduped.
+ */
+export function mergeKeywordInventoryWithMetrics(
+  inventory: NormalizedMetricsRow[],
+  withMetrics: NormalizedMetricsRow[],
+  metricDefs: MetricDef[],
+): NormalizedMetricsRow[] {
+  const zeroMetrics = (): Record<string, number | null> => {
+    const m: Record<string, number | null> = {};
+    for (const def of metricDefs) m[def.key] = null;
+    return m;
+  };
+  const map = new Map<string, NormalizedMetricsRow>();
+  const indexByCriterion = new Map<string, string>();
+
+  for (const row of inventory) {
+    const key = entityResourceKey("keyword", row);
+    if (!key) continue;
+    map.set(key, {
+      id: row.id,
+      identity: { ...row.identity },
+      metrics: zeroMetrics(),
+    });
+    const criterionId = parseGoogleAdsResourceId(String(row.identity.criterion_id ?? ""));
+    const campaignId = parseGoogleAdsResourceId(String(row.identity.campaign_id ?? ""));
+    const adGroupId = parseGoogleAdsResourceId(String(row.identity.ad_group_id ?? ""));
+    if (criterionId && campaignId && adGroupId) {
+      indexByCriterion.set(`${campaignId}|${adGroupId}|${criterionId}`, key);
+    }
+  }
+
+  for (const row of withMetrics) {
+    let key = entityResourceKey("keyword", row);
+    if (!key) continue;
+    let existing = map.get(key);
+    if (!existing) {
+      const criterionId = parseGoogleAdsResourceId(String(row.identity.criterion_id ?? ""));
+      const campaignId = parseGoogleAdsResourceId(String(row.identity.campaign_id ?? ""));
+      const adGroupId = parseGoogleAdsResourceId(String(row.identity.ad_group_id ?? ""));
+      if (criterionId && campaignId && adGroupId) {
+        const altKey = indexByCriterion.get(`${campaignId}|${adGroupId}|${criterionId}`);
+        if (altKey) {
+          key = altKey;
+          existing = map.get(altKey);
+        }
+      }
+    }
+    if (existing) {
+      existing.metrics = { ...row.metrics };
+      Object.assign(existing.identity, row.identity);
+      const criterionId = row.identity.criterion_id;
+      if (criterionId != null && String(criterionId) !== "") {
+        existing.id = String(criterionId);
+      }
+      continue;
+    }
+    map.set(key, {
+      id: String(row.identity.criterion_id ?? row.id ?? key),
+      identity: { ...row.identity },
+      metrics: { ...row.metrics },
+    });
+    const criterionId = parseGoogleAdsResourceId(String(row.identity.criterion_id ?? ""));
+    const campaignId = parseGoogleAdsResourceId(String(row.identity.campaign_id ?? ""));
+    const adGroupId = parseGoogleAdsResourceId(String(row.identity.ad_group_id ?? ""));
+    if (criterionId && campaignId && adGroupId) {
+      indexByCriterion.set(`${campaignId}|${adGroupId}|${criterionId}`, key);
+    }
+  }
+
+  return mergeMetricsRowsByEntity("keyword", [...map.values()]);
+}
+
 /** GAQL errors that may be fixed by dropping nested ad creative fields from SELECT. */
 export function isAdCreativeGaqlError(message: string): boolean {
   return /headline|expanded_text|responsive_search|prohibited|cannot be selected|unrecognized name|not allowed/i.test(
@@ -745,12 +865,24 @@ export function isAdCreativeGaqlError(message: string): boolean {
 }
 
 export function parseUnsupportedMetricsFromError(message: string): string[] {
-  const unsupported: string[] = [];
-  for (const def of METRIC_CATALOG) {
-    const short = def.gaqlField.replace("metrics.", "");
-    if (message.includes(def.gaqlField) || message.includes(short)) {
-      unsupported.push(def.key);
-    }
+  const byField = new Map(METRIC_CATALOG.map((d) => [d.gaqlField, d.key]));
+  const byShort = new Map(
+    METRIC_CATALOG.map((d) => [d.gaqlField.replace(/^metrics\./, ""), d.key]),
+  );
+  const keys: string[] = [];
+
+  const metricsRe = /metrics\.([a-z][a-z0-9_]*)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = metricsRe.exec(message)) !== null) {
+    const key = byField.get(`metrics.${match[1]}`);
+    if (key) keys.push(key);
   }
-  return [...new Set(unsupported)];
+
+  const prohibitedRe = /'([a-z][a-z0-9_]*)'\s*\([^)]*could not support/gi;
+  while ((match = prohibitedRe.exec(message)) !== null) {
+    const key = byShort.get(match[1]!);
+    if (key) keys.push(key);
+  }
+
+  return [...new Set(keys)];
 }

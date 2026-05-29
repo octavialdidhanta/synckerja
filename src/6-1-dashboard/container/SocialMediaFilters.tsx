@@ -8,6 +8,7 @@ import { MonthPicker } from '@/shared/calendar';
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { ReviewCommentNotificationBell } from './ReviewCommentNotificationBell';
+import { SocialMediaProductionNotificationBell } from './SocialMediaProductionNotificationBell';
 
 interface Service {
   id: string;
@@ -136,6 +137,7 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
           />
         </div>
         <ReviewCommentNotificationBell onOpenPreview={onNotificationPreviewRequest} />
+        <SocialMediaProductionNotificationBell onOpenPreview={onNotificationPreviewRequest} />
         <Select
           value={statusFilter && statusFilter !== '' ? statusFilter : 'all'}
           onValueChange={(value) => setStatusFilter(value || 'all')}

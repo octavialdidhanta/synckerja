@@ -1,4 +1,4 @@
-﻿import { supabase } from '@/shared/lib/supabaseClient';
+import { supabase } from '@/shared/lib/supabaseClient';
 import { calculateProgress, determineStatusFromProgress } from '../utils/taskUtils';
 
 export type CompletionEntityType = 'task' | 'step' | 'substep';
@@ -208,8 +208,8 @@ export async function rejectCompletion(
       .from('completion_approvals')
       .update({
         status: 'rejected',
-        rejected_at: new Date().toISOString(),
         rejected_by: rejectedByEmployeeId,
+        rejected_at: new Date().toISOString(),
         reject_reason: rejectReason.trim() || null,
         updated_at: new Date().toISOString(),
       })
@@ -289,7 +289,7 @@ export async function completeStepAndCreateApprovalFromDriveLink(params: {
     // 1. Find step(s) linked to this plan; prefer Content step
     const { data: contentSteps, error: stepsErr } = await supabase
       .from('task_steps')
-      .select('id, task_id, is_concept_step, assigned_to, created_by')
+      .select('id, task_id, is_concept_step, created_by')
       .eq('social_media_plan_id', socialMediaPlanId)
       .eq('is_concept_step', false)
       .limit(1);
@@ -299,13 +299,12 @@ export async function completeStepAndCreateApprovalFromDriveLink(params: {
       id: string;
       task_id: string;
       is_concept_step: boolean;
-      assigned_to?: string | null;
       created_by?: string | null;
     } | null = contentSteps?.[0] ?? null;
     if (!stepRow) {
       const { data: conceptSteps, error: conceptErr } = await supabase
         .from('task_steps')
-        .select('id, task_id, is_concept_step, assigned_to, created_by')
+        .select('id, task_id, is_concept_step, created_by')
         .eq('social_media_plan_id', socialMediaPlanId)
         .eq('is_concept_step', true)
         .limit(1);
@@ -319,13 +318,27 @@ export async function completeStepAndCreateApprovalFromDriveLink(params: {
     const stepId = stepRow.id;
     const taskId = stepRow.task_id;
 
+    // If the step has sub-steps, do not force-complete it from drive link.
+    // Completion must remain sub-step-driven; link only unlocks the last-substep completion.
+    const { count: subCount, error: subCountErr } = await supabase
+      .from('task_steps_to_steps')
+      .select('*', { count: 'exact', head: true })
+      .eq('parent_step_id', stepId);
+    // If we can't read sub-step count due to RLS, don't block completion.
+    // Only skip auto-complete when we can confidently detect sub-steps exist.
+    if (!subCountErr && (subCount ?? 0) > 0) {
+      return { error: null };
+    }
+
     // 2. Mark step complete first (must not depend on assignment read permissions)
     const completedAt = new Date().toISOString();
     const { error: updateStepErr } = await supabase
       .from('task_steps')
       .update({ is_completed: true, completed_at: completedAt })
       .eq('id', stepId);
-    if (updateStepErr) return { error: new Error(updateStepErr.message) };
+    if (updateStepErr) {
+      return { error: new Error(updateStepErr.message) };
+    }
 
     // 3. Get assignment for this step (assignee + assigner).
     // If RLS blocks this read, fallback to task_steps.assigned_to/created_by.
@@ -337,7 +350,21 @@ export async function completeStepAndCreateApprovalFromDriveLink(params: {
       .limit(1)
       .maybeSingle();
 
-    const assigneeEmployeeId = assignment?.employee_id ?? stepRow.assigned_to ?? null;
+    // assignee fallback: prefer assignment; if not readable, use plan PIC Production / PIC.
+    let assigneeEmployeeId: string | null = assignment?.employee_id ?? null;
+    if (!assigneeEmployeeId) {
+      const { data: planAssignee, error: planAssigneeErr } = await supabase
+        .from('social_media_plans')
+        .select('pic_production_id, pic_id')
+        .eq('id', socialMediaPlanId)
+        .maybeSingle();
+      if (!planAssigneeErr) {
+        assigneeEmployeeId =
+          (planAssignee as any)?.pic_production_id ??
+          (planAssignee as any)?.pic_id ??
+          null;
+      }
+    }
     const resolvedAssigner = await resolveAssignerEmployeeId({
       organizationId,
       assignedByFromAssignment: assignment?.assigned_by,
@@ -469,11 +496,11 @@ export async function revertStepCompletionFromDriveLinkRemoval(params: {
     if (pendingRows && pendingRows.length > 0) {
       const updatePayload: Record<string, unknown> = {
         status: 'rejected',
+        rejected_by: rejectedByEmployeeId ?? null,
         rejected_at: rejectedAt,
         reject_reason: rejectReason,
         updated_at: rejectedAt,
       };
-      if (rejectedByEmployeeId) updatePayload.rejected_by = rejectedByEmployeeId;
       for (const row of pendingRows) {
         const { error: updateApprovalErr } = await supabase
           .from('completion_approvals')
@@ -643,7 +670,6 @@ export async function syncStepCompletionFromProductionApproval(params: {
             approved_at: nowIso,
             approved_by: actorEmployeeId ?? null,
             rejected_at: null,
-            rejected_by: null,
             reject_reason: null,
             updated_at: nowIso,
           })
@@ -659,7 +685,6 @@ export async function syncStepCompletionFromProductionApproval(params: {
             approved_at: null,
             approved_by: null,
             rejected_at: null,
-            rejected_by: null,
             reject_reason: null,
             updated_at: nowIso,
           })

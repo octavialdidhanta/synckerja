@@ -10,7 +10,12 @@ import {
   requireOrgAdmin,
 } from "../_shared/googleAdsAuth.ts";
 import { resolveOrgGoogleAdsForUpload } from "../_shared/googleAdsOrgResolver.ts";
-import { gaqlSearch } from "../_shared/googleAdsGaql.ts";
+import {
+  gaqlSearch,
+  isManagerCustomerAccount,
+  listEnabledClientAccountsUnderManager,
+  withManagerLogin,
+} from "../_shared/googleAdsGaql.ts";
 import {
   fetchGoogleAdsAccessToken,
   listAccessibleCustomerIds,
@@ -353,11 +358,18 @@ Deno.serve(async (req: Request) => {
     const skipped: Array<{ customer_id: string; reason: string }> = [];
     const imported: Record<string, unknown>[] = [];
 
-    for (const rawId of accessibleIds) {
-      const cid = digitsOnly(rawId, 10);
-      if (!cid || existingSet.has(cid)) continue;
+    async function importClientAccount(
+      cid: string,
+      label: string,
+      loginCustomerId?: string | null,
+    ): Promise<void> {
+      if (!cid || existingSet.has(cid)) return;
 
-      const runtime: GoogleAdsConfig = { ...config, customerId: cid };
+      const runtime: GoogleAdsConfig = {
+        ...config,
+        customerId: cid,
+        loginCustomerId: loginCustomerId ?? config.loginCustomerId,
+      };
       let conversionActionId = "";
       try {
         const convRows = await gaqlSearch<{ conversionAction?: { id?: string } }>(
@@ -374,12 +386,12 @@ Deno.serve(async (req: Request) => {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         skipped.push({ customer_id: cid, reason: `conversion_fetch_failed: ${msg.slice(0, 120)}` });
-        continue;
+        return;
       }
 
       if (!conversionActionId) {
         skipped.push({ customer_id: cid, reason: "no_conversion_action" });
-        continue;
+        return;
       }
 
       const makeDefault = !hasDefault;
@@ -387,7 +399,7 @@ Deno.serve(async (req: Request) => {
         .from("organization_google_ads_accounts")
         .insert({
           organization_id: organizationId,
-          label: `Account ${cid}`,
+          label,
           customer_id: cid,
           conversion_action_id: conversionActionId,
           is_default: makeDefault,
@@ -399,7 +411,7 @@ Deno.serve(async (req: Request) => {
 
       if (insertErr) {
         skipped.push({ customer_id: cid, reason: insertErr.message.slice(0, 120) });
-        continue;
+        return;
       }
 
       if (inserted) {
@@ -408,6 +420,41 @@ Deno.serve(async (req: Request) => {
         sortOrder += 1;
         if (makeDefault) hasDefault = true;
       }
+    }
+
+    for (const rawId of accessibleIds) {
+      const cid = digitsOnly(rawId, 10);
+      if (!cid || existingSet.has(cid)) continue;
+
+      const runtimeForProbe: GoogleAdsConfig = { ...config, customerId: cid };
+      let isManager = false;
+      try {
+        isManager = await isManagerCustomerAccount(runtimeForProbe, accessToken, cid);
+      } catch {
+        isManager = false;
+      }
+
+      if (isManager) {
+        const mccConfig = withManagerLogin(config, cid);
+        let clients: Awaited<ReturnType<typeof listEnabledClientAccountsUnderManager>> = [];
+        try {
+          clients = await listEnabledClientAccountsUnderManager(mccConfig, accessToken, cid);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          skipped.push({ customer_id: cid, reason: `manager_clients_failed: ${msg.slice(0, 120)}` });
+          continue;
+        }
+        if (clients.length === 0) {
+          skipped.push({ customer_id: cid, reason: "manager_no_enabled_clients" });
+          continue;
+        }
+        for (const client of clients) {
+          await importClientAccount(client.customerId, client.descriptiveName, cid);
+        }
+        continue;
+      }
+
+      await importClientAccount(cid, `Account ${cid}`);
     }
 
     return googleAdsJson({

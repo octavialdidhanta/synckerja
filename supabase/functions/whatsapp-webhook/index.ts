@@ -67,6 +67,107 @@ function shouldUpgradeMetaDelivery(current: string | null | undefined, incoming:
   return incRank >= curRank;
 }
 
+function looksLikeMetaSessionExpiredMessage(value: unknown): boolean {
+  const msg = String(value ?? "");
+  return /re-engagement|24 hours|outside the window|session has expired|outside of allowed window/i.test(msg);
+}
+
+function isMetaSessionExpiredErrorFromStatusPayload(st: Record<string, unknown>): boolean {
+  const code = st.code != null ? Number(st.code) : NaN;
+  const title = st.title != null ? String(st.title) : "";
+  const message = st.message != null ? String(st.message) : "";
+  if (Number.isFinite(code) && (code === 131047 || code === 131026)) return true;
+  return looksLikeMetaSessionExpiredMessage(title) || looksLikeMetaSessionExpiredMessage(message);
+}
+
+async function markConversationExpiredFromFailedStatus(args: {
+  supabase: ReturnType<typeof createClient>;
+  waMessageId: string;
+  statusPayload: Record<string, unknown>;
+}): Promise<void> {
+  const { supabase, waMessageId, statusPayload } = args;
+
+  const errors = statusPayload.errors;
+  const firstErr =
+    Array.isArray(errors) && errors.length > 0 && errors[0] && typeof errors[0] === "object"
+      ? (errors[0] as Record<string, unknown>)
+      : null;
+  if (!firstErr || !isMetaSessionExpiredErrorFromStatusPayload(firstErr)) return;
+
+  const { data: msgRow } = await supabase
+    .from("whatsapp_messages")
+    .select("conversation_id")
+    .eq("wa_message_id", waMessageId)
+    .maybeSingle();
+  const conversationId = msgRow?.conversation_id != null ? String(msgRow.conversation_id) : "";
+  if (!conversationId) return;
+
+  const { data: conv } = await supabase
+    .from("whatsapp_conversations")
+    .select("organization_id, lead_status_id")
+    .eq("id", conversationId)
+    .maybeSingle();
+  const orgId = conv?.organization_id != null ? String(conv.organization_id) : "";
+  if (!orgId) return;
+
+  // Find Expired status (org-scoped then global)
+  let expiredId: string | null = null;
+  const { data: orgExpired } = await supabase
+    .from("lead_statuses")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("name", "Expired")
+    .maybeSingle();
+  expiredId = (orgExpired?.id as string | undefined) ?? null;
+  if (!expiredId) {
+    const { data: globalExpired } = await supabase
+      .from("lead_statuses")
+      .select("id")
+      .is("organization_id", null)
+      .eq("name", "Expired")
+      .maybeSingle();
+    expiredId = (globalExpired?.id as string | undefined) ?? null;
+  }
+  if (!expiredId) return;
+
+  // Avoid overwriting terminal statuses (Converted/Resolve/etc).
+  let oldStatusLabel: string | null = null;
+  const currentStatusId = conv?.lead_status_id != null ? String(conv.lead_status_id) : "";
+  const nowIso = new Date().toISOString();
+  if (currentStatusId) {
+    const { data: stRow } = await supabase
+      .from("lead_statuses")
+      .select("name")
+      .eq("id", currentStatusId)
+      .maybeSingle();
+    oldStatusLabel = (stRow?.name as string) ?? null;
+    const s = (oldStatusLabel ?? "").trim().toLowerCase();
+    if (["closed", "resolve", "lost", "converted", "expired"].includes(s)) {
+      // Still lock the composer when Meta says the session is over, even if status is terminal.
+      await supabase
+        .from("whatsapp_conversations")
+        .update({ meta_session_expires_at: nowIso, updated_at: nowIso })
+        .eq("id", conversationId);
+      return;
+    }
+  }
+
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ lead_status_id: expiredId, meta_session_expires_at: nowIso, updated_at: nowIso })
+    .eq("id", conversationId);
+
+  await supabase.from("whatsapp_conversation_status_history").insert({
+    conversation_id: conversationId,
+    old_status: oldStatusLabel,
+    new_status: "Expired",
+    changed_at: nowIso,
+    changed_by: null,
+    changed_by_name: "Meta",
+    organization_id: orgId,
+  });
+}
+
 function getMediaIdAndType(msg: Record<string, unknown>): { id: string; type: string; mime?: string; filename?: string } | null {
   const img = msg.image as { id?: string; mime_type?: string } | undefined;
   if (img?.id) return { id: img.id, type: "image", mime: img.mime_type };
@@ -798,6 +899,16 @@ Deno.serve(async (req: Request) => {
                 });
 
                 await persistWhatsappMetaSessionExpiryFromStatusPayload(supabase, st as Record<string, unknown>);
+
+                // If Meta reports the outbound message failed due to session window expiry, mark the conversation Expired
+                // so the composer is disabled and UI stays consistent (without touching Converted/Resolve leads).
+                if (status.trim().toLowerCase() === "failed") {
+                  await markConversationExpiredFromFailedStatus({
+                    supabase,
+                    waMessageId,
+                    statusPayload: st as Record<string, unknown>,
+                  });
+                }
 
                 const { data: campRec } = await supabase
                   .from("whatsapp_campaign_recipients")

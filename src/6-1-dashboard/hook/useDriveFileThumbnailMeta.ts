@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { devLog } from "@/shared/lib/logger";
+import { isDriveGrantRequiredPayload } from "../utils/driveApiErrors";
 import { shouldReplaceDriveApiError } from "../utils/driveInvokeFriendlyError";
 
 export type DriveFileThumbnailMeta = {
@@ -16,9 +17,13 @@ export type DriveFileThumbnailMeta = {
 export function useDriveFileThumbnailMeta(fileId: string | null): DriveFileThumbnailMeta & {
   loading: boolean;
   error: string | null;
+  grantRequired: boolean;
+  reload: () => void;
 } {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [grantRequired, setGrantRequired] = useState(false);
+  const [tick, setTick] = useState(0);
   const [meta, setMeta] = useState<DriveFileThumbnailMeta>({
     thumbnailLink: null,
     fallbackThumbnailUrl: null,
@@ -35,6 +40,7 @@ export function useDriveFileThumbnailMeta(fileId: string | null): DriveFileThumb
         mimeType: null,
       });
       setError(null);
+      setGrantRequired(false);
       setLoading(false);
       return;
     }
@@ -42,6 +48,7 @@ export function useDriveFileThumbnailMeta(fileId: string | null): DriveFileThumb
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setGrantRequired(false);
 
     (async () => {
       const { data, error: fnError } = await supabase.functions.invoke<{
@@ -50,6 +57,7 @@ export function useDriveFileThumbnailMeta(fileId: string | null): DriveFileThumb
         name?: string | null;
         mimeType?: string | null;
         error?: string;
+        code?: string;
       }>("google-drive-file-meta", {
         body: { file_id: fileId },
       });
@@ -59,6 +67,7 @@ export function useDriveFileThumbnailMeta(fileId: string | null): DriveFileThumb
 
       if (fnError) {
         devLog.debug("google-drive-file-meta invoke error", fnError.message);
+        setGrantRequired(isDriveGrantRequiredPayload(data));
         setError(null);
         setMeta({
           thumbnailLink: null,
@@ -72,6 +81,7 @@ export function useDriveFileThumbnailMeta(fileId: string | null): DriveFileThumb
       if (data?.error) {
         const raw = typeof data.error === "string" ? data.error : "";
         devLog.debug("google-drive-file-meta api error", raw);
+        setGrantRequired(isDriveGrantRequiredPayload(data));
         setError(raw && !shouldReplaceDriveApiError(raw) ? raw : null);
         setMeta({
           thumbnailLink: null,
@@ -98,7 +108,11 @@ export function useDriveFileThumbnailMeta(fileId: string | null): DriveFileThumb
     return () => {
       cancelled = true;
     };
-  }, [fileId]);
+  }, [fileId, tick]);
 
-  return { ...meta, loading, error };
+  const reload = useCallback(() => {
+    setTick((n) => n + 1);
+  }, []);
+
+  return { ...meta, loading, error, grantRequired, reload };
 }

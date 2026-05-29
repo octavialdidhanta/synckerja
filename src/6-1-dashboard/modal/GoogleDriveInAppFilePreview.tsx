@@ -10,6 +10,7 @@ import {
   upscaleGoogleDriveThumbnailUrl,
 } from "../utils/previewUtils";
 import { useDriveFileThumbnailMeta } from "../hook/useDriveFileThumbnailMeta";
+import { useGoogleDriveFileGrant } from "../hook/useGoogleDriveFileGrant";
 import { supabase, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 
 /**
@@ -21,6 +22,7 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
 }) => {
   const { t } = useAppTranslation();
   const fileId = useMemo(() => (isFileLink(link) ? extractGoogleDriveFileId(link) : null), [link]);
+  const { granting, grantDriveResource } = useGoogleDriveFileGrant();
   const thumbMeta = useDriveFileThumbnailMeta(fileId);
 
   const [thumbStripSrc, setThumbStripSrc] = useState<string | null>(null);
@@ -47,6 +49,7 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
     return false;
   }, [thumbMeta.mimeType, thumbMeta.name]);
 
+  const [streamTick, setStreamTick] = useState(0);
   const [googleStreamUrl, setGoogleStreamUrl] = useState<string | null>(null);
   /** Authenticated thumbnail proxy — private Drive files block hotlinked thumbnails in the browser. */
   const [authedThumbnailUrl, setAuthedThumbnailUrl] = useState<string | null>(null);
@@ -92,7 +95,7 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
       cancelled = true;
       sub.subscription.unsubscribe();
     };
-  }, [fileId]);
+  }, [fileId, streamTick]);
 
   const directVideoUrl = isFileLink(link) ? getDirectVideoUrl(link) : "";
   const videoSrc = useMemo(() => {
@@ -205,6 +208,29 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
   } else {
     body = (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-3">
+        {fileId && thumbMeta.grantRequired && googleStreamUrl ? (
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            className="h-8"
+            disabled={granting}
+            onClick={() =>
+              void grantDriveResource(fileId, {
+                isFolder: false,
+                onGranted: () => {
+                  thumbMeta.reload();
+                  setVideoFailed(false);
+                  setStreamTick((n) => n + 1);
+                },
+              })
+            }
+          >
+            {granting
+              ? t("googleDrivePreview.grantInProgress", "Membuka Google Picker…")
+              : t("googleDrivePreview.grantFileAccess", "Izinkan akses file")}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
@@ -216,10 +242,15 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
           {t("googleDrivePreview.openInGoogleDrive")}
         </Button>
         <p className="max-w-sm text-center text-xs text-gray-600">
-          {t(
-            "googleDrivePreview.useConnectInPreviewHeader",
-            "Untuk pratinjau di aplikasi, gunakan tombol Hubungkan Google di baris judul Preview di atas.",
-          )}
+          {thumbMeta.grantRequired && googleStreamUrl
+            ? t(
+                "googleDrivePreview.grantRequiredFile",
+                "File ini belum diizinkan untuk aplikasi. Gunakan Google Picker atau set sharing publik di Drive.",
+              )
+            : t(
+                "googleDrivePreview.useConnectInPreviewHeader",
+                "Untuk pratinjau di aplikasi, gunakan tombol Hubungkan Google di baris judul Preview di atas.",
+              )}
         </p>
       </div>
     );

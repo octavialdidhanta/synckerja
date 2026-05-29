@@ -12,6 +12,8 @@ export type IdleAgentRow = {
   role: OmnichannelStaffRole;
   userId: string | null;
   presenceStatus: IdleAgentPresenceStatus;
+  /** Assigned chats not yet in progress (shared via Leads Management). */
+  sharedChatCount: number;
   activeChatCount: number;
   idleSinceMs: number | null;
 };
@@ -28,6 +30,11 @@ export function isInProgressLead(lead: NewLead): boolean {
   return (lead.lead_status?.name?.trim().toLowerCase() ?? "") === "in progress";
 }
 
+function isTerminalLeadStatus(name: string | null | undefined): boolean {
+  const n = (name ?? "").trim().toLowerCase();
+  return n === "closed" || n === "resolve" || n === "expired" || n === "lost" || n === "converted";
+}
+
 /** Active operational assignee only — not `last_handling_assignee_id` (post-resolve visibility). */
 export function leadAssigneeId(lead: NewLead): string | null {
   const id = (lead as NewLead & { assignee_id?: string | null }).assignee_id;
@@ -40,6 +47,21 @@ export function countActiveChatsByAssignee(
   const map = new Map<string, number>();
   for (const lead of filteredLeads) {
     if (!isWhatsAppLead(lead) || !isInProgressLead(lead)) continue;
+    const assigneeId = leadAssigneeId(lead);
+    if (!assigneeId) continue;
+    map.set(assigneeId, (map.get(assigneeId) ?? 0) + 1);
+  }
+  return map;
+}
+
+export function countSharedChatsByAssignee(
+  filteredLeads: ReadonlyArray<NewLead>,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const lead of filteredLeads) {
+    if (!isWhatsAppLead(lead)) continue;
+    if (isInProgressLead(lead)) continue;
+    if (isTerminalLeadStatus(lead.lead_status?.name)) continue;
     const assigneeId = leadAssigneeId(lead);
     if (!assigneeId) continue;
     map.set(assigneeId, (map.get(assigneeId) ?? 0) + 1);
@@ -180,10 +202,12 @@ export function buildIdleAgentRows(
   nowMs: number,
 ): IdleAgentRow[] {
   const activeByAssignee = countActiveChatsByAssignee(filteredLeads);
+  const sharedByAssignee = countSharedChatsByAssignee(filteredLeads);
 
   const rows: IdleAgentRow[] = roster.map((r) => {
     const userId = r.employees?.user_id ?? null;
     const online = Boolean(userId && presenceByUserId[userId]);
+    const sharedChatCount = sharedByAssignee.get(r.employee_id) ?? 0;
     const activeChatCount = activeByAssignee.get(r.employee_id) ?? 0;
     const presenceStatus = derivePresenceStatus(online, activeChatCount);
     const idleSince = idleSinceByEmployeeId[r.employee_id];
@@ -199,6 +223,7 @@ export function buildIdleAgentRows(
       role: r.role,
       userId,
       presenceStatus,
+      sharedChatCount,
       activeChatCount,
       idleSinceMs,
     };

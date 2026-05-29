@@ -11,18 +11,29 @@ import {
  */
 export function useGoogleDriveOAuthConnection(enabled: boolean) {
   const [connected, setConnected] = useState<boolean | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+
+  const applyStatus = useCallback(
+    (data: { connected?: boolean; needsReconnect?: boolean } | null | undefined) => {
+      setConnected(Boolean(data?.connected));
+      setNeedsReconnect(Boolean(data?.connected && data?.needsReconnect));
+    },
+    [],
+  );
 
   const refresh = useCallback(async () => {
-    const { data, error } = await supabase.functions.invoke<{ connected?: boolean; error?: string }>(
-      "google-oauth-manage",
-      { body: { action: "status" } },
-    );
+    const { data, error } = await supabase.functions.invoke<{
+      connected?: boolean;
+      needsReconnect?: boolean;
+      error?: string;
+    }>("google-oauth-manage", { body: { action: "status" } });
     if (error || data?.error) {
       setConnected(false);
+      setNeedsReconnect(false);
       return;
     }
-    setConnected(Boolean(data?.connected));
-  }, []);
+    applyStatus(data);
+  }, [applyStatus]);
 
   useEffect(() => {
     if (!enabled) {
@@ -32,21 +43,23 @@ export function useGoogleDriveOAuthConnection(enabled: boolean) {
     setConnected(null);
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase.functions.invoke<{ connected?: boolean; error?: string }>(
-        "google-oauth-manage",
-        { body: { action: "status" } },
-      );
+      const { data, error } = await supabase.functions.invoke<{
+        connected?: boolean;
+        needsReconnect?: boolean;
+        error?: string;
+      }>("google-oauth-manage", { body: { action: "status" } });
       if (cancelled) return;
       if (error || data?.error) {
         setConnected(false);
+        setNeedsReconnect(false);
         return;
       }
-      setConnected(Boolean(data?.connected));
+      applyStatus(data);
     })();
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, applyStatus]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -84,10 +97,11 @@ export function useGoogleDriveOAuthConnection(enabled: boolean) {
       return { ok: false, message: data.error };
     }
     setConnected(false);
+    setNeedsReconnect(false);
     return { ok: true };
   }, []);
 
   const pending = enabled && connected === null;
 
-  return { connected, pending, refresh, disconnect };
+  return { connected, needsReconnect, pending, refresh, disconnect };
 }

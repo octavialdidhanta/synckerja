@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GoogleAdsMetricsPageSkeleton } from "@/6-0-google-ads/skeletons/GoogleAdsMetricsPageSkeleton";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { cn } from "@/shared/lib/utils";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import type { DateRange } from "react-day-picker";
-import { Columns3, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import { Columns3, Loader2, RefreshCw } from "lucide-react";
+import type { GoogleAdsMetricsRow } from "@/google-ads/metrics/types";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
@@ -17,70 +20,101 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Switch } from "@/shared/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
-import { DateRangeFilter } from "@/5-3-dashboard/components/leads/filters/DateRangeFilter";
+import { GoogleAdsCampaignAdGroupFilters } from "@/6-0-google-ads/components/GoogleAdsCampaignAdGroupFilters";
+import { GoogleAdsEntityNav } from "@/6-0-google-ads/components/GoogleAdsEntityNav";
+import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
+import {
+  computePresetRange,
+  defaultGoogleAdsDateSelection,
+  toGoogleAdsMetricsDateRangePayload,
+  toYmdLocal,
+  type GoogleAdsDateRangeSelection,
+} from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { useOmnichannelSurveySettingsAdmin } from "@/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { useGoogleAdsReportingEnabled } from "@/google-ads/hooks/useGoogleAdsReportingEnabled";
+import { useGoogleAdsConversionActions } from "@/google-ads/hooks/useGoogleAdsConversionActions";
+import { useGoogleAdsUiCustomColumns } from "@/google-ads/hooks/useGoogleAdsUiCustomColumns";
+import {
+  buildSummaryMetricOptions,
+  DEFAULT_SUMMARY_SLOT_KEYS,
+  loadSummarySlotMetrics,
+  saveSummarySlotMetrics,
+} from "@/google-ads/metrics/googleAdsSummaryMetricOptions";
 import { useGoogleAdsMetricCatalog } from "@/google-ads/hooks/useGoogleAdsMetricCatalog";
-import { useGoogleAdsMetrics } from "@/google-ads/hooks/useGoogleAdsMetrics";
+import {
+  fetchGoogleAdsMetricsFresh,
+  useGoogleAdsMetricsQuery,
+} from "@/google-ads/hooks/useGoogleAdsMetricsQuery";
 import { useGoogleAdsMetricsPreferences } from "@/google-ads/hooks/useGoogleAdsMetricsPreferences";
-import { MetricsPickerDialog } from "@/6-0-google-ads/components/MetricsPickerDialog";
+import { GoogleAdsModifyColumnsDialog } from "@/6-0-google-ads/components/GoogleAdsModifyColumnsDialog";
+import { useGoogleAdsColumnSets } from "@/google-ads/hooks/useGoogleAdsColumnSets";
+import { GoogleAdsMetricsSummaryBar } from "@/6-0-google-ads/components/GoogleAdsMetricsSummaryBar";
 import { GoogleAdsMetricsTable } from "@/6-0-google-ads/components/GoogleAdsMetricsTable";
+import { GoogleAdsMetricsTableFooter } from "@/6-0-google-ads/components/GoogleAdsMetricsTableFooter";
+import {
+  buildSortColumnOptions,
+  defaultSortDirectionForKind,
+  getSortColumnKind,
+  parseStoredSort,
+  resolveSortForOptions,
+  sortDirectionLabelKeys,
+} from "@/google-ads/metrics/googleAdsSortColumns";
 import type { GoogleAdsMetricEntity, GoogleAdsMetricsSort } from "@/google-ads/metrics/types";
 import { isUnsupportedMetricsError } from "@/google-ads/lib/parseEdgeFunctionError";
+import { resolveCampaignFilterIdFromRow } from "@/google-ads/metrics/parseGoogleAdsResourceId";
+import { parseTotalRowCount } from "@/google-ads/metrics/parseTotalRowCount";
+import { filterUnsupportedMetricsForEntity } from "@/google-ads/metrics/keywordViewExcludedMetrics";
 import { useGoogleAdsSettings } from "@/google-ads/hooks/useGoogleAdsSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "sonner";
 
-function toYmdLocal(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-type DateRangePreset = "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS" | "custom";
-
-function buildDateRangePayload(
-  preset: DateRangePreset,
-  customRange: DateRange | null,
-): { preset?: string; start?: string; end?: string } {
-  if (preset === "TODAY") {
-    const ymd = toYmdLocal(new Date());
-    return { preset: "TODAY", start: ymd, end: ymd };
-  }
-  if (preset === "LAST_7_DAYS") return { preset: "LAST_7_DAYS" };
-  if (preset === "LAST_30_DAYS") return { preset: "LAST_30_DAYS" };
-  if (customRange?.from && customRange?.to) {
-    return { start: toYmdLocal(customRange.from), end: toYmdLocal(customRange.to) };
-  }
-  const ymd = toYmdLocal(new Date());
-  return { preset: "TODAY", start: ymd, end: ymd };
+function parseMetricsPageOffset(token: string): number {
+  const s = token.trim();
+  if (!s || !/^\d+$/.test(s)) return 0;
+  return Math.max(0, Number(s));
 }
 
 export default function GoogleAdsMetricsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
   const { data: reportingEnabled = false, isPending: reportingPending } =
     useGoogleAdsReportingEnabled(organizationId);
   const { syncAccessibleAccounts } = useGoogleAdsSettings(organizationId);
 
   const [entity, setEntity] = useState<GoogleAdsMetricEntity>("campaign");
+  const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState(() =>
+    loadSummarySlotMetrics("campaign"),
+  );
   const [customerId, setCustomerId] = useState<string>("");
-  const [datePreset, setDatePreset] = useState<DateRangePreset>("TODAY");
-  const [customRange, setCustomRange] = useState<DateRange | null>(null);
+  const [dateSelection, setDateSelection] = useState<GoogleAdsDateRangeSelection>(() =>
+    defaultGoogleAdsDateSelection(),
+  );
   const [onlyRunning, setOnlyRunning] = useState(true);
   const [enabledOnly, setEnabledOnly] = useState(false);
+
+  /** Keywords tab lists all criteria; Delivery filter hides zero-metric rows. */
+  useEffect(() => {
+    if (entity === "keyword") {
+      setOnlyRunning(false);
+    }
+  }, [entity]);
   const [pageToken, setPageToken] = useState("");
   const [pageTokenHistory, setPageTokenHistory] = useState<string[]>([]);
+  const [pageSize, setPageSize] = useState(50);
   const [sort, setSort] = useState<GoogleAdsMetricsSort>({ field: "spent", direction: "desc" });
+  const sortHydratedForEntityRef = useRef<string | null>(null);
   const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
   const [unsupportedBannerLabels, setUnsupportedBannerLabels] = useState<string[] | null>(
     null,
   );
-  const strippedUnsupportedRef = useRef<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [selectedAdGroupId, setSelectedAdGroupId] = useState<string | null>(null);
+  const [stableTotalRows, setStableTotalRows] = useState<number | null>(null);
 
   const resetPagination = () => {
     setPageToken("");
@@ -93,26 +127,18 @@ export default function GoogleAdsMetricsPage() {
     canManage && reportingEnabled,
   );
 
-  const validMetricKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const c of catalogData?.categories ?? []) {
-      for (const m of c.metrics) keys.add(m.key);
-    }
-    return keys.size > 0 ? keys : null;
-  }, [catalogData]);
+  const { columnSets, save: saveColumnSet } = useGoogleAdsColumnSets(
+    organizationId,
+    entity,
+    canManage && reportingEnabled,
+  );
 
-  const metricLabelByKey = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of catalogData?.categories ?? []) {
-      for (const m of c.metrics) map.set(m.key, m.label);
-    }
-    return map;
-  }, [catalogData]);
-
-  const { selectedMetrics, save: saveMetrics, isPending: prefsPending } =
-    useGoogleAdsMetricsPreferences(organizationId, entity, validMetricKeys);
-
-  const { data: accounts = [], isPending: accountsPending } = useQuery({
+  const {
+    data: accounts = [],
+    isPending: accountsPending,
+    isFetching: accountsFetching,
+    dataUpdatedAt: accountsDataUpdatedAt,
+  } = useQuery({
     queryKey: ["google-ads-accounts-picker-metrics", organizationId],
     queryFn: async () => {
       if (!organizationId) return [];
@@ -134,71 +160,480 @@ export default function GoogleAdsMetricsPage() {
     return def?.customer_id ?? accounts[0]?.customer_id ?? "";
   }, [customerId, accounts]);
 
-  const dateRangePayload = useMemo(
-    () => buildDateRangePayload(datePreset, customRange),
-    [datePreset, customRange],
+  const {
+    customColumns: uiCustomColumns,
+    isLoading: uiCustomColumnsLoading,
+    isImporting: uiCustomColumnsImporting,
+    importColumns: importUiCustomColumns,
+  } = useGoogleAdsUiCustomColumns(
+    organizationId,
+    effectiveCustomerId,
+    entity,
+    canManage && reportingEnabled && Boolean(effectiveCustomerId),
   );
 
-  const sortOptions = useMemo(() => {
-    const cats = catalogData?.categories ?? [];
-    const opts: { key: string; label: string }[] = [];
-    const seen = new Set<string>();
-    for (const c of cats) {
-      for (const m of c.metrics) {
-        if (m.sortable !== false && !seen.has(m.key)) {
-          seen.add(m.key);
-          opts.push({ key: m.key, label: m.label });
-        }
-      }
+  const uiCustomColumnByKey = useMemo(() => {
+    const map = new Map<string, (typeof uiCustomColumns)[number]>();
+    for (const col of uiCustomColumns) {
+      map.set(col.key, col);
     }
-    return opts.sort((a, b) => a.label.localeCompare(b.label));
-  }, [catalogData]);
+    return map;
+  }, [uiCustomColumns]);
 
+  const validMetricKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const c of catalogData?.categories ?? []) {
+      for (const m of c.metrics) keys.add(m.key);
+    }
+    for (const m of catalogData?.recommended.metrics ?? []) {
+      keys.add(m.key);
+    }
+    for (const col of uiCustomColumns) {
+      keys.add(col.key);
+    }
+    return keys.size > 0 ? keys : null;
+  }, [catalogData, uiCustomColumns]);
+
+  const metricLabelByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of catalogData?.categories ?? []) {
+      for (const m of c.metrics) map.set(m.key, m.label);
+    }
+    for (const m of catalogData?.recommended.metrics ?? []) {
+      map.set(m.key, m.label);
+    }
+    for (const col of uiCustomColumns) {
+      map.set(col.key, col.label);
+    }
+    return map;
+  }, [catalogData, uiCustomColumns]);
+
+  const {
+    selectedMetrics,
+    storedSort,
+    save: saveMetrics,
+    saveSort,
+    isPending: prefsPending,
+  } = useGoogleAdsMetricsPreferences(organizationId, entity, validMetricKeys);
+
+  const customerSelectReady = !accountsPending && accounts.length > 0 && Boolean(effectiveCustomerId);
+
+  const { data: accountDateBounds } = useGoogleAdsAccountDateBounds(
+    organizationId,
+    effectiveCustomerId,
+    canManage && reportingEnabled && Boolean(effectiveCustomerId),
+  );
+
+  /** When account bounds load, refresh all_time range only — do not reset preset to last_30_days. */
   useEffect(() => {
-    if (sortOptions.length === 0) return;
-    setSort((current) => {
-      if (sortOptions.some((o) => o.key === current.field)) return current;
-      const spent = sortOptions.find((o) => o.key === "spent");
-      return { field: spent?.key ?? sortOptions[0]!.key, direction: "desc" };
+    const earliest = accountDateBounds?.earliest_date;
+    if (!earliest) return;
+    setDateSelection((prev) => {
+      if (prev.preset !== "all_time") return prev;
+      const range = computePresetRange("all_time", new Date(), {
+        accountEarliestYmd: earliest,
+      });
+      const nextFrom = range.from ? toYmdLocal(range.from) : null;
+      const nextTo = range.to ? toYmdLocal(range.to) : null;
+      const prevFrom = prev.range.from ? toYmdLocal(prev.range.from) : null;
+      const prevTo = prev.range.to ? toYmdLocal(prev.range.to) : null;
+      if (prevFrom === nextFrom && prevTo === nextTo) return prev;
+      return { ...prev, range };
     });
-  }, [entity, sortOptions]);
+  }, [accountDateBounds?.earliest_date]);
+
+  const dateRangePayload = useMemo(
+    () => toGoogleAdsMetricsDateRangePayload(dateSelection),
+    [dateSelection],
+  );
 
   useEffect(() => {
-    strippedUnsupportedRef.current = null;
     setUnsupportedBannerLabels(null);
   }, [entity, effectiveCustomerId]);
+
+  useEffect(() => {
+    setSelectedCampaignId(null);
+    setSelectedAdGroupId(null);
+    resetPagination();
+  }, [effectiveCustomerId]);
+
+  useEffect(() => {
+    if (entity === "campaign") {
+      setSelectedAdGroupId(null);
+    }
+  }, [entity]);
+
+  useEffect(() => {
+    setSummarySlotMetricKeys(loadSummarySlotMetrics(entity));
+  }, [entity]);
+
+  const { data: conversionActions = [] } = useGoogleAdsConversionActions(
+    organizationId,
+    effectiveCustomerId,
+    canManage && reportingEnabled && Boolean(effectiveCustomerId),
+  );
+
+  const summaryMetricOptions = useMemo(
+    () => buildSummaryMetricOptions(entity, catalogData, conversionActions),
+    [entity, catalogData, conversionActions],
+  );
+
+  const handleSummarySlotMetricChange = (slotIndex: number, key: string) => {
+    setSummarySlotMetricKeys((prev) => {
+      const next = [...prev];
+      next[slotIndex] = key;
+      saveSummarySlotMetrics(entity, next);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (summaryMetricOptions.length === 0) return;
+    setSummarySlotMetricKeys((prev) => {
+      let changed = false;
+      const next = prev.map((key, i) => {
+        const normalized = key === "spent" ? (DEFAULT_SUMMARY_SLOT_KEYS[i] ?? "impressions") : key;
+        if (summaryMetricOptions.some((o) => o.key === normalized)) {
+          if (normalized !== key) changed = true;
+          return normalized;
+        }
+        changed = true;
+        return DEFAULT_SUMMARY_SLOT_KEYS[i] ?? "impressions";
+      });
+      return changed ? next : prev;
+    });
+  }, [summaryMetricOptions]);
+
+  const selectedMetricsForEntity = useMemo(() => {
+    if (!validMetricKeys) return selectedMetrics;
+    return selectedMetrics.filter(
+      (k) =>
+        validMetricKeys.has(k) || k.startsWith("conv_action:") || k.startsWith("ui_custom:"),
+    );
+  }, [selectedMetrics, validMetricKeys]);
 
   const metricItems = useMemo(() => {
     const cats = catalogData?.categories ?? [];
     const map = new Map<string, (typeof cats)[0]["metrics"][0]>();
+    for (const m of catalogData?.recommended.metrics ?? []) {
+      map.set(m.key, m);
+    }
     for (const c of cats) {
       for (const m of c.metrics) map.set(m.key, m);
     }
-    return selectedMetrics
-      .map((k) => map.get(k))
+    return selectedMetricsForEntity
+      .map((k) => {
+        const catalogMetric = map.get(k);
+        if (catalogMetric) return catalogMetric;
+        const uiCustom = uiCustomColumnByKey.get(k);
+        if (!uiCustom) return null;
+        return {
+          key: uiCustom.key,
+          label: uiCustom.label,
+          description: uiCustom.description,
+          entities: ["campaign", "ad_group", "ad", "keyword"] as const,
+          valueKind: "count" as const,
+          defaultSelected: false,
+          sortable: false,
+        };
+      })
       .filter((m): m is NonNullable<typeof m> => Boolean(m));
-  }, [catalogData, selectedMetrics]);
+  }, [catalogData, uiCustomColumnByKey, selectedMetricsForEntity]);
 
-  const metricsQuery = useGoogleAdsMetrics(
+  const sortColumnOptions = useMemo(
+    () => buildSortColumnOptions(entity, metricItems),
+    [entity, metricItems],
+  );
+
+  const sortFieldValue = useMemo(() => {
+    if (sortColumnOptions.some((o) => o.key === sort.field)) return sort.field;
+    return sortColumnOptions[0]?.key ?? sort.field;
+  }, [sort.field, sortColumnOptions]);
+
+  const sortKind = useMemo(
+    () => getSortColumnKind(sortFieldValue, entity, metricItems),
+    [sortFieldValue, entity, metricItems],
+  );
+
+  const sortDirectionLabels = useMemo(() => {
+    const keys = sortDirectionLabelKeys(sortKind);
+    return {
+      desc: t(keys.descKey, keys.descDefault),
+      asc: t(keys.ascKey, keys.ascDefault),
+    };
+  }, [sortKind, t]);
+
+  useEffect(() => {
+    sortHydratedForEntityRef.current = null;
+  }, [entity, organizationId]);
+
+  useEffect(() => {
+    if (prefsPending || sortColumnOptions.length === 0) return;
+    if (sortHydratedForEntityRef.current === entity) return;
+    sortHydratedForEntityRef.current = entity;
+    setSort(
+      parseStoredSort(
+        storedSort.field,
+        storedSort.direction,
+        sortColumnOptions,
+        entity,
+        metricItems,
+      ),
+    );
+  }, [prefsPending, storedSort, sortColumnOptions, entity, metricItems]);
+
+  useEffect(() => {
+    if (sortColumnOptions.length === 0) return;
+    setSort((current) => {
+      const next = resolveSortForOptions(current, sortColumnOptions, entity, metricItems);
+      if (next.field === current.field && next.direction === current.direction) return current;
+      return next;
+    });
+  }, [sortColumnOptions, entity, metricItems]);
+
+  const handleSortFieldChange = (field: string) => {
+    const kind = getSortColumnKind(field, entity, metricItems);
+    const next: GoogleAdsMetricsSort = {
+      field,
+      direction: defaultSortDirectionForKind(kind),
+    };
+    setSort(next);
+    resetPagination();
+    void saveSort.mutateAsync(next);
+  };
+
+  const handleSortDirectionChange = (direction: "asc" | "desc") => {
+    const next: GoogleAdsMetricsSort = { field: sortFieldValue, direction };
+    setSort(next);
+    resetPagination();
+    void saveSort.mutateAsync(next);
+  };
+
+  const statusFilter = enabledOnly ? ("enabled_only" as const) : ("all" as const);
+
+  useEffect(() => {
+    if (!validMetricKeys || prefsPending) return;
+    const pruned = selectedMetrics.filter((k) => validMetricKeys.has(k));
+    if (pruned.length === selectedMetrics.length) return;
+    if (pruned.length === 0) return;
+    void saveMetrics.mutateAsync(pruned);
+  }, [entity, validMetricKeys, selectedMetrics, prefsPending, saveMetrics]);
+
+  const metricsFilters = useMemo(() => {
+    if (!effectiveCustomerId || selectedMetricsForEntity.length === 0) return null;
+    return {
+      customerId: effectiveCustomerId,
+      entity,
+      metrics: selectedMetricsForEntity,
+      dateRange: dateRangePayload,
+      onlyRunning,
+      statusFilter,
+      pageToken,
+      pageSize,
+      sort,
+      campaignFilterId: selectedCampaignId ?? undefined,
+      adGroupFilterId:
+        selectedAdGroupId && entity !== "campaign" ? selectedAdGroupId : undefined,
+      summaryMetrics: summarySlotMetricKeys,
+    };
+  }, [
+    effectiveCustomerId,
+    entity,
+    selectedMetricsForEntity,
+    dateRangePayload,
+    onlyRunning,
+    statusFilter,
+    pageToken,
+    pageSize,
+    sort,
+    selectedCampaignId,
+    selectedAdGroupId,
+    summarySlotMetricKeys,
+  ]);
+
+  const handleCampaignDrillDown = (row: GoogleAdsMetricsRow) => {
+    if (!effectiveCustomerId) return;
+    const filterId = resolveCampaignFilterIdFromRow(row, effectiveCustomerId);
+    if (!filterId) return;
+    setSelectedCampaignId(filterId);
+    setSelectedAdGroupId(null);
+    setEntity("ad_group");
+    resetPagination();
+  };
+
+  const metricsQuery = useGoogleAdsMetricsQuery(
     organizationId,
-    effectiveCustomerId
-      ? {
-          customerId: effectiveCustomerId,
-          entity,
-          metrics: selectedMetrics,
-          dateRange: dateRangePayload,
-          onlyRunning,
-          statusFilter: enabledOnly ? "enabled_only" : "all",
-          pageToken,
-          sort,
-        }
-      : null,
+    metricsFilters,
     canManage && reportingEnabled && !prefsPending,
   );
 
-  const handleApplyMetrics = async (keys: string[]) => {
+  /** Hide stale rows while sort, page, or report level changes during fetch. */
+  const committedMetricsFetchRef = useRef({
+    sortField: sort.field,
+    sortDirection: sort.direction,
+    pageToken,
+    entity,
+  });
+  const metricsTableRows = useMemo(() => {
+    const rows = metricsQuery.data?.rows ?? [];
+    if (!metricsQuery.isFetching) {
+      committedMetricsFetchRef.current = {
+        sortField: sort.field,
+        sortDirection: sort.direction,
+        pageToken,
+        entity,
+      };
+      return rows;
+    }
+    const committed = committedMetricsFetchRef.current;
+    if (
+      committed.entity !== entity ||
+      committed.sortField !== sort.field ||
+      committed.sortDirection !== sort.direction ||
+      committed.pageToken !== pageToken
+    ) {
+      return [];
+    }
+    return rows;
+  }, [
+    metricsQuery.data?.rows,
+    metricsQuery.isFetching,
+    entity,
+    sort.field,
+    sort.direction,
+    pageToken,
+  ]);
+
+  const metricsTableLoading =
+    metricsQuery.isLoading ||
+    metricsQuery.isPending ||
+    metricsQuery.isFetching;
+
+  const metricsTotalKey = useMemo(
+    () =>
+      JSON.stringify({
+        organizationId,
+        customerId: effectiveCustomerId,
+        entity,
+        dateRange: dateRangePayload,
+        onlyRunning,
+        statusFilter,
+        selectedCampaignId,
+        selectedAdGroupId,
+        metrics: selectedMetricsForEntity,
+      }),
+    [
+      organizationId,
+      effectiveCustomerId,
+      entity,
+      dateRangePayload,
+      onlyRunning,
+      statusFilter,
+      selectedCampaignId,
+      selectedAdGroupId,
+      selectedMetricsForEntity,
+    ],
+  );
+
+  useEffect(() => {
+    setStableTotalRows(null);
+  }, [metricsTotalKey]);
+
+  const pageOffset = useMemo(() => parseMetricsPageOffset(pageToken), [pageToken]);
+  const tableRowCount = metricsQuery.data?.rows.length ?? 0;
+
+  useEffect(() => {
+    const parsed = parseTotalRowCount(metricsQuery.data?.total_row_count);
+    if (parsed == null) return;
+    if (parsed === 0 && tableRowCount > 0) return;
+    setStableTotalRows(parsed);
+  }, [metricsQuery.data?.total_row_count, tableRowCount]);
+
+  const apiTotalRows = parseTotalRowCount(metricsQuery.data?.total_row_count);
+  const resolvedTotalRows = useMemo(() => {
+    if (stableTotalRows != null && (stableTotalRows > 0 || tableRowCount === 0)) {
+      return stableTotalRows;
+    }
+    if (apiTotalRows != null && apiTotalRows > 0) return apiTotalRows;
+    if (tableRowCount === 0) return 0;
+    if (!metricsQuery.data?.next_page_token) return pageOffset + tableRowCount;
+    return null;
+  }, [
+    stableTotalRows,
+    apiTotalRows,
+    tableRowCount,
+    metricsQuery.data?.next_page_token,
+    pageOffset,
+  ]);
+
+  const tableHasNextPageFromToken = Boolean(metricsQuery.data?.next_page_token);
+  const tableTotalCount = resolvedTotalRows ?? 0;
+  const tableTotalCountKnown = resolvedTotalRows != null && resolvedTotalRows > 0;
+  const tableRangeFrom = tableRowCount === 0 ? 0 : pageOffset + 1;
+  const tableRangeTo = pageOffset + tableRowCount;
+  const tableLastPageOffset = useMemo(() => {
+    if (!tableTotalCountKnown || tableTotalCount <= 0) return 0;
+    return Math.max(0, Math.floor((tableTotalCount - 1) / pageSize) * pageSize);
+  }, [tableTotalCount, tableTotalCountKnown, pageSize]);
+  const tableHasPreviousPage = pageOffset > 0;
+  const tableHasNextPage =
+    tableRowCount > 0 &&
+    (tableTotalCountKnown
+      ? pageOffset + pageSize < tableTotalCount
+      : tableHasNextPageFromToken);
+  const tableHasLastPage =
+    tableTotalCountKnown && tableTotalCount > pageSize && pageOffset < tableLastPageOffset;
+
+  const goToLastTablePage = () => {
+    if (!tableTotalCountKnown || tableLastPageOffset <= 0) {
+      resetPagination();
+      return;
+    }
+    const history: string[] = [];
+    for (let offset = 0; offset < tableLastPageOffset; offset += pageSize) {
+      history.push(String(offset));
+    }
+    setPageTokenHistory(history);
+    setPageToken(String(tableLastPageOffset));
+  };
+
+  const handleApplyMetrics = async (
+    keys: string[],
+    options?: { saveColumnSetName?: string },
+  ) => {
     try {
-      await saveMetrics.mutateAsync(keys);
+      const metricMap = new Map(metricItems.map((m) => [m.key, m]));
+      for (const c of catalogData?.categories ?? []) {
+        for (const m of c.metrics) metricMap.set(m.key, m);
+      }
+      for (const m of catalogData?.recommended.metrics ?? []) {
+        metricMap.set(m.key, m);
+      }
+      for (const col of uiCustomColumns) {
+        metricMap.set(col.key, {
+          key: col.key,
+          label: col.label,
+          description: col.description,
+          entities: ["campaign", "ad_group", "ad", "keyword"],
+          valueKind: "count",
+          defaultSelected: false,
+          sortable: false,
+        });
+      }
+      const itemsAfterApply = keys
+        .map((k) => metricMap.get(k))
+        .filter((m): m is NonNullable<typeof m> => Boolean(m));
+      const optionsAfterApply = buildSortColumnOptions(entity, itemsAfterApply);
+      const nextSort = resolveSortForOptions(sort, optionsAfterApply, entity, itemsAfterApply);
+      setSort(nextSort);
+      await saveMetrics.mutateAsync({ selectedMetrics: keys, sort: nextSort });
+      if (options?.saveColumnSetName) {
+        await saveColumnSet.mutateAsync({
+          name: options.saveColumnSetName,
+          metric_keys: keys,
+        });
+        toast.success("Column set saved");
+      }
       resetPagination();
     } catch (e) {
       toast.error((e as Error).message);
@@ -206,67 +641,79 @@ export default function GoogleAdsMetricsPage() {
   };
 
   useEffect(() => {
-    const error = metricsQuery.error;
-    if (!isUnsupportedMetricsError(error)) {
-      setUnsupportedBannerLabels(null);
+    const skipped = filterUnsupportedMetricsForEntity(
+      entity,
+      metricsQuery.data?.unsupported_metrics?.filter((k) => validMetricKeys?.has(k)),
+    );
+    if (skipped.length > 0) {
+      setUnsupportedBannerLabels(skipped.map((k) => metricLabelByKey.get(k) ?? k));
       return;
     }
-    const sig = error.unsupported_metrics.slice().sort().join("|");
-    if (strippedUnsupportedRef.current === sig) return;
-    strippedUnsupportedRef.current = sig;
-
-    const labels = error.unsupported_metrics.map((k) => metricLabelByKey.get(k) ?? k);
-    setUnsupportedBannerLabels(labels);
-    toast.warning(
-      t("digitalMarketing.googleAds.unsupportedMetricsToast", {
-        defaultValue: "Some metrics are not available for this view and were removed.",
-        count: labels.length,
-      }),
-    );
-
-    const next = selectedMetrics.filter((k) => !error.unsupported_metrics.includes(k));
-    if (next.length > 0 && next.length !== selectedMetrics.length) {
-      void saveMetrics.mutateAsync(next);
-    }
+    setUnsupportedBannerLabels(null);
   }, [
+    entity,
+    metricsQuery.data?.unsupported_metrics,
     metricsQuery.error,
     metricLabelByKey,
-    selectedMetrics,
-    saveMetrics,
-    t,
+    validMetricKeys,
   ]);
 
-  const handleSyncAccounts = async () => {
+  const handleRefresh = async () => {
+    if (!organizationId || !metricsFilters) return;
+    setIsRefreshing(true);
+    resetPagination();
     try {
-      const result = await syncAccessibleAccounts.mutateAsync();
-      const imported = result.imported ?? 0;
-      const skipped = result.skipped?.length ?? 0;
-      if (imported > 0) {
-        toast.success(
-          t("digitalMarketing.googleAds.syncImported", {
-            defaultValue: "Imported {{count}} account(s) from Google.",
-            count: imported,
-          }),
-        );
-      } else if (skipped > 0) {
-        toast.message(
-          t("digitalMarketing.googleAds.syncNoneImported", {
-            defaultValue: "No new accounts imported. {{skipped}} skipped (check conversion actions or developer token).",
-            skipped,
-          }),
-        );
-      } else {
-        toast.message(
-          t("digitalMarketing.googleAds.syncUpToDate", {
-            defaultValue: "All accessible Google Ads accounts are already linked.",
-          }),
-        );
+      try {
+        const result = await syncAccessibleAccounts.mutateAsync();
+        const imported = result.imported ?? 0;
+        if (imported > 0) {
+          toast.success(
+            t("digitalMarketing.googleAds.syncImported", {
+              defaultValue: "Imported {{count}} account(s) from Google.",
+              count: imported,
+            }),
+          );
+        }
+      } catch (syncErr) {
+        toast.error((syncErr as Error).message);
       }
-      void queryClient.invalidateQueries({
+
+      await queryClient.invalidateQueries({
         queryKey: ["google-ads-accounts-picker-metrics", organizationId],
       });
+      await queryClient.invalidateQueries({
+        queryKey: ["google-ads-campaign-list", organizationId],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["google-ads-ad-group-list", organizationId],
+      });
+
+      const refreshFilters = { ...metricsFilters, pageToken: "" };
+      const fresh = await fetchGoogleAdsMetricsFresh(organizationId, refreshFilters);
+      queryClient.setQueryData(
+        [
+          "google-ads-metrics-v2",
+          organizationId,
+          refreshFilters.customerId,
+          refreshFilters.entity,
+          [...refreshFilters.metrics].sort().join("|"),
+          refreshFilters.dateRange,
+          refreshFilters.onlyRunning,
+          refreshFilters.statusFilter,
+          refreshFilters.pageToken,
+          refreshFilters.pageSize,
+          refreshFilters.sort?.field,
+          refreshFilters.sort?.direction,
+          refreshFilters.campaignFilterId ?? "",
+          refreshFilters.adGroupFilterId ?? "",
+        ],
+        fresh,
+      );
     } catch (e) {
       toast.error((e as Error).message);
+      await metricsQuery.refetch();
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -279,28 +726,108 @@ export default function GoogleAdsMetricsPage() {
     err?.code === "TOKEN_REFRESH_FAILED" ||
     /invalid_grant|token refresh|TOKEN_REFRESH/i.test(err?.message ?? "");
 
-  if (gatePending) {
-    return (
-      <div className="flex h-full min-h-0 flex-1 items-center justify-center bg-gray-100">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  const accountsInitialPending =
+    Boolean(organizationId) &&
+    canManage &&
+    reportingEnabled &&
+    (accountsPending || (accountsFetching && accountsDataUpdatedAt === 0));
+
+  const metricsPanelReady =
+    Boolean(organizationId) &&
+    canManage &&
+    reportingEnabled &&
+    Boolean(effectiveCustomerId) &&
+    Boolean(metricsFilters) &&
+    !prefsPending;
+
+  const metricsInitialPending =
+    metricsPanelReady &&
+    (metricsQuery.isPending ||
+      (metricsQuery.isFetching && metricsQuery.dataUpdatedAt === 0));
+
+  const rawPageLoadPending =
+    orgBootstrapPending ||
+    gatePending ||
+    (Boolean(organizationId) && canManage && reportingPending) ||
+    (Boolean(organizationId) && canManage && reportingEnabled && prefsPending) ||
+    accountsInitialPending ||
+    metricsInitialPending;
+
+  const [showPageSkeletonOverlay, setShowPageSkeletonOverlay] = useState(true);
+  const revealRafOuterRef = useRef<number | null>(null);
+  const revealRafInnerRef = useRef<number | null>(null);
+  const hideOverlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setShowPageSkeletonOverlay(true);
+  }, [organizationId, effectiveCustomerId]);
+
+  useEffect(() => {
+    if (rawPageLoadPending) {
+      if (revealRafOuterRef.current != null) {
+        cancelAnimationFrame(revealRafOuterRef.current);
+        revealRafOuterRef.current = null;
+      }
+      if (revealRafInnerRef.current != null) {
+        cancelAnimationFrame(revealRafInnerRef.current);
+        revealRafInnerRef.current = null;
+      }
+      if (hideOverlayTimeoutRef.current != null) {
+        clearTimeout(hideOverlayTimeoutRef.current);
+        hideOverlayTimeoutRef.current = null;
+      }
+      setShowPageSkeletonOverlay(true);
+      return;
+    }
+
+    hideOverlayTimeoutRef.current = setTimeout(() => {
+      hideOverlayTimeoutRef.current = null;
+      revealRafOuterRef.current = requestAnimationFrame(() => {
+        revealRafInnerRef.current = requestAnimationFrame(() => {
+          revealRafOuterRef.current = null;
+          revealRafInnerRef.current = null;
+          setShowPageSkeletonOverlay(false);
+        });
+      });
+    }, 200);
+
+    return () => {
+      if (hideOverlayTimeoutRef.current != null) {
+        clearTimeout(hideOverlayTimeoutRef.current);
+        hideOverlayTimeoutRef.current = null;
+      }
+      if (revealRafOuterRef.current != null) {
+        cancelAnimationFrame(revealRafOuterRef.current);
+        revealRafOuterRef.current = null;
+      }
+      if (revealRafInnerRef.current != null) {
+        cancelAnimationFrame(revealRafInnerRef.current);
+        revealRafInnerRef.current = null;
+      }
+    };
+  }, [rawPageLoadPending]);
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <ModuleShellContentGate pagePath="/digital-marketing/google-ads">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col",
+              showPageSkeletonOverlay && "pointer-events-none opacity-0",
+            )}
+            aria-hidden={showPageSkeletonOverlay}
+          >
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-            <div className="flex h-full min-h-0 flex-col">
-              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="flex min-h-full flex-col">
-                  <div className="mb-1 min-w-0 shrink-0">
-                    <HeaderAndTab />
-                  </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="mb-1 min-w-0 shrink-0">
+                  <HeaderAndTab />
+                </div>
 
-                  <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                    <div className="col-span-12 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
+                  <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                       {!canManage ? (
                         <div className="p-6">
                           <Alert>
@@ -322,8 +849,21 @@ export default function GoogleAdsMetricsPage() {
                           </Alert>
                         </div>
                       ) : (
-                        <>
-                          <div className="shrink-0 space-y-3 border-b border-gray-200 p-4">
+                        <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-row overflow-hidden">
+                          <GoogleAdsEntityNav
+                            entity={entity}
+                            onEntityChange={(next) => {
+                              setEntity(next);
+                              resetPagination();
+                            }}
+                            accounts={accounts}
+                            customerId={effectiveCustomerId}
+                            customerSelectReady={customerSelectReady}
+                            accountsPending={accountsPending}
+                            onCustomerIdChange={setCustomerId}
+                          />
+                          <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+                          <div className="shrink-0 space-y-3 border-b border-gray-200 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
 
                             {!reportingPending && !reportingEnabled ? (
                               <Alert>
@@ -419,58 +959,80 @@ export default function GoogleAdsMetricsPage() {
                             ) : null}
 
                             <div className="flex min-w-0 flex-col gap-2">
-                              <div className="flex min-w-0 items-center justify-between gap-2">
-                                <h2 className="min-w-0 flex-1 truncate text-lg font-semibold text-gray-900">
-                                  {t("digitalMarketing.googleAds.title", "Google Ads performance")}
-                                </h2>
+                              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                                {reportingEnabled && effectiveCustomerId ? (
+                                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                                    <GoogleAdsCampaignAdGroupFilters
+                                      organizationId={organizationId}
+                                      customerId={effectiveCustomerId}
+                                      entity={entity}
+                                      statusFilter={statusFilter}
+                                      reportingEnabled={reportingEnabled}
+                                      selectedCampaignId={selectedCampaignId}
+                                      selectedAdGroupId={selectedAdGroupId}
+                                      disabled={!metricsFilters || metricsQuery.isFetching}
+                                      onCampaignChange={(id) => {
+                                        setSelectedCampaignId(id);
+                                        setSelectedAdGroupId(null);
+                                        resetPagination();
+                                      }}
+                                      onAdGroupChange={(id) => {
+                                        setSelectedAdGroupId(id);
+                                        resetPagination();
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="min-w-0 flex-1" aria-hidden />
+                                )}
 
                                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                  <Label className="sr-only">
-                                    {t("digitalMarketing.googleAds.dateRangeLabel", "Date range")}
-                                  </Label>
-                                  <Select
-                                    value={datePreset}
-                                    onValueChange={(v) => {
-                                      setDatePreset(v as typeof datePreset);
-                                      resetPagination();
-                                      if (v !== "custom") setCustomRange(null);
-                                    }}
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0"
+                                    title={t(
+                                      "digitalMarketing.googleAds.refreshData",
+                                      "Refresh accounts and metrics from Google",
+                                    )}
+                                    disabled={
+                                      !reportingEnabled ||
+                                      isRefreshing ||
+                                      syncAccessibleAccounts.isPending ||
+                                      !metricsFilters
+                                    }
+                                    onClick={() => void handleRefresh()}
                                   >
-                                    <SelectTrigger className="h-9 w-[120px]">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="TODAY">
-                                        {t("digitalMarketing.googleAds.dateToday", "Today")}
-                                      </SelectItem>
-                                      <SelectItem value="LAST_7_DAYS">
-                                        {t("digitalMarketing.googleAds.dateLast7", "Last 7 days")}
-                                      </SelectItem>
-                                      <SelectItem value="LAST_30_DAYS">
-                                        {t("digitalMarketing.googleAds.dateLast30", "Last 30 days")}
-                                      </SelectItem>
-                                      <SelectItem value="custom">
-                                        {t("digitalMarketing.googleAds.dateCustom", "Custom")}
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                                    {isRefreshing || syncAccessibleAccounts.isPending ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <RefreshCw className="h-4 w-4" />
+                                    )}
+                                  </Button>
+
+                                  <GoogleAdsDateRangePicker
+                                    value={dateSelection}
+                                    accountEarliestYmd={accountDateBounds?.earliest_date}
+                                    onChange={(next) => {
+                                      setDateSelection(next);
+                                      resetPagination();
+                                    }}
+                                  />
 
                                   <Label className="sr-only">
                                     {t("digitalMarketing.googleAds.sortBy", "Sort by")}
                                   </Label>
                                   <Select
-                                    value={sort.field}
-                                    onValueChange={(field) => {
-                                      setSort((s) => ({ ...s, field }));
-                                      resetPagination();
-                                    }}
-                                    disabled={sortOptions.length === 0}
+                                    value={sortFieldValue}
+                                    onValueChange={handleSortFieldChange}
+                                    disabled={sortColumnOptions.length === 0}
                                   >
-                                    <SelectTrigger className="h-9 w-[100px]">
+                                    <SelectTrigger className="h-9 w-[min(140px,28vw)]">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {sortOptions.map((o) => (
+                                      {sortColumnOptions.map((o) => (
                                         <SelectItem key={o.key} value={o.key}>
                                           {o.label}
                                         </SelectItem>
@@ -479,23 +1041,19 @@ export default function GoogleAdsMetricsPage() {
                                   </Select>
                                   <Select
                                     value={sort.direction}
-                                    onValueChange={(direction) => {
-                                      setSort((s) => ({
-                                        ...s,
-                                        direction: direction as "asc" | "desc",
-                                      }));
-                                      resetPagination();
-                                    }}
+                                    onValueChange={(v) =>
+                                      handleSortDirectionChange(v as "asc" | "desc")
+                                    }
                                   >
-                                    <SelectTrigger className="h-9 w-[108px]">
+                                    <SelectTrigger className="h-9 w-[116px]">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="desc">
-                                        {t("digitalMarketing.googleAds.sortDesc", "High → low")}
+                                        {sortDirectionLabels.desc}
                                       </SelectItem>
                                       <SelectItem value="asc">
-                                        {t("digitalMarketing.googleAds.sortAsc", "Low → high")}
+                                        {sortDirectionLabels.asc}
                                       </SelectItem>
                                     </SelectContent>
                                   </Select>
@@ -515,7 +1073,7 @@ export default function GoogleAdsMetricsPage() {
                                       className="cursor-pointer whitespace-nowrap text-xs text-muted-foreground"
                                       title={t(
                                         "digitalMarketing.googleAds.onlyRunning",
-                                        "Only with delivery (impressions or cost)",
+                                        "Only keywords/rows with impressions or cost in this date range. Off = closer to Google Ads row count.",
                                       )}
                                     >
                                       {t("digitalMarketing.googleAds.onlyRunningShort", "Delivery")}
@@ -556,217 +1114,187 @@ export default function GoogleAdsMetricsPage() {
                                   </Button>
                                 </div>
                               </div>
+                            </div>
+                          </div>
 
-                              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                <div className="flex shrink-0 items-center gap-1">
-                                  <Label className="sr-only">
-                                    {t("digitalMarketing.googleAds.customerLabel", "Account")}
-                                  </Label>
-                                  <Select
-                                    value={effectiveCustomerId || undefined}
-                                    onValueChange={(v) => {
-                                      setCustomerId(v);
-                                      resetPagination();
-                                    }}
-                                    disabled={accountsPending || accounts.length === 0}
-                                  >
-                                    <SelectTrigger className="h-9 w-[min(180px,40vw)]">
-                                      <SelectValue
-                                        placeholder={t(
-                                          "digitalMarketing.googleAds.customerPlaceholder",
-                                          "Select customer",
-                                        )}
-                                      />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {accounts.map((a) => (
-                                        <SelectItem key={a.id} value={a.customer_id}>
-                                          {a.label || a.customer_id}
-                                          {a.is_default ? " (default)" : ""}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-9 w-9 shrink-0"
-                                    title={t(
-                                      "digitalMarketing.googleAds.syncFromGoogle",
-                                      "Sync accounts from Google",
+                          {reportingEnabled && effectiveCustomerId ? (
+                            <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
+                              <GoogleAdsMetricsSummaryBar
+                                totals={
+                                  metricsTableLoading
+                                    ? undefined
+                                    : metricsQuery.data?.summary_totals
+                                }
+                                currencyCode={metricsQuery.data?.currency_code ?? null}
+                                isLoading={metricsTableLoading}
+                                metricKeys={summarySlotMetricKeys}
+                                onMetricKeyChange={handleSummarySlotMetricChange}
+                                summaryMetricOptions={summaryMetricOptions}
+                              />
+                            </div>
+                          ) : null}
+
+                          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-gray-100">
+                            <div className="shrink-0 space-y-1 px-4 pt-2 pb-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pt-1.5">
+                              {metricsQuery.data?.currency_code ? (
+                                <p className="text-xs text-muted-foreground">
+                                  {t("digitalMarketing.googleAds.currency", "Currency")}:{" "}
+                                  <span className="font-medium">
+                                    {metricsQuery.data.currency_code}
+                                  </span>
+                                  {metricsQuery.data.date_range ? (
+                                    <>
+                                      {" · "}
+                                      {format(
+                                        new Date(metricsQuery.data.date_range.start),
+                                        "dd MMM yyyy",
+                                      )}{" "}
+                                      –{" "}
+                                      {format(
+                                        new Date(metricsQuery.data.date_range.end),
+                                        "dd MMM yyyy",
+                                      )}
+                                    </>
+                                  ) : null}
+                                  {metricsQuery.data.cached ? (
+                                    <span className="ml-2 text-muted-foreground/80">(cached)</span>
+                                  ) : null}
+                                  <span className="mt-1 block text-muted-foreground/90 [@media(max-height:900px)]:hidden">
+                                    {t(
+                                      "digitalMarketing.googleAds.dateRangeCompareHint",
+                                      "Use the same date range in Google Ads UI to compare numbers.",
                                     )}
-                                    disabled={
-                                      !reportingEnabled || syncAccessibleAccounts.isPending
-                                    }
-                                    onClick={() => void handleSyncAccounts()}
-                                  >
-                                    {syncAccessibleAccounts.isPending ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <RefreshCw className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                </div>
-
-                                <Tabs
-                                  value={entity}
-                                  onValueChange={(v) => {
-                                    setEntity(v as GoogleAdsMetricEntity);
-                                    resetPagination();
-                                  }}
-                                  className="shrink-0"
-                                >
-                                  <TabsList className="h-9">
-                                    <TabsTrigger value="campaign" className="px-3 text-xs sm:text-sm">
-                                      Campaign
-                                    </TabsTrigger>
-                                    <TabsTrigger value="ad_group" className="px-3 text-xs sm:text-sm">
-                                      Ad group
-                                    </TabsTrigger>
-                                    <TabsTrigger value="ad" className="px-3 text-xs sm:text-sm">
-                                      Ad
-                                    </TabsTrigger>
-                                  </TabsList>
-                                </Tabs>
-                              </div>
-
-                              {datePreset === "custom" ? (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <DateRangeFilter
-                                    defaultPreset="last30days"
-                                    onDateRangeChange={(range) => {
-                                      setCustomRange(range);
-                                      resetPagination();
-                                    }}
-                                  />
-                                </div>
+                                  </span>
+                                </p>
                               ) : null}
                             </div>
 
-                            {metricsQuery.data?.currency_code ? (
-                              <p className="text-xs text-muted-foreground">
-                                {t("digitalMarketing.googleAds.currency", "Currency")}:{" "}
-                                <span className="font-medium">{metricsQuery.data.currency_code}</span>
-                                {metricsQuery.data.date_range ? (
-                                  <>
-                                    {" · "}
-                                    {format(
-                                      new Date(metricsQuery.data.date_range.start),
-                                      "dd MMM yyyy",
-                                    )}{" "}
-                                    –{" "}
-                                    {format(
-                                      new Date(metricsQuery.data.date_range.end),
-                                      "dd MMM yyyy",
-                                    )}
-                                  </>
-                                ) : null}
-                                {metricsQuery.data.cached ? (
-                                  <span className="ml-2 text-muted-foreground/80">(cached)</span>
-                                ) : null}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <div className="flex min-h-0 flex-1 flex-col">
-                            <div className="scrollbar-hide min-h-0 flex-1 overflow-auto p-4 pb-2">
-                              {metricsQuery.isError &&
-                              !showTokenDenied &&
-                              !showReconnectOAuth &&
-                              !isUnsupportedMetricsError(metricsQuery.error) ? (
-                                <Alert variant="destructive" className="mb-4">
+                            {metricsQuery.isError &&
+                            !showTokenDenied &&
+                            !showReconnectOAuth &&
+                            !isUnsupportedMetricsError(metricsQuery.error) ? (
+                              <div className="shrink-0 px-4 pb-2">
+                                <Alert variant="destructive">
                                   <AlertDescription>
                                     {(metricsQuery.error as Error).message}
                                   </AlertDescription>
                                 </Alert>
-                              ) : null}
-
-                              <GoogleAdsMetricsTable
-                                entity={entity}
-                                rows={metricsQuery.data?.rows ?? []}
-                                metricItems={metricItems}
-                                currencyCode={metricsQuery.data?.currency_code ?? null}
-                                isLoading={metricsQuery.isLoading || metricsQuery.isFetching}
-                              />
-                            </div>
-
-                            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-200 bg-white px-4 py-3">
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={
-                                    pageTokenHistory.length === 0 || metricsQuery.isFetching
-                                  }
-                                  onClick={() => {
-                                    setPageTokenHistory((h) => {
-                                      if (h.length === 0) return h;
-                                      const prev = h[h.length - 1] ?? "";
-                                      setPageToken(prev);
-                                      return h.slice(0, -1);
-                                    });
-                                  }}
-                                >
-                                  <ChevronLeft className="mr-1 h-4 w-4" />
-                                  {t("common.previous", "Previous")}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={
-                                    (pageTokenHistory.length === 0 && !pageToken) ||
-                                    metricsQuery.isFetching
-                                  }
-                                  onClick={resetPagination}
-                                >
-                                  {t("common.firstPage", "First page")}
-                                </Button>
                               </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={
-                                  !metricsQuery.data?.next_page_token || metricsQuery.isFetching
-                                }
-                                onClick={() => {
+                            ) : null}
+
+                            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4">
+                              <div className="min-h-0 flex-1 overflow-hidden">
+                                <GoogleAdsMetricsTable
+                                  entity={entity}
+                                  rows={metricsTableRows}
+                                  metricItems={metricItems}
+                                  currencyCode={metricsQuery.data?.currency_code ?? null}
+                                  isLoading={metricsTableLoading}
+                                  onCampaignDrillDown={
+                                    entity === "campaign" ? handleCampaignDrillDown : undefined
+                                  }
+                                  emptyMessage={
+                                    selectedCampaignId && entity === "ad_group"
+                                      ? t(
+                                          "digitalMarketing.googleAds.noAdGroupsForCampaign",
+                                          "No ad groups match your filters for this campaign and date range.",
+                                        )
+                                      : selectedCampaignId && entity === "keyword"
+                                        ? t(
+                                            "digitalMarketing.googleAds.noKeywordsForCampaign",
+                                            "No keywords match your filters for this campaign and date range.",
+                                          )
+                                        : selectedAdGroupId
+                                          ? t(
+                                              "digitalMarketing.googleAds.noRowsForAdGroup",
+                                              "No rows match your filters for this ad group and date range.",
+                                            )
+                                          : entity === "keyword"
+                                            ? t(
+                                                "digitalMarketing.googleAds.noKeywords",
+                                                "No keywords match your filters for this date range.",
+                                              )
+                                            : undefined
+                                  }
+                                />
+                              </div>
+
+                              <GoogleAdsMetricsTableFooter
+                                pageSize={pageSize}
+                                onPageSizeChange={(size) => {
+                                  setPageSize(size);
+                                  resetPagination();
+                                }}
+                                rangeFrom={tableRangeFrom}
+                                rangeTo={tableRangeTo}
+                                totalCount={tableTotalCount}
+                                hasPreviousPage={tableHasPreviousPage}
+                                hasNextPage={tableHasNextPage}
+                                hasLastPage={tableHasLastPage}
+                                isLoading={metricsQuery.isFetching}
+                                onFirstPage={resetPagination}
+                                onPreviousPage={() => {
+                                  setPageTokenHistory((h) => {
+                                    if (h.length === 0) return h;
+                                    const prev = h[h.length - 1] ?? "";
+                                    setPageToken(prev);
+                                    return h.slice(0, -1);
+                                  });
+                                }}
+                                onNextPage={() => {
                                   const next = metricsQuery.data?.next_page_token;
                                   if (!next) return;
                                   setPageTokenHistory((h) => [...h, pageToken]);
                                   setPageToken(next);
                                 }}
-                              >
-                                {t("common.next", "Next")}
-                                <ChevronRight className="ml-1 h-4 w-4" />
-                              </Button>
+                                onLastPage={goToLastTablePage}
+                              />
                             </div>
                           </div>
-                        </>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
-
-                  <div
-                    className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                    aria-hidden
-                  />
                 </div>
               </div>
             </div>
           </div>
+          </div>
+
+          {showPageSkeletonOverlay ? (
+            <div
+              className="absolute inset-0 z-10 flex min-h-0 flex-col overflow-hidden bg-gray-100"
+              aria-busy
+              aria-label={t("common.loading", "Loading")}
+            >
+              <GoogleAdsMetricsPageSkeleton />
+            </div>
+          ) : null}
         </div>
       </ModuleShellContentGate>
 
-      <MetricsPickerDialog
+      <GoogleAdsModifyColumnsDialog
         open={metricsDialogOpen}
         onOpenChange={setMetricsDialogOpen}
-        categories={catalogData?.categories ?? []}
+        entity={entity}
+        catalog={catalogData}
+        uiCustomColumns={uiCustomColumns}
+        uiCustomColumnsLoading={uiCustomColumnsLoading}
+        onImportUiCustomColumns={async (names, replaceAll) => {
+          try {
+            const res = await importUiCustomColumns.mutateAsync({ names, replaceAll });
+            toast.success(`Imported ${res.imported_count ?? names.length} custom columns`);
+          } catch (e) {
+            toast.error((e as Error).message);
+            throw e;
+          }
+        }}
+        isImportingUiCustomColumns={uiCustomColumnsImporting}
         selectedKeys={selectedMetrics}
+        columnSets={columnSets}
         onApply={handleApplyMetrics}
-        isSaving={saveMetrics.isPending}
+        isSaving={saveMetrics.isPending || saveColumnSet.isPending}
       />
     </div>
   );

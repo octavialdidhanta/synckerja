@@ -59,23 +59,30 @@ async function markWhatsappConversationExpiredReactive(
     oldStatusLabel = (stRow?.name as string) ?? null;
     statusName = (oldStatusLabel ?? "").trim().toLowerCase();
   }
-  if (["closed", "resolve", "lost", "converted", "expired"].includes(statusName)) return;
-
   const nowIso = new Date().toISOString();
+  const isTerminal = ["closed", "resolve", "lost", "converted", "expired"].includes(statusName);
+  // Always lock the composer when Meta session expires, even if the conversation is terminal (e.g. Converted).
+  // But only change lead_status_id to Expired when not terminal, to avoid overriding Converted/Resolve.
   await admin
     .from("whatsapp_conversations")
-    .update({ lead_status_id: expiredId, meta_session_expires_at: nowIso, updated_at: nowIso })
+    .update(
+      isTerminal
+        ? { meta_session_expires_at: nowIso, updated_at: nowIso }
+        : { lead_status_id: expiredId, meta_session_expires_at: nowIso, updated_at: nowIso },
+    )
     .eq("id", conversationId);
 
-  await admin.from("whatsapp_conversation_status_history").insert({
-    conversation_id: conversationId,
-    old_status: oldStatusLabel,
-    new_status: "Expired",
-    changed_at: nowIso,
-    changed_by: null,
-    changed_by_name: "Meta",
-    organization_id: orgId,
-  });
+  if (!isTerminal) {
+    await admin.from("whatsapp_conversation_status_history").insert({
+      conversation_id: conversationId,
+      old_status: oldStatusLabel,
+      new_status: "Expired",
+      changed_at: nowIso,
+      changed_by: null,
+      changed_by_name: "Meta",
+      organization_id: orgId,
+    });
+  }
 }
 
 function parseWabaExpirationUnixSeconds(meta: Record<string, unknown>): number | null {

@@ -63,15 +63,15 @@ export const useBatchApprovalAccess = (): ApprovalAccess => {
           return false;
         }
 
-        // Get user's employee record to check exceptions
+        // Employee row optional (e.g. owner without employees record) — used only for config exceptions
         const { data: employee, error: employeeError } = await supabase
           .from('employees')
           .select('id')
           .eq('user_id', user.id)
           .eq('organization_id', profile.active_organization_id)
-          .single();
+          .maybeSingle();
 
-        if (employeeError || !employee) {
+        if (employeeError) {
           devLog.error('Error fetching employee:', employeeError);
           return false;
         }
@@ -97,7 +97,9 @@ export const useBatchApprovalAccess = (): ApprovalAccess => {
         const hasRoleAccess = config.allowed_roles?.includes(userRole.role);
 
         // Check if user is in the exceptions list
-        const isException = config.exceptions?.includes(employee.id);
+        const isException = employee?.id
+          ? config.exceptions?.includes(employee.id)
+          : false;
         const result = hasRoleAccess || isException;
 
         // Cache the result

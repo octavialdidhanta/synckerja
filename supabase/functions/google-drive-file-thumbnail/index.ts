@@ -1,8 +1,11 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-type SupabaseAdminClient = ReturnType<typeof createClient>;
+import {
+  DRIVE_GRANT_REQUIRED_HEADER,
+  getValidGoogleDriveAccessToken,
+  mapGoogleDriveApiFailure,
+} from "../_shared/googleDriveAccess.ts";
 
 /**
  * Returns the Drive file thumbnail image bytes using the user's Google OAuth token.
@@ -14,96 +17,6 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
-
-type CredentialsRow = {
-  access_token: string | null;
-  refresh_token: string | null;
-  access_token_expires_at: string | null;
-};
-
-async function getValidAccessToken(
-  supabaseAdmin: SupabaseAdminClient,
-  userId: string,
-): Promise<{ accessToken: string; error?: string }> {
-  const { data: row, error } = await supabaseAdmin
-    .from("user_google_oauth_credentials")
-    .select("access_token, refresh_token, access_token_expires_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    console.error("google-drive-file-thumbnail: read credentials", error.message);
-    return { accessToken: "", error: "Failed to read Google credentials" };
-  }
-  const r = row as CredentialsRow | null;
-  if (!r) {
-    return { accessToken: "", error: "Google account not connected" };
-  }
-
-  const expiresMs = r.access_token_expires_at ? new Date(r.access_token_expires_at).getTime() : 0;
-  const fresh = r.access_token && expiresMs > Date.now() + 60_000;
-  if (fresh) {
-    return { accessToken: r.access_token! };
-  }
-
-  if (!r.refresh_token) {
-    if (r.access_token) {
-      return { accessToken: r.access_token };
-    }
-    return { accessToken: "", error: "Google session expired; connect Google again" };
-  }
-
-  const clientId = Deno.env.get("GOOGLE_CLIENT_ID") ?? "";
-  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "";
-  if (!clientId || !clientSecret) {
-    return { accessToken: "", error: "Google OAuth not configured" };
-  }
-
-  const body = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    refresh_token: r.refresh_token,
-    grant_type: "refresh_token",
-  });
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
-
-  const tokenJson = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    const msg =
-      typeof tokenJson.error_description === "string"
-        ? tokenJson.error_description
-        : typeof tokenJson.error === "string"
-          ? tokenJson.error
-          : "Token refresh failed";
-    console.error("google-drive-file-thumbnail: refresh", msg);
-    return { accessToken: "", error: msg };
-  }
-
-  const accessToken = typeof tokenJson.access_token === "string" ? tokenJson.access_token : "";
-  if (!accessToken) {
-    return { accessToken: "", error: "No access token from refresh" };
-  }
-
-  const expiresIn = typeof tokenJson.expires_in === "number" ? tokenJson.expires_in : 3600;
-  const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-  const nowIso = new Date().toISOString();
-
-  await supabaseAdmin
-    .from("user_google_oauth_credentials")
-    .update({
-      access_token: accessToken,
-      access_token_expires_at: expiresAt,
-      updated_at: nowIso,
-    })
-    .eq("user_id", userId);
-
-  return { accessToken };
-}
 
 function parseSupabaseJwt(req: Request, url: URL): string | null {
   const authHeader = req.headers.get("Authorization");
@@ -191,7 +104,11 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { accessToken, error: tokenErr } = await getValidAccessToken(supabaseAdmin, user.id);
+    const { accessToken, error: tokenErr } = await getValidGoogleDriveAccessToken(
+      supabaseAdmin,
+      user.id,
+      "google-drive-file-thumbnail",
+    );
     if (!accessToken) {
       return new Response(tokenErr ?? "No Google access", {
         status: 400,
@@ -208,6 +125,16 @@ Deno.serve(async (req: Request) => {
     const meta = (await metaRes.json()) as Record<string, unknown>;
     if (!metaRes.ok) {
       console.error("google-drive-file-thumbnail: Drive meta", JSON.stringify(meta).slice(0, 200));
+      const mapped = mapGoogleDriveApiFailure(metaRes.status, meta, fileIdRaw);
+      if (mapped.body.code === "DRIVE_GRANT_REQUIRED") {
+        const out = new Headers(corsHeaders);
+        out.set(DRIVE_GRANT_REQUIRED_HEADER, "DRIVE_GRANT_REQUIRED");
+        out.set("Content-Type", "text/plain; charset=utf-8");
+        return new Response(String(mapped.body.error ?? "Grant required"), {
+          status: mapped.httpStatus,
+          headers: out,
+        });
+      }
     }
 
     const thumbnailLink = typeof meta.thumbnailLink === "string" ? meta.thumbnailLink : null;

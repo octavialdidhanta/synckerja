@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useLocation } from "react-router-dom";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
@@ -23,6 +22,9 @@ export type OmnichannelStaffPresencePayload = {
 };
 
 export type PresenceByUserId = Record<string, OmnichannelStaffPresencePayload>;
+
+const PRESENCE_HEARTBEAT_MS = 45_000;
+const PRESENCE_FRESH_MS = 3 * 60_000;
 
 type OmnichannelStaffPresenceContextValue = {
   presenceByUserId: PresenceByUserId;
@@ -52,8 +54,6 @@ function OmnichannelStaffPresenceProviderInner({ children }: { children: ReactNo
   const { organizationId } = useCurrentOrg();
   const { employee } = useCentralizedUserData();
   const { data: roster = [] } = useOrganizationOmnichannelStaff();
-  const { pathname } = useLocation();
-  const trackEnabled = pathname.startsWith("/omnichannel");
 
   const [presenceByUserId, setPresenceByUserId] = useState<PresenceByUserId>({});
   const [isConnected, setIsConnected] = useState(false);
@@ -65,8 +65,7 @@ function OmnichannelStaffPresenceProviderInner({ children }: { children: ReactNo
   }, [employee?.id, roster]);
 
   const canTrack = Boolean(
-    trackEnabled &&
-      organizationId &&
+    organizationId &&
       employee?.id &&
       rosterEntry &&
       rosterEntry.employees?.user_id,
@@ -140,10 +139,27 @@ function OmnichannelStaffPresenceProviderInner({ children }: { children: ReactNo
     }
   }, [trackPayload, isConnected]);
 
+  useEffect(() => {
+    const ch = channelRef.current;
+    if (!ch || !isConnected || !trackPayload) return;
+
+    const id = window.setInterval(() => {
+      void ch.track({ ...trackPayload, online_at: new Date().toISOString() });
+    }, PRESENCE_HEARTBEAT_MS);
+
+    return () => window.clearInterval(id);
+  }, [isConnected, trackPayload]);
+
   const isUserOnline = useCallback(
     (userId: string | null | undefined) => {
       if (!userId) return false;
-      return Boolean(presenceByUserId[userId]);
+      const p = presenceByUserId[userId];
+      if (!p) return false;
+
+      const ts = new Date(p.online_at).getTime();
+      if (!Number.isFinite(ts) || ts <= 0) return true;
+
+      return Date.now() - ts <= PRESENCE_FRESH_MS;
     },
     [presenceByUserId],
   );
@@ -160,7 +176,7 @@ function OmnichannelStaffPresenceProviderInner({ children }: { children: ReactNo
   );
 }
 
-/** Shared omnichannel presence (subscribe + track on `/omnichannel/*` when on roster). */
+/** Shared omnichannel presence (subscribe + track while logged in + active org + on roster). */
 export function OmnichannelStaffPresenceProvider({ children }: { children: ReactNode }) {
   return <OmnichannelStaffPresenceProviderInner>{children}</OmnichannelStaffPresenceProviderInner>;
 }

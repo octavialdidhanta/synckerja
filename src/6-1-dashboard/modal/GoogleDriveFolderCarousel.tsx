@@ -3,6 +3,7 @@ import { ExternalLink, FolderOpen, ChevronLeft, ChevronRight, FileIcon, Loader2 
 import { Button } from "@/shared/components/ui/button";
 import { extractGoogleDriveFolderId } from "../utils/previewUtils";
 import { useDriveFolderList } from "../hook/useDriveFolderList";
+import { useGoogleDriveFileGrant } from "../hook/useGoogleDriveFileGrant";
 import { GoogleDriveFilePreview } from "./GoogleDriveInAppFilePreview";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import {
@@ -48,7 +49,9 @@ const GoogleDriveFolderCarousel: React.FC<GoogleDriveFolderCarouselProps> = ({ f
     }
   }, [rootFolderId]);
 
-  const { files, loading, error, reload: reloadFolderList } = useDriveFolderList(activeFolderId);
+  const { files, loading, error, grantRequired, reload: reloadFolderList } =
+    useDriveFolderList(activeFolderId);
+  const { granting, grantDriveResource } = useGoogleDriveFileGrant();
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -219,12 +222,34 @@ const GoogleDriveFolderCarousel: React.FC<GoogleDriveFolderCarouselProps> = ({ f
       {error ? (
         <div className="shrink-0 rounded border border-amber-200 bg-amber-50/90 p-2 text-xs text-amber-900">
           <p className="mb-1.5 font-medium">{error}</p>
-          <p className="mb-2 text-amber-800/90">
-            {t(
-              "googleDriveFolder.connectViaPreviewHeader",
-              "Hubungkan atau putuskan Google memakai tombol di baris judul Preview di atas. Setelah menghubungkan lagi, daftar folder akan dimuat ulang otomatis.",
-            )}
-          </p>
+          {grantRequired && activeFolderId ? (
+            <div className="mb-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={granting}
+                onClick={() =>
+                  void grantDriveResource(activeFolderId, {
+                    isFolder: true,
+                    onGranted: reloadFolderList,
+                  })
+                }
+              >
+                {granting
+                  ? t("googleDrivePreview.grantInProgress", "Membuka Google Picker…")
+                  : t("googleDrivePreview.grantFolderAccess", "Izinkan akses folder")}
+              </Button>
+            </div>
+          ) : (
+            <p className="mb-2 text-amber-800/90">
+              {t(
+                "googleDriveFolder.connectViaPreviewHeader",
+                "Hubungkan atau putuskan Google memakai tombol di baris judul Preview di atas. Setelah menghubungkan lagi, daftar folder akan dimuat ulang otomatis.",
+              )}
+            </p>
+          )}
           <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={openInDrive}>
             {t("googleDriveFolder.openInDrive", "Buka di Drive")}
           </Button>

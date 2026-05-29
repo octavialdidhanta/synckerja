@@ -143,7 +143,7 @@ export function LoginScreen({
         navigate,
       });
       if (error === "access_denied") {
-        toast({ title: t("auth.google.errors.accessDenied"), variant: "destructive" });
+        // User cancelled account picker / consent; do not show an error toast.
         setGoogleLoading(false);
         return;
       }

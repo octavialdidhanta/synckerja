@@ -6,13 +6,37 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Alert, AlertDescription } from '@/shared/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { cn } from '@/shared/lib/utils';
-import { ArrowLeft, Check, ExternalLink, LinkIcon, Tag, Calendar, MessageSquare, Send, Briefcase, Layers, Pencil, RotateCcw, Trash2, User, Loader2, Download } from 'lucide-react';
-import { supabase } from '@/shared/lib/supabaseClient';
+import {
+  ArrowLeft,
+  Check,
+  ExternalLink,
+  LinkIcon,
+  Tag,
+  Calendar,
+  MessageSquare,
+  Send,
+  Briefcase,
+  Layers,
+  Pencil,
+  RotateCcw,
+  Trash2,
+  User,
+  Loader2,
+  Download,
+} from 'lucide-react';
+import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { applyVariables, loadTranslationDictionary } from '@/shared/i18n/translations';
 import { devLog } from '@/shared/lib/logger';
-import { getEmbedUrl, getDirectVideoUrl, isFolderLink, isFileLink, isYouTubeLink } from '../utils/previewUtils';
+import {
+  extractGoogleDriveFileId,
+  getEmbedUrl,
+  getDirectVideoUrl,
+  isFolderLink,
+  isFileLink,
+  isYouTubeLink,
+} from '../utils/previewUtils';
 import { getCarouselImagePublicUrl } from '../hook/useCarouselImages';
 import GoogleDriveFolderCarousel from '../modal/GoogleDriveFolderCarousel';
 import { useProdApprovalAccess } from '../hook/useProdApprovalAccess';
@@ -94,6 +118,60 @@ function getCommentAccent(commentId: string): (typeof COMMENT_ACCENT_COLORS)[num
   return COMMENT_ACCENT_COLORS[index];
 }
 
+/**
+ * Full width of card, intrinsic aspect (no crop). Avoid max-height on the same box as aspect-ratio —
+ * that shrinks width and leaves white gutters while native controls still span the wide box.
+ */
+function ReviewFitVideo({
+  src,
+  fallbackPortrait,
+  useMobileHtml5Video,
+  videoRef,
+  onError,
+}: {
+  src: string;
+  fallbackPortrait: boolean;
+  useMobileHtml5Video: boolean;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  onError: () => void;
+}) {
+  const [intrinsicAspect, setIntrinsicAspect] = useState<number | null>(null);
+
+  useEffect(() => {
+    setIntrinsicAspect(null);
+  }, [src]);
+
+  const fallbackAspect = fallbackPortrait ? 9 / 16 : 16 / 9;
+  const aspectRatio = intrinsicAspect ?? fallbackAspect;
+
+  return (
+    <video
+      ref={videoRef}
+      key={src}
+      src={src}
+      className="block h-auto w-full max-w-none touch-pan-y bg-neutral-950"
+      style={{
+        width: '100%',
+        aspectRatio,
+        height: 'auto',
+        touchAction: 'pan-y',
+      }}
+      controls
+      playsInline
+      preload="metadata"
+      controlsList="nodownload nofullscreen noremoteplayback"
+      disablePictureInPicture={useMobileHtml5Video}
+      onLoadedMetadata={(e) => {
+        const v = e.currentTarget;
+        if (v.videoWidth > 0 && v.videoHeight > 0) {
+          setIntrinsicAspect(v.videoWidth / v.videoHeight);
+        }
+      }}
+      onError={onError}
+    />
+  );
+}
+
 /** Portrait-oriented content types (Reel, Story, Shorts, etc.) use 9/16 aspect ratio. When unknown, default to portrait to avoid cropping vertical content. */
 function isPortraitContent(contentTypeName: string | null | undefined): boolean {
   if (contentTypeName == null || String(contentTypeName).trim() === '') return true; // default portrait so Reel/vertical is not cropped
@@ -150,7 +228,9 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const [editingText, setEditingText] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [videoUseIframe, setVideoUseIframe] = useState(false);
-  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [videoLoadFailed, setVideoLoadFailed] = useState(false);
+  const [googleStreamUrl, setGoogleStreamUrl] = useState<string | null>(null);
+  const [videoStreamReady, setVideoStreamReady] = useState(false);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [carouselPreviewIndex, setCarouselPreviewIndex] = useState(0);
   const [carouselDownloading, setCarouselDownloading] = useState(false);
@@ -312,8 +392,47 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   // Reset video state when link changes
   useEffect(() => {
     setVideoUseIframe(false);
-    setVideoPlaying(false);
+    setVideoLoadFailed(false);
+    setGoogleStreamUrl(null);
+    setVideoStreamReady(false);
   }, [content?.google_drive_link, content?.link_url]);
+
+  const reviewMediaLink = content?.google_drive_link ?? content?.link_url ?? '';
+  const driveFileId =
+    reviewMediaLink && isFileLink(reviewMediaLink) ? extractGoogleDriveFileId(reviewMediaLink) : null;
+
+  /** Authenticated stream (private Drive) — same edge proxy as dashboard preview. */
+  useEffect(() => {
+    if (!isLoggedIn || !driveFileId) {
+      setGoogleStreamUrl(null);
+      setVideoStreamReady(true);
+      return;
+    }
+    let cancelled = false;
+    setVideoStreamReady(false);
+    const applySession = (accessToken: string | undefined) => {
+      if (cancelled) return;
+      if (accessToken) {
+        const media = new URL(`${SUPABASE_URL}/functions/v1/google-drive-file-media`);
+        media.searchParams.set('file_id', driveFileId);
+        media.searchParams.set('supabase_token', accessToken);
+        setGoogleStreamUrl(media.toString());
+      } else {
+        setGoogleStreamUrl(null);
+      }
+      setVideoStreamReady(true);
+    };
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      applySession(session?.access_token);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      applySession(session?.access_token);
+    });
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, [isLoggedIn, driveFileId]);
 
   // Set document title and og/twitter meta for link preview when content is loaded
   useEffect(() => {
@@ -648,14 +767,13 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const link = content?.google_drive_link ?? content?.link_url ?? '';
   const embedUrl = getEmbedUrl(link);
   const directVideoUrl = isFileLink(link) ? getDirectVideoUrl(link) : '';
+  const effectiveVideoUrl = googleStreamUrl || directVideoUrl;
+  /** Mobile: HTML5 video + native controls; skip Drive iframe (toolbar overlays the frame). */
+  const useMobileHtml5Video = isMobileViewport;
 
   useEffect(() => {
     setCarouselPreviewIndex(0);
   }, [content?.social_media_plan_id, content?.carousel_image_paths?.length]);
-
-  const handleVideoPlay = useCallback(() => {
-    videoRef.current?.play();
-  }, []);
 
   if (loading) {
     return (
@@ -843,11 +961,11 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
         {/* Preview with header (title + metadata). Video: portrait (Reel) = 9/16, landscape = 16/9. Section responsive: min-height on video wrapper so content is not cut off. */}
         {(() => {
           const isPortrait = isPortraitContent(content?.content_type_name ?? null);
-          const videoBoxClass = isPortrait
-            ? 'aspect-[9/16] w-full max-w-full mx-auto min-w-0'
-            : 'aspect-video w-full max-w-full mx-auto min-w-0';
-          const isVideoFile = link && isFileLink(link);
-          const videoWrapperMinHeight = isVideoFile && isPortrait ? { minHeight: 'min(56.25vw, 568px)' } : undefined;
+          const videoFallbackPortrait = isPortrait;
+          const videoPlaceholderStyle: React.CSSProperties = {
+            width: '100%',
+            aspectRatio: videoFallbackPortrait ? 9 / 16 : 16 / 9,
+          };
           return (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col touch-pan-y min-w-0 flex-shrink-0">
               <div className="p-2 sm:p-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
@@ -887,10 +1005,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                   )}
                 </div>
               </div>
-              <div
-                className="flex-1 p-2 sm:p-4 flex items-center justify-center bg-white touch-pan-y min-w-0 min-h-0"
-                style={videoWrapperMinHeight}
-              >
+              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col items-stretch bg-white touch-pan-y">
                 {(() => {
                   const isPostOrCarousel = content?.content_type_name === 'Post' || content?.content_type_name === 'Carousel';
                   const carouselPaths = content?.carousel_image_paths ?? [];
@@ -1053,83 +1168,60 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                   if (isFileLink(link) && embedUrl) {
                     return (
                   (() => {
-                    const useIframe = videoUseIframe || !directVideoUrl;
-                    const portraitVideoStyle = isPortrait
-                      ? {
-                          ...videoLayerStyle,
-                          width: '100%',
-                          aspectRatio: '9/16',
-                          flexShrink: 0,
-                          alignSelf: 'center',
-                          maxHeight: 'min(568px, 80dvh)',
-                        }
-                      : { ...videoLayerStyle, flexShrink: 0 };
-                    const isNative = showBackToHome;
-                    const portraitAspectWrapper = isPortrait && isNative
-                      ? { position: 'relative' as const, width: '100%', paddingBottom: '177.78%' }
-                      : undefined;
+                    const useIframe =
+                      !useMobileHtml5Video && (videoUseIframe || !effectiveVideoUrl);
                     if (useIframe) {
                       return (
-                        <div className="w-full flex flex-col items-center flex-shrink-0">
-                          {portraitAspectWrapper ? (
-                            <div className="w-full rounded-lg overflow-hidden bg-black touch-pan-y shrink-0" style={portraitAspectWrapper}>
-                              <iframe
-                                src={embedUrl}
-                                className="absolute inset-0 w-full h-full border-0 rounded-lg touch-pan-y"
-                                style={{ touchAction: 'pan-y' }}
-                                title="Preview"
-                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                                loading="lazy"
-                              />
-                            </div>
-                          ) : (
-                            <div
-                              className={`rounded-lg overflow-hidden bg-black touch-pan-y shrink-0 ${videoBoxClass}`}
-                              style={portraitVideoStyle}
-                            >
-                              <iframe
-                                src={embedUrl}
-                                className="w-full h-full border-0 rounded-lg touch-pan-y"
-                                style={{ touchAction: 'pan-y' }}
-                                title="Preview"
-                                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                                loading="lazy"
-                              />
-                            </div>
-                          )}
+                        <div
+                          className="relative w-full max-w-full shrink-0 overflow-hidden touch-pan-y"
+                          style={videoPlaceholderStyle}
+                        >
+                          <iframe
+                            src={embedUrl}
+                            className="absolute inset-0 h-full w-full border-0 touch-pan-y"
+                            style={{ touchAction: 'pan-y' }}
+                            title="Preview"
+                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                            loading="lazy"
+                          />
+                        </div>
+                      );
+                    }
+                    if (useMobileHtml5Video && isLoggedIn && driveFileId && !videoStreamReady) {
+                      return (
+                        <div
+                          className="flex min-h-[200px] w-full max-w-full items-center justify-center text-sm text-gray-400"
+                          style={videoPlaceholderStyle}
+                        >
+                          <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+                          <span className="sr-only">{t('publicReview.loading', 'Loading...')}</span>
+                        </div>
+                      );
+                    }
+                    if (useMobileHtml5Video && (videoLoadFailed || !effectiveVideoUrl)) {
+                      return (
+                        <div className="text-center px-4 py-6">
+                          <p className="text-sm text-gray-700 mb-4">
+                            {t('publicReview.preview.unavailable', 'Preview not available')}
+                          </p>
+                          <Button variant="outline" size="sm" onClick={() => window.open(link, '_blank')}>
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            {t('publicReview.preview.openLink', 'Open link')}
+                          </Button>
                         </div>
                       );
                     }
                     return (
-                      <div
-                        className={portraitAspectWrapper ? 'w-full rounded-lg overflow-hidden bg-black touch-pan-y shrink-0' : `rounded-lg overflow-hidden bg-black touch-pan-y shrink-0 ${videoBoxClass} ${!videoPlaying ? 'cursor-pointer' : ''}`}
-                        style={portraitAspectWrapper ?? portraitVideoStyle}
-                        onClick={() => {
-                          if (!videoPlaying) handleVideoPlay();
+                      <ReviewFitVideo
+                        src={effectiveVideoUrl}
+                        fallbackPortrait={videoFallbackPortrait}
+                        useMobileHtml5Video={useMobileHtml5Video}
+                        videoRef={videoRef}
+                        onError={() => {
+                          if (useMobileHtml5Video) setVideoLoadFailed(true);
+                          else setVideoUseIframe(true);
                         }}
-                        role={!videoPlaying ? 'button' : undefined}
-                        tabIndex={!videoPlaying ? 0 : undefined}
-                        onKeyDown={!videoPlaying ? (e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            handleVideoPlay();
-                          }
-                        } : undefined}
-                        aria-label={!videoPlaying ? t('publicReview.preview.play', 'Play video') : undefined}
-                      >
-                        <video
-                          ref={videoRef}
-                          src={directVideoUrl}
-                          className={cn(portraitAspectWrapper ? 'absolute inset-0 w-full h-full object-contain object-center touch-pan-y' : 'w-full h-full object-contain object-center touch-pan-y', !videoPlaying && 'pointer-events-none')}
-                          style={{ touchAction: 'pan-y' }}
-                          controls
-                          playsInline
-                          onError={() => setVideoUseIframe(true)}
-                          onPlay={() => setVideoPlaying(true)}
-                          onPause={() => setVideoPlaying(false)}
-                          onEnded={() => setVideoPlaying(false)}
-                        />
-                      </div>
+                      />
                     );
                   })()
                     );

@@ -160,6 +160,10 @@ export function IdleAgentsTab({
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                   <span>
+                    {t("leadsManagement.reportSummary.idleAgents.sharedChats", "Shared chats")}:{" "}
+                    <span className="font-medium text-slate-700">{row.sharedChatCount}</span>
+                  </span>
+                  <span>
                     {t("leadsManagement.reportSummary.idleAgents.activeChats", "Active chats")}:{" "}
                     <span className="font-medium text-slate-700">{row.activeChatCount}</span>
                   </span>

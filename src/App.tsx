@@ -24,6 +24,7 @@ import { NativeFcmRegistration } from "@/shared/native/NativeFcmRegistration";
 import { ShareIntentRouteSync } from "@/shared/native/ShareIntentRouteSync";
 import { NativeGoogleAuthInit } from "@/0-auth/native/NativeGoogleAuthInit";
 import { NativeSupabaseOAuthBridge } from "@/0-auth/native/NativeSupabaseOAuthBridge";
+import { NativeNotificationTapBridge } from "@/shared/native/NativeNotificationTapBridge";
 import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
@@ -1747,6 +1748,7 @@ const App = () => (
                 <CentralizedUserDataPathSync />
                 <NativeGoogleAuthInit />
                 <NativeSupabaseOAuthBridge />
+                <NativeNotificationTapBridge />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <Suspense
                     fallback={

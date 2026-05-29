@@ -108,6 +108,10 @@ function getSocialLoginErrorCode(err: unknown): string | undefined {
   return undefined;
 }
 
+function isUserCancelledCode(err: unknown): boolean {
+  return getSocialLoginErrorCode(err) === "USER_CANCELLED";
+}
+
 /**
  * Capgo rejects all GetCredentialCancellationException (incl. [16] reauth, SHA-1) as
  * USER_CANCELLED + "Google Sign-In cancelled by user" — the real cause stays in Logcat only.
@@ -118,6 +122,8 @@ function isCapgoMaskedAndroidCredentialCancel(err: unknown): boolean {
   }
   const code = getSocialLoginErrorCode(err);
   const message = extractErrorMessage(err);
+  // Some Android credential errors are collapsed into USER_CANCELLED by the plugin.
+  // Do NOT treat every cancel as a masked error; a real user cancel should be silent.
   return code === "USER_CANCELLED" || message === "Google Sign-In cancelled by user";
 }
 
@@ -136,6 +142,11 @@ export function isGoogleAndroidOAuthMisconfigurationMessage(message: string): bo
 /** Only true user dismissal — not reauth/SHA-1 misconfiguration masked as cancel. */
 function isExplicitUserCancel(err: unknown): boolean {
   const full = extractFullErrorText(err);
+  // Treat USER_CANCELLED as a user dismissal (Back / close picker) unless it matches the known
+  // Android SHA-1 / OAuth misconfiguration pattern.
+  if (isUserCancelledCode(err)) {
+    return !isGoogleAndroidOAuthMisconfigurationMessage(full);
+  }
   if (isGoogleAccountReauthFailedError(err)) {
     return false;
   }
@@ -153,16 +164,23 @@ function isExplicitUserCancel(err: unknown): boolean {
 function mapNativeGoogleLoginError(err: unknown): string {
   const full = extractFullErrorText(err);
 
-  if (isGoogleAccountReauthFailedError(err) || isCapgoMaskedAndroidCredentialCancel(err)) {
-    if (isGoogleAndroidOAuthMisconfigurationMessage(full)) {
-      return "android_oauth_misconfigured";
-    }
-    return "google_account_reauth_failed";
-  }
-
   if (isExplicitUserCancel(err)) {
     return "access_denied";
   }
+
+  // Capgo / Credential Manager often returns USER_CANCELLED when the user presses Back.
+  // Only map to misconfiguration when the message matches the known SHA-1/OAuth pattern.
+  if (isCapgoMaskedAndroidCredentialCancel(err)) {
+    if (isGoogleAndroidOAuthMisconfigurationMessage(full)) {
+      return "android_oauth_misconfigured";
+    }
+    return "access_denied";
+  }
+
+  if (isGoogleAccountReauthFailedError(err)) {
+    return "google_account_reauth_failed";
+  }
+
   if (isGoogleAndroidOAuthMisconfigurationMessage(full)) {
     return "android_oauth_misconfigured";
   }

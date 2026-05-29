@@ -11,7 +11,8 @@ export const GOOGLE_OAUTH_REFRESH_HINT_KEY = "google_drive_oauth_refresh_hint";
 /** `postMessage` type from the OAuth callback window to the opener (preview modal). */
 export const GOOGLE_DRIVE_OAUTH_SUCCESS_MESSAGE_TYPE = "synckerja-google-drive-oauth-success";
 
-const DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+/** Per-file Drive access (Picker / app-opened files). See Google OAuth verification. */
+export const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
 type GoogleOAuthClientConfig = {
   clientId?: string;
@@ -70,11 +71,11 @@ function startGoogleDriveOAuthWithParams(
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: DRIVE_READONLY_SCOPE,
+    scope: GOOGLE_DRIVE_FILE_SCOPE,
     access_type: "offline",
     prompt: "consent",
     state,
-    include_granted_scopes: "true",
+    include_granted_scopes: "false",
   });
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

@@ -2453,7 +2453,8 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             ? whatsappConvId.trim()
             : null;
 
-        const convPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        const nowIsoForConv = new Date().toISOString();
+        const convPatch: Record<string, unknown> = { updated_at: nowIsoForConv };
         let clearConvAssigneeOnResolve = false;
         if (hadStatusUpdate && newStatusIdForConv != null) {
           convPatch.lead_status_id = newStatusIdForConv;
@@ -2468,6 +2469,12 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           }
         } else if (hadAssigneeUpdate) {
           convPatch.assignee_id = updatedLead.assignee_id ?? null;
+          const { data: auth } = await supabase.auth.getUser();
+          const actorUserId = auth?.user?.id ?? null;
+          if (actorUserId) {
+            convPatch.last_assigned_by_user_id = actorUserId;
+            convPatch.last_assigned_at = nowIsoForConv;
+          }
         }
 
         if (clearConvAssigneeOnResolve) {

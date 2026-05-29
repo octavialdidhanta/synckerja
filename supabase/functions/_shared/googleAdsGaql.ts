@@ -71,3 +71,99 @@ export async function gaqlSearch<T extends Record<string, unknown>>(
   const page = await gaqlSearchPage<T>(config, accessToken, customerId, query);
   return page.results;
 }
+
+// --- Manager (MCC) account helpers (metrics must query client accounts, not MCC) ---
+
+export type GoogleAdsClientAccount = {
+  customerId: string;
+  descriptiveName: string;
+};
+
+function gaqlDigitsOnly(value: string, len?: number): string {
+  const d = value.replace(/\D/g, "");
+  if (len != null && d.length !== len) return "";
+  return d;
+}
+
+function clientIdFromResourceName(resource: unknown): string {
+  const s = String(resource ?? "").trim();
+  const m = s.match(/customers\/(\d+)/);
+  return m?.[1] ? gaqlDigitsOnly(m[1], 10) : gaqlDigitsOnly(s, 10);
+}
+
+/** Config with login-customer-id set to the MCC when querying through a manager. */
+export function withManagerLogin(
+  config: GoogleAdsConfig,
+  managerCustomerId: string,
+): GoogleAdsConfig {
+  const mcc = gaqlDigitsOnly(managerCustomerId, 10);
+  return {
+    ...config,
+    loginCustomerId: mcc || config.loginCustomerId,
+  };
+}
+
+export async function isManagerCustomerAccount(
+  config: GoogleAdsConfig,
+  accessToken: string,
+  customerId: string,
+): Promise<boolean> {
+  const cid = gaqlDigitsOnly(customerId, 10);
+  if (!cid) return false;
+  const cfg = withManagerLogin(config, cid);
+  try {
+    const rows = await gaqlSearch<{ customer?: { manager?: boolean; id?: string } }>(
+      cfg,
+      accessToken,
+      cid,
+      "SELECT customer.id, customer.manager FROM customer LIMIT 1",
+    );
+    return rows[0]?.customer?.manager === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Direct child client accounts under an MCC (level 1). */
+export async function listEnabledClientAccountsUnderManager(
+  config: GoogleAdsConfig,
+  accessToken: string,
+  managerCustomerId: string,
+): Promise<GoogleAdsClientAccount[]> {
+  const mcc = gaqlDigitsOnly(managerCustomerId, 10);
+  if (!mcc) return [];
+  const cfg = withManagerLogin(config, mcc);
+  const rows = await gaqlSearch<{
+    customerClient?: {
+      clientCustomer?: string;
+      descriptiveName?: string;
+      status?: string;
+      manager?: boolean;
+      level?: number;
+    };
+  }>(
+    cfg,
+    accessToken,
+    mcc,
+    `SELECT customer_client.client_customer, customer_client.descriptive_name, customer_client.status, customer_client.manager, customer_client.level
+     FROM customer_client
+     WHERE customer_client.level = 1
+       AND customer_client.status = 'ENABLED'
+       AND customer_client.manager = false`,
+  );
+
+  const out: GoogleAdsClientAccount[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const cc = row.customerClient;
+    if (!cc || cc.manager === true) continue;
+    const id = clientIdFromResourceName(cc.clientCustomer);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      customerId: id,
+      descriptiveName: String(cc.descriptiveName ?? "").trim() || id,
+    });
+  }
+  return out;
+}

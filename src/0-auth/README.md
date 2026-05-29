@@ -5,8 +5,21 @@ Synckerja uses **three separate Google OAuth integrations**. Do not mix redirect
 | Flow | App route | OAuth client | Scopes |
 |------|-----------|--------------|--------|
 | **Login / Register** (Supabase Auth) | Web: `/auth/sso/callback` · Native: in-app SDK | Supabase Dashboard → Auth → Google + platform clients | `openid`, `email`, `profile` |
-| **Drive preview** | `/auth/google/callback` | `GOOGLE_CLIENT_ID` (edge + env) | `drive.readonly` |
+| **Drive preview** | `/auth/google/callback` | `GOOGLE_CLIENT_ID` (edge + env) | `drive.file` (+ Google Picker) |
 | **Google Ads** | Edge `google-ads-oauth-callback` | `GOOGLE_ADS_CLIENT_ID` | `adwords` |
+
+## Google Drive (`drive.file`) — GCP checklist
+
+Manual steps in **Google Cloud Console** (project used for Drive OAuth, e.g. Profitloop):
+
+1. **OAuth consent screen** — remove `drive.readonly`; add `https://www.googleapis.com/auth/drive.file`.
+2. **APIs** — enable **Google Picker API**.
+3. **Credentials** — browser **API key** for Picker (HTTP referrer: production domain + `http://localhost:*`).
+4. **OAuth Web client** (`GOOGLE_CLIENT_ID`) — Authorized JavaScript origins include your app origin(s).
+5. **Frontend `.env`** — `VITE_GOOGLE_PICKER_API_KEY`, `VITE_GOOGLE_PICKER_APP_ID` (numeric Cloud project number).
+6. After deploy — users with old tokens: **Disconnect → Connect Google** once.
+
+Reply to Google OAuth verification with **Confirming narrower scopes** (see `docs/google-drive-scope-verification-email.md`).
 
 ## Login with Google (Supabase)
 

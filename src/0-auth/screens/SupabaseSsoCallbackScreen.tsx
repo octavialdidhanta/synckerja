@@ -36,10 +36,11 @@ export function SupabaseSsoCallbackScreen() {
       clearStashedSsoRedirectTo();
       clearStashedSsoOAuthMode();
       if (oauthError === "access_denied") {
-        setErrorMessage(t("auth.google.errors.accessDenied"));
-      } else {
-        setErrorMessage(oauthErrorDescription || oauthError);
+        // User cancelled consent / account selection; return to login silently.
+        navigate("/login", { replace: true });
+        return;
       }
+      setErrorMessage(oauthErrorDescription || oauthError);
       setPhase("error");
       return;
     }

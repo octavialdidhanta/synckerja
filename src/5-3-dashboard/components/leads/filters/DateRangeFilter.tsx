@@ -146,6 +146,31 @@ export const DateRangeFilter = ({ onDateRangeChange, className, defaultPreset = 
   };
 
   const handleUpdate = () => {
+    if (selectedOption === 'maximum') {
+      setDisplayText('Maximum');
+      onDateRangeChange(null);
+    } else if (selectedOption === 'custom') {
+      if (customRange?.from && customRange?.to) {
+        const formatStr = 'dd MMM yyyy';
+        setDisplayText(
+          `${format(customRange.from, formatStr)} - ${format(customRange.to, formatStr)}`,
+        );
+        onDateRangeChange(customRange);
+      }
+    } else {
+      const option = dateOptions.find((opt) => opt.value === selectedOption);
+      if (option?.range.from && option?.range.to) {
+        const formatStr = 'dd MMM yyyy';
+        if (option.range.from.getTime() === option.range.to.getTime()) {
+          setDisplayText(format(option.range.from, formatStr));
+        } else {
+          setDisplayText(
+            `${format(option.range.from, formatStr)} - ${format(option.range.to, formatStr)}`,
+          );
+        }
+        onDateRangeChange(option.range);
+      }
+    }
     setIsOpen(false);
   };
 

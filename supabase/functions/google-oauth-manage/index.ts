@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { googleDriveOAuthRedirectUri } from "../_shared/googleDriveOAuthConfig.ts";
+import { getValidGoogleDriveAccessToken } from "../_shared/googleDriveAccess.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -69,14 +70,31 @@ Deno.serve(async (req: Request) => {
     if (action === "status") {
       const { data, error } = await supabaseAdmin
         .from("user_google_oauth_credentials")
-        .select("user_id")
+        .select("user_id, scope")
         .eq("user_id", user.id)
         .maybeSingle();
       if (error) {
         console.error("google-oauth-manage: status read", error.message);
         return json({ error: "Failed to read connection state" }, 500);
       }
-      return json({ connected: Boolean(data) }, 200);
+      const scope = typeof data?.scope === "string" ? data.scope : "";
+      const needsReconnect =
+        Boolean(data) &&
+        scope.length > 0 &&
+        !scope.includes("drive.file");
+      return json({ connected: Boolean(data), scope: scope || null, needsReconnect }, 200);
+    }
+
+    if (action === "picker_access_token") {
+      const { accessToken, error: tokenErr } = await getValidGoogleDriveAccessToken(
+        supabaseAdmin,
+        user.id,
+        "google-oauth-manage",
+      );
+      if (!accessToken) {
+        return json({ error: tokenErr ?? "Google account not connected" }, 400);
+      }
+      return json({ accessToken }, 200);
     }
 
     if (action === "disconnect") {

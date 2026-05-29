@@ -109,6 +109,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
 
   const {
     connected: driveGoogleConnected,
+    needsReconnect: driveNeedsReconnect,
     pending: driveConnPending,
     disconnect: disconnectGoogleDrive,
   } = useGoogleDriveOAuthConnection(isOpen);
@@ -670,25 +671,35 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                         {t('googleDrivePreview.connectionLoading')}
                       </span>
                     ) : driveGoogleConnected ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs text-red-800 border-red-200 hover:bg-red-50"
-                        title={t('googleDrivePreview.disconnectGoogleHint')}
-                        onClick={async () => {
-                          const result = await disconnectGoogleDrive();
-                          if (!result.ok) {
-                            toast.error(
-                              result.message ?? t('googleDrivePreview.disconnectGoogleFailed'),
-                            );
-                          } else {
-                            toast.success(t('googleDrivePreview.disconnectGoogleSuccess'));
-                          }
-                        }}
-                      >
-                        {t('googleDrivePreview.disconnectGoogle')}
-                      </Button>
+                      <>
+                        {driveNeedsReconnect ? (
+                          <span className="max-w-[14rem] text-xs leading-tight text-amber-700">
+                            {t(
+                              'googleDrivePreview.reconnectForDriveFileScope',
+                              'Hubungkan ulang Google untuk izin Drive terbaru (drive.file).',
+                            )}
+                          </span>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs text-red-800 border-red-200 hover:bg-red-50"
+                          title={t('googleDrivePreview.disconnectGoogleHint')}
+                          onClick={async () => {
+                            const result = await disconnectGoogleDrive();
+                            if (!result.ok) {
+                              toast.error(
+                                result.message ?? t('googleDrivePreview.disconnectGoogleFailed'),
+                              );
+                            } else {
+                              toast.success(t('googleDrivePreview.disconnectGoogleSuccess'));
+                            }
+                          }}
+                        >
+                          {t('googleDrivePreview.disconnectGoogle')}
+                        </Button>
+                      </>
                     ) : (
                       <Button
                         type="button"
@@ -1026,7 +1037,10 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                     <Input 
                       value={currentLink} 
                       onChange={e => setCurrentLink(e.target.value)} 
-                      placeholder="Paste Google Drive link here..." 
+                      placeholder={t(
+                        "googleDrivePreview.linkInputPlaceholder",
+                        "Tempel tautan Google Drive di sini…",
+                      )} 
                       className={`flex-1 h-9 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg ${productionApproved ? 'bg-gray-50 cursor-not-allowed pr-8' : ''}`}
                       disabled={productionApproved}
                       readOnly={productionApproved}
