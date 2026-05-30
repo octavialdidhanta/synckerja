@@ -3,7 +3,7 @@ import { GoogleAdsMetricsPageSkeleton } from "@/6-0-google-ads/skeletons/GoogleA
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { cn } from "@/shared/lib/utils";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Columns3, Loader2, RefreshCw } from "lucide-react";
 import type { GoogleAdsMetricsRow } from "@/google-ads/metrics/types";
@@ -66,6 +66,11 @@ import { resolveCampaignFilterIdFromRow } from "@/google-ads/metrics/parseGoogle
 import { parseTotalRowCount } from "@/google-ads/metrics/parseTotalRowCount";
 import { filterUnsupportedMetricsForEntity } from "@/google-ads/metrics/keywordViewExcludedMetrics";
 import { useGoogleAdsSettings } from "@/google-ads/hooks/useGoogleAdsSettings";
+import { GoogleAdsSettingsPanel } from "@/google-ads/settings/GoogleAdsSettingsPanel";
+import {
+  GOOGLE_ADS_DIGITAL_MARKETING_BASE_PATH,
+  GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH,
+} from "@/google-ads/settings/googleAdsSettingsPaths";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "sonner";
@@ -79,11 +84,17 @@ function parseMetricsPageOffset(token: string): number {
 export default function GoogleAdsMetricsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isSettingsView = location.pathname === GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH;
   const { orgBootstrapPending } = useOrgBootstrapPending();
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
   const { data: reportingEnabled = false, isPending: reportingPending } =
     useGoogleAdsReportingEnabled(organizationId);
-  const { syncAccessibleAccounts } = useGoogleAdsSettings(organizationId);
+  const { syncAccessibleAccounts } = useGoogleAdsSettings(organizationId, {
+    fetchSettings: false,
+    enabled: canManage && !gatePending,
+  });
 
   const [entity, setEntity] = useState<GoogleAdsMetricEntity>("campaign");
   const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState(() =>
@@ -745,13 +756,14 @@ export default function GoogleAdsMetricsPage() {
     (metricsQuery.isPending ||
       (metricsQuery.isFetching && metricsQuery.dataUpdatedAt === 0));
 
-  const rawPageLoadPending =
-    orgBootstrapPending ||
-    gatePending ||
-    (Boolean(organizationId) && canManage && reportingPending) ||
-    (Boolean(organizationId) && canManage && reportingEnabled && prefsPending) ||
-    accountsInitialPending ||
-    metricsInitialPending;
+  const rawPageLoadPending = isSettingsView
+    ? orgBootstrapPending || gatePending
+    : orgBootstrapPending ||
+      gatePending ||
+      (Boolean(organizationId) && canManage && reportingPending) ||
+      (Boolean(organizationId) && canManage && reportingEnabled && prefsPending) ||
+      accountsInitialPending ||
+      metricsInitialPending;
 
   const [showPageSkeletonOverlay, setShowPageSkeletonOverlay] = useState(true);
   const revealRafOuterRef = useRef<number | null>(null);
@@ -840,7 +852,7 @@ export default function GoogleAdsMetricsPage() {
                                 "Only the organization owner or an omnichannel admin can view Google Ads metrics.",
                               )}{" "}
                               <Link
-                                to="/omnichannel/settings/google-ads"
+                                to={GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH}
                                 className="font-medium text-primary underline"
                               >
                                 {t("digitalMarketing.googleAds.settingsLink", "Google Ads settings")}
@@ -855,14 +867,28 @@ export default function GoogleAdsMetricsPage() {
                             onEntityChange={(next) => {
                               setEntity(next);
                               resetPagination();
+                              if (isSettingsView) {
+                                navigate(GOOGLE_ADS_DIGITAL_MARKETING_BASE_PATH);
+                              }
                             }}
                             accounts={accounts}
                             customerId={effectiveCustomerId}
                             customerSelectReady={customerSelectReady}
                             accountsPending={accountsPending}
                             onCustomerIdChange={setCustomerId}
+                            settingsActive={isSettingsView}
+                            onSettingsSelect={() => navigate(GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH)}
                           />
                           <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+                          {isSettingsView ? (
+                            <GoogleAdsSettingsPanel
+                              organizationId={organizationId}
+                              enabled={canManage && !gatePending}
+                              oauthReturnPath={GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH}
+                              contentClassName="p-4"
+                            />
+                          ) : (
+                          <>
                           <div className="shrink-0 space-y-3 border-b border-gray-200 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
 
                             {!reportingPending && !reportingEnabled ? (
@@ -876,7 +902,7 @@ export default function GoogleAdsMetricsPage() {
                                     "Connect Google Ads and add at least one customer account.",
                                   )}{" "}
                                   <Link
-                                    to="/omnichannel/settings/google-ads"
+                                    to={GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH}
                                     className="font-medium text-primary underline"
                                   >
                                     {t("digitalMarketing.googleAds.settingsLink", "Settings")}
@@ -908,7 +934,7 @@ export default function GoogleAdsMetricsPage() {
                                   </a>
                                   {" · "}
                                   <Link
-                                    to="/omnichannel/settings/google-ads"
+                                    to={GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH}
                                     className="font-medium text-primary underline"
                                   >
                                     {t("digitalMarketing.googleAds.settingsLink", "Settings")}
@@ -949,7 +975,7 @@ export default function GoogleAdsMetricsPage() {
                                     "Reconnect Google Ads in settings to refresh access.",
                                   )}{" "}
                                   <Link
-                                    to="/omnichannel/settings/google-ads"
+                                    to={GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH}
                                     className="font-medium text-primary underline"
                                   >
                                     {t("digitalMarketing.googleAds.settingsLink", "Settings")}
@@ -1251,6 +1277,8 @@ export default function GoogleAdsMetricsPage() {
                               />
                             </div>
                           </div>
+                          </>
+                          )}
                           </div>
                         </div>
                       )}

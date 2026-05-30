@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { parseEdgeFunctionError } from "@/google-ads/lib/parseEdgeFunctionError";
 import { supabase } from "@/shared/lib/supabaseClient";
 
 export type GoogleAdsAccountRow = {
@@ -28,6 +29,17 @@ type SettingsResponse = {
   accounts: GoogleAdsAccountRow[];
 };
 
+function shouldRetryGoogleAdsConfig(error: unknown): boolean {
+  const err = error as { context?: Response; message?: string };
+  const status = err.context?.status;
+  if (status != null && status >= 400 && status < 500) return false;
+  const msg = error instanceof Error ? error.message : String(error ?? "");
+  if (/Connect Google Ads first|Forbidden|Unauthorized|Unknown action|Missing organization/i.test(msg)) {
+    return false;
+  }
+  return true;
+}
+
 async function invokeConfig(
   organizationId: string,
   action: string,
@@ -36,15 +48,27 @@ async function invokeConfig(
   const { data, error } = await supabase.functions.invoke("google-ads-config", {
     body: { action, organization_id: organizationId, ...extra },
   });
-  if (error) throw error;
+  if (error) throw await parseEdgeFunctionError(error, data);
   const payload = data as { error?: string } | SettingsResponse;
   if (payload && "error" in payload && payload.error) {
-    throw new Error(payload.error);
+    throw await parseEdgeFunctionError(null, payload);
   }
   return payload;
 }
 
-export function useGoogleAdsSettings(organizationId: string | null | undefined) {
+export type UseGoogleAdsSettingsOptions = {
+  /** When false, skip getSettings (e.g. metrics page only needs sync mutation). */
+  fetchSettings?: boolean;
+  /** When false, disable server calls until org/admin gate passes. */
+  enabled?: boolean;
+};
+
+export function useGoogleAdsSettings(
+  organizationId: string | null | undefined,
+  options?: UseGoogleAdsSettingsOptions,
+) {
+  const fetchSettings = options?.fetchSettings !== false;
+  const gateEnabled = options?.enabled !== false;
   const queryClient = useQueryClient();
   const queryKey = ["google-ads-settings", organizationId];
 
@@ -55,17 +79,21 @@ export function useGoogleAdsSettings(organizationId: string | null | undefined) 
       const data = await invokeConfig(organizationId, "getSettings");
       return data as SettingsResponse;
     },
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && fetchSettings && gateEnabled,
     staleTime: 30_000,
+    retry: (failureCount, error) => shouldRetryGoogleAdsConfig(error) && failureCount < 2,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
 
   const startOAuth = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (returnPath?: string) => {
       if (!organizationId) throw new Error("No organization");
       const { data, error } = await supabase.functions.invoke("google-ads-oauth-start", {
-        body: { organization_id: organizationId },
+        body: {
+          organization_id: organizationId,
+          ...(returnPath ? { return_path: returnPath } : {}),
+        },
       });
       if (error) throw error;
       const url = (data as { url?: string })?.url;

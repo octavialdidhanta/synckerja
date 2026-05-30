@@ -66,6 +66,13 @@ Deno.serve(async (req: Request) => {
   const forbidden = await requireOrgAdmin(admin, userRes.userId, organizationId);
   if (forbidden) return forbidden;
 
+  const ALLOWED_RETURN_PATHS = new Set([
+    "/omnichannel/settings/google-ads",
+    "/digital-marketing/google-ads/settings",
+  ]);
+  const returnPathRaw = body.return_path != null ? String(body.return_path).trim() : "";
+  const returnPath = ALLOWED_RETURN_PATHS.has(returnPathRaw) ? returnPathRaw : null;
+
   const stateToken = randomUrlSafe(32);
   const codeVerifier = randomUrlSafe(48);
   const codeChallenge = await pkceChallenge(codeVerifier);
@@ -77,6 +84,7 @@ Deno.serve(async (req: Request) => {
     state_token: stateToken,
     code_verifier: codeVerifier,
     expires_at: expiresAt,
+    ...(returnPath ? { return_path: returnPath } : {}),
   });
   if (stateErr) {
     console.error("google-ads-oauth-start state insert:", stateErr.message);

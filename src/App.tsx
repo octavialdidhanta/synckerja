@@ -2805,6 +2805,18 @@ const App = () => (
                           }
                         />
                         <Route
+                          path="/digital-marketing/google-ads/settings"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/google-ads"
+                              loadingShell={<GoogleAdsMetricsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <GoogleAdsMetricsPageRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
                           path="/digital-marketing/google-ads"
                           element={
                             <PageAccessGuard

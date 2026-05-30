@@ -5,6 +5,7 @@ import {
   KeyRound,
   LayoutGrid,
   Megaphone,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -94,6 +95,8 @@ type GoogleAdsEntityNavProps = {
   customerSelectReady: boolean;
   accountsPending: boolean;
   onCustomerIdChange: (customerId: string) => void;
+  settingsActive?: boolean;
+  onSettingsSelect?: () => void;
 };
 
 function SectionLabel({ children }: { children: ReactNode }) {
@@ -169,13 +172,18 @@ function NavGroupSection({
   entity,
   onEntityChange,
   showTopBorder,
+  settingsActive,
+  onSettingsSelect,
 }: {
   group: NavGroupDef;
   entity: GoogleAdsMetricEntity;
   onEntityChange: (entity: GoogleAdsMetricEntity) => void;
   showTopBorder?: boolean;
+  settingsActive?: boolean;
+  onSettingsSelect?: () => void;
 }) {
   const { t } = useTranslation();
+  const showSettings = group.id === "targeting" && onSettingsSelect != null;
 
   return (
     <div className={cn("px-2 py-2", showTopBorder && "border-t border-gray-200")}>
@@ -183,7 +191,7 @@ function NavGroupSection({
       <ul className="space-y-0.5" role="list">
         {group.items.map((item) => {
           const label = t(item.labelKey, item.defaultLabel);
-          const isActive = entity === item.id;
+          const isActive = !settingsActive && entity === item.id;
           const Icon = item.icon;
           return (
             <li key={item.id}>
@@ -199,6 +207,21 @@ function NavGroupSection({
             </li>
           );
         })}
+        {showSettings ? (
+          <li>
+            <button
+              type="button"
+              className={navItemClassName(settingsActive === true)}
+              aria-current={settingsActive ? "page" : undefined}
+              onClick={onSettingsSelect}
+            >
+              <Settings className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+              <span className="truncate">
+                {t("digitalMarketing.googleAds.navSettings", "Settings")}
+              </span>
+            </button>
+          </li>
+        ) : null}
       </ul>
     </div>
   );
@@ -213,6 +236,8 @@ export function GoogleAdsEntityNav({
   customerSelectReady,
   accountsPending,
   onCustomerIdChange,
+  settingsActive,
+  onSettingsSelect,
 }: GoogleAdsEntityNavProps) {
   const { t } = useTranslation();
 
@@ -238,6 +263,8 @@ export function GoogleAdsEntityNav({
           entity={entity}
           onEntityChange={onEntityChange}
           showTopBorder={index > 0}
+          settingsActive={settingsActive}
+          onSettingsSelect={onSettingsSelect}
         />
       ))}
     </nav>

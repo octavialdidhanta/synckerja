@@ -8,13 +8,29 @@ import {
   readPlatformGoogleAdsOAuth,
 } from "../_shared/googleAdsAuth.ts";
 
-function redirectToSettings(query: string, status = 302): Response {
+function redirectToAppPath(path: string, query: string, status = 302): Response {
   const origin = appPublicOrigin() || "http://localhost:5173";
-  const target = `${origin}/omnichannel/settings/google-ads${query}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const target = `${origin}${normalizedPath}${query}`;
   return new Response(null, {
     status,
     headers: { Location: target },
   });
+}
+
+const ALLOWED_OAUTH_RETURN_PATHS = new Set([
+  "/omnichannel/settings/google-ads",
+  "/digital-marketing/google-ads/settings",
+]);
+
+function resolveOAuthReturnPath(stored: string | null | undefined): string {
+  const path = String(stored ?? "").trim();
+  if (path && ALLOWED_OAUTH_RETURN_PATHS.has(path)) return path;
+  return "/omnichannel/settings/google-ads";
+}
+
+function redirectToSettings(query: string, returnPath?: string | null, status = 302): Response {
+  return redirectToAppPath(resolveOAuthReturnPath(returnPath), query, status);
 }
 
 Deno.serve(async (req: Request) => {
@@ -45,18 +61,22 @@ Deno.serve(async (req: Request) => {
 
   const { data: stateRow, error: stateErr } = await admin
     .from("google_ads_oauth_states")
-    .select("id, organization_id, user_id, code_verifier, expires_at")
+    .select("id, organization_id, user_id, code_verifier, expires_at, return_path")
     .eq("state_token", state)
     .maybeSingle();
 
+  const oauthReturnPath = resolveOAuthReturnPath(
+    stateRow?.return_path != null ? String(stateRow.return_path) : null,
+  );
+
   if (stateErr || !stateRow?.id) {
-    return redirectToSettings("?oauth_error=invalid_state");
+    return redirectToSettings("?oauth_error=invalid_state", oauthReturnPath);
   }
 
   const expiresAt = new Date(String(stateRow.expires_at)).getTime();
   if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) {
     await admin.from("google_ads_oauth_states").delete().eq("id", stateRow.id);
-    return redirectToSettings("?oauth_error=state_expired");
+    return redirectToSettings("?oauth_error=state_expired", oauthReturnPath);
   }
 
   const redirectUri = googleAdsOAuthRedirectUri();
@@ -86,7 +106,7 @@ Deno.serve(async (req: Request) => {
   if (!tokenRes.ok || !tokenJson.refresh_token) {
     const msg = tokenJson.error_description ?? tokenJson.error ?? "token_exchange_failed";
     console.error("google-ads-oauth-callback:", msg);
-    return redirectToSettings(`?oauth_error=${encodeURIComponent(msg)}`);
+    return redirectToSettings(`?oauth_error=${encodeURIComponent(msg)}`, oauthReturnPath);
   }
 
   const organizationId = String(stateRow.organization_id);
@@ -95,7 +115,7 @@ Deno.serve(async (req: Request) => {
     refreshEnc = await encryptGoogleAdsRefreshToken(tokenJson.refresh_token);
   } catch (e) {
     console.error("google-ads-oauth-callback encrypt:", e);
-    return redirectToSettings("?oauth_error=encryption_failed");
+    return redirectToSettings("?oauth_error=encryption_failed", oauthReturnPath);
   }
 
   const now = new Date().toISOString();
@@ -110,7 +130,7 @@ Deno.serve(async (req: Request) => {
   );
   if (connErr) {
     console.error("google-ads-oauth-callback connection:", connErr.message);
-    return redirectToSettings("?oauth_error=save_connection_failed");
+    return redirectToSettings("?oauth_error=save_connection_failed", oauthReturnPath);
   }
 
   const { error: tokErr } = await admin.from("organization_google_ads_connection_tokens").upsert(
@@ -123,8 +143,8 @@ Deno.serve(async (req: Request) => {
   );
   if (tokErr) {
     console.error("google-ads-oauth-callback token:", tokErr.message);
-    return redirectToSettings("?oauth_error=save_token_failed");
+    return redirectToSettings("?oauth_error=save_token_failed", oauthReturnPath);
   }
 
-  return redirectToSettings("?connected=1");
+  return redirectToSettings("?connected=1", oauthReturnPath);
 });
