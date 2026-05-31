@@ -67,6 +67,7 @@ import {
   type ConversionLeadPaymentPayload,
 } from '@/shared/lib/leadConversionFinancial';
 import { insertIncomeTransactionFromSalesFlow } from '@/shared/lib/finance/insertIncomeTransactionFromSalesFlow';
+import { resolveInstagramConversationIdByTicket } from '@/shared/lib/resolveInstagramConversationId';
 
 // Types
 export interface SalesActivity {
@@ -2665,23 +2666,8 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           tidUpper.startsWith('IG-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
             ? whatsappConvId.trim()
             : null;
-        if (!igSyncId && tid && tidUpper.startsWith('IG-')) {
-          const { data: igByIlike } = await supabase
-            .from('instagram_conversations')
-            .select('id')
-            .eq('organization_id', organizationIdForHistory)
-            .ilike('ticket_id', tid)
-            .maybeSingle();
-          igSyncId = (igByIlike?.id as string | undefined) ?? null;
-          if (!igSyncId) {
-            const { data: igByEq } = await supabase
-              .from('instagram_conversations')
-              .select('id')
-              .eq('organization_id', organizationIdForHistory)
-              .eq('ticket_id', tid)
-              .maybeSingle();
-            igSyncId = (igByEq?.id as string | undefined) ?? null;
-          }
+        if (!igSyncId && tid && tidUpper.startsWith('IG-') && organizationIdForHistory) {
+          igSyncId = await resolveInstagramConversationIdByTicket(organizationIdForHistory, tid);
         }
 
         let emailSyncId: string | null =
