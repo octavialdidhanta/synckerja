@@ -22,6 +22,12 @@ export const ShiftSettings = () => {
       </div>
 
       <Tabs defaultValue="shifts" className="w-full">
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          {t(
+            'shiftSettings.priorityBanner',
+            'Employee shifts override check-in/out times. Working days and timezone follow Work Schedule settings.',
+          )}
+        </div>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="shifts" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />

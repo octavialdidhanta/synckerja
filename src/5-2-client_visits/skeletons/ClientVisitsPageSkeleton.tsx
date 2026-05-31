@@ -54,14 +54,14 @@ function ClientVisitsMetricsSkeleton() {
   );
 }
 
-const TABLE_COLS = 9;
+const TABLE_COLS = 10;
 const TABLE_ROWS = 8;
 
 function ClientVisitsTableSkeleton() {
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
-      <div className="scrollbar-hide min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <table className="w-full caption-bottom text-sm">
+      <div className="scrollbar-hide min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <table className="w-full min-w-[1400px] caption-bottom text-sm">
           <thead className="sticky top-0 z-20 bg-gray-50 shadow-sm">
             <tr className="hover:bg-transparent">
               {Array.from({ length: TABLE_COLS }).map((_, i) => (

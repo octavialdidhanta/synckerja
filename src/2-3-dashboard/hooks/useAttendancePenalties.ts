@@ -14,7 +14,7 @@ export interface AttendancePenalty {
   penalty_amount: number;
   penalty_reason: string;
   applied_date: string;
-  status: 'active' | 'waived' | 'appealed';
+  status: 'active' | 'waived' | 'appealed' | 'paid' | 'cancelled';
   waived_by?: string;
   waived_at?: string;
   waiver_reason?: string;
@@ -96,7 +96,7 @@ export const useAttendancePenalties = () => {
         penalty_amount: penalty.penalty_amount,
         penalty_reason: penalty.penalty_reason,
         applied_date: penalty.applied_date,
-        status: penalty.status as 'active' | 'waived' | 'appealed',
+        status: penalty.status as 'active' | 'waived' | 'appealed' | 'paid' | 'cancelled',
         waived_by: penalty.waived_by,
         waived_at: penalty.waived_at,
         waiver_reason: penalty.waiver_reason,

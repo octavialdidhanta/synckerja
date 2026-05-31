@@ -205,12 +205,7 @@ export const ShiftManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-medium">{t('shiftManagement.shiftList.title', 'Shift List')}</h3>
-          <p className="text-sm text-gray-600">{t('shiftManagement.shiftList.description', 'Manage organization work shift schedule')}</p>
-        </div>
-        
+      <div className="flex justify-end items-center">
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
             <Button onClick={resetForm} className="flex items-center gap-2">

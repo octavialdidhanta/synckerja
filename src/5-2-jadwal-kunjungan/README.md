@@ -18,8 +18,7 @@ Prefer importing from the module barrel: `import { … } from '@/5-2-jadwal-kunj
 ## Components
 
 - **VisitSchedulingPage** - Main page for visit scheduling
-- **VisitSchedulingList** - List of scheduled visits
-- **VisitSchedulingForm** - Form for creating/editing visits
+- **VisitSchedulingTable** - Table of scheduled visits with modal edit flow
 - **VisitSchedulingFilters** - Filters for visits
 - **VisitSchedulingMetricsCards** - Key metrics display for visits
 - **VisitSchedulingModal** - Modal for visit scheduling

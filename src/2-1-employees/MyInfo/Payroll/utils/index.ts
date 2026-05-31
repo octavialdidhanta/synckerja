@@ -3,3 +3,9 @@
 
 export { devLog } from './devLogger';
 export { logger } from './productionLogger';
+export {
+  formatNpwp,
+  stripNpwpDigits,
+  NPWP_FORMATTED_MAX_LENGTH,
+  NPWP_PLACEHOLDER,
+} from './npwpFormat';

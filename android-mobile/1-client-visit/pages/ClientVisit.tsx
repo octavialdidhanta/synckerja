@@ -14,7 +14,7 @@ import { LateAttendanceModal } from "@/mobile-app/components/LateAttendanceModal
 import { SalesActivityModal, SalesActivityData } from "@/mobile/1-client-visit/components/SalesActivityModal";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { SidebarProvider, SidebarTrigger } from "@/mobile-app/components/ui/sidebar";
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths, isWithinInterval, format } from "date-fns";
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths, format } from "date-fns";
 import { id as idLocale, enUS as enLocale } from "date-fns/locale";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -43,6 +43,27 @@ import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths
 import { OperationsMobileShellHeader } from "@/mobile-app/components/OperationsMobileShellHeader";
 import { ToolsMobileDenyGateArea } from "@/mobile-app/components/ToolsMobileDenyGateArea";
 import { useToolsMobilePageAccess } from "@/mobile-app/hooks/useToolsMobilePageAccess";
+import { formatAttendanceTimeWithSeconds } from "@/mobile-app/utils/postgresAttendanceTime";
+import { uploadClientVisitPhoto } from "@/shared/lib/clientVisit/uploadClientVisitPhoto";
+import { buildClientVisitSalesActivityInsertPayload } from "@/shared/lib/sales/buildClientVisitSalesActivityPayload";
+import type { ClientVisit as ClientVisitRecord } from "@/mobile/1-client-visit/hooks/useClientVisitData";
+import {
+  findExecutedVisitAtLocation,
+  isStartVisitBlockedForToday,
+} from "@/mobile/1-client-visit/utils/visitLocationDisplay";
+import {
+  parseStartClientVisitExecutionError,
+  startClientVisitExecution,
+} from "@/shared/lib/clientVisit/startClientVisitExecution";
+import { resolveScheduledVisitForStart } from "@/shared/lib/clientVisit/resolveScheduledVisitForStart";
+import { getLocalDateYmd } from "@/shared/lib/date/getLocalDateYmd";
+
+function resolveVisitStartIso(
+  visit: Pick<ClientVisitRecord, "actual_start_time" | "updated_at" | "created_at"> | null | undefined,
+): string | undefined {
+  if (!visit) return undefined;
+  return visit.actual_start_time?.trim() || visit.updated_at?.trim() || visit.created_at?.trim() || undefined;
+}
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -84,84 +105,7 @@ export default function ClientVisit() {
   const [customDateRange, setCustomDateRange] = useState<{start: Date; end: Date} | null>(null);
   const [periodDrawerOpen, setPeriodDrawerOpen] = useState(false);
   const confettiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  const {
-    todayVisits,
-    todaySchedule,
-    loading,
-    error,
-    realtimeConnected,
-    refetch
-  } = useClientVisitData();
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pullDistance, setPullDistance] = useState(0);
-  const [isPulling, setIsPulling] = useState(false);
-  const touchStartY = useRef(0);
-  const pullDistanceRef = useRef(0);
-  const listScrollRef = useRef<HTMLDivElement>(null);
-  const didRecoveryRefetch = useRef(false);
-
-  useEffect(() => {
-    pullDistanceRef.current = pullDistance;
-  }, [pullDistance]);
-
-  useEffect(() => {
-    if (didRecoveryRefetch.current || loading || error) return;
-    const hasData = (todayVisits?.length ?? 0) > 0 || todaySchedule != null;
-    if (hasData) return;
-    didRecoveryRefetch.current = true;
-    refetch().catch(() => {});
-  }, [loading, error, todayVisits, todaySchedule, refetch]);
-
-  // Setup user presence tracking
-  const { onlineUsers, totalOnline } = useRealtimePresence(organizationId, currentUser || undefined);
-
-  // Get current user info for presence tracking
-  useEffect(() => {
-    const getCurrentUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, active_organization_id')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (profile) {
-          setCurrentUser({ 
-            id: user.id, 
-            name: profile.full_name ?? user.email ?? 'Unknown'
-          });
-          setOrganizationId(profile.active_organization_id ?? '');
-        }
-      }
-    };
-    getCurrentUser().catch((err) => {
-      logger.error('ClientVisit getCurrentUser', err);
-    });
-  }, []);
-
-  // Check for active visit
-  useEffect(() => {
-    const checkActiveVisit = () => {
-      const active = todayVisits.find(visit => visit.status === 'in_progress');
-      setActiveVisit(active || null);
-    };
-    checkActiveVisit();
-  }, [todayVisits]);
-
-  // Clear confetti timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (confettiTimeoutRef.current) {
-        clearTimeout(confettiTimeoutRef.current);
-        confettiTimeoutRef.current = null;
-      }
-    };
-  }, []);
-
-  // Get date range based on filter selection
   const getDateRange = useMemo(() => {
     const now = new Date();
     switch (dateFilter) {
@@ -197,7 +141,6 @@ export default function ClientVisit() {
           end: endOfMonth(lastMonth)
         };
       case "custom":
-        // Use custom date range if available, otherwise default to current month
         if (customDateRange) {
           return {
             start: startOfDay(customDateRange.start),
@@ -215,7 +158,111 @@ export default function ClientVisit() {
         };
     }
   }, [dateFilter, customDateRange]);
+  
+  const {
+    visits,
+    todayVisits,
+    visitsForNotifications,
+    todaySchedule,
+    loading,
+    error,
+    realtimeConnected,
+    refetch
+  } = useClientVisitData(getDateRange);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const touchStartY = useRef(0);
+  const pullDistanceRef = useRef(0);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const didRecoveryRefetch = useRef(false);
+
+  useEffect(() => {
+    pullDistanceRef.current = pullDistance;
+  }, [pullDistance]);
+
+  useEffect(() => {
+    if (didRecoveryRefetch.current || loading || error) return;
+    const hasData = (visits?.length ?? 0) > 0 || (todayVisits?.length ?? 0) > 0;
+    if (hasData) return;
+    didRecoveryRefetch.current = true;
+    refetch().catch(() => {});
+  }, [loading, error, visits, todayVisits, refetch]);
+
+  // Setup user presence tracking
+  const { onlineUsers, totalOnline } = useRealtimePresence(organizationId, currentUser || undefined);
+
+  // Get current user info for presence tracking
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, active_organization_id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (profile) {
+          setCurrentUser({ 
+            id: user.id, 
+            name: profile.full_name ?? user.email ?? 'Unknown'
+          });
+          setOrganizationId(profile.active_organization_id ?? '');
+        }
+      }
+    };
+    getCurrentUser().catch((err) => {
+      logger.error('ClientVisit getCurrentUser', err);
+    });
+  }, []);
+
+  // Check for active visit; backfill missing actual_start_time so timer/check-in can run
+  useEffect(() => {
+    const active = todayVisits.find((visit) => visit.status === "ongoing");
+    if (!active) {
+      setActiveVisit(null);
+      return;
+    }
+
+    if (active.actual_start_time) {
+      setActiveVisit(active);
+      return;
+    }
+
+    const fallbackStart = active.updated_at || active.created_at;
+    if (!fallbackStart) {
+      setActiveVisit(active);
+      return;
+    }
+
+    setActiveVisit({ ...active, actual_start_time: fallbackStart });
+
+    void (async () => {
+      const { error } = await supabase
+        .from("client_visits" as any)
+        .update({ actual_start_time: fallbackStart })
+        .eq("id", active.id)
+        .is("actual_start_time", null);
+
+      if (error) {
+        logger.error("Backfill visit actual_start_time failed:", error);
+      }
+    })();
+  }, [todayVisits]);
+
+  // Clear confetti timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+        confettiTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  // Get date range based on filter selection — moved above hook call
   const periodOptions: { value: string; labelKey: string }[] = [
     { value: "today", labelKey: "reports.dateFilter.today" },
     { value: "yesterday", labelKey: "reports.dateFilter.yesterday" },
@@ -248,14 +295,14 @@ export default function ClientVisit() {
     setDateFilter("custom");
   };
 
-  // Filter visit data based on selected date range
-  const filteredTodayVisits = useMemo(() => {
-    if (!todayVisits || todayVisits.length === 0) return [];
-    return todayVisits.filter(visit => {
-      const visitDate = new Date(visit.visit_date);
-      return isWithinInterval(visitDate, getDateRange);
+  // Filter visit data based on selected date range — server-side via useClientVisitData
+  const sortedVisits = useMemo(() => {
+    return [...visits].sort((a, b) => {
+      const dateCompare = a.visit_date.localeCompare(b.visit_date);
+      if (dateCompare !== 0) return dateCompare;
+      return (a.planned_start_time ?? "").localeCompare(b.planned_start_time ?? "");
     });
-  }, [todayVisits, getDateRange]);
+  }, [visits]);
 
   const triggerConfetti = () => {
     if (typeof confetti !== 'function') return;
@@ -279,12 +326,33 @@ export default function ClientVisit() {
     fire(0.1, { spread: 120, startVelocity: 45 });
   };
 
+  const timeLocale = language === "id" ? "id-ID" : "en-US";
+  const todayYmd = useMemo(() => getLocalDateYmd(), []);
+  const startVisitBlocked = useMemo(
+    () => isStartVisitBlockedForToday(todayVisits, todayYmd),
+    [todayVisits, todayYmd],
+  );
+
+  const showVisitAlreadyCompletedToast = useCallback(() => {
+    toast({
+      title: t("clientVisit.visitAlreadyCompleted", "Kunjungan Sudah Selesai"),
+      description: t(
+        "clientVisit.visitAlreadyCompletedDescription",
+        "Kunjungan hari ini sudah tercatat mulai dan selesai. Anda tidak dapat memulai kunjungan lagi.",
+      ),
+      variant: "destructive",
+    });
+  }, [toast, t]);
+
+  const activeVisitStartIso = resolveVisitStartIso(activeVisit);
+  const activeVisitCheckIn = formatAttendanceTimeWithSeconds(activeVisitStartIso, timeLocale);
+
   // Calculate visit duration real-time
   const calculateVisitDuration = () => {
-    if (!activeVisit?.actual_start_time) {
+    if (!activeVisitStartIso) {
       return t("mobileHome.zeroHoursMinutes", "0 jam 0 menit");
     }
-    const startTime = new Date(activeVisit.actual_start_time);
+    const startTime = new Date(activeVisitStartIso);
     const endTime = activeVisit.actual_end_time ? new Date(activeVisit.actual_end_time) : new Date();
     const diffMs = endTime.getTime() - startTime.getTime();
     const totalMinutes = Math.floor(diffMs / (1000 * 60));
@@ -300,6 +368,11 @@ export default function ClientVisit() {
         description: "Anda sudah memiliki kunjungan yang sedang berlangsung",
         variant: "destructive"
       });
+      return;
+    }
+
+    if (startVisitBlocked) {
+      showVisitAlreadyCompletedToast();
       return;
     }
 
@@ -425,7 +498,7 @@ export default function ClientVisit() {
       // Get the office location details to check is_client_location and sales assignment
       const { data: officeLocation, error: officeError }: any = await (supabase as any)
         .from('office_locations')
-        .select('id, name, is_client_location, planned_start_time, planned_end_time, sales_person_id')
+        .select('id, name, client_id, is_client_location, planned_start_time, planned_end_time, sales_person_id')
         .eq('id', validation.location_id)
         .maybeSingle();
 
@@ -459,17 +532,62 @@ export default function ClientVisit() {
         return;
       }
 
-      // Check if user is late based on current time and planned start time
+      const visitTodayYmd = getLocalDateYmd();
+
+      if (cameraModal.type === 'start') {
+        const completedAtLocation = findExecutedVisitAtLocation(
+          todayVisits,
+          validation.location_id,
+          visitTodayYmd,
+        );
+        if (completedAtLocation) {
+          showVisitAlreadyCompletedToast();
+          return;
+        }
+
+        const { data: completedRows }: any = await (supabase as any)
+          .from('client_visits')
+          .select('id')
+          .eq('employee_id', employee.id)
+          .eq('organization_id', employee.organization_id)
+          .eq('visit_date', visitTodayYmd)
+          .eq('validated_location_id', validation.location_id)
+          .eq('status', 'completed')
+          .not('actual_start_time', 'is', null)
+          .not('actual_end_time', 'is', null)
+          .limit(1);
+
+        if (completedRows?.length) {
+          showVisitAlreadyCompletedToast();
+          return;
+        }
+      }
+
+      let scheduledVisit: Awaited<ReturnType<typeof resolveScheduledVisitForStart>> = null;
+      try {
+        scheduledVisit = await resolveScheduledVisitForStart({
+          employeeId: employee.id,
+          organizationId: employee.organization_id,
+          visitDateYmd: visitTodayYmd,
+          locationId: validation.location_id,
+          clientId: officeLocation?.client_id ?? null,
+        });
+      } catch (resolveError) {
+        logger.error('Resolve scheduled visit failed:', resolveError);
+      }
+
+      // Check if user is late based on scheduled visit or office location
       const currentTime = new Date();
-      const currentTimeOnly = currentTime.toTimeString().slice(0, 8); // HH:MM:SS format
+      const currentTimeOnly = currentTime.toTimeString().slice(0, 8);
       let isLate = false;
       let lateMinutes = 0;
+      const plannedStartForLate =
+        scheduledVisit?.planned_start_time || officeLocation?.planned_start_time || null;
 
-      if (officeLocation?.planned_start_time) {
-        const plannedStartTime = officeLocation.planned_start_time;
-        const plannedDate = new Date(`2000-01-01T${plannedStartTime}`);
+      if (plannedStartForLate) {
+        const plannedDate = new Date(`2000-01-01T${plannedStartForLate}`);
         const currentDate = new Date(`2000-01-01T${currentTimeOnly}`);
-        
+
         if (currentDate > plannedDate) {
           isLate = true;
           lateMinutes = Math.floor((currentDate.getTime() - plannedDate.getTime()) / (1000 * 60));
@@ -477,100 +595,159 @@ export default function ClientVisit() {
       }
 
       if (cameraModal.type === 'start') {
-        // Get the first available client for this organization
-        let { data: clients }: any = await (supabase as any)
-          .from('clients')
-          .select('id')
-          .eq('organization_id', employee.organization_id)
-          .eq('is_active', true)
-          .limit(1);
+        let leadClientId = scheduledVisit?.lead_client_id ?? null;
 
-        // Product: auto-create default client when none exist for first visit.
-        if (!clients || clients.length === 0) {
-          const { data: newClient, error: clientError }: any = await (supabase as any)
-            .from('clients')
-            .insert({
-              organization_id: employee.organization_id,
-              company_name: 'Client Default',
-              contact_person: 'Default Contact',
-              is_active: true
-            })
-            .select('id')
-            .single();
-
-          if (clientError) {
-            toast({
-              title: "Error",
-              description: "Gagal membuat client default",
-              variant: "destructive"
-            });
-            return;
-          }
-
-          clients = [newClient];
+        let startPhotoPath: string;
+        try {
+          const uploaded = await uploadClientVisitPhoto(employee.id, imageData, 'start');
+          startPhotoPath = uploaded.path;
+        } catch (uploadError) {
+          logger.error('Start visit photo upload failed:', uploadError);
+          toast({
+            title: t("mobileHome.error", "Error"),
+            description: t("clientVisit.photoUploadFailed", "Gagal mengunggah foto kunjungan"),
+            variant: "destructive",
+          });
+          return;
         }
 
-        // Function to create visit record
+        if (!leadClientId) {
+          let { data: clients }: any = await (supabase as any)
+            .from('clients')
+            .select('id')
+            .eq('organization_id', employee.organization_id)
+            .eq('is_active', true)
+            .limit(1);
+
+          if (!clients || clients.length === 0) {
+            const { data: newClient, error: clientError }: any = await (supabase as any)
+              .from('clients')
+              .insert({
+                organization_id: employee.organization_id,
+                company_name: 'Client Default',
+                contact_person: 'Default Contact',
+                is_active: true,
+              })
+              .select('id')
+              .single();
+
+            if (clientError) {
+              toast({
+                title: "Error",
+                description: "Gagal membuat client default",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            clients = [newClient];
+          }
+
+          leadClientId = clients[0].id;
+        }
+
         const createVisitRecord = async (lateReason?: string) => {
-          // Start Visit Logic - Create a new client visit record
-          const visitData = {
-            employee_id: employee.id,
-            organization_id: employee.organization_id,
-            lead_client_id: clients[0].id,
-            visit_date: new Date().toISOString().split('T')[0],
-            planned_start_time: officeLocation?.planned_start_time || null,
-            planned_end_time: officeLocation?.planned_end_time || null,
-            visit_purpose: 'Spontaneous client visit',
-            actual_start_time: new Date().toISOString(),
-            start_location: {
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              address: "Location captured"
-            },
-            status: 'in_progress',
-            start_photo_path: `visits/${user.id}/${Date.now()}_start.jpg`,
-            created_by: user.id,
-            validated_location_id: validation?.location_id || null,
-            location_validation_result: validation || null,
-            validation_accuracy_meters: validation?.accuracy_meters || null,
-            notes: lateReason || null
+          const actualStartTime = new Date().toISOString();
+          const startLocation = {
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+            address: "Location captured",
           };
 
-          const { data: insertedVisit, error: insertError }: any = await (supabase as any)
-            .from('client_visits' as any)
-            .insert(visitData)
-            .select()
-            .single();
+          try {
+            const startResult = await startClientVisitExecution({
+              employeeId: employee.id,
+              organizationId: employee.organization_id,
+              visitDateYmd: visitTodayYmd,
+              locationId: validation.location_id,
+              leadClientId: leadClientId ?? officeLocation?.client_id ?? scheduledVisit?.lead_client_id ?? '',
+              actualStartTime,
+              startLocation,
+              startPhotoPath,
+              createdBy: user.id,
+              locationValidationResult: validation || null,
+              validationAccuracyMeters: validation?.accuracy_meters || null,
+              notes: lateReason || null,
+            });
 
-          if (insertError) {
-            logger.error('Start visit error:', insertError);
+            const visitRecord = startResult.visit;
+            const wasScheduledUpdate =
+              scheduledVisit?.id &&
+              (visitRecord?.visit_purpose as string | undefined) !== 'Spontaneous client visit';
+
+            toast({
+              title: "🎉 Kunjungan Dimulai!",
+              description: wasScheduledUpdate
+                ? "Jadwal kunjungan hari ini telah dimulai"
+                : "Selamat! Kunjungan client telah dimulai",
+              className: "bg-success text-success-foreground",
+            });
+
+            const attendanceSidecar = startResult.attendance;
+            if (
+              attendanceSidecar?.attendance_auto_checkin &&
+              !attendanceSidecar?.skipped
+            ) {
+              toast({
+                title: t("clientVisit.attendanceAutoCheckinTitle", "Absensi tercatat"),
+                description: t(
+                  "clientVisit.attendanceAutoCheckinDescription",
+                  "Absensi tercatat otomatis saat kunjungan dimulai",
+                ),
+              });
+            }
+
+            if (confettiTimeoutRef.current) clearTimeout(confettiTimeoutRef.current);
+            confettiTimeoutRef.current = setTimeout(() => {
+              triggerConfetti();
+            }, 500);
+
+            setActiveVisit(visitRecord);
+            await refetch();
+          } catch (startError) {
+            logger.error('Start visit RPC failed:', startError);
+            const code =
+              (startError as { code?: string }).code ??
+              parseStartClientVisitExecutionError((startError as Error).message);
+
+            if (code === 'COMPLETED_VISIT_EXISTS') {
+              showVisitAlreadyCompletedToast();
+              return;
+            }
+            if (code === 'SCHEDULED_VISIT_EXISTS' || code === 'SCHEDULED_UPDATE_FAILED') {
+              toast({
+                title: t("clientVisit.scheduledVisitExistsTitle", "Jadwal sudah ada"),
+                description: t(
+                  "clientVisit.scheduledVisitExistsDescription",
+                  "Kunjungan terjadwal hari ini ditemukan. Muat ulang halaman lalu coba Start Visit lagi.",
+                ),
+                variant: "destructive",
+              });
+              return;
+            }
+            if (code === 'ONGOING_VISIT_EXISTS') {
+              toast({
+                title: t("clientVisit.alreadyStarted", "Sudah Mulai"),
+                description: t(
+                  "clientVisit.ongoingVisitExists",
+                  "Anda sudah memiliki kunjungan yang sedang berlangsung hari ini.",
+                ),
+                variant: "destructive",
+              });
+              return;
+            }
+
             toast({
               title: "Gagal Memulai Kunjungan",
               description: "Terjadi kesalahan saat menyimpan data",
-              variant: "destructive"
+              variant: "destructive",
             });
-            return;
           }
-
-          toast({
-            title: "🎉 Kunjungan Dimulai!",
-            description: "Selamat! Kunjungan client telah dimulai",
-            className: "bg-success text-success-foreground"
-          });
-
-          if (confettiTimeoutRef.current) clearTimeout(confettiTimeoutRef.current);
-          confettiTimeoutRef.current = setTimeout(() => {
-            triggerConfetti();
-          }, 500);
-
-          setActiveVisit(insertedVisit);
-          await refetch();
         };
 
-        // Check if user is late and show modal if needed
         if (isLate && lateMinutes > 0) {
           setLateMinutes(lateMinutes);
-          setScheduledTime(officeLocation?.planned_start_time || '');
+          setScheduledTime(plannedStartForLate || '');
           setShowLateModal(true);
           setOnLateSubmit(() => createVisitRecord);
         } else {
@@ -578,7 +755,20 @@ export default function ClientVisit() {
         }
 
       } else if (cameraModal.type === 'end') {
-        // End Visit Logic
+        let endPhotoPath: string;
+        try {
+          const uploaded = await uploadClientVisitPhoto(employee.id, imageData, 'end');
+          endPhotoPath = uploaded.path;
+        } catch (uploadError) {
+          logger.error('End visit photo upload failed:', uploadError);
+          toast({
+            title: t("mobileHome.error", "Error"),
+            description: t("clientVisit.photoUploadFailed", "Gagal mengunggah foto kunjungan"),
+            variant: "destructive",
+          });
+          return;
+        }
+
         const { error: updateError }: any = await (supabase as any)
           .from('client_visits' as any)
           .update({
@@ -588,7 +778,7 @@ export default function ClientVisit() {
               longitude: currentLocation.longitude,
               address: "Location captured"
             },
-            end_photo_path: `visits/${user.id}/${Date.now()}_end.jpg`,
+            end_photo_path: endPhotoPath,
             status: 'completed',
             // End visit validation (validation is in scope from handleCameraCapture)
             ...(validation && {
@@ -599,7 +789,7 @@ export default function ClientVisit() {
             })
           })
           .eq('id', activeVisit.id)
-          .eq('status', 'in_progress');
+          .eq('status', 'ongoing');
 
         if (updateError) {
           logger.error('End visit error:', updateError);
@@ -684,28 +874,11 @@ export default function ClientVisit() {
         throw new Error('Organization tidak ditemukan');
       }
 
-      const salesActivityData = {
-        organization_id: profile.active_organization_id,
-        client_name: data.client_name,
-        client_phone: data.client_phone,
-        activity_type: data.activity_type,
-        status: data.status,
-        amount: data.amount,
-        total_amount: data.total_amount,
-        down_payment_amount: data.down_payment_amount,
-        remaining_amount: data.total_amount && data.down_payment_amount 
-          ? data.total_amount - data.down_payment_amount 
-          : undefined,
-        is_down_payment: data.is_down_payment,
-        date: new Date().toISOString().split('T')[0], // Today's date
-        description: data.description,
-        is_paid: data.is_paid,
-        payment_method: data.payment_method,
-        receipt_url: data.receipt_url,
-        follow_up_date: data.follow_up_date || null,
-        notes: data.notes,
-        created_by: user.id
-      };
+      const salesActivityData = buildClientVisitSalesActivityInsertPayload(
+        data,
+        profile.active_organization_id,
+        user.id,
+      );
 
       const { error }: any = await (supabase as any)
         .from('sales_activities')
@@ -738,13 +911,12 @@ export default function ClientVisit() {
 
   // Calculate real analytics from filtered data
   const calculateAnalytics = useMemo(() => {
-    const totalVisits = filteredTodayVisits.length;
-    const completedVisits = filteredTodayVisits.filter(visit => visit.status === 'completed').length;
-    const inProgressVisits = filteredTodayVisits.filter(visit => visit.status === 'in_progress').length;
-    const upcomingVisits = filteredTodayVisits.filter(visit => visit.status === 'scheduled').length;
+    const totalVisits = sortedVisits.length;
+    const completedVisits = sortedVisits.filter(visit => visit.status === 'completed').length;
+    const ongoingVisits = sortedVisits.filter(visit => visit.status === 'ongoing').length;
+    const upcomingVisits = sortedVisits.filter(visit => visit.status === 'scheduled').length;
     
-    // Calculate average duration for completed visits
-    const completedVisitsWithDuration = filteredTodayVisits.filter(visit => 
+    const completedVisitsWithDuration = sortedVisits.filter(visit => 
       visit.status === 'completed' && visit.actual_start_time && visit.actual_end_time
     );
     
@@ -764,9 +936,9 @@ export default function ClientVisit() {
       totalVisits,
       completedVisits,
       averageDuration,
-      upcomingVisits: upcomingVisits + inProgressVisits // Include in-progress as upcoming
+      upcomingVisits: upcomingVisits + ongoingVisits
     };
-  }, [filteredTodayVisits]);
+  }, [sortedVisits]);
 
   const getPeriodLabel = () => {
     switch (dateFilter) {
@@ -859,7 +1031,7 @@ export default function ClientVisit() {
   const scrollContent = (
             <div
               ref={listScrollRef}
-              className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="scrollbar-hide nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
@@ -914,28 +1086,22 @@ export default function ClientVisit() {
                       <TimeDisplay />
                       <LocationButton />
                       <AttendanceStatus
-                        checkIn={activeVisit?.actual_start_time ? new Date(activeVisit.actual_start_time).toLocaleTimeString(language === "id" ? "id-ID" : "en-US", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                        }) : undefined}
-                        checkOut={activeVisit?.actual_end_time ? new Date(activeVisit.actual_end_time).toLocaleTimeString(language === "id" ? "id-ID" : "en-US", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                        }) : undefined}
+                        checkIn={activeVisitCheckIn}
+                        checkOut={formatAttendanceTimeWithSeconds(activeVisit?.actual_end_time, timeLocale)}
                         workingHours={calculateVisitDuration()}
                       />
                       <ClientVisitActions
                         onStartVisit={handleStartVisit}
                         onEndVisit={handleEndVisit}
                         hasActiveVisit={!!activeVisit}
+                        startVisitBlocked={startVisitBlocked}
                       />
                     </div>
                   </div>
 
                   <div>
                     <VisitNotifications
+                      scheduledVisits={visitsForNotifications}
                       headerAction={
                         <Drawer open={periodDrawerOpen} onOpenChange={setPeriodDrawerOpen}>
                           <DrawerTrigger asChild>
@@ -950,7 +1116,7 @@ export default function ClientVisit() {
                           <DrawerContent className="max-h-[85dvh] flex flex-col">
                             <DrawerHeader className="text-left pb-2 safe-area-top px-4 pt-4">
                               <DrawerTitle className="text-lg font-semibold">
-                                {t("clientVisit.notificationsTitle", "Visit Notifications")}
+                                {t("reports.dateFilter.period", "Periode")}
                               </DrawerTitle>
                             </DrawerHeader>
                             <div className="overflow-y-auto flex-1 min-h-0 px-4 pb-4">
@@ -988,15 +1154,18 @@ export default function ClientVisit() {
                     />
                   </div>
 
-                  {todaySchedule && (
-                    <div>
-                      <TodayVisitSchedule visits={filteredTodayVisits} periodLabel={getPeriodLabel()} />
+                  <div>
+                      <TodayVisitSchedule visits={sortedVisits} periodLabel={getPeriodLabel()} />
                     </div>
-                  )}
 
                   <div>
                     <VisitAnalyticsCard {...calculateAnalytics} periodLabel={getPeriodLabel()} />
                   </div>
+
+                  <div
+                    className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                    aria-hidden
+                  />
                 </div>
               )}
             </div>

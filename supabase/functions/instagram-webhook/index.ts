@@ -27,6 +27,42 @@ function getMessageBody(evt: Record<string, unknown>): { body: string; messageTy
   return { body: "[message]", messageType: "text" };
 }
 
+/** Resolve display name for Instagram-scoped sender id via Graph API (requires page token + instagram_manage_messages). */
+async function fetchInstagramSenderDisplayName(
+  senderIgId: string,
+  pageAccessToken: string,
+): Promise<string | null> {
+  const token = pageAccessToken.trim();
+  const igId = senderIgId.trim();
+  if (!token || !igId) return null;
+
+  const url =
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(igId)}` +
+    `?fields=${encodeURIComponent("name,username")}` +
+    `&access_token=${encodeURIComponent(token)}`;
+
+  try {
+    const res = await fetch(url, { method: "GET" });
+    const data = await res.json().catch(() => ({})) as {
+      name?: string;
+      username?: string;
+      error?: { message?: string };
+    };
+    if (!res.ok || data.error) {
+      console.warn("[instagram-webhook] sender profile fetch failed", igId, data.error?.message ?? res.status);
+      return null;
+    }
+    const username = typeof data.username === "string" ? data.username.trim().replace(/^@/, "") : "";
+    const name = typeof data.name === "string" ? data.name.trim() : "";
+    if (username) return `@${username}`;
+    if (name) return name;
+    return null;
+  } catch (e) {
+    console.warn("[instagram-webhook] sender profile fetch error", igId, e);
+    return null;
+  }
+}
+
 /** Create lead for new Instagram conversation (ticket_id IG-xxx). */
 async function ensureLeadForNewInstagramConversation(
   supabase: ReturnType<typeof createClient>,
@@ -288,11 +324,26 @@ Deno.serve(async (req: Request) => {
         const { body: bodyText, messageType } = getMessageBody(evt as Record<string, unknown>);
         const lastBody = bodyText.slice(0, 200);
 
+        const { data: existingConv } = await supabase
+          .from("instagram_conversations")
+          .select("id, first_inbound_at, customer_name")
+          .eq("organization_id", orgId)
+          .eq("instagram_business_account_id", effectiveId)
+          .eq("customer_ig_id", senderId)
+          .maybeSingle();
+
+        const existingName = (existingConv as { customer_name?: string | null } | null)?.customer_name?.trim() ?? "";
+        let customerName = existingName || null;
+        if (!customerName && accessToken) {
+          customerName = await fetchInstagramSenderDisplayName(senderId, accessToken);
+        }
+
         const convPayload = {
           organization_id: orgId,
           instagram_business_account_id: effectiveId,
           customer_ig_id: senderId,
           customer_external_id: senderId,
+          ...(customerName ? { customer_name: customerName } : {}),
           last_message_at: ts,
           last_message_body: lastBody,
           last_message_direction: "inbound",
@@ -301,14 +352,6 @@ Deno.serve(async (req: Request) => {
           last_inbound_at: ts,
           updated_at: ts,
         };
-
-        const { data: existingConv } = await supabase
-          .from("instagram_conversations")
-          .select("id, first_inbound_at")
-          .eq("organization_id", orgId)
-          .eq("instagram_business_account_id", effectiveId)
-          .eq("customer_ig_id", senderId)
-          .maybeSingle();
 
         let conv: { id: string; first_inbound_at: string | null } | null = null;
         if (existingConv) {
@@ -320,13 +363,15 @@ Deno.serve(async (req: Request) => {
               last_message_direction: "inbound",
               last_inbound_at: ts,
               updated_at: ts,
+              ...(customerName && !existingName ? { customer_name: customerName } : {}),
             })
             .eq("id", existingConv.id)
             .select("id, first_inbound_at")
             .single();
           conv = updated;
         } else {
-          const ticketId = "IG-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+          const newConvId = crypto.randomUUID();
+          const ticketId = "IG-" + newConvId.replace(/-/g, "").slice(0, 8).toUpperCase();
           const orgOrGlobalNew = `organization_id.eq.${orgId},organization_id.is.null`;
           const { data: openStatus } = await supabase
             .from("lead_statuses")
@@ -353,6 +398,7 @@ Deno.serve(async (req: Request) => {
           const { data: inserted, error: insertErr } = await supabase
             .from("instagram_conversations")
             .insert({
+              id: newConvId,
               ...convPayload,
               ticket_id: ticketId,
               lead_status_id: leadStatusId,
@@ -369,7 +415,7 @@ Deno.serve(async (req: Request) => {
             supabase,
             orgId,
             conv!.id,
-            "Instagram contact",
+            customerName || "Instagram contact",
             lastBody || "Instagram",
             senderId,
             displayName

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/shared/components/ui/button';
+import { cn } from '@/shared/lib/utils';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
 import { getEmployeeStatus } from '@/2-1-employees/utils/employeeUtils';
-import { useAttendanceRecords } from '@/2-1-employees/MyInfo/Attendance/hooks/useAttendanceRecords';
+import { useAttendanceRecords } from '../hooks/useAttendanceRecords';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import {
   useOptimizedNationalHolidays,
@@ -101,13 +103,26 @@ const getStatusColor = (status: string) => {
   }
 };
 
+export type CalendarEmployeeSelection = { id: string; name: string } | null;
+
 interface AttendanceCalendarViewProps {
   searchTerm: string;
   status: string;
   dateRange?: { from?: Date; to?: Date };
+  selectedEmployeeId?: string | null;
+  onEmployeeSelect?: (employee: CalendarEmployeeSelection) => void;
+  onMonthChange?: (month: number, year: number) => void;
 }
 
-const AttendanceCalendarView = ({ searchTerm, status: _status, dateRange: _dateRange }: AttendanceCalendarViewProps) => {
+const AttendanceCalendarView = ({
+  searchTerm,
+  status,
+  dateRange: _dateRange,
+  selectedEmployeeId = null,
+  onEmployeeSelect,
+  onMonthChange,
+}: AttendanceCalendarViewProps) => {
+  const { t } = useAppTranslation();
   const [currentDate, setCurrentDate] = useState(new Date()); // Bulan yang sedang berjalan (saat ini)
   const { organizationId, loading: orgLoading } = useCurrentOrg();
   const queryClient = useQueryClient();
@@ -286,9 +301,49 @@ const AttendanceCalendarView = ({ searchTerm, status: _status, dateRange: _dateR
     });
   }, [activeEmployees, attendanceRecords, leaveRequests, currentMonth, currentYear]);
 
-  const filteredEmployees = processedEmployees.filter(employee =>
-    employee.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = processedEmployees.filter((employee) => {
+    if (!employee.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+      return false;
+    }
+    if (status === 'all') {
+      return true;
+    }
+    const employeeRecords = attendanceRecords.filter(
+      (record) =>
+        (record.employees?.id === employee.id || record.employee_id === employee.id) &&
+        (() => {
+          const d = new Date(record.attendance_date);
+          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        })(),
+    );
+    return employeeRecords.some((record) => {
+      if (status === 'late') {
+        return record.is_late || record.status === 'late';
+      }
+      return record.status === status;
+    });
+  });
+
+  useEffect(() => {
+    onMonthChange?.(currentMonth, currentYear);
+  }, [currentMonth, currentYear, onMonthChange]);
+
+  useEffect(() => {
+    if (!selectedEmployeeId || !onEmployeeSelect) return;
+    const stillVisible = filteredEmployees.some((e) => e.id === selectedEmployeeId);
+    if (!stillVisible) {
+      onEmployeeSelect(null);
+    }
+  }, [filteredEmployees, selectedEmployeeId, onEmployeeSelect]);
+
+  const handleEmployeeNameClick = (employee: { id: string; name: string }) => {
+    if (!onEmployeeSelect) return;
+    if (selectedEmployeeId === employee.id) {
+      onEmployeeSelect(null);
+      return;
+    }
+    onEmployeeSelect({ id: employee.id, name: employee.name });
+  };
 
   // Calculate working days in current month
   const calculateWorkingDays = () => {
@@ -314,21 +369,7 @@ const AttendanceCalendarView = ({ searchTerm, status: _status, dateRange: _dateR
     return stats;
   };
 
-  // Calculate penalty amount based on attendance violations (sync version for now)
-  const calculatePenaltyAmount = (attendanceData: any) => {
-    let totalPenalty = 0;
-    const stats = calculateStats(attendanceData);
-    
-    // For now, use basic calculation - TODO: integrate with real penalty rules
-    // This will be enhanced with async penalty rules fetching in a future update
-    totalPenalty += stats.A * 50000; // Alfa: 50k per absence
-    totalPenalty += stats.T * 25000; // Terlambat: 25k per late
-    
-    // TODO: Add integration with penalty_rules and penalty_settings tables
-    // This could be done via a custom hook that fetches and caches penalty rules
-    
-    return totalPenalty;
-  };
+  // Penalty totals come from attendance_penalties (active only) via EmployeePenaltyCell
 
   if (calendarBootLoading) {
     return null;
@@ -443,13 +484,36 @@ const AttendanceCalendarView = ({ searchTerm, status: _status, dateRange: _dateR
               const attendanceData = employee.attendanceData || {};
               const stats = calculateStats(attendanceData);
               const attendanceRate = stats.H > 0 ? Math.round((stats.H / 23) * 100) : 0;
-              const penaltyAmount = calculatePenaltyAmount(attendanceData);
+              const penaltyAmount = 0;
               const isEvenRow = index % 2 === 0;
 
+              const isSelected = selectedEmployeeId === employee.id;
+
               return (
-                <tr key={employee.id} className={isEvenRow ? 'bg-white' : 'bg-slate-50'}>
+                <tr
+                  key={employee.id}
+                  className={cn(
+                    isEvenRow ? 'bg-white' : 'bg-slate-50',
+                    isSelected && 'bg-primary/5 ring-1 ring-inset ring-primary/30',
+                  )}
+                >
                   <td className="sticky left-0 z-10 border border-gray-200 bg-inherit p-3 text-sm font-bold text-gray-800">
-                    {employee.name}
+                    <button
+                      type="button"
+                      onClick={() => handleEmployeeNameClick(employee)}
+                      className={cn(
+                        'text-left font-bold transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm',
+                        isSelected && 'text-primary',
+                      )}
+                      aria-expanded={isSelected}
+                      aria-label={t(
+                        'attendance.records.expandEmployee',
+                        'Show attendance details for {{name}}',
+                        { name: employee.name },
+                      )}
+                    >
+                      {employee.name}
+                    </button>
                   </td>
                   {Array.from({ length: daysInMonth }, (_, i) => {
                     const date = i + 1;

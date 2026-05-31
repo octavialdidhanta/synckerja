@@ -15,6 +15,42 @@ import { useReportAttendanceSettingsLoading } from '@/2-3-attendance/context/Att
 import { format } from 'date-fns';
 import { id, enUS } from 'date-fns/locale';
 
+function assignmentRangesOverlap(
+  fromA: string,
+  toA: string | null | undefined,
+  fromB: string,
+  toB: string | null | undefined,
+): boolean {
+  const endA = toA && toA.trim() !== '' ? toA : '9999-12-31';
+  const endB = toB && toB.trim() !== '' ? toB : '9999-12-31';
+  return fromA <= endB && fromB <= endA;
+}
+
+function findOverlappingAssignment(
+  assignments: EmployeeShift[],
+  candidate: {
+    id?: string;
+    employee_id: string;
+    effective_from_date: string;
+    effective_to_date: string | null;
+    is_active: boolean;
+  },
+): EmployeeShift | undefined {
+  if (!candidate.is_active) return undefined;
+  return assignments.find(
+    (existing) =>
+      existing.is_active &&
+      existing.employee_id === candidate.employee_id &&
+      existing.id !== candidate.id &&
+      assignmentRangesOverlap(
+        candidate.effective_from_date,
+        candidate.effective_to_date,
+        existing.effective_from_date,
+        existing.effective_to_date,
+      ),
+  );
+}
+
 interface Employee {
   id: string;
   full_name: string;
@@ -150,6 +186,41 @@ export const EmployeeShiftAssignment = () => {
         return;
       }
 
+      if (
+        formData.effective_to_date &&
+        formData.effective_to_date < formData.effective_from_date
+      ) {
+        toast({
+          title: t('common.error', 'Error'),
+          description: t(
+            'employeeShiftAssignment.error.invalidDateRange',
+            'End date must be on or after the start date',
+          ),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const overlap = findOverlappingAssignment(assignments, {
+        id: editingAssignment?.id,
+        employee_id: formData.employee_id,
+        effective_from_date: formData.effective_from_date,
+        effective_to_date: formData.effective_to_date || null,
+        is_active: formData.is_active,
+      });
+
+      if (overlap) {
+        toast({
+          title: t('common.error', 'Error'),
+          description: t(
+            'employeeShiftAssignment.error.overlap',
+            'This assignment overlaps with an existing active shift for the same employee',
+          ),
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const submitData = {
         ...formData,
         effective_to_date: formData.effective_to_date || null,
@@ -188,9 +259,19 @@ export const EmployeeShiftAssignment = () => {
       fetchData();
     } catch (error) {
       console.error('Error saving assignment:', error);
+      const message =
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: string }).code === '23514'
+          ? t(
+              'employeeShiftAssignment.error.overlap',
+              'This assignment overlaps with an existing active shift for the same employee',
+            )
+          : t('employeeShiftAssignment.error.saveFailed', 'Failed to save shift assignment');
       toast({
         title: t('common.error', 'Error'),
-        description: t('employeeShiftAssignment.error.saveFailed', 'Failed to save shift assignment'),
+        description: message,
         variant: "destructive"
       });
     }

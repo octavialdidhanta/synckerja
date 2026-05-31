@@ -2,8 +2,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  getGoogleDriveBrowserApiKey,
   getValidGoogleDriveAccessToken,
+  listPublicDriveFolder,
+  listPublicDriveFolderFromEmbedHtml,
   mapGoogleDriveApiFailure,
+  normalizeDriveFolderListItems,
 } from "../_shared/googleDriveAccess.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -65,13 +69,54 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Invalid or missing folder_id" }, 400);
     }
 
+    const apiKey = getGoogleDriveBrowserApiKey();
+    if (apiKey) {
+      const publicList = await listPublicDriveFolder(folderIdRaw, apiKey);
+      if (publicList.ok) {
+        return json({ files: publicList.files, accessMode: "public_link" }, 200);
+      }
+    }
+
+    const embedList = await listPublicDriveFolderFromEmbedHtml(folderIdRaw);
+    if (embedList.ok) {
+      return json({ files: embedList.files, accessMode: "public_embed" }, 200);
+    }
+
     const { accessToken, error: tokenErr } = await getValidGoogleDriveAccessToken(
       supabaseAdmin,
       user.id,
       "google-drive-list-folder",
     );
     if (!accessToken) {
-      return json({ error: tokenErr ?? "No Google access" }, 400);
+      return json(
+        {
+          error:
+            "Folder is private or not publicly shared. Set Drive sharing to Anyone with the link (Viewer), or connect Google and grant folder access.",
+          code: "DRIVE_GRANT_REQUIRED",
+          resourceId: folderIdRaw,
+        },
+        403,
+      );
+    }
+
+    const folderFields = encodeURIComponent("id,name,mimeType");
+    const folderMetaUrl =
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderIdRaw)}` +
+      `?fields=${folderFields}&supportsAllDrives=true`;
+    const folderRes = await fetch(folderMetaUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const folderJson = (await folderRes.json()) as Record<string, unknown>;
+    if (!folderRes.ok) {
+      const mapped = mapGoogleDriveApiFailure(folderRes.status, folderJson, folderIdRaw);
+      console.error("google-drive-list-folder: folder meta", mapped.body.error);
+      return json(mapped.body, mapped.httpStatus);
+    }
+
+    const folderMime =
+      typeof folderJson.mimeType === "string" ? folderJson.mimeType : "";
+    if (folderMime && folderMime !== "application/vnd.google-apps.folder") {
+      return json({ error: "Resource is not a folder" }, 400);
     }
 
     const q = `'${folderIdRaw}' in parents and trashed=false`;
@@ -92,32 +137,16 @@ Deno.serve(async (req: Request) => {
     }
 
     const rawFiles = listJson.files;
-    const files: unknown[] = Array.isArray(rawFiles) ? rawFiles : [];
+    const normalized = normalizeDriveFolderListItems(Array.isArray(rawFiles) ? rawFiles : []);
 
-    const normalized = files.map((item) => {
-      const f = item as Record<string, unknown>;
-      const id = typeof f.id === "string" ? f.id : "";
-      const name = typeof f.name === "string" ? f.name : "";
-      const mimeType = typeof f.mimeType === "string" ? f.mimeType : "";
-      const thumbnailLink = typeof f.thumbnailLink === "string" ? f.thumbnailLink : null;
-      const iconLink = typeof f.iconLink === "string" ? f.iconLink : null;
-      const webViewLink = typeof f.webViewLink === "string" ? f.webViewLink : null;
-      const isFolder = mimeType === "application/vnd.google-apps.folder";
-      const fallbackThumb =
-        id && !isFolder ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w200` : null;
-      return {
-        id,
-        name,
-        mimeType,
-        isFolder,
-        thumbnailLink,
-        iconLink,
-        webViewLink,
-        fallbackThumbnailUrl: fallbackThumb,
-      };
-    }).filter((f) => f.id && f.name);
+    if (normalized.length === 0) {
+      const oauthEmbedFallback = await listPublicDriveFolderFromEmbedHtml(folderIdRaw);
+      if (oauthEmbedFallback.ok) {
+        return json({ files: oauthEmbedFallback.files, accessMode: "public_embed" }, 200);
+      }
+    }
 
-    return json({ files: normalized }, 200);
+    return json({ files: normalized, accessMode: "oauth" }, 200);
   } catch (e) {
     const err = e as Error;
     console.error("google-drive-list-folder:", err.message);

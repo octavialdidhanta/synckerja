@@ -143,7 +143,7 @@ function DashboardBody() {
   );
 }
 
-/** Matches `AttendanceToolbar`: search + status + date + reset + table/calendar toggle. */
+/** Matches `AttendanceToolbar`: search + status + date + reset. */
 function RecordsToolbarSkeleton() {
   return (
     <div className="bg-card mb-2 shrink-0 rounded-md border border-border p-2">
@@ -153,41 +153,6 @@ function RecordsToolbarSkeleton() {
         <Skeleton className="h-9 min-w-[140px] rounded-md sm:min-w-[180px]" />
         <div className="ml-auto flex items-center gap-1.5">
           <Skeleton className="h-9 w-20 rounded-md" />
-          <Skeleton className="h-9 w-[5.5rem] rounded-md" />
-          <Skeleton className="h-9 w-[5.5rem] rounded-md" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Mirrors `AttendanceTable` header + rows (table view). */
-function RecordsTableMainSkeleton() {
-  return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="mb-4 shrink-0 space-y-1">
-        <Skeleton className="h-5 w-48" />
-        <Skeleton className="h-3.5 w-72 max-w-full" />
-      </div>
-      <div className="bg-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border">
-        <div className="bg-muted/50 shrink-0 border-b border-border px-3 py-2">
-          <div className="flex min-w-[800px] gap-2">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-3 flex-1 rounded sm:min-w-[72px]" />
-            ))}
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 space-y-0 overflow-hidden p-2">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex min-w-[800px] gap-2 border-b border-border/60 py-2.5 last:border-0"
-            >
-              {Array.from({ length: 8 }).map((_, j) => (
-                <Skeleton key={j} className="h-4 flex-1 rounded sm:min-w-[72px]" />
-              ))}
-            </div>
-          ))}
         </div>
       </div>
     </div>
@@ -289,24 +254,16 @@ function RecordsSidebarSkeleton() {
   );
 }
 
-/**
- * `/attendance/attendance` — mirrors `EmployeeAttendanceTab` layout.
- * `view` should match table vs calendar so the main panel matches the user’s toggle.
- */
-function RecordsBody({ view }: { view: "table" | "calendar" }) {
+/** `/attendance/attendance` — mirrors `EmployeeAttendanceTab` layout (calendar only). */
+function RecordsBody() {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
         <div className="col-span-12 flex min-h-0 min-w-0 flex-col xl:col-span-9">
           <RecordsToolbarSkeleton />
-          <div
-            className={cn(
-              "bg-card flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-border shadow-sm",
-              view === "calendar" && "overflow-hidden",
-            )}
-          >
+          <div className="bg-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border shadow-sm">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3 sm:p-4">
-              {view === "table" ? <RecordsTableMainSkeleton /> : <RecordsCalendarMainSkeleton />}
+              <RecordsCalendarMainSkeleton />
             </div>
           </div>
         </div>
@@ -420,11 +377,8 @@ function SettingsBody() {
 
 export function AttendanceModuleSkeleton({
   variant,
-  recordsView = "table",
 }: {
   variant: AttendanceSkeletonVariant;
-  /** Table vs calendar main panel for `/attendance/attendance` (default: table). */
-  recordsView?: "table" | "calendar";
 }) {
   const aria = useAttendanceLoadingAria();
   return (
@@ -450,7 +404,7 @@ export function AttendanceModuleSkeleton({
                 >
                   <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
                     {variant === "dashboard" ? <DashboardBody /> : null}
-                    {variant === "attendance" ? <RecordsBody view={recordsView} /> : null}
+                    {variant === "attendance" ? <RecordsBody /> : null}
                     {variant === "settings" ? (
                       <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
                         <SettingsBody />
@@ -475,12 +429,12 @@ export function AttendanceModuleSkeleton({
 export function AttendanceGuardLoadingShell() {
   const { pathname } = useLocation();
   const variant = getAttendanceSkeletonVariant(pathname);
-  return <AttendanceModuleSkeleton variant={variant} recordsView="table" />;
+  return <AttendanceModuleSkeleton variant={variant} />;
 }
 
 /** Lazy-route Suspense fallback: path-aware shell (dashboard / records / settings). */
 export function AttendanceRouteSkeleton() {
   const { pathname } = useLocation();
   const variant = getAttendanceSkeletonVariant(pathname);
-  return <AttendanceModuleSkeleton variant={variant} recordsView="table" />;
+  return <AttendanceModuleSkeleton variant={variant} />;
 }

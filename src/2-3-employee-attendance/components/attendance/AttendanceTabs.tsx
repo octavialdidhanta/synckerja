@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { AttendanceSettings } from '@/features/2-3-settings';
 import { DashboardOverview } from '@/features/2-3-dashboard';
@@ -7,8 +7,6 @@ import AttendanceAnalytics from './AttendanceAnalytics';
 import { BarChart3, Users, Settings } from 'lucide-react';
 
 export const AttendanceTabs = () => {
-  const [currentView, setCurrentView] = useState<'table' | 'calendar'>('table');
-
   return (
     <div className="space-y-4">
       <Tabs defaultValue="dashboard" className="w-full">
@@ -36,7 +34,7 @@ export const AttendanceTabs = () => {
         </TabsContent>
 
         <TabsContent value="employee-attendance" className="space-y-4">
-          <EmployeeAttendanceTab currentView={currentView} />
+          <EmployeeAttendanceTab />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">

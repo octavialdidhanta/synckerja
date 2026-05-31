@@ -97,6 +97,26 @@ Deno.serve(async (req: Request) => {
       return json({ accessToken }, 200);
     }
 
+    if (action === "picker_config") {
+      const apiKey = (
+        Deno.env.get("GOOGLE_PICKER_API_KEY") ??
+        Deno.env.get("VITE_GOOGLE_PICKER_API_KEY") ??
+        ""
+      ).trim();
+      const appIdExplicit = (
+        Deno.env.get("GOOGLE_PICKER_APP_ID") ??
+        Deno.env.get("VITE_GOOGLE_PICKER_APP_ID") ??
+        ""
+      ).trim();
+      const clientId = (Deno.env.get("GOOGLE_CLIENT_ID") ?? "").trim();
+      const appIdFromClient = clientId.match(/^(\d+)-/)?.[1] ?? "";
+      const appId = appIdExplicit || appIdFromClient;
+      if (!apiKey || !appId) {
+        return json({ error: "Google Picker is not configured on the server" }, 500);
+      }
+      return json({ apiKey, appId }, 200);
+    }
+
     if (action === "disconnect") {
       const { error } = await supabaseAdmin
         .from("user_google_oauth_credentials")

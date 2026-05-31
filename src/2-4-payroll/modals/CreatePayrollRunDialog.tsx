@@ -106,10 +106,13 @@ export function CreatePayrollRunDialog({ children }: CreatePayrollRunDialogProps
 
       if (newPayrollRun) {
         const { error: rpcError } = await supabase.rpc("calculate_payroll_run_totals", {
-          run_id: newPayrollRun.id,
+          p_run_id: newPayrollRun.id,
         });
         if (rpcError) {
-          /* optional RPC — see supabase/PAYROLL_RPCS.md */
+          console.warn("calculate_payroll_run_totals:", rpcError.message);
+          toast.warning(
+            "Payroll run dibuat, tetapi totals belum dihitung. Proses payroll run untuk mengisi totals.",
+          );
         }
       }
 

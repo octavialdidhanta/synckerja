@@ -46,7 +46,7 @@ export function MetaOAuthCallbackPage() {
         setTimeout(() => window.close(), 150);
       } else {
         // Redirect opened in main tab: send user back to Connect Instagram so session is preserved
-        window.location.replace(`${window.location.origin}/operations/instagram-connect`);
+        window.location.replace(`${window.location.origin}/omnichannel/integrations/instagram`);
       }
       return;
     }
@@ -70,7 +70,7 @@ export function MetaOAuthCallbackPage() {
       setTimeout(() => window.close(), 150);
     } else {
       // Redirect opened in main tab: send user back to Connect Instagram so they stay in app
-      window.location.replace(`${window.location.origin}/operations/instagram-connect`);
+      window.location.replace(`${window.location.origin}/omnichannel/integrations/instagram`);
     }
   }, []);
 

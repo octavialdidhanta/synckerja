@@ -60,22 +60,31 @@ export const useAttendanceRecords = (organizationId?: string) => {
     return schedules?.[0]?.id || null;
   };
 
-  const getDefaultShiftId = async () => {
-    if (!organizationId) return null;
-    
-    const { data: shifts, error } = await supabase
-      .from('shifts')
-      .select('id')
+  const getResolvedShiftForToday = async (employeeId: string) => {
+    if (!organizationId) return { shiftId: null as string | null, employeeShiftId: null as string | null };
+
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('employee_shifts')
+      .select('id, shift_id')
       .eq('organization_id', organizationId)
+      .eq('employee_id', employeeId)
       .eq('is_active', true)
-      .limit(1);
+      .lte('effective_from_date', today)
+      .or(`effective_to_date.is.null,effective_to_date.gte.${today}`)
+      .order('effective_from_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
-      console.error('Error fetching shifts:', error);
-      return null;
+      console.error('Error fetching employee shift assignment:', error);
+      return { shiftId: null, employeeShiftId: null };
     }
 
-    return shifts?.[0]?.id || null;
+    return {
+      shiftId: data?.shift_id ?? null,
+      employeeShiftId: data?.id ?? null,
+    };
   };
 
   const createAttendanceRecord = useMutation({
@@ -102,7 +111,7 @@ export const useAttendanceRecords = (organizationId?: string) => {
       setIsSubmitting(true);
       
       const workScheduleId = await getDefaultWorkScheduleId();
-      const shiftId = await getDefaultShiftId();
+      const { shiftId, employeeShiftId } = await getResolvedShiftForToday(currentEmployee.id);
       
       const attendanceData = {
         employee_id: currentEmployee.id,
@@ -110,6 +119,7 @@ export const useAttendanceRecords = (organizationId?: string) => {
         office_location_id: '00000000-0000-0000-0000-000000000000',
         work_schedule_id: workScheduleId,
         shift_id: shiftId,
+        employee_shift_id: employeeShiftId,
         ...record
       };
       

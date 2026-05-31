@@ -2,33 +2,28 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { calculateLeaveRequestDays } from '@/shared/leave/leaveRequestCalculations';
+import type { LeaveRequestFormData } from '@/shared/leave/leaveRequestSchema';
 
-export interface LeaveRequestInput {
-  leaveType: string;
-  startDate: Date;
-  endDate: Date;
-  reason: string;
-  emergencyContact: string;
-  workHandover: string;
-}
+export type LeaveRequestInput = LeaveRequestFormData;
 
 export const useLeaveRequest = () => {
   const { toast } = useToast();
+  const { t } = useAppTranslation();
   const queryClient = useQueryClient();
   const { data: employeeData } = useCurrentEmployee();
 
   const createLeaveRequest = useMutation({
     mutationFn: async (data: LeaveRequestInput) => {
-      if (!employeeData || !(employeeData as any).id) {
-        throw new Error('No employee found');
+      if (!employeeData?.id) {
+        throw new Error(t('leaveRequest.toast.noEmployee', 'No employee found'));
       }
 
-      // Calculate total days
-      const diffTime = Math.abs(data.endDate.getTime() - data.startDate.getTime());
-      const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      const totalDays = calculateLeaveRequestDays(data.startDate, data.endDate);
 
       const leaveRequestData = {
-        employee_id: (employeeData as any).id,
+        employee_id: employeeData.id,
         leave_type: data.leaveType,
         start_date: data.startDate.toISOString().split('T')[0],
         end_date: data.endDate.toISOString().split('T')[0],
@@ -36,48 +31,43 @@ export const useLeaveRequest = () => {
         reason: data.reason,
         emergency_contact: data.emergencyContact,
         work_handover: data.workHandover,
-        status: 'pending' as const
+        status: 'pending' as const,
       };
-
-      console.log('🚀 Creating leave request:', leaveRequestData);
 
       const { data: result, error } = await supabase
         .from('leave_requests')
-        .insert(leaveRequestData as any)
+        .insert(leaveRequestData as never)
         .select()
         .single();
 
       if (error) {
-        console.error('❌ Error creating leave request:', error);
         throw error;
       }
 
-      console.log('✅ Leave request created successfully:', result);
       return result;
     },
     onSuccess: () => {
-      // Invalidate related queries
       queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
       queryClient.invalidateQueries({ queryKey: ['employee-leave-requests'] });
       queryClient.invalidateQueries({ queryKey: ['employee-leave-balance'] });
-      
+      queryClient.invalidateQueries({ queryKey: ['employeeLeaveEligibility'] });
+
       toast({
-        title: 'Berhasil',
-        description: 'Pengajuan cuti berhasil dikirim',
+        title: t('leaveRequest.toast.successTitle', 'Success'),
+        description: t('leaveRequest.toast.successDesc', 'Leave request submitted successfully'),
       });
     },
     onError: (error: Error) => {
-      console.error('❌ Error in leave request creation:', error);
       toast({
-        title: 'Error',
-        description: error.message || 'Gagal mengirim pengajuan cuti',
+        title: t('leaveRequest.toast.errorTitle', 'Error'),
+        description: error.message || t('leaveRequest.toast.errorDesc', 'Failed to submit leave request'),
         variant: 'destructive',
       });
     },
   });
 
   return {
-    createLeaveRequest: createLeaveRequest.mutate,
+    createLeaveRequest: createLeaveRequest.mutateAsync,
     isLoading: createLeaveRequest.isPending,
   };
 };

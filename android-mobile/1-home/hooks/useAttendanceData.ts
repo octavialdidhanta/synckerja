@@ -3,6 +3,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { logger } from "@/shared/lib/logger";
 import { useRealtimeAttendance } from "@/mobile-app/hooks/useRealtimeData";
 import { formatLocalDateYmd } from "@/1-home/utils/attendanceDateTime";
+import { resolveEffectiveSchedule } from "@/shared/attendance/resolveEffectiveSchedule";
 
 /** Prefer open session (checked in, not out); else latest row for the local calendar day. */
 async function fetchTodayAttendanceRecord(employeeId: string, today: string) {
@@ -152,34 +153,61 @@ export const useAttendanceData = () => {
         });
       }
 
-      // Get work schedule from work_schedule_settings - try default first, then any active one
+      const todayDate = new Date();
+      const todayIso = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(
+        todayDate.getDate(),
+      ).padStart(2, "0")}`;
+
+      const effectiveSchedule = await resolveEffectiveSchedule(
+        employee.id,
+        employee.organization_id,
+        todayIso,
+      );
+
       type WorkScheduleRow = {
+        id?: string;
         working_days?: number[];
         start_time?: string;
         end_time?: string;
         late_tolerance_minutes?: number;
         break_start_time?: string;
         break_end_time?: string;
+        schedule_source?: string;
+        shift_id?: string | null;
       };
-      let { data: workScheduleRaw } = await supabase
-        .from('work_schedule_settings')
-        .select('*')
-        .eq('organization_id', employee.organization_id)
-        .eq('is_active', true)
-        .eq('is_default', true)
-        .maybeSingle();
-      let workScheduleData = workScheduleRaw as unknown as WorkScheduleRow | null;
 
-      // If no default found, get any active work schedule
-      if (!workScheduleData) {
-        const { data: fallbackRaw } = await supabase
+      let workScheduleData: WorkScheduleRow | null = null;
+
+      if (effectiveSchedule) {
+        workScheduleData = {
+          id: effectiveSchedule.work_schedule_id ?? undefined,
+          working_days: effectiveSchedule.working_days,
+          start_time: effectiveSchedule.start_time,
+          end_time: effectiveSchedule.end_time,
+          late_tolerance_minutes: effectiveSchedule.late_tolerance_minutes,
+          schedule_source: effectiveSchedule.source,
+          shift_id: effectiveSchedule.shift_id,
+        };
+      } else {
+        let { data: workScheduleRaw } = await supabase
           .from('work_schedule_settings')
           .select('*')
           .eq('organization_id', employee.organization_id)
           .eq('is_active', true)
-          .limit(1)
+          .eq('is_default', true)
           .maybeSingle();
-        workScheduleData = fallbackRaw as unknown as WorkScheduleRow | null;
+        workScheduleData = workScheduleRaw as unknown as WorkScheduleRow | null;
+
+        if (!workScheduleData) {
+          const { data: fallbackRaw } = await supabase
+            .from('work_schedule_settings')
+            .select('*')
+            .eq('organization_id', employee.organization_id)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+          workScheduleData = fallbackRaw as unknown as WorkScheduleRow | null;
+        }
       }
 
       const { data: holidaysRaw } = await supabase
@@ -190,11 +218,6 @@ export const useAttendanceData = () => {
         .eq("applies_to_attendance", true);
       type HolidayRow = { id: string; name?: string; date: string; is_recurring?: boolean; is_active?: boolean; applies_to_attendance?: boolean; country_code?: string };
       const activeHolidays = (holidaysRaw as unknown as HolidayRow[] | null) ?? [];
-
-      const todayDate = new Date();
-      const todayIso = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(
-        todayDate.getDate(),
-      ).padStart(2, "0")}`;
 
       const matchHoliday = activeHolidays.find((holiday) => {
         if (!holiday.is_active || !holiday.applies_to_attendance) return false;
@@ -214,7 +237,9 @@ export const useAttendanceData = () => {
         // Check if today is a working day - convert JS day (0=Sunday) to DB day (7=Sunday)
         const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, etc.
         const dbDay = currentDay === 0 ? 7 : currentDay; // Convert Sunday from 0 to 7
-        const scheduledWorkingDay = workScheduleData.working_days?.includes(dbDay);
+        const scheduledWorkingDay = effectiveSchedule
+          ? effectiveSchedule.is_working_day
+          : workScheduleData.working_days?.includes(dbDay);
         const isHoliday = Boolean(matchHoliday);
         const isWorkingDay = scheduledWorkingDay && !isHoliday;
         logger.debug('Current day:', currentDay, 'DB day:', dbDay, 'Working days:', workScheduleData.working_days, 'Is working day:', isWorkingDay);

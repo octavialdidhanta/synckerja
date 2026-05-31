@@ -25,6 +25,11 @@ import { GoogleDriveFilePreview } from './GoogleDriveInAppFilePreview';
 import { GoogleDriveIframeFilePreview } from './GoogleDriveIframeFilePreview';
 import { useGoogleDriveOAuthConnection } from '../hook/useGoogleDriveOAuthConnection';
 import { startGoogleDriveOAuthAsync } from '@/shared/lib/googleDriveOAuth';
+import {
+  GOOGLE_PICKER_HOST_CLOSE_EVENT,
+  GOOGLE_PICKER_HOST_OPEN_EVENT,
+  isGooglePickerHostSessionActive,
+} from '@/shared/lib/googleDrivePicker';
 
 const CAROUSEL_MAX_IMAGES = 10;
 
@@ -113,6 +118,25 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
     pending: driveConnPending,
     disconnect: disconnectGoogleDrive,
   } = useGoogleDriveOAuthConnection(isOpen);
+
+  const [pickerHostOpen, setPickerHostOpen] = useState(() => isGooglePickerHostSessionActive());
+
+  useEffect(() => {
+    const onOpen = () => setPickerHostOpen(true);
+    const onClose = () => setPickerHostOpen(false);
+    window.addEventListener(GOOGLE_PICKER_HOST_OPEN_EVENT, onOpen);
+    window.addEventListener(GOOGLE_PICKER_HOST_CLOSE_EVENT, onClose);
+    return () => {
+      window.removeEventListener(GOOGLE_PICKER_HOST_OPEN_EVENT, onOpen);
+      window.removeEventListener(GOOGLE_PICKER_HOST_CLOSE_EVENT, onClose);
+    };
+  }, []);
+
+  const blockDialogDismissWhilePicker = useCallback((event: Event) => {
+    if (isGooglePickerHostSessionActive()) {
+      event.preventDefault();
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen && socialMediaPlanId) {
@@ -273,6 +297,12 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
       }
     }
     onClose();
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    if (open) return;
+    if (isGooglePickerHostSessionActive()) return;
+    void handleClose();
   };
 
   // POINT 2 & 3: Handle revision with production status update and clear completion date
@@ -647,10 +677,13 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
     }
   };
 
-  return <Dialog open={isOpen} onOpenChange={handleClose}>
+  return <Dialog open={isOpen} onOpenChange={handleOpenChange} modal={!pickerHostOpen}>
       <DialogContent
         hideCloseButton
         fullscreenAnimation
+        onInteractOutside={blockDialogDismissWhilePicker}
+        onPointerDownOutside={blockDialogDismissWhilePicker}
+        onFocusOutside={blockDialogDismissWhilePicker}
         className="fixed left-0 right-0 top-0 z-50 flex h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-none sm:rounded-none"
       >
         <DialogHeader className="sr-only">

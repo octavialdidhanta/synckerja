@@ -498,3 +498,19 @@ All colors MUST be HSL.
     z-index: 2147483000 !important;
   }
 }
+
+/* Google Picker is rendered on document.body; Radix Dialog must not block it. */
+body.google-picker-host-open [data-radix-focus-guard] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.google-picker-host-open .picker-dialog,
+body.google-picker-host-open .picker-dialog-bg {
+  z-index: 2147483646 !important;
+  pointer-events: auto !important;
+}
+
+body.google-picker-host-open [aria-label="Dialog backdrop"] {
+  pointer-events: none !important;
+}

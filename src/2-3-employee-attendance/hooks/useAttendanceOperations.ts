@@ -1,49 +1,62 @@
 import { useState } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { dateToPostgresTimeUtc } from '@/1-home/utils/attendanceDateTime';
+import {
+  parseAttendanceValidationRow,
+  parseCheckoutValidationRow,
+  type AttendanceValidationRpcRow,
+} from '@/shared/attendance/resolveEffectiveSchedule';
 import { toast } from 'sonner';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { uploadAttendancePhoto } from '@/shared/lib/attendance/uploadAttendancePhoto';
 
 interface AttendanceData {
   latitude: number;
   longitude: number;
   photoUrl?: string;
+  gpsAccuracyMeters?: number | null;
+  isManualLocation?: boolean;
+  faceImageData?: string | null;
 }
 
-interface ValidationResult {
-  location_valid: boolean;
-  face_valid: boolean;
-  schedule_valid: boolean;
-  no_duplicate: boolean;
-  is_holiday: boolean;
-  is_late: boolean;
-  late_minutes: number;
-  office_location_id: string | null;
-  office_location_name: string | null;
-  distance_meters: number;
-  allowed_radius: number;
-  face_registered: boolean;
-  can_attend: boolean;
-  work_schedule_id: string | null;
-  work_schedule_name: string | null;
-  current_day: number;
-  working_days: number[] | null;
-  start_time: string | null;
-  end_time: string | null;
-  late_tolerance_minutes: number | null;
-  employee_work_schedule_id: string | null;
-  tolerance_end_time: string | null;
-  debug_info?: {
-    current_time: string;
-    current_day: number;
-    schedule_found: boolean;
-    working_days_array: number[] | null;
-    is_working_day: boolean;
-    working_days_length: number | null;
-    tolerance_calculation: string;
-    late_calculation: string;
-  };
+type ValidationResult = AttendanceValidationRpcRow;
+
+function calculateWorkingMinutes(checkInTime: string, checkOutTime: Date): number {
+  const checkIn = new Date(checkInTime);
+  if (Number.isNaN(checkIn.getTime())) return 0;
+  return Math.max(0, Math.floor((checkOutTime.getTime() - checkIn.getTime()) / (1000 * 60)));
+}
+
+async function resolveAttendancePhotoPath(
+  employeeId: string,
+  attendanceData: AttendanceData,
+  type: 'check_in' | 'check_out',
+): Promise<string | null> {
+  if (attendanceData.faceImageData?.trim()) {
+    const uploaded = await uploadAttendancePhoto(employeeId, attendanceData.faceImageData, type);
+    return uploaded.path;
+  }
+  if (attendanceData.photoUrl?.trim()) {
+    return attendanceData.photoUrl;
+  }
+  return null;
+}
+
+function formatLocalCheckinTimeString(d: Date): string {
+  return (
+    d.getFullYear() +
+    '-' +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    '-' +
+    String(d.getDate()).padStart(2, '0') +
+    ' ' +
+    String(d.getHours()).padStart(2, '0') +
+    ':' +
+    String(d.getMinutes()).padStart(2, '0') +
+    ':' +
+    String(d.getSeconds()).padStart(2, '0')
+  );
 }
 
 export const useAttendanceOperations = () => {
@@ -51,7 +64,15 @@ export const useAttendanceOperations = () => {
   const { organizationId } = useCurrentOrg();
   const { data: currentEmployee } = useCurrentEmployee();
 
-  const validateAttendance = async (latitude: number, longitude: number) => {
+  const validateAttendance = async (
+    latitude: number,
+    longitude: number,
+    options?: {
+      faceImageData?: string | null;
+      gpsAccuracyMeters?: number | null;
+      isManualLocation?: boolean;
+    },
+  ) => {
     if (!currentEmployee?.id || !organizationId) {
       console.error('Missing employee or organization:', { 
         employeeId: currentEmployee?.id, 
@@ -77,7 +98,9 @@ export const useAttendanceOperations = () => {
         organization_id_param: organizationId,
         latitude_param: latitude,
         longitude_param: longitude,
-        face_image_data: null
+        face_image_data: options?.faceImageData ?? null,
+        gps_accuracy_meters: options?.gpsAccuracyMeters ?? null,
+        is_manual_location: options?.isManualLocation ?? false,
       });
 
       if (error) {
@@ -94,27 +117,15 @@ export const useAttendanceOperations = () => {
 
       console.log('✅ Raw validation result:', data);
 
-      const row = Array.isArray(data) ? data[0] : data;
-      
-      // Safe type casting with proper error handling
-      try {
-        const validationResult = row as unknown as ValidationResult;
-        
-        // Validate that we have the expected structure
-        if (typeof validationResult !== 'object' || validationResult === null) {
-          throw new Error('Invalid validation result structure');
-        }
-        
-        console.log('✅ Parsed validation result:', validationResult);
-        console.log('🔍 Debug info:', validationResult.debug_info);
-        
-        return validationResult;
-      } catch (castError) {
-        console.error('❌ Error casting validation result:', castError);
-        console.error('❌ Raw data structure:', typeof data, data);
+      const validationResult = parseAttendanceValidationRow(data);
+      if (!validationResult) {
         toast.error('Invalid validation response format');
         return null;
       }
+
+      console.log('✅ Parsed validation result:', validationResult);
+
+      return validationResult;
     } catch (error) {
       console.error('❌ Validation request failed:', error);
       toast.error('Validation failed: ' + (error as Error).message);
@@ -130,8 +141,23 @@ export const useAttendanceOperations = () => {
 
     setLoading(true);
     try {
-      // Validate attendance first
-      const validation = await validateAttendance(attendanceData.latitude, attendanceData.longitude);
+      let photoPath: string | null = null;
+      try {
+        photoPath = await resolveAttendancePhotoPath(currentEmployee.id, attendanceData, 'check_in');
+      } catch (uploadError) {
+        toast.error('Failed to upload check-in photo: ' + (uploadError as Error).message);
+        return false;
+      }
+
+      const validation = await validateAttendance(
+        attendanceData.latitude,
+        attendanceData.longitude,
+        {
+          faceImageData: attendanceData.faceImageData ?? null,
+          gpsAccuracyMeters: attendanceData.gpsAccuracyMeters ?? null,
+          isManualLocation: attendanceData.isManualLocation ?? false,
+        },
+      );
       
       if (!validation) {
         toast.error('Failed to validate attendance');
@@ -140,37 +166,36 @@ export const useAttendanceOperations = () => {
       
       if (!validation.can_attend) {
         let errorMessage = 'Cannot check in: ';
+        if (validation.photo_required && !validation.can_attend) {
+          errorMessage += 'Photo required for check-in. ';
+        }
+        if (validation.gps_accuracy_valid === false) errorMessage += 'GPS accuracy too low. ';
         if (!validation.location_valid) errorMessage += 'Outside office location. ';
-        if (!validation.schedule_valid) errorMessage += 'Not a working day or outside schedule. ';
         if (!validation.no_duplicate) errorMessage += 'Already checked in today. ';
         if (validation.is_holiday) errorMessage += 'Today is a holiday. ';
+        if (!validation.schedule_valid) errorMessage += 'Not a working day or outside schedule. ';
         
         toast.error(errorMessage.trim());
         return false;
       }
 
-      // Create attendance record with corrected late calculation
       const currentTime = new Date();
-      const { data: record, error } = await supabase
-        .from('attendance_records')
-        .insert({
-          employee_id: currentEmployee.id,
-          organization_id: organizationId,
-          attendance_date: currentTime.toISOString().split('T')[0],
-          check_in_time: dateToPostgresTimeUtc(currentTime),
-          check_in_location: {
-            latitude: attendanceData.latitude,
-            longitude: attendanceData.longitude
-          },
-          check_in_photo_path: attendanceData.photoUrl,
-          office_location_id: validation.office_location_id!,
-          work_schedule_id: validation.work_schedule_id!,
-          is_late: validation.is_late,
-          late_minutes: validation.late_minutes,
-          status: 'present'
-        })
-        .select()
-        .single();
+      const localCheckinTime = formatLocalCheckinTimeString(currentTime);
+
+      const { data: recordResult, error } = await supabase.rpc('record_attendance_with_timezone', {
+        employee_id_param: currentEmployee.id,
+        organization_id_param: organizationId,
+        local_checkin_time: localCheckinTime,
+        latitude_param: attendanceData.latitude,
+        longitude_param: attendanceData.longitude,
+        timezone_param: 'Asia/Jakarta',
+        photo_path_param: photoPath,
+        location_data: {
+          latitude: attendanceData.latitude,
+          longitude: attendanceData.longitude,
+        },
+        notes_param: null,
+      });
 
       if (error) {
         console.error('❌ Check-in error:', error);
@@ -178,13 +203,14 @@ export const useAttendanceOperations = () => {
         return false;
       }
 
-      // Log detailed check-in information
+      const record = Array.isArray(recordResult) ? recordResult[0] : recordResult;
+
       console.log('✅ Check-in successful:', {
-        record_id: record.id,
+        record,
         is_late: validation.is_late,
         late_minutes: validation.late_minutes,
-        tolerance_end_time: validation.tolerance_end_time,
-        debug_info: validation.debug_info
+        shift_id: validation.shift_id,
+        work_schedule_id: validation.work_schedule_id,
       });
 
       if (validation.is_late) {
@@ -229,13 +255,44 @@ export const useAttendanceOperations = () => {
         return false;
       }
 
-      const currentTime = new Date();
-      const workingHours = calculateWorkingHours(
-        new Date(existingRecord.check_in_time),
-        currentTime
+      let photoPath: string | null = null;
+      try {
+        photoPath = await resolveAttendancePhotoPath(currentEmployee.id, attendanceData, 'check_out');
+      } catch (uploadError) {
+        toast.error('Failed to upload check-out photo: ' + (uploadError as Error).message);
+        return false;
+      }
+
+      const { data: checkoutValidationRaw, error: checkoutValidationError } = await supabase.rpc(
+        'validate_checkout_comprehensive',
+        {
+          employee_id_param: currentEmployee.id,
+          organization_id_param: organizationId,
+          photo_path_param: photoPath,
+          face_image_data: attendanceData.faceImageData ?? null,
+        },
       );
 
-      // Update the record with check-out information
+      if (checkoutValidationError) {
+        toast.error('Failed to validate check-out: ' + checkoutValidationError.message);
+        return false;
+      }
+
+      const checkoutValidation = parseCheckoutValidationRow(checkoutValidationRaw);
+      if (!checkoutValidation?.can_checkout) {
+        let msg = 'Cannot check out: ';
+        if (!checkoutValidation?.has_checkin) msg += 'No check-in found. ';
+        if (checkoutValidation?.already_checked_out) msg += 'Already checked out. ';
+        if (checkoutValidation?.photo_required && !checkoutValidation.photo_valid) {
+          msg += 'Photo required for check-out. ';
+        }
+        toast.error(msg.trim());
+        return false;
+      }
+
+      const currentTime = new Date();
+      const workingHours = calculateWorkingMinutes(existingRecord.check_in_time, currentTime);
+
       const { error: updateError } = await supabase
         .from('attendance_records')
         .update({
@@ -244,7 +301,7 @@ export const useAttendanceOperations = () => {
             latitude: attendanceData.latitude,
             longitude: attendanceData.longitude
           },
-          check_out_photo_path: attendanceData.photoUrl,
+          check_out_photo_path: photoPath,
           working_hours_minutes: workingHours,
           updated_at: currentTime.toISOString()
         })

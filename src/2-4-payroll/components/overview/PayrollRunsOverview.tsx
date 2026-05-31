@@ -179,7 +179,7 @@ export function PayrollRunsOverview({
       onRunBlocked?.(null);
 
       const { data: processResult, error: processError } = await supabase.rpc("process_payroll_run", {
-        run_id: runId,
+        p_run_id: runId,
       });
 
       if (processError) throw processError;
@@ -197,7 +197,11 @@ export function PayrollRunsOverview({
       queryClient.invalidateQueries({ queryKey: ["payroll-calculations"] });
       queryClient.invalidateQueries({ queryKey: ["payroll-run-details"] });
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Failed to process payroll calculations";
+      let msg = error instanceof Error ? error.message : "Failed to process payroll calculations";
+      if (msg.includes("function") && msg.includes("does not exist")) {
+        msg =
+          "RPC process_payroll_run belum ter-deploy. Jalankan migrasi payroll terbaru ke Supabase (supabase db push).";
+      }
       toast.error(msg, { id: "payroll-process" });
     } finally {
       setProcessingRunId(null);
@@ -262,6 +266,10 @@ export function PayrollRunsOverview({
         return "bg-muted text-foreground";
       case "processing":
         return "bg-primary/15 text-primary";
+      case "calculated":
+        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
+      case "paid":
+        return "bg-blue-500/15 text-blue-700 dark:text-blue-400";
       case "completed":
         return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
       case "cancelled":

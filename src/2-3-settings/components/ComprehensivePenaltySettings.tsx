@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
@@ -51,6 +51,13 @@ export const ComprehensivePenaltySettings = () => {
   const { data: employees = [], isPending: employeesPending } = useEmployees();
   const settingsPanelLoading = queriesLoading || rulesLoading || employeesPending;
   useReportAttendanceSettingsLoading(settingsPanelLoading);
+
+  const activeLateArrivalRuleCount = useMemo(
+    () => rules.filter((r) => r.is_active && r.rule_type === 'late_arrival').length,
+    [rules],
+  );
+  const hasDuplicateLateArrivalRules = activeLateArrivalRuleCount > 1;
+
   const [activeTab, setActiveTab] = useState('general');
   const [isExemptionDialogOpen, setIsExemptionDialogOpen] = useState(false);
   const [editingExemption, setEditingExemption] = useState<any>(null);
@@ -59,7 +66,7 @@ export const ComprehensivePenaltySettings = () => {
 
   // Form states
   const [generalSettings, setGeneralSettings] = useState({
-    enable_automatic_penalties: settings?.enable_automatic_penalties ?? true,
+    enable_automatic_penalties: settings?.enable_automatic_penalties ?? false,
     penalty_calculation_timezone: settings?.penalty_calculation_timezone ?? 'Asia/Jakarta',
     minimum_penalty_amount: settings?.minimum_penalty_amount ?? 0,
     maximum_daily_penalty: settings?.maximum_daily_penalty ?? 0,
@@ -100,7 +107,7 @@ export const ComprehensivePenaltySettings = () => {
   useEffect(() => {
     if (!settings) {
       setGeneralSettings({
-        enable_automatic_penalties: true,
+        enable_automatic_penalties: false,
         penalty_calculation_timezone: 'Asia/Jakarta',
         minimum_penalty_amount: 0,
         maximum_daily_penalty: 0,
@@ -128,7 +135,7 @@ export const ComprehensivePenaltySettings = () => {
     }
 
     setGeneralSettings({
-      enable_automatic_penalties: settings.enable_automatic_penalties ?? true,
+      enable_automatic_penalties: settings.enable_automatic_penalties ?? false,
       penalty_calculation_timezone: settings.penalty_calculation_timezone ?? 'Asia/Jakarta',
       minimum_penalty_amount: Number(settings.minimum_penalty_amount ?? 0),
       maximum_daily_penalty: Number(settings.maximum_daily_penalty ?? 0),
@@ -322,6 +329,12 @@ export const ComprehensivePenaltySettings = () => {
                   />
                   <Label>{t('penaltySettings.basicSettings.enableAutomaticPenalties', 'Enable automatic penalties')}</Label>
                 </div>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    'penaltySettings.basicSettings.automaticPenaltyShiftToleranceInfo',
+                    'Automatic late penalties use minutes beyond the shift or work schedule tolerance (not raw late minutes).',
+                  )}
+                </p>
 
                 <div>
                   <Label>{t('penaltySettings.basicSettings.calculationTimezone', 'Calculation Timezone')}</Label>
@@ -540,6 +553,17 @@ export const ComprehensivePenaltySettings = () => {
         </TabsContent>
 
         <TabsContent value="rules" className="space-y-4">
+          {hasDuplicateLateArrivalRules && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <p>
+                {t(
+                  'penaltySettings.rules.duplicateLateArrivalWarning',
+                  'Multiple active late arrival rules detected. Each matching rule applies a separate penalty per check-in — keep only one rule or deactivate extras.',
+                )}
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium">{t('penaltySettings.rules.title', 'Penalty Rules')}</h3>
             <PenaltyRuleFormDialog />

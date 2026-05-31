@@ -29,6 +29,7 @@ interface OfficeLocation {
   is_client_location: boolean;
   planned_start_time?: string;
   planned_end_time?: string;
+  estimated_travel_minutes?: number | null;
 }
 
 interface EditOfficeLocationModalProps {
@@ -58,7 +59,8 @@ export const EditOfficeLocationModal: React.FC<EditOfficeLocationModalProps> = (
     client_id: '',
     is_client_location: false,
     planned_start_time: '',
-    planned_end_time: ''
+    planned_end_time: '',
+    estimated_travel_minutes: ''
   });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -80,7 +82,9 @@ export const EditOfficeLocationModal: React.FC<EditOfficeLocationModalProps> = (
         client_id: location.client_id || '',
         is_client_location: location.is_client_location || false,
         planned_start_time: location.planned_start_time || '',
-        planned_end_time: location.planned_end_time || ''
+        planned_end_time: location.planned_end_time || '',
+        estimated_travel_minutes:
+          location.estimated_travel_minutes != null ? String(location.estimated_travel_minutes) : ''
       });
     }
   }, [location]);
@@ -107,6 +111,11 @@ export const EditOfficeLocationModal: React.FC<EditOfficeLocationModalProps> = (
           is_client_location: formData.is_client_location,
           planned_start_time: formData.is_client_location ? formData.planned_start_time || null : null,
           planned_end_time: formData.is_client_location ? formData.planned_end_time || null : null,
+          estimated_travel_minutes: formData.is_client_location
+            ? formData.estimated_travel_minutes
+              ? parseInt(formData.estimated_travel_minutes, 10)
+              : null
+            : null,
           updated_at: new Date().toISOString()
         })
         .eq('id', location.id);
@@ -303,6 +312,26 @@ export const EditOfficeLocationModal: React.FC<EditOfficeLocationModalProps> = (
                     onChange={(e) => handleInputChange('planned_end_time', e.target.value)}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="estimated_travel_minutes">
+                  {t('officeLocation.estimatedTravelMinutes', 'Estimated travel (minutes)')}
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  {t(
+                    'officeLocation.estimatedTravelMinutesDescription',
+                    'Optional HR override for travel time from office HQ. Leave empty to use distance estimate.',
+                  )}
+                </p>
+                <Input
+                  id="estimated_travel_minutes"
+                  type="number"
+                  min={0}
+                  placeholder={t('officeLocation.estimatedTravelMinutesPlaceholder', 'Auto from distance')}
+                  value={formData.estimated_travel_minutes}
+                  onChange={(e) => handleInputChange('estimated_travel_minutes', e.target.value)}
+                />
               </div>
             </>
           )}

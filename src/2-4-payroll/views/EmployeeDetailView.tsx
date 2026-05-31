@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
-import { ArrowLeft, Calculator } from "lucide-react";
-import { calculatePPh21, formatCurrency } from "@/shared/lib/pph21Calculator";
+import { ArrowLeft, Calculator, Download, Loader2 } from "lucide-react";
+import { calculatePPh21, formatCurrency, type TaxBreakdownRow } from "@/shared/lib/pph21Calculator";
+import { PayslipPDFGenerator } from "../lib/PayslipPDFGenerator";
+import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { toast } from "sonner";
 
 interface LineItem {
   component_name?: string;
   item_name?: string;
+  item_category?: string;
   calculated_amount?: number;
   [key: string]: unknown;
 }
@@ -17,12 +22,20 @@ interface EmployeeDetailViewProps {
   allowanceData?: LineItem[];
   deductionData?: LineItem[];
   taxData?: LineItem[];
-  tardinessData?: Record<string, unknown>[];
-  attendancePenalties?: Record<string, unknown>[];
 }
 
 function lineLabel(item: LineItem) {
   return (item.component_name || item.item_name || "").toString();
+}
+
+function isBpjsItem(item: LineItem) {
+  const cat = (item.item_category || "").toString().toLowerCase();
+  const name = lineLabel(item).toLowerCase();
+  return cat.startsWith("bpjs") || name.includes("bpjs");
+}
+
+function isPenaltyItem(item: LineItem) {
+  return (item.item_category || "").toString().toLowerCase() === "penalty";
 }
 
 export function EmployeeDetailView({
@@ -31,68 +44,60 @@ export function EmployeeDetailView({
   allowanceData = [],
   deductionData = [],
   taxData = [],
-  tardinessData = [],
-  attendancePenalties = [],
 }: EmployeeDetailViewProps) {
+  const { organization } = useCentralizedUserData();
+  const [downloading, setDownloading] = useState(false);
+
   if (!selectedEmployee) return null;
 
-  const getCalculationData = () => {
-    const info = selectedEmployee.employee_payroll_info as Record<string, unknown> | undefined;
-    const basicSalary = Number(info?.basic_salary) || 0;
+  const hasStoredTotals =
+    selectedEmployee.take_home_pay != null || selectedEmployee.net_pay != null;
 
-    const totalAllowances =
-      allowanceData?.reduce((sum, item) => sum + (Number(item.calculated_amount) || 0), 0) ||
-      Number(selectedEmployee.total_allowances) ||
-      0;
+  const storedBasic = Number(selectedEmployee.basic_salary) || 0;
+  const storedAllowances = Number(selectedEmployee.total_allowances) || 0;
+  const storedGross = Number(selectedEmployee.gross_pay) || storedBasic + storedAllowances;
+  const storedDeductions = Number(selectedEmployee.total_deductions) || 0;
+  const storedPenalties = Number(selectedEmployee.total_penalties) || 0;
+  const storedTax =
+    Number(selectedEmployee.total_tax_deductions) ||
+    taxData.reduce((s, i) => s + (Number(i.calculated_amount) || 0), 0);
+  const takeHomePay =
+    Number(selectedEmployee.take_home_pay ?? selectedEmployee.net_pay) ||
+    storedGross - storedDeductions - storedPenalties - storedTax;
 
-    const grossPay = basicSalary + totalAllowances;
+  const bpjsFromItems = deductionData.filter(isBpjsItem);
+  const bpjsKesehatanMonthly =
+    Number(bpjsFromItems.find((i) => lineLabel(i).toLowerCase().includes("kesehatan"))?.calculated_amount) ||
+    0;
+  const bpjsPensiunMonthly =
+    Number(bpjsFromItems.find((i) => lineLabel(i).toLowerCase().includes("pensiun"))?.calculated_amount) ||
+    0;
 
-    const ptkpStatus = (info?.ptkp_status as string) || "TK/0";
-    const pph21Result = calculatePPh21({
-      monthlyGross: grossPay,
-      ptkpStatus,
-      includeBpjsKesehatan: true,
-      includeBpjsPensiun: true,
-      nonTaxableAllowance: 0,
-    });
+  const penaltyFromItems = deductionData
+    .filter(isPenaltyItem)
+    .reduce((sum, item) => sum + (Number(item.calculated_amount) || 0), 0);
 
-    const bpjsKesehatanMonthly = pph21Result.bpjsKesehatanEmployee / 12;
-    const bpjsPensiunMonthly = pph21Result.bpjsPensiunEmployee / 12;
+  const totalPenaltiesDisplay = storedPenalties || penaltyFromItems;
 
-    const tardinessAmount = (tardinessData.length > 0 ? tardinessData : attendancePenalties).reduce(
-      (sum, item) => sum + (Number(item.penalty_amount) || 0),
-      0,
-    );
+  const info = selectedEmployee.employee_payroll_info as Record<string, unknown> | undefined;
+  const ptkpStatus = (info?.ptkp_status as string) || "TK/0";
 
-    const otherDeductions =
-      deductionData
-        ?.filter((item) => !lineLabel(item).toLowerCase().includes("bpjs"))
-        .reduce((sum, item) => sum + (Number(item.calculated_amount) || 0), 0) || 0;
+  const storedTaxBreakdown = selectedEmployee.tax_breakdown as TaxBreakdownRow[] | null | undefined;
+  const isEstimate = !hasStoredTotals || (allowanceData.length === 0 && deductionData.length === 0);
 
-    const totalDeductionsForCard =
-      bpjsKesehatanMonthly + bpjsPensiunMonthly + otherDeductions + tardinessAmount;
+  const pph21Estimate =
+    isEstimate && !storedTaxBreakdown?.length
+      ? calculatePPh21({
+          monthlyGross: storedGross,
+          ptkpStatus,
+          includeBpjsKesehatan: bpjsFromItems.length === 0,
+          includeBpjsPensiun: bpjsFromItems.length === 0,
+        })
+      : null;
 
-    const totalTax = taxData?.reduce((sum, item) => sum + (Number(item.calculated_amount) || 0), 0) || 0;
-
-    const netPay = grossPay - totalDeductionsForCard - totalTax;
-
-    return {
-      basicSalary,
-      totalAllowances,
-      grossPay,
-      totalDeductions: totalDeductionsForCard,
-      totalTax,
-      netPay,
-      pph21Result,
-      ptkpStatus,
-      bpjsKesehatanMonthly,
-      bpjsPensiunMonthly,
-      otherDeductions,
-      tardinessAmount,
-    };
-  };
-
-  const calculationData = getCalculationData();
+  const taxBreakdown = storedTaxBreakdown?.length ? storedTaxBreakdown : pph21Estimate?.taxBreakdown ?? [];
+  const monthlyTaxDisplay = storedTax || pph21Estimate?.monthlyTax || 0;
+  const pph21Detail = pph21Estimate;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -131,6 +136,49 @@ export function EmployeeDetailView({
     | { employees?: { full_name?: string; employee_id?: string; departments?: { name?: string } } }
     | undefined;
 
+  const calculationMode = (selectedEmployee.calculation_details as { calculationMode?: string })
+    ?.calculationMode;
+
+  const handleDownloadPayslip = async () => {
+    const calcId = String(selectedEmployee.id ?? "");
+    if (!calcId) return;
+    setDownloading(true);
+    try {
+      const allItems = [...allowanceData, ...deductionData, ...taxData];
+      const generator = await PayslipPDFGenerator.create();
+      await generator.download(
+        {
+          companyName: organization?.company_name ?? "Perusahaan",
+          employeeName: empInfo?.employees?.full_name ?? "-",
+          employeeCode: empInfo?.employees?.employee_id ?? null,
+          periodName: runs?.payroll_periods?.period_name ?? "-",
+          payDate: runs?.payroll_periods?.pay_date ?? null,
+          basicSalary: storedBasic,
+          takeHomePay: storedTakeHome,
+          grossPay: storedGross,
+          calculationMode: calculationMode ?? null,
+          lineItems: allItems.map((item) => ({
+            item_name: lineLabel(item),
+            item_type: (item.item_type as string) ?? "deduction",
+            item_category: item.item_category as string | undefined,
+            calculated_amount: Number(item.calculated_amount) || 0,
+          })),
+          payoutSnapshot:
+            (selectedEmployee.payout_snapshot as {
+              bank_name?: string;
+              account_number?: string;
+              account_holder?: string;
+            } | null) ?? null,
+        },
+        `slip-gaji-${calcId.slice(0, 8)}.pdf`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal unduh slip gaji");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="bg-background h-full">
       <div className="bg-muted/30 border-border sticky top-0 z-10 flex items-center justify-between border-b px-6 py-4">
@@ -144,6 +192,26 @@ export function EmployeeDetailView({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {selectedEmployee.payment_status === "paid" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={downloading}
+              onClick={() => void handleDownloadPayslip()}
+            >
+              {downloading ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-1 h-4 w-4" />
+              )}
+              Slip PDF
+            </Button>
+          )}
+          {isEstimate && (
+            <Badge variant="outline" className="text-amber-700 dark:text-amber-300">
+              Estimasi
+            </Badge>
+          )}
           <Badge className={getStatusColor(String(selectedEmployee.calculation_status || "draft"))}>
             {String(selectedEmployee.calculation_status || "draft")}
           </Badge>
@@ -196,7 +264,7 @@ export function EmployeeDetailView({
           <Card>
             <CardContent className="p-4">
               <div className="text-muted-foreground mb-1 text-sm font-medium">Gaji Pokok</div>
-              <div className="text-primary text-lg font-bold">{formatCurrency(calculationData.basicSalary)}</div>
+              <div className="text-primary text-lg font-bold">{formatCurrency(storedBasic)}</div>
             </CardContent>
           </Card>
 
@@ -204,7 +272,7 @@ export function EmployeeDetailView({
             <CardContent className="p-4">
               <div className="text-muted-foreground mb-1 text-sm font-medium">Tunjangan</div>
               <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                {formatCurrency(calculationData.totalAllowances)}
+                {formatCurrency(storedAllowances)}
               </div>
               {allowanceData.length > 0 && (
                 <div className="mt-2 space-y-1">
@@ -223,20 +291,24 @@ export function EmployeeDetailView({
             <CardContent className="p-4">
               <div className="text-muted-foreground mb-1 text-sm font-medium">Potongan</div>
               <div className="text-destructive text-lg font-bold">
-                {formatCurrency(calculationData.totalDeductions)}
+                {formatCurrency(storedDeductions + totalPenaltiesDisplay)}
               </div>
               <div className="mt-2 space-y-1">
-                <div className="text-muted-foreground flex justify-between text-xs">
-                  <span>BPJS Kesehatan (Bulanan)</span>
-                  <span>{formatCurrency(calculationData.bpjsKesehatanMonthly)}</span>
-                </div>
-                <div className="text-muted-foreground flex justify-between text-xs">
-                  <span>BPJS Pensiun (Bulanan)</span>
-                  <span>{formatCurrency(calculationData.bpjsPensiunMonthly)}</span>
-                </div>
+                {bpjsKesehatanMonthly > 0 && (
+                  <div className="text-muted-foreground flex justify-between text-xs">
+                    <span>BPJS Kesehatan</span>
+                    <span>{formatCurrency(bpjsKesehatanMonthly)}</span>
+                  </div>
+                )}
+                {bpjsPensiunMonthly > 0 && (
+                  <div className="text-muted-foreground flex justify-between text-xs">
+                    <span>BPJS Pensiun</span>
+                    <span>{formatCurrency(bpjsPensiunMonthly)}</span>
+                  </div>
+                )}
 
                 {deductionData
-                  .filter((item) => !lineLabel(item).toLowerCase().includes("bpjs"))
+                  .filter((item) => !isBpjsItem(item) && !isPenaltyItem(item))
                   .map((item, index) => (
                     <div key={index} className="text-muted-foreground flex justify-between text-xs">
                       <span>{lineLabel(item)}</span>
@@ -244,31 +316,19 @@ export function EmployeeDetailView({
                     </div>
                   ))}
 
-                {(tardinessData.length > 0 ? tardinessData : attendancePenalties)
-                  .filter((item, index, array) => {
-                    const currentKey = `${item.penalty_amount}_${item.applied_date}`;
-                    const firstOccurrenceIndex = array.findIndex(
-                      (p) => `${p.penalty_amount}_${p.applied_date}` === currentKey,
-                    );
-                    return index === firstOccurrenceIndex;
-                  })
-                  .map((item, index) => {
-                    const vd = item.violation_details as { late_minutes?: number } | undefined;
-                    const minutes = vd?.late_minutes || 0;
-                    const displayDate =
-                      (item.display_date as string) ||
-                      (item.applied_date
-                        ? new Date(String(item.applied_date)).toLocaleDateString("id-ID")
-                        : "No Date");
-                    return (
-                      <div key={index} className="text-muted-foreground flex justify-between text-xs">
-                        <span>
-                          Keterlambatan - {displayDate} ({minutes} menit)
-                        </span>
-                        <span>{formatCurrency(Number(item.penalty_amount) || 0)}</span>
-                      </div>
-                    );
-                  })}
+                {deductionData.filter(isPenaltyItem).map((item, index) => (
+                  <div key={`penalty-${index}`} className="text-muted-foreground flex justify-between text-xs">
+                    <span>{lineLabel(item)}</span>
+                    <span>{formatCurrency(Number(item.calculated_amount) || 0)}</span>
+                  </div>
+                ))}
+
+                {totalPenaltiesDisplay > 0 && penaltyFromItems === 0 && (
+                  <div className="text-muted-foreground flex justify-between text-xs">
+                    <span>Penalti Kehadiran</span>
+                    <span>{formatCurrency(totalPenaltiesDisplay)}</span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -276,130 +336,59 @@ export function EmployeeDetailView({
           <Card>
             <CardContent className="p-4">
               <div className="text-muted-foreground mb-1 text-sm font-medium">Take-Home Pay</div>
-              <div className="text-primary text-xl font-bold">
-                {formatCurrency(calculationData.netPay)}
+              <div className="text-primary text-xl font-bold">{formatCurrency(takeHomePay)}</div>
+              <div className="text-muted-foreground mt-1 text-xs">
+                Bruto {formatCurrency(storedGross)} − Pajak {formatCurrency(storedTax)}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {(taxData.length > 0 || calculationData.pph21Result) && (
+        {(taxData.length > 0 || taxBreakdown.length > 0 || monthlyTaxDisplay > 0) && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calculator className="h-5 w-5" />
                 Detail Pajak PPh 21
+                {calculationMode === "ter" && (
+                  <Badge variant="outline" className="text-xs font-normal">
+                    TER
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">PPh 21 Bulanan</span>
-                  <span className="text-primary font-bold">
-                    {formatCurrency(
-                      calculationData.pph21Result.monthlyTax ||
-                        taxData.reduce((sum, item) => sum + (Number(item.calculated_amount) || 0), 0),
-                    )}
-                  </span>
+                  <span className="text-primary font-bold">{formatCurrency(monthlyTaxDisplay)}</span>
                 </div>
 
-                {calculationData.pph21Result && (
+                {taxBreakdown.length > 0 && (
                   <div className="bg-muted/40 rounded-lg p-4">
-                    <div className="text-foreground mb-3 text-sm font-medium">Rincian Perhitungan Lengkap:</div>
-
-                    <div className="bg-card mb-3 rounded border p-3">
-                      <div className="text-foreground mb-2 text-xs font-medium">Penghasilan Bruto</div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Gaji Pokok/Bulan:</span>
-                          <span>{formatCurrency(calculationData.basicSalary)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Total Tunjangan/Bulan:</span>
-                          <span>{formatCurrency(calculationData.totalAllowances)}</span>
-                        </div>
-                        <div className="flex justify-between border-t pt-1 font-medium">
-                          <span>Gaji Bruto/Bulan:</span>
-                          <span>{formatCurrency(calculationData.grossPay)}</span>
-                        </div>
-                        <div className="text-primary flex justify-between font-medium">
-                          <span>Gaji Bruto Tahunan:</span>
-                          <span>{formatCurrency(calculationData.pph21Result.annualGross)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-card mb-3 rounded border p-3">
-                      <div className="text-foreground mb-2 text-xs font-medium">Pengurang Penghasilan</div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Biaya Jabatan (5%, maks 6jt):</span>
-                          <span>-{formatCurrency(calculationData.pph21Result.professionalAllowance)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>BPJS Kesehatan (Tahunan):</span>
-                          <span>-{formatCurrency(calculationData.pph21Result.bpjsKesehatanEmployee)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>BPJS Pensiun (Tahunan):</span>
-                          <span>-{formatCurrency(calculationData.pph21Result.bpjsPensiunEmployee)}</span>
-                        </div>
-                        <div className="flex justify-between border-t pt-1 font-medium text-emerald-700 dark:text-emerald-400">
-                          <span>Penghasilan Neto/Bulan:</span>
-                          <span>{formatCurrency(calculationData.pph21Result.netIncomeBeforeTax / 12)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-card mb-3 rounded border p-3">
-                      <div className="text-foreground mb-2 text-xs font-medium">Penghasilan Tidak Kena Pajak (PTKP)</div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Status PTKP:</span>
-                          <span className="font-medium">{calculationData.ptkpStatus}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Nilai PTKP:</span>
-                          <span>-{formatCurrency(calculationData.pph21Result.ptkpAmount)}</span>
-                        </div>
-                        <div className="text-primary flex justify-between border-t pt-1 font-medium">
-                          <span>PKP (Penghasilan Kena Pajak):</span>
-                          <span>{formatCurrency(calculationData.pph21Result.pkpAmount)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {calculationData.pph21Result.taxBreakdown.length > 0 && (
-                      <div className="bg-card rounded border p-3">
-                        <div className="text-foreground mb-2 text-xs font-medium">Tarif Progresif PPh 21</div>
-                        <div className="space-y-2">
-                          {calculationData.pph21Result.taxBreakdown.map((bracket, index) => (
-                            <div key={index} className="border-border rounded border p-2">
-                              <div className="flex justify-between text-sm font-medium">
-                                <span>
-                                  Bracket {index + 1}: {bracket.rate}%
-                                </span>
-                                <span className="text-primary">{formatCurrency(bracket.tax)}</span>
-                              </div>
-                              <div className="text-muted-foreground mt-1 text-xs">
-                                <div>Range: {bracket.bracket}</div>
-                                <div>PKP dalam bracket: {formatCurrency(bracket.amount)}</div>
-                              </div>
-                            </div>
-                          ))}
-                          <div className="border-border mt-2 border-t-2 pt-2">
-                            <div className="text-primary flex justify-between font-bold">
-                              <span>Total PPh 21 Tahunan:</span>
-                              <span>{formatCurrency(calculationData.pph21Result.annualTax)}</span>
-                            </div>
-                            <div className="text-primary flex justify-between text-lg font-bold">
-                              <span>PPh 21 Bulanan:</span>
-                              <span>{formatCurrency(calculationData.pph21Result.monthlyTax)}</span>
-                            </div>
+                    <div className="text-foreground mb-3 text-sm font-medium">Tarif Progresif PPh 21</div>
+                    <div className="space-y-2">
+                      {taxBreakdown.map((bracket, index) => (
+                        <div key={index} className="border-border bg-card rounded border p-2">
+                          <div className="flex justify-between text-sm font-medium">
+                            <span>
+                              Bracket {index + 1}: {bracket.rate}%
+                            </span>
+                            <span className="text-primary">{formatCurrency(bracket.tax)}</span>
+                          </div>
+                          <div className="text-muted-foreground mt-1 text-xs">
+                            <div>Range: {bracket.bracket}</div>
+                            <div>PKP dalam bracket: {formatCurrency(bracket.amount)}</div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {pph21Detail && isEstimate && (
+                  <div className="text-muted-foreground text-xs">
+                    Rincian lengkap estimasi — proses payroll untuk menyimpan perhitungan resmi.
                   </div>
                 )}
               </div>

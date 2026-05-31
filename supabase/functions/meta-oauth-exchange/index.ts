@@ -1,6 +1,10 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  subscribeInstagramPageToWebhooks,
+  type InstagramPageSubscribeResult,
+} from "../_shared/metaInstagramPageSubscribe.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +14,21 @@ const corsHeaders: Record<string, string> = {
 };
 
 const META_GRAPH_VERSION = "v21.0";
+
+async function exchangeForLongLivedToken(
+  shortToken: string,
+  appId: string,
+  appSecret: string,
+): Promise<string> {
+  const exchangeUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(appId)}&client_secret=${encodeURIComponent(appSecret)}&fb_exchange_token=${encodeURIComponent(shortToken)}`;
+  const longRes = await fetch(exchangeUrl, { method: "GET" });
+  const longData = await longRes.json().catch(() => ({})) as { access_token?: string; error?: { message?: string } };
+  if (longRes.ok && longData?.access_token?.trim()) {
+    return longData.access_token.trim();
+  }
+  console.warn("meta-oauth-exchange: fb_exchange_token failed, using original token", longData?.error?.message ?? longRes.status);
+  return shortToken;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -78,8 +97,10 @@ Deno.serve(async (req: Request) => {
     let accessToken = "";
 
     if (directToken) {
-      // Business Login flow: token (long_lived_token) sent from client; save directly
       accessToken = directToken;
+      if (appId?.trim() && appSecret?.trim()) {
+        accessToken = await exchangeForLongLivedToken(accessToken, appId.trim(), appSecret.trim());
+      }
     } else {
       if (!code) {
         return new Response(
@@ -121,12 +142,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Exchange for long-lived token (60 days) if short-lived
-      const exchangeUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(appId ?? "")}&client_secret=${encodeURIComponent(appSecret ?? "")}&fb_exchange_token=${encodeURIComponent(accessToken)}`;
-      const longRes = await fetch(exchangeUrl, { method: "GET" });
-      const longData = await longRes.json().catch(() => ({})) as { access_token?: string; expires_in?: number };
-      if (longRes.ok && longData?.access_token?.trim()) {
-        accessToken = longData.access_token.trim();
-      }
+      accessToken = await exchangeForLongLivedToken(accessToken, appId ?? "", appSecret ?? "");
     }
 
     // All data to organization_instagram_accounts only (no organization_meta_config).
@@ -160,7 +176,16 @@ Deno.serve(async (req: Request) => {
     };
     if (meRes.ok && Array.isArray(meData?.data)) {
       collectPages(meData.data);
+    } else if (meData?.error?.message && !meRes.ok) {
+      const errMsg = meData.error.message ?? "Meta API error fetching Pages";
+      console.error("meta-oauth-exchange: me/accounts failed", errMsg);
+      return new Response(
+        JSON.stringify({ error: errMsg }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    const webhookSubscribeResults: InstagramPageSubscribeResult[] = [];
 
     for (const row of pagesWithIg) {
       const { data: existingIg } = await supabaseAdmin
@@ -188,14 +213,42 @@ Deno.serve(async (req: Request) => {
           },
           { onConflict: "organization_id,instagram_business_account_id", ignoreDuplicates: false }
         );
+
+      const subscribeResult = await subscribeInstagramPageToWebhooks(row.pageId, row.pageToken);
+      webhookSubscribeResults.push({
+        ...subscribeResult,
+        instagramBusinessAccountId: row.igId,
+      });
+      if (!subscribeResult.success) {
+        console.warn(
+          "meta-oauth-exchange: page webhook subscribe failed",
+          row.pageId,
+          subscribeResult.error,
+        );
+      }
+    }
+
+    const accountsSynced = pagesWithIg.length;
+    const webhookSubscribedCount = webhookSubscribeResults.filter((r) => r.success).length;
+    const responseBody: Record<string, unknown> = {
+      success: true,
+      message: accountsSynced > 0
+        ? "Instagram accounts synced to organization_instagram_accounts."
+        : "OAuth token valid but no Instagram Business accounts found on your Facebook Pages.",
+      accounts_synced: accountsSynced,
+      webhook_subscribed_count: webhookSubscribedCount,
+      webhook_subscribe_results: webhookSubscribeResults,
+    };
+    if (accountsSynced === 0) {
+      responseBody.warning =
+        "No Facebook Page with linked Instagram Business Account was found. Ensure your Page is linked in Meta Business Suite and permissions instagram_manage_messages and pages_show_list are granted.";
+    } else if (webhookSubscribedCount < accountsSynced) {
+      responseBody.warning =
+        "Accounts synced but Page webhook subscription failed for some Pages. Grant pages_manage_metadata and reconnect Facebook OAuth.";
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Instagram accounts synced to organization_instagram_accounts.",
-        accounts_synced: pagesWithIg.length,
-      }),
+      JSON.stringify(responseBody),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

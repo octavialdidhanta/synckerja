@@ -36,6 +36,8 @@ interface FileEditModalProps {
   onClose: () => void;
   onUpdate: (id: string, metadata: any) => Promise<void>;
   isUpdating: boolean;
+  lockVisibility?: boolean;
+  onSuccess?: () => void;
 }
 
 export const FileEditModal = ({ 
@@ -43,7 +45,9 @@ export const FileEditModal = ({
   isOpen, 
   onClose, 
   onUpdate, 
-  isUpdating 
+  isUpdating,
+  lockVisibility = false,
+  onSuccess,
 }: FileEditModalProps) => {
   const { organizationId } = useCurrentOrg();
   const { user } = useCurrentUser();
@@ -198,6 +202,7 @@ export const FileEditModal = ({
 
       console.log('Updating file with data:', updateData);
       await onUpdate(file.id, updateData);
+      onSuccess?.();
       onClose();
     } catch (error) {
       console.error('Error updating file:', error);
@@ -336,6 +341,8 @@ export const FileEditModal = ({
 
               <Separator />
 
+              {!lockVisibility && (
+              <>
               {/* Visibility Section */}
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -367,6 +374,8 @@ export const FileEditModal = ({
               </div>
 
               <Separator />
+              </>
+              )}
 
               {/* Description Section */}
               <div className="space-y-4">

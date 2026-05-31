@@ -10,6 +10,7 @@ import {
   GOOGLE_DRIVE_OAUTH_SUCCESS_MESSAGE_TYPE,
   GOOGLE_OAUTH_REFRESH_HINT_KEY,
 } from "@/shared/lib/googleDriveOAuth";
+import { isGooglePickerHostSessionActive } from "@/shared/lib/googleDrivePicker";
 import { cn } from "@/shared/lib/utils";
 
 interface GoogleDriveFolderCarouselProps {
@@ -98,6 +99,7 @@ const GoogleDriveFolderCarousel: React.FC<GoogleDriveFolderCarouselProps> = ({ f
     if (navigableFiles.length === 0) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isGooglePickerHostSessionActive()) return;
       if (isTypingTarget(e.target)) return;
 
       const nextKeys = new Set(["ArrowRight", "ArrowDown", "PageDown"]);
@@ -304,7 +306,38 @@ const GoogleDriveFolderCarousel: React.FC<GoogleDriveFolderCarouselProps> = ({ f
               <span className="whitespace-nowrap text-xs">{t("googleDriveFolder.loading", "Memuat…")}</span>
             </div>
           ) : files.length === 0 ? (
-            <p className="px-2 py-2 text-xs text-gray-500">{t("googleDriveFolder.empty", "Folder kosong atau tidak ada akses.")}</p>
+            <div className="flex min-w-0 flex-col gap-1.5 px-2 py-2">
+              <p className="text-xs text-gray-500">
+                {t("googleDriveFolder.empty", "Folder kosong atau tidak ada akses.")}
+              </p>
+              {activeFolderId ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] text-gray-600">
+                    {t(
+                      "googleDriveFolder.emptyGrantHint",
+                      "Jika folder berisi file, izinkan akses lewat Google Picker (sekali per folder).",
+                    )}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="h-7 shrink-0 text-xs"
+                    disabled={granting}
+                    onClick={() =>
+                      void grantDriveResource(activeFolderId, {
+                        isFolder: true,
+                        onGranted: reloadFolderList,
+                      })
+                    }
+                  >
+                    {granting
+                      ? t("googleDrivePreview.grantInProgress", "Membuka Google Picker…")
+                      : t("googleDrivePreview.grantFolderAccess", "Izinkan akses folder")}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           ) : (
             files.map((f) => {
               const thumb = f.thumbnailLink ?? f.fallbackThumbnailUrl ?? f.iconLink ?? undefined;

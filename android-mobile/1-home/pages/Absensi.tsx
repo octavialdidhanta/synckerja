@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, RefreshCw, Loader2, CircleCheck, ClipboardList, NotebookPen } from "lucide-react";
+import { Bell, RefreshCw, Loader2, CircleCheck, ClipboardList, NotebookPen, CalendarDays } from "lucide-react";
 import { TimeDisplay } from "@/mobile-app/components/TimeDisplay";
 import { LocationChecker, LocationButton } from "@/mobile-app/components/LocationChecker";
 import { AttendanceStatus } from "@/mobile-app/components/AttendanceStatus";
@@ -36,8 +36,28 @@ import {
   formatLocalDateYmd,
   parseAttendanceInstant,
 } from "@/1-home/utils/attendanceDateTime";
+import { parseAttendanceValidationRow, parseCheckoutValidationRow } from "@/shared/attendance/resolveEffectiveSchedule";
+import { uploadAttendancePhoto } from "@/shared/lib/attendance/uploadAttendancePhoto";
+import { getCheckInValidationFailureMessage } from "@/shared/lib/attendance/attendanceValidationMessages";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
+import { LeaveRequestMobileModal } from "@/mobile/1-home/components/LeaveRequestMobileModal";
+
+function formatLocalCheckinTimeString(d: Date): string {
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0") +
+    " " +
+    String(d.getHours()).padStart(2, "0") +
+    ":" +
+    String(d.getMinutes()).padStart(2, "0") +
+    ":" +
+    String(d.getSeconds()).padStart(2, "0")
+  );
+}
 
 function getGreetingKey(hour: number): 'morning' | 'noon' | 'afternoon' | 'night' {
   if (hour >= 18) return 'night';
@@ -85,6 +105,7 @@ const Absensi = () => {
     pendingClockIn: false
   });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [initialNotificationsTab, setInitialNotificationsTab] = useState<"comments" | "tasks" | "updates" | undefined>(undefined);
   const [initialPostedLinksPlanId, setInitialPostedLinksPlanId] = useState<string | undefined>(undefined);
   const [initialPostedLinksPlanTitle, setInitialPostedLinksPlanTitle] = useState<string | undefined>(undefined);
@@ -404,18 +425,10 @@ const Absensi = () => {
     });
   };
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371000; // Earth's radius in meters
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
   const getCurrentLocation = (): Promise<{
     latitude: number;
     longitude: number;
+    accuracy?: number;
   }> => getCurrentPosition();
 
   const handleLateClockIn = async (reason: string) => {
@@ -491,46 +504,25 @@ const Absensi = () => {
         return;
       }
 
-      // Get office location and validate distance
-      const { data: officesData, error: officeError } = await supabase
-        .from('office_locations')
-        .select('*')
-        .eq('organization_id', employee.organization_id)
-        .eq('is_active', true);
-      const offices = officesData as unknown as Array<{ id: string; latitude: number; longitude: number; radius_meters: number }> | null;
+      const gpsAccuracyMeters =
+        typeof currentLocation.accuracy === "number" && currentLocation.accuracy > 0
+          ? currentLocation.accuracy
+          : null;
 
-      if (officeError) {
+      const photoType = cameraModal.type === "clockin" ? "check_in" : "check_out";
+      let uploadedPhoto: { path: string; url: string };
+      try {
+        uploadedPhoto = await uploadAttendancePhoto(employee.id, imageData, photoType);
+      } catch (uploadError) {
+        logger.error("Photo upload error:", uploadError);
         toast({
-          title: t("mobileHome.error", "Error"),
-          description: t("mobileHome.failedToLoadOffice", "Gagal mengambil data kantor"),
-          variant: "destructive",
-          duration: 4000,
-        });
-        return;
-      }
-
-      // Calculate distance to each office and find the closest valid one
-      let validOffice = null;
-      let minDistance = Infinity;
-      for (const office of offices || []) {
-        const distance = calculateDistance(
-          currentLocation.latitude,
-          currentLocation.longitude,
-          office.latitude,
-          office.longitude
-        );
-
-        // Check if within radius and closer than previous offices
-        if (distance <= office.radius_meters && distance < minDistance) {
-          validOffice = office;
-          minDistance = distance;
-        }
-      }
-
-      if (!validOffice) {
-        toast({
-          title: t("mobileHome.locationInvalid", "Lokasi Tidak Valid"),
-          description: t("mobileHome.locationInvalidDesc", "Anda tidak berada dalam radius area kantor yang diizinkan"),
+          title: cameraModal.type === "clockin"
+            ? t("mobileHome.clockInFailed", "Clock In Gagal")
+            : t("mobileHome.clockOutFailed", "Clock Out Gagal"),
+          description: t(
+            "mobileHome.photoUploadFailed",
+            "Gagal mengunggah foto. Silakan coba lagi.",
+          ),
           variant: "destructive",
           duration: 4000,
         });
@@ -538,155 +530,89 @@ const Absensi = () => {
       }
 
       if (cameraModal.type === 'clockin') {
-        // Get late reason from session storage if exists
         const lateReason = sessionStorage.getItem('lateReason');
+        const checkInTime = new Date();
 
-        // Pastikan work_schedule_id tersedia. Jika belum, ambil dari DB.
-        let scheduleId: string | null = (workSchedule?.id as string) || null;
-        if (!scheduleId) {
-          // Try default first
-          let { data: ws } = await supabase
-            .from('work_schedule_settings')
-            .select('id')
-            .eq('organization_id', employee.organization_id)
-            .eq('is_active', true)
-            .eq('is_default', true)
-            .maybeSingle();
-          type WsRow = { id: string } | null;
-          let wsRow: WsRow = ws as unknown as WsRow;
+        const { data: validationRaw, error: validationError } = await supabase.rpc(
+          'validate_attendance_comprehensive',
+          {
+            employee_id_param: employee.id,
+            organization_id_param: employee.organization_id,
+            latitude_param: currentLocation.latitude,
+            longitude_param: currentLocation.longitude,
+            face_image_data: imageData,
+            gps_accuracy_meters: gpsAccuracyMeters,
+            is_manual_location: false,
+          },
+        );
 
-          // If no default, get any active schedule
-          if (!wsRow) {
-            const { data: fallbackWs } = await supabase
-              .from('work_schedule_settings')
-              .select('id')
-              .eq('organization_id', employee.organization_id)
-              .eq('is_active', true)
-              .limit(1)
-              .maybeSingle();
-            wsRow = fallbackWs as unknown as WsRow;
-          }
+        const validation = parseAttendanceValidationRow(validationRaw);
 
-          scheduleId = wsRow?.id || null;
-        }
-        
-        if (!scheduleId) {
+        if (validationError || !validation) {
           toast({
-            title: t("mobileHome.scheduleNotFound", "Jadwal Kerja Tidak Ditemukan"),
-            description: t("mobileHome.scheduleNotFoundDesc", "Silakan hubungi admin untuk mengatur jadwal kerja aktif."),
+            title: t("mobileHome.clockInFailed", "Clock In Gagal"),
+            description: validationError?.message ?? t("mobileHome.saveError", "Terjadi kesalahan saat menyimpan data"),
             variant: "destructive",
             duration: 4000,
           });
           return;
         }
 
-        // Calculate lateness - using check-in time not current time
-        const checkInTime = new Date();
-        const checkInTimeMinutes = checkInTime.getHours() * 60 + checkInTime.getMinutes();
-        
-        // Get schedule info for lateness calculation
-        let scheduledStartTime = "08:00:00";
-        let lateToleranceMinutes = 0;
-        
-        if (workSchedule) {
-          scheduledStartTime = workSchedule.start_time || "08:00:00";
-          lateToleranceMinutes = workSchedule.late_tolerance_minutes || 0;
-        } else {
-          // Fetch from DB if workSchedule not available
-          const { data: scheduleData } = await supabase
-            .from('work_schedule_settings')
-            .select('start_time, late_tolerance_minutes')
-            .eq('id', scheduleId)
-            .single();
-          const schedule = scheduleData as unknown as { start_time?: string; late_tolerance_minutes?: number } | null;
-          if (schedule) {
-            scheduledStartTime = schedule.start_time || "08:00:00";
-            lateToleranceMinutes = schedule.late_tolerance_minutes || 0;
-          }
+        if (!validation.can_attend) {
+          toast({
+            title: t("mobileHome.clockInFailed", "Clock In Gagal"),
+            description: getCheckInValidationFailureMessage(validation, t),
+            variant: "destructive",
+            duration: 4000,
+          });
+          return;
         }
-        
-        const [startHour, startMinute] = scheduledStartTime.split(':').map(Number);
-        const scheduledStartMinutes = startHour * 60 + startMinute;
-        
-        // Calculate actual late minutes
-        const actualLateMinutes = Math.max(0, checkInTimeMinutes - scheduledStartMinutes);
-        const isLate = actualLateMinutes > lateToleranceMinutes;
-        
-        logger.debug('Lateness calculation', {
-          checkInTimeMinutes,
-          scheduledStartMinutes,
-          lateToleranceMinutes,
-          actualLateMinutes,
-          isLate
-        });
 
-        // Clock In: `time` column = local wall clock (same calendar day as attendance_date); `*_at` = real instant.
-        const attendanceData = {
-          employee_id: employee.id,
-          organization_id: employee.organization_id,
-          attendance_date: formatLocalDateYmd(checkInTime),
-          check_in_time: dateToPostgresLocalWallTime(checkInTime),
-          check_in_at: checkInTime.toISOString(),
-          check_in_location: {
-            latitude: currentLocation.latitude,
-            longitude: currentLocation.longitude,
-            address: "Location captured"
+        const { data: recordResult, error: insertError } = await supabase.rpc(
+          'record_attendance_with_timezone',
+          {
+            employee_id_param: employee.id,
+            organization_id_param: employee.organization_id,
+            local_checkin_time: formatLocalCheckinTimeString(checkInTime),
+            latitude_param: currentLocation.latitude,
+            longitude_param: currentLocation.longitude,
+            timezone_param: 'Asia/Jakarta',
+            photo_path_param: uploadedPhoto.path,
+            location_data: {
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+              address: 'Location captured',
+            },
+            notes_param: lateReason || null,
           },
-          office_location_id: validOffice.id,
-          work_schedule_id: scheduleId || null,
-          status: "present",
-          is_late: isLate,
-          late_minutes: isLate ? actualLateMinutes : 0,
-          // Fitur upload foto attendance belum diimplementasi; path saat ini placeholder. TODO: upload imageData ke Supabase Storage dan gunakan path/URL yang dikembalikan.
-          check_in_photo_path: `attendance/${user.id}/${Date.now()}_checkin.jpg`,
-          notes: lateReason || null
-        };
+        );
 
-        // Clean up session storage
         if (lateReason) {
           sessionStorage.removeItem('lateReason');
         }
-
-        const todayKey = formatLocalDateYmd(checkInTime);
-        const { data: existingOpenRaw } = await supabase
-          .from("attendance_records")
-          .select("*")
-          .eq("employee_id", employee.id)
-          .eq("attendance_date", todayKey)
-          .not("check_in_time", "is", null)
-          .is("check_out_time", null)
-          .order("check_in_at", { ascending: false })
-          .limit(1);
-        const existingOpen = (existingOpenRaw as unknown as Array<{ check_in_time?: string }> | null)?.[0];
-
-        if (existingOpen?.check_in_time) {
-          mergeTodayAttendance(existingOpen as Record<string, unknown>);
-          lastCheckInTimeRef.current = existingOpen.check_in_time ?? null;
-          toast({
-            title: t("mobileHome.alreadyClockIn", "Sudah Clock In"),
-            description: t("mobileHome.alreadyClockInDesc", "Anda sudah melakukan clock in hari ini"),
-            variant: "destructive",
-            duration: 4000,
-          });
-          return;
-        }
-
-        const { data: insertedRecordData, error: insertError } = await supabase
-          .from('attendance_records')
-          .insert(attendanceData)
-          .select('*')
-          .single();
-        const insertedRecord = insertedRecordData as unknown as Record<string, unknown> | null;
 
         if (insertError) {
           logger.error('Clock in error:', insertError);
           toast({
             title: t("mobileHome.clockInFailed", "Clock In Gagal"),
-            description: t("mobileHome.saveError", "Terjadi kesalahan saat menyimpan data"),
+            description: insertError.message || t("mobileHome.saveError", "Terjadi kesalahan saat menyimpan data"),
             variant: "destructive",
             duration: 4000,
           });
           return;
+        }
+
+        const recordPayload = Array.isArray(recordResult) ? recordResult[0] : recordResult;
+        const attendanceId = recordPayload?.attendance_id as string | undefined;
+
+        let insertedRecord: Record<string, unknown> | null = null;
+        if (attendanceId) {
+          const { data: fetchedRecord } = await supabase
+            .from('attendance_records')
+            .select('*')
+            .eq('id', attendanceId)
+            .maybeSingle();
+          insertedRecord = fetchedRecord as Record<string, unknown> | null;
         }
 
         if (insertedRecord) {
@@ -695,34 +621,38 @@ const Absensi = () => {
           mergeTodayAttendance(insertedRecord);
         }
 
-        // Create attendance validation record
         const validationData = insertedRecord ? {
           attendance_record_id: insertedRecord.id,
           organization_id: employee.organization_id,
           validation_type: 'overall',
           validation_status: 'valid',
           validation_details: {
-            location_valid: true,
-            schedule_valid: true,
-            work_schedule_id: scheduleId
+            location_valid: validation.location_valid,
+            schedule_valid: validation.schedule_valid,
+            work_schedule_id: validation.work_schedule_id,
+            shift_id: validation.shift_id,
+            schedule_source: validation.schedule_source,
           },
           validated_at: new Date().toISOString()
         } : null;
 
         if (validationData) {
-        const { error: validationError } = await supabase
+        const { error: validationInsertError } = await supabase
           .from('attendance_validations')
           .insert(validationData);
 
-        if (validationError) {
-          logger.error('Validation error:', validationError);
-          // Continue even if validation fails, as attendance is already recorded
+        if (validationInsertError) {
+          logger.error('Validation error:', validationInsertError);
         }
         }
 
         toast({
           title: t("mobileHome.clockInSuccess", "Clock In Berhasil"),
-          description: t("mobileHome.clockInSuccessDesc", "Selamat! Anda telah berhasil melakukan clock in"),
+          description: validation.is_late
+            ? t("mobileHome.clockInLateDesc", "Clock in berhasil. Anda terlambat {{minutes}} menit.", {
+                minutes: String(validation.late_minutes),
+              })
+            : t("mobileHome.clockInSuccessDesc", "Selamat! Anda telah berhasil melakukan clock in"),
           variant: "default",
           duration: 3000,
         });
@@ -733,6 +663,31 @@ const Absensi = () => {
         }, 500);
 
       } else if (cameraModal.type === 'clockout') {
+        const { data: checkoutValidationRaw, error: checkoutValidationError } = await supabase.rpc(
+          'validate_checkout_comprehensive',
+          {
+            employee_id_param: employee.id,
+            organization_id_param: employee.organization_id,
+            photo_path_param: uploadedPhoto.path,
+            face_image_data: imageData,
+          },
+        );
+
+        const checkoutValidation = parseCheckoutValidationRow(checkoutValidationRaw);
+        if (checkoutValidationError || !checkoutValidation?.can_checkout) {
+          toast({
+            title: t("mobileHome.clockOutFailed", "Clock Out Gagal"),
+            description:
+              checkoutValidationError?.message ??
+              (checkoutValidation?.photo_required && !checkoutValidation.photo_valid
+                ? t("mobileHome.photoCheckoutRequired", "Foto wajib untuk check-out")
+                : t("mobileHome.saveError", "Terjadi kesalahan saat menyimpan data")),
+            variant: "destructive",
+            duration: 4000,
+          });
+          return;
+        }
+
         const checkInTimeStr = lastCheckInTimeRef.current ?? todayAttendance?.check_in_time;
         const checkInDate = parseAttendanceInstant(
           todayAttendance?.attendance_date,
@@ -758,7 +713,7 @@ const Absensi = () => {
               longitude: currentLocation.longitude,
               address: "Location captured"
             },
-            check_out_photo_path: `attendance/${user.id}/${Date.now()}_checkout.jpg`,
+            check_out_photo_path: uploadedPhoto.path,
             working_hours_minutes
           })
           .eq('employee_id', employee.id)
@@ -1056,6 +1011,16 @@ const Absensi = () => {
                             {t("mobileHome.shortcuts.notes", "Notes")}
                           </span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setLeaveModalOpen(true)}
+                          className="flex flex-col items-center justify-center py-2 px-0.5 rounded-xl text-primary hover:bg-primary/10 active:bg-primary/15 transition-colors"
+                        >
+                          <CalendarDays className="h-6 w-6 mb-1" strokeWidth={1.75} />
+                          <span className="text-[10px] font-medium text-foreground text-center leading-tight">
+                            {t("mobileHome.shortcuts.leave", "Leave")}
+                          </span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1103,6 +1068,8 @@ const Absensi = () => {
           lateMinutes={lateModal.lateMinutes}
           scheduledTime={lateModal.scheduledTime}
         />
+
+        <LeaveRequestMobileModal open={leaveModalOpen} onOpenChange={setLeaveModalOpen} />
 
         <NotificationsModal
           open={notificationsOpen}

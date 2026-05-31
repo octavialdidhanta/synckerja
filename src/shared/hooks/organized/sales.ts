@@ -19,6 +19,35 @@ import {
 import { invalidateGoogleAdsConversionUploads } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
 import { kickGoogleAdsConversionAfterConverted } from '@/shared/lib/kickGoogleAdsConversionAfterConverted';
 import { resolveLeadConversionSalesActivity } from '@/shared/lib/sales/resolveLeadConversionSalesActivity';
+import {
+  buildScheduleFromWizardPayload,
+  type WizardLocationPayload,
+} from '@/shared/lib/sales/scheduleVisitFromWizard';
+
+const invalidateClientVisitQueries = (
+  queryClient: QueryClient,
+  organizationId: string | null | undefined,
+) => {
+  if (!organizationId) return;
+  queryClient.invalidateQueries({ queryKey: ['visit-scheduling', organizationId] });
+  queryClient.invalidateQueries({ queryKey: ['client-visits', organizationId] });
+  queryClient.invalidateQueries({ queryKey: ['client-visits-metrics', organizationId] });
+  queryClient.invalidateQueries({ queryKey: ['office-locations', organizationId] });
+};
+
+const mapClientVisitRow = (row: any) => ({
+  ...row,
+  clientInfo: row.clients ?? null,
+  locationInfo: row.office_locations ?? null,
+  employees: row.employees ?? null,
+});
+
+const CLIENT_VISITS_SELECT = `
+  *,
+  clients ( id, company_name, contact_person, contact_phone, address ),
+  employees ( id, full_name, email ),
+  office_locations ( id, name, address )
+`;
 
 async function assertWaLeadSubmissionEmailBeforeResolve(
   organizationId: string,
@@ -999,7 +1028,7 @@ export const useClients = () => {
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('active_organization_id', organizationId)
+        .eq('organization_id', organizationId)
         .order('company_name');
 
       if (error) throw error;
@@ -1025,7 +1054,7 @@ export const useLocationTypes = () => {
       const { data, error } = await supabase
         .from('location_types')
         .select('*')
-        .eq('active_organization_id', organizationId)
+        .eq('organization_id', organizationId)
         .order('name');
 
       if (error) throw error;
@@ -1051,26 +1080,14 @@ export const useVisitScheduling = () => {
 
       const { data, error } = await supabase
         .from('client_visits')
-        .select(`
-          *,
-          clients ( id, company_name, contact_person, contact_phone, address ),
-          employees ( id, full_name, email ),
-          office_locations ( id, name, address )
-        `)
+        .select(CLIENT_VISITS_SELECT)
         .eq('organization_id', organizationId)
         .order('visit_date', { ascending: false })
         .order('planned_start_time', { ascending: false });
 
       if (error) throw error;
 
-      const visits = (data || []).map((row: any) => ({
-        ...row,
-        clientInfo: row.clients ?? null,
-        locationInfo: row.office_locations ?? null,
-        employees: row.employees ?? null,
-      }));
-
-      return visits;
+      return (data || []).map(mapClientVisitRow);
     },
     enabled: !!organizationId,
   });
@@ -1090,13 +1107,112 @@ export const useVisitScheduling = () => {
         status: visitData.status ?? 'scheduled',
         planned_start_time: visitData.planned_start_time ?? visitData.plannedStartTime ?? null,
         planned_end_time: visitData.planned_end_time ?? visitData.plannedEndTime ?? null,
+        notes: visitData.notes ?? null,
       })
       .select()
       .single();
 
     if (error) throw error;
-    queryClient.invalidateQueries({ queryKey: ['visit-scheduling', organizationId] });
+    invalidateClientVisitQueries(queryClient, organizationId);
     return data;
+  };
+
+  const scheduleVisitFromWizard = async (payload: WizardLocationPayload) => {
+    if (!organizationId) throw new Error('Organization ID is required');
+
+    const parsed = buildScheduleFromWizardPayload(payload, organizationId);
+
+    const { data: existingLocation, error: existingLocationError } = await supabase
+      .from('office_locations')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('client_id', parsed.clientId)
+      .eq('sales_person_id', parsed.employeeId)
+      .eq('is_client_location', true)
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingLocationError) throw existingLocationError;
+
+    let locationId = existingLocation?.id ?? null;
+
+    if (!locationId) {
+      const { data: insertedLocation, error: locationError } = await supabase
+        .from('office_locations')
+        .insert(parsed.officeLocation)
+        .select('id')
+        .single();
+
+      if (locationError) throw locationError;
+      locationId = insertedLocation.id;
+    } else if (parsed.plannedStartTime || parsed.plannedEndTime) {
+      const { error: syncLocationError } = await supabase
+        .from('office_locations')
+        .update({
+          ...(parsed.plannedStartTime ? { planned_start_time: parsed.plannedStartTime } : {}),
+          ...(parsed.plannedEndTime ? { planned_end_time: parsed.plannedEndTime } : {}),
+        })
+        .eq('id', locationId)
+        .eq('organization_id', organizationId);
+
+      if (syncLocationError) throw syncLocationError;
+    }
+
+    const { data, error } = await supabase
+      .from('client_visits')
+      .insert({
+        ...parsed.scheduledVisit,
+        validated_location_id: locationId,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    invalidateClientVisitQueries(queryClient, organizationId);
+    return data;
+  };
+
+  const updateClientVisit = async (
+    visitId: string,
+    payload: {
+      visit_date?: string;
+      planned_start_time?: string | null;
+      planned_end_time?: string | null;
+      visit_purpose?: string;
+      notes?: string | null;
+    },
+  ) => {
+    if (!organizationId) throw new Error('Organization ID is required');
+
+    const { error: updateError } = await supabase
+      .from('client_visits')
+      .update(payload)
+      .eq('id', visitId)
+      .eq('organization_id', organizationId);
+
+    if (updateError) throw updateError;
+    invalidateClientVisitQueries(queryClient, organizationId);
+  };
+
+  const cancelClientVisit = async (visitId: string) => {
+    if (!organizationId) throw new Error('Organization ID is required');
+
+    const { data, error: updateError } = await supabase
+      .from('client_visits')
+      .update({ status: 'cancelled' })
+      .eq('id', visitId)
+      .eq('organization_id', organizationId)
+      .eq('status', 'scheduled')
+      .select('id')
+      .maybeSingle();
+
+    if (updateError) throw updateError;
+    if (!data) {
+      throw new Error('Only scheduled visits can be cancelled');
+    }
+    invalidateClientVisitQueries(queryClient, organizationId);
   };
 
   return {
@@ -1104,12 +1220,16 @@ export const useVisitScheduling = () => {
     loading,
     refetch,
     createScheduledVisit,
+    scheduleVisitFromWizard,
+    updateClientVisit,
+    cancelClientVisit,
   };
 };
 
 // Hook: useClientVisits
 export const useClientVisits = () => {
   const { organizationId } = useCurrentOrg();
+  const queryClient = useQueryClient();
 
   const { data: visits = [], isLoading: loading, refetch, error, isError } = useQuery({
     queryKey: ['client-visits', organizationId],
@@ -1118,7 +1238,7 @@ export const useClientVisits = () => {
       
       const { data, error } = await supabase
         .from('client_visits')
-        .select('*')
+        .select(CLIENT_VISITS_SELECT)
         .eq('organization_id', organizationId)
         .order('visit_date', { ascending: false })
         .order('planned_start_time', { ascending: false });
@@ -1127,11 +1247,52 @@ export const useClientVisits = () => {
         console.error('❌ Error fetching client visits:', error);
         throw error;
       }
-      
-      return data || [];
+
+      return (data || []).map(mapClientVisitRow);
     },
     enabled: !!organizationId,
   });
+
+  const updateClientVisit = async (
+    visitId: string,
+    payload: {
+      visit_date?: string;
+      planned_start_time?: string | null;
+      planned_end_time?: string | null;
+      visit_purpose?: string;
+      notes?: string | null;
+    },
+  ) => {
+    if (!organizationId) throw new Error('Organization ID is required');
+
+    const { error: updateError } = await supabase
+      .from('client_visits')
+      .update(payload)
+      .eq('id', visitId)
+      .eq('organization_id', organizationId);
+
+    if (updateError) throw updateError;
+    invalidateClientVisitQueries(queryClient, organizationId);
+  };
+
+  const cancelClientVisit = async (visitId: string) => {
+    if (!organizationId) throw new Error('Organization ID is required');
+
+    const { data, error: updateError } = await supabase
+      .from('client_visits')
+      .update({ status: 'cancelled' })
+      .eq('id', visitId)
+      .eq('organization_id', organizationId)
+      .eq('status', 'scheduled')
+      .select('id')
+      .maybeSingle();
+
+    if (updateError) throw updateError;
+    if (!data) {
+      throw new Error('Only scheduled visits can be cancelled');
+    }
+    invalidateClientVisitQueries(queryClient, organizationId);
+  };
 
   return {
     visits,
@@ -1139,6 +1300,8 @@ export const useClientVisits = () => {
     refetch,
     error,
     isError,
+    updateClientVisit,
+    cancelClientVisit,
   };
 };
 
@@ -2056,10 +2219,83 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         }
         return lead;
       }
-      // WhatsApp conversation: update lead_status_id and record status history
+      // WhatsApp / Instagram conversation virtual lead (id wa-{convId})
       if (lead?.id && String(lead.id).startsWith('wa-')) {
         const convId = String(lead.id).replace(/^wa-/, '');
         const onlyAssigneeUpdate = (lead as { _onlyAssigneeUpdate?: boolean })._onlyAssigneeUpdate === true;
+        const isInstagramLead =
+          String((lead as { channel?: string }).channel ?? '').toLowerCase() === 'instagram' ||
+          String((lead as { source?: string }).source ?? '').toLowerCase() === 'instagram';
+
+        if (isInstagramLead && onlyAssigneeUpdate) {
+          const nowIso = new Date().toISOString();
+          const igPatch: Record<string, unknown> = {
+            assignee_id: lead.assignee_id ?? null,
+            updated_at: nowIso,
+          };
+          const { data: auth } = await supabase.auth.getUser();
+          const actorUserId = auth?.user?.id ?? null;
+          if (actorUserId) {
+            igPatch.last_assigned_by_user_id = actorUserId;
+            igPatch.last_assigned_at = nowIso;
+          }
+          const { error: igUpdErr } = await supabase
+            .from('instagram_conversations')
+            .update(igPatch)
+            .eq('id', convId);
+          if (igUpdErr) {
+            console.error('Error updating Instagram conversation assignee:', igUpdErr);
+            throw igUpdErr;
+          }
+          const ticketId = (lead.ticket_id as string | undefined) ?? `IG-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+          const orgId = lead.organization_id ?? organizationId;
+          if (orgId && ticketId) {
+            await supabase
+              .from('leads')
+              .update({
+                assignee_id: lead.assignee_id ?? null,
+                assignee: lead.assignee ?? '',
+                updated_at: nowIso,
+              })
+              .eq('organization_id', orgId)
+              .ilike('ticket_id', ticketId);
+          }
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', convId] });
+          queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
+          return {
+            ...lead,
+            assignee_id: lead.assignee_id ?? null,
+            assignee: lead.assignee ?? '',
+          };
+        }
+
+        if (isInstagramLead) {
+          const nowIso = new Date().toISOString();
+          let safeStatusId: string | null = null;
+          if (lead.status_id) {
+            const { data: statusExists } = await supabase
+              .from('lead_statuses')
+              .select('id')
+              .eq('id', lead.status_id)
+              .maybeSingle();
+            if (statusExists?.id) safeStatusId = lead.status_id;
+          }
+          const igPatch: Record<string, unknown> = { updated_at: nowIso };
+          if (safeStatusId) igPatch.lead_status_id = safeStatusId;
+          if (lead.assignee_id !== undefined) igPatch.assignee_id = lead.assignee_id ?? null;
+          const { error: igUpdErr } = await supabase
+            .from('instagram_conversations')
+            .update(igPatch)
+            .eq('id', convId);
+          if (igUpdErr) {
+            console.error('Error updating Instagram conversation:', igUpdErr);
+            throw igUpdErr;
+          }
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', convId] });
+          queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
+          return lead;
+        }
+
         const statusIdNorm = (id: string | null | undefined) =>
           id == null || String(id).trim() === '' ? '' : String(id).trim().toLowerCase();
 

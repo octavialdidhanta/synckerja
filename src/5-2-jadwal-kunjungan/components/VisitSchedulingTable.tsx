@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useCallback } from 'react';
+import React, { memo, useMemo, useCallback, useState } from 'react';
 import {
   TableBody,
   TableCell,
@@ -8,27 +8,52 @@ import {
 } from '@/shared/components/ui/table';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
-import { Calendar, Clock, MapPin, User, MoreVertical, Eye, Edit, DollarSign, CheckCircle, XCircle } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shared/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/components/ui/alert-dialog';
+import { Clock, MapPin, User, MoreVertical, Eye, Edit, DollarSign, Trash } from 'lucide-react';
 import { VisitSchedulingTableFooter } from './VisitSchedulingTableFooter';
-import { VisitSchedulingModal } from './VisitSchedulingModal';
 import { PaymentUpdateModal } from './PaymentUpdateModal';
+import {
+  ClientVisitDetailDialog,
+  type ClientVisitRow,
+} from '@/5-2-client_visits/components/ClientVisitDetailDialog';
+import {
+  ClientVisitEditDialog,
+  type ClientVisitEditPayload,
+} from '@/5-2-client_visits/components/ClientVisitEditDialog';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface VisitSchedulingTableProps {
-  visits: any[];
-  onRefresh?: () => void;
-  onEdit?: (visit: any) => void;
-  onUpdatePayment?: (visit: any) => void;
+  visits: ClientVisitRow[];
+  onUpdateVisit?: (visitId: string, payload: ClientVisitEditPayload) => Promise<void>;
+  onCancelVisit?: (visitId: string) => Promise<void>;
+  onUpdatePayment?: (visit: ClientVisitRow) => void;
   selectedStatus?: string;
+  showPaymentActions?: boolean;
 }
 
 const getStatusColor = (status: string) => {
   switch (status?.toLowerCase()) {
-    case 'confirmed':
     case 'completed':
       return 'bg-green-100 text-green-800 border-green-200';
     case 'scheduled':
       return 'bg-brand-blue-soft text-brand-blue-deep border-brand-blue/25';
+    case 'ongoing':
+      return 'bg-amber-100 text-amber-800 border-amber-200';
     case 'cancelled':
       return 'bg-red-100 text-red-800 border-red-200';
     default:
@@ -42,44 +67,92 @@ const formatDate = (dateString: string | null) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
     });
   } catch {
     return '-';
   }
 };
 
-// Memoized row component for performance
-const VisitRow = memo(({ 
-  visit, 
-  onEdit,
-  onUpdatePayment
+const VisitRow = memo(({
+  visit,
+  onUpdateVisit,
+  onCancelVisit,
+  onUpdatePayment,
+  showPaymentActions = false,
 }: {
-  visit: any;
-  onEdit?: (visit: any) => void;
-  onUpdatePayment?: (visit: any) => void;
+  visit: ClientVisitRow & { sales_activity_id?: string | null };
+  onUpdateVisit?: (visitId: string, payload: ClientVisitEditPayload) => Promise<void>;
+  onCancelVisit?: (visitId: string) => Promise<void>;
+  onUpdatePayment?: (visit: ClientVisitRow) => void;
+  showPaymentActions?: boolean;
 }) => {
-  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = React.useState(false);
+  const { t } = useAppTranslation();
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const isScheduled = visit.status === 'scheduled';
+  const canCancel = isScheduled;
+
+  const handleViewDetails = useCallback(() => {
+    setDetailOpen(true);
+  }, []);
 
   const handleEdit = useCallback(() => {
-    setIsEditModalOpen(true);
-  }, []);
+    if (!isScheduled) return;
+    setEditOpen(true);
+  }, [isScheduled]);
+
+  const handleCancelClick = useCallback(() => {
+    if (!canCancel) return;
+    setCancelOpen(true);
+  }, [canCancel]);
 
   const handleUpdatePayment = useCallback(() => {
     setIsPaymentModalOpen(true);
-  }, []);
+    onUpdatePayment?.(visit);
+  }, [onUpdatePayment, visit]);
 
-  const handleEditSuccess = useCallback(() => {
-    setIsEditModalOpen(false);
-    onEdit?.(visit);
-  }, [visit, onEdit]);
+  const handleSaveEdit = useCallback(
+    async (visitId: string, payload: ClientVisitEditPayload) => {
+      if (!onUpdateVisit) return;
+      setSaving(true);
+      try {
+        await onUpdateVisit(visitId, payload);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [onUpdateVisit],
+  );
+
+  const handleConfirmCancel = useCallback(async () => {
+    if (!onCancelVisit || !canCancel) return;
+    setCancelling(true);
+    try {
+      await onCancelVisit(visit.id);
+      setCancelOpen(false);
+    } finally {
+      setCancelling(false);
+    }
+  }, [onCancelVisit, canCancel, visit.id]);
+
+  const statusLabel = visit.status
+    ? visit.status.charAt(0).toUpperCase() + visit.status.slice(1)
+    : 'Unknown';
 
   return (
     <>
       <TableRow className="hover:bg-gray-50/50 h-12 transition-colors">
         <TableCell className="w-40 px-3 text-sm">
-          <span className="truncate block font-medium text-gray-900" title={visit.clientInfo?.company_name || 'Unknown Client'}>
+          <span
+            className="truncate block font-medium text-gray-900"
+            title={visit.clientInfo?.company_name || 'Unknown Client'}
+          >
             {visit.clientInfo?.company_name || 'Unknown Client'}
           </span>
         </TableCell>
@@ -97,7 +170,7 @@ const VisitRow = memo(({
         <TableCell className="w-32 px-3 text-sm whitespace-nowrap">
           <div className="flex items-center">
             <Clock className="h-3 w-3 mr-1 flex-shrink-0 text-gray-400" />
-            <span>{visit.planned_start_time || 'TBD'}</span>
+            <span>{visit.planned_start_time?.slice(0, 5) || 'TBD'}</span>
           </div>
         </TableCell>
         <TableCell className="w-48 px-3 text-sm">
@@ -106,8 +179,8 @@ const VisitRow = memo(({
           </span>
         </TableCell>
         <TableCell className="w-32 px-3">
-          <Badge className={`${getStatusColor(visit.status)} text-xs px-2 py-1 border`}>
-            {visit.status?.charAt(0).toUpperCase() + visit.status?.slice(1) || 'Unknown'}
+          <Badge className={`${getStatusColor(visit.status || '')} text-xs px-2 py-1 border`}>
+            {statusLabel}
           </Badge>
         </TableCell>
         <TableCell className="w-40 px-3 text-sm">
@@ -126,39 +199,76 @@ const VisitRow = memo(({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem className="text-xs">
+              <DropdownMenuItem className="text-xs" onClick={handleViewDetails}>
                 <Eye className="h-3 w-3 mr-2" />
-                View Details
+                {t('clientVisits.actions.viewDetails', 'View Details')}
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs" onClick={handleEdit}>
+              <DropdownMenuItem className="text-xs" disabled={!isScheduled} onClick={handleEdit}>
                 <Edit className="h-3 w-3 mr-2" />
-                Edit Visit
+                {t('clientVisits.actions.editVisit', 'Edit Visit')}
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs" onClick={handleUpdatePayment}>
-                <DollarSign className="h-3 w-3 mr-2" />
-                Update Payment
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs">
-                <CheckCircle className="h-3 w-3 mr-2" />
-                Confirm
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs text-red-600">
-                <XCircle className="h-3 w-3 mr-2" />
-                Cancel
+              {showPaymentActions && visit?.sales_activity_id ? (
+                <DropdownMenuItem className="text-xs" onClick={handleUpdatePayment}>
+                  <DollarSign className="h-3 w-3 mr-2" />
+                  Update Payment
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem
+                className="text-xs text-red-600"
+                disabled={!canCancel}
+                onClick={handleCancelClick}
+              >
+                <Trash className="h-3 w-3 mr-2" />
+                {t('clientVisits.actions.cancelVisit', 'Cancel Visit')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </TableCell>
       </TableRow>
 
-      {/* Edit Modal */}
-      <VisitSchedulingModal
-        open={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSave={handleEditSuccess}
+      <ClientVisitDetailDialog open={detailOpen} onOpenChange={setDetailOpen} visit={visit} />
+
+      <ClientVisitEditDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        visit={visit}
+        saving={saving}
+        onSave={handleSaveEdit}
       />
 
-      {/* Payment Modal */}
+      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('clientVisits.cancel.title', 'Cancel this visit?')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                'clientVisits.cancel.description',
+                'The visit will be marked as cancelled. This action cannot be undone.',
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>
+              {t('common.cancel', 'Cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={cancelling}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmCancel();
+              }}
+            >
+              {cancelling
+                ? t('clientVisits.cancel.inProgress', 'Cancelling…')
+                : t('clientVisits.actions.cancelVisit', 'Cancel Visit')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <PaymentUpdateModal
         open={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
@@ -171,44 +281,56 @@ const VisitRow = memo(({
 
 VisitRow.displayName = 'VisitRow';
 
-export const VisitSchedulingTable = memo(({ 
-  visits, 
-  onRefresh,
-  onEdit,
+export const VisitSchedulingTable = memo(({
+  visits,
+  onUpdateVisit,
+  onCancelVisit,
   onUpdatePayment,
-  selectedStatus = 'all'
+  selectedStatus = 'all',
+  showPaymentActions = false,
 }: VisitSchedulingTableProps) => {
-  // Memoize the table headers to prevent re-renders
-  const tableHeaders = useMemo(() => [
-    { key: 'client', label: 'Client', width: 'w-40' },
-    { key: 'salesPerson', label: 'Sales Person', width: 'w-36' },
-    { key: 'date', label: 'Date', width: 'w-32' },
-    { key: 'time', label: 'Time', width: 'w-32' },
-    { key: 'purpose', label: 'Purpose', width: 'w-48' },
-    { key: 'status', label: 'Status', width: 'w-32' },
-    { key: 'location', label: 'Location', width: 'w-40' },
-    { key: 'actions', label: 'Actions', width: 'w-24' },
-  ], []);
+  const { t } = useAppTranslation();
 
-  const renderVisitRows = useMemo(() => (
-    visits.map((visit) => (
-      <VisitRow
-        key={visit.id}
-        visit={visit}
-        onEdit={onEdit}
-        onUpdatePayment={onUpdatePayment}
-      />
-    ))
-  ), [visits, onEdit, onUpdatePayment]);
+  const tableHeaders = useMemo(
+    () => [
+      { key: 'client', label: t('clientVisits.table.client', 'Client'), width: 'w-40' },
+      { key: 'salesPerson', label: t('clientVisits.table.employee', 'Employee'), width: 'w-36' },
+      { key: 'date', label: t('clientVisits.table.date', 'Date'), width: 'w-32' },
+      { key: 'time', label: t('clientVisits.table.time', 'Time'), width: 'w-32' },
+      { key: 'purpose', label: t('clientVisits.table.purpose', 'Purpose'), width: 'w-48' },
+      { key: 'status', label: t('clientVisits.table.status', 'Status'), width: 'w-32' },
+      { key: 'location', label: t('clientVisits.table.location', 'Location'), width: 'w-40' },
+      { key: 'actions', label: t('clientVisits.table.actions', 'Actions'), width: 'w-24' },
+    ],
+    [t],
+  );
+
+  const renderVisitRows = useMemo(
+    () =>
+      visits.map((visit) => (
+        <VisitRow
+          key={visit.id}
+          visit={visit}
+          onUpdateVisit={onUpdateVisit}
+          onCancelVisit={onCancelVisit}
+          onUpdatePayment={onUpdatePayment}
+          showPaymentActions={showPaymentActions}
+        />
+      )),
+    [visits, onUpdateVisit, onCancelVisit, onUpdatePayment, showPaymentActions],
+  );
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
-        <table className="w-full caption-bottom text-sm">
-          <TableHeader className="bg-gray-50 sticky top-0 z-20 shadow-sm">
+    <div className="flex h-full flex-col min-w-0">
+      <div className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain">
+        <table className="w-full min-w-[1100px] caption-bottom text-sm">
+          <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
             <TableRow className="hover:bg-transparent">
               {tableHeaders.map((header) => (
-                <TableHead key={header.key} className={`text-xs font-medium text-gray-700 ${header.width} px-3 bg-gray-50 whitespace-nowrap`}>
+                <TableHead
+                  key={header.key}
+                  className={`text-xs font-medium text-gray-700 ${header.width} px-3 bg-gray-50 whitespace-nowrap`}
+                >
                   {header.label}
                 </TableHead>
               ))}
@@ -220,8 +342,10 @@ export const VisitSchedulingTable = memo(({
                 <TableCell colSpan={8} className="text-center py-8 text-gray-500 text-sm">
                   <div className="flex flex-col items-center space-y-2">
                     <div className="text-lg">📅</div>
-                    <div>No visits found</div>
-                    <div className="text-xs text-gray-400">Try adjusting your filters or search terms</div>
+                    <div>{t('clientVisits.empty.title', 'No visits found')}</div>
+                    <div className="text-xs text-gray-400">
+                      {t('clientVisits.empty.hint', 'Try adjusting your filters or search terms')}
+                    </div>
                   </div>
                 </TableCell>
               </TableRow>
@@ -232,10 +356,9 @@ export const VisitSchedulingTable = memo(({
         </table>
       </div>
 
-      {/* Table Footer */}
-      <VisitSchedulingTableFooter 
+      <VisitSchedulingTableFooter
         totalVisits={visits.length}
-        scheduledVisits={visits.filter(v => v.status === 'scheduled').length}
+        scheduledVisits={visits.filter((v) => v.status === 'scheduled').length}
         filteredVisits={visits.length}
         selectedStatus={selectedStatus}
       />
@@ -244,4 +367,3 @@ export const VisitSchedulingTable = memo(({
 });
 
 VisitSchedulingTable.displayName = 'VisitSchedulingTable';
-

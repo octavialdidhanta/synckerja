@@ -7,6 +7,7 @@ import { PayrollRunsOverview } from "../overview/PayrollRunsOverview";
 import { CreatePeriodDialog } from "../../modals/CreatePeriodDialog";
 import { CreatePayrollRunDialog } from "../../modals/CreatePayrollRunDialog";
 import { PayrollSidebarFooter } from "./PayrollSidebarFooter";
+import { TaxCalculationModeSetting } from "../TaxCalculationModeSetting";
 
 interface PayrollSidebarProps {
   selectedPayrollRunId?: string | null;
@@ -79,6 +80,7 @@ export function PayrollSidebar({
         </Tabs>
       </div>
 
+      <TaxCalculationModeSetting />
       <PayrollSidebarFooter activeTab={activeTab} />
 
       <CreatePeriodDialog open={isCreatePeriodOpen} onOpenChange={setIsCreatePeriodOpen} />

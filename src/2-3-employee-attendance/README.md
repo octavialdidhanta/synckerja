@@ -8,8 +8,7 @@ Komponen untuk menampilkan dan mengelola employee attendance di halaman Attendan
 2_3_employee-attendance/
 ├── hooks/                              # Business logic & data management
 │   ├── useAttendanceRecords.ts         # Hook untuk fetch attendance records
-│   ├── useAttendanceValidation.ts      # Hook untuk validasi attendance
-│   ├── useAttendanceOperations.ts      # Hook untuk operations (approve, reject, etc)
+│   ├── useAttendanceOperations.ts      # Hook untuk check-in/out + validasi RPC
 │   └── index.ts                        # Export all hooks
 ├── EmployeeAttendanceTab.tsx           # Main tab component (ACTIVE)
 ├── ResponsiveAttendanceTable.tsx       # Responsive table view
@@ -210,26 +209,12 @@ interface AttendanceRecord {
 }
 ```
 
-### useAttendanceValidation
-Hook untuk validasi attendance data.
-
-**Features:**
-- Validate clock in/out times
-- Check late arrival
-- Check early departure
-- Validate work hours
-- Location validation
-
 ### useAttendanceOperations
-Hook untuk attendance operations.
+Hook untuk check-in/out attendance via RPC (`validate_attendance_comprehensive`, `record_attendance_with_timezone`).
 
 **Operations:**
-- Approve attendance
-- Reject attendance
-- Bulk approve
-- Update status
-- Add notes
-- Apply penalties
+- `checkIn` / `checkOut` dengan upload foto + validasi rules
+- `validateAttendance` (validate-only)
 
 ## Integrasi
 Digunakan di:
@@ -256,13 +241,11 @@ const [currentView, setCurrentView] = useState<'table' | 'calendar'>('table');
 ```tsx
 import { 
   useAttendanceRecords,
-  useAttendanceValidation,
   useAttendanceOperations 
-} from '@/components/1_halaman/2_3_employee-attendance/hooks';
+} from '@/2-3-employee-attendance/hooks';
 
 const { records, isLoading } = useAttendanceRecords(organizationId);
-const { validateAttendance } = useAttendanceValidation();
-const { approveAttendance } = useAttendanceOperations();
+const { checkIn, checkOut } = useAttendanceOperations();
 ```
 
 ### Import Individual Components

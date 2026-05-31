@@ -129,7 +129,7 @@ export const VisitSchedulingFilters = ({ filters, onFiltersChange, onNewVisit }:
         <SelectContent>
           <SelectItem value="all">All Status</SelectItem>
           <SelectItem value="scheduled">Scheduled</SelectItem>
-          <SelectItem value="confirmed">Confirmed</SelectItem>
+          <SelectItem value="ongoing">Berlangsung</SelectItem>
           <SelectItem value="completed">Completed</SelectItem>
           <SelectItem value="cancelled">Cancelled</SelectItem>
         </SelectContent>

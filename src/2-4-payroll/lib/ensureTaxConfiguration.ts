@@ -35,6 +35,7 @@ export async function ensureTaxConfigurationId(organizationId: string): Promise<
       ptkp_amount: 54000000,
       ptkp_status: "TK/0",
       tax_rate: 0,
+      calculation_mode: "annualized",
       is_default: true,
       is_active: true,
     })

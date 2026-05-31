@@ -459,7 +459,7 @@ export function ConversationList({
         const displayName = isEmail
           ? (conv.from_display_name || emailToDisplayLabel(conv.from_email) || conv.from_email || conv.email_connection_display || 'Email')
           : conv.source === 'instagram'
-            ? (conv.customer_name || maskPhoneLast4(conv.customer_ig_id) || t('whatsappInbox.instagramContact', 'Kontak Instagram'))
+            ? (conv.customer_name?.trim() || t('whatsappInbox.instagramContact', 'Kontak Instagram'))
             : (conv.customer_name || maskPhoneLast4(conv.customer_wa_id) || 'Unknown');
         const isSwiping = swipeState?.convId === conv.id;
         const swipeOffset = isSwiping ? swipeState.offset : 0;

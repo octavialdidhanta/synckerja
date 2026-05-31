@@ -3,7 +3,6 @@ import { Search, RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
-import { AttendanceViewToggle } from '@/features/2-3-employee-attendance';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface AttendanceToolbarProps {
@@ -16,8 +15,6 @@ interface AttendanceToolbarProps {
   onOpenDatePicker?: () => void;
   dateRangeLabel?: string;
   onClear?: () => void;
-  currentView: 'table' | 'calendar';
-  onViewChange: (view: 'table' | 'calendar') => void;
 }
 
 export const AttendanceToolbar = ({
@@ -30,8 +27,6 @@ export const AttendanceToolbar = ({
   onOpenDatePicker,
   dateRangeLabel,
   onClear,
-  currentView,
-  onViewChange,
 }: AttendanceToolbarProps) => {
   const { t } = useAppTranslation();
   const handleSearch = useCallback(
@@ -93,7 +88,6 @@ export const AttendanceToolbar = ({
               Reset
             </Button>
           )}
-          <AttendanceViewToggle currentView={currentView} onViewChange={onViewChange} />
         </div>
       </div>
     </div>

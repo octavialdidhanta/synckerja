@@ -116,6 +116,14 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
               </Button>
             )}
           </div>
+          {isInstagram && verifyToken && (
+            <p className="text-xs text-slate-500 leading-relaxed">
+              {t(
+                'instagramConnect.verifyTokenReverifyHint',
+                'After connecting your first account, copy this token to Meta Developer if it changed, then Verify and Save.',
+              )}
+            </p>
+          )}
         </div>
       </div>
     </div>

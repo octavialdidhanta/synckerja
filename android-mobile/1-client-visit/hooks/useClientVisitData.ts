@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { format } from "date-fns";
+import { getLocalDateYmd } from "@/shared/lib/date/getLocalDateYmd";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { logger } from "@/shared/lib/logger";
 import { useRealtimeData } from "@/mobile-app/hooks/useRealtimeData";
@@ -17,12 +19,21 @@ export interface ClientVisit {
   start_location?: any;
   end_location?: any;
   visit_purpose: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
   notes?: string;
+  validated_location_id?: string | null;
   start_photo_path?: string;
   end_photo_path?: string;
   created_at: string;
   updated_at: string;
+  validated_location?: {
+    id: string;
+    name?: string;
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+    radius_meters?: number;
+  } | null;
   client?: {
     id: string;
     company_name: string;
@@ -38,12 +49,35 @@ export interface TodayVisitSchedule {
   visits: ClientVisit[];
 }
 
-export const useClientVisitData = () => {
+export interface ClientVisitDateRange {
+  start: Date;
+  end: Date;
+}
+
+const VISIT_SELECT = `
+  *,
+  client:clients(*),
+  validated_location:office_locations(id, name, address, latitude, longitude, radius_meters)
+`;
+
+function toYmd(date: Date): string {
+  return format(date, "yyyy-MM-dd");
+}
+
+function todayYmdLocal(): string {
+  return getLocalDateYmd();
+}
+
+export const useClientVisitData = (dateRange: ClientVisitDateRange) => {
+  const [visits, setVisits] = useState<ClientVisit[]>([]);
   const [todayVisits, setTodayVisits] = useState<ClientVisit[]>([]);
-  const [todaySchedule, setTodaySchedule] = useState<TodayVisitSchedule | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
+
+  const startYmd = toYmd(dateRange.start);
+  const endYmd = toYmd(dateRange.end);
+  const todayYmd = todayYmdLocal();
 
   const fetchClientVisitData = useCallback(async () => {
     try {
@@ -51,7 +85,6 @@ export const useClientVisitData = () => {
       setLoading(true);
       setError(null);
 
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (cancelledRef.current) return;
       if (!user) {
@@ -59,7 +92,6 @@ export const useClientVisitData = () => {
         return;
       }
 
-      // Get user's active organization
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('active_organization_id')
@@ -76,7 +108,6 @@ export const useClientVisitData = () => {
         return;
       }
 
-      // Get employee data
       const { data: employee } = await supabase
         .from('employees')
         .select('id')
@@ -90,44 +121,62 @@ export const useClientVisitData = () => {
         return;
       }
 
-      const today = new Date().toISOString().split('T')[0];
-
-      // Get today's client visits with client data for current employee
-      const { data: visits, error: visitsError } = await supabase
+      const periodQuery = supabase
         .from('client_visits' as any)
-        .select(`
-          *,
-          client:clients(*)
-        `)
+        .select(VISIT_SELECT)
         .eq('employee_id', employee.id)
-        .eq('visit_date', today)
+        .gte('visit_date', startYmd)
+        .lte('visit_date', endYmd)
+        .order('visit_date', { ascending: true })
         .order('planned_start_time', { ascending: true });
 
+      const todayInPeriod = startYmd <= todayYmd && todayYmd <= endYmd;
+      const todayQuery = todayInPeriod
+        ? null
+        : supabase
+            .from('client_visits' as any)
+            .select(VISIT_SELECT)
+            .eq('employee_id', employee.id)
+            .eq('visit_date', todayYmd)
+            .order('planned_start_time', { ascending: true });
+
+      const [periodResult, todayResult] = await Promise.all([
+        periodQuery,
+        todayQuery ?? Promise.resolve({ data: null, error: null }),
+      ]);
+
       if (cancelledRef.current) return;
-      if (visitsError) {
-        logger.error('Error fetching visits:', visitsError);
+      if (periodResult.error) {
+        logger.error('Error fetching visits:', periodResult.error);
+        setVisits([]);
+        setTodayVisits([]);
+        setError("Failed to fetch visit data");
+        return;
+      }
+      if (todayResult.error) {
+        logger.error('Error fetching today visits:', todayResult.error);
+        setVisits([]);
+        setTodayVisits([]);
         setError("Failed to fetch visit data");
         return;
       }
 
-      const typedVisits = (visits || []) as any[];
-      if (cancelledRef.current) return;
-      setTodayVisits(typedVisits);
-      setTodaySchedule({
-        isVisitDay: typedVisits.length > 0,
-        hasScheduledVisits: typedVisits.length > 0,
-        visits: typedVisits
-      });
+      const typedPeriodVisits = (periodResult.data || []) as ClientVisit[];
+      const typedTodayVisits = todayInPeriod
+        ? typedPeriodVisits.filter((visit) => visit.visit_date === todayYmd)
+        : ((todayResult.data || []) as ClientVisit[]);
 
+      if (cancelledRef.current) return;
+      setVisits(typedPeriodVisits);
+      setTodayVisits(typedTodayVisits);
     } catch (err) {
       logger.error('Error in fetchClientVisitData:', err);
       if (!cancelledRef.current) setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       if (!cancelledRef.current) setLoading(false);
     }
-  }, []);
+  }, [startYmd, endYmd, todayYmd]);
 
-  // Setup realtime updates
   const { isConnected: realtimeConnected } = useRealtimeData([
     {
       table: 'clients',
@@ -166,12 +215,27 @@ export const useClientVisitData = () => {
     return () => { cancelledRef.current = true; };
   }, [fetchClientVisitData]);
 
+  const todaySchedule = useMemo<TodayVisitSchedule>(() => ({
+    isVisitDay: todayVisits.length > 0,
+    hasScheduledVisits: todayVisits.length > 0,
+    visits: todayVisits,
+  }), [todayVisits]);
+
+  const visitsForNotifications = useMemo(() => {
+    const byId = new Map<string, ClientVisit>();
+    for (const visit of visits) byId.set(visit.id, visit);
+    for (const visit of todayVisits) byId.set(visit.id, visit);
+    return Array.from(byId.values());
+  }, [visits, todayVisits]);
+
   return {
+    visits,
     todayVisits,
+    visitsForNotifications,
     todaySchedule,
     loading,
     error,
     realtimeConnected,
-    refetch: fetchClientVisitData
+    refetch: fetchClientVisitData,
   };
 };

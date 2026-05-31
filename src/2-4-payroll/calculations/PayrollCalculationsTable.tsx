@@ -212,7 +212,7 @@ export function PayrollCalculationsTable({
                     </TableCell>
                     <TableCell className="min-w-[120px] px-3 text-sm font-medium">
                       <span className="text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(Number(calc.net_pay) || 0)}
+                        {formatCurrency(Number(calc.take_home_pay ?? calc.net_pay) || 0)}
                       </span>
                     </TableCell>
                     <TableCell className="min-w-[100px] px-3">

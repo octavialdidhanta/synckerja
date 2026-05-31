@@ -215,8 +215,12 @@ export function CreatePeriodDialog({ open, onOpenChange, onSuccess }: CreatePeri
                 }
               />
               <Label htmlFor="is_bonus_period" className="text-sm font-medium">
-                Bonus Period
+                Periode Bonus / THR
               </Label>
+              <p className="text-muted-foreground text-xs">
+                Centang untuk payroll Lebaran/THR. THR manual: tambah komponen tunjangan THR di master
+                payroll karyawan. THR otomatis: sesuai setting org (proportional / full month).
+              </p>
             </div>
           </div>
 

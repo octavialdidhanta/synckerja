@@ -34,15 +34,11 @@ export const createDefaultFilterState = (): FilterState => ({
 interface AttendanceFiltersProps {
   filters: FilterState;
   setFilters: Dispatch<SetStateAction<FilterState>>;
-  currentView: 'table' | 'calendar';
-  onViewChange: (view: 'table' | 'calendar') => void;
 }
 
 export const AttendanceFilters = ({
   filters,
   setFilters,
-  currentView,
-  onViewChange
 }: AttendanceFiltersProps) => {
   const { t } = useAppTranslation();
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -91,8 +87,6 @@ export const AttendanceFilters = ({
         onOpenDatePicker={() => setShowDatePicker(true)}
         dateRangeLabel={formattedDateRange}
         onClear={handleClearFilters}
-        currentView={currentView}
-        onViewChange={onViewChange}
       />
 
       <AttendanceDateRangePicker

@@ -4,7 +4,7 @@ import { AppSidebar } from "@/mobile-app/components/AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/mobile-app/components/ui/sidebar";
 import { Card } from "@/mobile-app/components/ui/card";
 import { Button } from "@/mobile-app/components/ui/button";
-import { User, MapPin, Phone, Mail, Calendar, LogOut, ChevronDown, Building2, Check, Loader2, KeyRound, RefreshCw } from "lucide-react";
+import { User, LogOut, ChevronDown, ChevronRight, Building2, Check, Loader2, KeyRound, RefreshCw, Phone, Users, GraduationCap, DollarSign, FolderOpen, Briefcase, AlertTriangle } from "lucide-react";
 import { ProfileSkeleton } from "./ProfileSkeleton";
 import { useProfile } from "@/mobile-app/hooks/useProfile";
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport";
@@ -31,6 +31,14 @@ import {
   DrawerClose,
 } from "@/mobile-app/components/ui/drawer";
 import { ChangePasswordModal } from "@/mobile/1-profile/components/ChangePasswordModal";
+import { MyInfoDetailModal } from "@/mobile/1-profile/components/MyInfoDetailModal";
+import { EmergencyContactDetailModal } from "@/mobile/1-profile/components/EmergencyContactDetailModal";
+import { FamilyInfoDetailModal } from "@/mobile/1-profile/components/FamilyInfoDetailModal";
+import { EducationExperienceDetailModal } from "@/mobile/1-profile/components/EducationExperienceDetailModal";
+import { PayrollInfoDetailModal } from "@/mobile/1-profile/components/PayrollInfoDetailModal";
+import { MyFilesDetailModal } from "@/mobile/1-profile/components/MyFilesDetailModal";
+import { MyWorkDetailModal } from "@/mobile/1-profile/components/MyWorkDetailModal";
+import { ReprimandDetailModal } from "@/mobile/1-profile/components/ReprimandDetailModal";
 import { CreateOrganizationModal } from "@/shared/layouts/header/CreateOrganizationModal";
 import { cn } from "@/shared/lib/utils";
 
@@ -52,6 +60,14 @@ const Profile = () => {
     toast
   } = useToast();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [myInfoOpen, setMyInfoOpen] = useState(false);
+  const [emergencyContactOpen, setEmergencyContactOpen] = useState(false);
+  const [familyInfoOpen, setFamilyInfoOpen] = useState(false);
+  const [educationExperienceOpen, setEducationExperienceOpen] = useState(false);
+  const [payrollInfoOpen, setPayrollInfoOpen] = useState(false);
+  const [myFilesOpen, setMyFilesOpen] = useState(false);
+  const [myWorkOpen, setMyWorkOpen] = useState(false);
+  const [reprimandOpen, setReprimandOpen] = useState(false);
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [orgDrawerOpen, setOrgDrawerOpen] = useState(false);
   const [languageDrawerOpen, setLanguageDrawerOpen] = useState(false);
@@ -67,7 +83,7 @@ const Profile = () => {
   const { mainFixedStyle } = useVisualViewport();
   const { language, setLanguage } = useLanguage();
   const { t } = useAppTranslation();
-  const { userRole } = useCentralizedUserData();
+  const { userRole, user } = useCentralizedUserData();
   const { data: userOrgsData } = useUserOrganizations();
   const roleFromMembership =
     activeOrganizationId && userOrgsData?.memberships.length
@@ -321,47 +337,65 @@ const Profile = () => {
                 <div className="p-3 border-b border-border">
                   <h3 className="font-semibold text-foreground">{t("profile.personalInfo", "Informasi Personal")}</h3>
                 </div>
-                <div className="p-3 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">{t("profile.email", "Email")}</p>
-                      <p className="text-sm font-medium text-foreground">{profile.email}</p>
-                    </div>
+                <div className="p-3">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between h-11 px-0 hover:bg-transparent"
+                    onClick={() => setMyInfoOpen(true)}
+                  >
+                    <span className="flex items-center gap-3">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">
+                        {t("profile.myInfo.button", "My Info")}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </Button>
+                  <div className="border-t border-border">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-between h-11 px-0 hover:bg-transparent"
+                      onClick={() => setEmergencyContactOpen(true)}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">
+                          {t("profile.emergencyContact.button", "Info Kontak Darurat")}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </Button>
                   </div>
-                  {profile.mobile_phone && (
-                    <div className="flex items-center gap-3">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">{t("profile.phone", "Telepon")}</p>
-                        <p className="text-sm font-medium text-foreground">{profile.mobile_phone}</p>
-                      </div>
-                    </div>
-                  )}
-                  {profile.address && (
-                    <div className="flex items-center gap-3">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">{t("profile.address", "Alamat")}</p>
-                        <p className="text-sm font-medium text-foreground">{profile.address}</p>
-                      </div>
-                    </div>
-                  )}
-                  {profile.join_date && (
-                    <div className="flex items-center gap-3">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">{t("profile.joined", "Bergabung")}</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {new Date(profile.join_date).toLocaleDateString(language === "id" ? "id-ID" : "en-US", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric"
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  <div className="border-t border-border">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-between h-11 px-0 hover:bg-transparent"
+                      onClick={() => setFamilyInfoOpen(true)}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">
+                          {t("profile.familyInfo.button", "Info Keluarga")}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </Button>
+                  </div>
+                  <div className="border-t border-border">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-between h-11 px-0 hover:bg-transparent"
+                      onClick={() => setEducationExperienceOpen(true)}
+                    >
+                      <span className="flex items-center gap-3">
+                        <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">
+                          {t("profile.educationExperience.button", "Pendidikan & Pengalaman")}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </Button>
+                  </div>
                 </div>
                     </Card>
                   </div>
@@ -371,37 +405,65 @@ const Profile = () => {
                       <div className="p-3 border-b border-border">
                         <h3 className="font-semibold text-foreground">{t("profile.workInfo", "Informasi Kerja")}</h3>
                       </div>
-                <div className="p-3 space-y-3">
-                  {profile.job_position_name && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">{t("profile.position", "Posisi")}</span>
-                      <span className="text-sm font-medium text-foreground">{profile.job_position_name}</span>
-                    </div>
-                  )}
-                  {profile.department_name && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">{t("profile.department", "Departemen")}</span>
-                      <span className="text-sm font-medium text-foreground">{profile.department_name}</span>
-                    </div>
-                  )}
-                  {profile.job_level_name && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">{t("profile.level", "Level")}</span>
-                      <span className="text-sm font-medium text-foreground">{profile.job_level_name}</span>
-                    </div>
-                  )}
-                  {profile.employee_id && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">{t("profile.employeeId", "ID Karyawan")}</span>
-                      <span className="text-sm font-medium text-foreground">{profile.employee_id}</span>
-                    </div>
-                  )}
-                  {profile.status && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">{t("profile.statusLabel", "Status")}</span>
-                      <span className="text-sm font-medium text-foreground capitalize">{profile.status}</span>
-                    </div>
-                  )}
+                <div className="p-3">
+                  <Button
+                    variant="ghost"
+                    className="h-11 w-full justify-between px-0 hover:bg-transparent"
+                    onClick={() => setPayrollInfoOpen(true)}
+                  >
+                    <span className="flex items-center gap-3">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">
+                        {t("profile.payrollInfo.button", "Info Payroll")}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </Button>
+                  <div className="border-t border-border">
+                    <Button
+                      variant="ghost"
+                      className="h-11 w-full justify-between px-0 hover:bg-transparent"
+                      onClick={() => setMyFilesOpen(true)}
+                    >
+                      <span className="flex items-center gap-3">
+                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">
+                          {t("profile.myFiles.button", "File Saya")}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <div className="border-t border-border">
+                    <Button
+                      variant="ghost"
+                      className="h-11 w-full justify-between px-0 hover:bg-transparent"
+                      onClick={() => setMyWorkOpen(true)}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Briefcase className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">
+                          {t("profile.myWork.button", "My Work")}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <div className="border-t border-border">
+                    <Button
+                      variant="ghost"
+                      className="h-11 w-full justify-between px-0 hover:bg-transparent"
+                      onClick={() => setReprimandOpen(true)}
+                    >
+                      <span className="flex items-center gap-3">
+                        <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">
+                          {t("profile.reprimand.button", "Reprimand")}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </Button>
+                  </div>
                 </div>
                     </Card>
                   </div>
@@ -563,6 +625,51 @@ const Profile = () => {
                   </div>
 
                   <ChangePasswordModal open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+                  <MyInfoDetailModal open={myInfoOpen} onOpenChange={setMyInfoOpen} profile={profile} />
+                  <EmergencyContactDetailModal
+                    open={emergencyContactOpen}
+                    onOpenChange={setEmergencyContactOpen}
+                    contacts={profile.emergencyContacts ?? []}
+                  />
+                  <FamilyInfoDetailModal
+                    open={familyInfoOpen}
+                    onOpenChange={setFamilyInfoOpen}
+                    members={profile.familyMembers ?? []}
+                  />
+                  <EducationExperienceDetailModal
+                    open={educationExperienceOpen}
+                    onOpenChange={setEducationExperienceOpen}
+                    employeeId={profile.hasEmployeeRecord ? profile.id : null}
+                    hasEmployeeRecord={profile.hasEmployeeRecord}
+                  />
+                  <PayrollInfoDetailModal
+                    open={payrollInfoOpen}
+                    onOpenChange={setPayrollInfoOpen}
+                    employeeId={profile.hasEmployeeRecord ? profile.id : null}
+                    hasEmployeeRecord={profile.hasEmployeeRecord}
+                  />
+                  <MyFilesDetailModal
+                    open={myFilesOpen}
+                    onOpenChange={setMyFilesOpen}
+                    organizationId={activeOrganizationId}
+                    userId={user?.id ?? null}
+                    employeeId={profile.hasEmployeeRecord ? profile.id : null}
+                  />
+                  <MyWorkDetailModal
+                    open={myWorkOpen}
+                    onOpenChange={setMyWorkOpen}
+                    employeeId={profile.hasEmployeeRecord ? profile.id : null}
+                    organizationId={activeOrganizationId}
+                    userId={user?.id ?? null}
+                    hasEmployeeRecord={profile.hasEmployeeRecord}
+                  />
+                  <ReprimandDetailModal
+                    open={reprimandOpen}
+                    onOpenChange={setReprimandOpen}
+                    employeeId={profile.hasEmployeeRecord ? profile.id : null}
+                    organizationId={activeOrganizationId}
+                    hasEmployeeRecord={profile.hasEmployeeRecord}
+                  />
 
                   <div>
                     <div className="space-y-2">

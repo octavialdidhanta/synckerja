@@ -17,6 +17,7 @@ interface ClientVisitActionsProps {
   onStartVisit: () => void;
   onEndVisit: () => void;
   hasActiveVisit: boolean;
+  startVisitBlocked?: boolean;
   isLoading?: boolean;
 }
 
@@ -24,6 +25,7 @@ export const ClientVisitActions = ({
   onStartVisit,
   onEndVisit,
   hasActiveVisit,
+  startVisitBlocked = false,
   isLoading = false
 }: ClientVisitActionsProps) => {
   const { t } = useAppTranslation();
@@ -41,13 +43,17 @@ export const ClientVisitActions = ({
       <div className="grid grid-cols-2 gap-3">
         <Button 
           onClick={handleStartVisit}
-          disabled={hasActiveVisit || isLoading}
+          disabled={hasActiveVisit || startVisitBlocked || isLoading}
           className="h-14 flex flex-col gap-1 text-sm font-semibold"
-          variant={hasActiveVisit ? "outline" : "default"}
+          variant={hasActiveVisit || startVisitBlocked ? "outline" : "default"}
         >
           <MapPin className="h-5 w-5" />
           <span className="text-xs">
-            {hasActiveVisit ? t("clientVisit.alreadyStarted", "Sudah Mulai") : t("clientVisit.startVisit", "Mulai Kunjungan")}
+            {hasActiveVisit
+              ? t("clientVisit.alreadyStarted", "Sudah Mulai")
+              : startVisitBlocked
+                ? t("clientVisit.visitCompletedToday", "Sudah Selesai")
+                : t("clientVisit.startVisit", "Mulai Kunjungan")}
           </span>
         </Button>
         

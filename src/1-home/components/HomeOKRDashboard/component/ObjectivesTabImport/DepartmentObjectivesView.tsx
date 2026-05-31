@@ -29,7 +29,6 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useDepartmentObjectives, useDeleteDepartmentObjective } from '../../modal/useDepartmentObjectives';
 import { useIndividualObjectives } from '../../modal/useIndividualObjectives';
 import { useDepartmentAsKeyResult } from './DepartmentObjectivesViewImport/useDepartmentAsKeyResult';
-import { useAttendanceOperations } from './DepartmentObjectivesViewImport/useAttendanceOperations';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
 interface DepartmentObjectivesViewProps {
@@ -99,11 +98,6 @@ export const DepartmentObjectivesView = ({
     user: currentUser
   } = useCurrentUser();
 
-  // Attendance operations hook
-  const {
-    checkIn,
-    loading: attendanceLoading
-  } = useAttendanceOperations();
   const deleteObjective = useDeleteDepartmentObjective();
 
   // Filter department objectives by department for each department
@@ -285,57 +279,6 @@ export const DepartmentObjectivesView = ({
     });
   };
 
-  // Handle attendance check-in
-  const handleAttendanceCheckIn = async (objectiveTitle: string) => {
-    try {
-      // Get user's current location
-      if (!navigator.geolocation) {
-        toast.error('Geolocation tidak didukung oleh browser ini');
-        return;
-      }
-      toast.info('Mendapatkan lokasi...');
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000
-        });
-      });
-      const {
-        latitude,
-        longitude
-      } = position.coords;
-
-      // Perform check-in using existing attendance system
-      const success = await checkIn({
-        latitude,
-        longitude,
-        photoUrl: undefined // Could be enhanced to capture photo
-      });
-      if (success) {
-        toast.success(`Check-in berhasil untuk objective: ${objectiveTitle}`);
-      }
-    } catch (error) {
-      if (error instanceof GeolocationPositionError) {
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            toast.error('Akses lokasi ditolak. Mohon izinkan akses lokasi untuk check-in.');
-            break;
-          case error.POSITION_UNAVAILABLE:
-            toast.error('Informasi lokasi tidak tersedia.');
-            break;
-          case error.TIMEOUT:
-            toast.error('Timeout mendapatkan lokasi.');
-            break;
-          default:
-            toast.error('Error mendapatkan lokasi.');
-            break;
-        }
-      } else {
-        toast.error('Gagal melakukan check-in');
-      }
-    }
-  };
   if (departmentTabLoading) {
     return null;
   }

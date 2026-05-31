@@ -41,7 +41,6 @@ export { MapLocationSelector } from './components/MapLocationSelector';
 export { InteractiveMapLocationSelector } from './components/InteractiveMapLocationSelector';
 
 // Visit & Location Components
-export { LocationVisitScheduler } from './components/LocationVisitScheduler';
 export { LocationVisitsList } from './components/LocationVisitsList';
 export { EnhancedAddOfficeLocationModal } from './modals/EnhancedAddOfficeLocationModal';
 export { EnhancedFaceRegistration } from './components/EnhancedFaceRegistration';

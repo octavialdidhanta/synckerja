@@ -16,30 +16,53 @@ const TZ_OFFSET_MINUTES: Record<string, number> = {
   "Asia/Jayapura": 9 * 60,
 };
 
-type ResolvedSchedule =
-  | {
-      source: "shift";
-      schedule_id: string;
-      schedule_name: string;
-      start_time: string;
-      offsetMinutes: number;
-    }
-  | {
-      source: "work_schedule";
-      schedule_id: string;
-      schedule_name: string;
-      start_time: string;
-      offsetMinutes: number;
-      working_days: number[];
-    };
-
-type WorkScheduleRow = {
-  id: string;
-  name: string | null;
-  start_time: string | null;
-  timezone: string | null;
+type ResolvedScheduleRow = {
+  source: string;
+  shift_id: string | null;
+  employee_shift_id: string | null;
+  work_schedule_id: string | null;
+  schedule_name: string;
+  start_time: string;
+  end_time: string;
+  late_tolerance_minutes: number;
+  overtime_threshold_minutes: number;
+  timezone: string;
   working_days: number[] | null;
+  is_working_day: boolean;
 };
+
+type ResolvedSchedule = {
+  source: "shift" | "work_schedule";
+  schedule_id: string;
+  schedule_name: string;
+  start_time: string;
+  offsetMinutes: number;
+};
+
+type VisitDayModeRow = {
+  mode?: string;
+};
+
+async function resolveVisitDayMode(
+  supabase: ReturnType<typeof createClient>,
+  employeeId: string,
+  organizationId: string,
+  effectiveDate: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("resolve_visit_day_mode", {
+    p_employee_id: employeeId,
+    p_organization_id: organizationId,
+    p_date: effectiveDate,
+  });
+
+  if (error) {
+    console.warn("resolve_visit_day_mode error", employeeId, effectiveDate, error.message);
+    return "normal";
+  }
+
+  const row = (typeof data === "object" && data !== null ? data : {}) as VisitDayModeRow;
+  return row.mode ?? "normal";
+}
 
 function getOffsetMinutes(timezone: string): number {
   return TZ_OFFSET_MINUTES[timezone] ?? DEFAULT_SHIFT_TIMEZONE_OFFSET_MINUTES;
@@ -52,10 +75,40 @@ function parseStartTime(startTime: string): { hour: number; minute: number } {
   return { hour, minute };
 }
 
-function getDayOfWeekForDate(dateStr: string): number {
-  const d = new Date(dateStr + "T12:00:00Z");
-  const jsDow = d.getUTCDay();
-  return jsDow === 0 ? 7 : jsDow;
+async function resolveScheduleForEmployee(
+  supabase: ReturnType<typeof createClient>,
+  employeeId: string,
+  organizationId: string,
+  effectiveDate: string,
+): Promise<ResolvedSchedule | null> {
+  const { data, error } = await supabase.rpc("resolve_effective_schedule", {
+    p_employee_id: employeeId,
+    p_organization_id: organizationId,
+    p_effective_date: effectiveDate,
+  });
+
+  if (error) {
+    console.warn("resolve_effective_schedule error", employeeId, error.message);
+    return null;
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as ResolvedScheduleRow | null | undefined;
+  if (!row?.start_time) return null;
+  if (!row.is_working_day) return null;
+
+  const scheduleId =
+    row.source === "shift"
+      ? row.shift_id ?? row.work_schedule_id
+      : row.work_schedule_id;
+  if (!scheduleId) return null;
+
+  return {
+    source: row.source === "shift" ? "shift" : "work_schedule",
+    schedule_id: scheduleId,
+    schedule_name: row.schedule_name ?? (row.source === "shift" ? "Shift" : "Jadwal Kerja"),
+    start_time: row.start_time ?? "08:00",
+    offsetMinutes: getOffsetMinutes(row.timezone ?? "Asia/Jakarta"),
+  };
 }
 
 function localToUtcMs(
@@ -156,72 +209,25 @@ Deno.serve(async (req: Request) => {
 
       for (const emp of employees as { id: string; user_id: string; work_schedule_id: string | null }[]) {
         if (alreadyCheckedInIds.has(emp.id)) continue;
-        let schedule: ResolvedSchedule | null = null;
 
-        const { data: shiftAssign } = await supabase
-          .from("employee_shifts")
-          .select("shift_id, shifts(id, name, start_time, is_active)")
-          .eq("employee_id", emp.id)
-          .eq("organization_id", organizationId)
-          .lte("effective_from_date", effectiveDate)
-          .or(`effective_to_date.is.null,effective_to_date.gte.${effectiveDate}`)
-          .eq("is_active", true)
-          .order("effective_from_date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const shiftData = shiftAssign as unknown as {
-          shift_id: string;
-          shifts: { id: string; name: string; start_time: string; is_active: boolean } | { id: string; name: string; start_time: string; is_active: boolean }[] | null;
-        } | null;
-        const s = shiftData?.shifts == null ? null : Array.isArray(shiftData.shifts) ? shiftData.shifts[0] : shiftData.shifts;
-        if (s?.id && s?.is_active !== false) {
-          schedule = {
-            source: "shift",
-            schedule_id: s.id,
-            schedule_name: s.name ?? "Shift",
-            start_time: s.start_time ?? "08:00",
-            offsetMinutes: DEFAULT_SHIFT_TIMEZONE_OFFSET_MINUTES,
-          };
-        }
-
-        if (!schedule) {
-          let wss: WorkScheduleRow | null = null;
-          if (emp.work_schedule_id) {
-            const { data: empSchedule } = await supabase
-              .from("work_schedule_settings")
-              .select("id, name, start_time, timezone, working_days")
-              .eq("id", emp.work_schedule_id)
-              .eq("is_active", true)
-              .maybeSingle();
-            wss = empSchedule as WorkScheduleRow | null;
-          }
-          if (!wss) {
-            const { data: defaultSchedule } = await supabase
-              .from("work_schedule_settings")
-              .select("id, name, start_time, timezone, working_days")
-              .eq("organization_id", organizationId)
-              .eq("is_active", true)
-              .order("is_default", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            wss = defaultSchedule as WorkScheduleRow | null;
-          }
-          if (wss) {
-            const dow = getDayOfWeekForDate(effectiveDate);
-            if (!wss.working_days?.includes(dow)) continue;
-            schedule = {
-              source: "work_schedule",
-              schedule_id: wss.id,
-              schedule_name: wss.name ?? "Jadwal Kerja",
-              start_time: wss.start_time ?? "08:00",
-              offsetMinutes: getOffsetMinutes(wss.timezone ?? "Asia/Jakarta"),
-              working_days: wss.working_days ?? [],
-            };
-          }
-        }
+        const schedule = await resolveScheduleForEmployee(
+          supabase,
+          emp.id,
+          organizationId,
+          effectiveDate,
+        );
 
         if (!schedule) continue;
+
+        const visitDayMode = await resolveVisitDayMode(
+          supabase,
+          emp.id,
+          organizationId,
+          effectiveDate,
+        );
+        if (visitDayMode === "field_first" || visitDayMode === "travel_field") {
+          continue;
+        }
 
         const { hour, minute } = parseStartTime(schedule.start_time);
         const offsetMin = schedule.offsetMinutes;

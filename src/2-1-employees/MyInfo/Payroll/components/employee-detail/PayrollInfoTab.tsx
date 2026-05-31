@@ -18,6 +18,30 @@ import type { EmployeePayrollInfo, PayrollComponent } from '@/shared/hooks/emplo
 import { usePayrollPeriods } from '@/shared/hooks/employees/usePayrollPeriods';
 import { useProfile } from '@/shared/hooks/useProfile';
 import { toast } from 'sonner';
+import {
+  formatNpwp,
+  NPWP_FORMATTED_MAX_LENGTH,
+  NPWP_PLACEHOLDER,
+} from '../../utils/npwpFormat';
+
+function emptyWhenZero(value: number | string | undefined | null): string {
+  if (value == null || value === '') return '';
+  const num = typeof value === 'number' ? value : parseFloat(String(value));
+  if (!Number.isNaN(num) && num === 0) return '';
+  return String(value);
+}
+
+function parseOptionalNumber(raw: string): number {
+  if (raw.trim() === '') return 0;
+  const parsed = parseFloat(raw);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+const payrollNumericInputProps = {
+  type: 'text' as const,
+  inputMode: 'decimal' as const,
+  placeholder: '0',
+};
 
 interface PayrollInfoTabProps {
   employee: any;
@@ -85,7 +109,10 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
 
   useEffect(() => {
     if (payrollInfo) {
-      setFormData(payrollInfo);
+      setFormData({
+        ...payrollInfo,
+        npwp: formatNpwp(payrollInfo.npwp),
+      });
     }
   }, [payrollInfo]);
 
@@ -120,7 +147,10 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
     setEditingSection(null);
     // Reset form data to original
     if (payrollInfo) {
-      setFormData(payrollInfo);
+      setFormData({
+        ...payrollInfo,
+        npwp: formatNpwp(payrollInfo.npwp),
+      });
     }
   };
 
@@ -299,9 +329,9 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
               <Label htmlFor="basic_salary">Basic Salary</Label>
               <Input
                 id="basic_salary"
-                type="number"
-                value={formData.basic_salary || 0}
-                onChange={(e) => handleInputChange('basic_salary', parseFloat(e.target.value) || 0)}
+                {...payrollNumericInputProps}
+                value={emptyWhenZero(formData.basic_salary)}
+                onChange={(e) => handleInputChange('basic_salary', parseOptionalNumber(e.target.value))}
                 disabled={editingSection !== 'basic-salary' || isSaving}
               />
             </div>
@@ -687,9 +717,12 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
               <Input
                 id="npwp"
                 value={formData.npwp || ''}
-                onChange={(e) => handleInputChange('npwp', e.target.value)}
+                onChange={(e) => handleInputChange('npwp', formatNpwp(e.target.value))}
                 disabled={editingSection !== 'banking' || isSaving}
-                placeholder="00.000.000.0-000.000"
+                placeholder={NPWP_PLACEHOLDER}
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={NPWP_FORMATTED_MAX_LENGTH}
               />
             </div>
             <div className="space-y-2">
@@ -756,9 +789,9 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
               <Label htmlFor="beginning_netto">Beginning Netto</Label>
               <Input
                 id="beginning_netto"
-                type="number"
-                value={formData.beginning_netto || 0}
-                onChange={(e) => handleInputChange('beginning_netto', parseFloat(e.target.value) || 0)}
+                {...payrollNumericInputProps}
+                value={emptyWhenZero(formData.beginning_netto)}
+                onChange={(e) => handleInputChange('beginning_netto', parseOptionalNumber(e.target.value))}
                 disabled={editingSection !== 'banking' || isSaving}
               />
             </div>
@@ -766,9 +799,9 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
               <Label htmlFor="pph21_paid">PPH21 Paid</Label>
               <Input
                 id="pph21_paid"
-                type="number"
-                value={formData.pph21_paid || 0}
-                onChange={(e) => handleInputChange('pph21_paid', parseFloat(e.target.value) || 0)}
+                {...payrollNumericInputProps}
+                value={emptyWhenZero(formData.pph21_paid)}
+                onChange={(e) => handleInputChange('pph21_paid', parseOptionalNumber(e.target.value))}
                 disabled={editingSection !== 'banking' || isSaving}
               />
             </div>
@@ -817,10 +850,9 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
                   onChange={(e) => setNewComponent(prev => ({ ...prev, component_category: e.target.value }))}
                 />
                 <Input
-                  type="number"
-                  placeholder="Amount"
-                  value={newComponent.amount}
-                  onChange={(e) => setNewComponent(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                  {...payrollNumericInputProps}
+                  value={emptyWhenZero(newComponent.amount)}
+                  onChange={(e) => setNewComponent(prev => ({ ...prev, amount: parseOptionalNumber(e.target.value) }))}
                 />
               </div>
               
@@ -921,10 +953,9 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
                         onChange={(e) => setEditingData(prev => ({ ...prev, component_category: e.target.value }))}
                       />
                       <Input
-                        type="number"
-                        placeholder="Amount"
-                        value={editingData.amount || 0}
-                        onChange={(e) => setEditingData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                        {...payrollNumericInputProps}
+                        value={emptyWhenZero(editingData.amount)}
+                        onChange={(e) => setEditingData(prev => ({ ...prev, amount: parseOptionalNumber(e.target.value) }))}
                       />
                     </div>
                     

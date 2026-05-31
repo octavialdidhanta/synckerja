@@ -161,9 +161,13 @@ export const useLocationServices = () => {
     });
   };
 
-  const validateLocationForAttendance = (location: LocationData): LocationValidation => {
-    // Check GPS accuracy (should be better than 50 meters)
-    const hasGoodAccuracy = location.accuracy <= 50;
+  const validateLocationForAttendance = (
+    location: LocationData,
+    options?: { accuracyThresholdMeters?: number; requireGpsAccuracy?: boolean },
+  ): LocationValidation => {
+    const threshold = options?.accuracyThresholdMeters ?? 50;
+    const requireGps = options?.requireGpsAccuracy ?? false;
+    const hasGoodAccuracy = !requireGps || (location.accuracy > 0 && location.accuracy <= threshold);
     
     if (!officeLocations || officeLocations.length === 0) {
       return {

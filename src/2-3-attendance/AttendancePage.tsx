@@ -32,7 +32,6 @@ function AttendancePageContent() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
 
   const activeTab = attendanceTabFromPathname(location.pathname);
-  const [currentView, setCurrentView] = useState<"table" | "calendar">("table");
   const [isLoading, setIsLoading] = useState(true);
   const [settingsSkeletonVisible, setSettingsSkeletonVisible] = useState(true);
 
@@ -42,10 +41,6 @@ function AttendancePageContent() {
 
   /** Navigation is performed inside `HeaderAndTab` via `navigate()`; tab state is URL-derived. */
   const handleTabChange = useCallback((_tab: string) => {}, []);
-
-  const handleViewChange = useCallback((view: "table" | "calendar") => {
-    setCurrentView(view);
-  }, []);
 
   const isSettingsRoute = location.pathname === "/attendance/settings";
   const recordsRoute = location.pathname === "/attendance/attendance";
@@ -113,10 +108,7 @@ function AttendancePageContent() {
 
                     {activeTab === "attendance" && (
                       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                        <EmployeeAttendanceTab
-                          currentView={currentView}
-                          onViewChange={handleViewChange}
-                        />
+                        <EmployeeAttendanceTab />
                       </div>
                     )}
 
@@ -144,7 +136,7 @@ function AttendancePageContent() {
           aria-busy="true"
           aria-label={loadingAria}
         >
-          <AttendanceModuleSkeleton variant={skeletonVariant} recordsView={currentView} />
+          <AttendanceModuleSkeleton variant={skeletonVariant} />
         </div>
       ) : null}
     </div>

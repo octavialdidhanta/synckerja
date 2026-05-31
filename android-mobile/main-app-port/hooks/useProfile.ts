@@ -2,6 +2,29 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { logger } from '@/shared/lib/logger';
 
+export interface EmergencyContactData {
+  id: string;
+  name: string;
+  relationship?: string;
+  gender?: string;
+  age?: number;
+  occupation?: string;
+  phone?: string;
+  address?: string;
+}
+
+export interface FamilyMemberData {
+  id: string;
+  name: string;
+  relationship?: string;
+  gender?: string;
+  age?: number;
+  occupation?: string;
+  phone?: string;
+  address?: string;
+  is_emergency_contact?: boolean;
+}
+
 export interface ProfileData {
   id: string;
   full_name: string;
@@ -15,6 +38,76 @@ export interface ProfileData {
   job_level_name?: string;
   employee_id?: string;
   photo_url?: string;
+  birth_place?: string;
+  birth_date?: string;
+  gender?: string;
+  marital_status?: string;
+  religion?: string;
+  nik?: string;
+  citizen_address?: string;
+  hasEmployeeRecord?: boolean;
+  emergencyContacts?: EmergencyContactData[];
+  familyMembers?: FamilyMemberData[];
+}
+
+async function fetchEmergencyContacts(employeeId: string): Promise<EmergencyContactData[]> {
+  try {
+    const { data, error } = await supabase
+      .from('employee_family_members')
+      .select('id, name, relationship, gender, age, occupation, phone, address')
+      .eq('employee_id', employeeId)
+      .eq('is_emergency_contact', true)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      logger.warn('Error fetching emergency contacts:', error);
+      return [];
+    }
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      relationship: row.relationship ?? undefined,
+      gender: row.gender ?? undefined,
+      age: row.age ?? undefined,
+      occupation: row.occupation ?? undefined,
+      phone: row.phone ?? undefined,
+      address: row.address ?? undefined,
+    }));
+  } catch (err) {
+    logger.warn('Failed to fetch emergency contacts:', err);
+    return [];
+  }
+}
+
+async function fetchFamilyMembers(employeeId: string): Promise<FamilyMemberData[]> {
+  try {
+    const { data, error } = await supabase
+      .from('employee_family_members')
+      .select('id, name, relationship, gender, age, occupation, phone, address, is_emergency_contact')
+      .eq('employee_id', employeeId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      logger.warn('Error fetching family members:', error);
+      return [];
+    }
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      relationship: row.relationship ?? undefined,
+      gender: row.gender ?? undefined,
+      age: row.age ?? undefined,
+      occupation: row.occupation ?? undefined,
+      phone: row.phone ?? undefined,
+      address: row.address ?? undefined,
+      is_emergency_contact: row.is_emergency_contact ?? undefined,
+    }));
+  } catch (err) {
+    logger.warn('Failed to fetch family members:', err);
+    return [];
+  }
 }
 
 export const useProfile = () => {
@@ -65,6 +158,9 @@ export const useProfile = () => {
           id: user.id,
           full_name: user.user_metadata?.full_name || 'User',
           email: user.email || '',
+          hasEmployeeRecord: false,
+          emergencyContacts: [],
+          familyMembers: [],
         });
         return;
       }
@@ -83,6 +179,13 @@ export const useProfile = () => {
           mobile_phone,
           address,
           join_date,
+          birth_place,
+          birth_date,
+          gender,
+          marital_status,
+          religion,
+          nik,
+          citizen_address,
           employee_status_id,
           employee_statuses(name),
           profile_photo_url,
@@ -107,19 +210,34 @@ export const useProfile = () => {
         // Verify the employee belongs to the correct organization
         if (employeeData.organization_id === profileRow.active_organization_id) {
           if (cancelledRef.current) return;
+          const [emergencyContacts, familyMembers] = await Promise.all([
+            fetchEmergencyContacts(employeeData.id),
+            fetchFamilyMembers(employeeData.id),
+          ]);
+          if (cancelledRef.current) return;
           setProfile({
             id: employeeData.id,
             full_name: employeeData.full_name,
             email: employeeData.email || user.email || '',
-            mobile_phone: employeeData.mobile_phone,
-            address: employeeData.address,
-            join_date: employeeData.join_date,
+            mobile_phone: employeeData.mobile_phone ?? undefined,
+            address: employeeData.address ?? undefined,
+            join_date: employeeData.join_date ?? undefined,
+            birth_place: employeeData.birth_place ?? undefined,
+            birth_date: employeeData.birth_date ?? undefined,
+            gender: employeeData.gender ?? undefined,
+            marital_status: employeeData.marital_status ?? undefined,
+            religion: employeeData.religion ?? undefined,
+            nik: employeeData.nik ?? undefined,
+            citizen_address: employeeData.citizen_address ?? undefined,
             status: employeeData.employee_statuses?.name ?? 'active',
             department_name: employeeData.departments?.name,
             job_position_name: employeeData.job_positions?.name,
             job_level_name: employeeData.job_levels?.name,
             employee_id: employeeData.employee_id,
             photo_url: employeeData.profile_photo_url ?? undefined,
+            hasEmployeeRecord: true,
+            emergencyContacts,
+            familyMembers,
           });
         } else {
           logger.warn('Employee organization mismatch');
@@ -128,6 +246,9 @@ export const useProfile = () => {
             id: user.id,
             full_name: user.user_metadata?.full_name || 'User',
             email: user.email || '',
+            hasEmployeeRecord: false,
+            emergencyContacts: [],
+            familyMembers: [],
           });
         }
       } else {
@@ -137,6 +258,9 @@ export const useProfile = () => {
           id: user.id,
           full_name: user.user_metadata?.full_name || 'User',
           email: user.email || '',
+          hasEmployeeRecord: false,
+          emergencyContacts: [],
+          familyMembers: [],
         });
       }
     } catch (err) {

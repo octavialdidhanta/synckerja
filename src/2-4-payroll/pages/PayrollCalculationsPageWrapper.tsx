@@ -16,7 +16,7 @@ import { EmployeeDetailView } from "../views/EmployeeDetailView";
 import { HeaderAndTab } from "./HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { PayrollRouteSkeleton } from "../components/PayrollRouteSkeleton";
-import { formatPayrollDataError } from "../lib/payrollQueryErrors";
+import { PayrollRunActions } from "../components/PayrollRunActions";
 
 /** Columns + joins required by list, filters, metrics, detail, and delete. */
 const PAYROLL_CALCULATIONS_LIST_SELECT = `
@@ -36,12 +36,16 @@ const PAYROLL_CALCULATIONS_LIST_SELECT = `
   net_pay,
   take_home_pay,
   total_taxes,
+  total_tax_amount,
+  tax_breakdown,
+  calculation_details,
   calculation_status,
   calculation_date,
   payment_status,
   payment_date,
   payment_method,
   payment_reference,
+  payout_snapshot,
   notes,
   created_at,
   updated_at,
@@ -74,6 +78,10 @@ function isAllowanceItem(item: PayrollItemRow) {
 
 function isDeductionItem(item: PayrollItemRow) {
   return item.item_type === "deduction" || item.component_type === "deduction";
+}
+
+function isTaxItem(item: PayrollItemRow) {
+  return item.item_type === "tax" || item.component_type === "tax";
 }
 
 export default function PayrollCalculationsPage() {
@@ -142,6 +150,16 @@ export default function PayrollCalculationsPage() {
       return true;
     });
   }, [calculations, searchTerm, statusFilter, paymentFilter]);
+
+  const selectedRunMeta = useMemo(() => {
+    const calc = calculations.find(
+      (c) => (c as { payroll_run_id?: string }).payroll_run_id === selectedPayrollRunId,
+    ) as { payroll_runs?: { run_name?: string; status?: string } } | undefined;
+    return {
+      name: calc?.payroll_runs?.run_name,
+      status: calc?.payroll_runs?.status,
+    };
+  }, [calculations, selectedPayrollRunId]);
 
   const taxAmounts = filteredCalculations.reduce(
     (acc: Record<string, number>, calc: { id: string; total_tax_deductions?: number | null }) => {
@@ -246,9 +264,7 @@ export default function PayrollCalculationsPage() {
                       onBack={() => setSelectedEmployee(null)}
                       allowanceData={payrollItems.filter(isAllowanceItem)}
                       deductionData={payrollItems.filter(isDeductionItem)}
-                      taxData={[]}
-                      tardinessData={[]}
-                      attendancePenalties={[]}
+                      taxData={payrollItems.filter(isTaxItem)}
                     />
                   </div>
                 ) : (
@@ -271,6 +287,15 @@ export default function PayrollCalculationsPage() {
                         <PayrollMetricsCards
                           calculations={filteredCalculations}
                           selectedPayrollRunId={selectedPayrollRunId}
+                        />
+                      </div>
+
+                      <div className="mb-2 shrink-0">
+                        <PayrollRunActions
+                          runId={selectedPayrollRunId}
+                          runName={selectedRunMeta.name}
+                          runStatus={selectedRunMeta.status}
+                          onActionComplete={() => void refetch()}
                         />
                       </div>
 

@@ -1,11 +1,10 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { SalesActivitiesRoute } from "./SalesActivitiesRoute";
 import { VisitSchedulingRoute } from "@/5-2-jadwal-kunjungan";
 import { ClientVisitsPage } from "@/5-2-client_visits";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
 
-const MobileSchedule = lazy(() => import("@/mobile/1-schedule/pages/Schedule"));
 const MobileClientVisit = lazy(() => import("@/mobile/1-client-visit/pages/ClientVisit"));
 
 function MobileSalesParitySuspense({ children }: { children: ReactNode }) {
@@ -30,11 +29,7 @@ export const SalesOperationsPage = () => {
 
   if (isJadwalKunjungan) {
     if (isDesktop) return <VisitSchedulingRoute />;
-    return (
-      <MobileSalesParitySuspense>
-        <MobileSchedule />
-      </MobileSalesParitySuspense>
-    );
+    return <Navigate to="/operations/sales/client-visits" replace />;
   }
 
   if (isClientVisits) {

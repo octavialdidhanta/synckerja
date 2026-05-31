@@ -42,16 +42,16 @@ export const LeaveEligibilityAlert = () => {
         ) : (
           <XCircle className="h-4 w-4" />
         )}
-        <AlertDescription className="flex items-center justify-between">
+        <AlertDescription className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span>{eligibility.message}</span>
-          <Badge variant={eligibility.isEligible ? "default" : "secondary"}>
+          <Badge className="shrink-0" variant={eligibility.isEligible ? "default" : "secondary"}>
             {eligibility.isEligible ? t('leaveEligibility.eligible', 'Eligible for Leave') : t('leaveEligibility.notEligible', 'Not Eligible')}
           </Badge>
         </AlertDescription>
       </Alert>
 
       {/* Leave Information Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="bg-muted/50 rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm font-medium mb-1">
             <Calendar className="h-4 w-4" />

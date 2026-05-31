@@ -86,13 +86,6 @@ export const VisitSchedulingWizard = ({
   };
 
   const handleSave = () => {
-    // Transform datetime to time format for planned times
-    const plannedStartTime = visitData.plannedStartTime ? 
-      new Date(visitData.plannedStartTime).toTimeString().slice(0, 8) : null;
-    const plannedEndTime = visitData.plannedEndTime ? 
-      new Date(visitData.plannedEndTime).toTimeString().slice(0, 8) : null;
-
-    // Transform data for save
     const locationData = {
       name: visitData.locationName || visitData.selectedLocation?.formatted_address || '',
       address: visitData.selectedLocation?.formatted_address || visitData.locationName || '',
@@ -104,14 +97,15 @@ export const VisitSchedulingWizard = ({
       contact_phone: visitData.phoneNumber || null,
       notes: visitData.notes || null,
       client_id: visitData.clientName && visitData.clientName !== '' ? visitData.clientName : null,
-      is_client_location: visitData.locationType === 'client-site',
+      is_client_location: true,
       google_place_id: visitData.selectedLocation?.google_place_id || null,
       formatted_address: visitData.selectedLocation?.formatted_address || null,
-      planned_start_time: plannedStartTime,
-      planned_end_time: plannedEndTime,
-      sales_person_id: visitData.salesPerson && visitData.salesPerson !== '' ? visitData.salesPerson : null
+      planned_start_time: visitData.plannedStartTime || null,
+      planned_end_time: visitData.plannedEndTime || null,
+      sales_person_id: visitData.salesPerson && visitData.salesPerson !== '' ? visitData.salesPerson : null,
+      visit_purpose: visitData.visitPurpose || '',
     };
-    
+
     onSave(locationData);
     onClose();
   };

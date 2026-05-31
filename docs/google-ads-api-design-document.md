@@ -252,7 +252,9 @@ Use this account only to **sign in to Synckerja**. It is not required to be the 
 
 ### 3) Demo video
 
-Provide a YouTube (unlisted) link showing the same flow as steps 1–5 above.
+**YouTube (unlisted):** https://youtu.be/ewtFNLaKpQw
+
+Shows the same flow as steps 1–5 above: Synckerja login → Connect Google Ads (OAuth) → Google Ads metrics dashboard.
 
 ---
 

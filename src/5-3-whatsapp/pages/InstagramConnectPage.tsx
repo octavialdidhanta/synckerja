@@ -19,8 +19,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/
 import { Instagram, CheckCircle2, Unplug, Loader2, Facebook, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
-const META_OAUTH_SCOPE = 'pages_show_list,pages_read_engagement,instagram_manage_messages,instagram_basic,business_management';
+const META_OAUTH_SCOPE = 'pages_show_list,pages_read_engagement,pages_manage_metadata,instagram_manage_messages,instagram_basic,business_management';
 const META_OAUTH_VERSION = 'v21.0';
+const PRODUCTION_META_REDIRECT_URI = 'https://office.synckerja.com/auth/meta/callback';
+const OAUTH_POPUP_POLL_MS = 500;
+const OAUTH_POPUP_MAX_MS = 5 * 60 * 1000;
 
 /** `/omnichannel/integrations/instagram` — Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`). */
 export function InstagramConnectPage() {
@@ -28,7 +31,18 @@ export function InstagramConnectPage() {
   const { organizationId, loading: orgLoading } = useCurrentOrg();
   const hasOrg = Boolean(organizationId);
   const { config, isLoading: configLoading, ensureInstagramVerifyToken } = useWhatsAppConfig();
-  const { accounts: connectedAccounts, isLoading: accountsLoading, refetch: refetchAccounts, connectAccount, disconnectAccount, isConnecting, isDisconnecting } = useInstagramAccounts();
+  const {
+    accounts: connectedAccounts,
+    isLoading: accountsLoading,
+    refetch: refetchAccounts,
+    connectAccount,
+    disconnectAccount,
+    isConnecting,
+    isDisconnecting,
+    syncAvailableFromWhatsApp,
+    isSyncingFromWhatsApp,
+    subscribeInstagramWebhooks,
+  } = useInstagramAccounts();
 
   const [igWebhookBootstrapPending, setIgWebhookBootstrapPending] = useState(false);
   const { canAccessPage, accessDecisionPending } = useDepartmentAccess();
@@ -87,6 +101,10 @@ export function InstagramConnectPage() {
   const [oauthLoading, setOauthLoading] = useState(false);
   const [availableAccounts, setAvailableAccounts] = useState<InstagramAccountFromApi[]>([]);
   const oauthStateRef = useRef<string>('');
+  const oauthPopupRef = useRef<Window | null>(null);
+  const oauthCompletedRef = useRef(false);
+  const oauthPopupPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const oauthPopupStartedAtRef = useRef(0);
 
   const metaAppId = (import.meta.env.VITE_META_APP_ID as string)?.trim() || '';
   const metaOAuthConfigId = (import.meta.env.VITE_META_OAUTH_CONFIG_ID as string)?.trim() || '';
@@ -94,11 +112,97 @@ export function InstagramConnectPage() {
   const hasMetaConfig = !!config?.meta_access_token?.trim();
   const redirectUri = typeof window !== 'undefined' ? `${window.location.origin}/auth/meta/callback` : '';
 
+  const clearMetaOAuthPopupFlag = useCallback(() => {
+    sessionStorage.removeItem('metaOAuthPopupOpen');
+    sessionStorage.removeItem('metaOAuthPopupSession');
+  }, []);
+
+  const stopOAuthPopupPoll = useCallback(() => {
+    if (oauthPopupPollRef.current) {
+      clearInterval(oauthPopupPollRef.current);
+      oauthPopupPollRef.current = null;
+    }
+    oauthPopupRef.current = null;
+  }, []);
+
+  const showZeroAccountsWarning = useCallback(() => {
+    const checklist = [
+      t('instagramConnect.zeroAccountsChecklist.pageLinked', 'Facebook Page must be linked to an Instagram Business Account in Meta Business Suite.'),
+      t('instagramConnect.zeroAccountsChecklist.pageAdmin', 'Your Facebook login must have admin access to that Page.'),
+      t('instagramConnect.zeroAccountsChecklist.permissions', 'App permissions instagram_manage_messages and pages_show_list must be approved.'),
+      t('instagramConnect.zeroAccountsChecklist.tryWhatsApp', 'If Connect WhatsApp is already set up, try Sync from WhatsApp token below.'),
+    ].join('\n• ');
+    toast.warning(t('instagramConnect.zeroAccountsWarning', 'Login succeeded but no Instagram Business account was found.'), {
+      description: `• ${checklist}`,
+      duration: 12000,
+    });
+  }, [t]);
+
+  const handleOAuthExchangeResult = useCallback(
+    async (resData: {
+      accounts_synced?: number;
+      webhook_subscribed_count?: number;
+      error?: string;
+      warning?: string;
+    }) => {
+      await refetchAccounts();
+      setAvailableAccounts([]);
+      const synced = typeof resData.accounts_synced === 'number' ? resData.accounts_synced : 0;
+      const webhookSynced = typeof resData.webhook_subscribed_count === 'number' ? resData.webhook_subscribed_count : 0;
+      if (synced > 0) {
+        if (webhookSynced >= synced) {
+          toast.success(t('instagramConnect.oauthSuccessWithWebhooks', 'Akun Instagram terhubung. Webhook DM diaktifkan.'));
+        } else {
+          toast.warning(t('instagramConnect.oauthSuccessWebhookPartial', 'Akun terhubung, tapi webhook DM gagal sebagian.'), {
+            description: t(
+              'instagramConnect.oauthSuccessWebhookPartialHint',
+              'Connect ulang dengan Facebook dan pastikan izin pages_manage_metadata disetujui.',
+            ),
+            duration: 12000,
+          });
+        }
+      } else {
+        showZeroAccountsWarning();
+      }
+      if (resData.warning?.trim()) {
+        toast.info(resData.warning.trim(), { duration: 10000 });
+      }
+    },
+    [refetchAccounts, showZeroAccountsWarning, t],
+  );
+
+  const startOAuthPopupPoll = useCallback(() => {
+    stopOAuthPopupPoll();
+    oauthCompletedRef.current = false;
+    oauthPopupStartedAtRef.current = Date.now();
+    oauthPopupPollRef.current = setInterval(() => {
+      const popup = oauthPopupRef.current;
+      if (!popup) return;
+      const elapsed = Date.now() - oauthPopupStartedAtRef.current;
+      if (elapsed > OAUTH_POPUP_MAX_MS) {
+        stopOAuthPopupPoll();
+        if (!oauthCompletedRef.current) {
+          clearMetaOAuthPopupFlag();
+          setOauthLoading(false);
+        }
+        return;
+      }
+      if (popup.closed && !oauthCompletedRef.current) {
+        stopOAuthPopupPoll();
+        clearMetaOAuthPopupFlag();
+        setOauthLoading(false);
+      }
+    }, OAUTH_POPUP_POLL_MS);
+  }, [clearMetaOAuthPopupFlag, stopOAuthPopupPoll]);
+
+  useEffect(() => () => stopOAuthPopupPoll(), [stopOAuthPopupPoll]);
+
   // Facebook Login for Business only: redirect_uri must match Valid OAuth Redirect URIs in Meta Developer → Facebook Login for Business → Configurations
   const openOAuthPopup = useCallback(
     async () => {
       if (!hasOAuth || !redirectUri) {
         toast.error(t('instagramConnect.oauthNotConfigured', 'VITE_META_APP_ID not set.'));
+        setOauthLoading(false);
         return;
       }
       const state = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -111,8 +215,8 @@ export function InstagramConnectPage() {
       });
       params.set('display', 'page');
       params.set('response_type', 'token');
+      if (metaOAuthConfigId) params.set('config_id', metaOAuthConfigId);
       const url = `https://www.facebook.com/${META_OAUTH_VERSION}/dialog/oauth?${params.toString()}`;
-      // Mark Meta OAuth popup open so AuthContext can avoid signing out on spurious SIGNED_OUT (e.g. refresh failure in background)
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -125,19 +229,18 @@ export function InstagramConnectPage() {
       } catch (_) {}
       const w = window.open(url, 'meta-oauth', 'width=600,height=700,scrollbars=yes');
       if (!w) {
-        sessionStorage.removeItem('metaOAuthPopupOpen');
-        sessionStorage.removeItem('metaOAuthPopupSession');
+        clearMetaOAuthPopupFlag();
+        setOauthLoading(false);
         toast.error(t('instagramConnect.popupBlocked', 'Popup blocked. Allow popups for this site.'));
+        return;
       }
+      oauthPopupRef.current = w;
+      startOAuthPopupPoll();
     },
-    [hasOAuth, metaAppId, redirectUri, t]
+    [clearMetaOAuthPopupFlag, hasOAuth, metaAppId, metaOAuthConfigId, redirectUri, startOAuthPopupPoll, t],
   );
 
   useEffect(() => {
-    const clearMetaOAuthPopupFlag = () => {
-      sessionStorage.removeItem('metaOAuthPopupOpen');
-      sessionStorage.removeItem('metaOAuthPopupSession');
-    };
     const handler = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.data?.type !== 'meta-oauth') return;
       const data = event.data as {
@@ -150,6 +253,8 @@ export function InstagramConnectPage() {
         error_description?: string;
       };
       if (data.error) {
+        oauthCompletedRef.current = true;
+        stopOAuthPopupPoll();
         clearMetaOAuthPopupFlag();
         setOauthLoading(false);
         toast.error(data.error_description || data.error || t('instagramConnect.oauthDenied', 'Login cancelled or denied.'));
@@ -159,14 +264,17 @@ export function InstagramConnectPage() {
       const code = data.code;
       if (token) {
         if (data.state !== oauthStateRef.current) {
+          oauthCompletedRef.current = true;
+          stopOAuthPopupPoll();
           clearMetaOAuthPopupFlag();
           setOauthLoading(false);
           return;
         }
+        oauthCompletedRef.current = true;
+        stopOAuthPopupPoll();
         setOauthLoading(true);
         (async () => {
           try {
-            // Restore may run after SIGNED_OUT; retry getSession so we don't fail on race
             let session: { access_token?: string } | null = (await supabase.auth.getSession()).data.session;
             if (!session?.access_token) {
               await new Promise((r) => setTimeout(r, 600));
@@ -183,15 +291,13 @@ export function InstagramConnectPage() {
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
               body: JSON.stringify({ token }),
             });
-            const resData = await res.json().catch(() => ({}));
+            const resData = await res.json().catch(() => ({})) as { accounts_synced?: number; error?: string; warning?: string };
             if (!res.ok) {
               toast.error(resData?.error || t('instagramConnect.oauthExchangeFailed', 'Failed to save token.'));
               setOauthLoading(false);
               return;
             }
-            await refetchAccounts();
-            setAvailableAccounts([]);
-            toast.success(t('instagramConnect.oauthSuccess', 'Token saved. Connect Instagram accounts below.'));
+            await handleOAuthExchangeResult(resData);
           } catch {
             toast.error(t('instagramConnect.oauthExchangeFailed', 'Failed to save token.'));
           } finally {
@@ -202,6 +308,8 @@ export function InstagramConnectPage() {
         return;
       }
       if (code && data.state === oauthStateRef.current) {
+        oauthCompletedRef.current = true;
+        stopOAuthPopupPoll();
         setOauthLoading(true);
         (async () => {
           try {
@@ -222,16 +330,14 @@ export function InstagramConnectPage() {
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
               body: JSON.stringify({ code, redirect_uri: exchangeRedirectUri }),
             });
-            const resData = await res.json().catch(() => ({}));
+            const resData = await res.json().catch(() => ({})) as { accounts_synced?: number; error?: string; warning?: string };
             if (!res.ok) {
               clearMetaOAuthPopupFlag();
               toast.error(resData?.error || t('instagramConnect.oauthExchangeFailed', 'Failed to save token.'));
               setOauthLoading(false);
               return;
             }
-            await refetchAccounts();
-            setAvailableAccounts([]);
-            toast.success(t('instagramConnect.oauthSuccess', 'Token saved. Connect Instagram accounts below.'));
+            await handleOAuthExchangeResult(resData);
           } catch {
             toast.error(t('instagramConnect.oauthExchangeFailed', 'Failed to save token.'));
           } finally {
@@ -243,14 +349,37 @@ export function InstagramConnectPage() {
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [refetchAccounts, redirectUri, t]);
+  }, [clearMetaOAuthPopupFlag, handleOAuthExchangeResult, redirectUri, stopOAuthPopupPoll, t]);
+
+  const handleSyncFromWhatsApp = async () => {
+    try {
+      const accounts = await syncAvailableFromWhatsApp();
+      setAvailableAccounts(accounts);
+      if (accounts.length === 0) {
+        toast.warning(t('instagramConnect.noAccountsFromMeta', 'No Instagram Business accounts found from WhatsApp token.'));
+      } else {
+        toast.success(t('instagramConnect.syncFromWhatsAppSuccess', 'Found {{count}} account(s) to connect.', { count: accounts.length }));
+      }
+    } catch (e) {
+      toast.error((e as Error)?.message ?? t('instagramConnect.syncFromWhatsAppFailed', 'Failed to sync from WhatsApp token.'));
+    }
+  };
 
   const handleConnect = async (account: InstagramAccountFromApi) => {
     try {
       await connectAccount(account);
       setAvailableAccounts((prev) => prev.filter((a) => a.id !== account.id));
       await refetchAccounts();
-      toast.success(t('instagramConnect.oauthSuccess', 'Connected.'));
+      try {
+        const sub = await subscribeInstagramWebhooks();
+        if (sub.success !== false && (sub.subscribed_count ?? 0) > 0) {
+          toast.success(t('instagramConnect.oauthSuccessWithWebhooks', 'Akun Instagram terhubung. Webhook DM diaktifkan.'));
+        } else {
+          toast.warning(t('instagramConnect.oauthSuccessWebhookPartial', 'Akun terhubung, tapi webhook DM gagal sebagian.'));
+        }
+      } catch {
+        toast.success(t('instagramConnect.oauthSuccess', 'Connected.'));
+      }
     } catch (e) {
       toast.error((e as Error)?.message ?? 'Failed to connect');
     }
@@ -358,6 +487,12 @@ export function InstagramConnectPage() {
                                         </Popover>
                                       </div>
                                       <p className="font-mono text-[11px] break-all select-all bg-white px-1 py-0.5 rounded">{redirectUri}</p>
+                                      {redirectUri !== PRODUCTION_META_REDIRECT_URI && (
+                                        <div className="space-y-1">
+                                          <p className="font-medium text-slate-600">{t('instagramConnect.productionRedirectUriLabel', 'Production redirect URI (office.synckerja.com):')}</p>
+                                          <p className="font-mono text-[11px] break-all select-all bg-white px-1 py-0.5 rounded">{PRODUCTION_META_REDIRECT_URI}</p>
+                                        </div>
+                                      )}
                                       {metaOAuthConfigId ? (
                                         <p className="text-green-700">{t('instagramConnect.configIdInUse', 'Using Configuration ID:')} <span className="font-mono">{metaOAuthConfigId}</span></p>
                                       ) : (
@@ -374,35 +509,53 @@ export function InstagramConnectPage() {
                               </p>
                             </div>
                           ) : (
-                            hasOAuth && (
-                              <div className="space-y-2">
+                            <div className="space-y-3">
+                              {hasOAuth && (
+                                <div className="space-y-2">
+                                  <Button
+                                    type="button"
+                                    onClick={() => {
+                                      setOauthLoading(true);
+                                      openOAuthPopup();
+                                    }}
+                                    disabled={oauthLoading}
+                                    className="w-full bg-[#1877F2] hover:bg-[#166FE5] text-white"
+                                  >
+                                    {oauthLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Facebook className="w-4 h-4 mr-2" />}
+                                    {oauthLoading ? t('instagramConnect.oauthConnecting', 'Connecting…') : t('instagramConnect.connectWithFacebookOnly', 'Connect with Facebook only')}
+                                  </Button>
+                                  <p className="text-xs text-slate-500 flex items-center gap-1">
+                                    {t('instagramConnect.connectFacebookOnlyHintShort', 'Login via Facebook only.')}
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-flex text-slate-400 hover:text-slate-600 cursor-help" aria-label="Info">
+                                          <Info className="w-3.5 h-3.5 shrink-0" />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" className="max-w-xs">
+                                        <p>{t('instagramConnect.connectFacebookOnlyHint', 'Login only on Facebook, no Instagram step. Use if you get "Invalid redirect URI" on instagram.com.')}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </p>
+                                </div>
+                              )}
+                              {connectedAccounts.length === 0 && (
                                 <Button
                                   type="button"
-                                  onClick={() => {
-                                    setOauthLoading(true);
-                                    openOAuthPopup();
-                                  }}
-                                  disabled={oauthLoading}
-                                  className="w-full bg-[#1877F2] hover:bg-[#166FE5] text-white"
+                                  variant="outline"
+                                  className="w-full"
+                                  onClick={handleSyncFromWhatsApp}
+                                  disabled={isSyncingFromWhatsApp}
                                 >
-                                  {oauthLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Facebook className="w-4 h-4 mr-2" />}
-                                  {oauthLoading ? t('instagramConnect.oauthConnecting', 'Connecting…') : t('instagramConnect.connectWithFacebookOnly', 'Connect with Facebook only')}
+                                  {isSyncingFromWhatsApp ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : null}
+                                  {isSyncingFromWhatsApp
+                                    ? t('instagramConnect.syncFromWhatsAppLoading', 'Syncing…')
+                                    : t('instagramConnect.syncFromWhatsApp', 'Sync from WhatsApp token')}
                                 </Button>
-                                <p className="text-xs text-slate-500 flex items-center gap-1">
-                                  {t('instagramConnect.connectFacebookOnlyHintShort', 'Login via Facebook only.')}
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex text-slate-400 hover:text-slate-600 cursor-help" aria-label="Info">
-                                        <Info className="w-3.5 h-3.5 shrink-0" />
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="right" className="max-w-xs">
-                                      <p>{t('instagramConnect.connectFacebookOnlyHint', 'Login only on Facebook, no Instagram step. Use if you get "Invalid redirect URI" on instagram.com.')}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </p>
-                              </div>
-                            )
+                              )}
+                            </div>
                           )}
                           <div className="border-t border-slate-200 pt-4 mt-4">
                             <WebhookInfoDisplay embedded variant="instagram" />
@@ -463,14 +616,14 @@ export function InstagramConnectPage() {
                               ))}
                               {availableToConnect.length > 0 && (
                                 <div className="border-t border-slate-200 pt-4">
-                                  <p className="mb-2 text-sm font-medium text-slate-700">Available to connect</p>
+                                  <p className="mb-2 text-sm font-medium text-slate-700">{t('instagramConnect.availableToConnect', 'Available to connect')}</p>
                                   {availableToConnect.map((acc) => (
                                     <div key={acc.id} className="flex items-center justify-between gap-3 py-2">
                                       <span className="text-sm text-slate-600">
                                         {acc.username ? `@${acc.username}` : acc.name || acc.id}
                                       </span>
                                       <Button type="button" size="sm" onClick={() => handleConnect(acc)} disabled={isConnecting}>
-                                        Connect
+                                        {t('instagramConnect.connectButton', 'Connect')}
                                       </Button>
                                     </div>
                                   ))}

@@ -9,7 +9,6 @@ import {
   Building,
   Wifi,
 } from "lucide-react";
-import { Badge } from "@/shared/components/ui/badge";
 import { OptimizedOfficeLocationsList } from "./OptimizedOfficeLocationsList";
 import { ClientManagement } from "./ClientManagement";
 import { VisitScheduling } from "./VisitScheduling";
@@ -245,28 +244,10 @@ export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutP
                   );
                 })}
               </div>
-
-              <div className="mt-4 rounded-[5px] border border-primary/30 bg-primary/10 p-3">
-                <div className="flex items-center space-x-2">
-                  <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
-                  <span className="text-xs font-medium text-primary">
-                    {t("attendanceSettings.realtime.active", "Real-time Active")}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t(
-                    "attendanceSettings.realtime.description",
-                    "Data automatically updates when changes occur",
-                  )}
-                </p>
-              </div>
             </div>
             <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{t("attendanceSettings.footer.overview", "Settings overview")}</span>
-                <span className="text-xs text-primary/80">
-                  {t("attendanceSettings.footer.realtimeLabel", "Real-time")}
-                </span>
               </div>
             </div>
           </div>
@@ -290,20 +271,9 @@ export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutP
                     {current?.description ??
                       t(
                         "attendanceSettings.description",
-                        "Configure location-based attendance system with real-time updates",
+                        "Configure location-based attendance system",
                       )}
                   </p>
-                </div>
-                <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 pt-0.5">
-                  <Badge variant="outline" className="text-xs">
-                    {t("attendanceSettings.badge.autoSync", "Auto-sync enabled")}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="border-success/30 bg-success-muted text-xs text-success-foreground"
-                  >
-                    {t("attendanceSettings.badge.realtime", "Real-time")}
-                  </Badge>
                 </div>
               </div>
 

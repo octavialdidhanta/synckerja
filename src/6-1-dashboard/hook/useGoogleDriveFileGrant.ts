@@ -38,18 +38,37 @@ export function useGoogleDriveFileGrant(): {
         return true;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("not configured")) {
+        const lower = msg.toLowerCase();
+        if (lower.includes("not configured")) {
           toast.error(
             t(
               "googleDrivePreview.grantPickerNotConfigured",
               "Google Picker belum dikonfigurasi. Hubungi admin (API key / App ID).",
             ),
           );
-        } else if (msg.includes("not connected")) {
+        } else if (lower.includes("not connected") || lower.includes("connect google")) {
           toast.error(
             t(
               "googleDrivePreview.grantConnectFirst",
               "Hubungkan Google terlebih dahulu di baris Preview.",
+            ),
+          );
+        } else if (
+          lower.includes("expired") ||
+          lower.includes("invalid_grant") ||
+          lower.includes("token refresh")
+        ) {
+          toast.error(
+            t(
+              "googleDrivePreview.grantReconnectGoogle",
+              "Sesi Google kedaluwarsa. Putuskan lalu Hubungkan Google lagi di baris Preview.",
+            ),
+          );
+        } else if (lower.includes("picker is not available") || lower.includes("failed to load")) {
+          toast.error(
+            t(
+              "googleDrivePreview.grantPickerLoadFailed",
+              "Gagal memuat Google Picker. Cek koneksi internet atau nonaktifkan pemblokir iklan, lalu coba lagi.",
             ),
           );
         } else {

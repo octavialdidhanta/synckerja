@@ -235,6 +235,7 @@ const RecruitmentJobOpeningsPage = lazy(() =>
 
 const AttendancePage = lazy(() => import("@/2-3-attendance/AttendancePage").then((m) => ({ default: m.AttendancePage })));
 const PayrollCalculationsPage = lazy(() => import("@/2-4-payroll/pages/PayrollCalculationsPageWrapper"));
+const MyPayslipsPage = lazy(() => import("@/2-4-payroll/pages/MyPayslipsPage"));
 const CompanyCompanyAssetsPage = lazy(() => import("@/2-8-company-assets/pages/CompanyCompanyAssetsPage"));
 const CompanyFilesPage = lazy(() => import("@/2-8-files/pages/CompanyFilesPage"));
 const CompanyOrganizationPage = lazy(() => import("@/2-8-organization/pages/CompanyOrganizationPage"));
@@ -245,6 +246,11 @@ const LoginRouteElement = lazy(() =>
 const GoogleOAuthCallbackRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
     default: m.GoogleOAuthCallbackRouteElement,
+  })),
+);
+const MetaOAuthCallbackRouteElement = lazy(() =>
+  import("@/5-3-whatsapp/pages/MetaOAuthCallbackPage").then((m) => ({
+    default: m.MetaOAuthCallbackPage,
   })),
 );
 const SupabaseSsoCallbackRouteElement = lazy(() =>
@@ -429,7 +435,12 @@ function AppRoutes() {
         <Route path="/login" element={<LoginRouteElement />} />
         <Route path="/first-login" element={<FirstLoginRouteElement />} />
         <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
+        <Route path="/auth/meta/callback" element={<MetaOAuthCallbackRouteElement />} />
         <Route path="/auth/sso/callback" element={<SupabaseSsoCallbackRouteElement />} />
+        <Route
+          path="/operations/instagram-connect"
+          element={<Navigate to="/omnichannel/integrations/instagram" replace />}
+        />
         <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
         <Route path="/reset-password" element={<ResetPasswordRouteElement />} />
         <Route path="/register" element={<RegisterRouteElement />} />
@@ -539,6 +550,14 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard requiresPermissions={false} loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <MobileAttendanceReportsRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/profile/payslips"
+                element={
+                  <PageAccessGuard pagePath="/settings" requiresPermissions={false} loadingShell={<HomePageSkeleton />}>
+                    <MyPayslipsPage />
                   </PageAccessGuard>
                 }
               />
@@ -1771,7 +1790,12 @@ const App = () => (
                   <Route path="/login" element={<LoginRouteElement />} />
                   <Route path="/first-login" element={<FirstLoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
+                  <Route path="/auth/meta/callback" element={<MetaOAuthCallbackRouteElement />} />
                   <Route path="/auth/sso/callback" element={<SupabaseSsoCallbackRouteElement />} />
+                  <Route
+                    path="/operations/instagram-connect"
+                    element={<Navigate to="/omnichannel/integrations/instagram" replace />}
+                  />
                   <Route path="/forgot-password" element={<ForgotPasswordRouteElement />} />
                   <Route path="/reset-password" element={<ResetPasswordRouteElement />} />
                   <Route path="/register" element={<RegisterRouteElement />} />
@@ -1901,6 +1925,14 @@ const App = () => (
                           element={
                             <PageAccessGuard requiresPermissions={false} loadingShell={PAGE_GUARD_LOADING_SHELL}>
                               <MobileAttendanceReportsRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/profile/payslips"
+                          element={
+                            <PageAccessGuard pagePath="/settings" requiresPermissions={false} loadingShell={<HomePageSkeleton />}>
+                              <MyPayslipsPage />
                             </PageAccessGuard>
                           }
                         />

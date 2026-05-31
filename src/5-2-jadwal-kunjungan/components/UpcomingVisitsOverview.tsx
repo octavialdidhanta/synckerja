@@ -12,7 +12,7 @@ export const UpcomingVisitsOverview = ({ visits: propVisits }: UpcomingVisitsOve
 
   // Calculate real data from visits
   const scheduledVisits = visits.filter(v => v.status === 'scheduled').length;
-  const confirmedVisits = visits.filter(v => v.status === 'confirmed').length;
+  const ongoingVisits = visits.filter(v => v.status === 'ongoing').length;
   const completedVisits = visits.filter(v => v.status === 'completed').length;
 
   // Get unique statuses
@@ -53,8 +53,8 @@ export const UpcomingVisitsOverview = ({ visits: propVisits }: UpcomingVisitsOve
         <div className="p-3 bg-green-50 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-green-800">Confirmed</p>
-              <p className="text-lg font-bold text-green-900">{confirmedVisits}</p>
+              <p className="text-xs font-medium text-green-800">Berlangsung</p>
+              <p className="text-lg font-bold text-green-900">{ongoingVisits}</p>
             </div>
             <CheckCircle2 className="h-4 w-4 text-green-600" />
           </div>

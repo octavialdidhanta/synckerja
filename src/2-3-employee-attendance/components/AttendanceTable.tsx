@@ -13,21 +13,40 @@ import {
 } from '@/shared/components/ui/tooltip';
 import { useOfficeLocations } from '@/features/2-3-settings/hooks/useLocationManagement';
 import { attendanceLoadSectionIds, useReportAttendanceSection } from '@/2-3-attendance/context/AttendancePageLoadContext';
+import { AttendancePhotoThumbnail } from './AttendancePhotoThumbnail';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface AttendanceTableProps {
   searchTerm: string;
   status: string;
   dateRange?: { from?: Date; to?: Date };
+  employeeId?: string;
+  /** Calendar month index 0–11 */
+  month?: number;
+  year?: number;
+  variant?: 'full' | 'inline';
+  showPhotos?: boolean;
+  emptyMessage?: string;
 }
 
-export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTableProps) => {
+export const AttendanceTable = ({
+  searchTerm,
+  status,
+  dateRange,
+  employeeId,
+  month,
+  year,
+  variant = 'full',
+  showPhotos = false,
+  emptyMessage,
+}: AttendanceTableProps) => {
+  const { t } = useAppTranslation();
   const { organizationId, loading: orgLoading } = useCurrentOrg();
   const { records: attendanceRecords, isLoading } = useAttendanceRecords(organizationId ?? undefined);
   const { locations: officeLocations, loading: locationsLoading } = useOfficeLocations();
-  useReportAttendanceSection(
-    attendanceLoadSectionIds.attendanceRecords,
-    orgLoading || isLoading || locationsLoading,
-  );
+  const isInline = variant === 'inline';
+  const reportSection = isInline ? attendanceLoadSectionIds.attendanceCalendar : attendanceLoadSectionIds.attendanceRecords;
+  useReportAttendanceSection(reportSection, orgLoading || isLoading || locationsLoading);
 
   const officeLocationMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -72,12 +91,22 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
     ).getTime();
   }, [dateRange?.to]);
 
+  const monthRangeStart = useMemo(() => {
+    if (month === undefined || year === undefined) return undefined;
+    return new Date(year, month, 1, 0, 0, 0, 0).getTime();
+  }, [month, year]);
+
+  const monthRangeEnd = useMemo(() => {
+    if (month === undefined || year === undefined) return undefined;
+    return new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
+  }, [month, year]);
+
   const getRecordTime = (attendanceDate: string | null | undefined) => {
     if (!attendanceDate) return undefined;
 
     if (typeof attendanceDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(attendanceDate)) {
-      const [year, month, day] = attendanceDate.split('-').map(Number);
-      return new Date(year, month - 1, day).getTime();
+      const [y, m, d] = attendanceDate.split('-').map(Number);
+      return new Date(y, m - 1, d).getTime();
     }
 
     const parsed = new Date(attendanceDate);
@@ -88,26 +117,53 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
     return undefined;
   };
 
-  // Filter records based on search and filters
+  const getRecordEmployeeId = (record: { employee_id?: string; employees?: { id?: string } }) =>
+    record.employee_id || record.employees?.id;
+
   const filteredRecords = (attendanceRecords || []).filter(record => {
+    if (employeeId && getRecordEmployeeId(record) !== employeeId) {
+      return false;
+    }
+
     const employeeName = record.employees?.full_name || '';
     const employeeEmail = record.employees?.email || '';
-    
-    const matchesSearch = employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         employeeEmail.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = status === 'all' || record.status === status;
+
+    const matchesSearch =
+      !employeeId &&
+      (employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employeeEmail.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesSearchWhenScoped =
+      employeeId &&
+      (searchTerm.trim() === '' ||
+        employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employeeEmail.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesStatus =
+      status === 'all' ||
+      record.status === status ||
+      (status === 'late' && (record.is_late || record.status === 'late'));
 
     const recordTime = getRecordTime(record.attendance_date);
-    const matchesDate =
+    const matchesToolbarDate =
       (rangeStart === undefined || (recordTime !== undefined && recordTime >= rangeStart)) &&
       (rangeEnd === undefined || (recordTime !== undefined && recordTime <= rangeEnd));
-    
-    return matchesSearch && matchesStatus && matchesDate;
+
+    const matchesMonth =
+      monthRangeStart === undefined ||
+      monthRangeEnd === undefined ||
+      (recordTime !== undefined && recordTime >= monthRangeStart && recordTime <= monthRangeEnd);
+
+    const searchOk = employeeId ? matchesSearchWhenScoped : matchesSearch;
+
+    return searchOk && matchesStatus && matchesToolbarDate && matchesMonth;
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const columnCount =
+    (isInline ? 0 : 1) + 8 + (showPhotos ? 2 : 0);
+
+  const getStatusBadge = (statusValue: string) => {
+    switch (statusValue) {
       case 'present':
         return <Badge className="border-0 bg-success-muted text-success-foreground">Present</Badge>;
       case 'late':
@@ -115,7 +171,7 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
       case 'absent':
         return <Badge className="border-0 bg-destructive/10 text-destructive">Absent</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">{statusValue}</Badge>;
     }
   };
 
@@ -123,7 +179,6 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
     if (!timeString) return '-';
     const s = String(timeString).trim();
 
-    // Full instants: ISO / "YYYY-MM-DD HH:mm:ss" / etc.
     const asDate = new Date(s);
     if (!isNaN(asDate.getTime())) {
       return asDate.toLocaleTimeString('id-ID', {
@@ -133,7 +188,6 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
       });
     }
 
-    // PostgreSQL TIME / TIMESTAMPTZ time portion only: "14:50:52", optional fraction / offset
     const wallClock = s.match(
       /^(\d{1,2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}(?::\d{2})?)?$/i,
     );
@@ -148,37 +202,34 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
-    
+
     try {
-      // Try different date formats
       const date = new Date(dateString);
-      
-      // Check if date is valid
+
       if (isNaN(date.getTime())) {
-        // Try parsing as ISO date format (YYYY-MM-DD)
         if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          const [year, month, day] = dateString.split('-');
-          const validDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-          
+          const [y, m, d] = dateString.split('-');
+          const validDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+
           if (!isNaN(validDate.getTime())) {
             return validDate.toLocaleDateString('id-ID', {
               day: '2-digit',
-              month: '2-digit', 
-              year: 'numeric'
+              month: '2-digit',
+              year: 'numeric',
             });
           }
         }
-        return dateString; // Return original string if all parsing fails
+        return dateString;
       }
-      
+
       return date.toLocaleDateString('id-ID', {
         day: '2-digit',
         month: '2-digit',
-        year: 'numeric'
+        year: 'numeric',
       });
     } catch (error) {
       console.error('Error formatting date:', error, 'for date:', dateString);
-      return dateString; // Return original string if formatting fails
+      return dateString;
     }
   };
 
@@ -216,9 +267,7 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
       typeof locationData.latitude === 'number' &&
       typeof locationData.longitude === 'number'
     ) {
-      return `${locationData.latitude.toFixed(5)}, ${locationData.longitude.toFixed(
-        5
-      )}`;
+      return `${locationData.latitude.toFixed(5)}, ${locationData.longitude.toFixed(5)}`;
     }
 
     return '-';
@@ -257,22 +306,31 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
     return null;
   };
 
-  return (
-    <div className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-foreground text-base font-semibold">Attendance Records</h2>
-        <p className="text-muted-foreground text-sm">
-          Employee attendance tracking and management
-        </p>
-      </div>
+  const defaultEmpty = t(
+    'attendance.records.noRecordsMatching',
+    'No attendance records found matching your criteria.',
+  );
 
-      <div className="rounded-md border bg-white min-h-0">
+  return (
+    <div className={isInline ? 'flex flex-col gap-2' : 'flex flex-col gap-3'}>
+      {!isInline && (
+        <div>
+          <h2 className="text-foreground text-base font-semibold">Attendance Records</h2>
+          <p className="text-muted-foreground text-sm">
+            Employee attendance tracking and management
+          </p>
+        </div>
+      )}
+
+      <div className="min-h-0 rounded-md border bg-white">
         <div className="min-h-0">
           <TooltipProvider delayDuration={200}>
-            <Table className="w-full min-w-[1300px] table-fixed">
+            <Table className={isInline ? 'w-full min-w-[900px]' : 'w-full min-w-[1300px] table-fixed'}>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[280px] min-w-[280px]">Employee</TableHead>
+                  {!isInline && (
+                    <TableHead className="w-[280px] min-w-[280px]">Employee</TableHead>
+                  )}
                   <TableHead className="min-w-[120px]">Date</TableHead>
                   <TableHead className="min-w-[100px]">Check In</TableHead>
                   <TableHead className="min-w-[100px]">Check Out</TableHead>
@@ -280,34 +338,46 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
                   <TableHead className="min-w-[80px]">Status</TableHead>
                   <TableHead className="min-w-[200px] whitespace-nowrap">Check In Location</TableHead>
                   <TableHead className="min-w-[200px] whitespace-nowrap pr-6">Check Out Location</TableHead>
-                  <TableHead className="min-w-[240px] pl-5">Notes</TableHead>
+                  <TableHead className={showPhotos ? 'min-w-[120px]' : 'min-w-[240px] pl-5'}>Notes</TableHead>
+                  {showPhotos && (
+                    <>
+                      <TableHead className="min-w-[72px]">
+                        {t('attendance.records.checkInPhoto', 'Check-in photo')}
+                      </TableHead>
+                      <TableHead className="min-w-[72px]">
+                        {t('attendance.records.checkOutPhoto', 'Check-out photo')}
+                      </TableHead>
+                    </>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-                      No attendance records found matching your criteria.
+                    <TableCell colSpan={columnCount} className="py-8 text-center text-muted-foreground">
+                      {emptyMessage ?? defaultEmpty}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredRecords.map((record) => (
                     <TableRow key={record.id}>
-                      <TableCell className="w-[280px] min-w-[280px]">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-                            <User className="text-muted-foreground h-4 w-4" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium">
-                              {record.employees?.full_name || 'Unknown'}
+                      {!isInline && (
+                        <TableCell className="w-[280px] min-w-[280px]">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                              <User className="text-muted-foreground h-4 w-4" />
                             </div>
-                            <div className="truncate text-sm text-muted-foreground">
-                              {record.employees?.email || '-'}
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium">
+                                {record.employees?.full_name || 'Unknown'}
+                              </div>
+                              <div className="truncate text-sm text-muted-foreground">
+                                {record.employees?.email || '-'}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
+                      )}
                       <TableCell className="min-w-[120px]">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -335,7 +405,7 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
                         <span className="text-sm">{formatWorkingHours(record.working_hours_minutes)}</span>
                       </TableCell>
                       <TableCell className="min-w-[80px]">
-                        {getStatusBadge(record.status)}
+                        {getStatusBadge(record.is_late && record.status === 'present' ? 'late' : record.status)}
                       </TableCell>
                       <TableCell className="min-w-[200px]">
                         <div className="flex items-center gap-1">
@@ -390,7 +460,7 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
                           </Tooltip>
                         </div>
                       </TableCell>
-                      <TableCell className="min-w-[240px] max-w-[280px] pl-5">
+                      <TableCell className={showPhotos ? 'min-w-[120px]' : 'min-w-[240px] max-w-[280px] pl-5'}>
                         <Tooltip delayDuration={200}>
                           <TooltipTrigger asChild>
                             <span className="block cursor-default truncate text-sm">
@@ -404,6 +474,22 @@ export const AttendanceTable = ({ searchTerm, status, dateRange }: AttendanceTab
                           )}
                         </Tooltip>
                       </TableCell>
+                      {showPhotos && (
+                        <>
+                          <TableCell>
+                            <AttendancePhotoThumbnail
+                              photoPath={record.check_in_photo_path}
+                              label={t('attendance.records.checkInPhoto', 'Check-in photo')}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <AttendancePhotoThumbnail
+                              photoPath={record.check_out_photo_path}
+                              label={t('attendance.records.checkOutPhoto', 'Check-out photo')}
+                            />
+                          </TableCell>
+                        </>
+                      )}
                     </TableRow>
                   ))
                 )}

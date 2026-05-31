@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/shared/lib/supabaseClient';
+import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 export interface InstagramAccountRow {
@@ -90,6 +90,53 @@ export function useInstagramAccounts() {
     },
   });
 
+  const syncFromWhatsAppMutation = useMutation({
+    mutationFn: async (): Promise<InstagramAccountFromApi[]> => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/list-instagram-accounts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json().catch(() => ({})) as { accounts?: InstagramAccountFromApi[]; error?: string };
+      if (!res.ok) {
+        throw new Error(json?.error ?? 'Failed to list Instagram accounts from WhatsApp token');
+      }
+      return Array.isArray(json.accounts) ? json.accounts : [];
+    },
+  });
+
+  const subscribeWebhooksMutation = useMutation({
+    mutationFn: async (accountId?: string) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/instagram-subscribe-webhooks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(accountId ? { account_id: accountId } : {}),
+      });
+      const json = await res.json().catch(() => ({})) as {
+        success?: boolean;
+        subscribed_count?: number;
+        total?: number;
+        error?: string;
+        hint?: string;
+        results?: Array<{ success?: boolean; error?: string; instagram_username?: string | null }>;
+      };
+      if (!res.ok && res.status !== 207) {
+        throw new Error(json?.error ?? 'Failed to enable Instagram DM webhooks');
+      }
+      return json;
+    },
+  });
+
   return {
     accounts: query.data ?? [],
     isLoading: query.isLoading,
@@ -99,5 +146,8 @@ export function useInstagramAccounts() {
     isConnecting: connectMutation.isPending,
     disconnectAccount: disconnectMutation.mutateAsync,
     isDisconnecting: disconnectMutation.isPending,
+    syncAvailableFromWhatsApp: syncFromWhatsAppMutation.mutateAsync,
+    isSyncingFromWhatsApp: syncFromWhatsAppMutation.isPending,
+    subscribeInstagramWebhooks: subscribeWebhooksMutation.mutateAsync,
   };
 }

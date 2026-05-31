@@ -8,7 +8,8 @@ Mengisi tabel **attendance_reminder_queue** untuk pengingat absensi FCM. Priorit
 - Untuk setiap org, untuk **hari ini** dan **besok** (UTC date):
   - Ambil karyawan yang punya `user_id` (terhubung akun).
   - Cek libur: jika tanggal ada di `national_holidays` (is_active, org atau nasional) → skip seluruh tanggal itu untuk org tersebut.
-  - Untuk setiap karyawan: resolve jadwal (shift dulu, lalu work schedule). Jika shift: pakai timezone default Asia/Jakarta. Jika work schedule: cek `working_days` dan timezone jadwal.
+  - Untuk setiap karyawan: panggil RPC `resolve_effective_schedule` (shift dulu, lalu work schedule). Timezone selalu dari jadwal kerja (WSS), bukan hardcode Jakarta.
+  - Skip jika `is_working_day = false` atau tanggal libur.
   - Hitung 4 slot: before_30m, before_15m, after_15m, after_30m dari `start_time` di timezone yang berlaku. Start 00:00 → before = 23:30/23:45 hari sebelumnya.
   - Insert ke `attendance_reminder_queue` dengan `ON CONFLICT (user_id, effective_date, reminder_type) DO NOTHING` (idempotent).
 

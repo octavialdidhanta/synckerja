@@ -6,35 +6,78 @@ import { UpcomingVisitsOverview } from './UpcomingVisitsOverview';
 import { VisitSchedulingSidebarFooter } from './VisitSchedulingSidebarFooter';
 import { VisitSchedulingWizard } from './VisitSchedulingWizard';
 import { useVisitScheduling } from '@/shared/hooks/organized/sales';
-import { useOfficeLocations } from '@/shared/hooks/organized/sales';
+import { useToast } from '@/shared/components/ui/use-toast';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import type { ClientVisitEditPayload } from '@/5-2-client_visits/components/ClientVisitEditDialog';
 
 export const VisitSchedulingPageContent = () => {
-  const { visits, refetch } = useVisitScheduling();
+  const { t } = useAppTranslation();
+  const { visits, refetch, scheduleVisitFromWizard, updateClientVisit, cancelClientVisit } =
+    useVisitScheduling();
+  const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     salesPerson: '',
     date: 'all',
-    status: 'all'
+    status: 'all',
   });
-  const { addLocation } = useOfficeLocations();
 
   const handleScheduleVisit = async (locationData: any) => {
-    console.log('Scheduling visit:', locationData);
-    const result = await addLocation(locationData);
-    if (result) {
+    try {
+      await scheduleVisitFromWizard(locationData);
       setIsModalOpen(false);
-      refetch();
+      await refetch();
+      toast({
+        title: 'Kunjungan dijadwalkan',
+        description: 'Jadwal kunjungan berhasil disimpan.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Gagal menjadwalkan kunjungan',
+        description: error instanceof Error ? error.message : 'Terjadi kesalahan',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleEdit = (visit: any) => {
-    console.log('Edit visit:', visit);
-    refetch();
+  const handleUpdateVisit = async (visitId: string, payload: ClientVisitEditPayload) => {
+    try {
+      await updateClientVisit(visitId, payload);
+      await refetch();
+      toast({
+        title: t('clientVisits.edit.successTitle', 'Visit updated'),
+        description: t('clientVisits.edit.successDescription', 'Changes saved successfully.'),
+      });
+    } catch (err) {
+      toast({
+        title: t('clientVisits.edit.errorTitle', 'Update failed'),
+        description: err instanceof Error ? err.message : t('mobileHome.error', 'Error'),
+        variant: 'destructive',
+      });
+      throw err;
+    }
   };
 
-  const handleUpdatePayment = (visit: any) => {
-    console.log('Update payment:', visit);
+  const handleCancelVisit = async (visitId: string) => {
+    try {
+      await cancelClientVisit(visitId);
+      await refetch();
+      toast({
+        title: t('clientVisits.cancel.successTitle', 'Visit cancelled'),
+        description: t(
+          'clientVisits.cancel.successDescription',
+          'The visit has been marked as cancelled.',
+        ),
+      });
+    } catch (err) {
+      toast({
+        title: t('clientVisits.cancel.errorTitle', 'Cancel failed'),
+        description: err instanceof Error ? err.message : t('mobileHome.error', 'Error'),
+        variant: 'destructive',
+      });
+      throw err;
+    }
   };
 
   const filteredVisits = visits.filter(visit => {
@@ -120,14 +163,14 @@ export const VisitSchedulingPageContent = () => {
             </div>
             
             {/* Table Section - Main Content */}
-            <div className="flex-1 min-h-0 h-full">
-              <div className="h-full bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col seamless-scroll">
-                <VisitSchedulingTable 
+            <div className="flex-1 min-h-0 h-full min-w-0">
+              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm seamless-scroll">
+                <VisitSchedulingTable
                   visits={filteredVisits}
-                  onRefresh={refetch}
-                  onEdit={handleEdit}
-                  onUpdatePayment={handleUpdatePayment}
+                  onUpdateVisit={handleUpdateVisit}
+                  onCancelVisit={handleCancelVisit}
                   selectedStatus={filters.status}
+                  showPaymentActions={false}
                 />
               </div>
             </div>

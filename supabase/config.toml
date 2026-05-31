@@ -122,3 +122,23 @@ verify_jwt = false
 
 [functions.google-ads-metrics]
 verify_jwt = false
+
+# Cron / service role: apply_attendance_auto_checkout (also scheduled via pg_cron every 15 min).
+[functions.attendance-auto-checkout]
+verify_jwt = false
+
+# Meta / Instagram: webhook has no JWT; app-called functions enforce auth inside (getUser).
+[functions.instagram-webhook]
+verify_jwt = false
+
+[functions.meta-oauth-exchange]
+verify_jwt = false
+
+[functions.list-instagram-accounts]
+verify_jwt = false
+
+[functions.send-instagram-message]
+verify_jwt = false
+
+[functions.instagram-subscribe-webhooks]
+verify_jwt = false

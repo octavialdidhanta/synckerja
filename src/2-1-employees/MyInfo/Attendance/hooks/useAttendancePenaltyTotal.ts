@@ -14,7 +14,8 @@ export const useAttendancePenaltyTotal = (employeeId?: string, month?: number, y
       let query = supabase
         .from('attendance_penalties')
         .select('penalty_amount')
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .eq('status', 'active');
 
       // Filter by employee if provided
       if (employeeId) {
