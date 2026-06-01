@@ -2,6 +2,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  resolveInProgressLeadStatusId,
+  resolveInProgressLeadStatusDebug,
+} from "../_shared/omnichannelLeadStatusResolve.ts";
+import {
   assertSenderIsActiveAssignee,
   jsonGateError,
   resolveEmployeeForOmnichannelSend,
@@ -523,32 +527,13 @@ Deno.serve(async (req: Request) => {
         });
       }
       if (isOpenOrUnset) {
-        // Multi-tenant: prefer status for conversation's org, fallback to default (organization_id IS NULL)
-        let inProgressStatus: { id: string } | null = null;
-        if (convOrgId) {
-          const { data: orgStatus } = await supabaseAdmin
-            .from("lead_statuses")
-            .select("id")
-            .eq("organization_id", convOrgId)
-            .eq("name", "In Progress")
-            .maybeSingle();
-          inProgressStatus = orgStatus;
-        }
-        if (!inProgressStatus?.id) {
-          const { data: defaultStatus } = await supabaseAdmin
-            .from("lead_statuses")
-            .select("id")
-            .is("organization_id", null)
-            .eq("name", "In Progress")
-            .maybeSingle();
-          inProgressStatus = defaultStatus;
-        }
-        console.log("Unread→In Progress:", { conversationId, statusNameBefore, inProgressId: inProgressStatus?.id ?? "MISSING" });
-        if (inProgressStatus?.id) {
-          returnedLeadStatusId = inProgressStatus.id;
+        const inProgressId = await resolveInProgressLeadStatusId(supabaseAdmin, convOrgId);
+        console.log("Unread→In Progress:", { conversationId, statusNameBefore, inProgressId: inProgressId ?? "MISSING" });
+        if (inProgressId) {
+          returnedLeadStatusId = inProgressId;
           const { error: updateErr } = await supabaseAdmin
             .from("whatsapp_conversations")
-            .update({ lead_status_id: inProgressStatus.id, updated_at: now })
+            .update({ lead_status_id: inProgressId, updated_at: now })
             .eq("id", conversationId);
           if (updateErr) console.error("Update to In Progress failed:", updateErr);
           else console.log("Status updated to In Progress:", conversationId);
@@ -556,7 +541,7 @@ Deno.serve(async (req: Request) => {
           if (convOrgId) {
             const { error: leadErr } = await supabaseAdmin
               .from("leads")
-              .update({ status_id: inProgressStatus.id, updated_at: now })
+              .update({ status_id: inProgressId, updated_at: now })
               .eq("organization_id", convOrgId)
               .eq("ticket_id", ticketId);
             if (leadErr) console.error("Sync leads.status_id to In Progress failed:", leadErr);
@@ -576,9 +561,11 @@ Deno.serve(async (req: Request) => {
               .eq("id", currentCycle.id);
           }
         } else {
-          console.warn("Cannot set In Progress: lead_statuses has no row with name 'In Progress'.", {
+          const debug = await resolveInProgressLeadStatusDebug(supabaseAdmin, convOrgId);
+          console.warn("Cannot set In Progress: no matching lead_status.", {
             conversationId,
             convOrgId,
+            availableStatusNames: debug.names,
           });
         }
       }

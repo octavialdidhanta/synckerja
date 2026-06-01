@@ -50,6 +50,7 @@ import type {
   WhatsAppConversation,
 } from '../../types';
 import { LivechatSlaTargetPanel } from '@/5-3-whatsapp/components/inbox/LivechatSlaTargetPanel';
+import { useEnsureLivechatLeadStatuses } from '@/5-3-whatsapp/hooks/useEnsureLivechatLeadStatuses';
 import { isOutboundBlockedForLivechat, isResolvedStatus, isUnreadLeadStatus } from '../../constants/leadStatus';
 import { computeFollowUpAndPriority } from '@/5-1-leads-management/utils/fuPriorityFromUpdates';
 import { kickSurveyDispatchAfterResolve } from '@/features/customer-survey/utils/kickSurveyDispatchAfterResolve';
@@ -604,6 +605,8 @@ export function LivechatQuickActionPanel({
   const isEmail = conversation?.source === 'email';
   const isInstagram = conversation?.source === 'instagram';
   const isWhatsApp = conversation?.source === 'whatsapp';
+
+  useEnsureLivechatLeadStatuses(organizationId, Boolean(conversation && (isWhatsApp || isInstagram)));
   const statusTable = isEmail ? 'email_conversations' : isInstagram ? 'instagram_conversations' : 'whatsapp_conversations';
   const statusQueryKeyBase = isEmail ? 'email-conversation-status' : isInstagram ? 'instagram-conversation-status' : 'whatsapp-conversation-status';
 

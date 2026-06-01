@@ -19,33 +19,50 @@ export function useInstagramMessages(conversationId: string | null) {
       channelRef.current = null;
     }
 
-    channelRef.current = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'instagram_messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload: { new?: { direction?: string } }) => {
-          queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, conversationId] });
-          queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
-          // Refresh status UI when message is INBOUND (customer sent). Same logic as useWhatsAppMessages.
-          const isInbound = payload?.new?.direction === 'inbound';
-          if (isInbound) {
-            queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', conversationId] });
-            if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
-            fallbackTimeoutRef.current = setTimeout(() => {
-              fallbackTimeoutRef.current = null;
-              queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', conversationId] });
-              queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
-            }, 2000);
-          }
+    const channel = supabase.channel(channelName);
+
+    channel.on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'instagram_messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload: { new?: { direction?: string } }) => {
+        queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, conversationId] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
+        const direction = payload?.new?.direction;
+        if (direction === 'inbound' || direction === 'outbound') {
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', conversationId] });
         }
-      )
-      .subscribe();
+        if (direction === 'inbound') {
+          if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
+          fallbackTimeoutRef.current = setTimeout(() => {
+            fallbackTimeoutRef.current = null;
+            queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', conversationId] });
+            queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
+          }, 2000);
+        }
+      },
+    );
+
+    channel.on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'instagram_conversations',
+        filter: `id=eq.${conversationId}`,
+      },
+      () => {
+        queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', conversationId] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
+      },
+    );
+
+    channelRef.current = channel;
+    channel.subscribe();
 
     return () => {
       if (fallbackTimeoutRef.current) {

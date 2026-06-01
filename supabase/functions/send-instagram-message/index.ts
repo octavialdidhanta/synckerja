@@ -2,6 +2,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  isUnreadLeadStatusName,
+  resolveInProgressLeadStatusId,
+  resolveInProgressLeadStatusDebug,
+} from "../_shared/omnichannelLeadStatusResolve.ts";
+import {
   assertSenderIsActiveAssignee,
   jsonGateError,
   resolveEmployeeForOmnichannelSend,
@@ -62,6 +67,88 @@ async function markInstagramConversationExpiredReactive(
     .from("instagram_conversations")
     .update({ lead_status_id: expiredId, meta_session_expires_at: nowIso, updated_at: nowIso })
     .eq("id", conversationId);
+}
+
+/** First agent reply: Unread/Open → In Progress (same as send-whatsapp-message). */
+async function applyInstagramUnreadToInProgressOnReply(
+  supabase: ReturnType<typeof createClient>,
+  conversationId: string,
+  now: string,
+): Promise<string | null> {
+  const { data: convBefore } = await supabase
+    .from("instagram_conversations")
+    .select("lead_status_id, organization_id, ticket_id")
+    .eq("id", conversationId)
+    .maybeSingle();
+
+  const convOrgId = (convBefore?.organization_id as string | undefined) ?? null;
+  let statusNameBefore: string | null = null;
+  const statusIdBefore = convBefore?.lead_status_id ?? null;
+  if (statusIdBefore) {
+    const { data: st } = await supabase
+      .from("lead_statuses")
+      .select("name")
+      .eq("id", statusIdBefore)
+      .maybeSingle();
+    statusNameBefore = (st?.name as string) ?? null;
+  }
+
+  if (!isUnreadLeadStatusName(statusNameBefore)) {
+    console.log("send-instagram-message: skip In Progress (status not Open/Unread)", {
+      conversationId,
+      statusNameBefore,
+    });
+    return null;
+  }
+
+  const inProgressId = await resolveInProgressLeadStatusId(supabase, convOrgId);
+  if (!inProgressId) {
+    const debug = await resolveInProgressLeadStatusDebug(supabase, convOrgId);
+    console.warn("send-instagram-message: no In Progress lead_status for org", {
+      convOrgId,
+      availableStatusNames: debug.names,
+    });
+    return null;
+  }
+
+  const { error: updateErr } = await supabase
+    .from("instagram_conversations")
+    .update({ lead_status_id: inProgressId, updated_at: now })
+    .eq("id", conversationId);
+  if (updateErr) {
+    console.error("send-instagram-message: Update to In Progress failed:", updateErr);
+    return null;
+  }
+
+  const ticketId =
+    (convBefore?.ticket_id as string) ??
+    `IG-${conversationId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+  if (convOrgId) {
+    const { error: leadErr } = await supabase
+      .from("leads")
+      .update({ status_id: inProgressId, updated_at: now })
+      .eq("organization_id", convOrgId)
+      .eq("ticket_id", ticketId);
+    if (leadErr) console.error("send-instagram-message: sync leads.status_id failed:", leadErr);
+  }
+
+  const { data: currentCycle } = await supabase
+    .from("instagram_conversation_cycles")
+    .select("id")
+    .eq("conversation_id", conversationId)
+    .is("resolved_at", null)
+    .order("cycle_started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (currentCycle?.id) {
+    await supabase
+      .from("instagram_conversation_cycles")
+      .update({ first_response_at: now, updated_at: now })
+      .eq("id", currentCycle.id);
+  }
+
+  console.log("send-instagram-message: status → In Progress", { conversationId, inProgressId });
+  return inProgressId;
 }
 
 Deno.serve(async (req: Request) => {
@@ -483,101 +570,41 @@ Deno.serve(async (req: Request) => {
         .select()
         .single();
 
+      let insertedMessage = insertResult.data ?? null;
       if (insertResult.error) {
         console.error("send-instagram-message: instagram_messages insert error", insertResult.error);
-      } else {
-        await supabase
-          .from("instagram_conversations")
-          .update({
-            last_message_at: now,
-            last_message_body: lastBody,
-            last_message_direction: "outbound",
-            last_message_status: "sent",
-            updated_at: now,
-          })
-          .eq("id", conversationId);
-
-        const { data: convBefore } = await supabase
-          .from("instagram_conversations")
-          .select("lead_status_id, organization_id, ticket_id")
-          .eq("id", conversationId)
+        const { data: existing } = await supabase
+          .from("instagram_messages")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .eq("platform_message_id", messageId)
           .maybeSingle();
-        const statusIdBefore = convBefore?.lead_status_id ?? null;
-        const convOrgId = convBefore?.organization_id ?? null;
-        let statusNameBefore: string | null = null;
-        if (statusIdBefore) {
-          const { data: st } = await supabase
-            .from("lead_statuses")
-            .select("name")
-            .eq("id", statusIdBefore)
-            .maybeSingle();
-          statusNameBefore = (st?.name as string) ?? null;
-        }
-        let returnedLeadStatusId: string | null = null;
-        const statusLower = statusNameBefore?.trim().toLowerCase() ?? "";
-        const isOpenOrUnset =
-          !statusNameBefore || statusLower === "open" || statusLower === "unread";
-        if (isOpenOrUnset) {
-          let inProgressStatus: { id: string } | null = null;
-          if (convOrgId) {
-            const { data: orgStatus } = await supabase
-              .from("lead_statuses")
-              .select("id")
-              .eq("organization_id", convOrgId)
-              .eq("name", "In Progress")
-              .maybeSingle();
-            inProgressStatus = orgStatus;
-          }
-          if (!inProgressStatus?.id) {
-            const { data: defaultStatus } = await supabase
-              .from("lead_statuses")
-              .select("id")
-              .is("organization_id", null)
-              .eq("name", "In Progress")
-              .maybeSingle();
-            inProgressStatus = defaultStatus;
-          }
-          if (inProgressStatus?.id) {
-            returnedLeadStatusId = inProgressStatus.id;
-            const { error: updateErr } = await supabase
-              .from("instagram_conversations")
-              .update({ lead_status_id: inProgressStatus.id, updated_at: now })
-              .eq("id", conversationId);
-            if (updateErr) console.error("send-instagram-message: Update to In Progress failed:", updateErr);
-            const ticketId =
-              (convBefore?.ticket_id as string) ??
-              `IG-${conversationId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
-            if (convOrgId) {
-              const { error: leadErr } = await supabase
-                .from("leads")
-                .update({ status_id: inProgressStatus.id, updated_at: now })
-                .eq("organization_id", convOrgId)
-                .eq("ticket_id", ticketId);
-              if (leadErr) console.error("send-instagram-message: sync leads.status_id failed:", leadErr);
-            }
-            const { data: currentCycle } = await supabase
-              .from("instagram_conversation_cycles")
-              .select("id")
-              .eq("conversation_id", conversationId)
-              .is("resolved_at", null)
-              .order("cycle_started_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            if (currentCycle?.id) {
-              await supabase
-                .from("instagram_conversation_cycles")
-                .update({ first_response_at: now, updated_at: now })
-                .eq("id", currentCycle.id);
-            }
-          }
-        }
+        insertedMessage = existing ?? null;
       }
+
+      await supabase
+        .from("instagram_conversations")
+        .update({
+          last_message_at: now,
+          last_message_body: lastBody,
+          last_message_direction: "outbound",
+          last_message_status: "sent",
+          updated_at: now,
+        })
+        .eq("id", conversationId);
+
+      const returnedLeadStatusId = await applyInstagramUnreadToInProgressOnReply(
+        supabase,
+        conversationId,
+        now,
+      );
 
       return new Response(
         JSON.stringify({
           success: true,
           message_id: messageId,
-          message: insertResult.data ?? null,
+          message: insertedMessage,
+          lead_status_id: returnedLeadStatusId ?? undefined,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

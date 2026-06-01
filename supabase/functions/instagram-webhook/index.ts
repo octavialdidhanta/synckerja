@@ -246,6 +246,7 @@ Deno.serve(async (req: Request) => {
         console.log("[instagram-webhook] Payload punya 'changes' bukan 'messaging' — ini bukan event DM. Untuk tes: kirim pesan nyata dari app Instagram ke akun bisnis (@octa.vialdi), jangan pakai tombol Test di Meta.");
       }
     }
+    const ensuredLivechatStatusOrgs = new Set<string>();
     for (const entry of entries) {
       const igAccountId = entry?.id != null && entry?.id !== "" ? String(entry.id).trim() : null;
       let messaging = entry?.messaging ?? [];
@@ -296,6 +297,16 @@ Deno.serve(async (req: Request) => {
         instagram_name: string | null;
       };
       const orgId = account.organization_id;
+      if (!ensuredLivechatStatusOrgs.has(orgId)) {
+        const { error: ensureStatusErr } = await supabase.rpc("ensure_livechat_lead_statuses_for_org", {
+          p_organization_id: orgId,
+        });
+        if (ensureStatusErr) {
+          console.warn("[instagram-webhook] ensure_livechat_lead_statuses_for_org:", ensureStatusErr.message);
+        } else {
+          ensuredLivechatStatusOrgs.add(orgId);
+        }
+      }
       const accessToken = (account.page_access_token ?? "").trim() || null;
       const displayName =
         (account.instagram_username ? "@" + account.instagram_username.trim() : null) ||

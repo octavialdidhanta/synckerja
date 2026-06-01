@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { SUPABASE_URL } from '@/shared/lib/supabaseClient';
+import { findInProgressLeadStatusId } from '../constants/leadStatus';
 import type { InstagramMessage } from '../types';
 
 export interface SendInstagramMessageParams {
@@ -67,9 +68,15 @@ export function useSendInstagramMessage() {
         }
         const statusQueryKey = ['instagram-conversation-status', conversationId] as const;
         const statusIdFromBackend = data?.lead_status_id ?? null;
-        const leadStatuses = queryClient.getQueryData<Array<{ id: string; name: string }>>(['lead-statuses']);
-        const inProgressStatus = leadStatuses?.find((s) => (s.name ?? '').trim().toLowerCase() === 'in progress');
-        const nextStatusId = statusIdFromBackend ?? inProgressStatus?.id ?? null;
+        const orgStatuses =
+          queryClient.getQueriesData<Array<{ id: string; name: string }>>({
+            queryKey: ['lead-statuses'],
+          }) ?? [];
+        const mergedStatuses = orgStatuses.flatMap(([, rows]) => rows ?? []);
+        const globalStatuses =
+          queryClient.getQueryData<Array<{ id: string; name: string }>>(['lead-statuses']) ?? [];
+        const leadStatuses = mergedStatuses.length > 0 ? mergedStatuses : globalStatuses;
+        const nextStatusId = statusIdFromBackend ?? findInProgressLeadStatusId(leadStatuses) ?? null;
         if (nextStatusId) {
           queryClient.setQueryData(statusQueryKey, (prev: unknown) => {
             const base =
@@ -88,10 +95,8 @@ export function useSendInstagramMessage() {
             return { ...base, lead_status_id: nextStatusId };
           });
         }
-        setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
-          void queryClient.refetchQueries({ queryKey: statusQueryKey });
-        }, 1500);
+        void queryClient.invalidateQueries({ queryKey: statusQueryKey });
+        void queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
       }
     },
   });

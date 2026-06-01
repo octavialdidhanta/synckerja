@@ -20,6 +20,28 @@ export function isUnreadLeadStatus(name: string | null | undefined): boolean {
   return normalized === 'open' || normalized === 'unread';
 }
 
+const IN_PROGRESS_STATUS_ALIASES = new Set([
+  'in progress',
+  'on going',
+  'ongoing',
+  'in-progress',
+  'inprogress',
+]);
+
+/** Match DB row used after first livechat reply (Unread → active workflow). */
+export function findInProgressLeadStatusId(
+  statuses: ReadonlyArray<{ id: string; name: string; sort_order?: number | null }>,
+): string | null {
+  for (const s of statuses) {
+    const n = (s.name ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (IN_PROGRESS_STATUS_ALIASES.has(n)) return s.id;
+  }
+  const sort2 = statuses.find((s) => s.sort_order === 2);
+  if (sort2 && !isUnreadLeadStatus(sort2.name)) return sort2.id;
+  const workflow = statuses.find((s) => !isUnreadLeadStatus(s.name));
+  return workflow?.id ?? null;
+}
+
 /** Master status name for Meta session ended (DB `lead_statuses.name`). */
 export function isExpiredStatusName(name: string | null | undefined): boolean {
   if (name == null || name === '') return false;
