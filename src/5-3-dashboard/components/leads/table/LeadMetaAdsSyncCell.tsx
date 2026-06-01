@@ -6,13 +6,33 @@ type LeadMetaAdsSyncCellProps = {
   isConverted: boolean;
   sync: MetaAdsSyncUploadRecord | null;
   loading?: boolean;
+  uploadsEnabled?: boolean;
 };
 
-export function LeadMetaAdsSyncCell({ isConverted, sync, loading }: LeadMetaAdsSyncCellProps) {
+export function LeadMetaAdsSyncCell({
+  isConverted,
+  sync,
+  loading,
+  uploadsEnabled = true,
+}: LeadMetaAdsSyncCellProps) {
   const { t } = useAppTranslation();
 
   if (!isConverted) {
     return <span className="inline-flex w-[100px] justify-center text-sm text-muted-foreground">—</span>;
+  }
+
+  if (!uploadsEnabled) {
+    return (
+      <Badge
+        className="w-[100px] justify-center rounded-sm border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600"
+        title={t(
+          'leadsManagement.metaAdsSync.uploadsOffHint',
+          'Offline conversion uploads are disabled in Meta Ads settings.',
+        )}
+      >
+        {t('leadsManagement.metaAdsSync.uploadsOff', 'Off')}
+      </Badge>
+    );
   }
 
   if (loading && !sync) {

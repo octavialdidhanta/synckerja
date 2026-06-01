@@ -124,6 +124,7 @@ Deno.serve(async (req: Request) => {
     {
       organization_id: organizationId,
       oauth_connected_at: now,
+      is_active: true,
       updated_at: now,
       created_by: stateRow.user_id,
     },

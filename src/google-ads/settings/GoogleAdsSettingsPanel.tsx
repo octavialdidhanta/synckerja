@@ -25,6 +25,7 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { useGoogleAdsSettings } from "@/google-ads/hooks/useGoogleAdsSettings";
 import type { GoogleAdsOAuthReturnPath } from "@/google-ads/settings/googleAdsSettingsPaths";
+import { retryGoogleAdsUploadsForConvertedLeads } from "@/shared/lib/retryGoogleAdsUploadsForConvertedLeads";
 
 const LEGACY_SEED_ORG_ID = "663c9336-8cb6-4a36-9ad9-313126e70a1a";
 
@@ -275,6 +276,25 @@ export function GoogleAdsSettingsPanel({
                   onCheckedChange={async (checked) => {
                     try {
                       await updateConnection.mutateAsync({ is_active: checked });
+                      if (checked && organizationId) {
+                        const queued = await retryGoogleAdsUploadsForConvertedLeads(organizationId);
+                        if (queued > 0) {
+                          toast.message(
+                            t("omnichannel.settings.googleAds.retryUploadsToast", {
+                              count: queued,
+                              defaultValue:
+                                "Mengirim ulang {{count}} lead Converted ke Google Ads. Refresh tabel leads setelah beberapa detik.",
+                            }),
+                          );
+                        } else {
+                          toast.success(
+                            t(
+                              "omnichannel.settings.googleAds.uploadsEnabledOnToast",
+                              "Upload offline conversion aktif. Lead Converted baru akan otomatis dikirim.",
+                            ),
+                          );
+                        }
+                      }
                     } catch (e) {
                       toast.error((e as Error).message);
                     }

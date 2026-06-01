@@ -166,9 +166,11 @@ interface LeadsTableNewProps {
   showGoogleAdsSyncColumn?: boolean;
   getGoogleAdsSyncForLead?: (lead: NewLead) => GoogleAdsSyncUploadRecord | null;
   googleAdsSyncLoading?: boolean;
+  googleAdsUploadsEnabled?: boolean;
   showMetaAdsSyncColumn?: boolean;
   getMetaAdsSyncForLead?: (lead: NewLead) => MetaAdsSyncUploadRecord | null;
   metaAdsSyncLoading?: boolean;
+  metaAdsUploadsEnabled?: boolean;
 }
 
 const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
@@ -206,9 +208,11 @@ export default function LeadsTableNew({
   showGoogleAdsSyncColumn = false,
   getGoogleAdsSyncForLead,
   googleAdsSyncLoading = false,
+  googleAdsUploadsEnabled = true,
   showMetaAdsSyncColumn = false,
   getMetaAdsSyncForLead,
   metaAdsSyncLoading = false,
+  metaAdsUploadsEnabled = true,
 }: LeadsTableNewProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -1320,6 +1324,7 @@ export default function LeadsTableNew({
                         }
                         sync={getGoogleAdsSyncForLead?.(lead) ?? null}
                         loading={googleAdsSyncLoading}
+                        uploadsEnabled={googleAdsUploadsEnabled}
                       />
                     </TableCell>
                   ) : null}
@@ -1331,6 +1336,7 @@ export default function LeadsTableNew({
                         }
                         sync={getMetaAdsSyncForLead?.(lead) ?? null}
                         loading={metaAdsSyncLoading}
+                        uploadsEnabled={metaAdsUploadsEnabled}
                       />
                     </TableCell>
                   ) : null}

@@ -84,7 +84,15 @@ export function useGoogleAdsSettings(
     retry: (failureCount, error) => shouldRetryGoogleAdsConfig(error) && failureCount < 2,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey });
+    if (organizationId) {
+      void queryClient.invalidateQueries({
+        queryKey: ["google-ads-integration-enabled", organizationId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["google-ads-connected", organizationId] });
+    }
+  };
 
   const startOAuth = useMutation({
     mutationFn: async (returnPath?: string) => {

@@ -6,9 +6,16 @@ type LeadGoogleAdsSyncCellProps = {
   isConverted: boolean;
   sync: GoogleAdsSyncUploadRecord | null;
   loading?: boolean;
+  /** When false, offline uploads are disabled in Google Ads settings. */
+  uploadsEnabled?: boolean;
 };
 
-export function LeadGoogleAdsSyncCell({ isConverted, sync, loading }: LeadGoogleAdsSyncCellProps) {
+export function LeadGoogleAdsSyncCell({
+  isConverted,
+  sync,
+  loading,
+  uploadsEnabled = true,
+}: LeadGoogleAdsSyncCellProps) {
   const { t } = useAppTranslation();
 
   if (!isConverted) {
@@ -24,6 +31,19 @@ export function LeadGoogleAdsSyncCell({ isConverted, sync, loading }: LeadGoogle
   }
 
   if (!sync) {
+    if (!uploadsEnabled) {
+      return (
+        <Badge
+          className="w-[100px] justify-center rounded-sm border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900"
+          title={t(
+            'leadsManagement.googleAdsSync.uploadsOffHint',
+            'Aktifkan "Enable offline conversion uploads" di pengaturan Google Ads agar konversi terkirim otomatis.',
+          )}
+        >
+          {t('leadsManagement.googleAdsSync.uploadsOff', 'Upload off')}
+        </Badge>
+      );
+    }
     return (
       <span
         className="inline-flex w-[100px] justify-center text-xs text-muted-foreground"
