@@ -19,6 +19,7 @@ function redirectToAppPath(path: string, query: string, status = 302): Response 
 }
 
 const ALLOWED_OAUTH_RETURN_PATHS = new Set([
+  "/omnichannel/settings/offline-conversion",
   "/omnichannel/settings/google-ads",
   "/digital-marketing/google-ads/settings",
 ]);
@@ -26,7 +27,7 @@ const ALLOWED_OAUTH_RETURN_PATHS = new Set([
 function resolveOAuthReturnPath(stored: string | null | undefined): string {
   const path = String(stored ?? "").trim();
   if (path && ALLOWED_OAUTH_RETURN_PATHS.has(path)) return path;
-  return "/omnichannel/settings/google-ads";
+  return "/omnichannel/settings/offline-conversion";
 }
 
 function redirectToSettings(query: string, returnPath?: string | null, status = 302): Response {

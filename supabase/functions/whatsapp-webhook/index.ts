@@ -514,6 +514,27 @@ function resolveVialdiWeddingWebIdFromDisplayPhoneNumber(
   return null;
 }
 
+function extractClickIdsFromAttributionJson(attribution: unknown): { gclid: string | null; fbclid: string | null } {
+  if (attribution == null) return { gclid: null, fbclid: null };
+  let obj: Record<string, unknown>;
+  if (typeof attribution === "string") {
+    try {
+      obj = JSON.parse(attribution) as Record<string, unknown>;
+    } catch {
+      return { gclid: null, fbclid: null };
+    }
+  } else if (typeof attribution === "object" && !Array.isArray(attribution)) {
+    obj = attribution as Record<string, unknown>;
+  } else {
+    return { gclid: null, fbclid: null };
+  }
+  const gclidRaw = obj.gclid ?? obj.GCLID;
+  const fbclidRaw = obj.fbclid ?? obj.FBCLID;
+  const gclid = gclidRaw != null ? String(gclidRaw).trim() || null : null;
+  const fbclid = fbclidRaw != null ? String(fbclidRaw).trim() || null : null;
+  return { gclid, fbclid };
+}
+
 async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
   supabase: ReturnType<typeof createClient>;
   orgId: string;
@@ -571,12 +592,17 @@ async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
       console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: analytics_wa_clicks update error", waUpdErr);
     }
 
+    const attribution = waClick?.attribution ?? null;
+    const clickIds = extractClickIdsFromAttributionJson(attribution);
+
     const { error: leadPatchErr } = await supabase
       .from("leads")
       .update({
         web_id: webId,
         analytics_session_id: analyticsSessionId,
-        attribution: waClick?.attribution ?? null,
+        attribution,
+        ...(clickIds.gclid ? { gclid: clickIds.gclid } : {}),
+        ...(clickIds.fbclid ? { fbclid: clickIds.fbclid } : {}),
         phone_number: customerWaId || null,
         updated_at: new Date().toISOString(),
       })

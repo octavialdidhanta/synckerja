@@ -18,6 +18,7 @@ import {
 } from '@/shared/lib/leadSubmissionProfile';
 import { invalidateGoogleAdsConversionUploads } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
 import { kickGoogleAdsConversionAfterConverted } from '@/shared/lib/kickGoogleAdsConversionAfterConverted';
+import { kickMetaAdsConversionAfterConverted } from '@/shared/lib/kickMetaAdsConversionAfterConverted';
 import { resolveLeadConversionSalesActivity } from '@/shared/lib/sales/resolveLeadConversionSalesActivity';
 import {
   buildScheduleFromWizardPayload,
@@ -61,7 +62,7 @@ async function assertWaLeadSubmissionEmailBeforeResolve(
     throw new Error(RESOLVE_EMAIL_REQUIRED_CODE);
   }
 }
-import { emptyAttributionFlat, parseAttributionFields } from '@/shared/lib/leadAttribution';
+import { emptyAttributionFlat, parseAttributionFields, parseFbclidFromAttribution } from '@/shared/lib/leadAttribution';
 import {
   resolveConversionLeadPayment,
   type ConversionLeadPaymentPayload,
@@ -337,6 +338,11 @@ async function createConvertedSalesActivity(
       organizationId: args.orgId,
       salesActivityId: activityId,
     });
+    kickMetaAdsConversionAfterConverted({
+      leadId: args.leadId,
+      organizationId: args.orgId,
+      salesActivityId: activityId,
+    });
     return activityId;
   }
 
@@ -420,6 +426,11 @@ async function createConvertedSalesActivity(
     queryKey: ['lead-conversion-sales-activity', args.orgId, args.leadId],
   });
   kickGoogleAdsConversionAfterConverted({
+    leadId: args.leadId,
+    organizationId: args.orgId,
+    salesActivityId: activityId,
+  });
+  kickMetaAdsConversionAfterConverted({
     leadId: args.leadId,
     organizationId: args.orgId,
     salesActivityId: activityId,
@@ -1570,6 +1581,12 @@ function trimGclid(v: unknown): string | null {
   return s === '' ? null : s;
 }
 
+function trimFbclid(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
+
 /** Flatten `attribution` json for UI; virtual WA/IG rows have no marketing attribution. */
 function withLeadAttributionShape(lead: Record<string, unknown>): Record<string, unknown> {
   const idStr = String(lead.id ?? '');
@@ -1581,15 +1598,18 @@ function withLeadAttributionShape(lead: Record<string, unknown>): Record<string,
       attribution: null,
       attribution_label: null,
       gclid: null,
+      fbclid: null,
       ...z,
     };
   }
   const flat = parseAttributionFields(lead.attribution);
+  const fbFromCol = trimFbclid(lead.fbclid);
   return {
     ...lead,
     ...flat,
     attribution_label: trimAttributionLabel(lead.attribution_label),
     gclid: trimGclid(lead.gclid),
+    fbclid: fbFromCol ?? parseFbclidFromAttribution(lead.attribution),
   };
 }
 

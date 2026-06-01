@@ -62,6 +62,7 @@ import {
   SocialMediaShellSkeleton,
   TrafficPageSkeleton,
   GoogleAdsMetricsPageSkeleton,
+  MetaAdsMetricsPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
@@ -143,6 +144,7 @@ const SocialMediaScriptGeneratorPage = lazy(() => import("@/6-1-script-generator
 const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings/SettingsPage"));
 const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
 const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
+const MetaAdsMetricsPage = lazy(() => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"));
 const MobileWebTrafficPage = lazy(() => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPage"));
 const MobileWebTrafficPageSkeleton = lazy(
   () => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPageSkeleton"),
@@ -1638,6 +1640,20 @@ function GoogleAdsMetricsPageRouteElement() {
   );
 }
 
+function MetaAdsMetricsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <MetaAdsMetricsPageSkeleton />
+        </div>
+      }
+    >
+      <MetaAdsMetricsPage />
+    </Suspense>
+  );
+}
+
 const SocialMediaProductKnowledgeSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -2857,6 +2873,30 @@ const App = () => (
                               loadingShellWrapperClassName="bg-gray-100"
                             >
                               <GoogleAdsMetricsPageRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/meta-ads/settings"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/meta-ads"
+                              loadingShell={<MetaAdsMetricsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <MetaAdsMetricsPageRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/meta-ads"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/meta-ads"
+                              loadingShell={<MetaAdsMetricsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <MetaAdsMetricsPageRouteElement />
                             </PageAccessGuard>
                           }
                         />

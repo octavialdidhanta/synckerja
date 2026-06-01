@@ -33,7 +33,9 @@ import {
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
 import { useLeadsTableSurveyIntegration } from '@/5-3-dashboard/hooks/useLeadsTableSurveyIntegration';
 import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
+import { useMetaAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useMetaAdsConversionUploadsMap';
 import { useGoogleAdsIntegrationEnabled } from '@/google-ads/hooks/useGoogleAdsIntegrationEnabled';
+import { useMetaAdsIntegrationEnabled } from '@/meta-ads/hooks/useMetaAdsIntegrationEnabled';
 import { CustomerSurveyHistoryDialog } from '@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog';
 
 export const ConsultantsPageContent = () => {
@@ -68,10 +70,13 @@ export const ConsultantsPageContent = () => {
   const { leads, createLead, updateLead, deleteLead, refetch } = useLeads({ scope: 'all' });
   const { organizationId } = useCurrentOrg();
   const { data: googleAdsIntegrationEnabled = false } = useGoogleAdsIntegrationEnabled(organizationId);
+  const { data: metaAdsIntegrationEnabled = false } = useMetaAdsIntegrationEnabled(organizationId);
   const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
     organizationId,
     leads,
   );
+  const { getSyncForLead: getMetaSyncForLead, isLoading: metaAdsSyncLoading } =
+    useMetaAdsConversionUploadsMap(organizationId, leads);
 
   const handleAttributionSort = useCallback((column: LeadAttributionSortColumn) => {
     setAttributionSort((prev) => {
@@ -532,6 +537,9 @@ export const ConsultantsPageContent = () => {
                     showGoogleAdsSyncColumn={googleAdsIntegrationEnabled}
                     getGoogleAdsSyncForLead={getSyncForLead}
                     googleAdsSyncLoading={googleAdsSyncLoading}
+                    showMetaAdsSyncColumn={metaAdsIntegrationEnabled}
+                    getMetaAdsSyncForLead={getMetaSyncForLead}
+                    metaAdsSyncLoading={metaAdsSyncLoading}
                     {...surveyTableProps}
                   />
                 </div>

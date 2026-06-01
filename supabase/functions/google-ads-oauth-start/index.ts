@@ -67,6 +67,7 @@ Deno.serve(async (req: Request) => {
   if (forbidden) return forbidden;
 
   const ALLOWED_RETURN_PATHS = new Set([
+    "/omnichannel/settings/offline-conversion",
     "/omnichannel/settings/google-ads",
     "/digital-marketing/google-ads/settings",
   ]);

@@ -77,6 +77,53 @@ export function isAttributionFlatEmpty(f: LeadAttributionFlat): boolean {
   return KEYS.every((k) => f[k] == null);
 }
 
+export function parseFbclidFromAttribution(attribution: unknown): string | null {
+  if (attribution == null) return null;
+  let obj: Record<string, unknown>;
+  if (typeof attribution === "string") {
+    try {
+      obj = JSON.parse(attribution) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  } else if (typeof attribution === "object" && !Array.isArray(attribution)) {
+    obj = attribution as Record<string, unknown>;
+  } else {
+    return null;
+  }
+  const fbclid = obj.fbclid ?? obj.FBCLID;
+  return fbclid != null ? String(fbclid).trim() || null : null;
+}
+
+export function parseGclidFromAttribution(attribution: unknown): string | null {
+  if (attribution == null) return null;
+  let obj: Record<string, unknown>;
+  if (typeof attribution === "string") {
+    try {
+      obj = JSON.parse(attribution) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  } else if (typeof attribution === "object" && !Array.isArray(attribution)) {
+    obj = attribution as Record<string, unknown>;
+  } else {
+    return null;
+  }
+  const gclid = obj.gclid ?? obj.GCLID;
+  return gclid != null ? String(gclid).trim() || null : null;
+}
+
+/** Prefer dedicated columns; fall back to attribution JSON for click IDs. */
+export function mergeLeadClickIds(
+  columns: { gclid?: string | null; fbclid?: string | null },
+  attribution: unknown,
+): { gclid: string | null; fbclid: string | null } {
+  return {
+    gclid: columns.gclid?.trim() || parseGclidFromAttribution(attribution),
+    fbclid: columns.fbclid?.trim() || parseFbclidFromAttribution(attribution),
+  };
+}
+
 export const LEAD_ATTRIBUTION_SORT_COLUMNS = [
   "created_at",
   "ticket_id",

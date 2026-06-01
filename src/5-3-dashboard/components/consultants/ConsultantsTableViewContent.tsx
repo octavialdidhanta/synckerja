@@ -25,7 +25,9 @@ import {
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useLeadsTableSurveyIntegration } from '@/5-3-dashboard/hooks/useLeadsTableSurveyIntegration';
 import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
+import { useMetaAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useMetaAdsConversionUploadsMap';
 import { useGoogleAdsIntegrationEnabled } from '@/google-ads/hooks/useGoogleAdsIntegrationEnabled';
+import { useMetaAdsIntegrationEnabled } from '@/meta-ads/hooks/useMetaAdsIntegrationEnabled';
 import { CustomerSurveyHistoryDialog } from '@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog';
 
 interface ConsultantsTableViewContentProps {
@@ -58,11 +60,14 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { organizationId } = useCurrentOrg();
   const { data: googleAdsIntegrationEnabled = false } = useGoogleAdsIntegrationEnabled(organizationId);
+  const { data: metaAdsIntegrationEnabled = false } = useMetaAdsIntegrationEnabled(organizationId);
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
   const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
     organizationId,
     leads,
   );
+  const { getSyncForLead: getMetaSyncForLead, isLoading: metaAdsSyncLoading } =
+    useMetaAdsConversionUploadsMap(organizationId, leads);
   const {
     surveyTableProps,
     matchesSurveyRatingFilter,
@@ -419,6 +424,9 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                   showGoogleAdsSyncColumn={googleAdsIntegrationEnabled}
                   getGoogleAdsSyncForLead={getSyncForLead}
                   googleAdsSyncLoading={googleAdsSyncLoading}
+                  showMetaAdsSyncColumn={metaAdsIntegrationEnabled}
+                  getMetaAdsSyncForLead={getMetaSyncForLead}
+                  metaAdsSyncLoading={metaAdsSyncLoading}
                   {...surveyTableProps}
                 />
               </div>

@@ -47,7 +47,9 @@ import {
   LeadSurveyRatingCell,
 } from "@/5-3-dashboard/components/leads/table/LeadSurveyTableCells";
 import { LeadGoogleAdsSyncCell } from "@/5-3-dashboard/components/leads/table/LeadGoogleAdsSyncCell";
+import { LeadMetaAdsSyncCell } from "@/5-3-dashboard/components/leads/table/LeadMetaAdsSyncCell";
 import type { GoogleAdsSyncUploadRecord } from "@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap";
+import type { MetaAdsSyncUploadRecord } from "@/5-3-dashboard/hooks/useMetaAdsConversionUploadsMap";
 
 type CategoryColumnFilterConfig = {
   value: string;
@@ -164,6 +166,9 @@ interface LeadsTableNewProps {
   showGoogleAdsSyncColumn?: boolean;
   getGoogleAdsSyncForLead?: (lead: NewLead) => GoogleAdsSyncUploadRecord | null;
   googleAdsSyncLoading?: boolean;
+  showMetaAdsSyncColumn?: boolean;
+  getMetaAdsSyncForLead?: (lead: NewLead) => MetaAdsSyncUploadRecord | null;
+  metaAdsSyncLoading?: boolean;
 }
 
 const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
@@ -201,6 +206,9 @@ export default function LeadsTableNew({
   showGoogleAdsSyncColumn = false,
   getGoogleAdsSyncForLead,
   googleAdsSyncLoading = false,
+  showMetaAdsSyncColumn = false,
+  getMetaAdsSyncForLead,
+  metaAdsSyncLoading = false,
 }: LeadsTableNewProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -509,6 +517,15 @@ export default function LeadsTableNew({
             },
           ]
         : []),
+      ...(showMetaAdsSyncColumn && !pickerSelection
+        ? [
+            {
+              key: "meta_ads_sync",
+              label: t("leadsManagement.table.metaAdsSync", "Sync Meta Ads"),
+              width: "w-[110px]",
+            },
+          ]
+        : []),
       {
         key: "resolve_outcome",
         label: t("leadsManagement.table.isResolve", "Is Resolve?"),
@@ -524,7 +541,7 @@ export default function LeadsTableNew({
       { key: "survey_comment", label: t("leadsManagement.table.surveyComment", "Keterangan"), width: "w-[160px] max-w-[200px]" },
       ...(pickerSelection ? [] : [{ key: "actions" as const, label: "Actions", width: "w-[100px]" }]),
     ];
-  }, [pickerSelection, showGoogleAdsSyncColumn, t]);
+  }, [pickerSelection, showGoogleAdsSyncColumn, showMetaAdsSyncColumn, t]);
 
   const tableColCount = tableHeaders.length;
 
@@ -1303,6 +1320,17 @@ export default function LeadsTableNew({
                         }
                         sync={getGoogleAdsSyncForLead?.(lead) ?? null}
                         loading={googleAdsSyncLoading}
+                      />
+                    </TableCell>
+                  ) : null}
+                  {showMetaAdsSyncColumn && !pickerSelection ? (
+                    <TableCell className="whitespace-nowrap px-1">
+                      <LeadMetaAdsSyncCell
+                        isConverted={
+                          getCurrentLeadStatusName(lead).trim().toLowerCase() === 'converted'
+                        }
+                        sync={getMetaAdsSyncForLead?.(lead) ?? null}
+                        loading={metaAdsSyncLoading}
                       />
                     </TableCell>
                   ) : null}

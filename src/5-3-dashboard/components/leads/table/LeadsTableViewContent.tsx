@@ -33,7 +33,9 @@ import {
   useLeadsManagementFilterQueries,
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
 import { useGoogleAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
+import { useMetaAdsConversionUploadsMap } from '@/5-3-dashboard/hooks/useMetaAdsConversionUploadsMap';
 import { useGoogleAdsIntegrationEnabled } from '@/google-ads/hooks/useGoogleAdsIntegrationEnabled';
+import { useMetaAdsIntegrationEnabled } from '@/meta-ads/hooks/useMetaAdsIntegrationEnabled';
 
 interface LeadsTableViewContentProps {
   // No props needed now, using the hook
@@ -70,11 +72,14 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
   const [surveyHistoryOpen, setSurveyHistoryOpen] = useState(false);
   const { organizationId } = useCurrentOrg();
   const { data: googleAdsIntegrationEnabled = false } = useGoogleAdsIntegrationEnabled(organizationId);
+  const { data: metaAdsIntegrationEnabled = false } = useMetaAdsIntegrationEnabled(organizationId);
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads({ scope });
   const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
     organizationId,
     leads,
   );
+  const { getSyncForLead: getMetaSyncForLead, isLoading: metaAdsSyncLoading } =
+    useMetaAdsConversionUploadsMap(organizationId, leads);
   const { getSurveyForLead, resolveConversationId, surveyRatingByLeadId } =
     useCustomerSurveyForLeads(organizationId, leads);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
@@ -476,6 +481,9 @@ export const LeadsTableViewContent = ({}: LeadsTableViewContentProps) => {
                   showGoogleAdsSyncColumn={googleAdsIntegrationEnabled}
                   getGoogleAdsSyncForLead={getSyncForLead}
                   googleAdsSyncLoading={googleAdsSyncLoading}
+                  showMetaAdsSyncColumn={metaAdsIntegrationEnabled}
+                  getMetaAdsSyncForLead={getMetaSyncForLead}
+                  metaAdsSyncLoading={metaAdsSyncLoading}
                   getSurveyForLead={getSurveyForLead}
                   onOpenSurveyHistory={handleOpenSurveyHistory}
                   surveyColumnFilter={{

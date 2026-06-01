@@ -15,7 +15,7 @@ import { UserManagementSection } from "@/5-3-dashboard/omnichannel-settings/comp
 import { SlaManagementSection } from "@/5-3-dashboard/omnichannel-settings/components/sla/SlaManagementSection";
 import { CustomerSurveySettingsShell } from "@/features/customer-survey/settings/CustomerSurveySettingsShell";
 import { CustomerSurveyTargetSettingsShell } from "@/features/customer-survey/settings/CustomerSurveyTargetSettingsShell";
-import { GoogleAdsSettingsShell } from "@/google-ads/settings/GoogleAdsSettingsShell";
+import { OfflineConversionSettingsShell } from "@/meta-ads/settings/OfflineConversionSettingsShell";
 import { cn } from "@/shared/lib/utils";
 import {
   OMNICHANNEL_SETTINGS_CARD_HEADER_BASE,
@@ -84,7 +84,7 @@ export function OmnichannelSettingsWorkspace() {
               {activeSection === "sla" ? <SlaManagementSection /> : null}
               {activeSection === "survey" ? <CustomerSurveySettingsShell /> : null}
               {activeSection === "target" ? <CustomerSurveyTargetSettingsShell /> : null}
-              {activeSection === "google-ads" ? <GoogleAdsSettingsShell /> : null}
+              {activeSection === "offline-conversion" ? <OfflineConversionSettingsShell /> : null}
             </div>
           </ModuleShellContentGate>
         </div>

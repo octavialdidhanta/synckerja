@@ -6,7 +6,7 @@ export type OmnichannelSettingsSectionId =
   | "sla"
   | "survey"
   | "target"
-  | "google-ads";
+  | "offline-conversion";
 
 export type OmnichannelSettingsSectionMeta = {
   id: OmnichannelSettingsSectionId;
@@ -52,18 +52,19 @@ export const OMNICHANNEL_SETTINGS_SECTIONS: OmnichannelSettingsSectionMeta[] = [
     status: "active",
   },
   {
-    id: "google-ads",
-    urlSlug: "google-ads",
+    id: "offline-conversion",
+    urlSlug: "offline-conversion",
     icon: Megaphone,
-    titleKey: "omnichannel.settings.googleAds.sidebarTitle",
-    descriptionKey: "omnichannel.settings.googleAds.sidebarDescription",
+    titleKey: "omnichannel.settings.offlineConversion.sidebarTitle",
+    descriptionKey: "omnichannel.settings.offlineConversion.sidebarDescription",
     status: "active",
   },
 ];
 
-const URL_SLUG_TO_SECTION_ID = new Map<string, OmnichannelSettingsSectionId>(
-  OMNICHANNEL_SETTINGS_SECTIONS.map((s) => [s.urlSlug, s.id]),
-);
+const URL_SLUG_TO_SECTION_ID = new Map<string, OmnichannelSettingsSectionId>([
+  ...OMNICHANNEL_SETTINGS_SECTIONS.map((s) => [s.urlSlug, s.id] as const),
+  ["google-ads", "offline-conversion"],
+]);
 
 export const OMNICHANNEL_SETTINGS_DEFAULT_SECTION_ID: OmnichannelSettingsSectionId =
   OMNICHANNEL_SETTINGS_SECTIONS[0]?.id ?? "user-management";
