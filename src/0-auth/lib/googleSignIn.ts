@@ -1,3 +1,4 @@
+import { Browser } from "@capacitor/browser";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { routeAfterLogin, safeInternalRedirectPath } from "@/0-auth/lib/postLoginRouting";
 import { completeGoogleSsoLogin } from "@/0-auth/lib/completeGoogleSsoLogin";
@@ -102,6 +103,12 @@ async function startWebGoogleOAuth(options: StartGoogleSignInOptions): Promise<S
   }
 
   if (data?.url) {
+    if (isNativeCapacitorAuth()) {
+      // Keep PKCE verifier in the main WebView; Custom Tab returns via app URL scheme.
+      await Browser.open({ url: data.url });
+      return { error: null };
+    }
+
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });

@@ -10,10 +10,7 @@ let cachedConfig: GoogleSsoClientConfig | null = null;
 let resolvePromise: Promise<GoogleSsoClientConfig> | null = null;
 
 function readEnvGoogleSsoConfig(): GoogleSsoClientConfig {
-  const web =
-    import.meta.env.VITE_GOOGLE_SSO_WEB_CLIENT_ID?.trim() ||
-    import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ||
-    "";
+  const web = import.meta.env.VITE_GOOGLE_SSO_WEB_CLIENT_ID?.trim() || "";
   const ios = import.meta.env.VITE_GOOGLE_SSO_IOS_CLIENT_ID?.trim() || "";
   return {
     webClientId: web || null,

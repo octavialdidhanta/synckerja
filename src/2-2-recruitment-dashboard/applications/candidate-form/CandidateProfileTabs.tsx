@@ -180,13 +180,35 @@ export const CandidateProfileTabs = ({
   const [hasCognitiveCompleted, setHasCognitiveCompleted] = useState(false);
   const [hasSjtCompleted, setHasSjtCompleted] = useState(false);
 
+  const recheckTestCompletions = useCallback(async (candidateProfileId: string) => {
+    const { data, error } = await supabase
+      .from('candidate_tests')
+      .select('test_id, tests(type)')
+      .eq('candidate_profile_id', candidateProfileId)
+      .eq('status', 'submitted');
+
+    if (error) {
+      console.error('Error checking candidate_tests completion:', error);
+      setHasDiscCompleted(false);
+      setHasCognitiveCompleted(false);
+      setHasSjtCompleted(false);
+      return;
+    }
+
+    const rows = (data || []) as Array<{ tests?: { type?: string } | null }>;
+    const completedTypes = new Set(rows.map(r => r.tests?.type).filter(Boolean) as string[]);
+    setHasDiscCompleted(completedTypes.has('disc'));
+    setHasCognitiveCompleted(completedTypes.has('cognitive'));
+    setHasSjtCompleted(completedTypes.has('sjt'));
+  }, []);
+
   // Check education, experience, documents, family, DISC test, Cognitive test, and SJT
   useEffect(() => {
     if (!candidate?.id) return;
 
     const checkData = async () => {
       try {
-        const [eduResult, expResult, docsResult, familyResult, testsMetaResult, candidateTestsResult] = await Promise.all([
+        const [eduResult, expResult, docsResult, familyResult] = await Promise.all([
           supabase
             .from('candidate_educations')
             .select('id')
@@ -206,30 +228,13 @@ export const CandidateProfileTabs = ({
             .select('id')
             .eq('candidate_profile_id', candidate.id)
             .limit(1),
-          supabase
-            .from('tests')
-            .select('id, type')
-            .in('type', ['disc', 'cognitive', 'sjt'])
-            .eq('is_active', true),
-          supabase
-            .from('candidate_tests')
-            .select('test_id')
-            .eq('candidate_profile_id', candidate.id)
-            .eq('status', 'submitted')
         ]);
 
         setHasEducation((eduResult.data?.length || 0) > 0);
         setHasExperience((expResult.data?.length || 0) > 0);
         setHasFamilyMember((familyResult.data?.length || 0) > 0);
 
-        const testIds = (testsMetaResult.data || []) as { id: string; type: string }[];
-        const discTestId = testIds.find(t => t.type === 'disc')?.id;
-        const cognitiveTestId = testIds.find(t => t.type === 'cognitive')?.id;
-        const sjtTestId = testIds.find(t => t.type === 'sjt')?.id;
-        const submittedTestIds = (candidateTestsResult.data || []).map((r: { test_id: string }) => r.test_id);
-        setHasDiscCompleted(!!discTestId && submittedTestIds.includes(discTestId));
-        setHasCognitiveCompleted(!!cognitiveTestId && submittedTestIds.includes(cognitiveTestId));
-        setHasSjtCompleted(!!sjtTestId && submittedTestIds.includes(sjtTestId));
+        await recheckTestCompletions(candidate.id);
 
         // Check if all required documents are uploaded (CV, KTP, Ijazah)
         const requiredDocTypes = ['cv', 'ktp', 'ijazah'];
@@ -242,7 +247,7 @@ export const CandidateProfileTabs = ({
     };
 
     checkData();
-  }, [candidate?.id]);
+  }, [candidate?.id, recheckTestCompletions]);
 
   // Validate step based on candidate data
   const validateStep = useCallback((stepId: string, requiredFields: string[]) => {
@@ -649,20 +654,7 @@ export const CandidateProfileTabs = ({
                       onTestCompleted: async () => {
                         if (candidate?.id) {
                           try {
-                            const { data: testsMeta } = await supabase.from('tests').select('id, type').in('type', ['disc', 'cognitive', 'sjt']).eq('is_active', true);
-                            const testIds = (testsMeta || []) as { id: string; type: string }[];
-                            const discTestId = testIds.find(t => t.type === 'disc')?.id;
-                            const cognitiveTestId = testIds.find(t => t.type === 'cognitive')?.id;
-                            const sjtTestId = testIds.find(t => t.type === 'sjt')?.id;
-                            const { data: ctData } = await supabase
-                              .from('candidate_tests')
-                              .select('test_id')
-                              .eq('candidate_profile_id', candidate.id)
-                              .eq('status', 'submitted');
-                            const submittedTestIds = (ctData || []).map((r: { test_id: string }) => r.test_id);
-                            setHasDiscCompleted(!!discTestId && submittedTestIds.includes(discTestId));
-                            setHasCognitiveCompleted(!!cognitiveTestId && submittedTestIds.includes(cognitiveTestId));
-                            setHasSjtCompleted(!!sjtTestId && submittedTestIds.includes(sjtTestId));
+                            await recheckTestCompletions(candidate.id);
                           } catch (error) {
                             console.error('Error re-checking tests:', error);
                           }
@@ -728,20 +720,7 @@ export const CandidateProfileTabs = ({
                                   .limit(1);
                                 setHasFamilyMember((familyData?.length || 0) > 0);
                               } else if (tab.id === 'test') {
-                                const { data: testsMeta } = await supabase.from('tests').select('id, type').in('type', ['disc', 'cognitive', 'sjt']).eq('is_active', true);
-                                const testIds = (testsMeta || []) as { id: string; type: string }[];
-                                const discTestId = testIds.find(t => t.type === 'disc')?.id;
-                                const cognitiveTestId = testIds.find(t => t.type === 'cognitive')?.id;
-                                const sjtTestId = testIds.find(t => t.type === 'sjt')?.id;
-                                const { data: ctData } = await supabase
-                                  .from('candidate_tests')
-                                  .select('test_id')
-                                  .eq('candidate_profile_id', candidate.id)
-                                  .eq('status', 'submitted');
-                                const submittedTestIds = (ctData || []).map((r: { test_id: string }) => r.test_id);
-                                setHasDiscCompleted(!!discTestId && submittedTestIds.includes(discTestId));
-                                setHasCognitiveCompleted(!!cognitiveTestId && submittedTestIds.includes(cognitiveTestId));
-                                setHasSjtCompleted(!!sjtTestId && submittedTestIds.includes(sjtTestId));
+                                await recheckTestCompletions(candidate.id);
                               }
                             } catch (error) {
                               console.error('Error re-checking data:', error);

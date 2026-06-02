@@ -45,7 +45,7 @@ export function MobileOnboardingViewport({
         <div
           ref={panelRef}
           className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-x-hidden px-5 py-6",
+            "flex min-h-0 flex-1 flex-col overflow-x-hidden px-4 py-5 sm:px-5 sm:py-6",
             scrollHide,
             allowScroll ? "overflow-y-auto" : "overflow-y-hidden",
             !scrollAlways && !allowScroll && "items-center justify-center",

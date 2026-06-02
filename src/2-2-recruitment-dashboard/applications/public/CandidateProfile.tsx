@@ -11,6 +11,7 @@ import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Loader2, User, CheckCircle, ArrowLeft, UserPlus, Monitor } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { createStorageDisplayUrl } from '@/shared/lib/storageDisplayUrl';
 
 interface CandidateProfile {
   id: string;
@@ -50,6 +51,17 @@ const CandidateProfile = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const isMobile = useIsMobile();
+  const [candidatePhotoDisplayUrl, setCandidatePhotoDisplayUrl] = useState<string>('');
+
+  useEffect(() => {
+    // Public candidate profile route: allow document scrolling (app shell defaults to overflow-hidden).
+    document.body.classList.add("allow-page-scroll");
+    document.getElementById("root")?.classList.add("allow-page-scroll");
+    return () => {
+      document.body.classList.remove("allow-page-scroll");
+      document.getElementById("root")?.classList.remove("allow-page-scroll");
+    };
+  }, []);
 
   // Detect if using the new clean layout route
   const isCleanLayout = location.pathname.startsWith('/candidate/profile');
@@ -205,6 +217,36 @@ const CandidateProfile = () => {
     }
   };
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    const resolvePhotoUrl = async () => {
+      const raw = (candidate?.photo_url ?? '').trim();
+      if (!raw) {
+        if (!isCancelled) setCandidatePhotoDisplayUrl('');
+        return;
+      }
+
+      if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        if (!isCancelled) setCandidatePhotoDisplayUrl(raw);
+        return;
+      }
+
+      const signed = await createStorageDisplayUrl('recruitment-files', raw, {
+        expiresIn: 60 * 60,
+        transform: { width: 128, resize: 'contain', quality: 80 },
+      });
+
+      if (!isCancelled) setCandidatePhotoDisplayUrl(signed ?? '');
+    };
+
+    void resolvePhotoUrl();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [candidate?.photo_url]);
+
   // Called by CandidateProfileTabs after successful submit (Tabs perform the DB update).
   const handleFinalSubmit = () => {
     const token = searchParams.get('token') ?? paramToken ?? '';
@@ -264,7 +306,7 @@ const CandidateProfile = () => {
                   <div className="h-4 w-px bg-gray-300" />
                   <div className="flex items-center gap-3">
                     <Avatar className="w-8 h-8">
-                      <AvatarImage src={candidate.photo_url} alt={candidate.full_name} />
+                      <AvatarImage src={candidatePhotoDisplayUrl || undefined} alt={candidate.full_name} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                         {getInitials(candidate.full_name)}
                       </AvatarFallback>
@@ -342,13 +384,13 @@ const CandidateProfile = () => {
   // Clean layout for new route with sidebar - COMPACT VERSION
   if (isCleanLayout) {
     return <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        {/* Clean Header - Compact */}
-        <div className="bg-white/80 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-20">
+        {/* Clean Header - Fixed (more reliable than sticky across scroll roots) */}
+        <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-sm border-b border-gray-100">
           <div className="max-w-[1600px] mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={candidate.photo_url} alt={candidate.full_name} />
+                  <AvatarImage src={candidatePhotoDisplayUrl || undefined} alt={candidate.full_name} />
                   <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
                     {getInitials(candidate.full_name)}
                   </AvatarFallback>
@@ -372,10 +414,11 @@ const CandidateProfile = () => {
         </div>
 
         {/* Main Content with Sidebar - COMPACT */}
-        <div className="max-w-[1600px] mx-auto px-4 py-4">
+        {/* pad top so content doesn't go under fixed header */}
+        <div className="max-w-[1600px] mx-auto px-4 pt-20 pb-4">
           <div className="flex gap-4">
             {/* Sidebar - Wider and Compact */}
-            <div className="sticky top-20 h-fit w-96 flex-shrink-0">
+            <div className="sticky top-24 h-fit w-96 flex-shrink-0">
               <CandidateProfileSidebar candidateData={candidate} />
             </div>
             
@@ -404,7 +447,7 @@ const CandidateProfile = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={candidate.photo_url} alt={candidate.full_name} />
+                <AvatarImage src={candidatePhotoDisplayUrl || undefined} alt={candidate.full_name} />
                 <AvatarFallback className="bg-blue-600 text-white">
                   {getInitials(candidate.full_name)}
                 </AvatarFallback>

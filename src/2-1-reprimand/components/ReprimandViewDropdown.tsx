@@ -142,8 +142,8 @@ export const ReprimandViewDropdown = ({
               {reprimandCount}x
             </span>
 
-            <div className="min-w-0 flex-1 overflow-x-auto">
-              <div className="flex w-max flex-shrink-0 gap-1 pr-4">{reprimandBoxes}</div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap gap-1 pr-2">{reprimandBoxes}</div>
             </div>
 
             <Button variant="outline" size="sm" className="h-8 flex-shrink-0 px-3 text-xs" disabled>
@@ -196,15 +196,15 @@ export const ReprimandViewDropdown = ({
                 {reprimandCount}x
               </span>
 
-              <div className="min-w-0 flex-1 overflow-x-auto">
-                <div className="flex w-max flex-shrink-0 gap-1 pr-4">{reprimandBoxes}</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap gap-1 pr-2">{reprimandBoxes}</div>
               </div>
-
+            </div>
+            {/* Badges: always 2 rows (no horizontal squeeze) */}
+            <div className="flex flex-col items-end gap-1">
               <Badge variant="outline" className="border-red-200 bg-red-50 text-xs text-red-700">
                 {t("reprimands.dropdown.violationsBadge", "{{count}} Violations", { count: reprimands.length })}
               </Badge>
-            </div>
-            <div className="flex items-center space-x-2">
               <div
                 className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium leading-tight transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
                   reprimands.some((r) => r.status === "active")

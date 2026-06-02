@@ -38,6 +38,16 @@ const JobPreview = () => {
   const [requiredSkills, setRequiredSkills] = useState<any[]>([]);
   const isMobile = useIsMobile();
 
+  useEffect(() => {
+    // Ensure public preview can scroll the document (app shell defaults to overflow-hidden on html/body/#root).
+    document.body.classList.add("allow-page-scroll");
+    document.getElementById("root")?.classList.add("allow-page-scroll");
+    return () => {
+      document.body.classList.remove("allow-page-scroll");
+      document.getElementById("root")?.classList.remove("allow-page-scroll");
+    };
+  }, []);
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -47,14 +57,25 @@ const JobPreview = () => {
       .slice(0, 2);
   };
 
-  const CompanyLogo = ({ companyName, size = 'md' }: { companyName: string; size?: 'sm' | 'md' }) => {
+  const CompanyLogo = ({
+    companyName,
+    size = "md",
+    logoUrlOverride,
+  }: {
+    companyName: string;
+    size?: "sm" | "md";
+    logoUrlOverride?: string | null;
+  }) => {
     const sizeClass = size === 'sm' ? 'w-4 h-4' : 'w-5 h-5 sm:w-6 sm:h-6';
     const containerSize = size === 'sm' ? 'w-4 h-4' : 'w-10 h-10 sm:w-12 sm:h-12';
-    
-    if (logoUrl) {
+
+    // Prefer org logo from job data (public route has no current org context).
+    const resolvedLogoUrl = (logoUrlOverride ?? logoUrl) || null;
+
+    if (resolvedLogoUrl) {
       return (
         <img 
-          src={logoUrl} 
+          src={resolvedLogoUrl} 
           alt={`${companyName} logo`}
           className={`${containerSize} object-cover rounded-lg flex-shrink-0`}
         />
@@ -302,6 +323,8 @@ const JobPreview = () => {
     description: organizationData?.description || '',
     about_us: organizationData?.about_us || ''
   };
+  const companyLogoUrl: string | null =
+    (organizationData?.logo_url as string | null | undefined) ?? null;
 
   // Parse requirements and responsibilities into bullet points
   const parseTextToList = (text: string | undefined) => {
@@ -320,11 +343,14 @@ const JobPreview = () => {
       <div className="bg-white border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">{company.company_name}</h2>
+            <div className="flex items-center gap-3 min-w-0">
+              <CompanyLogo companyName={company.company_name} size="md" logoUrlOverride={companyLogoUrl} />
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-gray-900 truncate">{company.company_name}</h2>
               {company.industry && (
                 <p className="text-sm text-gray-600">{company.industry}</p>
               )}
+              </div>
             </div>
           </div>
         </div>
@@ -344,7 +370,11 @@ const JobPreview = () => {
                       {job.job_title || 'Job Position'}
                     </h1>
                     <div className="flex items-center text-lg sm:text-xl text-gray-700 mb-2">
-                      <CompanyLogo companyName={company.company_name} size="sm" />
+                      <CompanyLogo
+                        companyName={company.company_name}
+                        size="sm"
+                        logoUrlOverride={companyLogoUrl}
+                      />
                       <span className="truncate ml-2">{company.company_name}</span>
                     </div>
                     
@@ -502,7 +532,11 @@ const JobPreview = () => {
                     <span>Growing Company</span>
                   </div>
                   <div className="flex items-center text-gray-600">
-                    <CompanyLogo companyName={company.company_name} size="sm" />
+                    <CompanyLogo
+                      companyName={company.company_name}
+                      size="sm"
+                      logoUrlOverride={companyLogoUrl}
+                    />
                     <span className="ml-2">Professional Environment</span>
                   </div>
                   <div className="flex items-center text-gray-600">
@@ -615,7 +649,10 @@ const JobPreview = () => {
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <h3 className="font-semibold mb-2">{company.company_name}</h3>
+              <div className="flex items-center gap-3">
+                <CompanyLogo companyName={company.company_name} size="md" logoUrlOverride={companyLogoUrl} />
+                <h3 className="font-semibold">{company.company_name}</h3>
+              </div>
               {company.address && <p className="text-sm text-gray-400">{company.address}</p>}
             </div>
             {company.website && (

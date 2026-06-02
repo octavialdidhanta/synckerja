@@ -7,8 +7,21 @@ import { Label } from "@/shared/components/ui/label";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
+import {
+  authFormBottomSpacerClass,
+  authFormFieldGap,
+  authFormFooterTextClass,
+  authFormFormClass,
+  authFormHeaderLogoWrapper,
+  authFormInputClass,
+  authFormLabelClass,
+  authFormRootClass,
+  authFormSubmitClass,
+  authFormSubtitleClass,
+  authFormTitleClass,
+} from "@/0-auth/styles/authFormStyles";
 
-const defaultBrandMark = <SynckerjaBrandLogo />;
+const defaultBrandMark = <SynckerjaBrandLogo className="h-10 w-auto sm:h-12" width={48} height={48} />;
 
 export type ForgotPasswordScreenProps = {
   brandMark?: ReactNode;
@@ -50,28 +63,26 @@ export function ForgotPasswordScreen({
   };
 
   return (
-    <div className="w-full max-w-md space-y-8">
-      <div className="flex flex-col">
-        <div className="mb-2 flex w-full justify-center">{brandMark}</div>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            {t("auth.forgotPassword.title")}
-          </h1>
-          {!hideSubtitle && (
-            <p className="mt-2 text-sm text-slate-600 sm:text-base">{t("auth.forgotPassword.subtitle")}</p>
-          )}
-        </div>
-      </div>
+    <div className={authFormRootClass}>
+      <header className="flex flex-col items-center text-center">
+        <div className={authFormHeaderLogoWrapper}>{brandMark}</div>
+        <h1 className={authFormTitleClass}>{t("auth.forgotPassword.title")}</h1>
+        {!hideSubtitle && (
+          <p className={authFormSubtitleClass}>{t("auth.forgotPassword.subtitle")}</p>
+        )}
+      </header>
 
       {sent && (
         <Alert className="border-slate-200 bg-slate-50 text-slate-800">
-          <AlertDescription>{t("auth.forgotPassword.genericSent")}</AlertDescription>
+          <AlertDescription className="text-xs sm:text-sm">
+            {t("auth.forgotPassword.genericSent")}
+          </AlertDescription>
         </Alert>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="forgot-email" className="text-slate-800">
+      <form onSubmit={onSubmit} className={authFormFormClass}>
+        <div className={authFormFieldGap}>
+          <Label htmlFor="forgot-email" className={authFormLabelClass}>
             {t("auth.forgotPassword.email")}
           </Label>
           <Input
@@ -84,26 +95,28 @@ export function ForgotPasswordScreen({
             onBlur={onFieldBlur}
             required
             disabled={loading || sent}
-            className="h-12 border-slate-200 bg-white focus-visible:ring-[hsl(var(--brand-blue))]"
+            className={authFormInputClass}
           />
         </div>
 
         <Button
           ref={submitButtonRef}
           type="submit"
-          className="h-12 w-full text-base font-semibold text-white shadow-md transition-colors hover:opacity-[0.92]"
+          className={authFormSubmitClass}
           style={{ backgroundColor: brandRed }}
           disabled={loading || sent}
         >
           {loading ? t("auth.forgotPassword.sending") : t("auth.forgotPassword.submit")}
         </Button>
-      </form>
 
-      <p className="text-center text-sm text-slate-600">
-        <Link to="/login" className="font-semibold hover:underline" style={{ color: brandBlue }}>
-          {t("auth.forgotPassword.backToLogin")}
-        </Link>
-      </p>
+        <p className={authFormFooterTextClass}>
+          <Link to="/login" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+            {t("auth.forgotPassword.backToLogin")}
+          </Link>
+        </p>
+
+        <div className={authFormBottomSpacerClass} aria-hidden />
+      </form>
     </div>
   );
 }

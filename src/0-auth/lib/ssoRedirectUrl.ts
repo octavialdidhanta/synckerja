@@ -6,7 +6,11 @@ export const NATIVE_SSO_APP_SCHEME = "id.synckerja.app";
 export const NATIVE_SSO_CALLBACK_PATH = "/auth/sso/callback";
 
 export function isNativeCapacitorAuth(): boolean {
-  return typeof Capacitor !== "undefined" && Capacitor.isNativePlatform();
+  if (typeof Capacitor === "undefined") {
+    return false;
+  }
+  const platform = Capacitor.getPlatform();
+  return platform === "android" || platform === "ios";
 }
 
 /** Supabase `redirectTo` — web origin on browser; custom scheme on native so OAuth returns to the app. */

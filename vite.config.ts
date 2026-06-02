@@ -42,12 +42,17 @@ export default defineConfig(({ mode }) => {
     fileEnv.VITE_SUPABASE_ANON_KEY?.trim() ||
     fileEnv.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
     "";
+  const googleSsoWebClientId =
+    process.env.VITE_GOOGLE_SSO_WEB_CLIENT_ID?.trim() ||
+    fileEnv.VITE_GOOGLE_SSO_WEB_CLIENT_ID?.trim() ||
+    "";
 
   return {
   envDir,
   define: {
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(supabaseUrl),
     "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(supabaseAnon),
+    "import.meta.env.VITE_GOOGLE_SSO_WEB_CLIENT_ID": JSON.stringify(googleSsoWebClientId),
   },
   server: {
     host: "::",

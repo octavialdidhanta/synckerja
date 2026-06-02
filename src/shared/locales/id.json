@@ -115,7 +115,7 @@
         "generic": "Tidak dapat masuk dengan Google. Coba lagi atau gunakan email dan kata sandi.",
         "accessDenied": "Masuk dengan Google dibatalkan.",
         "androidMisconfiguredTitle": "Masuk Google gagal di Android",
-        "androidMisconfiguredDescription": "Desktop bisa masih berhasil karena memakai OAuth redirect Supabase (pengaturan di Dashboard). Android native butuh langkah tambahan: OAuth client Android di Google Cloud (package id.synckerja.app) dengan SHA-1 yang sama dengan APK yang di-install (cek .\\gradlew.bat :app:signingReport). Bukan berarti Web client ID di Supabase salah. Setelah ubah SHA-1: npm run build, npx cap sync android, install ulang.",
+        "androidMisconfiguredDescription": "Error [28444]: OAuth Android belum cocok dengan cara APK di-install. Debug (Android Studio): SHA-1 dari gradlew signingReport. Play Store: SHA-1 App signing key di Play Console. Web client SSO harus sama Supabase (Synckerja 54m2…). Jangan pakai client ID Android di .env. Firebase: kedua SHA-1 → unduh ulang google-services.json. Lalu build, cap sync, install ulang.",
         "reauthFailedTitle": "Google tidak bisa memverifikasi akun",
         "reauthFailedDescription": "Android melaporkan Account reauth failed (bukan dibatalkan). Di emulator: pakai image Google Play, tambah akun Google di Settings, update Google Play services, atau uji di HP fisik. Periksa juga SHA-1 OAuth Android untuk build ini dan akun sebagai Test user jika app OAuth masih Testing.",
         "noSession": "Tidak ada sesi setelah masuk dengan Google. Coba lagi.",

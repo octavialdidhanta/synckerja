@@ -22,6 +22,11 @@ export function NativeSupabaseOAuthBridge() {
         return;
       }
 
+      // Ignore bare callback opens (no OAuth params) — native id-token login does not use PKCE here.
+      if (!parsed.search && !parsed.hash) {
+        return;
+      }
+
       void Browser.close().catch(() => undefined);
 
       const target = `${parsed.pathname}${parsed.search}${parsed.hash}`;

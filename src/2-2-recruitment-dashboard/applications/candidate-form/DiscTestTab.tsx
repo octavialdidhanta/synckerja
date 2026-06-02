@@ -457,7 +457,7 @@ export function DiscTestTab({ candidateProfileId, recruitmentToken, onTestComple
               ))}
             </TableBody>
           </Table>
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-start pt-4">
             <Button onClick={submitAnswerAndNext} disabled={loading || mostLike == null || leastLike == null || mostLike === leastLike}>
               {loading ? 'Menyimpan...' : isLast ? 'Selesai & Kirim' : 'Lanjut'}
             </Button>

@@ -14,22 +14,6 @@ import {
 
 let initPromise: Promise<void> | null = null;
 
-function decodeJwtPayload(idToken: string): Record<string, unknown> | null {
-  try {
-    const base64Url = idToken.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`)
-        .join(""),
-    );
-    return JSON.parse(jsonPayload) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
 export async function ensureNativeGoogleSocialLoginInitialized(): Promise<void> {
   if (initPromise) {
     return initPromise;
@@ -135,7 +119,11 @@ export function isGoogleAndroidOAuthMisconfigurationMessage(message: string): bo
   const m = message.toLowerCase();
   return (
     m.includes("activity is cancelled by the user") ||
-    m.includes("activity is canceled by the user")
+    m.includes("activity is canceled by the user") ||
+    m.includes("developer console is not set up correctly") ||
+    m.includes("[28444]") ||
+    m.includes("developer_error") ||
+    m.includes("10:")
   );
 }
 
@@ -184,7 +172,11 @@ function mapNativeGoogleLoginError(err: unknown): string {
   if (isGoogleAndroidOAuthMisconfigurationMessage(full)) {
     return "android_oauth_misconfigured";
   }
-  return extractErrorMessage(err);
+  const plain = extractErrorMessage(err);
+  if (isGoogleAndroidOAuthMisconfigurationMessage(plain)) {
+    return "android_oauth_misconfigured";
+  }
+  return plain;
 }
 
 /** Standard Credential Manager UI on Android and iOS (Capgo default). */
@@ -212,64 +204,23 @@ function logNativeGoogleDebug(label: string, detail?: unknown): void {
   }
 }
 
-export async function signInWithNativeGoogle(): Promise<{ error: string | null }> {
-  try {
-    await ensureNativeGoogleSocialLoginInitialized();
+function isNonceRelatedSignInError(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes("nonce") || m.includes("id_token");
+}
 
-    let response;
-    try {
-      logNativeGoogleDebug("SocialLogin.login start (no nonce)");
-      response = await SocialLogin.login({
-        provider: "google",
-        options: buildNativeGoogleLoginOptions(),
-      });
-      logNativeGoogleDebug("SocialLogin.login ok (no nonce)");
-    } catch (firstErr) {
-      logNativeGoogleDebug("SocialLogin.login failed (no nonce)", {
-        code: typeof firstErr === "object" && firstErr !== null && "code" in firstErr ? (firstErr as { code: unknown }).code : undefined,
-        message: extractErrorMessage(firstErr),
-      });
-      const firstMapped = mapNativeGoogleLoginError(firstErr);
-      if (firstMapped === "access_denied") {
-        logNativeGoogleDebug("mapped error", firstMapped);
-        return { error: firstMapped };
-      }
-      if (firstMapped === "google_account_reauth_failed" || firstMapped === "android_oauth_misconfigured") {
-        logNativeGoogleDebug("mapped error (no retry)", firstMapped);
-        return { error: firstMapped };
-      }
-      console.warn("Google login without nonce failed, retrying with nonce:", firstErr);
-      const { rawNonce, nonceDigest } = await createGoogleSsoNoncePair();
-      try {
-        logNativeGoogleDebug("SocialLogin.login start (with nonce)");
-        response = await SocialLogin.login({
-          provider: "google",
-          options: buildNativeGoogleLoginOptions(nonceDigest),
-        });
-        logNativeGoogleDebug("SocialLogin.login ok (with nonce)");
-        const googleResult = await completeNativeGoogleSession(response, rawNonce);
-        logNativeGoogleDebug("complete session", googleResult.error ?? "ok");
-        return googleResult;
-      } catch (secondErr) {
-        logNativeGoogleDebug("SocialLogin.login failed (with nonce)", {
-          code: typeof secondErr === "object" && secondErr !== null && "code" in secondErr ? (secondErr as { code: unknown }).code : undefined,
-          message: extractErrorMessage(secondErr),
-        });
-        const mapped = mapNativeGoogleLoginError(secondErr);
-        logNativeGoogleDebug("mapped error", mapped);
-        return { error: mapped };
-      }
-    }
-
-    const result = await completeNativeGoogleSession(response);
-    logNativeGoogleDebug("complete session", result.error ?? "ok");
-    return result;
-  } catch (err) {
-    logNativeGoogleDebug("signInWithNativeGoogle unexpected", err);
-    const mapped = mapNativeGoogleLoginError(err);
-    logNativeGoogleDebug("mapped error", mapped);
-    return { error: mapped };
-  }
+async function loginWithNativeGoogleNonce(): Promise<{
+  response: Awaited<ReturnType<typeof SocialLogin.login>>;
+  rawNonce: string;
+}> {
+  const { rawNonce, nonceDigest } = await createGoogleSsoNoncePair();
+  logNativeGoogleDebug("SocialLogin.login start (with nonce)");
+  const response = await SocialLogin.login({
+    provider: "google",
+    options: buildNativeGoogleLoginOptions(nonceDigest),
+  });
+  logNativeGoogleDebug("SocialLogin.login ok (with nonce)");
+  return { response, rawNonce };
 }
 
 async function completeNativeGoogleSession(
@@ -286,20 +237,98 @@ async function completeNativeGoogleSession(
     return { error: "missing_id_token" };
   }
 
-  const decoded = decodeJwtPayload(idToken);
-  const signInOptions: { provider: "google"; token: string; nonce?: string } = {
-    provider: "google",
-    token: idToken,
-  };
-  if (rawNonce && decoded?.nonce) {
-    signInOptions.nonce = rawNonce;
+  const tokenOnly = { provider: "google" as const, token: idToken };
+  const withNonce =
+    rawNonce != null && rawNonce.length > 0
+      ? { ...tokenOnly, nonce: rawNonce }
+      : tokenOnly;
+
+  let { error } = await supabase.auth.signInWithIdToken(withNonce);
+  if (error && rawNonce) {
+    logNativeGoogleDebug("signInWithIdToken with nonce failed, retry token-only", error.message);
+    ({ error } = await supabase.auth.signInWithIdToken(tokenOnly));
   }
 
-  const { error } = await supabase.auth.signInWithIdToken(signInOptions);
   if (error) {
     logNativeGoogleDebug("signInWithIdToken failed", error.message);
+    if (isGoogleAndroidOAuthMisconfigurationMessage(error.message)) {
+      return { error: "android_oauth_misconfigured" };
+    }
     return { error: error.message };
   }
 
   return { error: null };
+}
+
+async function loginWithNativeGooglePicker(useNonce: boolean): Promise<{
+  response: Awaited<ReturnType<typeof SocialLogin.login>>;
+  rawNonce?: string;
+}> {
+  if (useNonce) {
+    return loginWithNativeGoogleNonce();
+  }
+
+  logNativeGoogleDebug("SocialLogin.login start (no nonce)");
+  const response = await SocialLogin.login({
+    provider: "google",
+    options: buildNativeGoogleLoginOptions(),
+  });
+  logNativeGoogleDebug("SocialLogin.login ok (no nonce)");
+  return { response };
+}
+
+export async function signInWithNativeGoogle(): Promise<{ error: string | null }> {
+  try {
+    await ensureNativeGoogleSocialLoginInitialized();
+
+    // Android Credential Manager: no-nonce picker first; iOS often needs nonce up front.
+    const preferNonceFirst = Capacitor.getPlatform() === "ios";
+    const attempts: boolean[] = preferNonceFirst ? [true, false] : [false, true];
+
+    let lastPickerError: string | null = null;
+
+    for (const useNonce of attempts) {
+      let response: Awaited<ReturnType<typeof SocialLogin.login>>;
+      let rawNonce: string | undefined;
+
+      try {
+        ({ response, rawNonce } = await loginWithNativeGooglePicker(useNonce));
+      } catch (pickerErr) {
+        logNativeGoogleDebug(`SocialLogin.login failed (${useNonce ? "with" : "no"} nonce)`, {
+          code: typeof pickerErr === "object" && pickerErr !== null && "code" in pickerErr ? (pickerErr as { code: unknown }).code : undefined,
+          message: extractErrorMessage(pickerErr),
+        });
+        const mapped = mapNativeGoogleLoginError(pickerErr);
+        lastPickerError = mapped;
+        if (
+          mapped === "access_denied" ||
+          mapped === "google_account_reauth_failed" ||
+          mapped === "android_oauth_misconfigured"
+        ) {
+          logNativeGoogleDebug("mapped error (stop retries)", mapped);
+          return { error: mapped };
+        }
+        continue;
+      }
+
+      const result = await completeNativeGoogleSession(response, rawNonce);
+      if (!result.error) {
+        logNativeGoogleDebug("complete session", "ok");
+        return result;
+      }
+
+      logNativeGoogleDebug("complete session failed", result.error);
+      if (!isNonceRelatedSignInError(result.error)) {
+        return result;
+      }
+      lastPickerError = result.error;
+    }
+
+    return { error: lastPickerError ?? "native_google_failed" };
+  } catch (err) {
+    logNativeGoogleDebug("signInWithNativeGoogle unexpected", err);
+    const mapped = mapNativeGoogleLoginError(err);
+    logNativeGoogleDebug("mapped error", mapped);
+    return { error: mapped };
+  }
 }

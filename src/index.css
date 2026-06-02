@@ -189,6 +189,24 @@ All colors MUST be HSL.
     @apply h-full min-h-0 overflow-hidden;
   }
 
+  /* Public pages that should scroll the document (override app-shell default). */
+  body.allow-page-scroll {
+    overflow: auto !important;
+    /* Hide scrollbar but keep scrolling */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  body.allow-page-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  #root.allow-page-scroll {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+  }
+
   /* Input tanggal/waktu native: selaraskan highlight ke biru brand (bukan biru browser default). */
   input[type="date"],
   input[type="datetime-local"],

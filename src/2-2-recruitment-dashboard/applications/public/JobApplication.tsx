@@ -171,6 +171,16 @@ export default function JobApplication() {
   }, [token, toast]);
 
   useEffect(() => {
+    // Public route: allow document scrolling (app shell defaults to overflow-hidden).
+    document.body.classList.add("allow-page-scroll");
+    document.getElementById("root")?.classList.add("allow-page-scroll");
+    return () => {
+      document.body.classList.remove("allow-page-scroll");
+      document.getElementById("root")?.classList.remove("allow-page-scroll");
+    };
+  }, []);
+
+  useEffect(() => {
     if (token) {
       fetchJobByToken();
       loadMasterData();
@@ -292,25 +302,29 @@ export default function JobApplication() {
 
   if (showApplicationForm) {
     return (
-      <div className="w-full h-screen bg-gray-50 overflow-hidden flex">
-        <ApplicationForm
-          jobId={jobData.id}
-          jobTitle={jobData.job_title}
-          companyName={jobData.organizations?.company_name || 'Company'}
-          onClose={handleApplicationClose}
-          recruitmentLinkId={recruitmentLinkData?.id}
-          recruitmentToken={recruitmentLinkData?.token || token}
-          requiredSkills={requiredSkills}
-        />
+      <div className="min-h-screen w-full bg-gray-50">
+        <div className="mx-auto w-full max-w-4xl px-4 py-6">
+          <ApplicationForm
+            jobId={jobData.id}
+            jobTitle={jobData.job_title}
+            companyName={jobData.organizations?.company_name || 'Company'}
+            onClose={handleApplicationClose}
+            recruitmentLinkId={recruitmentLinkData?.id}
+            recruitmentToken={recruitmentLinkData?.token || token}
+            requiredSkills={requiredSkills}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-screen bg-gray-50 overflow-hidden flex">
-      {/* Job Information Sidebar */}
-      <div className="w-80 bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto">
-        <div className="p-6">
+    <div className="min-h-screen w-full bg-gray-50">
+      <div className="mx-auto w-full max-w-6xl px-4 py-4 lg:px-6 lg:py-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[20rem_1fr] lg:items-start">
+          {/* Job Information */}
+          <div className="rounded-lg border border-gray-200 bg-white">
+            <div className="p-4 lg:p-6">
           {/* Job Header */}
           <div className="border-b pb-4 mb-6">
             <h1 className="text-xl font-bold text-gray-900 mb-2 leading-tight">
@@ -341,56 +355,53 @@ export default function JobApplication() {
 
           {/* Job Details */}
           {jobDetailsContent}
-        </div>
-      </div>
+            </div>
+          </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleApplicationClose}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Close Application
-              </Button>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Apply for Position</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Complete your profile information to apply
-                </p>
+          {/* Main Content */}
+          <div className="flex flex-col">
+            {/* Header */}
+            <div className="rounded-lg border border-gray-200 bg-white px-4 py-4 lg:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3 sm:items-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleApplicationClose}
+                    className="text-gray-600 hover:text-gray-900"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Close
+                  </Button>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Apply for Position</h2>
+                    <p className="mt-1 text-sm text-gray-600">Complete your profile information to apply</p>
+                  </div>
+                </div>
+                <Button onClick={handleProceedToApplication} className="bg-blue-600 text-white hover:bg-blue-700">
+                  <Send className="mr-2 h-4 w-4" />
+                  Continue to Application
+                </Button>
               </div>
             </div>
-            <Button
-              onClick={handleProceedToApplication}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Continue to Application
-            </Button>
-          </div>
-        </div>
 
-        {/* Content */}
-        <div className="flex-1 p-6 overflow-auto">
-          <Card className="shadow-sm">
-            <CardContent className="p-6">
-              <CandidateInfoTabs
-                formData={formData}
-                onChange={handleFormDataChange}
-                departments={departments}
-                jobPositions={jobPositions}
-                jobLevels={jobLevels}
-                branches={branches}
-                employeeStatuses={employeeStatuses}
-              />
-            </CardContent>
-          </Card>
+            {/* Content */}
+            <div className="mt-4">
+              <Card className="shadow-sm">
+                <CardContent className="p-4 sm:p-6">
+                  <CandidateInfoTabs
+                    formData={formData}
+                    onChange={handleFormDataChange}
+                    departments={departments}
+                    jobPositions={jobPositions}
+                    jobLevels={jobLevels}
+                    branches={branches}
+                    employeeStatuses={employeeStatuses}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
     </div>

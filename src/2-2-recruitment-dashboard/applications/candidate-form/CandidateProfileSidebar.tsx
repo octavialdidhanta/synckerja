@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { cn } from '@/shared/lib/utils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { createStorageDisplayUrl } from '@/shared/lib/storageDisplayUrl';
 
 // Layout constants - COMPACT VERSION
 const LAYOUT_CONSTANTS = {
@@ -75,12 +76,43 @@ export const CandidateProfileSidebar = ({ candidateData }: CandidateProfileSideb
   const [workExperience, setWorkExperience] = useState<any[]>([]);
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [discTestStatus, setDiscTestStatus] = useState<string | null>(null);
+  const [photoDisplayUrl, setPhotoDisplayUrl] = useState<string>('');
 
   useEffect(() => {
     if (candidateData?.id) {
       fetchProgressData();
     }
   }, [candidateData?.id]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const resolvePhotoUrl = async () => {
+      const raw = (candidateData?.photo_url ?? '').trim();
+      if (!raw) {
+        if (!isCancelled) setPhotoDisplayUrl('');
+        return;
+      }
+
+      if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        if (!isCancelled) setPhotoDisplayUrl(raw);
+        return;
+      }
+
+      const signed = await createStorageDisplayUrl('recruitment-files', raw, {
+        expiresIn: 60 * 60,
+        transform: { width: 128, resize: 'contain', quality: 80 },
+      });
+
+      if (!isCancelled) setPhotoDisplayUrl(signed ?? '');
+    };
+
+    void resolvePhotoUrl();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [candidateData?.photo_url]);
 
   const fetchProgressData = async () => {
     if (!candidateData?.id) return;
@@ -213,7 +245,7 @@ export const CandidateProfileSidebar = ({ candidateData }: CandidateProfileSideb
       )}>
         <CardHeader className={cn("text-center", LAYOUT_CONSTANTS.card.paddingSmall, "pb-2")}>
           <Avatar className={cn("h-14 w-14 mx-auto", LAYOUT_CONSTANTS.margin.sm)}>
-            <AvatarImage src={candidateData?.photo_url} alt={candidateData?.full_name || 'Candidate'} />
+            <AvatarImage src={photoDisplayUrl || undefined} alt={candidateData?.full_name || 'Candidate'} />
             <AvatarFallback className="bg-primary text-primary-foreground text-sm">
               {getInitials(candidateData?.full_name || '')}
             </AvatarFallback>

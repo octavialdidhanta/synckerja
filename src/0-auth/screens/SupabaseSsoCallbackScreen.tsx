@@ -4,15 +4,32 @@ import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { routeAfterLogin } from "@/0-auth/lib/postLoginRouting";
 import { completeGoogleSsoLogin } from "@/0-auth/lib/completeGoogleSsoLogin";
-import { resolveSsoOAuthSession } from "@/0-auth/lib/resolveSsoOAuthSession";
+import { resolveSsoOAuthSession, waitForExistingAuthSession } from "@/0-auth/lib/resolveSsoOAuthSession";
 import {
   clearStashedSsoOAuthMode,
   clearStashedSsoRedirectTo,
   readStashedSsoRedirectTo,
 } from "@/0-auth/lib/googleSignIn";
+import { isNativeCapacitorAuth } from "@/0-auth/lib/ssoRedirectUrl";
 import { Button } from "@/shared/components/ui/button";
 
 type Phase = "loading" | "error" | "done";
+
+const CALLBACK_TIMEOUT_MS = 45_000;
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 /**
  * Supabase Auth PKCE callback for Google sign-in / sign-up.
@@ -49,23 +66,41 @@ export function SupabaseSsoCallbackScreen() {
 
     void (async () => {
       try {
-        const session = await resolveSsoOAuthSession(code);
-        const user = session.user;
-        if (!user) {
-          throw new Error(t("auth.google.errors.noSession"));
-        }
+        const finishWithUser = async (user: NonNullable<Awaited<ReturnType<typeof resolveSsoOAuthSession>>["user"]>) => {
+          const complete = await completeGoogleSsoLogin(user);
+          if (!complete.ok) {
+            throw new Error(complete.error ?? t("auth.google.errors.generic"));
+          }
 
-        const complete = await completeGoogleSsoLogin(user);
-        if (!complete.ok) {
-          throw new Error(complete.error ?? t("auth.google.errors.generic"));
-        }
+          const redirectTo = readStashedSsoRedirectTo();
+          clearStashedSsoRedirectTo();
+          clearStashedSsoOAuthMode();
 
-        const redirectTo = readStashedSsoRedirectTo();
-        clearStashedSsoRedirectTo();
-        clearStashedSsoOAuthMode();
+          setPhase("done");
+          await routeAfterLogin(navigate, redirectTo);
+        };
 
-        setPhase("done");
-        await routeAfterLogin(navigate, redirectTo);
+        await withTimeout(
+          (async () => {
+            if (!code?.trim() && isNativeCapacitorAuth()) {
+              const nativeSession = await waitForExistingAuthSession(10_000);
+              if (nativeSession?.user) {
+                await finishWithUser(nativeSession.user);
+                return;
+              }
+            }
+
+            const session = await resolveSsoOAuthSession(code);
+            const user = session.user;
+            if (!user) {
+              throw new Error(t("auth.google.errors.noSession"));
+            }
+
+            await finishWithUser(user);
+          })(),
+          CALLBACK_TIMEOUT_MS,
+          "callback_timeout",
+        );
       } catch (err) {
         clearStashedSsoRedirectTo();
         clearStashedSsoOAuthMode();
@@ -73,7 +108,9 @@ export function SupabaseSsoCallbackScreen() {
         const msg =
           raw === "missing_auth_code"
             ? t("auth.google.errors.noSession")
-            : raw || t("auth.google.errors.generic");
+            : raw === "callback_timeout"
+              ? t("auth.google.errors.generic")
+              : raw || t("auth.google.errors.generic");
         setErrorMessage(msg);
         setPhase("error");
       }

@@ -48,6 +48,7 @@
     "supabase:functions:deploy:wa-followup": "npx supabase functions deploy send-whatsapp-template-followup",
     "supabase:functions:deploy:send-instagram-message": "npx supabase functions deploy send-instagram-message",
     "supabase:functions:deploy:instagram-webhook": "npx supabase functions deploy instagram-webhook --no-verify-jwt",
+    "supabase:functions:deploy:google-sso-public-config": "npx supabase functions deploy google-sso-public-config",
     "supabase:db:push:livechat-lead-statuses": "npx supabase db push"
   },
   "dependencies": {

@@ -24,6 +24,11 @@ async function waitForSession(maxMs = 12_000): Promise<Session | null> {
   return null;
 }
 
+/** Polls for an existing Supabase session (native id-token flow may finish before PKCE callback). */
+export async function waitForExistingAuthSession(maxMs = 8_000): Promise<Session | null> {
+  return waitForSession(maxMs);
+}
+
 /**
  * Completes Supabase Google PKCE callback without double exchange (React Strict Mode / detectSessionInUrl).
  */

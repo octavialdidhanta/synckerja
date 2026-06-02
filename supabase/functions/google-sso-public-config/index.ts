@@ -10,7 +10,7 @@ const corsHeaders = {
 /**
  * Public Google OAuth client IDs for native Supabase SSO (signInWithIdToken).
  * Set GOOGLE_SSO_WEB_CLIENT_ID (+ optional GOOGLE_SSO_IOS_CLIENT_ID) in project secrets.
- * GOOGLE_CLIENT_ID is only a fallback when it matches your Supabase Auth → Google web client.
+ * Must match Supabase Auth → Google provider Client ID (not GOOGLE_CLIENT_ID / Drive OAuth).
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -18,11 +18,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const webClientId = (
-      Deno.env.get("GOOGLE_SSO_WEB_CLIENT_ID") ??
-      Deno.env.get("GOOGLE_CLIENT_ID") ??
-      ""
-    ).trim();
+    const webClientId = (Deno.env.get("GOOGLE_SSO_WEB_CLIENT_ID") ?? "").trim();
     const iosClientId = (Deno.env.get("GOOGLE_SSO_IOS_CLIENT_ID") ?? "").trim();
 
     return new Response(

@@ -10,6 +10,7 @@ import { User, ChevronRight, Upload, Camera, Edit, Save, X } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { createStorageDisplayUrl } from '@/shared/lib/storageDisplayUrl';
 
 interface PersonalDetailsTabProps {
   candidate: any;
@@ -38,6 +39,7 @@ export const PersonalDetailsTab = ({
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [photoDisplayUrl, setPhotoDisplayUrl] = useState<string>('');
   
   // Check if profile is incomplete to auto-enable editing
   const isProfileIncomplete = () => {
@@ -74,6 +76,36 @@ export const PersonalDetailsTab = ({
       setIsEditing(true);
     }
   }, [candidate, isReadOnly]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const resolvePhotoUrl = async () => {
+      const raw = (formData.photo_url ?? '').trim();
+      if (!raw) {
+        if (!isCancelled) setPhotoDisplayUrl('');
+        return;
+      }
+
+      if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        if (!isCancelled) setPhotoDisplayUrl(raw);
+        return;
+      }
+
+      const signed = await createStorageDisplayUrl('recruitment-files', raw, {
+        expiresIn: 60 * 60, // 1 hour
+        transform: { width: 256, resize: 'contain', quality: 80 },
+      });
+
+      if (!isCancelled) setPhotoDisplayUrl(signed ?? '');
+    };
+
+    void resolvePhotoUrl();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [formData.photo_url]);
 
   const handleAutoSave = async () => {
     if (saving) return;
@@ -162,15 +194,9 @@ export const PersonalDetailsTab = ({
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data } = supabase.storage
-        .from('recruitment-files')
-        .getPublicUrl(fileName);
-      
-      const photoUrl = data.publicUrl;
-
       // Update form data and save
-      const updatedData = { ...formData, photo_url: photoUrl };
+      // Store the storage object path (private bucket). UI will generate a signed URL for display.
+      const updatedData = { ...formData, photo_url: fileName };
       setFormData(updatedData);
       await onUpdate(updatedData);
 
@@ -240,7 +266,7 @@ export const PersonalDetailsTab = ({
         {/* Avatar Upload Section */}
         <div className="flex flex-col items-center space-y-4">
           <Avatar className="w-24 h-24">
-            <AvatarImage src={formData.photo_url} alt={formData.full_name} />
+            <AvatarImage src={photoDisplayUrl || undefined} alt={formData.full_name} />
             <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-lg">
               {getInitials(formData.full_name)}
             </AvatarFallback>

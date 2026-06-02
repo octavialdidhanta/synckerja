@@ -166,7 +166,9 @@ export const CompanyProfilePhoto = ({
       <div className="relative group">
         <Avatar className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 cursor-pointer">
           <AvatarImage
-            src={optimizePublicStorageImageUrl(logoUrl, { width: 128, resize: "contain", quality: 80 }) ?? undefined}
+            // Use the public object URL directly. Some projects don't have render/image transforms enabled,
+            // which would make optimizePublicStorageImageUrl fail and keep showing the fallback.
+            src={logoUrl ?? undefined}
             alt={`${companyName} logo`}
             className="object-cover"
           />

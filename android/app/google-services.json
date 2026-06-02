@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "909034086376-4elvl5913jkjv74j9kcns55vndp3m1o8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "id.synckerja.app",
+            "certificate_hash": "4aa964e63ec26f8a0ba0e4031c370c2ef19b054b"
+          }
+        },
+        {
+          "client_id": "909034086376-p25vc2r9njhnohg1cq70ue5672fka2ic.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "id.synckerja.app",
+            "certificate_hash": "c1824d9e1f12df5ccb3b0e92e789d77e7664a6f9"
+          }
+        },
+        {
           "client_id": "909034086376-54m2vv12mjdb049btro3qsmqrfcdr9j9.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -288,15 +288,18 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
   }
 
   return (
-    <div className="flex w-full min-w-0 max-w-[1400px] flex-col items-center gap-8 pb-4 xl:max-w-[1520px]">
-      <header className="flex w-full flex-col items-center text-center">
+    <div className="flex w-full min-w-0 flex-col items-center gap-6 pb-4 lg:max-w-[1400px] lg:gap-8 xl:max-w-[1520px]">
+      <header className="flex w-full max-w-md flex-col items-center text-center lg:max-w-xl">
         <div className="mb-2 flex justify-center">{brandMark}</div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{t("onboarding.plan.title")}</h1>
-        <p className="mt-2 max-w-xl text-sm text-slate-600 sm:text-base">{t("onboarding.plan.subtitle")}</p>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl lg:text-3xl">
+          {t("onboarding.plan.title")}
+        </h1>
+        <p className="mt-2 text-sm text-slate-600 sm:text-base">{t("onboarding.plan.subtitle")}</p>
       </header>
 
-      <div className="w-full overflow-x-auto overflow-y-visible [overscroll-behavior-x:contain]">
-        <div className="mx-auto flex w-max max-w-full flex-nowrap justify-center gap-5 px-1 py-1 pb-2 lg:gap-6">
+      {/* Mobile: vertical stack (one card per row). Desktop: horizontal carousel. */}
+      <div className="w-full min-w-0 overflow-x-hidden lg:overflow-x-auto lg:overflow-y-visible lg:[overscroll-behavior-x:contain]">
+        <div className="mx-auto flex w-full min-w-0 flex-col items-stretch gap-5 lg:w-max lg:max-w-full lg:flex-row lg:flex-nowrap lg:justify-center lg:gap-6 lg:px-1 lg:py-1 lg:pb-2">
           {plans.map((p) => {
             const kind = classifyOnboardingPlan(p);
             const max = sliderMaxMembers(p, kind);
@@ -307,7 +310,7 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
             return (
               <div
                 key={p.id}
-                className="flex h-auto w-[min(23rem,calc(100vw-1.5rem))] shrink-0 sm:w-[min(25rem,calc(100vw-2rem))] lg:min-h-[28rem] lg:w-[26rem] lg:flex-none xl:w-[28rem]"
+                className="mx-auto flex h-auto w-full max-w-md shrink-0 lg:mx-0 lg:min-h-[28rem] lg:w-[26rem] lg:max-w-none lg:flex-none xl:w-[28rem]"
               >
                 <CreatePlanPlanCard
                   plan={p}
@@ -334,9 +337,9 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
         </div>
       </div>
 
-      <div className="flex w-full justify-center">
+      <div className="flex w-full max-w-md justify-center px-0 lg:max-w-none">
         <Button
-          className="h-12 min-w-[11rem] px-10 text-base font-semibold text-white shadow-md transition-colors hover:opacity-[0.92]"
+          className="h-11 w-full text-base font-semibold text-white shadow-md transition-colors hover:opacity-[0.92] sm:h-12 sm:min-w-[11rem] sm:w-auto sm:px-10"
           style={{ backgroundColor: brandRed }}
           onClick={onContinue}
           disabled={creating || !canSubmit || !orgId}

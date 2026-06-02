@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
@@ -147,6 +147,7 @@ export const CandidateReviewsTab = ({
   const [newQuestionText, setNewQuestionText] = useState('');
   const { toast } = useToast();
   const { data: userRole } = useCurrentUserRole();
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check if user is interviewer (admin or owner)
   const isInterviewer = userRole === 'admin' || userRole === 'owner';
@@ -158,6 +159,39 @@ export const CandidateReviewsTab = ({
       loadReviews();
       loadDocuments();
     }
+  }, [candidateProfileId, isInterviewer]);
+
+  // Realtime: refresh review list + score on INSERT/UPDATE/DELETE
+  useEffect(() => {
+    if (!candidateProfileId || !isInterviewer) return;
+
+    const channel = supabase
+      .channel(`candidate-reviews:${candidateProfileId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'candidate_reviews',
+          filter: `candidate_profile_id=eq.${candidateProfileId}`,
+        },
+        () => {
+          if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+          realtimeDebounceRef.current = setTimeout(() => {
+            void loadReviews();
+          }, 200);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      if (realtimeDebounceRef.current) {
+        clearTimeout(realtimeDebounceRef.current);
+        realtimeDebounceRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidateProfileId, isInterviewer]);
 
   const loadReviewCategories = async () => {
