@@ -14,26 +14,29 @@ import { useMotivations } from './ModalMotivationForm/useMotivations';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
+import { isBootstrapPending } from '@/shared/lib/loadingBootstrap';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 
 export const SectionMotivation = () => {
   const { t } = useAppTranslation();
-  const { programs, isLoading: programsLoading, error: programsError } = useLatestTrainingPrograms();
+  const { programs, isPending: programsPending, error: programsError } = useLatestTrainingPrograms();
   const {
     data: employeeData,
-    isLoading: employeeLoading,
+    isPending: employeePending,
     error: employeeError,
   } = useCurrentUserEmployee();
   const {
     motivations,
-    isLoading: motivationsLoading,
+    isPending: motivationsPending,
     error: motivationError,
     deleteMotivation,
     updateMotivation,
   } = useMotivations();
 
   const motivationSectionLoading =
-    programsLoading || motivationsLoading || employeeLoading;
+    programsPending ||
+    motivationsPending ||
+    isBootstrapPending(employeePending, employeeData != null);
   const motivationSectionError =
     (motivationError as Error | null | undefined) ||
     (programsError as Error | null | undefined) ||

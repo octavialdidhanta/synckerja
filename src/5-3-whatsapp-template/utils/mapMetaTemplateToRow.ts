@@ -23,6 +23,34 @@ function extractHeaderMediaFormat(components: MetaMessageTemplate["components"])
   return null;
 }
 
+/** Table column: media type or TEXT header; null = body-only template. */
+function mediaFormatForTable(
+  components: MetaMessageTemplate["components"],
+  headerText: string | null,
+): string | null {
+  const media = extractHeaderMediaFormat(components);
+  if (media) return media;
+  if (headerText?.trim()) return "TEXT";
+  return null;
+}
+
+function extractMessagesDelivered(meta: MetaMessageTemplate): number | null {
+  const raw = meta._template_analytics?.messages_delivered;
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function extractReadRatePercent(meta: MetaMessageTemplate): number | null {
+  const analytics = meta._template_analytics;
+  if (!analytics) return null;
+  const delivered = Number(analytics.messages_delivered ?? 0);
+  const read = Number(analytics.messages_read ?? 0);
+  if (!Number.isFinite(delivered) || delivered <= 0) return null;
+  if (!Number.isFinite(read) || read < 0) return null;
+  return Math.round((read / delivered) * 1000) / 10;
+}
+
 function extractBodyFull(components: MetaMessageTemplate["components"]): string {
   if (!Array.isArray(components)) return "";
   const body = components.find((c) => (c?.type ?? "").toUpperCase() === "BODY");
@@ -148,14 +176,78 @@ function categoryToDisplay(category: string | undefined): { display: string; fil
   return { display: raw || "—", filter: raw || "—" };
 }
 
-/** Map Meta API template status to Manager-style label + block reason hint. */
+function parseMetaQualityScoreRaw(meta: MetaMessageTemplate): { raw: string; fromMeta: boolean } {
+  const qs = meta.quality_score;
+  let fromMeta = false;
+
+  if (typeof qs === "string" && qs.trim()) {
+    return { raw: qs.toUpperCase().trim(), fromMeta: true };
+  }
+  if (qs && typeof qs === "object") {
+    const score = String((qs as { score?: string }).score ?? "").toUpperCase().trim();
+    if (score) return { raw: score, fromMeta: true };
+    fromMeta = true;
+  }
+
+  const legacy = String(meta.quality_rating ?? "").toUpperCase().trim();
+  if (legacy) {
+    const legacyMap: Record<string, string> = {
+      HIGH: "GREEN",
+      MEDIUM: "YELLOW",
+      LOW: "RED",
+      UNKNOWN: "UNKNOWN",
+      GREEN: "GREEN",
+      YELLOW: "YELLOW",
+      RED: "RED",
+    };
+    return { raw: legacyMap[legacy] ?? legacy, fromMeta: true };
+  }
+
+  if (qs != null) fromMeta = true;
+  return { raw: "", fromMeta };
+}
+
+/** Meta `quality_score.score` → label shown in CRM (aligned with WhatsApp Manager). */
+export function qualityScoreToDisplayLabel(scoreRaw: string): string {
+  switch (scoreRaw) {
+    case "GREEN":
+      return "High quality";
+    case "YELLOW":
+      return "Medium quality";
+    case "RED":
+      return "Low quality";
+    case "UNKNOWN":
+      return "Quality pending";
+    default:
+      return scoreRaw ? scoreRaw : "—";
+  }
+}
+
+function qualityToDisplay(meta: MetaMessageTemplate): { label: string; raw: string; fromMeta: boolean } {
+  const status = (meta.status ?? "").toUpperCase().trim();
+  const { raw: scoreRaw, fromMeta } = parseMetaQualityScoreRaw(meta);
+
+  if (status !== "APPROVED") {
+    return { label: "—", raw: "", fromMeta: false };
+  }
+
+  if (!fromMeta) {
+    return { label: "—", raw: "", fromMeta: false };
+  }
+
+  if (!scoreRaw || scoreRaw === "UNKNOWN") {
+    return { label: "Quality pending", raw: "UNKNOWN", fromMeta: true };
+  }
+
+  return { label: qualityScoreToDisplayLabel(scoreRaw), raw: scoreRaw, fromMeta: true };
+}
+
+/** Map Meta API template `status` only (quality is separate). */
 function statusToDisplay(meta: MetaMessageTemplate): { label: string; topBlock: string | null } {
   const s = (meta.status ?? "").toUpperCase().trim();
   const rejected = (meta.rejected_reason ?? "").trim();
 
-  if (s === "APPROVED") {
-    return { label: "Active – Quality pending", topBlock: null };
-  }
+  if (s === "APPROVED") return { label: "Approved", topBlock: null };
   if (s === "PENDING") return { label: "In review", topBlock: null };
   if (s === "IN_APPEAL") return { label: "Appealed – In review", topBlock: null };
   if (s === "PAUSED") return { label: "Paused", topBlock: rejected || null };
@@ -196,12 +288,13 @@ export function mapMetaTemplateToRow(meta: MetaMessageTemplate): TemplateTableRo
   const languageLabel = rawLang ? metaLanguageToShortTag(rawLang) : "—";
 
   const { label: statusLabel, topBlock } = statusToDisplay(meta);
+  const { label: qualityLabel, raw: qualityRaw, fromMeta: qualityFromMeta } = qualityToDisplay(meta);
 
   const lastEditedAt = parseMetaGraphDateTime(meta.last_updated_time);
   const createdFromMeta = parseMetaGraphDateTime(meta.created_time);
   /** Prefer Meta `created_time`; if absent, Meta still exposes `last_updated_time` on the template node. */
   const createdAt = createdFromMeta ?? lastEditedAt;
-  const mediaFormat = extractHeaderMediaFormat(meta.components);
+  const mediaFormat = mediaFormatForTable(meta.components, headerText);
 
   return {
     id,
@@ -220,8 +313,11 @@ export function mapMetaTemplateToRow(meta: MetaMessageTemplate): TemplateTableRo
     languageLabel,
     statusLabel,
     statusRaw: (meta.status ?? "").toUpperCase(),
-    messagesDelivered: null,
-    readRatePercent: null,
+    qualityLabel,
+    qualityRaw,
+    qualityFromMeta,
+    messagesDelivered: extractMessagesDelivered(meta),
+    readRatePercent: extractReadRatePercent(meta),
     topBlockReason: topBlock,
     createdAt,
     lastEditedAt,

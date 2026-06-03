@@ -5,6 +5,8 @@ import type { WhatsAppAccount } from "@/5-3-whatsapp/types";
 import { Button } from "@/shared/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { cn } from "@/shared/lib/utils";
+import { CampaignErrorMessage } from "@/5-3-whatsapp-template/components/campaign/CampaignErrorMessage";
+import { CampaignParameterMappingReadOnly } from "@/5-3-whatsapp-template/components/campaign/CampaignContentSection";
 import {
   type WhatsAppCampaignRecipientRow,
   useWhatsAppCampaign,
@@ -151,10 +153,13 @@ export function CampaignDetailPanel({
               {row(t("whatsappTemplates.campaign.detail.started"), formatDt(camp.started_at))}
               {row(t("whatsappTemplates.campaign.detail.finished"), formatDt(camp.finished_at))}
               {row(t("whatsappTemplates.campaign.col.created"), formatDt(camp.created_at))}
-              {camp.last_error
-                ? row(t("whatsappTemplates.campaign.col.error"), <span className="text-red-700">{camp.last_error}</span>)
-                : null}
             </dl>
+
+            {camp.last_error ? (
+              <CampaignErrorMessage message={camp.last_error} className="mt-4 w-full min-w-0" />
+            ) : null}
+
+            <CampaignParameterMappingReadOnly parameterMapping={camp.parameter_mapping} />
 
             <h3 className="mb-2 mt-6 text-sm font-semibold text-slate-800">
               {t("whatsappTemplates.campaign.detail.recipients")}
@@ -177,7 +182,9 @@ export function CampaignDetailPanel({
                       <TableHead className="text-xs font-medium">{t("whatsappTemplates.campaign.detail.phone")}</TableHead>
                       <TableHead className="text-xs font-medium">{t("whatsappTemplates.campaign.col.status")}</TableHead>
                       <TableHead className="text-xs font-medium">{t("whatsappTemplates.campaign.detail.waMessageId")}</TableHead>
-                      <TableHead className="min-w-[6rem] text-xs font-medium">{t("whatsappTemplates.campaign.col.error")}</TableHead>
+                      <TableHead className="min-w-[14rem] text-xs font-medium">
+                        {t("whatsappTemplates.campaign.col.error")}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -197,8 +204,12 @@ export function CampaignDetailPanel({
                         <TableCell className="max-w-[8rem] truncate font-mono text-xs" title={r.wa_message_id ?? undefined}>
                           {r.wa_message_id ?? "—"}
                         </TableCell>
-                        <TableCell className="max-w-[10rem] truncate text-xs text-red-700/90" title={r.error_detail ?? undefined}>
-                          {r.error_detail ?? "—"}
+                        <TableCell className="min-w-[14rem] max-w-[min(32rem,70vw)] align-top py-2">
+                          {r.error_detail ? (
+                            <CampaignErrorMessage message={r.error_detail} compact className="w-full" />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

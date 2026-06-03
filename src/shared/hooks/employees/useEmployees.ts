@@ -92,8 +92,32 @@ export const useEmployees = () => {
         })
       );
 
-      devLog.log('Optimized employees fetched:', enrichedEmployees.length);
-      return enrichedEmployees;
+      const userIds = [
+        ...new Set(
+          enrichedEmployees.map((e) => e.user_id).filter((id): id is string => Boolean(id)),
+        ),
+      ];
+
+      let withPhotos = enrichedEmployees;
+      if (userIds.length > 0) {
+        const { data: detailsRows } = await supabase
+          .from('user_profile_details')
+          .select('profile_id, profile_photo_url')
+          .in('profile_id', userIds);
+
+        const photoByUser = new Map(
+          (detailsRows ?? []).map((d) => [d.profile_id, d.profile_photo_url]),
+        );
+
+        withPhotos = enrichedEmployees.map((emp) => {
+          const detailPhoto = emp.user_id ? photoByUser.get(emp.user_id) : null;
+          const merged = emp.profile_photo_url || detailPhoto || null;
+          return { ...emp, profile_photo_url: merged };
+        });
+      }
+
+      devLog.log('Optimized employees fetched:', withPhotos.length);
+      return withPhotos;
     },
     staleTime: 10 * 60 * 1000, // 10 minutes for employee data
     gcTime: 20 * 60 * 1000, // 20 minutes cache

@@ -2,7 +2,7 @@ import { cn } from "@/shared/lib/utils";
 
 export function TemplateStatusBadge({ label }: { label: string }) {
   const lower = label.toLowerCase();
-  const isActive = lower.includes("active");
+  const isActive = lower.includes("active") || lower.includes("approved");
   const isRejected = lower.includes("rejected");
   const isPaused = lower.includes("paused") || lower.includes("disabled") || lower.includes("archived");
 

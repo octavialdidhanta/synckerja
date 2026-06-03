@@ -92,7 +92,7 @@ function OKRPageContent() {
   const handleTabChange = useOkrHeaderTabChange();
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const { data: currentEmployee, isPending: currentEmployeePending } = useCurrentEmployee();
-  const { data: cycles = [], isLoading: isLoadingCycles } = useOkrCycles(organizationId);
+  const { data: cycles = [], isPending: cyclesPending } = useOkrCycles(organizationId);
   const detailTabs = useOkrPageDetailTabs();
 
   const activeTab = useMemo(
@@ -126,14 +126,14 @@ function OKRPageContent() {
     return hasYearQuarterSelection(sel) ? filterCyclesByYearQuarter(cycles, sel) : undefined;
   };
   const filteredCycleIds =
-    !isLoadingCycles && cycles.length > 0 ? getFilteredCycleIds(yearQuarterSelection) : undefined;
+    !cyclesPending && cycles.length > 0 ? getFilteredCycleIds(yearQuarterSelection) : undefined;
   const cycleIdsForStats =
     filteredCycleIds && filteredCycleIds.length > 0
       ? filteredCycleIds
       : cycles.length > 0
         ? cycles.map((c) => c.id)
         : undefined;
-  const statsEnabled = !!organizationId && !isLoadingCycles;
+  const statsEnabled = !!organizationId && !cyclesPending;
 
   const companyStats = useObjectiveStats(
     organizationId,
@@ -157,28 +157,30 @@ function OKRPageContent() {
   const rawPageLoadPending = useMemo(() => {
     if (orgBootstrapPending) return true;
     if (!organizationId) return false;
-    if (isLoadingCycles) return true;
+    if (cyclesPending) return true;
 
     if (isCompanyTab) {
-      return companyStats.isLoading || detailTabs.company.loading;
+      return companyStats.isPending || detailTabs.company.loading;
     }
     if (isDepartmentTab) {
       return (
-        departmentStats.isLoading ||
+        departmentStats.isPending ||
         detailTabs.department.loading ||
-        currentEmployeePending
+        (currentEmployeePending && currentEmployee === undefined)
       );
     }
-    return individualStats.isLoading || detailTabs.individual.loading;
+    return individualStats.isPending || detailTabs.individual.loading;
   }, [
     orgBootstrapPending,
     organizationId,
-    isLoadingCycles,
+    cyclesPending,
     isCompanyTab,
     isDepartmentTab,
-    companyStats.isLoading,
-    departmentStats.isLoading,
-    individualStats.isLoading,
+    companyStats.isPending,
+    departmentStats.isPending,
+    individualStats.isPending,
+    currentEmployee,
+    currentEmployeePending,
     detailTabs.company.loading,
     detailTabs.department.loading,
     detailTabs.individual.loading,
@@ -235,7 +237,7 @@ function OKRPageContent() {
                                   />
                                 </Suspense>
                               </div>
-                              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
+                              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 w-full flex-1 flex-col basis-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 {organizationId ? (
                                   <Suspense fallback={detailListFallback}>
                                     <CompanyObjectivesDetailView
@@ -270,7 +272,7 @@ function OKRPageContent() {
                                   />
                                 </Suspense>
                               </div>
-                              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
+                              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 w-full flex-1 flex-col basis-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 {organizationId ? (
                                   <Suspense fallback={detailListFallback}>
                                     <DepartmentObjectivesView
@@ -303,7 +305,7 @@ function OKRPageContent() {
                                   />
                                 </Suspense>
                               </div>
-                              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0">
+                              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 w-full flex-1 flex-col basis-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 {organizationId ? (
                                   <Suspense fallback={detailListFallback}>
                                     <IndividualObjectivesView
@@ -355,10 +357,6 @@ function OKRPageContent() {
                     </div>
                   </div>
                 </ModuleShellContentGate>
-                <div
-                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                  aria-hidden
-                />
               </div>
             </div>
           </div>

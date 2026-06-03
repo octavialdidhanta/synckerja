@@ -11,14 +11,15 @@ export function HomePageSkeleton() {
 
   return (
     <div
-      className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-background font-sans text-foreground"
+      className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans text-foreground"
       aria-busy
       aria-label={aria}
     >
       <span className="sr-only">{aria}</span>
-      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
-          <div className="flex min-h-full min-h-0 flex-col">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-h-full min-w-0 flex-col">
             {/* SectionMotivation — mirror min-h wrapper + gradient card */}
             <div className="mb-2 mt-2 flex-shrink-0">
               <div className="relative min-h-[50px]">
@@ -182,7 +183,7 @@ export function HomePageSkeleton() {
                 </div>
               </div>
             </div>
-            <div className="h-4 flex-shrink-0" aria-hidden />
+            </div>
           </div>
         </div>
       </div>

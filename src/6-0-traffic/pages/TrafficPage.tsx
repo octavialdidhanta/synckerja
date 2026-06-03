@@ -308,20 +308,6 @@ export default function TrafficPage() {
     kpis == null ? null : utmTableMetrics.utmFiltersActive ? utmTableMetrics.filteredClicksSum : kpis.clicks;
   const topPages = dashboardQuery.data?.top_pages ?? [];
 
-  const trafficFilterSkipsAggregates = useMemo(() => {
-    if (rangeIsMaximum) return false;
-    if (!fromDate || !toDate) return false;
-    const ing = ingestionQuery.data;
-    const dmin = ing?.aggregate_day_min;
-    const dmax = ing?.aggregate_day_max;
-    if (dmin == null || dmax == null || String(dmin) === "" || String(dmax) === "") return false;
-    if (ing?.daily_rollups_exist === false) return false;
-    const a = (v: string | null | undefined) => String(v ?? "").slice(0, 10);
-    const bmin = a(dmin);
-    const bmax = a(dmax);
-    if (bmin.length < 10 || bmax.length < 10) return false;
-    return toDate < bmin || fromDate > bmax;
-  }, [rangeIsMaximum, fromDate, toDate, ingestionQuery.data]);
   const topPagesBlog = useMemo(() => {
     return topPages.filter((p) => {
       const path = String((p as { path?: unknown }).path ?? "");
@@ -587,25 +573,6 @@ export default function TrafficPage() {
                               belum ada data sesi, page view, atau klik. Pastikan skrip / pixel di situs publik
                               terhubung ke proyek Supabase ini dan mengirim <code className="rounded bg-muted px-1.5 py-0.5">web_id</code>{" "}
                               yang sama, lalu ulangi &quot;Sync data&quot; bila perlu.
-                            </AlertDescription>
-                          </Alert>
-                        </div>
-                      )}
-                      {!ingestionQuery.isLoading && !ingestionQuery.isError && trafficFilterSkipsAggregates && (
-                        <div className="col-span-12">
-                          <Alert className="border-rose-200 bg-rose-50/90 text-rose-950">
-                            <AlertTitle className="text-rose-950">Filter tanggal tidak memotong agregat harian</AlertTitle>
-                            <AlertDescription className="text-sm text-rose-900/90">
-                              Dashboard membaca tabel <strong>agregat harian</strong> (bukan tabel saja tanpa memfilter). Untuk{" "}
-                              <code className="rounded bg-white/70 px-1 py-0.5 text-rose-900">{effectiveWebId}</code>, hari yang punya
-                              agregat adalah{" "}
-                              <strong>
-                                {ingestionQuery.data?.aggregate_day_min} s/d {ingestionQuery.data?.aggregate_day_max}
-                              </strong>{" "}
-                              (kalender hari <strong>WIB</strong> / <code className="rounded bg-white/70 px-1 py-0.5">Asia/Jakarta</code>
-                              , kolom <code className="rounded bg-white/70 px-1 py-0.5">day</code>). Perluas rentang atau
-                              pilih <strong>Maximum</strong> agar mencakup hari tersebut, jangan hanya tanggal di luar rentang
-                              tersedia.
                             </AlertDescription>
                           </Alert>
                         </div>
@@ -998,11 +965,6 @@ export default function TrafficPage() {
                 </div>
               </div>
               </ModuleShellContentGate>
-
-              <div
-                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
             </div>
           </div>
         </div>

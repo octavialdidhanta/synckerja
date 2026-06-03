@@ -238,12 +238,12 @@ const EmployeeFamily = () => {
                       <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col h-full">
                         <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           <div className="p-6">
-                            {/* Header */}
-                            <div className="flex items-center justify-between mb-6">
-                              <h2 className="text-xl font-semibold text-gray-900">Family Members</h2>
-                            </div>
-                            
-                            <FamilyMembersInfoTab employee={employee} isEditMode={isEditMode} onUpdate={() => {}} />
+                            <FamilyMembersInfoTab
+                              employee={employee}
+                              isEditMode={isEditMode}
+                              onUpdate={() => {}}
+                              sectionTitle="Family Members"
+                            />
                           </div>
                         </div>
 

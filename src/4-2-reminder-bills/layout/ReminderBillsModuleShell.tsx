@@ -17,7 +17,6 @@ const MAIN_SCROLL =
 /**
  * Shared outer shell untuk `/expenses/reminder-bills`.
  * - Header ikut scroll
- * - Bottom safe spacer
  * - Skeleton overlay saat data belum siap
  */
 export function ReminderBillsModuleShell({
@@ -27,7 +26,7 @@ export function ReminderBillsModuleShell({
   showContent,
 }: ReminderBillsModuleShellProps) {
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background font-sans">
+    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div
         className={cn(
           'flex min-h-0 w-full min-w-0 flex-1 flex-col',
@@ -44,25 +43,15 @@ export function ReminderBillsModuleShell({
                 </div>
 
                 <ModuleShellContentGate>{children}</ModuleShellContentGate>
-
-                <div
-                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                  aria-hidden
-                />
               </div>
             </div>
-
-            <div
-              className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-4"
-              aria-hidden
-            />
           </div>
         </div>
       </div>
 
       {!showContent ? (
         <div
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-gray-100"
           aria-busy
         >
           <ReminderBillsPageSkeleton />

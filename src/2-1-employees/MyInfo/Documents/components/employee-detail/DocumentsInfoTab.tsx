@@ -3,7 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
@@ -18,9 +18,16 @@ interface DocumentsInfoTabProps {
   employee: Employee;
   isEditMode: boolean;
   onUpdate: () => void;
+  /** When set, title and Add Document share one header row (Documents page). */
+  sectionTitle?: string;
 }
 
-export const DocumentsInfoTab = ({ employee, isEditMode, onUpdate }: DocumentsInfoTabProps) => {
+export const DocumentsInfoTab = ({
+  employee,
+  isEditMode,
+  onUpdate,
+  sectionTitle,
+}: DocumentsInfoTabProps) => {
   const { documents, isLoading, addDocument, updateDocument, deleteDocument } = useEmployeeDocuments(employee.id);
   
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -134,21 +141,30 @@ export const DocumentsInfoTab = ({ employee, isEditMode, onUpdate }: DocumentsIn
     );
   }
 
+  const addDocumentButton =
+    isEditMode && !isAddingNew && !editingId ? (
+      <Button
+        onClick={() => setIsAddingNew(true)}
+        size="sm"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Add Document
+      </Button>
+    ) : null;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Documents Information</h3>
-        {isEditMode && !isAddingNew && !editingId && (
-          <Button
-            onClick={() => setIsAddingNew(true)}
-            size="sm"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Document
-          </Button>
-        )}
-      </div>
+      {sectionTitle ? (
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold text-gray-900">{sectionTitle}</h2>
+          {addDocumentButton}
+        </div>
+      ) : (
+        addDocumentButton && (
+          <div className="flex justify-end">{addDocumentButton}</div>
+        )
+      )}
 
       {/* Add New Document Form */}
       {isAddingNew && (
@@ -233,9 +249,6 @@ export const DocumentsInfoTab = ({ employee, isEditMode, onUpdate }: DocumentsIn
       {/* Documents Records Table */}
       {documents && documents.length > 0 ? (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Documents Records</CardTitle>
-          </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px] w-full">
               <Table>

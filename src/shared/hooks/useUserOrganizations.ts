@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { pickHighestUserRoleFromRows } from "@/shared/lib/organizationRolePick";
 import { syncAfterOrganizationSwitch } from "@/shared/auth/identityQuerySync";
@@ -96,6 +96,8 @@ export function useUserOrganizations() {
     queryKey: userOrganizationsQueryKey,
     queryFn: fetchUserOrganizations,
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 
   const setActiveMutation = useMutation({

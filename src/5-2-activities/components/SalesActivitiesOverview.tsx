@@ -1,6 +1,11 @@
 import React from 'react';
-import { Activity, TrendingUp, CheckCircle2, DollarSign, Clock, AlertCircle } from 'lucide-react';
+import { Activity, TrendingUp, CheckCircle2, DollarSign, AlertCircle } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
+import {
+  isLostSalesActivityStatus,
+  isOngoingSalesActivityStatus,
+  isWonSalesActivityStatus,
+} from '../utils/salesActivitiesFilterUtils';
 
 interface SalesActivitiesOverviewProps {
   activities: any[];
@@ -8,9 +13,9 @@ interface SalesActivitiesOverviewProps {
 
 export const SalesActivitiesOverview = ({ activities }: SalesActivitiesOverviewProps) => {
   // Calculate real data from activities
-  const ongoingActivities = activities.filter(a => a.status === 'ongoing').length;
-  const closedWonActivities = activities.filter(a => a.status === 'closed_won').length;
-  const closedLostActivities = activities.filter(a => a.status === 'closed_lost').length;
+  const ongoingActivities = activities.filter((a) => isOngoingSalesActivityStatus(a.status)).length;
+  const closedWonActivities = activities.filter((a) => isWonSalesActivityStatus(a.status)).length;
+  const closedLostActivities = activities.filter((a) => isLostSalesActivityStatus(a.status)).length;
   
   // Get unique activity types
   const uniqueTypes = [...new Set(activities.map(a => a.activity_type).filter(Boolean))];
@@ -25,8 +30,8 @@ export const SalesActivitiesOverview = ({ activities }: SalesActivitiesOverviewP
     current.count > max.count ? current : max, typeCounts[0] || { name: 'N/A', count: 0 });
 
   // Calculate average deal size (if we have closed won activities)
-  const closedWonWithAmount = activities.filter(a => 
-    a.status === 'closed_won' && (a.total_amount || a.amount)
+  const closedWonWithAmount = activities.filter(
+    (a) => isWonSalesActivityStatus(a.status) && (a.total_amount || a.amount),
   );
   const avgDealSize = closedWonWithAmount.length > 0
     ? closedWonWithAmount.reduce((sum, activity) => 
@@ -35,7 +40,7 @@ export const SalesActivitiesOverview = ({ activities }: SalesActivitiesOverviewP
 
   // Calculate total revenue
   const totalRevenue = activities
-    .filter(a => a.status === 'closed_won')
+    .filter((a) => isWonSalesActivityStatus(a.status))
     .reduce((sum, a) => sum + (a.total_amount || a.amount || 0), 0);
 
   return (

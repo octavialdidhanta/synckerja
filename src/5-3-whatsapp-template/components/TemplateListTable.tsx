@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/
 import { cn } from "@/shared/lib/utils";
 import type { TemplateTableRow } from "../types";
 import { templateDeleteBlockReason } from "../utils/templateDeleteRules";
+import { TemplateQualityBadge } from "./TemplateQualityBadge";
 import { TemplateStatusBadge } from "./TemplateStatusBadge";
 
 export type SortKey =
@@ -22,6 +23,7 @@ export type SortKey =
   | "languageLabel"
   | "mediaFormat"
   | "statusLabel"
+  | "qualityLabel"
   | "messagesDelivered"
   | "readRatePercent"
   | "topBlockReason"
@@ -116,23 +118,29 @@ export function TemplateListTable({
             label="Media"
             k="mediaFormat"
             className="min-w-[5.5rem]"
-            info="Tipe media dari komponen HEADER Meta (`IMAGE`, `VIDEO`, atau `DOCUMENT`). Template teks-only menampilkan —."
+            info="Dari HEADER Meta: IMAGE / VIDEO / DOCUMENT, TEXT (header teks), atau — jika tidak ada header."
           />
-          <SortHead label="Status" k="statusLabel" className="min-w-[8rem]" />
+          <SortHead label="Status" k="statusLabel" className="min-w-[7rem]" />
+          <SortHead
+            label="Quality"
+            k="qualityLabel"
+            className="min-w-[8rem]"
+            info="Rating dari Meta `quality_score` berdasarkan feedback pelanggan (GREEN / YELLOW / RED / UNKNOWN)."
+          />
           <SortHead
             label="Messages delivered"
             k="messagesDelivered"
-            info="Jumlah pesan template yang terkirim. Nilai detail memerlukan integrasi analitik Meta; saat ini dapat ditampilkan sebagai —."
+            info="Total delivered (30 hari) dari Meta `template_analytics`. — jika belum ada pengiriman atau analytics tidak tersedia."
           />
           <SortHead
             label="Read rate"
             k="readRatePercent"
-            info="Persentase dibaca. Memerlukan integrasi analitik Meta; saat ini dapat ditampilkan sebagai —."
+            info="read ÷ delivered × 100 (30 hari) dari Meta `template_analytics`."
           />
           <SortHead
             label="Top block reason"
             k="topBlockReason"
-            info="Alasan pemblokiran template jika tersedia dari Meta."
+            info="Dari Meta `rejected_reason` untuk template Paused/Rejected/Disabled. Template Approved biasanya —."
           />
           <SortHead
             label="Created at"
@@ -147,7 +155,7 @@ export function TemplateListTable({
       <TableBody>
         {rows.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={12} className="h-24 text-center text-sm text-muted-foreground">
+            <TableCell colSpan={13} className="h-24 text-center text-sm text-muted-foreground">
               Tidak ada template yang cocok dengan filter.
             </TableCell>
           </TableRow>
@@ -176,6 +184,17 @@ export function TemplateListTable({
               </TableCell>
               <TableCell className="align-top">
                 <TemplateStatusBadge label={row.statusLabel} />
+              </TableCell>
+              <TableCell className="align-top">
+                <TemplateQualityBadge
+                  label={row.qualityLabel}
+                  qualityRaw={row.qualityRaw}
+                  title={
+                    !row.qualityFromMeta
+                      ? "Meta tidak mengirim quality_score — deploy ulang Edge Function whatsapp-message-templates lalu refresh."
+                      : undefined
+                  }
+                />
               </TableCell>
               <TableCell className="align-top text-center text-sm tabular-nums text-slate-700">
                 {row.messagesDelivered == null ? "—" : row.messagesDelivered}

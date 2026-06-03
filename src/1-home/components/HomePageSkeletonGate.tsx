@@ -21,7 +21,7 @@ export function HomePageSkeletonGate({ children }: { children: ReactNode }) {
         {children}
       </div>
       {showFullPageSkeleton ? (
-        <div className="absolute inset-0 z-10 flex min-h-0 flex-col bg-background" aria-busy>
+        <div className="absolute inset-0 z-10 flex min-h-0 flex-col bg-gray-100" aria-busy>
           <HomePageSkeleton />
         </div>
       ) : null}

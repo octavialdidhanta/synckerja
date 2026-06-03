@@ -70,12 +70,7 @@ export function ExpenseRouteSkeleton({ variant }: ExpenseRouteSkeletonProps) {
           </div>
         </div>
 
-        <div
-          className="h-2 shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-          aria-hidden
-        />
       </div>
-      <div className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-4" aria-hidden />
     </div>
   );
 }

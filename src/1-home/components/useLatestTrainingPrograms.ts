@@ -19,7 +19,7 @@ export interface LatestTrainingProgram {
 export const useLatestTrainingPrograms = () => {
   const { organizationId } = useCurrentOrg();
 
-  const { data: programs = [], isLoading, error } = useQuery({
+  const { data: programs = [], isPending, isLoading, error } = useQuery({
     queryKey: ['latest-training-programs', organizationId],
     queryFn: async () => {
       if (!organizationId) return [];
@@ -64,7 +64,8 @@ export const useLatestTrainingPrograms = () => {
 
   return {
     programs,
-    isLoading,
+    isPending,
+    isLoading: isPending || isLoading,
     error: error as Error | null | undefined,
   };
 };

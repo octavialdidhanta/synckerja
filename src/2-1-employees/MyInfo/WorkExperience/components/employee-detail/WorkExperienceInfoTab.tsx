@@ -3,7 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
@@ -17,9 +17,16 @@ interface WorkExperienceInfoTabProps {
   employee: Employee;
   isEditMode: boolean;
   onUpdate: () => void;
+  /** When set, title and Add button share one header row (Work Experience page). */
+  sectionTitle?: string;
 }
 
-export const WorkExperienceInfoTab = ({ employee, isEditMode, onUpdate }: WorkExperienceInfoTabProps) => {
+export const WorkExperienceInfoTab = ({
+  employee,
+  isEditMode,
+  onUpdate,
+  sectionTitle,
+}: WorkExperienceInfoTabProps) => {
   const { organizationId } = useCurrentOrg();
   const { workExperiences, isLoading, addWorkExperience, updateWorkExperience, deleteWorkExperience } = useWorkExperiences(employee.id);
   
@@ -119,21 +126,30 @@ export const WorkExperienceInfoTab = ({ employee, isEditMode, onUpdate }: WorkEx
     );
   }
 
+  const addWorkExperienceButton =
+    isEditMode && !isAddingNew && !editingId ? (
+      <Button
+        onClick={() => setIsAddingNew(true)}
+        size="sm"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Add Work Experience
+      </Button>
+    ) : null;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Work Experience Information</h3>
-        {isEditMode && !isAddingNew && !editingId && (
-          <Button
-            onClick={() => setIsAddingNew(true)}
-            size="sm"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Work Experience
-          </Button>
-        )}
-      </div>
+      {sectionTitle ? (
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold text-gray-900">{sectionTitle}</h2>
+          {addWorkExperienceButton}
+        </div>
+      ) : (
+        addWorkExperienceButton && (
+          <div className="flex justify-end">{addWorkExperienceButton}</div>
+        )
+      )}
 
       {/* Add New Work Experience Form */}
       {isAddingNew && (
@@ -222,9 +238,6 @@ export const WorkExperienceInfoTab = ({ employee, isEditMode, onUpdate }: WorkEx
       {/* Work Experience Records Table */}
       {workExperiences && workExperiences.length > 0 ? (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Work Experience Records</CardTitle>
-          </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px] w-full">
               <Table>

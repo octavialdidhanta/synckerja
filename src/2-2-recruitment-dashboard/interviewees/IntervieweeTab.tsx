@@ -28,6 +28,29 @@ import { InterviewWhatsAppButton } from './InterviewWhatsAppButton';
 import { useNavigate } from 'react-router-dom';
 import { CandidateToEmployeeConfirmModal } from './CandidateToEmployeeConfirmModal';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { useRecruitmentCandidatePhotoDisplayUrl } from '@/shared/hooks/useRecruitmentCandidatePhotoDisplayUrl';
+
+function IntervieweeRowAvatar({
+  photoUrl,
+  name,
+}: {
+  photoUrl?: string | null;
+  name: string;
+}) {
+  const displayUrl = useRecruitmentCandidatePhotoDisplayUrl(photoUrl, { width: 72 });
+  const initials = name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2);
+
+  return (
+    <Avatar className="h-9 w-9 flex-shrink-0">
+      <AvatarImage src={displayUrl || undefined} alt={name} />
+      <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">{initials}</AvatarFallback>
+    </Avatar>
+  );
+}
 import { fetchCandidateApplicationData } from './services/candidateApplicationPdfService';
 import { generateCandidateApplicationPDF } from './utils/candidateApplicationPdfGenerator';
 
@@ -778,12 +801,10 @@ Best regards,
                   <TableRow key={candidate.id} className="hover:bg-gray-50 border-b border-gray-100">
                     <TableCell className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <Avatar className="h-9 w-9 flex-shrink-0">
-                          <AvatarImage src={candidate.candidate_profiles?.photo_url || ''} alt={candidate.applicant_name} />
-                          <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
-                            {candidate.applicant_name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <IntervieweeRowAvatar
+                          photoUrl={candidate.candidate_profiles?.photo_url}
+                          name={candidate.applicant_name}
+                        />
                         <span className="font-medium text-gray-900 truncate">{candidate.applicant_name}</span>
                       </div>
                     </TableCell>

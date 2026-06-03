@@ -42,7 +42,7 @@ export function SubscriptionSectionLayout({ children }: { children: React.ReactN
   const showBanner = !statusLoading && !!subscriptionStatus && daysLeft <= 3;
 
   return (
-    <div className="flex min-h-full min-h-0 flex-1 flex-col bg-gray-100 font-sans">
+    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-gray-100 font-sans">
       <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="shrink-0 px-4">
           <div className="px-1 py-3">
@@ -88,7 +88,7 @@ export function SubscriptionSectionLayout({ children }: { children: React.ReactN
             <SubscriptionBanner subscriptionStatus={subscriptionStatus} />
           </div>
         )}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+        <div className="flex min-w-0 flex-col">{children}</div>
       </div>
     </div>
   );

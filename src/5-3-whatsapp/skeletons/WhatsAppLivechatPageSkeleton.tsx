@@ -8,7 +8,7 @@ export function WhatsAppLivechatPageSkeleton() {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-surface-muted font-sans">
       <div className="flex flex-1 min-h-0">
-        <div className="flex min-h-0 flex-1 flex-col pl-2 pr-4 pb-4 sm:pl-3">
+        <div className="flex min-h-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
           <div className="h-full flex flex-col">
             <div className="flex-shrink-0">
               <div className="min-w-0 max-w-full px-1 py-3">

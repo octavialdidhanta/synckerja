@@ -1,4 +1,4 @@
-﻿
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
@@ -10,7 +10,7 @@ import { User, ChevronRight, Upload, Camera, Edit, Save, X } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { createStorageDisplayUrl } from '@/shared/lib/storageDisplayUrl';
+import { useRecruitmentCandidatePhotoDisplayUrl } from '@/shared/hooks/useRecruitmentCandidatePhotoDisplayUrl';
 
 interface PersonalDetailsTabProps {
   candidate: any;
@@ -39,7 +39,8 @@ export const PersonalDetailsTab = ({
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [photoDisplayUrl, setPhotoDisplayUrl] = useState<string>('');
+  const storedPhotoPath = (formData.photo_url || candidate?.photo_url || '').trim();
+  const photoDisplayUrl = useRecruitmentCandidatePhotoDisplayUrl(storedPhotoPath, { width: 256 });
   
   // Check if profile is incomplete to auto-enable editing
   const isProfileIncomplete = () => {
@@ -78,34 +79,22 @@ export const PersonalDetailsTab = ({
   }, [candidate, isReadOnly]);
 
   useEffect(() => {
-    let isCancelled = false;
-
-    const resolvePhotoUrl = async () => {
-      const raw = (formData.photo_url ?? '').trim();
-      if (!raw) {
-        if (!isCancelled) setPhotoDisplayUrl('');
-        return;
-      }
-
-      if (raw.startsWith('http://') || raw.startsWith('https://')) {
-        if (!isCancelled) setPhotoDisplayUrl(raw);
-        return;
-      }
-
-      const signed = await createStorageDisplayUrl('recruitment-files', raw, {
-        expiresIn: 60 * 60, // 1 hour
-        transform: { width: 256, resize: 'contain', quality: 80 },
-      });
-
-      if (!isCancelled) setPhotoDisplayUrl(signed ?? '');
-    };
-
-    void resolvePhotoUrl();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [formData.photo_url]);
+    if (!candidate?.id) return;
+    setFormData((prev) => ({
+      full_name: candidate.full_name ?? prev.full_name,
+      email: candidate.email ?? prev.email,
+      mobile_phone: candidate.mobile_phone ?? prev.mobile_phone,
+      birth_date: candidate.birth_date ?? prev.birth_date,
+      birth_place: candidate.birth_place ?? prev.birth_place,
+      gender: candidate.gender ?? prev.gender,
+      nik: candidate.nik ?? prev.nik,
+      religion: candidate.religion ?? prev.religion,
+      marital_status: candidate.marital_status ?? prev.marital_status,
+      nationality: candidate.nationality ?? prev.nationality,
+      blood_type: candidate.blood_type ?? prev.blood_type,
+      photo_url: candidate.photo_url ?? prev.photo_url,
+    }));
+  }, [candidate?.id, candidate?.updated_at, candidate?.photo_url]);
 
   const handleAutoSave = async () => {
     if (saving) return;

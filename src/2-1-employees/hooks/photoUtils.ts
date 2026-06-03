@@ -1,21 +1,35 @@
+import { resolveProfilePhotoDisplayUrl } from '@/shared/lib/profilePhotoStorage';
+
+function baseUrl(): string {
+  return String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '');
+}
+
 export const getPhotoUrl = (photoPath: string | null | undefined): string | null => {
   if (!photoPath) return null;
-  if (photoPath.startsWith('http')) return photoPath;
-  if (photoPath.includes('/') && !photoPath.startsWith('employee-photo/')) {
-    return `https://najgdwffjhnqlogfrlqa.supabase.co/storage/v1/object/public/employee-profiles/${photoPath}`;
-  }
+
+  const resolved = resolveProfilePhotoDisplayUrl(photoPath);
+  if (resolved) return resolved;
+
+  const root = baseUrl();
+  if (!root) return null;
+
   if (photoPath.startsWith('employee-photo/')) {
-    return `https://najgdwffjhnqlogfrlqa.supabase.co/storage/v1/object/public/employee-documents/${photoPath}`;
+    const encoded = photoPath
+      .split('/')
+      .map((seg) => encodeURIComponent(seg))
+      .join('/');
+    return `${root}/storage/v1/object/public/employee-documents/${encoded}`;
   }
-  return `https://najgdwffjhnqlogfrlqa.supabase.co/storage/v1/object/public/employee-profiles/${photoPath}`;
+
+  return null;
 };
 
 export const getInitials = (name: string): string => {
-  if (!name) return "U";
+  if (!name) return 'U';
   return name
-    .split(" ")
-    .map(word => word.charAt(0))
-    .join("")
+    .split(' ')
+    .map((word) => word.charAt(0))
+    .join('')
     .toUpperCase()
     .slice(0, 2);
 };

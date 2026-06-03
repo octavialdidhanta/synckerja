@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { pickProfilePhotoUrl } from "@/shared/lib/profilePhotoStorage";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
@@ -89,6 +89,9 @@ export function useProfile() {
     queryKey: profileQueryKey(user?.id),
     queryFn: fetchProfile,
     enabled: !!user?.id,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 }
 

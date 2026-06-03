@@ -1,4 +1,4 @@
-﻿import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { Badge } from '@/shared/components/ui/badge';
 import { User, Mail, Phone, Calendar, MapPin, Briefcase } from 'lucide-react';
@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { cn } from '@/shared/lib/utils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { createStorageDisplayUrl } from '@/shared/lib/storageDisplayUrl';
+import { useRecruitmentCandidatePhotoDisplayUrl } from '@/shared/hooks/useRecruitmentCandidatePhotoDisplayUrl';
 
 // Layout constants - COMPACT VERSION
 const LAYOUT_CONSTANTS = {
@@ -76,43 +76,15 @@ export const CandidateProfileSidebar = ({ candidateData }: CandidateProfileSideb
   const [workExperience, setWorkExperience] = useState<any[]>([]);
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [discTestStatus, setDiscTestStatus] = useState<string | null>(null);
-  const [photoDisplayUrl, setPhotoDisplayUrl] = useState<string>('');
+  const photoDisplayUrl = useRecruitmentCandidatePhotoDisplayUrl(candidateData?.photo_url, {
+    width: 128,
+  });
 
   useEffect(() => {
     if (candidateData?.id) {
       fetchProgressData();
     }
   }, [candidateData?.id]);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    const resolvePhotoUrl = async () => {
-      const raw = (candidateData?.photo_url ?? '').trim();
-      if (!raw) {
-        if (!isCancelled) setPhotoDisplayUrl('');
-        return;
-      }
-
-      if (raw.startsWith('http://') || raw.startsWith('https://')) {
-        if (!isCancelled) setPhotoDisplayUrl(raw);
-        return;
-      }
-
-      const signed = await createStorageDisplayUrl('recruitment-files', raw, {
-        expiresIn: 60 * 60,
-        transform: { width: 128, resize: 'contain', quality: 80 },
-      });
-
-      if (!isCancelled) setPhotoDisplayUrl(signed ?? '');
-    };
-
-    void resolvePhotoUrl();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [candidateData?.photo_url]);
 
   const fetchProgressData = async () => {
     if (!candidateData?.id) return;

@@ -12,9 +12,12 @@ import { SalesActivitiesActionsDropdown } from './SalesActivitiesActionsDropdown
 import { SalesActivitiesTableFooter } from './SalesActivitiesTableFooter';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import type { SalesActivity } from '@/shared/hooks/organized/sales';
+import { isWonSalesActivityStatus } from '../utils/salesActivitiesFilterUtils';
 
 interface SalesActivitiesTableProps {
   activities: SalesActivity[];
+  /** Total rows before client-side filters (for footer “Showing X of Y”). */
+  totalUnfilteredCount?: number;
   onUpdate: () => void;
   onEdit: (activity: SalesActivity) => void;
   onViewDetails: (activity: SalesActivity) => void;
@@ -25,16 +28,17 @@ interface SalesActivitiesTableProps {
 }
 
 const getStatusColor = (status: string) => {
-  switch (status?.toLowerCase()) {
-    case 'closed_won':
+  switch (status?.trim().toLowerCase()) {
+    case 'won':
+    case 'converted':
       return 'bg-green-100 text-green-800 border-green-200';
-    case 'closed_lost':
+    case 'lost':
       return 'bg-red-100 text-red-800 border-red-200';
-    case 'negotiation':
+    case 'negotiating':
       return 'bg-brand-blue-soft text-brand-blue-deep border-brand-blue/25';
-    case 'ongoing':
+    case 'active':
       return 'bg-amber-100 text-amber-800 border-amber-200';
-    case 'follow_up':
+    case 'follow up':
       return 'bg-gray-100 text-gray-800 border-gray-200';
     default:
       return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -42,7 +46,7 @@ const getStatusColor = (status: string) => {
 };
 
 const getActivityTypeColor = (type: string) => {
-  switch (type?.toLowerCase()) {
+  switch (type?.trim().toLowerCase()) {
     case 'demo':
       return 'bg-brand-blue-soft text-brand-blue-deep border-brand-blue/25';
     case 'meeting':
@@ -53,7 +57,8 @@ const getActivityTypeColor = (type: string) => {
       return 'bg-purple-100 text-purple-800 border-purple-200';
     case 'closing':
       return 'bg-red-100 text-red-800 border-red-200';
-    case 'follow_up':
+    case 'lead conversion':
+    case 'visit':
       return 'bg-gray-100 text-gray-800 border-gray-200';
     default:
       return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -305,7 +310,8 @@ const ActivityRow = memo(({
 ActivityRow.displayName = 'ActivityRow';
 
 export const SalesActivitiesTable = memo(({ 
-  activities, 
+  activities,
+  totalUnfilteredCount,
   onUpdate, 
   onEdit,
   onViewDetails,
@@ -314,6 +320,7 @@ export const SalesActivitiesTable = memo(({
   onCheckHistory,
   selectedStatus = 'all'
 }: SalesActivitiesTableProps) => {
+  const totalCount = totalUnfilteredCount ?? activities.length;
   // Memoize the table headers to prevent re-renders
   const tableHeaders = useMemo(() => [
     { key: 'client', label: 'Client', width: 'w-40' },
@@ -373,8 +380,8 @@ export const SalesActivitiesTable = memo(({
       </div>
 
       <SalesActivitiesTableFooter
-        totalActivities={activities.length}
-        closedWonActivities={activities.filter(a => a.status === 'closed_won').length}
+        totalActivities={totalCount}
+        closedWonActivities={activities.filter((a) => isWonSalesActivityStatus(a.status)).length}
         filteredActivities={activities.length}
         selectedStatus={selectedStatus}
       />

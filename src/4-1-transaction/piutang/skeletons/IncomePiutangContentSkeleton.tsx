@@ -1,7 +1,10 @@
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { INCOME_TX_MAIN_GRID } from '@/4-1-transaction/layout/incomeTransactionLayout';
+import {
+  INCOME_TX_MAIN_GRID,
+  INCOME_TX_TABLE_SECTION,
+} from '@/4-1-transaction/layout/incomeTransactionLayout';
 
-/** Grid konten — mirror `IncomePiutangPage` (tanpa HeaderAndTab). */
+/** Grid konten — mirror `IncomePiutangPage` / `IncomeTransactionPage` (tanpa HeaderAndTab). */
 export function IncomePiutangContentSkeleton() {
   return (
     <div className={INCOME_TX_MAIN_GRID} aria-hidden>
@@ -17,7 +20,7 @@ export function IncomePiutangContentSkeleton() {
             </div>
           </div>
 
-          <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
+          <div className={INCOME_TX_TABLE_SECTION}>
             <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
               <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-2">
                 <Skeleton className="h-4 w-40" />
@@ -30,7 +33,7 @@ export function IncomePiutangContentSkeleton() {
                   ))}
                 </div>
               </div>
-              <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-1">
+              <div className="flex-shrink-0 border-t border-border bg-card px-4 py-0.5">
                 <Skeleton className="h-3 w-full max-w-md" />
               </div>
             </div>
@@ -51,8 +54,8 @@ export function IncomePiutangContentSkeleton() {
                 <Skeleton className="h-20 w-full rounded-lg" />
               </div>
             </div>
-            <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
-              <Skeleton className="h-4 w-full max-w-[200px]" />
+            <div className="flex-shrink-0 border-t border-border bg-card px-4 py-2">
+              <Skeleton className="h-3 w-full max-w-[200px]" />
             </div>
           </div>
         </div>

@@ -16,7 +16,12 @@ import {
 import { cn } from "@/shared/lib/utils";
 import type { WhatsAppAccount } from "@/5-3-whatsapp/types";
 import type { DateRangePreset } from "../types";
-import { STATUS_FILTER_OPTIONS, type StatusFilterOption } from "../types";
+import {
+  QUALITY_FILTER_OPTIONS,
+  STATUS_FILTER_OPTIONS,
+  type QualityFilterOption,
+  type StatusFilterOption,
+} from "../types";
 
 function whatsAppAccountLabel(a: WhatsAppAccount): string {
   const name = (a.whatsapp_business_name ?? "").trim();
@@ -47,6 +52,8 @@ export type TemplateListToolbarProps = {
   onLanguageFiltersChange: (v: string[]) => void;
   statusFilters: StatusFilterOption[];
   onStatusFiltersChange: (v: StatusFilterOption[]) => void;
+  qualityFilters: QualityFilterOption[];
+  onQualityFiltersChange: (v: QualityFilterOption[]) => void;
   datePreset: DateRangePreset;
   onDatePresetChange: (v: DateRangePreset) => void;
   dateFilterDisabled: boolean;
@@ -68,6 +75,8 @@ export function TemplateListToolbar({
   onLanguageFiltersChange,
   statusFilters,
   onStatusFiltersChange,
+  qualityFilters,
+  onQualityFiltersChange,
   datePreset,
   onDatePresetChange,
   dateFilterDisabled,
@@ -80,6 +89,8 @@ export function TemplateListToolbar({
 }: TemplateListToolbarProps) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusDraft, setStatusDraft] = useState<Set<StatusFilterOption>>(() => new Set(statusFilters));
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [qualityDraft, setQualityDraft] = useState<Set<QualityFilterOption>>(() => new Set(qualityFilters));
 
   useEffect(() => {
     if (statusOpen) {
@@ -89,11 +100,25 @@ export function TemplateListToolbar({
     }
   }, [statusOpen, statusFilters]);
 
+  useEffect(() => {
+    if (qualityOpen) {
+      setQualityDraft(
+        qualityFilters.length === 0 ? new Set(QUALITY_FILTER_OPTIONS) : new Set(qualityFilters),
+      );
+    }
+  }, [qualityOpen, qualityFilters]);
+
   const statusSummary = useMemo(() => {
     if (statusFilters.length === 0) return "Status";
     if (statusFilters.length === STATUS_FILTER_OPTIONS.length) return "All statuses";
     return `${statusFilters.length} options selected`;
   }, [statusFilters]);
+
+  const qualitySummary = useMemo(() => {
+    if (qualityFilters.length === 0) return "Quality";
+    if (qualityFilters.length === QUALITY_FILTER_OPTIONS.length) return "All qualities";
+    return `${qualityFilters.length} options selected`;
+  }, [qualityFilters]);
 
   const toggleCategory = (c: string) => {
     const set = new Set(categoryFilters);
@@ -127,6 +152,26 @@ export function TemplateListToolbar({
     if (statusDraft.size === STATUS_FILTER_OPTIONS.length) onStatusFiltersChange([]);
     else onStatusFiltersChange([...statusDraft]);
     setStatusOpen(false);
+  };
+
+  const toggleQualityDraft = (q: QualityFilterOption) => {
+    setQualityDraft((prev) => {
+      const n = new Set(prev);
+      if (n.has(q)) n.delete(q);
+      else n.add(q);
+      return n;
+    });
+  };
+
+  const selectAllQualityDraft = () => {
+    if (qualityDraft.size === QUALITY_FILTER_OPTIONS.length) setQualityDraft(new Set());
+    else setQualityDraft(new Set(QUALITY_FILTER_OPTIONS));
+  };
+
+  const applyQuality = () => {
+    if (qualityDraft.size === QUALITY_FILTER_OPTIONS.length) onQualityFiltersChange([]);
+    else onQualityFiltersChange([...qualityDraft]);
+    setQualityOpen(false);
   };
 
   return (
@@ -232,6 +277,37 @@ export function TemplateListToolbar({
             </div>
             <div className="flex justify-end border-t border-slate-100 p-2">
               <Button size="sm" onClick={applyStatus}>
+                Apply
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <Popover open={qualityOpen} onOpenChange={setQualityOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn("min-w-[8rem] max-w-[11rem] justify-between gap-1 truncate font-normal")}>
+              <span className="truncate">{qualitySummary}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-0" align="start">
+            <div className="scrollbar-hide seamless-scroll max-h-72 space-y-0 overflow-y-auto overflow-x-hidden p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-1 py-2 text-sm font-medium">
+                <Checkbox
+                  checked={qualityDraft.size === QUALITY_FILTER_OPTIONS.length}
+                  onCheckedChange={() => selectAllQualityDraft()}
+                />
+                Select all
+              </label>
+              {QUALITY_FILTER_OPTIONS.map((q) => (
+                <label key={q} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1.5 text-sm hover:bg-slate-50">
+                  <Checkbox checked={qualityDraft.has(q)} onCheckedChange={() => toggleQualityDraft(q)} />
+                  {q}
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end border-t border-slate-100 p-2">
+              <Button size="sm" onClick={applyQuality}>
                 Apply
               </Button>
             </div>

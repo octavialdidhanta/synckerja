@@ -12,7 +12,8 @@ export type Employee = {
   email: string;
   phone?: string;
   mobile_phone?: string;
-  photo_url?: string;
+  photo_url?: string | null;
+  profile_photo_url?: string | null;
   department_id?: string;
   job_position_id?: string;
   job_level_id?: string;
@@ -141,8 +142,37 @@ export const useEmployees = () => {
         manager_name: emp.manager_id ? byId.get(emp.manager_id)?.full_name ?? null : null,
       }));
 
-      console.log('Optimized employees fetched:', withManagers.length);
-      return withManagers;
+      const userIds = [
+        ...new Set(
+          withManagers.map((e) => e.user_id).filter((id): id is string => Boolean(id)),
+        ),
+      ];
+
+      let withPhotos = withManagers;
+      if (userIds.length > 0) {
+        const { data: detailsRows } = await supabase
+          .from('user_profile_details')
+          .select('profile_id, profile_photo_url')
+          .in('profile_id', userIds);
+
+        const photoByUser = new Map(
+          (detailsRows ?? []).map((d) => [d.profile_id, d.profile_photo_url]),
+        );
+
+        withPhotos = withManagers.map((emp) => {
+          const detailPhoto = emp.user_id ? photoByUser.get(emp.user_id) : null;
+          const merged =
+            emp.profile_photo_url || detailPhoto || null;
+          return {
+            ...emp,
+            profile_photo_url: merged,
+            photo_url: merged,
+          };
+        });
+      }
+
+      console.log('Optimized employees fetched:', withPhotos.length);
+      return withPhotos;
     },
     ...attendanceHRQueryDefaults,
   });

@@ -4,7 +4,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { Plus, Edit, Trash2, Save, X, MoreVertical } from 'lucide-react';
@@ -17,9 +17,16 @@ interface InformalEducationInfoTabProps {
   employee: Employee;
   isEditMode: boolean;
   onUpdate: () => void;
+  /** When set, title and Add button share one header row (Informal Education page). */
+  sectionTitle?: string;
 }
 
-export const InformalEducationInfoTab = ({ employee, isEditMode, onUpdate }: InformalEducationInfoTabProps) => {
+export const InformalEducationInfoTab = ({
+  employee,
+  isEditMode,
+  onUpdate,
+  sectionTitle,
+}: InformalEducationInfoTabProps) => {
   const { organizationId } = useCurrentOrg();
   const { informalEducations, isLoading, addInformalEducation, updateInformalEducation, deleteInformalEducation } = useInformalEducations(employee.id);
   
@@ -119,21 +126,30 @@ export const InformalEducationInfoTab = ({ employee, isEditMode, onUpdate }: Inf
     );
   }
 
+  const addInformalEducationButton =
+    isEditMode && !isAddingNew && !editingId ? (
+      <Button
+        onClick={() => setIsAddingNew(true)}
+        size="sm"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Add Informal Education
+      </Button>
+    ) : null;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Informal Education Information</h3>
-        {isEditMode && !isAddingNew && !editingId && (
-          <Button
-            onClick={() => setIsAddingNew(true)}
-            size="sm"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Informal Education
-          </Button>
-        )}
-      </div>
+      {sectionTitle ? (
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold text-gray-900">{sectionTitle}</h2>
+          {addInformalEducationButton}
+        </div>
+      ) : (
+        addInformalEducationButton && (
+          <div className="flex justify-end">{addInformalEducationButton}</div>
+        )
+      )}
 
       {/* Add New Informal Education Form */}
       {isAddingNew && (
@@ -222,9 +238,6 @@ export const InformalEducationInfoTab = ({ employee, isEditMode, onUpdate }: Inf
       {/* Informal Education Records Table */}
       {informalEducations && informalEducations.length > 0 ? (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Informal Education Records</CardTitle>
-          </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px] w-full">
               <Table>

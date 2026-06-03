@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
@@ -14,7 +14,7 @@ import { useBranchesCrud } from '@/shared/hooks/crudMaster/useBranchesCrud';
 import { useEmployeeStatusesCrud } from '@/shared/hooks/crudMaster/useEmployeeStatusesCrud';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAutoSave } from '@/shared/hooks/useAutoSave';
-import { Briefcase, Plus, ChevronDown, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { Plus, ChevronDown, MoreVertical, Edit, Trash2 } from 'lucide-react';
 
 interface EmploymentInfoTabProps {
   employee: any;
@@ -349,15 +349,7 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center space-x-2">
-              <Briefcase className="h-5 w-5" />
-              <span>Employment Information</span>
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="employee_id">Employee ID</Label>

@@ -97,6 +97,9 @@ function mediaHeaderLabel(format: string): string {
 const previewFont =
   'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
+/** Logical width of a typical WhatsApp chat viewport (~375pt scaled for preview). */
+const WHATSAPP_DEVICE_WIDTH_PX = 300;
+
 export function WhatsAppTemplatePhonePreview({
   headerText,
   mediaFormat,
@@ -147,8 +150,8 @@ export function WhatsAppTemplatePhonePreview({
     previewAt != null && !Number.isNaN(previewAt.getTime()) ? format(previewAt, "HH:mm") : null;
 
   return (
-    <div className={cn("flex flex-col items-stretch", className)}>
-      <div className="mb-2 flex flex-col items-center gap-0.5">
+    <div className={cn("flex min-w-0 flex-col items-center overflow-hidden", className)}>
+      <div className="mb-2 flex w-full flex-col items-center gap-0.5">
         <p className="text-center text-xs font-semibold tracking-wide text-slate-600">Pratinjau pesan</p>
         {metaSyncLoading ? (
           <p className="text-center text-[10px] text-muted-foreground" aria-live="polite">
@@ -157,94 +160,115 @@ export function WhatsAppTemplatePhonePreview({
         ) : null}
       </div>
       <div
-        className={cn(
-          "mx-auto w-full max-w-[280px] shrink-0",
-          "rounded-[1.75rem] border border-black/40 bg-gradient-to-b from-[#2c3137] via-[#1e2429] to-[#121518]",
-          "p-2.5 shadow-[0_20px_44px_-12px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]",
-        )}
+        className="mx-auto w-full max-w-full shrink-0"
+        style={{ width: WHATSAPP_DEVICE_WIDTH_PX, maxWidth: "100%" }}
       >
-        <div className="rounded-[1.25rem] bg-[#e5ddd5] p-2.5">
-          <div
-            className="rounded-lg bg-white px-3 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
-            style={{ fontFamily: previewFont }}
-          >
-            {hasMedia ? (
-              <div className="mb-2 overflow-hidden rounded-md bg-slate-100">
-                {showHttpsMedia && fmt === "IMAGE" ? (
-                  <img
-                    src={mediaUrl}
-                    alt=""
-                    className="max-h-[200px] w-full object-cover object-center"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : showHttpsMedia && fmt === "VIDEO" ? (
-                  <video src={mediaUrl} className="max-h-[200px] w-full object-cover" controls playsInline muted />
-                ) : showHttpsMedia && fmt === "DOCUMENT" ? (
-                  <a
-                    href={mediaUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex min-h-[72px] items-center justify-center break-all px-2 py-3 text-center text-[12px] font-medium text-[#027EB5] underline"
-                  >
-                    Dokumen (Meta)
-                  </a>
-                ) : (
-                  <div className="flex aspect-[16/10] max-h-[120px] flex-col items-center justify-center gap-1 px-2 text-center">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      {mediaHeaderLabel(fmt)}
-                    </span>
-                    <span className="text-[10px] leading-snug text-slate-400">
-                      File contoh disimpan di Meta (URL publik tidak dikembalikan oleh API untuk handle ini).
-                    </span>
+        <div
+          className="overflow-hidden rounded-[1.75rem] border border-black/40 bg-gradient-to-b from-[#2c3137] via-[#1e2429] to-[#121518] p-2 shadow-[0_16px_36px_-10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]"
+          role="img"
+          aria-label="Pratinjau layar WhatsApp"
+        >
+          <div className="overflow-hidden rounded-[1.15rem] bg-[#128C7E]">
+            <div className="flex items-center gap-2.5 px-3 py-2.5">
+              <div className="h-8 w-8 shrink-0 rounded-full bg-white/20 ring-1 ring-white/25" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-medium leading-tight text-white">Akun Bisnis</p>
+                <p className="text-[10px] leading-tight text-white/75">Pesan template</p>
+              </div>
+            </div>
+            <div className="bg-[#ECE5DD] px-2.5 pb-3 pt-2">
+              <div
+                className="overflow-hidden rounded-[7px] bg-white shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]"
+                style={{ fontFamily: previewFont }}
+              >
+                {hasMedia ? (
+                  <div className="bg-slate-100">
+                    {showHttpsMedia && fmt === "IMAGE" ? (
+                      <img
+                        src={mediaUrl}
+                        alt=""
+                        className="max-h-[180px] w-full object-cover object-center"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : showHttpsMedia && fmt === "VIDEO" ? (
+                      <video src={mediaUrl} className="max-h-[180px] w-full object-cover" controls playsInline muted />
+                    ) : showHttpsMedia && fmt === "DOCUMENT" ? (
+                      <a
+                        href={mediaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-h-[72px] items-center justify-center break-all px-2 py-3 text-center text-[13px] font-medium text-[#027EB5]"
+                      >
+                        Dokumen (Meta)
+                      </a>
+                    ) : (
+                      <div className="flex aspect-[16/10] max-h-[120px] flex-col items-center justify-center gap-1 px-2 py-3 text-center">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          {mediaHeaderLabel(fmt)}
+                        </span>
+                        <span className="text-[10px] leading-snug text-slate-400">
+                          File contoh disimpan di Meta (URL publik tidak dikembalikan oleh API untuk handle ini).
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ) : headerRendered ? (
-              <div className="mb-2 border-b border-slate-100/90 pb-2 text-[15px] font-semibold leading-[1.45] text-slate-900">
-                <span className="whitespace-pre-wrap break-words">{formatWhatsAppTemplateRichText(headerRendered)}</span>
-              </div>
-            ) : null}
+                ) : null}
 
-            {bodyRendered ? (
-              <p className="text-[15px] leading-[1.45] text-slate-900">
-                <span className="whitespace-pre-wrap break-words">{formatWhatsAppTemplateRichText(bodyRendered)}</span>
-              </p>
-            ) : (
-              <p className="text-sm text-slate-400">Tidak ada isi body</p>
-            )}
+                <div className="px-2.5 py-2">
+                  {!hasMedia && headerRendered ? (
+                    <div className="mb-1.5 text-[15px] font-semibold leading-[1.35] text-[#111B21]">
+                      <span className="whitespace-pre-wrap break-words">
+                        {formatWhatsAppTemplateRichText(headerRendered)}
+                      </span>
+                    </div>
+                  ) : null}
 
-            {footerRendered ? (
-              <p className="mt-2 border-t border-slate-100/90 pt-2 text-[13px] leading-[1.45] text-slate-500">
-                <span className="whitespace-pre-wrap break-words">
-                  {/\{\{[^}]+\}\}/.test(footerRendered)
-                    ? formatWhatsAppTemplateRichText(footerRendered)
-                    : footerRendered}
-                </span>
-              </p>
-            ) : null}
+                  {bodyRendered ? (
+                    <p className="text-[14.2px] leading-[1.4] text-[#111B21]">
+                      <span className="whitespace-pre-wrap break-words">
+                        {formatWhatsAppTemplateRichText(bodyRendered)}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-sm text-slate-400">Tidak ada isi body</p>
+                  )}
 
-            {labels.length > 0 ? (
-              <div className="mt-2 space-y-1.5 border-t border-slate-100/90 pt-2">
-                {labels.map((label, i) => (
-                  <div
-                    key={`${i}-${label}`}
-                    className="rounded-md border border-slate-200/90 bg-slate-50/90 px-2 py-1.5 text-center text-[13px] font-medium leading-tight text-[#027EB5]"
-                  >
-                    {label}
+                  {footerRendered ? (
+                    <p className="mt-1.5 text-[12px] leading-[1.35] text-[#667781]">
+                      <span className="whitespace-pre-wrap break-words">
+                        {/\{\{[^}]+\}\}/.test(footerRendered)
+                          ? formatWhatsAppTemplateRichText(footerRendered)
+                          : footerRendered}
+                      </span>
+                    </p>
+                  ) : null}
+
+                  {timeLabel ? (
+                    <p className="mt-1 text-right text-[11px] tabular-nums text-[#667781]">{timeLabel}</p>
+                  ) : null}
+                </div>
+
+                {labels.length > 0 ? (
+                  <div className="border-t border-[#E9EDEF]">
+                    {labels.map((label, i) => (
+                      <div
+                        key={`${i}-${label}`}
+                        className={cn(
+                          "px-3 py-2.5 text-center text-[14px] font-normal leading-tight text-[#027EB5]",
+                          i > 0 && "border-t border-[#E9EDEF]",
+                        )}
+                      >
+                        {label}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : null}
               </div>
-            ) : null}
-
-            {timeLabel ? (
-              <p className="mt-2 text-right text-[11px] tabular-nums text-slate-400">{timeLabel}</p>
-            ) : (
-              <p className="mt-2 text-right text-[11px] tabular-nums text-slate-300">—</p>
-            )}
+            </div>
           </div>
         </div>
       </div>
-      <p className="mt-2 text-center text-[10px] leading-snug text-muted-foreground">
+      <p className="mt-2 min-w-0 text-center text-[10px] leading-snug text-muted-foreground break-words">
         Konten komponen dari <span className="font-medium">Meta Graph API</span>
         {bodySamples.length > 0 || headerSamples.length > 0
           ? " — variabel memakai contoh yang Meta simpan pada field example bila tersedia."

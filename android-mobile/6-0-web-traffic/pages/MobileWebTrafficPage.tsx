@@ -91,21 +91,6 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
   type TrafficPathClickDetails = { kind: "path"; path: string };
   const [clickDetails, setClickDetails] = useState<TrafficPathClickDetails | null>(null);
 
-  const trafficFilterSkipsAggregates = useMemo(() => {
-    if (rangeIsMaximum) return false;
-    if (!fromDate || !toDate) return false;
-    const ing = ingestionQuery.data;
-    const dmin = ing?.aggregate_day_min;
-    const dmax = ing?.aggregate_day_max;
-    if (dmin == null || dmax == null || String(dmin) === "" || String(dmax) === "") return false;
-    if (ing?.daily_rollups_exist === false) return false;
-    const a = (v: string | null | undefined) => String(v ?? "").slice(0, 10);
-    const bmin = a(dmin);
-    const bmax = a(dmax);
-    if (bmin.length < 10 || bmax.length < 10) return false;
-    return toDate < bmin || fromDate > bmax;
-  }, [rangeIsMaximum, fromDate, toDate, ingestionQuery.data]);
-
   useEffect(() => {
     pullDistanceRef.current = pullDistance;
   }, [pullDistance]);
@@ -504,24 +489,6 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
                     "traffic.mobile.hintNoRaw",
                     "Belum ada sesi / page view / klik tercatat. Pastikan pixel di situs terhubung ke proyek ini dan web_id cocok, lalu sync bila perlu.",
                   )}
-                </div>
-              ) : null}
-              {!ingestionQuery.isLoading && !ingestionQuery.isError && trafficFilterSkipsAggregates ? (
-                <div className="rounded-lg border border-rose-200/80 bg-rose-50/90 p-3 text-xs text-rose-950">
-                  <p className="font-semibold text-rose-950">
-                    {t("traffic.mobile.hintDateFilterTitle", "Filter tanggal tidak memotong agregat harian")}
-                  </p>
-                  <p className="mt-1 text-rose-900/90">
-                    {t(
-                      "traffic.mobile.hintDateFilterSkipsAggregates",
-                      "Dashboard memakai tabel agregat harian. Untuk {{web}}, hari agregat tersedia {{min}} s/d {{max}} (kalender WIB / Asia/Jakarta, kolom day). Perluas rentang atau pilih Maximum.",
-                      {
-                        web: effectiveWebId,
-                        min: String(ingestionQuery.data?.aggregate_day_min ?? ""),
-                        max: String(ingestionQuery.data?.aggregate_day_max ?? ""),
-                      },
-                    )}
-                  </p>
                 </div>
               ) : null}
 

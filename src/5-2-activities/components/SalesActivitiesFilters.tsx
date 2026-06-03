@@ -4,16 +4,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/shared/components/ui/input';
 import { Search, RefreshCw, Plus } from 'lucide-react';
 import { SalesActivityDialog } from './SalesActivityDialog';
+import {
+  DEFAULT_SALES_ACTIVITIES_FILTERS,
+  type SalesActivitiesFiltersState,
+} from '../utils/salesActivitiesFilterUtils';
 
 interface SalesActivitiesFiltersProps {
-  filters: {
-    search: string;
-    status: string;
-    type: string;
-    payment: string;
-    date: string;
-  };
-  onFiltersChange: (filters: any) => void;
+  filters: SalesActivitiesFiltersState;
+  onFiltersChange: (filters: SalesActivitiesFiltersState) => void;
   /** Called after a new activity is saved from the filter-bar dialog (keeps list in sync). */
   onCreateSuccess?: () => void;
 }
@@ -30,13 +28,7 @@ export const SalesActivitiesFilters = ({
   };
 
   const handleClear = () => {
-    onFiltersChange({
-      search: '',
-      status: 'all',
-      type: 'all',
-      payment: 'all',
-      date: 'today'
-    });
+    onFiltersChange({ ...DEFAULT_SALES_ACTIVITIES_FILTERS });
   };
 
   const handleDialogSuccess = () => {
@@ -66,11 +58,12 @@ export const SalesActivitiesFilters = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="ongoing">Ongoing</SelectItem>
-            <SelectItem value="negotiation">Negotiation</SelectItem>
-            <SelectItem value="closed_won">Closed Won</SelectItem>
-            <SelectItem value="closed_lost">Closed Lost</SelectItem>
-            <SelectItem value="follow_up">Follow Up</SelectItem>
+            <SelectItem value="Active">Active</SelectItem>
+            <SelectItem value="Negotiating">Negotiating</SelectItem>
+            <SelectItem value="Won">Won</SelectItem>
+            <SelectItem value="Lost">Lost</SelectItem>
+            <SelectItem value="Follow Up">Follow Up</SelectItem>
+            <SelectItem value="Converted">Converted</SelectItem>
           </SelectContent>
         </Select>
 
@@ -81,12 +74,13 @@ export const SalesActivitiesFilters = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="demo">Demo</SelectItem>
-            <SelectItem value="meeting">Meeting</SelectItem>
-            <SelectItem value="call">Call</SelectItem>
-            <SelectItem value="proposal">Proposal</SelectItem>
-            <SelectItem value="closing">Closing</SelectItem>
-            <SelectItem value="follow_up">Follow Up</SelectItem>
+            <SelectItem value="Demo">Demo</SelectItem>
+            <SelectItem value="Meeting">Meeting</SelectItem>
+            <SelectItem value="Call">Call</SelectItem>
+            <SelectItem value="Proposal">Proposal</SelectItem>
+            <SelectItem value="Closing">Closing</SelectItem>
+            <SelectItem value="Lead Conversion">Lead Conversion</SelectItem>
+            <SelectItem value="visit">Visit</SelectItem>
           </SelectContent>
         </Select>
 
@@ -98,9 +92,13 @@ export const SalesActivitiesFilters = ({
           <SelectContent>
             <SelectItem value="all">All Payment</SelectItem>
             <SelectItem value="cash">Cash</SelectItem>
+            <SelectItem value="transfer">Transfer</SelectItem>
             <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
             <SelectItem value="credit_card">Credit Card</SelectItem>
+            <SelectItem value="credit">Credit</SelectItem>
             <SelectItem value="e_wallet">E-Wallet</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
           </SelectContent>
         </Select>
 

@@ -4,7 +4,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
@@ -18,9 +18,16 @@ interface EducationInfoTabProps {
   employee: Employee;
   isEditMode: boolean;
   onUpdate: () => void;
+  /** When set, title and Add Education share one header row (Formal Education page). */
+  sectionTitle?: string;
 }
 
-export const EducationInfoTab = ({ employee, isEditMode, onUpdate }: EducationInfoTabProps) => {
+export const EducationInfoTab = ({
+  employee,
+  isEditMode,
+  onUpdate,
+  sectionTitle,
+}: EducationInfoTabProps) => {
   const { organizationId } = useCurrentOrg();
   const { educations, isLoading, addEducation, updateEducation, deleteEducation } = useEducations(employee.id);
   
@@ -125,21 +132,28 @@ export const EducationInfoTab = ({ employee, isEditMode, onUpdate }: EducationIn
     );
   }
 
+  const addEducationButton =
+    isEditMode && !isAddingNew && !editingId ? (
+      <Button
+        onClick={() => setIsAddingNew(true)}
+        size="sm"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Add Education
+      </Button>
+    ) : null;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Education Information</h3>
-        {isEditMode && !isAddingNew && !editingId && (
-          <Button
-            onClick={() => setIsAddingNew(true)}
-            size="sm"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Education
-          </Button>
-        )}
-      </div>
+      {sectionTitle ? (
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold text-gray-900">{sectionTitle}</h2>
+          {addEducationButton}
+        </div>
+      ) : (
+        addEducationButton && <div className="flex justify-end">{addEducationButton}</div>
+      )}
 
       {/* Add New Education Form */}
       {isAddingNew && (
@@ -237,9 +251,6 @@ export const EducationInfoTab = ({ employee, isEditMode, onUpdate }: EducationIn
       {/* Education Records Table */}
       {educations && educations.length > 0 ? (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Education Records</CardTitle>
-          </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px] w-full">
               <Table>

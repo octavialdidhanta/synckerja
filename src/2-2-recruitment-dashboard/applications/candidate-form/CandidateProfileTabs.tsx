@@ -1,4 +1,4 @@
-﻿
+
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { PersonalDetailsTab } from './PersonalDetailsTab';
@@ -96,7 +96,7 @@ export const CandidateProfileTabs = ({
         icon: User,
         component: PersonalDetailsTab,
         stepNumber: 1,
-        requiredFields: ['full_name', 'email', 'mobile_phone', 'birth_date', 'birth_place', 'gender', 'nik', 'religion', 'marital_status', 'nationality', 'blood_type']
+        requiredFields: ['full_name', 'email', 'mobile_phone', 'birth_date', 'birth_place', 'gender', 'nik', 'religion', 'marital_status', 'nationality', 'blood_type', 'photo_url']
       },
       {
         id: 'address',
@@ -466,11 +466,11 @@ export const CandidateProfileTabs = ({
           }
         }}
       >
-        {/* Compact Tab Navigation - scrollable so first/last tabs are fully visible */}
+        {/* Compact Tab Navigation - horizontal scroll; scrollbar visually hidden */}
         <div className={cn(
           PROFESSIONAL_COLORS.background.secondary,
           PROFESSIONAL_COLORS.border.default,
-          "border-b px-4 py-3 flex-shrink-0 overflow-x-auto overflow-y-hidden"
+          "border-b px-4 py-3 flex-shrink-0 overflow-x-auto overflow-y-hidden seamless-scroll nested-scroll-touch-chain scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:h-0"
         )}>
           <TabsList className={cn(
             "flex w-max min-w-full gap-1 h-auto p-1 rounded-md flex-shrink-0",

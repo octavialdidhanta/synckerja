@@ -1,9 +1,6 @@
 ﻿
 import React, { useState, useCallback, memo } from 'react';
-import {
-  avatarDisplayWidth,
-  optimizePublicStorageImageUrl,
-} from '@/shared/lib/storageDisplayUrl';
+import { resolveProfilePhotoDisplayUrl } from '@/shared/lib/profilePhotoStorage';
 import { Avatar, AvatarImage, AvatarFallback } from '@/shared/components/ui/avatar';
 // import { getPhotoUrl, getInitials } from '@/utils/photoUtils';
 // import { PhotoViewModal } from './PhotoViewModal';
@@ -73,28 +70,12 @@ export const UnifiedAvatar: React.FC<UnifiedAvatarProps> = memo(({
     setShowPhotoModal(false);
   }, []);
   
-  // Handle different photo URL formats and sources
   const fullPhotoUrl = React.useMemo(() => {
-    if (!photoUrl) {
-      return null;
-    }
-    
-    // If it's already a full URL (from employee-profiles bucket), use it directly
-    if (photoUrl.startsWith('http')) {
-      const optimized = optimizePublicStorageImageUrl(photoUrl, {
-        width: avatarDisplayWidth(size),
-        resize: 'cover',
-        quality: 80,
-      });
-      if (shouldLog) console.log('✅ Using full HTTP URL:', optimized);
-      return optimized ?? photoUrl;
-    }
-    
-    // Use the utility function for other formats
-    const processedUrl = getPhotoUrl(photoUrl);
-    if (shouldLog) console.log('🔄 Processed photo URL:', processedUrl);
-    return processedUrl;
-  }, [photoUrl, size]);
+    if (!photoUrl) return null;
+    const resolved = resolveProfilePhotoDisplayUrl(photoUrl) ?? getPhotoUrl(photoUrl);
+    if (shouldLog) console.log('🔄 Resolved photo URL:', resolved);
+    return resolved;
+  }, [photoUrl]);
   
   const handleAvatarClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

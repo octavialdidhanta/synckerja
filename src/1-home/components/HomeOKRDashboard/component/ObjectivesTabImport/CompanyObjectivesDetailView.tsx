@@ -421,12 +421,35 @@ export const CompanyObjectivesDetailView = ({
       type: 'company'
     });
   };
+  const defaultCreateCycleId =
+    filteredCycleIds?.[0] ??
+    cycles.find((c) => c.is_active)?.id ??
+    cycles[0]?.id;
+
+  const createCompanyObjectiveDialog = (
+    <AddObjectiveDialog
+      type="company"
+      open={showCreateDialog}
+      onOpenChange={setShowCreateDialog}
+      organizationId={organizationId}
+      defaultCycleId={defaultCreateCycleId}
+      onObjectiveAdded={() => setShowCreateDialog(false)}
+    />
+  );
+
   if (companyShellLoading || companyObjectives.length === 0) {
     return (
-      <CompanyObjectivesEmptyState
-        pending={companyShellLoading}
-        onAddClick={companyShellLoading ? undefined : () => setShowCreateDialog(true)}
-      />
+      <>
+        <CompanyObjectivesEmptyState
+          pending={loadingObjectives && companyObjectives.length === 0}
+          onAddClick={
+            loadingObjectives && companyObjectives.length === 0
+              ? undefined
+              : () => setShowCreateDialog(true)
+          }
+        />
+        {createCompanyObjectiveDialog}
+      </>
     );
   }
 
@@ -698,9 +721,8 @@ export const CompanyObjectivesDetailView = ({
   };
   return (
     <>
-      <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col">
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-          <div className="min-h-0 w-full min-w-0 flex-1 space-y-4">
+      <div className="flex min-h-0 min-w-0 flex-1 w-full flex-col">
+        <div className="min-h-0 flex-1 space-y-4 pb-1">
             {/* Active Objectives */}
             <SectionActiveObjectives
               activeObjectives={activeObjectives}
@@ -724,7 +746,6 @@ export const CompanyObjectivesDetailView = ({
               setExpandedObjective={setExpandedObjective}
               renderObjectiveCard={renderObjectiveCard}
             />
-          </div>
         </div>
       </div>
 
@@ -735,6 +756,8 @@ export const CompanyObjectivesDetailView = ({
           objective={createKRDialog.objective}
         />
       )}
+
+      {createCompanyObjectiveDialog}
 
       {editModal.open && editModal.objective && editModal.type === 'company' && (
         <AddObjectiveDialog

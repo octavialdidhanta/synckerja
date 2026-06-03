@@ -1453,7 +1453,7 @@ const PricingToolsSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
       <div
-        className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background font-sans"
+        className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans"
         aria-busy
       >
         <PricingToolsPageSkeleton />
@@ -1467,7 +1467,7 @@ const PricingToolsSuspense = ({ children }: { children: ReactNode }) => (
 const PromoSimulationSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background" aria-busy>
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
         <PromoSimulationPageSkeleton />
       </div>
     }
@@ -1718,7 +1718,7 @@ const CompanySuspense = ({ children }: { children: ReactNode }) => (
 const RequestFormSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col" aria-busy>
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
         <RequestFormPageSkeleton />
       </div>
     }

@@ -19,15 +19,15 @@ export function ApprovalsPageSkeleton() {
   const aria = t("expenses.approvals.loadingAria", "Loading approvals");
   return (
     <div
-      className={cn(
-        SCROLL_MAIN,
-        "flex min-h-0 min-w-0 flex-1 flex-col bg-gray-100 font-sans",
-      )}
+      className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans"
       aria-busy
       aria-label={aria}
     >
       <span className="sr-only">{aria}</span>
-      <div className="flex min-h-full min-w-0 flex-col bg-muted/40 px-4 pb-2">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
+        <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
+          <div className={cn(SCROLL_MAIN, "min-w-0")}>
+            <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
         <div className="mb-1 shrink-0 px-1 py-3">
           <div className="mb-3 min-w-0 space-y-1.5">
             <Skeleton className="h-7 w-56 max-w-[90vw]" />
@@ -105,13 +105,10 @@ export function ApprovalsPageSkeleton() {
             </div>
           </div>
         </div>
-
-        <div
-          className="h-2 shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-          aria-hidden
-        />
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-4" aria-hidden />
     </div>
   );
 }

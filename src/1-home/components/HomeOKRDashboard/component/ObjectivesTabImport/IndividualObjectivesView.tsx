@@ -20,6 +20,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { useToast } from '@/shared/components/ui/use-toast';
+import { UnifiedAvatar } from '@/shared/components/UnifiedAvatar';
 interface IndividualObjectivesViewProps {
   organizationId: string;
   cycleId?: string;
@@ -485,11 +486,8 @@ export const IndividualObjectivesView = ({
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 w-full flex-col">
-        {/* Fills ObjectivesTab flex-1; scroll is on .home-okr-tab-scroll ancestor */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-4">
-            <div className="space-y-2">
+      <div className="flex min-h-0 min-w-0 flex-1 w-full flex-col">
+        <div className="min-h-0 flex-1 space-y-2 pb-1">
             {activeEmployees.map(employee => {
               const employeeObjectivesMap = objectivesByEmployeeAndStatus.get(employee.id) || new Map();
               const activeObjectives = employeeObjectivesMap.get('active') || [];
@@ -508,11 +506,12 @@ export const IndividualObjectivesView = ({
                               <ChevronDown className="h-4 w-4 text-gray-400" /> : 
                               <ChevronRight className="h-4 w-4 text-gray-400" />
                             }
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
-                              <span className="text-sm font-medium text-primary">
-                                {employee.full_name?.charAt(0) || 'U'}
-                              </span>
-                            </div>
+                            <UnifiedAvatar
+                              photoUrl={employee.profile_photo_url ?? employee.photo_url}
+                              name={employee.full_name || 'Unknown Employee'}
+                              size="sm"
+                              clickable={false}
+                            />
                             <div>
                               <span className="font-medium text-gray-900">{employee.full_name || 'Unknown Employee'}</span>
                               <p className="text-sm text-gray-500">{employee.job_position_name || 'No Position'}</p>
@@ -634,8 +633,6 @@ export const IndividualObjectivesView = ({
                 </div>
               );
             })}
-            </div>
-          </div>
         </div>
       </div>
 

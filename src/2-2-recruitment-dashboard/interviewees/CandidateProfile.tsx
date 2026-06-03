@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avat
 import { CandidateProfileTabs, CandidateProfileSidebar } from '@/2-2-recruitment-dashboard/applications/candidate-form';
 import { Loader2, User, CheckCircle, ArrowLeft, UserPlus } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { useRecruitmentCandidatePhotoDisplayUrl } from '@/shared/hooks/useRecruitmentCandidatePhotoDisplayUrl';
 
 interface CandidateProfile {
   id: string;
@@ -47,6 +48,7 @@ const CandidateProfile = () => {
   const [candidate, setCandidate] = useState<CandidateProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const headerPhotoUrl = useRecruitmentCandidatePhotoDisplayUrl(candidate?.photo_url, { width: 64 });
 
   // Detect if using the new clean layout route
   const isCleanLayout = location.pathname.startsWith('/candidate/profile');
@@ -284,7 +286,7 @@ const CandidateProfile = () => {
                   <div className="h-4 w-px bg-gray-300" />
                   <div className="flex items-center gap-3">
                     <Avatar className="w-8 h-8">
-                      <AvatarImage src={candidate.photo_url} alt={candidate.full_name} />
+                      <AvatarImage src={headerPhotoUrl || undefined} alt={candidate.full_name} />
                       <AvatarFallback className="bg-blue-600 text-white text-sm">
                         {getInitials(candidate.full_name)}
                       </AvatarFallback>
@@ -343,7 +345,7 @@ const CandidateProfile = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Avatar className="w-12 h-12">
-                  <AvatarImage src={candidate.photo_url} alt={candidate.full_name} />
+                  <AvatarImage src={headerPhotoUrl || undefined} alt={candidate.full_name} />
                   <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
                     {getInitials(candidate.full_name)}
                   </AvatarFallback>
@@ -393,7 +395,7 @@ const CandidateProfile = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={candidate.photo_url} alt={candidate.full_name} />
+                <AvatarImage src={headerPhotoUrl || undefined} alt={candidate.full_name} />
                 <AvatarFallback className="bg-blue-600 text-white">
                   {getInitials(candidate.full_name)}
                 </AvatarFallback>

@@ -16,6 +16,7 @@ export interface EmployeeStatus {
   expires_at: string;
   employees?: {
     full_name: string;
+    user_id?: string | null;
     profile_photo_url?: string | null;
     departments?: {
       name: string;
@@ -50,6 +51,7 @@ export const useEmployeeStatus = () => {
           employees!inner (
             full_name,
             organization_id,
+            user_id,
             profile_photo_url,
             departments (
               name
@@ -70,7 +72,41 @@ export const useEmployeeStatus = () => {
         return;
       }
 
-      setStatuses((data as unknown as EmployeeStatus[]) || []);
+      const rows = (data as unknown as EmployeeStatus[]) || [];
+
+      // Photo may live in user_profile_details (header/settings) while employees row is still null
+      const userIds = [
+        ...new Set(
+          rows
+            .map((s) => s.employees?.user_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+
+      let enriched = rows;
+      if (userIds.length > 0) {
+        const { data: detailsRows } = await supabase
+          .from('user_profile_details')
+          .select('profile_id, profile_photo_url')
+          .in('profile_id', userIds);
+
+        const photoByUser = new Map(
+          (detailsRows ?? []).map((d) => [d.profile_id, d.profile_photo_url]),
+        );
+
+        enriched = rows.map((status) => {
+          const emp = status.employees;
+          if (!emp) return status;
+          const detailPhoto = emp.user_id ? photoByUser.get(emp.user_id) : null;
+          const mergedPhoto = emp.profile_photo_url || detailPhoto || null;
+          return {
+            ...status,
+            employees: { ...emp, profile_photo_url: mergedPhoto },
+          };
+        });
+      }
+
+      setStatuses(enriched);
     } catch (error) {
       console.error('Error fetching employee statuses:', error);
       setLoadError(

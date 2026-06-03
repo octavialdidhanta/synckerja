@@ -1,28 +1,9 @@
-import { useEffect, useState } from 'react';
-
-const HIDE_DEBOUNCE_MS = 200;
+import { useStickyPageSkeletonGate } from "@/shared/hooks/useStickyPageSkeletonGate";
 
 /**
- * While `rawPending` is true, skeleton stays visible. When pending clears, waits for a short
- * debounce + requestAnimationFrame before allowing content to show (Loading Skeleton rule).
+ * While `rawPending` is true on first load, skeleton stays visible. After first reveal,
+ * ignores later pending spikes (tab focus / background refetch).
  */
 export function useSocialMediaDashboardSkeletonGate(rawPending: boolean): boolean {
-  const [revealed, setRevealed] = useState(false);
-
-  useEffect(() => {
-    if (rawPending) {
-      setRevealed(false);
-      return;
-    }
-    let rafId = 0;
-    const t = window.setTimeout(() => {
-      rafId = requestAnimationFrame(() => setRevealed(true));
-    }, HIDE_DEBOUNCE_MS);
-    return () => {
-      clearTimeout(t);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [rawPending]);
-
-  return rawPending || !revealed;
+  return useStickyPageSkeletonGate(rawPending);
 }

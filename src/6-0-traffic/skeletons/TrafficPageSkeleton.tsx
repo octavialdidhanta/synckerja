@@ -52,11 +52,6 @@ export function TrafficPageSkeleton() {
                     </div>
                   </div>
                 </div>
-
-                <div
-                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                  aria-hidden
-                />
               </div>
             </div>
           </div>

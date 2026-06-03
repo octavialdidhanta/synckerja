@@ -15,7 +15,7 @@ export function ReminderBillsPageSkeleton() {
   const aria = t("expenses.reminderBills.loadingAria", "Loading reminder bills");
   return (
     <div
-      className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background font-sans"
+      className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans"
       aria-busy
       aria-label={aria}
     >
@@ -99,13 +99,7 @@ export function ReminderBillsPageSkeleton() {
                   </div>
                 </div>
               </div>
-
-              <div
-                className="h-2 shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
             </div>
-            <div className="h-0 shrink-0 [@media(max-height:900px)]:h-4" aria-hidden />
           </div>
         </div>
       </div>

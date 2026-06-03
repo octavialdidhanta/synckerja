@@ -1,6 +1,9 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import type { SalesActivity } from '@/shared/hooks/organized/sales';
-import { INCOME_TX_MAIN_GRID } from '@/4-1-transaction/layout/incomeTransactionLayout';
+import {
+  INCOME_TX_MAIN_GRID,
+  INCOME_TX_TABLE_SECTION,
+} from '@/4-1-transaction/layout/incomeTransactionLayout';
 import { IncomeTransactionSidebarSkeleton } from '@/4-1-transaction/skeletons/IncomeTransactionSidebarSkeleton';
 import { DeferredMount } from '@/shared/components/DeferredMount';
 import type { PiutangVerificationAggregate } from '../types/piutang.types';
@@ -38,6 +41,7 @@ export type IncomePiutangPageContentProps = {
   userId: string | undefined;
 };
 
+/** Layout selaras `IncomeTransactionPage` — footer tabel di dasar viewport (+ `pb-2` shell). */
 export function IncomePiutangPageContent({
   filterBar,
   hideSidebar = false,
@@ -66,7 +70,7 @@ export function IncomePiutangPageContent({
         >
           <div className="flex h-full min-h-0 min-w-0 flex-col">
             {filterBar ? <div className="mb-2 flex-shrink-0">{filterBar}</div> : null}
-            <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
+            <div className={INCOME_TX_TABLE_SECTION}>
               <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
                 <PiutangActivityTable
                   rows={filteredRows}

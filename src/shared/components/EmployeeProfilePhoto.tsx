@@ -4,7 +4,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/shared/components/ui/avat
 import { Upload, X, Loader2 } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { storageUploadOptions } from '@/shared/lib/storageCacheControl';
-import { optimizePublicStorageImageUrl } from '@/shared/lib/storageDisplayUrl';
+import { resolveProfilePhotoDisplayUrl } from '@/shared/lib/profilePhotoStorage';
 import { toast } from 'sonner';
 import { getInitials } from '@/2-1-employees/hooks/photoUtils';
 
@@ -171,10 +171,7 @@ export const EmployeeProfilePhoto = ({
       <div className="relative group">
         <Avatar className={`${sizeClasses[size]} cursor-pointer`}>
           <AvatarImage
-            src={
-              optimizePublicStorageImageUrl(photoUrl, { width: 128, resize: "cover", quality: 80 }) ??
-              undefined
-            }
+            src={resolveProfilePhotoDisplayUrl(photoUrl) ?? undefined}
             alt={`${employeeName} profile photo`}
             className="object-cover"
             loading="lazy"

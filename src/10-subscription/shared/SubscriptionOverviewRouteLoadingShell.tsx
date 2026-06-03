@@ -7,7 +7,7 @@ import { OverviewPageSkeleton } from "@/10-subscription/overview/OverviewPageSke
  */
 export function SubscriptionOverviewRouteLoadingShell() {
   return (
-    <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col bg-gray-100 font-sans">
+    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-gray-100 font-sans">
       <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="shrink-0 px-4">
           <div className="px-1 py-3">
@@ -23,12 +23,8 @@ export function SubscriptionOverviewRouteLoadingShell() {
           </div>
         </div>
 
-        <div className="box-border flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden px-4 pb-2 pt-1">
+        <div className="box-border flex min-w-0 w-full max-w-full flex-col px-4 pb-2 pt-1">
           <OverviewPageSkeleton />
-          <div
-            className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-            aria-hidden
-          />
         </div>
       </div>
     </div>

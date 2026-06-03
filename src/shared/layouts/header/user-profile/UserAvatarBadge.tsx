@@ -48,6 +48,8 @@ export function UserAvatarBadge({ initials, imageUrl, size = "md", className }: 
           className="absolute inset-0 h-full w-full object-cover"
           onError={() => setImageFailed(true)}
         />
+      ) : initials.trim() ? (
+        <span className="select-none leading-none">{initials}</span>
       ) : (
         <User className={cn("text-muted-foreground", iconSizeMap[size])} strokeWidth={2} aria-hidden />
       )}

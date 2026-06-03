@@ -20,6 +20,10 @@ interface AddObjectiveDialogProps {
   editObjective?: any; // Add edit mode support
   open?: boolean; // Add open prop for controlled mode
   onOpenChange?: (open: boolean) => void; // Add onOpenChange for controlled mode
+  /** Prefer prop from parent view when profile cache is stale. */
+  organizationId?: string;
+  /** Pre-select OKR cycle (e.g. from year/quarter filter on company tab). */
+  defaultCycleId?: string;
 }
 export const AddObjectiveDialog = ({
   type,
@@ -27,11 +31,13 @@ export const AddObjectiveDialog = ({
   onObjectiveAdded,
   editObjective,
   open: controlledOpen,
-  onOpenChange: controlledOnOpenChange
+  onOpenChange: controlledOnOpenChange,
+  organizationId: organizationIdProp,
+  defaultCycleId,
 }: AddObjectiveDialogProps) => {
   const { data: unifiedData } = useUnifiedProfile();
   const profile = unifiedData?.profile;
-  const organizationId = profile?.active_organization_id;
+  const organizationId = organizationIdProp ?? profile?.active_organization_id;
   const { toast } = useToast();
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   const [isGeneratingPeriods, setIsGeneratingPeriods] = React.useState(false);
@@ -60,14 +66,14 @@ export const AddObjectiveDialog = ({
     } else if (!editObjective && isOpen) {
       // Reset form for new objective
       setFormData({
-        cycle_id: '',
+        cycle_id: defaultCycleId || '',
         title: '',
         why_important: '',
         status: 'draft',
         department_id: ''
       });
     }
-  }, [editObjective, isOpen]);
+  }, [editObjective, isOpen, defaultCycleId]);
 
   // Hooks
   const {
@@ -283,8 +289,10 @@ export const AddObjectiveDialog = ({
       });
     }
   };
+  const isControlled = controlledOpen !== undefined;
+
   return <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {!controlledOpen && <DialogTrigger asChild>
+      {!isControlled && <DialogTrigger asChild>
         <Button className={`${triggerButtonClass} ${buttonClassName}`}>
           <Plus className="h-4 w-4 mr-2" />
           Add Objective

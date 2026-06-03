@@ -4,7 +4,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { Plus, Edit, Trash2, Save, X, MoreVertical } from 'lucide-react';
@@ -121,9 +121,8 @@ export const InformalEducationInfoTab = ({ employee, isEditMode, onUpdate }: Inf
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Informal Education Information</h3>
-        {isEditMode && !isAddingNew && !editingId && (
+      {isEditMode && !isAddingNew && !editingId && (
+        <div className="flex justify-end">
           <Button
             onClick={() => setIsAddingNew(true)}
             size="sm"
@@ -132,8 +131,8 @@ export const InformalEducationInfoTab = ({ employee, isEditMode, onUpdate }: Inf
             <Plus className="h-4 w-4 mr-2" />
             Add Informal Education
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Add New Informal Education Form */}
       {isAddingNew && (
@@ -222,9 +221,6 @@ export const InformalEducationInfoTab = ({ employee, isEditMode, onUpdate }: Inf
       {/* Informal Education Records Table */}
       {informalEducations && informalEducations.length > 0 ? (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Informal Education Records</CardTitle>
-          </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px] w-full">
               <Table>

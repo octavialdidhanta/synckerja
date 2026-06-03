@@ -137,9 +137,6 @@ export const PersonalInfoTab = ({ employee, isEditMode, onUpdate }: PersonalInfo
 
       <Card>
         <CardContent className="pt-6">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">
-            Organization access
-          </h3>
           <OrganizationRoleField
             employee={employee}
             isEditMode={isEditMode}

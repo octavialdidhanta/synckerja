@@ -3,7 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
@@ -144,9 +144,8 @@ export const FamilyMembersInfoTab = ({ employee, isEditMode, onUpdate }: FamilyM
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Family Members Information</h3>
-        {isEditMode && !isAddingNew && !editingId && (
+      {isEditMode && !isAddingNew && !editingId && (
+        <div className="flex justify-end">
           <Button
             onClick={() => setIsAddingNew(true)}
             size="sm"
@@ -155,8 +154,8 @@ export const FamilyMembersInfoTab = ({ employee, isEditMode, onUpdate }: FamilyM
             <Plus className="h-4 w-4 mr-2" />
             Add Family Member
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Add New Family Member Form */}
       {isAddingNew && (
@@ -272,9 +271,6 @@ export const FamilyMembersInfoTab = ({ employee, isEditMode, onUpdate }: FamilyM
       {/* Family Members Records Table */}
       {familyMembers && familyMembers.length > 0 ? (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Family Members Records</CardTitle>
-          </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px] w-full">
               <Table>

@@ -16,8 +16,8 @@ export function TemplateManagerShell({
   const { t } = useTranslation();
 
   return (
-    <div className="min-w-0 space-y-4">
-      <div className="flex flex-wrap gap-6 border-b border-slate-200">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap gap-6 border-b border-slate-200">
         <button
           type="button"
           onClick={() => onSubTabChange("templates")}
@@ -40,7 +40,7 @@ export function TemplateManagerShell({
         </button>
       </div>
       {activeSubTab === "templates" ? (
-        children
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
       ) : (
         <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-12 text-center text-sm text-muted-foreground">
           {t("whatsappTemplates.subTab.groupsComingSoon")}

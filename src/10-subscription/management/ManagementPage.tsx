@@ -67,7 +67,7 @@ export default function ManagementPage() {
 
   return (
     <SubscriptionSectionLayout>
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-[calc(100dvh-220px)] flex-col">
         <div
           className={cn(
             "scrollbar-hide seamless-scroll nested-scroll-touch-chain max-h-[calc(100vh-120px)] overflow-x-hidden overflow-y-auto p-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",

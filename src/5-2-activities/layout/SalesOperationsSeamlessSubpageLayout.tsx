@@ -21,10 +21,6 @@ export function SalesOperationsSeamlessSubpageLayout({ children }: { children: R
                   <div className="col-span-12 flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col">{children}</div>
                 </div>
               </ModuleShellContentGate>
-              <div
-                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
             </div>
           </div>
         </div>

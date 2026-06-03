@@ -92,28 +92,29 @@ function OkrPanelPlaceholder() {
  */
 export function HomeScreen({ layoutVariant = "desktop" }: { layoutVariant?: HomeScreenLayoutVariant }) {
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 w-full flex-1 flex-col bg-background font-sans text-foreground">
-      <div className={mainScroll}>
-        <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
-          <div className="flex min-h-full min-h-0 flex-col">
-            <div className="mb-2 mt-2 min-h-[50px] flex-shrink-0">
-              <DeferredMount fallback={<MotivationPlaceholder />} idleTimeoutMs={2000} delayMs={400}>
-                <Suspense fallback={<MotivationPlaceholder />}>
-                  <SectionMotivation />
+    <div className="relative flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-gray-100 font-sans text-foreground">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className={mainScroll}>
+            <div className="flex min-h-full min-w-0 flex-col">
+              <div className="mb-2 mt-2 min-h-[50px] shrink-0">
+                <DeferredMount fallback={<MotivationPlaceholder />} idleTimeoutMs={2000} delayMs={400}>
+                  <Suspense fallback={<MotivationPlaceholder />}>
+                    <SectionMotivation />
+                  </Suspense>
+                </DeferredMount>
+              </div>
+
+              {layoutVariant === "desktop" ? <HomeDesktopGrid /> : <HomeMobileStack />}
+
+              <DeferredMount fallback={<StatusSectionPlaceholder />} idleTimeoutMs={1600} delayMs={250}>
+                <Suspense fallback={<StatusSectionPlaceholder />}>
+                  <div className="mt-2 min-h-[4.5rem] shrink-0">
+                    <SectionStatusKaryawan />
+                  </div>
                 </Suspense>
               </DeferredMount>
             </div>
-
-            {layoutVariant === "desktop" ? <HomeDesktopGrid /> : <HomeMobileStack />}
-
-            <DeferredMount fallback={<StatusSectionPlaceholder />} idleTimeoutMs={1600} delayMs={250}>
-              <Suspense fallback={<StatusSectionPlaceholder />}>
-                <div className="mt-2 min-h-[4.5rem] flex-shrink-0">
-                  <SectionStatusKaryawan />
-                </div>
-              </Suspense>
-            </DeferredMount>
-            <div className="h-4 flex-shrink-0" aria-hidden />
           </div>
         </div>
       </div>

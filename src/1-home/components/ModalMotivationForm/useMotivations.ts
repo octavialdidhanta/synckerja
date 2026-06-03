@@ -29,7 +29,7 @@ interface Motivation {
 
 export const useMotivations = () => {
   const queryClient = useQueryClient();
-  const { data: employeeData, isLoading: employeeLoading, error: employeeError } = useCurrentUserEmployee();
+  const { data: employeeData, isPending: employeePending, isLoading: employeeLoading, error: employeeError } = useCurrentUserEmployee();
 
   const fetchMotivations = async () => {
     if (!employeeData?.organization_id) {
@@ -104,6 +104,7 @@ export const useMotivations = () => {
   // Use React Query for motivation data
   const {
     data: motivations = [],
+    isPending: motivationsPending,
     isLoading,
     error: motivationsQueryError,
     refetch: refreshMotivations,
@@ -359,9 +360,13 @@ export const useMotivations = () => {
     (motivationsQueryError as Error | null | undefined) ||
     null;
 
+  const bootstrapPending =
+    employeePending || (motivationsPending && !!employeeData?.organization_id);
+
   return {
     motivations,
-    isLoading: isLoading || employeeLoading,
+    isPending: bootstrapPending,
+    isLoading: bootstrapPending || isLoading || employeeLoading,
     error: combinedError instanceof Error
       ? combinedError
       : combinedError

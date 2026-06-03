@@ -17,7 +17,7 @@ export function PricingToolsModuleShell({
   showContent,
 }: PricingToolsModuleShellProps) {
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background font-sans">
+    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div
         className={cn(
           "flex min-h-0 w-full min-w-0 flex-1 flex-col",
@@ -35,20 +35,15 @@ export function PricingToolsModuleShell({
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <ModuleShellContentGate>{children}</ModuleShellContentGate>
                 </div>
-                <div
-                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                  aria-hidden
-                />
               </div>
             </div>
-            <div className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-4" aria-hidden />
           </div>
         </div>
       </div>
 
       {!showContent ? (
         <div
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-gray-100"
           aria-busy
         >
           <PricingToolsPageSkeleton />

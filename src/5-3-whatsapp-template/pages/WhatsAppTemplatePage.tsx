@@ -17,7 +17,13 @@ import { useWhatsAppAccounts } from "@/5-3-whatsapp/hooks/useWhatsAppAccounts";
 import { useWhatsAppMessageTemplates } from "../hooks/useWhatsAppMessageTemplates";
 import { useDeleteWhatsAppMessageTemplate } from "../hooks/useDeleteWhatsAppMessageTemplate";
 import { mapMetaTemplateToRow } from "../utils/mapMetaTemplateToRow";
-import type { DateRangePreset, MetaMessageTemplate, StatusFilterOption, TemplateTableRow } from "../types";
+import type {
+  DateRangePreset,
+  MetaMessageTemplate,
+  QualityFilterOption,
+  StatusFilterOption,
+  TemplateTableRow,
+} from "../types";
 import { templateDeleteBlockReason } from "../utils/templateDeleteRules";
 import { TemplateManagerShell, type TemplateManagerSubTab } from "../components/TemplateManagerShell";
 import { TemplateListToolbar } from "../components/TemplateListToolbar";
@@ -55,6 +61,10 @@ function sortRows(rows: TemplateTableRow[], key: SortKey, dir: "asc" | "desc"): 
       case "statusLabel":
         va = a.statusLabel;
         vb = b.statusLabel;
+        break;
+      case "qualityLabel":
+        va = a.qualityLabel;
+        vb = b.qualityLabel;
         break;
       case "messagesDelivered":
         va = a.messagesDelivered ?? -1;
@@ -123,6 +133,7 @@ export function WhatsAppTemplatePage() {
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
   const [languageFilters, setLanguageFilters] = useState<string[]>([]);
   const [statusFilters, setStatusFilters] = useState<StatusFilterOption[]>([]);
+  const [qualityFilters, setQualityFilters] = useState<QualityFilterOption[]>([]);
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
   const [sortKey, setSortKey] = useState<SortKey>("lastEditedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -187,6 +198,7 @@ export function WhatsAppTemplatePage() {
       if (categoryFilters.length > 0 && !categoryFilters.includes(r.categoryFilter)) return false;
       if (languageFilters.length > 0 && !languageFilters.includes(r.languageLabel)) return false;
       if (statusFilters.length > 0 && !statusFilters.includes(r.statusLabel as StatusFilterOption)) return false;
+      if (qualityFilters.length > 0 && !qualityFilters.includes(r.qualityLabel as QualityFilterOption)) return false;
       if (!dateFilterDisabled && datePreset !== "all") {
         const t = Math.max(r.createdAt?.getTime() ?? 0, r.lastEditedAt?.getTime() ?? 0);
         if (t > 0 && t < dateCutoffMs(datePreset)) return false;
@@ -195,7 +207,7 @@ export function WhatsAppTemplatePage() {
     });
     list = sortRows(list, sortKey, sortDir);
     return list;
-  }, [rawRows, searchQuery, categoryFilters, languageFilters, statusFilters, datePreset, dateFilterDisabled, sortKey, sortDir]);
+  }, [rawRows, searchQuery, categoryFilters, languageFilters, statusFilters, qualityFilters, datePreset, dateFilterDisabled, sortKey, sortDir]);
 
   const activeApprovedCount = useMemo(() => rawRows.filter((r) => r.statusRaw === "APPROVED").length, [rawRows]);
 
@@ -231,6 +243,7 @@ export function WhatsAppTemplatePage() {
     setCategoryFilters([]);
     setLanguageFilters([]);
     setStatusFilters([]);
+    setQualityFilters([]);
     setDatePreset("all");
   };
 
@@ -287,8 +300,7 @@ export function WhatsAppTemplatePage() {
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <TemplateManagerShell activeSubTab={subTab} onSubTabChange={setSubTab}>
-              {!organizationId ? (
+            {!organizationId ? (
                 <div className="rounded-lg border border-dashed border-slate-200 px-4 py-12 text-center text-sm text-muted-foreground">
                   Pilih organisasi aktif untuk memuat template WhatsApp.
                 </div>
@@ -296,18 +308,19 @@ export function WhatsAppTemplatePage() {
                 <WhatsAppTemplateEmptyState reason="not_configured" />
               ) : isError ? (
                 <WhatsAppTemplateEmptyState reason="error" detail={errorDetail} />
+              ) : detailRow && displayDetailRow ? (
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                  <TemplateDetailPanel
+                    row={displayDetailRow}
+                    onBack={() => setDetailRow(null)}
+                    onRequestDelete={() => handleRequestDelete(displayDetailRow)}
+                    deleteBlockReason={templateDeleteBlockReason(displayDetailRow.statusRaw)}
+                    isDeleting={deleteMutation.isPending && deleteTarget?.id === displayDetailRow.id}
+                    metaRefetching={detailMetaQuery.isFetching}
+                  />
+                </div>
               ) : (
-                <>
-                  {detailRow && displayDetailRow ? (
-                    <div className="mt-4 min-h-0 min-w-0 flex-1">
-                      <TemplateDetailPanel
-                        row={displayDetailRow}
-                        onBack={() => setDetailRow(null)}
-                        metaRefetching={detailMetaQuery.isFetching}
-                      />
-                    </div>
-                  ) : (
-                    <>
+                <TemplateManagerShell activeSubTab={subTab} onSubTabChange={setSubTab}>
                       <TemplateListToolbar
                         searchQuery={searchQuery}
                         onSearchQueryChange={setSearchQuery}
@@ -318,6 +331,8 @@ export function WhatsAppTemplatePage() {
                         onLanguageFiltersChange={setLanguageFilters}
                         statusFilters={statusFilters}
                         onStatusFiltersChange={setStatusFilters}
+                        qualityFilters={qualityFilters}
+                        onQualityFiltersChange={setQualityFilters}
                         datePreset={datePreset}
                         onDatePresetChange={setDatePreset}
                         dateFilterDisabled={dateFilterDisabled}
@@ -367,11 +382,8 @@ export function WhatsAppTemplatePage() {
                           </div>
                         </>
                       )}
-                    </>
-                  )}
-                </>
+                </TemplateManagerShell>
               )}
-            </TemplateManagerShell>
                   </div>
                 </div>
               </div>

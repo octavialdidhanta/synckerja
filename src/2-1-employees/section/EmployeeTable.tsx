@@ -117,7 +117,7 @@ const EmployeeRow = memo(({
   // Use consistent status display logic
   const displayStatus = getEmployeeStatus(employee);
 
-  const photoUrl = getPhotoUrl(employee.photo_url);
+  const photoUrl = getPhotoUrl(employee.profile_photo_url ?? employee.photo_url);
   return (
     <TableRow className="h-12 transition-colors hover:bg-gray-50/50">
       <TableCell className="w-64 px-4">

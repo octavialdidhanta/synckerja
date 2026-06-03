@@ -15,12 +15,13 @@ export function PricingToolsPageSkeleton() {
 
   return (
     <div
-      className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2 font-sans"
+      className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-gray-100 font-sans"
       aria-busy
       aria-label={aria}
     >
       <span className="sr-only">{aria}</span>
-      <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+        <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
         <div className={`${MAIN_SCROLL} min-w-0`}>
           <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
             {/* Match `PricingToolsHeaderAndTab`: px-1 py-3, title block, three tabs */}
@@ -155,13 +156,9 @@ export function PricingToolsPageSkeleton() {
               </div>
             </div>
 
-            <div
-              className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-              aria-hidden
-            />
           </div>
         </div>
-        <div className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-4" aria-hidden />
+        </div>
       </div>
     </div>
   );

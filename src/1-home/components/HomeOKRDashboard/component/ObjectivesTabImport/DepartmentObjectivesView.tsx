@@ -43,7 +43,6 @@ export const DepartmentObjectivesView = ({
 }: DepartmentObjectivesViewProps) => {
   const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
   const [expandedObjective, setExpandedObjective] = useState<string>('');
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('');
   const [showContributionModal, setShowContributionModal] = useState(false);
   const [createKRDialog, setCreateKRDialog] = useState<{
@@ -238,13 +237,21 @@ export const DepartmentObjectivesView = ({
       }
     });
   };
-  const handleCreateObjective = (departmentId: string) => {
-    setSelectedDepartmentId(departmentId);
-    setShowCreateDialog(true);
-  };
-  const handleAddContribution = (departmentId: string) => {
+  const openDepartmentContributionModal = (departmentId: string) => {
+    if (!departmentId) {
+      toast.error('No department selected');
+      return;
+    }
     setSelectedDepartmentId(departmentId);
     setShowContributionModal(true);
+  };
+
+  const handleCreateObjective = (departmentId: string) => {
+    openDepartmentContributionModal(departmentId);
+  };
+
+  const handleAddContribution = (departmentId: string) => {
+    openDepartmentContributionModal(departmentId);
   };
 
   // Individual objectives functions
@@ -500,24 +507,20 @@ export const DepartmentObjectivesView = ({
           </p>
           <div className="flex space-x-3">
             <Button
-              onClick={() => {
-                if (departments.length > 0) {
-                  handleCreateObjective(departments[0].id);
-                }
-              }}
+              onClick={() => openDepartmentContributionModal(departments[0]?.id ?? "")}
               size="sm"
               className="gap-2"
+              disabled={departments.length === 0}
             >
               <Plus className="h-4 w-4" />
               Create Objective
             </Button>
             <Button
-              onClick={() => {
-                handleAddContribution(departments[0]?.id || "");
-              }}
+              onClick={() => openDepartmentContributionModal(departments[0]?.id ?? "")}
               size="sm"
               variant="outline"
               className="gap-2"
+              disabled={departments.length === 0}
             >
               <Target className="h-4 w-4" />
               Add Contribution
@@ -530,21 +533,17 @@ export const DepartmentObjectivesView = ({
           onOpenChange={setShowContributionModal}
           organizationId={organizationId}
           cycleId={finalCycleIds?.[0] || cycleId || ""}
+          cycleIds={finalCycleIds}
           departmentId={selectedDepartmentId}
-          onSuccess={() => {}}
+          onSuccess={() => setShowContributionModal(false)}
         />
       </>
     );
   }
   return (
     <>
-      <div className="flex min-h-0 flex-1 w-full flex-col">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-4">
-            
-
-            {/* Department List with Expand/Collapse */}
-            <div className="space-y-2">
+      <div className="flex min-h-0 min-w-0 flex-1 w-full flex-col">
+        <div className="min-h-0 flex-1 space-y-2 pb-1">
               {departments.filter(department => {
                 // Filter out departments that are actually organization names
                 const orgNamePatterns = [
@@ -658,16 +657,9 @@ export const DepartmentObjectivesView = ({
                 </Collapsible>
               </div>;
             })}
-            </div>
-          </div>
         </div>
       </div>
       
-      {/* TODO: Use ModalAddDepartmentContribution instead */}
-      {/* <ModalCreateObjective open={showCreateDialog} onOpenChange={setShowCreateDialog} organizationId={organizationId} cycleId={cycleId || ''} departmentId={selectedDepartmentId} level="company" // Use company level since that's what we have
-    /> */}
-
-      {/* Add Department Contribution Modal */}
       <ModalAddDepartmentContribution 
         open={showContributionModal} 
         onOpenChange={setShowContributionModal} 
@@ -675,7 +667,7 @@ export const DepartmentObjectivesView = ({
         cycleId={finalCycleIds?.[0] || cycleId || ''} 
         cycleIds={finalCycleIds} 
         departmentId={selectedDepartmentId}
-        onSuccess={() => {}}
+        onSuccess={() => setShowContributionModal(false)}
       />
       
       {/* Debug logging for cycle IDs - moved to useEffect above */}

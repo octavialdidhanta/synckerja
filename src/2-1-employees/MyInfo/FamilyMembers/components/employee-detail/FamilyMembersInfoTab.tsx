@@ -3,7 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
@@ -18,9 +18,16 @@ interface FamilyMembersInfoTabProps {
   employee: Employee;
   isEditMode: boolean;
   onUpdate: () => void;
+  /** When set, title and Add button share one header row (Family Members page). */
+  sectionTitle?: string;
 }
 
-export const FamilyMembersInfoTab = ({ employee, isEditMode, onUpdate }: FamilyMembersInfoTabProps) => {
+export const FamilyMembersInfoTab = ({
+  employee,
+  isEditMode,
+  onUpdate,
+  sectionTitle,
+}: FamilyMembersInfoTabProps) => {
   const { organizationId } = useCurrentOrg();
   const { familyMembers, isLoading, addFamilyMember, updateFamilyMember, deleteFamilyMember } = useFamilyMembers(employee.id);
   
@@ -142,21 +149,30 @@ export const FamilyMembersInfoTab = ({ employee, isEditMode, onUpdate }: FamilyM
     );
   }
 
+  const addFamilyMemberButton =
+    isEditMode && !isAddingNew && !editingId ? (
+      <Button
+        onClick={() => setIsAddingNew(true)}
+        size="sm"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Add Family Member
+      </Button>
+    ) : null;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Family Members Information</h3>
-        {isEditMode && !isAddingNew && !editingId && (
-          <Button
-            onClick={() => setIsAddingNew(true)}
-            size="sm"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Family Member
-          </Button>
-        )}
-      </div>
+      {sectionTitle ? (
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold text-gray-900">{sectionTitle}</h2>
+          {addFamilyMemberButton}
+        </div>
+      ) : (
+        addFamilyMemberButton && (
+          <div className="flex justify-end">{addFamilyMemberButton}</div>
+        )
+      )}
 
       {/* Add New Family Member Form */}
       {isAddingNew && (
@@ -272,9 +288,6 @@ export const FamilyMembersInfoTab = ({ employee, isEditMode, onUpdate }: FamilyM
       {/* Family Members Records Table */}
       {familyMembers && familyMembers.length > 0 ? (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Family Members Records</CardTitle>
-          </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px] w-full">
               <Table>

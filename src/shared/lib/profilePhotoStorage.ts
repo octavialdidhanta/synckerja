@@ -48,8 +48,11 @@ export function pickProfilePhotoUrl(sources: {
 /** Resolve stored `profiles.profile_photo_url` (path or public URL) to a displayable image URL. */
 export function resolveProfilePhotoDisplayUrl(stored: string | null | undefined): string | null {
   if (stored == null || stored === "") return null;
-  const pathFromUrl = publicUrlToObjectPath(stored);
-  return pathFromUrl ? getPublicPhotoUrl(pathFromUrl) : getPublicPhotoUrl(stored);
+  if (stored.startsWith("http")) {
+    const pathFromUrl = publicUrlToObjectPath(stored);
+    return pathFromUrl ? getPublicPhotoUrl(pathFromUrl) : stored;
+  }
+  return getPublicPhotoUrl(stored);
 }
 
 export { BUCKET as PROFILE_PHOTO_BUCKET };

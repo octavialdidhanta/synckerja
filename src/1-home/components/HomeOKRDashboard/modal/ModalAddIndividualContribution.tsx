@@ -3,6 +3,8 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
+  DialogFormScrollArea,
   DialogHeader,
   DialogTitle,
 } from '@/shared/components/ui/dialog';
@@ -367,8 +369,8 @@ export const ModalAddIndividualContribution = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden rounded-none p-0 sm:rounded-none">
+        <DialogHeader className="shrink-0 space-y-1.5 border-b px-6 pb-4 pt-6 pr-12">
           <DialogTitle className="flex items-center space-x-2">
             <Target className="h-5 w-5 text-primary" />
             <span>{editObjective ? 'Edit Individual Contribution' : 'Create Individual Contribution'}</span>
@@ -378,7 +380,8 @@ export const ModalAddIndividualContribution = ({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <DialogFormScrollArea className="space-y-4 px-6 py-4">
           {/* Department Objective Selection */}
           <div className="space-y-2">
             <Label htmlFor="company_objective" className="text-sm font-medium">
@@ -537,9 +540,9 @@ export const ModalAddIndividualContribution = ({
               onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
             />
           </div>
+          </DialogFormScrollArea>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-2 pt-4">
+          <DialogFooter className="shrink-0 gap-2 border-t bg-background px-6 py-4 sm:justify-end">
             <Button
               type="button"
               variant="outline"
@@ -553,7 +556,7 @@ export const ModalAddIndividualContribution = ({
             >
               {createObjective.isPending ? (editObjective ? 'Updating...' : 'Creating...') : (editObjective ? 'Update Individual Contribution' : 'Create Individual Contribution')}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

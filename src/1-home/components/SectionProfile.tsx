@@ -7,12 +7,14 @@ import { useEmployeeLeaveBalance } from '@/2-1-employees/MyInfo/LeavePermit/hook
 import { EmployeeProfilePhoto } from '@/shared/components/EmployeeProfilePhoto';
 import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
 import { useUserData } from '@/shared/auth/hooks/useUserData';
+import { useProfile } from '@/shared/hooks/useProfile';
 import { useTeamAvailability } from './useTeamAvailability';
 import { toast } from 'sonner';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from 'date-fns';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
+import { isBootstrapPending } from '@/shared/lib/loadingBootstrap';
 
 const SectionQuickMenu = lazy(() =>
   import('./HomeOKRDashboard/component/SectionQuickMenu').then((m) => ({
@@ -55,7 +57,8 @@ export const SectionProfile = () => {
     isLoading: leaveBalanceLoading,
     error: leaveBalanceError,
   } = useEmployeeLeaveBalance();
-  const { profile, userRole, loading: userDataLoading } = useUserData();
+  const { profile, userRole, loading: userDataLoading, refreshUserData } = useUserData();
+  const { data: profileRow, refetch: refetchProfile, isLoading: profileQueryLoading } = useProfile();
   const { syncAvatarAcrossApp } = useAvatarSync();
   const {
     data: teamAvailability,
@@ -63,8 +66,17 @@ export const SectionProfile = () => {
     error: teamAvailabilityError,
   } = useTeamAvailability();
 
+  const hasEmployee = employeeData != null;
+  const hasProfileContent = profile != null || profileRow != null;
+  const hasLeaveBalance = leaveBalance != null;
+  const hasTeamAvailability = teamAvailability != null;
+
   const profileSectionLoading =
-    isLoading || userDataLoading || leaveBalanceLoading || isTeamLoading;
+    isBootstrapPending(isLoading, hasEmployee) ||
+    (userDataLoading && !hasProfileContent) ||
+    isBootstrapPending(profileQueryLoading, hasProfileContent) ||
+    isBootstrapPending(leaveBalanceLoading, hasLeaveBalance) ||
+    isBootstrapPending(isTeamLoading, hasTeamAvailability);
   const profileSectionError =
     (employeeError as Error | null | undefined) ||
     (teamAvailabilityError as Error | null | undefined) ||
@@ -113,7 +125,12 @@ export const SectionProfile = () => {
     remainingLeave: leaveBalance?.remainingLeave ?? employeeData?.leave_balance ?? defaultData.remainingLeave,
     totalLeave: leaveBalance?.totalAnnualLeave ?? 12,
     perfectAttendance: defaultData.perfectAttendance,
-    photoUrl: employeeData?.profile_photo_url
+    // Same query as header (`useProfile` → user_profile_details + employees)
+    photoUrl:
+      profileRow?.profile_photo_url ||
+      profile?.profile_photo_url ||
+      employeeData?.profile_photo_url ||
+      null,
   };
 
   // Removed excessive debug logging for performance
@@ -124,7 +141,7 @@ export const SectionProfile = () => {
       const result = await syncAvatarAcrossApp(photoUrl);
       toast.dismiss(loadingToast);
       if (result?.success) {
-        refetchEmployee();
+        await Promise.all([refetchEmployee(), refreshUserData(), refetchProfile()]);
         toast.success(t('profile.photoUpdatedSuccess', 'Profile photo updated successfully across the app! ðŸŽ‰'));
       } else {
         toast.error(t('profile.failedToSyncPhoto', 'Failed to sync photo across the app'));
@@ -157,6 +174,7 @@ export const SectionProfile = () => {
           <CardContent className="p-0">
             <div className="flex items-center space-x-3 mb-4">
               <EmployeeProfilePhoto
+                key={currentUser.photoUrl ?? 'no-photo'}
                 employeeName={currentUser.name}
                 employeeId={employeeData?.id}
                 photoUrl={currentUser.photoUrl}

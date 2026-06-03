@@ -24,6 +24,11 @@ import { Button } from '@/shared/components/ui/button';
 import { Alert, AlertDescription } from '@/shared/components/ui/alert';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { devLog } from '@/shared/lib/logger';
+import {
+  DEFAULT_SALES_ACTIVITIES_FILTERS,
+  filterSalesActivities,
+  type SalesActivitiesFiltersState,
+} from '../utils/salesActivitiesFilterUtils';
 
 export const SalesActivitiesPageContent = () => {
   const { activities, refetch, error, isError, deleteSalesActivity } = useSalesActivities();
@@ -45,12 +50,8 @@ export const SalesActivitiesPageContent = () => {
   const [sopPopupOpen, setSopPopupOpen] = useState(false);
   const [pendingTaskFormData, setPendingTaskFormData] = useState<TaskFormData | null>(null);
   const { refetchTasks } = useDailyTask();
-  const [filters, setFilters] = useState({
-    search: '',
-    status: 'all',
-    type: 'all',
-    payment: 'all',
-    date: 'all'
+  const [filters, setFilters] = useState<SalesActivitiesFiltersState>({
+    ...DEFAULT_SALES_ACTIVITIES_FILTERS,
   });
 
   const handleEdit = (activity: SalesActivity) => {
@@ -160,21 +161,10 @@ export const SalesActivitiesPageContent = () => {
     }
   };
 
-  const filteredActivities = activities.filter(activity => {
-    if (filters.search && !activity.client_name.toLowerCase().includes(filters.search.toLowerCase())) {
-      return false;
-    }
-    if (filters.status !== 'all' && activity.status !== filters.status) {
-      return false;
-    }
-    if (filters.type !== 'all' && activity.activity_type !== filters.type) {
-      return false;
-    }
-    if (filters.payment !== 'all' && activity.payment_method !== filters.payment) {
-      return false;
-    }
-    return true;
-  });
+  const filteredActivities = React.useMemo(
+    () => filterSalesActivities(activities, filters),
+    [activities, filters],
+  );
 
   // Calculate unique activity types for footer
   const uniqueTypes = [...new Set(filteredActivities.map(a => a.activity_type).filter(Boolean))];
@@ -226,7 +216,7 @@ export const SalesActivitiesPageContent = () => {
         onCancel={handleSopCancel}
       />
 
-      {/* Grid rhythm matches jadwal-kunjungan / client-visits (`SalesOperationsSeamlessSubpageLayout` owns outer scroll + bottom spacer). */}
+      {/* Grid rhythm matches jadwal-kunjungan / client-visits (`SalesOperationsSeamlessSubpageLayout` owns outer scroll + `pb-2`). */}
       <div className="grid min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-12 gap-2">
         <div className="col-span-12 flex h-full min-h-0 min-w-0 w-full max-w-full flex-col lg:col-span-9">
           <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
@@ -263,6 +253,7 @@ export const SalesActivitiesPageContent = () => {
               <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm seamless-scroll">
                 <SalesActivitiesTable
                   activities={filteredActivities}
+                  totalUnfilteredCount={activities.length}
                   onUpdate={refetch}
                   onEdit={handleEdit}
                   onViewDetails={handleViewDetails}

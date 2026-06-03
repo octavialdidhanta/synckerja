@@ -4,10 +4,11 @@ import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabase
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import type { MemberRowLite, RecipientListMemberViewRow } from "@/5-3-whatsapp-template/utils/enrichRecipientListMembers";
 import { normalizeWaPhoneKey } from "@/5-3-whatsapp-template/utils/normalizeWaPhoneKey";
-import {
-  buildMvpParameterValues,
-  countTemplateParameterSlots,
-} from "@/5-3-whatsapp-template/utils/buildCampaignTemplateParameters";
+import { buildParameterValuesFromMapping } from "@/5-3-whatsapp-template/utils/campaignTemplateContent";
+import type {
+  TemplateParameterSlot,
+  VariableMapping,
+} from "@/5-3-whatsapp-template/utils/campaignTemplateContent";
 
 export type WhatsAppCampaignRow = {
   id: string;
@@ -19,6 +20,8 @@ export type WhatsAppCampaignRow = {
   template_language: string;
   template_hsm_id: string | null;
   template_components_json: unknown;
+  /** Slot index → mappable field key at create time. */
+  parameter_mapping?: Record<string, string> | null;
   status: string;
   scheduled_at: string | null;
   started_at: string | null;
@@ -303,6 +306,9 @@ export type CreateWhatsAppCampaignVariables = {
   templateLanguage: string;
   templateHsmId: string | null;
   templateComponentsJson: unknown[];
+  templateSlots: TemplateParameterSlot[];
+  variableMapping: VariableMapping;
+  parameterMappingJson: Record<string, string>;
   members: RecipientListMemberViewRow[];
   rawMembers: MemberRowLite[];
   sendMode: "now" | "later";
@@ -362,7 +368,6 @@ export function useCreateWhatsAppCampaign() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const slotCount = countTemplateParameterSlots(vars.templateComponentsJson);
       const recipientRows: Array<{
         campaign_id: string;
         list_member_id: string;
@@ -378,7 +383,12 @@ export function useCreateWhatsAppCampaign() {
         const key =
           normalizeWaPhoneKey(view.phoneDisplay) ?? normalizeWaPhoneKey(raw.phone_normalized);
         if (!key) continue;
-        const params = buildMvpParameterValues(slotCount, view, raw);
+        const params = buildParameterValuesFromMapping(
+          vars.templateSlots,
+          vars.variableMapping,
+          view,
+          raw,
+        );
         recipientRows.push({
           campaign_id: "",
           list_member_id: view.id,
@@ -406,6 +416,7 @@ export function useCreateWhatsAppCampaign() {
           template_language: vars.templateLanguage.trim(),
           template_hsm_id: vars.templateHsmId,
           template_components_json: vars.templateComponentsJson,
+          parameter_mapping: vars.parameterMappingJson,
           created_by: user.id,
           ...scheduled,
         })

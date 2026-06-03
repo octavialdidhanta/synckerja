@@ -9,6 +9,7 @@ import { Separator } from '@/shared/components/ui/separator';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
+import { isBootstrapPending } from '@/shared/lib/loadingBootstrap';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useEmployeeAssignments } from './hooks/useEmployeeAssignments';
 import { JobDescTimeframe, DateRangeValue, JobDescAssignment } from '@/8-2-DailyTask/section/JobDescTracker/types';
@@ -67,14 +68,17 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
   const [showCompleted, setShowCompleted] = useState(false);
   
   const { orgBootstrapPending } = useOrgBootstrapPending();
-  const { isLoading: employeeLoading } = useCurrentEmployee();
-  const { data: summary, isLoading, error } = useEmployeeAssignments({
+  const { data: employeeData, isPending: employeePending } = useCurrentEmployee();
+  const { data: summary, isPending: assignmentsPending, error } = useEmployeeAssignments({
     timeframe,
     customRange,
     includeOverdue: true,
   });
 
-  const activitySectionLoading = orgBootstrapPending || employeeLoading || isLoading;
+  const activitySectionLoading =
+    orgBootstrapPending ||
+    isBootstrapPending(employeePending, employeeData != null) ||
+    isBootstrapPending(assignmentsPending, summary !== undefined);
 
   const activityError =
     error instanceof Error ? error : error ? new Error(String(error)) : null;

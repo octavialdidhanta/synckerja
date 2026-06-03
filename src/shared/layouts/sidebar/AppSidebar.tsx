@@ -18,7 +18,6 @@ import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 
 interface SubSidebarPanelProps {
   items: NavSubItem[];
-  isOpen: boolean;
   titleKey: string;
 }
 
@@ -72,7 +71,7 @@ function SidebarBrandHeader() {
   );
 }
 
-function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
+function SubSidebarPanel({ items, titleKey }: SubSidebarPanelProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -80,11 +79,8 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
 
   return (
     <div
-      className="h-full w-64 overflow-hidden bg-card font-sans antialiased transition-opacity duration-300 ease-in-out motion-reduce:transition-none"
-      style={{
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        opacity: isOpen ? 1 : 0,
-      }}
+      className="h-full w-64 overflow-hidden bg-card font-sans antialiased"
+      style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
     >
       <div className="box-border flex h-full w-64 flex-col border-r-2 border-slate-300 bg-card shadow-sm dark:border-slate-600">
         <div className="box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 bg-muted/40 px-4 py-2 dark:border-slate-600">
@@ -92,7 +88,7 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
         </div>
         <div className="flex-1 overflow-y-auto seamless-scroll pt-2">
           <nav className="space-y-0">
-            {items.map((item, index) => {
+            {items.map((item) => {
               const isActive = isNavSubItemActive(item, location.pathname, location.search);
 
               return (
@@ -109,8 +105,6 @@ function SubSidebarPanel({ items, isOpen, titleKey }: SubSidebarPanelProps) {
                       : "text-foreground hover:bg-brand-blue/10 hover:text-brand-blue",
                   )}
                   style={{
-                    opacity: isOpen ? 1 : 0,
-                    transition: `opacity 0.25s ease-in-out ${index * 25}ms`,
                     fontFamily: "system-ui, -apple-system, sans-serif",
                     letterSpacing: "-0.01em",
                   }}
@@ -150,9 +144,7 @@ export function AppSidebar() {
     handleSubSidebarMouseLeave,
   } = useSidebarState();
 
-  const sidebarGroupRef = useRef<HTMLDivElement | null>(null);
   const subSidebarPanelRef = useRef<HTMLDivElement | null>(null);
-  const [subSidebarLeft, setSubSidebarLeft] = useState(0);
 
   const activeMenuItem = mainNavItems.find(
     (item) => item.id === activeSubSidebar && item.subItems && item.subItems.length > 0,
@@ -174,19 +166,14 @@ export function AppSidebar() {
 
     if (!wasAlreadyOpen) {
       setSubSidebarPaintOpen(false);
-      let raf1 = 0;
-      let raf2 = 0;
+      let rafId = 0;
       let cancelled = false;
-      raf1 = requestAnimationFrame(() => {
-        if (cancelled) return;
-        raf2 = requestAnimationFrame(() => {
-          if (!cancelled) setSubSidebarPaintOpen(true);
-        });
+      rafId = requestAnimationFrame(() => {
+        if (!cancelled) setSubSidebarPaintOpen(true);
       });
       return () => {
         cancelled = true;
-        cancelAnimationFrame(raf1);
-        cancelAnimationFrame(raf2);
+        cancelAnimationFrame(rafId);
       };
     }
 
@@ -221,9 +208,12 @@ export function AppSidebar() {
 
   useEffect(() => {
     if (!panelContentMenu?.subItems?.length) return;
-    for (const sub of panelContentMenu.subItems) {
-      prefetchAppRoute(sub.path);
-    }
+    const timer = window.setTimeout(() => {
+      for (const sub of panelContentMenu.subItems!) {
+        prefetchAppRoute(sub.path);
+      }
+    }, 320);
+    return () => window.clearTimeout(timer);
   }, [panelContentMenu?.id]);
 
   const handleSubSidebarPanelTransitionEnd = (e: TransitionEvent<HTMLDivElement>) => {
@@ -233,35 +223,6 @@ export function AppSidebar() {
       setSubMenuSnapshot(null);
     }
   };
-
-  const isSubContentVisible = subSidebarMeasuredOpen || Boolean(panelContentMenu && !subSidebarOpen);
-
-  useEffect(() => {
-    const updateSubSidebarAnchor = () => {
-      if (!sidebarGroupRef.current) return;
-      const rect = sidebarGroupRef.current.getBoundingClientRect();
-      setSubSidebarLeft(rect.right);
-    };
-
-    updateSubSidebarAnchor();
-
-    const resizeObserver = new ResizeObserver(() => {
-      updateSubSidebarAnchor();
-    });
-
-    if (sidebarGroupRef.current) {
-      resizeObserver.observe(sidebarGroupRef.current);
-    }
-
-    window.addEventListener("resize", updateSubSidebarAnchor);
-    window.addEventListener("scroll", updateSubSidebarAnchor, true);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", updateSubSidebarAnchor);
-      window.removeEventListener("scroll", updateSubSidebarAnchor, true);
-    };
-  }, []);
 
   const isParentActive = (item: MainNavItem) => {
     if (item.activePathPrefix) {
@@ -299,16 +260,15 @@ export function AppSidebar() {
     <div className="relative flex h-full">
       <LiveChatAppBadgeSync />
       <div
-        ref={sidebarGroupRef}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className="group relative z-40"
+        className="group relative z-40 h-[calc(100vh-4rem)] shrink-0"
       >
         <Sidebar
           collapsible="icon"
           className={cn(
             "fixed left-0 top-16 z-40 h-full border-r-2 border-slate-300 bg-card shadow-none dark:border-slate-600",
-            "transition-[width] duration-300 ease-in-out motion-reduce:transition-none",
+            "transition-[width] duration-300 ease-out motion-reduce:transition-none",
           )}
           style={{
             fontFamily: "system-ui, -apple-system, sans-serif",
@@ -354,7 +314,8 @@ export function AppSidebar() {
                               <span
                                 className={cn(
                                   "w-auto whitespace-nowrap text-sm font-medium leading-none opacity-100",
-                                  "group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:opacity-0",
+                                  "transition-[max-width,opacity,margin] duration-300 ease-out motion-reduce:transition-none",
+                                  "group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:max-w-0 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:opacity-0",
                                 )}
                               >
                                 {localizedTitle}
@@ -392,7 +353,8 @@ export function AppSidebar() {
                               <span
                                 className={cn(
                                   "w-auto whitespace-nowrap text-sm font-medium leading-none opacity-100",
-                                  "group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:opacity-0",
+                                  "transition-[max-width,opacity,margin] duration-300 ease-out motion-reduce:transition-none",
+                                  "group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:max-w-0 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:opacity-0",
                                 )}
                               >
                                 {localizedTitle}
@@ -427,18 +389,16 @@ export function AppSidebar() {
           onMouseLeave={handleSubSidebarMouseLeave}
           onTransitionEnd={handleSubSidebarPanelTransitionEnd}
           className={cn(
-            "pointer-events-none fixed top-16 z-50 overflow-hidden",
-            "h-[calc(100vh-4rem)]",
-            "transform-none transition-[width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
-            subSidebarMeasuredOpen ? "pointer-events-auto w-64 opacity-100" : "w-0 opacity-0",
+            "pointer-events-none absolute left-full top-0 z-50 overflow-hidden",
+            "h-full w-0 transform-gpu",
+            "transition-[width] duration-300 ease-out motion-reduce:transition-none",
+            subSidebarMeasuredOpen ? "pointer-events-auto w-64" : "w-0",
           )}
-          style={{ left: `${subSidebarLeft}px` }}
         >
           {panelContentMenu?.subItems && (
             <SubSidebarPanel
               key={panelContentMenu.id}
               items={panelContentMenu.subItems}
-              isOpen={isSubContentVisible}
               titleKey={panelContentMenu.titleKey}
             />
           )}

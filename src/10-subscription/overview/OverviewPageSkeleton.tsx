@@ -6,15 +6,15 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
  */
 export function OverviewPageSkeleton() {
   return (
-    <div className="grid min-h-[calc(100dvh-210px)] w-full min-w-0 max-w-full flex-1 grid-cols-12 gap-2 [@media(max-height:900px)]:min-h-[760px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[860px]">
-      <div className="col-span-12 flex min-h-0 min-w-0 flex-col md:col-span-9">
-        <div className="flex max-md:min-h-[360px] min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+    <div className="grid w-full min-w-0 max-w-full grid-cols-12 gap-2">
+      <div className="col-span-12 flex min-w-0 flex-col md:col-span-9">
+        <div className="flex min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
           <div className="flex-shrink-0 border-b border-border px-4 py-2">
             <Skeleton className="h-4 w-44 max-w-full" />
             <Skeleton className="mt-2 h-3 w-72 max-w-full" />
           </div>
 
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="min-w-0">
             <div className="min-w-0 space-y-5 p-4">
               <div className="overflow-hidden rounded-lg border border-border bg-card">
                 <div className="space-y-3 border-b border-border p-6 pb-4">
@@ -93,14 +93,14 @@ export function OverviewPageSkeleton() {
         </div>
       </div>
 
-      <div className="col-span-12 flex min-h-0 min-w-0 flex-col md:col-span-3">
-        <div className="flex max-md:min-h-[280px] min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      <div className="col-span-12 flex min-w-0 flex-col md:col-span-3">
+        <div className="flex min-w-0 flex-col rounded-lg border border-border bg-card">
           <div className="flex-shrink-0 border-b border-border px-4 py-2">
             <Skeleton className="h-4 w-32 max-w-full" />
             <Skeleton className="mt-2 h-3 w-40 max-w-full" />
           </div>
 
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="min-w-0 p-4">
             <div className="space-y-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div

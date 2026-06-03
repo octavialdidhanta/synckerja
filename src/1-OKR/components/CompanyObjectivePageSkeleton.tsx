@@ -63,7 +63,7 @@ export function CompanyObjectivePageSkeleton() {
                             </div>
                           </div>
 
-                          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col basis-0 space-y-3 overflow-hidden">
+                          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 w-full flex-1 flex-col basis-0 space-y-3 overflow-x-hidden overflow-y-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             <Skeleton className="h-14 w-full shrink-0 rounded-lg" />
                             <Skeleton className="min-h-[8rem] w-full flex-1 rounded-lg" />
                             <Skeleton className="h-28 w-full shrink-0 rounded-lg" />
@@ -96,11 +96,6 @@ export function CompanyObjectivePageSkeleton() {
                     </div>
                   </div>
                 </div>
-
-                <div
-                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                  aria-hidden
-                />
               </div>
             </div>
           </div>

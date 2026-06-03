@@ -1,10 +1,9 @@
 ﻿
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { useUpdateEmployee } from '../../hooks';
-import { MapPin } from 'lucide-react';
 
 interface AddressInfoTabProps {
   employee: any;
@@ -66,13 +65,7 @@ export const AddressInfoTab = ({ employee, isEditMode, onUpdate }: AddressInfoTa
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <MapPin className="h-5 w-5" />
-            <span>Address Information</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="address">Current Address</Label>

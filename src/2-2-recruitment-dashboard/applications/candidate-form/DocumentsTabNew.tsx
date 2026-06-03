@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
@@ -6,6 +6,9 @@ import { FileText, Upload, Eye, Trash2, Download, CheckCircle, AlertCircle, Edit
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { createStorageDisplayUrl } from '@/shared/lib/storageDisplayUrl';
+import { normalizeRecruitmentFilesPath } from '@/shared/lib/recruitmentCandidatePhoto';
+import { cn } from '@/shared/lib/utils';
 
 interface Document {
   id?: string;
@@ -37,6 +40,7 @@ export const DocumentsTabNew = ({
   const [uploading, setUploading] = useState<{ [key: string]: boolean }>({});
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
   const { t } = useAppTranslation();
@@ -249,18 +253,46 @@ export const DocumentsTabNew = ({
 
   const handleViewDocument = async (document: Document) => {
     setSelectedDocument(document);
-    
-    try {
-      const { data, error } = await supabase.storage
-        .from('recruitment-files')
-        .createSignedUrl(document.file_path, 3600);
+    setPreviewUrl(null);
+    setPreviewLoading(true);
 
-      if (error) throw error;
-      setPreviewUrl(data.signedUrl);
+    try {
+      const path = normalizeRecruitmentFilesPath(document.file_path) || document.file_path.trim();
+      const signed =
+        (await createStorageDisplayUrl('recruitment-files', path, { expiresIn: 3600 })) ??
+        (
+          await supabase.storage.from('recruitment-files').createSignedUrl(path, 3600)
+        ).data?.signedUrl;
+
+      if (!signed) {
+        throw new Error('Signed URL unavailable');
+      }
+      setPreviewUrl(signed);
     } catch (error) {
       console.error('Error creating signed URL:', error);
       setPreviewUrl(null);
+      toast({
+        title: 'Error',
+        description: t(
+          'candidateProfile.documents.toastPreviewFailed',
+          'Failed to load document preview. Try Open in new tab or Download.',
+        ),
+        variant: 'destructive',
+      });
+    } finally {
+      setPreviewLoading(false);
     }
+  };
+
+  const isImagePreview = (doc: Document) => {
+    if (doc.mime_type?.startsWith('image/')) return true;
+    const ext = doc.file_name.split('.').pop()?.toLowerCase();
+    return ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'gif' || ext === 'webp';
+  };
+
+  const isPdfPreview = (doc: Document) => {
+    if (doc.mime_type === 'application/pdf') return true;
+    return doc.file_name.toLowerCase().endsWith('.pdf');
   };
 
   const handleDownloadDocument = async (filePath: string, fileName: string) => {
@@ -296,12 +328,6 @@ export const DocumentsTabNew = ({
 
   const getDocumentByType = (type: string) => {
     return documents.find(doc => doc.document_type === type);
-  };
-
-  const getMissingRequiredDocuments = () => {
-    const requiredTypes = documentTypes.filter(dt => dt.required).map(dt => dt.value);
-    const uploadedTypes = documents.map(doc => doc.document_type);
-    return requiredTypes.filter(type => !uploadedTypes.includes(type));
   };
 
   const handleEdit = () => {
@@ -366,7 +392,7 @@ export const DocumentsTabNew = ({
       <CardContent>
         <div className="flex gap-6 h-[600px]">
           {/* Left Panel - Document Types */}
-          <div className="w-80 space-y-4 overflow-y-auto flex-shrink-0">
+          <div className="w-80 min-h-0 flex-shrink-0 space-y-4 overflow-x-hidden overflow-y-auto scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {documentTypes.map((docType) => {
               const existingDoc = getDocumentByType(docType.value);
               const isUploading = uploading[docType.value];
@@ -385,14 +411,23 @@ export const DocumentsTabNew = ({
                   
                   {existingDoc ? (
                     <div className="space-y-3">
-                      <div 
-                        className={`p-3 border rounded-lg transition-colors ${
-                          isReadOnly 
-                            ? 'bg-green-50/70 border-green-200 cursor-default select-none' 
-                            : 'bg-green-50 border-green-200 cursor-pointer hover:bg-green-100'
-                        }`}
-                        onClick={isReadOnly ? undefined : () => handleViewDocument(existingDoc)}
-                        role={isReadOnly ? undefined : 'button'}
+                      <div
+                        className={cn(
+                          'p-3 border rounded-lg transition-colors cursor-pointer',
+                          selectedDocument?.id === existingDoc.id
+                            ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-200'
+                            : 'bg-green-50 border-green-200 hover:bg-green-100',
+                          isReadOnly && selectedDocument?.id !== existingDoc.id && 'hover:bg-green-50/90',
+                        )}
+                        onClick={() => void handleViewDocument(existingDoc)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            void handleViewDocument(existingDoc);
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-green-600" />
@@ -402,37 +437,51 @@ export const DocumentsTabNew = ({
                         </div>
                       </div>
                       
-                      {!isReadOnly && (
-                        <div className="flex gap-2">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleViewDocument(existingDoc);
+                          }}
+                          className="flex-1"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          {t('candidateProfile.documents.view', 'View')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadDocument(existingDoc.file_path, existingDoc.file_name);
+                          }}
+                          className="flex-1"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          {t('candidateProfile.documents.download', 'Download')}
+                        </Button>
+                        {(isEditing || !isReadOnly) && (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleViewDocument(existingDoc)}
-                            className="flex-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (existingDoc.id) {
+                                void handleDeleteDocument(existingDoc.id, existingDoc.file_path);
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-700"
                           >
-                            <Eye className="h-3 w-3 mr-1" />
-                            {t('candidateProfile.documents.view', 'View')}
+                            <Trash2 className="h-3 w-3" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDownloadDocument(existingDoc.file_path, existingDoc.file_name)}
-                            className="flex-1"
-                          >
-                            <Download className="h-3 w-3 mr-1" />
-                            {t('candidateProfile.documents.download', 'Download')}
-                          </Button>
-                          {(isEditing || !isReadOnly) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => existingDoc.id && handleDeleteDocument(existingDoc.id, existingDoc.file_path)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
+                        )}
+                      </div>
+                      {isReadOnly && (
+                        <p className="text-xs text-gray-500 text-center">
+                          {t('candidateProfile.documents.clickRowToPreview', 'Click the file above to preview')}
+                        </p>
                       )}
                       
                       {(isEditing || !isReadOnly) && (
@@ -503,10 +552,14 @@ export const DocumentsTabNew = ({
           </div>
 
           {/* Right Panel - Document Preview */}
-          <div className="flex-1 border border-gray-200 rounded-lg bg-gray-50 overflow-hidden">
-            {selectedDocument && previewUrl ? (
-              <div className="h-full flex flex-col">
-                <div className="p-4 bg-white border-b border-gray-200">
+          <div className="flex-1 min-h-0 border border-gray-200 rounded-lg bg-gray-50 overflow-hidden">
+            {selectedDocument && previewLoading ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
+              </div>
+            ) : selectedDocument && previewUrl ? (
+              <div className="h-full flex flex-col min-h-0">
+                <div className="p-4 bg-white border-b border-gray-200 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-medium text-gray-900">{selectedDocument.file_name}</h3>
@@ -524,13 +577,52 @@ export const DocumentsTabNew = ({
                     </Button>
                   </div>
                 </div>
-                <div className="flex-1">
-                  <iframe
-                    src={previewUrl}
-                    className="w-full h-full border-0"
-                    title={selectedDocument.file_name}
-                  />
+                <div className="flex-1 min-h-0 overflow-auto scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {isImagePreview(selectedDocument) ? (
+                    <div className="flex h-full min-h-[400px] items-center justify-center p-4 bg-gray-100">
+                      <img
+                        src={previewUrl}
+                        alt={selectedDocument.file_name}
+                        className="max-h-full max-w-full object-contain rounded shadow-sm"
+                      />
+                    </div>
+                  ) : isPdfPreview(selectedDocument) ? (
+                    <iframe
+                      src={previewUrl}
+                      className="h-full min-h-[480px] w-full border-0"
+                      title={selectedDocument.file_name}
+                    />
+                  ) : (
+                    <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 p-6 text-center text-gray-600">
+                      <FileText className="h-10 w-10 text-gray-400" />
+                      <p className="text-sm">
+                        {t(
+                          'candidateProfile.documents.previewNotInline',
+                          'Preview is not available for this file type. Open or download the file.',
+                        )}
+                      </p>
+                      <Button size="sm" variant="outline" onClick={() => window.open(previewUrl, '_blank')}>
+                        <Eye className="h-4 w-4 mr-1" />
+                        {t('candidateProfile.documents.open', 'Open')}
+                      </Button>
+                    </div>
+                  )}
                 </div>
+              </div>
+            ) : selectedDocument && !previewUrl && !previewLoading ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3 p-6 text-center text-gray-500">
+                <AlertCircle className="h-10 w-10 text-amber-500" />
+                <p className="text-sm">
+                  {t('candidateProfile.documents.previewLoadFailed', 'Could not load preview. Try Download or Open.')}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDownloadDocument(selectedDocument.file_path, selectedDocument.file_name)}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  {t('candidateProfile.documents.download', 'Download')}
+                </Button>
               </div>
             ) : (
               <div className="h-full flex items-center justify-center">
@@ -541,41 +633,6 @@ export const DocumentsTabNew = ({
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Status Upload Dokumen */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-blue-800 mb-2">
-                {t('candidateProfile.documents.statusTitle', 'Document Upload Status:')}
-              </p>
-              {getMissingRequiredDocuments().length === 0 ? (
-                <div className="flex items-center gap-2 text-green-700">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="text-sm font-medium">{t('candidateProfile.documents.allRequiredUploaded', 'All required documents have been uploaded!')}</span>
-                </div>
-              ) : (
-                <div className="p-3 bg-red-50 border border-red-200 rounded">
-                  <p className="text-sm font-medium text-red-800 mb-2">
-                    {t('candidateProfile.documents.missingRequired', 'Required documents not yet uploaded:')}
-                  </p>
-                  <ul className="text-sm text-red-700 space-y-1">
-                    {getMissingRequiredDocuments().map(type => (
-                      <li key={type}>• {getDocTypeLabel(type)}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              <div className="mt-3 text-sm text-blue-700 space-y-1">
-                <p>• {t('candidateProfile.documents.formatSupported', 'Supported formats: PDF, DOC, DOCX, JPG, PNG')}</p>
-                <p>• {t('candidateProfile.documents.maxFileSize', 'Maximum file size: 2MB per document')}</p>
-                <p>• {t('candidateProfile.documents.autoSaveNote', 'Files are saved automatically after upload')}</p>
-              </div>
-            </div>
           </div>
         </div>
       </CardContent>

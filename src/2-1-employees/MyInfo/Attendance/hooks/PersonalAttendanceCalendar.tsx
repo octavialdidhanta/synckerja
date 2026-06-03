@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Progress } from '@/shared/components/ui/progress';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useWorkScheduleSettings } from './useWorkScheduleSettings';
 import { useAttendanceRecords } from './useAttendanceRecords';
@@ -74,9 +74,14 @@ const getStatusColor = (status: string) => {
 
 interface PersonalAttendanceCalendarProps {
   employeeId: string;
+  /** When set, page title and month navigation share one header row. */
+  sectionTitle?: string;
 }
 
-const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarProps) => {
+const PersonalAttendanceCalendar = ({
+  employeeId,
+  sectionTitle,
+}: PersonalAttendanceCalendarProps) => {
   const { t, dateFnsLocale } = useAppTranslation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [organizationId, setOrganizationId] = useState<string | null>(null);
@@ -252,12 +257,13 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
     <div className="flex flex-col max-h-[calc(100vh-200px)] bg-white rounded-lg border border-gray-200">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 p-4 rounded-t-lg">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <Calendar className="h-5 w-5 text-primary" />
-            <h3 className="text-lg font-semibold text-gray-900">{t('attendanceCalendar.title', 'Attendance Calendar')}</h3>
-          </div>
-          <div className="flex items-center gap-2">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          {sectionTitle ? (
+            <h2 className="text-xl font-semibold text-gray-900">{sectionTitle}</h2>
+          ) : null}
+          <div
+            className={`flex items-center gap-2 ${sectionTitle ? 'shrink-0' : 'ml-auto'}`}
+          >
             <Button
               variant="ghost"
               size="sm"
@@ -266,7 +272,7 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-lg font-semibold text-gray-800 min-w-[150px] text-center">
+            <span className="min-w-[150px] text-center text-lg font-semibold text-gray-800">
               {getMonthName(currentMonth)}
             </span>
             <Button

@@ -49,6 +49,74 @@ type MetaDeleteResult =
   | { ok: true; result: unknown }
   | { ok: false; status: number; json: unknown };
 
+type TemplateAnalyticsTotals = { delivered: number; read: number };
+
+/** Sum DELIVERED/READ from Meta `/{waba-id}/template_analytics` (last 30 days). */
+function parseTemplateAnalyticsResponse(json: unknown): Map<string, TemplateAnalyticsTotals> {
+  const map = new Map<string, TemplateAnalyticsTotals>();
+  const blocks = (json as { data?: unknown })?.data;
+  if (!Array.isArray(blocks)) return map;
+  for (const block of blocks) {
+    const points = (block as { data_points?: unknown })?.data_points;
+    if (!Array.isArray(points)) continue;
+    for (const pt of points) {
+      const templateId = String((pt as { template_id?: string }).template_id ?? "").trim();
+      if (!templateId) continue;
+      const delivered = Number((pt as { delivered?: number }).delivered ?? 0);
+      const read = Number((pt as { read?: number }).read ?? 0);
+      const prev = map.get(templateId) ?? { delivered: 0, read: 0 };
+      map.set(templateId, {
+        delivered: prev.delivered + (Number.isFinite(delivered) ? delivered : 0),
+        read: prev.read + (Number.isFinite(read) ? read : 0),
+      });
+    }
+  }
+  return map;
+}
+
+async function fetchTemplateAnalyticsTotals(
+  ctx: GraphContext,
+  templateIds: string[],
+): Promise<Map<string, TemplateAnalyticsTotals>> {
+  const ids = [...new Set(templateIds.map((id) => String(id).trim()).filter(Boolean))].slice(0, 50);
+  if (ids.length === 0) return new Map();
+
+  const end = Math.floor(Date.now() / 1000);
+  const start = end - 30 * 86400;
+  const params = new URLSearchParams({
+    start: String(start),
+    end: String(end),
+    granularity: "DAILY",
+    metric_types: "SENT,DELIVERED,READ",
+    template_ids: JSON.stringify(ids),
+  });
+  const url =
+    `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/template_analytics?${params.toString()}`;
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${ctx.accessToken}` } });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return new Map();
+    return parseTemplateAnalyticsResponse(json);
+  } catch {
+    return new Map();
+  }
+}
+
+function mergeAnalyticsIntoTemplates(
+  templates: Array<Record<string, unknown>>,
+  totals: Map<string, TemplateAnalyticsTotals>,
+): void {
+  for (const t of templates) {
+    const id = String(t.id ?? "").trim();
+    const stats = totals.get(id);
+    if (!stats) continue;
+    t._template_analytics = {
+      messages_delivered: stats.delivered,
+      messages_read: stats.read,
+    };
+  }
+}
+
 /** DELETE template — primary: hsm_id+name; fallback: hsm_ids=[id] per Meta batch delete. */
 async function deleteMessageTemplateOnMeta(
   ctx: GraphContext,
@@ -444,10 +512,10 @@ Deno.serve(async (req: Request) => {
     const orgId = profile?.active_organization_id ?? null;
 
     const FIELDS_LIST =
-      "id,name,status,category,language,rejected_reason,last_updated_time,created_time,components";
+      "id,name,status,category,language,rejected_reason,last_updated_time,created_time,quality_score{score,date},components";
     /** Single-template read: ask Meta for nested `example` + button fields (matches Manager preview data). */
     const FIELDS_DETAIL =
-      "id,name,status,category,language,rejected_reason,last_updated_time,created_time,components{type,format,text,example,buttons{type,text,url,phone_number,example}}";
+      "id,name,status,category,language,rejected_reason,last_updated_time,created_time,quality_score{score,date},components{type,format,text,example,buttons{type,text,url,phone_number,example}}";
 
     if (req.method === "GET") {
       const urlObj = new URL(req.url);
@@ -503,6 +571,15 @@ Deno.serve(async (req: Request) => {
       }
       const rawData = json?.data;
       const data = Array.isArray(rawData) ? rawData : rawData != null ? [rawData] : [];
+
+      if (!hsmId && data.length > 0) {
+        const templateIds = data
+          .map((t) => String((t as { id?: string }).id ?? "").trim())
+          .filter(Boolean);
+        const totals = await fetchTemplateAnalyticsTotals(ctx, templateIds);
+        mergeAnalyticsIntoTemplates(data as Array<Record<string, unknown>>, totals);
+      }
+
       return new Response(JSON.stringify({ data, paging: json?.paging ?? null }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

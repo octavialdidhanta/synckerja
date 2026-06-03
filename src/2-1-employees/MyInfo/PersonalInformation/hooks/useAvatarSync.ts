@@ -1,6 +1,7 @@
 ﻿
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/shared/auth/contexts/AuthContext';
+import { profileQueryKey } from '@/shared/auth/identityQuerySync';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 export const useAvatarSync = () => {
@@ -17,11 +18,10 @@ export const useAvatarSync = () => {
       // Update user_profile_details record
       const { error: detailsError } = await supabase
         .from('user_profile_details')
-        .upsert({ 
-          user_id: user.id,
+        .upsert({
           profile_id: user.id,
           profile_photo_url: photoUrl,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         }, { onConflict: 'profile_id' });
 
       if (detailsError) {
@@ -49,13 +49,14 @@ export const useAvatarSync = () => {
       // Invalidate ALL related queries to force fresh data
       const queriesToInvalidate = [
         'current-user-employee',
+        'current-employee',
         'employee',
         'profile',
         'user-profile',
         'employees-optimized',
         'employees',
         'unified-user-data',
-        'user-data' // Add user-data cache invalidation for header
+        'user-data', // header useUserData cache
       ];
 
       console.log('🔄 Invalidating queries:', queriesToInvalidate);
@@ -75,14 +76,16 @@ export const useAvatarSync = () => {
         }
       });
 
-      // Force immediate cache update for profile
-      queryClient.setQueryData(['profile'], (oldData: any) => {
+      // Header uses useProfile → profileQueryKey(userId), not ['profile'] alone
+      const profileKey = profileQueryKey(user.id);
+      queryClient.setQueryData(profileKey, (oldData: { profile_photo_url?: string | null } | undefined) => {
         if (oldData) {
           console.log('💾 Updating profile cache data with new photo URL');
           return { ...oldData, profile_photo_url: photoUrl };
         }
         return oldData;
       });
+      await queryClient.invalidateQueries({ queryKey: profileKey });
 
       // Force immediate cache update for current user employee
       queryClient.setQueryData(['current-user-employee', user.id], (oldData: any) => {
@@ -91,6 +94,20 @@ export const useAvatarSync = () => {
           return { ...oldData, profile_photo_url: photoUrl };
         }
         return oldData;
+      });
+
+      queryClient.getQueryCache().getAll().forEach((query) => {
+        const queryKey = query.queryKey;
+        if (
+          Array.isArray(queryKey) &&
+          queryKey[0] === 'current-employee' &&
+          queryKey[1] === user.id
+        ) {
+          const oldData = query.state.data as { profile_photo_url?: string | null } | undefined;
+          if (oldData) {
+            queryClient.setQueryData(queryKey, { ...oldData, profile_photo_url: photoUrl });
+          }
+        }
       });
 
       // Clear userDataCache from useUserData hook

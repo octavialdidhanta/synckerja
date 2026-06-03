@@ -1,5 +1,9 @@
 import React from 'react';
 import { Activity, TrendingUp, CheckCircle, DollarSign } from 'lucide-react';
+import {
+  isOngoingSalesActivityStatus,
+  isWonSalesActivityStatus,
+} from '../utils/salesActivitiesFilterUtils';
 
 interface SalesActivitiesMetricsCardsProps {
   activities: any[];
@@ -7,10 +11,11 @@ interface SalesActivitiesMetricsCardsProps {
 
 export const SalesActivitiesMetricsCards = ({ activities }: SalesActivitiesMetricsCardsProps) => {
   const totalActivities = activities.length;
-  const ongoingActivities = activities.filter(a => a.status === 'ongoing').length;
-  const closedWonActivities = activities.filter(a => a.status === 'closed_won').length;
+
+  const ongoingActivities = activities.filter((a) => isOngoingSalesActivityStatus(a.status)).length;
+  const closedWonActivities = activities.filter((a) => isWonSalesActivityStatus(a.status)).length;
   const totalRevenue = activities
-    .filter(a => a.status === 'closed_won')
+    .filter((a) => isWonSalesActivityStatus(a.status))
     .reduce((sum, a) => sum + (a.total_amount || a.amount || 0), 0);
 
   const statsCards = [

@@ -3,6 +3,10 @@ export type MetaMessageTemplate = {
   id?: string;
   name?: string;
   status?: string;
+  /** Meta template quality from customer feedback (`GREEN` | `YELLOW` | `RED` | `UNKNOWN`). */
+  quality_score?: { score?: string; date?: number } | string | null;
+  /** Legacy/alternate Graph field on some API versions. */
+  quality_rating?: string;
   category?: string;
   language?: string;
   /** ISO-like string from Meta when requested on template list/read. */
@@ -23,6 +27,11 @@ export type MetaMessageTemplate = {
     buttons?: Array<{ type?: string; text?: string; url?: string; phone_number?: string; example?: unknown }>;
   }>;
   rejected_reason?: string;
+  /** Enriched server-side from Meta `template_analytics` (list endpoint, ~30 hari). */
+  _template_analytics?: {
+    messages_delivered?: number;
+    messages_read?: number;
+  };
 };
 
 export type TemplatePaging = {
@@ -62,6 +71,12 @@ export type TemplateTableRow = {
   languageLabel: string;
   statusLabel: string;
   statusRaw: string;
+  /** Human label from Meta `quality_score.score` (e.g. High quality); "—" when not applicable. */
+  qualityLabel: string;
+  /** Raw Meta quality score enum (`GREEN`, `YELLOW`, `RED`, `UNKNOWN`) or empty. */
+  qualityRaw: string;
+  /** False when Meta did not return `quality_score` / `quality_rating` on the template payload. */
+  qualityFromMeta: boolean;
   messagesDelivered: number | null;
   readRatePercent: number | null;
   topBlockReason: string | null;
@@ -76,10 +91,7 @@ export type TemplateTableRow = {
 export type DateRangePreset = "all" | "7" | "30" | "60" | "90";
 
 export const STATUS_FILTER_OPTIONS = [
-  "Active – High quality",
-  "Active – Low quality",
-  "Active – Quality pending",
-  "Active – Medium quality",
+  "Approved",
   "Appealed – In review",
   "Paused",
   "In review",
@@ -89,6 +101,15 @@ export const STATUS_FILTER_OPTIONS = [
 ] as const;
 
 export type StatusFilterOption = (typeof STATUS_FILTER_OPTIONS)[number];
+
+export const QUALITY_FILTER_OPTIONS = [
+  "High quality",
+  "Medium quality",
+  "Low quality",
+  "Quality pending",
+] as const;
+
+export type QualityFilterOption = (typeof QUALITY_FILTER_OPTIONS)[number];
 
 /** Local editor model for Meta template `BUTTONS` component (Graph / Business Management API). */
 export type QuickReplyVariant = "custom" | "prefilled";

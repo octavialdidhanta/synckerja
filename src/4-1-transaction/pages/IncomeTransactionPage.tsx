@@ -14,7 +14,10 @@ import {
   IncomeTransactionSidebarSkeleton,
 } from '@/4-1-transaction/skeletons';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { INCOME_TX_MAIN_GRID } from '@/4-1-transaction/layout/incomeTransactionLayout';
+import {
+  INCOME_TX_MAIN_GRID,
+  INCOME_TX_TABLE_SECTION,
+} from '@/4-1-transaction/layout/incomeTransactionLayout';
 import { DeferredMount } from '@/shared/components/DeferredMount';
 import { isIncomeAllocationIncomplete } from '@/4-1-dashboard/utils/incomeAllocationStatus';
 import { useCanAllocateIncome } from '@/4-1-dashboard/hooks/useCanAllocateIncome';
@@ -135,7 +138,7 @@ export function IncomeTransactionPage() {
             </div>
           </div>
 
-          <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
+          <div className={INCOME_TX_TABLE_SECTION}>
             <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
               <IncomeTransactionTable
                 transactions={filteredTransactions}

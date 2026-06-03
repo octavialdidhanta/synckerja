@@ -7,8 +7,8 @@ android {
         applicationId "id.synckerja.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 23
-        versionName "1.2.3"
+        versionCode 24
+        versionName "1.2.4"
         // (Fix) Remove accidental junk token appended to versionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

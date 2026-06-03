@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
+import { CampaignContentSection } from "@/5-3-whatsapp-template/components/campaign/CampaignContentSection";
+import { CampaignErrorMessage } from "@/5-3-whatsapp-template/components/campaign/CampaignErrorMessage";
 import { CampaignDetailPanel } from "@/5-3-whatsapp-template/components/CampaignDetailPanel";
 import { WhatsAppTemplatePhonePreview } from "@/5-3-whatsapp-template/components/WhatsAppTemplatePhonePreview";
 import {
@@ -31,11 +33,17 @@ import { useWhatsAppMessageTemplateByHsmId } from "@/5-3-whatsapp-template/hooks
 import { useWhatsAppMessageTemplates } from "@/5-3-whatsapp-template/hooks/useWhatsAppMessageTemplates";
 import { useCreateWhatsAppCampaign, useWhatsAppCampaignsList } from "@/5-3-whatsapp-template/hooks/useWhatsAppCampaign";
 import { mapMetaTemplateToRow } from "@/5-3-whatsapp-template/utils/mapMetaTemplateToRow";
+import { splitFlatParametersForPreview } from "@/5-3-whatsapp-template/utils/buildCampaignTemplateParameters";
 import {
-  buildMvpParameterValues,
-  countTemplateParameterSlots,
-  splitFlatParametersForPreview,
-} from "@/5-3-whatsapp-template/utils/buildCampaignTemplateParameters";
+  buildParameterValuesFromMapping,
+  extractTemplateParameterSlots,
+  getListCreationSource,
+  isMappingComplete,
+  mergeMappingOnListChange,
+  suggestDefaultMapping,
+  type VariableMapping,
+  variableMappingToJson,
+} from "@/5-3-whatsapp-template/utils/campaignTemplateContent";
 import { wibLocalStringToUtcIso } from "@/5-3-whatsapp-template/utils/wibLocalSchedule";
 import type { MetaMessageTemplate, TemplateTableRow } from "@/5-3-whatsapp-template/types";
 
@@ -68,7 +76,11 @@ export function WhatsAppCampaignPage() {
   const [sendMode, setSendMode] = useState<"now" | "later">("now");
   const [scheduledLocal, setScheduledLocal] = useState("");
   const [detailCampaignId, setDetailCampaignId] = useState<string | null>(null);
+  const [variableMapping, setVariableMapping] = useState<VariableMapping>({});
   const detailPanelRef = useRef<HTMLDivElement>(null);
+  const prevListIdRef = useRef<string>("");
+  const prevTemplateHsmIdRef = useRef<string>("");
+  const prevSlotCountRef = useRef(0);
 
   const listQueryEnabled = Boolean(organizationId) && ownerOk === true;
   const { data: campaigns = [], isLoading: campaignsLoading } = useWhatsAppCampaignsList(organizationId, listQueryEnabled);
@@ -92,6 +104,10 @@ export function WhatsAppCampaignPage() {
     setTemplateHsmId("");
     setSendMode("now");
     setScheduledLocal("");
+    setVariableMapping({});
+    prevListIdRef.current = "";
+    prevTemplateHsmIdRef.current = "";
+    prevSlotCountRef.current = 0;
   }, []);
 
   useEffect(() => {
@@ -140,16 +156,76 @@ export function WhatsAppCampaignPage() {
     return Array.isArray(c) ? c : [];
   }, [selectedMeta?.components]);
 
+  const templateSlots = useMemo(
+    () => extractTemplateParameterSlots(componentsJson),
+    [componentsJson],
+  );
+
+  const listCreationSource = getListCreationSource(listDetail);
+
+  useEffect(() => {
+    if (!createFlow) return;
+
+    const tplChanged = templateHsmId !== prevTemplateHsmIdRef.current;
+    const listChanged = listId !== prevListIdRef.current;
+    const slotCount = templateSlots.length;
+    const slotsBecameReady =
+      slotCount > 0 && prevSlotCountRef.current === 0 && Boolean(templateHsmId && listId);
+
+    prevTemplateHsmIdRef.current = templateHsmId;
+    prevListIdRef.current = listId;
+    prevSlotCountRef.current = slotCount;
+
+    if (!templateHsmId || !listId) {
+      if (tplChanged || listChanged) setVariableMapping({});
+      return;
+    }
+    if (slotCount === 0) return;
+
+    if (tplChanged) {
+      setVariableMapping(suggestDefaultMapping(templateSlots, listCreationSource));
+      return;
+    }
+    if (listChanged) {
+      setVariableMapping((prev) =>
+        mergeMappingOnListChange(prev, templateSlots, listCreationSource),
+      );
+      return;
+    }
+    if (slotsBecameReady) {
+      setVariableMapping((prev) => {
+        if (isMappingComplete(templateSlots, prev)) return prev;
+        return suggestDefaultMapping(templateSlots, listCreationSource);
+      });
+    }
+  }, [createFlow, templateHsmId, listId, templateSlots, listCreationSource]);
+
+  const mappingComplete = useMemo(
+    () => isMappingComplete(templateSlots, variableMapping),
+    [templateSlots, variableMapping],
+  );
+
   const previewSamples = useMemo(() => {
     if (!previewRow || !listDetail?.members?.length || !listDetail.rawMembers?.length || !componentsJson.length) {
       return null;
     }
+    if (templateSlots.length > 0 && !mappingComplete) return null;
     const view = listDetail.members[0]!;
     const raw = listDetail.rawMembers[0]!;
-    const n = countTemplateParameterSlots(componentsJson);
-    const flat = buildMvpParameterValues(n, view, raw);
+    const flat =
+      templateSlots.length > 0
+        ? buildParameterValuesFromMapping(templateSlots, variableMapping, view, raw)
+        : [];
     return splitFlatParametersForPreview(componentsJson, flat);
-  }, [previewRow, listDetail?.members, listDetail?.rawMembers, componentsJson]);
+  }, [
+    previewRow,
+    listDetail?.members,
+    listDetail?.rawMembers,
+    componentsJson,
+    templateSlots,
+    variableMapping,
+    mappingComplete,
+  ]);
 
   const eligibleLists = useMemo(
     () => listRows.filter((r) => r.upload_status === "completed" && r.contact_count > 0),
@@ -182,6 +258,8 @@ export function WhatsAppCampaignPage() {
     listId &&
     templateHsmId &&
     listDetail?.memberTotal &&
+    mappingComplete &&
+    !templateDetail.isFetching &&
     !createCampaign.isPending;
 
   const onSubmit = async () => {
@@ -192,6 +270,10 @@ export function WhatsAppCampaignPage() {
     }
     if (!templateHsmId || !selectedMeta?.name || !selectedMeta?.language) {
       toast.error(t("whatsappTemplates.campaign.toast.needTemplate"));
+      return;
+    }
+    if (!mappingComplete) {
+      toast.error(t("whatsappTemplates.campaign.toast.needMapping"));
       return;
     }
     if (sendMode === "later") {
@@ -218,6 +300,9 @@ export function WhatsAppCampaignPage() {
         templateLanguage: String(selectedMeta.language),
         templateHsmId: templateHsmId,
         templateComponentsJson: componentsJson,
+        templateSlots,
+        variableMapping,
+        parameterMappingJson: variableMappingToJson(variableMapping),
         members: listDetail.members,
         rawMembers: listDetail.rawMembers,
         sendMode: sendMode === "later" ? "later" : "now",
@@ -236,7 +321,13 @@ export function WhatsAppCampaignPage() {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(t("whatsappTemplates.campaign.toast.errorTitle"), { description: msg });
+      toast.error(t("whatsappTemplates.campaign.toast.errorTitle"), {
+        description: msg,
+        duration: 12_000,
+        classNames: {
+          description: "whitespace-pre-wrap break-all text-left",
+        },
+      });
     }
   };
 
@@ -340,7 +431,7 @@ export function WhatsAppCampaignPage() {
                                     <TableHead className="whitespace-nowrap text-xs font-medium">
                                       {t("whatsappTemplates.campaign.col.created")}
                                     </TableHead>
-                                    <TableHead className="min-w-[8rem] max-w-[14rem] text-xs font-medium">
+                                    <TableHead className="min-w-[14rem] text-xs font-medium">
                                       {t("whatsappTemplates.campaign.col.error")}
                                     </TableHead>
                                     <TableHead className="whitespace-nowrap text-right text-xs font-medium">
@@ -380,11 +471,12 @@ export function WhatsAppCampaignPage() {
                                       <TableCell className="whitespace-nowrap text-sm text-slate-600">
                                         {formatDt(c.created_at)}
                                       </TableCell>
-                                      <TableCell
-                                        className="max-w-[14rem] truncate text-xs text-red-700/90"
-                                        title={c.last_error ?? undefined}
-                                      >
-                                        {c.last_error ? c.last_error : "—"}
+                                      <TableCell className="min-w-[14rem] max-w-[min(32rem,50vw)] align-top py-2">
+                                        {c.last_error ? (
+                                          <CampaignErrorMessage message={c.last_error} compact className="w-full" />
+                                        ) : (
+                                          <span className="text-xs text-muted-foreground">—</span>
+                                        )}
                                       </TableCell>
                                       <TableCell className="text-right">
                                         <Button
@@ -445,7 +537,7 @@ export function WhatsAppCampaignPage() {
                         ) : ownerBlocked ? (
                           <div className="mt-6">{ownerBanner}</div>
                         ) : (
-                          <div className="mt-6 space-y-5">
+                          <div className="mt-6 min-w-0 space-y-5 overflow-x-hidden">
                             <div className="space-y-2">
                               <Label htmlFor="camp-name">{t("whatsappTemplates.campaign.field.campaignName")}</Label>
                               <Input
@@ -494,11 +586,11 @@ export function WhatsAppCampaignPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
-                              {listId ? (
+                              {listId && !listDetailLoading ? (
                                 <p className="text-xs text-muted-foreground">
-                                  {listDetailLoading
-                                    ? "…"
-                                    : `${listDetail?.memberTotal ?? 0} kontak — ${t("whatsappTemplates.campaign.slotHint")}`}
+                                  {t("whatsappTemplates.campaign.listContactCount", {
+                                    count: listDetail?.memberTotal ?? 0,
+                                  })}
                                 </p>
                               ) : null}
                             </div>
@@ -523,9 +615,17 @@ export function WhatsAppCampaignPage() {
                               </Select>
                             </div>
 
-                            {templateDetail.isFetching ? (
-                              <p className="text-xs text-muted-foreground">{t("whatsappTemplates.campaign.submitting")}</p>
-                            ) : null}
+                            <CampaignContentSection
+                              previewRow={previewRow}
+                              componentsJson={componentsJson}
+                              listDetail={listDetail ?? undefined}
+                              listId={listId}
+                              templateHsmId={templateHsmId}
+                              variableMapping={variableMapping}
+                              onMappingChange={setVariableMapping}
+                              templateLoading={templateDetail.isFetching}
+                              listLoading={listDetailLoading}
+                            />
 
                             <div className="space-y-3">
                               <Label>{t("whatsappTemplates.campaign.sendMode")}</Label>
@@ -609,10 +709,6 @@ export function WhatsAppCampaignPage() {
                 )}
               </div>
               </ModuleShellContentGate>
-              <div
-                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
             </div>
           </div>
         </div>

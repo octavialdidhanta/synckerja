@@ -67,7 +67,9 @@ function getRoleBadgeIcon(role: string): {
 export function UserProfileDropdown() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { displayName, email, initials, avatarImageUrl, role, isLoading } = useHeaderUserProfile();
+  const { displayName, email, initials, avatarImageUrl, role, isLoading, hasCachedIdentity } =
+    useHeaderUserProfile();
+  const disableMenu = isLoading && !hasCachedIdentity;
 
   const roleLabel = formatOrganizationRole(t, role);
   const isOwner = role.toLowerCase() === "owner";
@@ -93,7 +95,8 @@ export function UserProfileDropdown() {
             "hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           )}
           aria-label={t("layout.header.openMenu")}
-          disabled={isLoading}
+          disabled={disableMenu}
+          aria-busy={isLoading && hasCachedIdentity}
         >
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-foreground">{displayName}</div>

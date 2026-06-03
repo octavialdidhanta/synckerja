@@ -2,7 +2,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 
-/** Selaras `ExpenseDashboard` — spacer bawah saudara grid utama (Seamless Page Scroll). */
+/** Selaras `ExpenseDashboard` grid utama (Seamless Page Scroll). */
 const EXPENSE_DASHBOARD_MAIN_GRID =
   "grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-1 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]";
 
@@ -103,13 +103,7 @@ export function ExpenseDashboardSkeleton() {
             </div>
               </div>
               </div>
-
-              <div
-                className="h-2 shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
             </div>
-            <div className="h-0 shrink-0 [@media(max-height:900px)]:h-4" aria-hidden />
           </div>
         </div>
       </div>

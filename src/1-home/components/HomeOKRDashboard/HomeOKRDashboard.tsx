@@ -64,7 +64,7 @@ const HomeOKRDashboardContent = () => {
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const {
     data: cycles = [],
-    isLoading: isLoadingCycles
+    isPending: cyclesPending,
   } = useOkrCycles(organizationId);
   const {
     data: currentEmployee
@@ -117,14 +117,17 @@ const HomeOKRDashboardContent = () => {
   const individualStats = useObjectiveStats(organizationId, 'individual', getFilteredCycleIds(yearQuarterSelection), readyIndividualStats);
 
   const departmentStatsPending =
-    readyDepartmentStats && departmentStats.isLoading;
+    readyDepartmentStats && departmentStats.isPending;
   const individualStatsPending =
-    readyIndividualStats && individualStats.isLoading;
+    readyIndividualStats && individualStats.isPending;
 
   const { tabs, firstError: okrTabsError } = useHomeOkrTabsAggregate();
 
   const okrLoading =
-    orgBootstrapPending || isLoadingCycles || tabs.company.loading || companyStats.isLoading;
+    orgBootstrapPending ||
+    (!!organizationId && cyclesPending) ||
+    tabs.company.loading ||
+    (!!organizationId && companyStats.isPending);
 
   const okrError =
     okrTabsError ||
@@ -200,7 +203,7 @@ const HomeOKRDashboardContent = () => {
                   yearQuarterSelection={yearQuarterSelection}
                   onYearQuarterChange={setYearQuarterSelection}
                   availableYears={availableYears}
-                  isLoadingCycles={isLoadingCycles}
+                  isLoadingCycles={cyclesPending}
                 />
               </Suspense>
               
@@ -247,7 +250,7 @@ const HomeOKRDashboardContent = () => {
                     yearQuarterSelection={yearQuarterSelection}
                     onYearQuarterChange={setYearQuarterSelection}
                     availableYears={availableYears}
-                    isLoadingCycles={isLoadingCycles}
+                    isLoadingCycles={cyclesPending}
                   />
                 </Suspense>
               ) : null}
@@ -294,7 +297,7 @@ const HomeOKRDashboardContent = () => {
                     yearQuarterSelection={yearQuarterSelection}
                     onYearQuarterChange={setYearQuarterSelection}
                     availableYears={availableYears}
-                    isLoadingCycles={isLoadingCycles}
+                    isLoadingCycles={cyclesPending}
                   />
                 </Suspense>
               ) : null}

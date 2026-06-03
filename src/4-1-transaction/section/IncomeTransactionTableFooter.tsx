@@ -18,7 +18,7 @@ export const IncomeTransactionTableFooter = ({
     : '';
     
   return (
-    <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-1">
+    <div className="flex-shrink-0 border-t border-border bg-card px-4 py-0.5">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>Showing {filteredTransactions} of {totalTransactions} transactions{typeText}</span>
         <div className="flex flex-col items-end gap-0">

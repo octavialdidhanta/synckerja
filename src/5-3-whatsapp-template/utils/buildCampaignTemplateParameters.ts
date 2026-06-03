@@ -1,4 +1,5 @@
 import type { MemberRowLite, RecipientListMemberViewRow } from "./enrichRecipientListMembers";
+import { extractTemplateParameterSlots } from "./campaignTemplateContent";
 
 function countPlaceholders(text: string): number {
   return (text.match(/\{\{[^}]+\}\}/g) ?? []).length;
@@ -10,20 +11,7 @@ function countPlaceholders(text: string): number {
  * Large slot counts still work; very long text is truncated to 1024 chars per parameter when sending.
  */
 export function countTemplateParameterSlots(components: unknown[] | null | undefined): number {
-  if (!Array.isArray(components)) return 0;
-  let total = 0;
-  for (const raw of components) {
-    const c = raw as Record<string, unknown>;
-    const type = String(c.type ?? "").toUpperCase();
-    if (type === "HEADER") {
-      const fmt = String(c.format ?? "").toUpperCase();
-      if (fmt === "IMAGE" || fmt === "VIDEO" || fmt === "DOCUMENT") continue;
-      total += countPlaceholders(String(c.text ?? ""));
-    } else if (type === "BODY") {
-      total += countPlaceholders(String(c.text ?? ""));
-    }
-  }
-  return total;
+  return extractTemplateParameterSlots(components).length;
 }
 
 export type MemberImportFields = Pick<
@@ -77,12 +65,24 @@ export function splitFlatParametersForPreview(
       if (fmt === "IMAGE" || fmt === "VIDEO" || fmt === "DOCUMENT") continue;
       const n = countPlaceholders(String(c.text ?? ""));
       for (let i = 0; i < n; i++) {
-        headerVariableExamples.push(String(flat[idx++] ?? "—").slice(0, 1024));
+        headerVariableExamples.push(String(flat[idx++] ?? "-").slice(0, 1024));
       }
     } else if (type === "BODY") {
       const n = countPlaceholders(String(c.text ?? ""));
       for (let i = 0; i < n; i++) {
-        bodyVariableExamples.push(String(flat[idx++] ?? "—").slice(0, 1024));
+        bodyVariableExamples.push(String(flat[idx++] ?? "-").slice(0, 1024));
+      }
+    } else if (type === "BUTTONS") {
+      const buttons = c.buttons;
+      if (!Array.isArray(buttons)) continue;
+      for (const btn of buttons) {
+        if (!btn || typeof btn !== "object") continue;
+        const b = btn as Record<string, unknown>;
+        if (String(b.type ?? "").toUpperCase() !== "URL") continue;
+        const n = countPlaceholders(String(b.url ?? ""));
+        for (let i = 0; i < n; i++) {
+          bodyVariableExamples.push(String(flat[idx++] ?? "-").slice(0, 1024));
+        }
       }
     }
   }

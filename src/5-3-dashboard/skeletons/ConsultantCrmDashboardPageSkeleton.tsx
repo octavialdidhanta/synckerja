@@ -242,11 +242,6 @@ export function ConsultantCrmDashboardPageSkeleton() {
                   </div>
                 </div>
               </div>
-
-              <div
-                className="h-0 flex-shrink-0 [@media(max-height:900px)]:h-2 [@media(max-height:760px)]:h-3"
-                aria-hidden
-              />
             </div>
           </div>
         </div>

@@ -47,6 +47,7 @@ export const useUserData = (): UserData => {
   const [loading, setLoading] = useState(true);
   const fetchingRef = useRef(false);
   const lastFetchRef = useRef<string>('');
+  const profileHydratedRef = useRef(false);
 
   const fetchUserData = useCallback(async (userId: string) => {
     // Prevent duplicate fetches for the same user
@@ -68,6 +69,7 @@ export const useUserData = (): UserData => {
       setProfile(cached.data.profile);
       setOrganization(cached.data.organization);
       setUserRole(cached.data.userRole);
+      profileHydratedRef.current = true;
       setLoading(false);
       return;
     }
@@ -75,7 +77,9 @@ export const useUserData = (): UserData => {
     try {
       fetchingRef.current = true;
       lastFetchRef.current = userId;
-      setLoading(true);
+      if (!profileHydratedRef.current) {
+        setLoading(true);
+      }
       
       logger.userData("🔍 useUserData: Starting optimized fetch for user:", userId);
       
@@ -140,6 +144,7 @@ export const useUserData = (): UserData => {
       }
 
       setProfile(profileData);
+      profileHydratedRef.current = true;
 
       // Process role result
       let roleData: UserRole = null;
@@ -198,6 +203,7 @@ export const useUserData = (): UserData => {
         profile_photo_url: null
       };
       setProfile(fallbackProfile);
+      profileHydratedRef.current = true;
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -211,6 +217,7 @@ export const useUserData = (): UserData => {
       setUserRole(null);
       setLoading(false);
       lastFetchRef.current = '';
+      profileHydratedRef.current = false;
       return;
     }
 
@@ -223,6 +230,8 @@ export const useUserData = (): UserData => {
       lastFetchRef.current = ''; // Reset to allow refetch
       userDataCache.delete(`user-${user.id}`); // Clear cache
       fetchingRef.current = false; // Reset fetching flag
+      profileHydratedRef.current = false;
+      setLoading(true);
       await fetchUserData(user.id);
     }
   }, [user?.id, fetchUserData]);

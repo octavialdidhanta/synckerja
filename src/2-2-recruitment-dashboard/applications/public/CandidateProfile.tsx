@@ -11,7 +11,7 @@ import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Loader2, User, CheckCircle, ArrowLeft, UserPlus, Monitor } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
-import { createStorageDisplayUrl } from '@/shared/lib/storageDisplayUrl';
+import { useRecruitmentCandidatePhotoDisplayUrl } from '@/shared/hooks/useRecruitmentCandidatePhotoDisplayUrl';
 
 interface CandidateProfile {
   id: string;
@@ -51,7 +51,9 @@ const CandidateProfile = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const isMobile = useIsMobile();
-  const [candidatePhotoDisplayUrl, setCandidatePhotoDisplayUrl] = useState<string>('');
+  const candidatePhotoDisplayUrl = useRecruitmentCandidatePhotoDisplayUrl(candidate?.photo_url, {
+    width: 128,
+  });
 
   useEffect(() => {
     // Public candidate profile route: allow document scrolling (app shell defaults to overflow-hidden).
@@ -216,36 +218,6 @@ const CandidateProfile = () => {
       });
     }
   };
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    const resolvePhotoUrl = async () => {
-      const raw = (candidate?.photo_url ?? '').trim();
-      if (!raw) {
-        if (!isCancelled) setCandidatePhotoDisplayUrl('');
-        return;
-      }
-
-      if (raw.startsWith('http://') || raw.startsWith('https://')) {
-        if (!isCancelled) setCandidatePhotoDisplayUrl(raw);
-        return;
-      }
-
-      const signed = await createStorageDisplayUrl('recruitment-files', raw, {
-        expiresIn: 60 * 60,
-        transform: { width: 128, resize: 'contain', quality: 80 },
-      });
-
-      if (!isCancelled) setCandidatePhotoDisplayUrl(signed ?? '');
-    };
-
-    void resolvePhotoUrl();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [candidate?.photo_url]);
 
   // Called by CandidateProfileTabs after successful submit (Tabs perform the DB update).
   const handleFinalSubmit = () => {
