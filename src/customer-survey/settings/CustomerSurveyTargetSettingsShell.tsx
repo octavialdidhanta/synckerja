@@ -59,7 +59,7 @@ export function CustomerSurveyTargetSettingsShell() {
           <Skeleton className="h-6 w-48" />
           <Skeleton className="mt-2 h-4 w-full max-w-md" />
         </div>
-        <div className="scrollbar-hide flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+        <div className="scrollbar-hide flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 pt-4">
           <Skeleton className="h-24 w-full" />
         </div>
       </div>
@@ -81,7 +81,7 @@ export function CustomerSurveyTargetSettingsShell() {
         </p>
       </div>
 
-      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {isPending ? (
           <Skeleton className="h-24 w-full max-w-md" />
         ) : (

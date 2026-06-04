@@ -799,6 +799,151 @@ async function handleGetAccountDateBounds(
   }
 }
 
+function parseYmdLocal(ymd: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd).trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function startOfDayLocal(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** Calendar months overlapping [startYmd, endYmd] — clipped to the requested period. */
+function buildMonthWindowsInRange(
+  startYmd: string,
+  endYmd: string,
+): Array<{ month: number; start: string; end: string }> {
+  const rangeStart = parseYmdLocal(startYmd);
+  const rangeEnd = parseYmdLocal(endYmd);
+  if (!rangeStart || !rangeEnd || rangeStart.getTime() > rangeEnd.getTime()) return [];
+
+  const windows: Array<{ month: number; start: string; end: string }> = [];
+  let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+
+  while (cursor.getTime() <= rangeEnd.getTime()) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const monthStart = startOfDayLocal(new Date(y, m, 1));
+    const monthEnd = startOfDayLocal(new Date(y, m + 1, 0));
+
+    const winStart = monthStart.getTime() < rangeStart.getTime() ? rangeStart : monthStart;
+    const winEnd = monthEnd.getTime() > rangeEnd.getTime() ? rangeEnd : monthEnd;
+
+    windows.push({
+      month: m + 1,
+      start: formatDateYmd(winStart),
+      end: formatDateYmd(winEnd),
+    });
+
+    cursor = new Date(y, m + 1, 1);
+  }
+
+  return windows;
+}
+
+async function fetchCampaignSpendForDateRange(
+  cfg: GoogleAdsConfig,
+  accessToken: string,
+  metricsCustomerId: string,
+  start: string,
+  end: string,
+): Promise<{ spend: number; currencyCode: string | null }> {
+  const query =
+    `SELECT metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`;
+  const rawRows = await fetchAllGaqlListRows(cfg, accessToken, metricsCustomerId, query);
+
+  let spend = 0;
+  let currencyCode: string | null = null;
+
+  for (const raw of rawRows) {
+    const metricsRaw = (raw.metrics ?? raw.Metrics) as Record<string, unknown> | undefined;
+    const micros = Number(metricsRaw?.costMicros ?? metricsRaw?.cost_micros ?? 0);
+    if (Number.isFinite(micros)) spend += micros / 1_000_000;
+
+    if (!currencyCode) {
+      const customer = (raw.customer ?? raw.Customer) as Record<string, unknown> | undefined;
+      const code = customer?.currencyCode ?? customer?.currency_code;
+      if (code != null) currencyCode = String(code);
+    }
+  }
+
+  return { spend, currencyCode };
+}
+
+function emptyMonthlySpendBuckets(): { month: number; spend: number }[] {
+  return Array.from({ length: 12 }, (_, i) => ({ month: i + 1, spend: 0 }));
+}
+
+async function handleFetchMonthlySpend(
+  admin: ReturnType<typeof createClient>,
+  body: Record<string, unknown>,
+  organizationId: string,
+): Promise<Response> {
+  const customerId = digitsOnly(String(body.customer_id ?? ""), 10);
+  if (!customerId) {
+    return googleAdsJson({ error: "customer_id required (10 digits)" }, 400);
+  }
+
+  const yearRaw = Number(body.year);
+  const year = Number.isFinite(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100
+    ? Math.floor(yearRaw)
+    : new Date().getFullYear();
+
+  const access = await resolveAccessForCustomer(admin, organizationId, customerId);
+  if (access instanceof Response) return access;
+
+  const { runtimeConfig, accessToken, queryTarget } = access;
+  const now = new Date();
+  const startOverride = body.date_start != null ? String(body.date_start).trim() : "";
+  const start = startOverride || `${year}-01-01`;
+  const defaultEnd = year === now.getFullYear() ? formatDateYmd(now) : `${year}-12-31`;
+  const endOverride = body.date_end != null ? String(body.date_end).trim() : "";
+  const end = endOverride || defaultEnd;
+
+  const buckets = emptyMonthlySpendBuckets();
+  let currencyCode: string | null = null;
+  const monthWindows = buildMonthWindowsInRange(start, end);
+
+  const clients = queryTarget.managerAggregate
+    ? queryTarget.clientAccounts
+    : [{ customerId: queryTarget.customerId, descriptiveName: "" }];
+
+  try {
+    for (const client of clients) {
+      const cfg: GoogleAdsConfig = {
+        ...runtimeConfig,
+        customerId: client.customerId,
+        loginCustomerId: queryTarget.loginCustomerId ?? runtimeConfig.loginCustomerId,
+      };
+
+      for (const window of monthWindows) {
+        const { spend, currencyCode: clientCurrency } = await fetchCampaignSpendForDateRange(
+          cfg,
+          accessToken,
+          client.customerId,
+          window.start,
+          window.end,
+        );
+        buckets[window.month - 1]!.spend += spend;
+        if (!currencyCode && clientCurrency) currencyCode = clientCurrency;
+      }
+    }
+
+    return googleAdsJson({
+      year,
+      currency_code: currencyCode,
+      months: buckets,
+      date_start: start,
+      date_end: end,
+    }, 200);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return googleAdsJson({ error: msg, code: "GOOGLE_ADS_API_ERROR" }, 400);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: googleAdsCorsHeaders });
@@ -987,6 +1132,10 @@ Deno.serve(async (req: Request) => {
 
   if (action === "getAccountDateBounds") {
     return await handleGetAccountDateBounds(admin, body, organizationId);
+  }
+
+  if (action === "fetchMonthlySpend") {
+    return await handleFetchMonthlySpend(admin, body, organizationId);
   }
 
   if (action === "listCampaigns") {

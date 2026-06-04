@@ -64,18 +64,43 @@ export function AttendanceDateRangePicker({
     setSelectingStart(true);
   };
 
+  const calendarClassNames = {
+    months: "flex w-full flex-col",
+    month: "w-full space-y-3",
+    caption: "relative flex items-center justify-center px-8 pt-1",
+    caption_label: "text-sm font-medium",
+    nav: "flex items-center space-x-1",
+    nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+    nav_button_previous: "absolute left-0",
+    nav_button_next: "absolute right-0",
+    table: "w-full border-collapse space-y-1",
+    head_row: "grid w-full grid-cols-7",
+    head_cell:
+      "text-muted-foreground flex h-9 items-center justify-center text-center text-[0.8rem] font-normal",
+    row: "mt-2 grid w-full grid-cols-7",
+    cell: "relative flex h-9 items-center justify-center p-0 text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
+    day: "h-9 w-9 rounded-md p-0 font-normal hover:bg-accent hover:text-accent-foreground aria-selected:opacity-100",
+    day_selected:
+      "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+    day_today: "bg-accent text-accent-foreground",
+    day_outside: "text-muted-foreground opacity-50",
+    day_disabled: "text-muted-foreground opacity-50",
+    day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+    day_hidden: "invisible",
+  } as const;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="mx-auto w-[95vw] max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-center">
+      <DialogContent className="mx-auto w-[min(100vw-1.5rem,22rem)] max-w-none gap-4 p-4 sm:p-5">
+        <DialogHeader className="items-center space-y-1.5 text-center">
+          <DialogTitle className="w-full px-7 text-center text-base font-semibold leading-tight sm:text-lg">
             {t("datePicker.title", "Choose date range")}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2 text-center">
-            <div className="flex justify-center gap-4 text-sm">
+        <div className="flex w-full flex-col items-center gap-4">
+          <div className="w-full space-y-2 text-center">
+            <div className="flex flex-wrap justify-center gap-2.5 text-sm sm:gap-3">
               <button
                 type="button"
                 className={cn(
@@ -119,42 +144,22 @@ export function AttendanceDateRangePicker({
             mode="single"
             selected={selectingStart ? startDate : endDate}
             onSelect={handleDateSelect}
-            className={cn("pointer-events-auto w-full p-0")}
-            classNames={{
-              months: "flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4",
-              month: "w-full space-y-4",
-              caption: "relative flex items-center justify-center pt-1",
-              caption_label: "text-sm font-medium",
-              nav: "flex items-center space-x-1",
-              nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
-              nav_button_previous: "absolute left-1",
-              nav_button_next: "absolute right-1",
-              table: "w-full border-collapse space-y-1",
-              head_row: "flex w-full",
-              head_cell:
-                "text-muted-foreground w-8 flex-1 rounded-md text-center text-[0.8rem] font-normal",
-              row: "mt-2 flex w-full",
-              cell: "relative flex-1 p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-              day: "mx-auto h-8 w-8 rounded-md p-0 font-normal hover:bg-accent hover:text-accent-foreground aria-selected:opacity-100",
-              day_selected:
-                "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-              day_today: "bg-accent text-accent-foreground",
-              day_outside: "text-muted-foreground opacity-50",
-              day_disabled: "text-muted-foreground opacity-50",
-              day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
-              day_hidden: "invisible",
-            }}
+            className={cn(
+              "pointer-events-auto w-full !m-0 p-0",
+              "[&_.rdp-month]:!mx-0 [&_.rdp-table]:!mx-0 [&_.rdp-table]:!max-w-none",
+            )}
+            classNames={calendarClassNames}
           />
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row">
-          <Button variant="outline" onClick={handleReset} className="w-full sm:w-auto">
+        <DialogFooter className="!justify-center w-full flex-col gap-2 sm:flex-row sm:gap-3">
+          <Button variant="outline" onClick={handleReset} className="w-full sm:min-w-[7rem] sm:w-auto">
             {t("datePicker.reset", "Reset")}
           </Button>
           <Button
             onClick={handleApply}
             disabled={!startDate || !endDate}
-            className="w-full sm:w-auto"
+            className="w-full sm:min-w-[7rem] sm:w-auto"
           >
             {t("datePicker.apply", "Apply")}
           </Button>

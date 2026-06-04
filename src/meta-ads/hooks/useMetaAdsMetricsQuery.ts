@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { clampMetaAdsDateRange } from "@/meta-ads/lib/clampMetaAdsDateRange";
 import { parseEdgeFunctionError } from "@/meta-ads/lib/parseEdgeFunctionError";
 import { supabase } from "@/shared/lib/supabaseClient";
 
@@ -53,13 +54,14 @@ export function useMetaAdsMetricsQuery(args: {
     ],
     queryFn: async () => {
       if (!organizationId || !adAccountId) return null;
+      const { start, end } = clampMetaAdsDateRange(dateStart, dateEnd);
       const { data, error } = await supabase.functions.invoke("meta-ads-metrics", {
         body: {
           organization_id: organizationId,
           ad_account_id: adAccountId,
           entity,
-          date_start: dateStart,
-          date_end: dateEnd,
+          date_start: start,
+          date_end: end,
           page_token: pageToken,
         },
       });

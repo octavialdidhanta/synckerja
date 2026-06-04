@@ -119,6 +119,68 @@ export function defaultGoogleAdsDateSelection(
   return { preset: "last_30_days", range, rollingDays: 30 };
 }
 
+/** Jan 1 – Dec 31 (or today when year is current). Used by Report monthly chart year filter. */
+export function dateSelectionForCalendarYear(
+  year: number,
+  now: Date = new Date(),
+): GoogleAdsDateRangeSelection {
+  const y =
+    Number.isFinite(year) && year >= 2000 && year <= 2100
+      ? Math.floor(year)
+      : now.getFullYear();
+  const from = startOfDay(new Date(y, 0, 1));
+  const to =
+    y === now.getFullYear() ? endOfDay(now) : endOfDay(new Date(y, 11, 31));
+  return { preset: "custom", range: { from, to }, rollingDays: 30 };
+}
+
+/** True when selection matches {@link dateSelectionForCalendarYear} for the given year. */
+export function isCalendarYearSelection(
+  selection: GoogleAdsDateRangeSelection,
+  year: number,
+  now: Date = new Date(),
+): boolean {
+  const expected = dateSelectionForCalendarYear(year, now);
+  const from = selection.range.from;
+  const to = selection.range.to;
+  const expFrom = expected.range.from;
+  const expTo = expected.range.to;
+  if (!from || !to || !expFrom || !expTo) return false;
+  return toYmdLocal(from) === toYmdLocal(expFrom) && toYmdLocal(to) === toYmdLocal(expTo);
+}
+
+/**
+ * Report chart range: intersection of the date picker with the selected calendar year.
+ * Returns null when there is no overlap (e.g. Last month 2026 while chart year is 2022).
+ */
+export function intersectDateSelectionWithChartYear(
+  dateSelection: GoogleAdsDateRangeSelection,
+  reportChartYear: number,
+  now: Date = new Date(),
+): GoogleAdsDateRangeSelection | null {
+  const calendarYear = dateSelectionForCalendarYear(reportChartYear, now);
+  if (dateSelection.preset === "all_time") {
+    return calendarYear;
+  }
+  const from = dateSelection.range.from;
+  const to = dateSelection.range.to;
+  if (!from || !to) {
+    return calendarYear;
+  }
+  const yearStart = startOfDay(new Date(reportChartYear, 0, 1));
+  const yearEnd = calendarYear.range.to!;
+  const selFrom = startOfDay(from);
+  const selTo = endOfDay(to);
+  const intersectFrom = selFrom.getTime() > yearStart.getTime() ? selFrom : yearStart;
+  const intersectTo = selTo.getTime() < yearEnd.getTime() ? selTo : yearEnd;
+  if (intersectFrom.getTime() > intersectTo.getTime()) return null;
+  return {
+    preset: "custom",
+    range: { from: intersectFrom, to: intersectTo },
+    rollingDays: dateSelection.rollingDays,
+  };
+}
+
 export function formatGoogleAdsPickerButtonLabel(
   selection: GoogleAdsDateRangeSelection,
 ): string {

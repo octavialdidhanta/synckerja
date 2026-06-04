@@ -25,11 +25,10 @@ import { GoogleAdsEntityNav } from "@/6-0-google-ads/components/GoogleAdsEntityN
 import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
 import {
   computePresetRange,
-  defaultGoogleAdsDateSelection,
   toGoogleAdsMetricsDateRangePayload,
   toYmdLocal,
-  type GoogleAdsDateRangeSelection,
 } from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { useOmnichannelSurveySettingsAdmin } from "@/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { useGoogleAdsReportingEnabled } from "@/google-ads/hooks/useGoogleAdsReportingEnabled";
@@ -100,10 +99,10 @@ export default function GoogleAdsMetricsPage() {
   const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState(() =>
     loadSummarySlotMetrics("campaign"),
   );
-  const [customerId, setCustomerId] = useState<string>("");
-  const [dateSelection, setDateSelection] = useState<GoogleAdsDateRangeSelection>(() =>
-    defaultGoogleAdsDateSelection(),
-  );
+  const { dateSelection, setDateSelection, googleCustomerId, setGoogleCustomerId } =
+    useDigitalMarketingPaidAdsFilters();
+  const customerId = googleCustomerId;
+  const setCustomerId = setGoogleCustomerId;
   const [onlyRunning, setOnlyRunning] = useState(true);
   const [enabledOnly, setEnabledOnly] = useState(false);
 

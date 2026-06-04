@@ -45,6 +45,7 @@ export function MetaAdsMetricsSummaryBar({ summary, isLoading }: Props) {
     : null;
 
   return (
+    <div className="space-y-1">
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <GoogleAdsSummaryFixedMetricCard
         label={t("digitalMarketing.metaAds.summaryCost", "Cost")}
@@ -62,6 +63,13 @@ export function MetaAdsMetricsSummaryBar({ summary, isLoading }: Props) {
         label={t("digitalMarketing.metaAds.ctr", "CTR")}
         value={formatMetaCtr(ctr, "computed")}
       />
+    </div>
+    <p className="text-[11px] text-muted-foreground">
+      {t(
+        "digitalMarketing.metaAds.summaryAccountLevelHint",
+        "Summary totals sum active ad insights (same basis as Meta Ads Manager Ads tab footer).",
+      )}
+    </p>
     </div>
   );
 }

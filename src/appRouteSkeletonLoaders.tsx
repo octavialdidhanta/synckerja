@@ -346,3 +346,9 @@ export const MetaAdsMetricsPageSkeleton = createDeferredSkeleton(() =>
     default: m.MetaAdsMetricsPageSkeleton,
   })),
 );
+
+export const DigitalMarketingReportPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-report/skeletons/DigitalMarketingReportPageSkeleton").then((m) => ({
+    default: m.DigitalMarketingReportPageSkeleton,
+  })),
+);

@@ -69,3 +69,8 @@ export function computeSummaryCtr(clicks: number, impressions: number): number |
   if (impressions <= 0) return null;
   return clicks / impressions;
 }
+
+export function computeSummaryCpc(spend: number, clicks: number): number | null {
+  if (clicks <= 0 || !Number.isFinite(spend)) return null;
+  return spend / clicks;
+}

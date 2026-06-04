@@ -26,6 +26,7 @@ import { NativeGoogleAuthInit } from "@/0-auth/native/NativeGoogleAuthInit";
 import { NativeSupabaseOAuthBridge } from "@/0-auth/native/NativeSupabaseOAuthBridge";
 import { NativeNotificationTapBridge } from "@/shared/native/NativeNotificationTapBridge";
 import { AdaptiveAppLayout } from "@/shared/layouts";
+import { DigitalMarketingPaidAdsLayout } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsLayout";
 import NotFound from "@/shared/pages/NotFound";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
@@ -63,6 +64,7 @@ import {
   TrafficPageSkeleton,
   GoogleAdsMetricsPageSkeleton,
   MetaAdsMetricsPageSkeleton,
+  DigitalMarketingReportPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
@@ -145,6 +147,9 @@ const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings
 const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
 const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
 const MetaAdsMetricsPage = lazy(() => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"));
+const DigitalMarketingReportPage = lazy(
+  () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
+);
 const MobileWebTrafficPage = lazy(() => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPage"));
 const MobileWebTrafficPageSkeleton = lazy(
   () => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPageSkeleton"),
@@ -1654,6 +1659,20 @@ function MetaAdsMetricsPageRouteElement() {
   );
 }
 
+function DigitalMarketingReportPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <DigitalMarketingReportPageSkeleton />
+        </div>
+      }
+    >
+      <DigitalMarketingReportPage />
+    </Suspense>
+  );
+}
+
 const SocialMediaProductKnowledgeSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -2852,54 +2871,68 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
-                        <Route
-                          path="/digital-marketing/google-ads/settings"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/digital-marketing/google-ads"
-                              loadingShell={<GoogleAdsMetricsPageSkeleton />}
-                              loadingShellWrapperClassName="bg-gray-100"
-                            >
-                              <GoogleAdsMetricsPageRouteElement />
-                            </PageAccessGuard>
-                          }
-                        />
-                        <Route
-                          path="/digital-marketing/google-ads"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/digital-marketing/google-ads"
-                              loadingShell={<GoogleAdsMetricsPageSkeleton />}
-                              loadingShellWrapperClassName="bg-gray-100"
-                            >
-                              <GoogleAdsMetricsPageRouteElement />
-                            </PageAccessGuard>
-                          }
-                        />
-                        <Route
-                          path="/digital-marketing/meta-ads/settings"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/digital-marketing/meta-ads"
-                              loadingShell={<MetaAdsMetricsPageSkeleton />}
-                              loadingShellWrapperClassName="bg-gray-100"
-                            >
-                              <MetaAdsMetricsPageRouteElement />
-                            </PageAccessGuard>
-                          }
-                        />
-                        <Route
-                          path="/digital-marketing/meta-ads"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/digital-marketing/meta-ads"
-                              loadingShell={<MetaAdsMetricsPageSkeleton />}
-                              loadingShellWrapperClassName="bg-gray-100"
-                            >
-                              <MetaAdsMetricsPageRouteElement />
-                            </PageAccessGuard>
-                          }
-                        />
+                        <Route element={<DigitalMarketingPaidAdsLayout />}>
+                          <Route
+                            path="/digital-marketing/google-ads/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/google-ads"
+                                loadingShell={<GoogleAdsMetricsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <GoogleAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/google-ads"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/google-ads"
+                                loadingShell={<GoogleAdsMetricsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <GoogleAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/meta-ads/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/meta-ads"
+                                loadingShell={<MetaAdsMetricsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <MetaAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/meta-ads"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/meta-ads"
+                                loadingShell={<MetaAdsMetricsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <MetaAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/report"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/report"
+                                loadingShell={<DigitalMarketingReportPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <DigitalMarketingReportPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                        </Route>
                         <Route
                           path="/recruitment"
                           element={

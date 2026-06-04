@@ -1,10 +1,11 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, Facebook, LineChart } from "lucide-react";
+import { BarChart3, Facebook, FileText, LineChart } from "lucide-react";
 import { ModuleTabNavItem } from "@/shared/auth/page-access/ModuleTabNavItem";
 
 const TRAFFIC_ROUTE = "/digital-marketing/traffic";
 const GOOGLE_ADS_ROUTE = "/digital-marketing/google-ads";
 const META_ADS_ROUTE = "/digital-marketing/meta-ads";
+const REPORT_ROUTE = "/digital-marketing/report";
 
 export function HeaderAndTab() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export function HeaderAndTab() {
   const isTraffic = location.pathname.startsWith(TRAFFIC_ROUTE);
   const isGoogleAds = location.pathname.startsWith(GOOGLE_ADS_ROUTE);
   const isMetaAds = location.pathname.startsWith(META_ADS_ROUTE);
+  const isReport = location.pathname.startsWith(REPORT_ROUTE);
 
   return (
     <div className="px-1 py-3">
@@ -46,6 +48,15 @@ export function HeaderAndTab() {
             icon={Facebook}
             isActive={isMetaAds}
             onActivate={() => navigate(META_ADS_ROUTE)}
+            activeClassName="border-primary text-primary"
+            inactiveClassName="border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+          />
+          <ModuleTabNavItem
+            pagePath={REPORT_ROUTE}
+            label="Report"
+            icon={FileText}
+            isActive={isReport}
+            onActivate={() => navigate(REPORT_ROUTE)}
             activeClassName="border-primary text-primary"
             inactiveClassName="border-transparent text-muted-foreground hover:border-border hover:text-foreground"
           />

@@ -35,11 +35,8 @@ import {
   getMetaAdsCatalogMetricKeys,
   resolveMetaAdsMetricItems,
 } from "@/meta-ads/metrics/metaAdsMetricCatalog";
-import {
-  defaultGoogleAdsDateSelection,
-  toGoogleAdsMetricsDateRangePayload,
-  type GoogleAdsDateRangeSelection,
-} from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { toMetaAdsMetricsDateRangePayload } from "@/meta-ads/lib/toMetaAdsMetricsDateRangePayload";
+import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import {
   buildMetaAdsSortColumnOptions,
   defaultMetaAdsSortDirection,
@@ -71,11 +68,11 @@ function MetaAdsMetricsPageContent() {
     enabled: Boolean(organizationId) && !gatePending,
   });
 
+  const { dateSelection, setDateSelection, metaAdAccountId, setMetaAdAccountId } =
+    useDigitalMarketingPaidAdsFilters();
   const [entity, setEntity] = useState<MetaAdsMetricEntity>("campaign");
-  const [adAccountId, setAdAccountId] = useState("");
-  const [dateSelection, setDateSelection] = useState<GoogleAdsDateRangeSelection>(() =>
-    defaultGoogleAdsDateSelection(),
-  );
+  const adAccountId = metaAdAccountId;
+  const setAdAccountId = setMetaAdAccountId;
   const [sort, setSort] = useState<MetaAdsMetricsSort>({ field: "spend", direction: "desc" });
   const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
   const sortHydratedForEntityRef = useRef<string | null>(null);
@@ -92,7 +89,7 @@ function MetaAdsMetricsPageContent() {
   } = useMetaAdsMetricsPreferences(organizationId, entity, validMetricKeys);
 
   const dateRange = useMemo(
-    () => toGoogleAdsMetricsDateRangePayload(dateSelection),
+    () => toMetaAdsMetricsDateRangePayload(dateSelection),
     [dateSelection],
   );
   const dateStart = dateRange.start;
@@ -124,9 +121,9 @@ function MetaAdsMetricsPageContent() {
   useEffect(() => {
     if (!adAccountId && metricsReadyAccounts.length > 0) {
       const def = metricsReadyAccounts.find((a) => a.is_default) ?? metricsReadyAccounts[0];
-      setAdAccountId(def.ad_account_id);
+      setMetaAdAccountId(def.ad_account_id);
     }
-  }, [metricsReadyAccounts, adAccountId]);
+  }, [metricsReadyAccounts, adAccountId, setMetaAdAccountId]);
 
   const metricItems = useMemo(
     () => resolveMetaAdsMetricItems(selectedMetrics, entity),
@@ -442,6 +439,14 @@ function MetaAdsMetricsPageContent() {
                                           ({t("digitalMarketing.metaAds.cached", "cached")})
                                         </span>
                                       ) : null}
+                                    </p>
+                                  ) : null}
+                                  {dateRange.wasStartClamped ? (
+                                    <p className="text-xs text-amber-800">
+                                      {t(
+                                        "digitalMarketing.metaAds.dateRangeClampedHint",
+                                        "Meta only allows data from the last 37 months. The start date was adjusted automatically.",
+                                      )}
                                     </p>
                                   ) : null}
                                 </div>

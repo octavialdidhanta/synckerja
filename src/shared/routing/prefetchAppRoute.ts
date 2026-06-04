@@ -21,6 +21,10 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"),
   },
   {
+    prefix: "/digital-marketing/report",
+    prefetch: () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
+  },
+  {
     prefix: "/kol-management/dashboard",
     prefetch: () =>
       import("@/6-2-1-dashboard/kol-management/pages/KolManagementDashboardPage").then((m) => ({
