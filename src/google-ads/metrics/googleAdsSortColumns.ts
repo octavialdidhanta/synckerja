@@ -5,12 +5,15 @@ export type SortColumnOption = { key: string; label: string };
 
 export type SortColumnKind = "text" | "numeric";
 
+const NUMERIC_IDENTITY_KEYS = new Set(["service_cpl", "service_converted_leads"]);
+
 /** Identity columns sort alphabetically; applied metrics sort numerically. */
 export function getSortColumnKind(
   field: string,
   entity: GoogleAdsMetricEntity,
   metricItems: MetricCatalogItem[],
 ): SortColumnKind {
+  if (NUMERIC_IDENTITY_KEYS.has(field)) return "numeric";
   const identityKeys = new Set(GOOGLE_ADS_IDENTITY_COLUMNS[entity].map((c) => c.key));
   if (identityKeys.has(field)) return "text";
   if (metricItems.some((m) => m.key === field)) return "numeric";
@@ -62,7 +65,13 @@ export function defaultSortForOptions(
   entity: GoogleAdsMetricEntity,
   metricItems: MetricCatalogItem[],
 ): GoogleAdsMetricsSort {
-  const field = options[0]?.key ?? "spent";
+  const preferred =
+    entity === "campaign"
+      ? (options.find((o) => o.key === "spent") ??
+        options.find((o) => o.key === "name") ??
+        options[0])
+      : options[0];
+  const field = preferred?.key ?? "spent";
   const kind = getSortColumnKind(field, entity, metricItems);
   return { field, direction: defaultSortDirectionForKind(kind) };
 }

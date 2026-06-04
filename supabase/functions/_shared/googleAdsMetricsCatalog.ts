@@ -181,7 +181,20 @@ export const IDENTITY_SORT_GAQL: Record<MetricEntity, Record<string, string>> = 
   },
 };
 
+/** In-memory identity fields (not in GAQL) — campaign service mapping + CPA (converted leads). */
+const APP_COMPUTED_IDENTITY_SORT: Record<MetricEntity, Set<string>> = {
+  campaign: new Set(["service", "service_cpl", "service_converted_leads"]),
+  ad_group: new Set(),
+  ad: new Set(),
+  keyword: new Set(),
+};
+
+export function isAppComputedIdentitySortField(entity: MetricEntity, field: string): boolean {
+  return APP_COMPUTED_IDENTITY_SORT[entity]?.has(field) ?? false;
+}
+
 export function isIdentitySortField(entity: MetricEntity, field: string): boolean {
+  if (isAppComputedIdentitySortField(entity, field)) return true;
   return Boolean(IDENTITY_SORT_GAQL[entity]?.[field]);
 }
 
@@ -228,6 +241,17 @@ function identitySortValue(
       if (field === "status") return String(identity.status ?? "");
       break;
     case "campaign":
+      if (field === "service") return String(identity.service_name ?? "").toLowerCase();
+      if (field === "service_cpl") {
+        const cpl = identity.service_cpl;
+        if (cpl == null || !Number.isFinite(Number(cpl))) return "";
+        return String(Number(cpl)).padStart(20, "0");
+      }
+      if (field === "service_converted_leads") {
+        const n = identity.service_converted_leads;
+        if (n == null || !Number.isFinite(Number(n))) return "";
+        return String(Number(n)).padStart(12, "0");
+      }
       if (field === "name") return String(identity.name ?? "");
       if (field === "status") return String(identity.status ?? "");
       if (field === "channel") return String(identity.channel_type ?? "");
@@ -269,13 +293,32 @@ export function sortNormalizedMetricsRows<
   const ascending = dirRaw === "asc";
   const dir = ascending ? 1 : -1;
   const sortByIdentity = isIdentitySortField(entity, field);
+  const sortCplNumeric = entity === "campaign" &&
+    (field === "service_cpl" || field === "service_converted_leads");
 
   return [...rows].sort((a, b) => {
     let cmp = 0;
     if (sortByIdentity) {
-      const as = identitySortValue(entity, a.identity, field);
-      const bs = identitySortValue(entity, b.identity, field);
-      cmp = as.localeCompare(bs, undefined, { sensitivity: "base", numeric: true });
+      if (sortCplNumeric) {
+        const an = metricSortNumber(
+          field === "service_cpl"
+            ? (a.identity.service_cpl as number | null)
+            : (a.identity.service_converted_leads as number | null),
+          ascending,
+        );
+        const bn = metricSortNumber(
+          field === "service_cpl"
+            ? (b.identity.service_cpl as number | null)
+            : (b.identity.service_converted_leads as number | null),
+          ascending,
+        );
+        if (an < bn) cmp = -1;
+        else if (an > bn) cmp = 1;
+      } else {
+        const as = identitySortValue(entity, a.identity, field);
+        const bs = identitySortValue(entity, b.identity, field);
+        cmp = as.localeCompare(bs, undefined, { sensitivity: "base", numeric: true });
+      }
     } else {
       const an = metricSortNumber(a.metrics[field], ascending);
       const bn = metricSortNumber(b.metrics[field], ascending);
@@ -317,9 +360,96 @@ function sumMetricValue(metrics: Record<string, number | null>, key: string): nu
   return Number.isFinite(n) ? n : 0;
 }
 
+function isPeriodImpressionPctMetricKey(key: string): boolean {
+  return (PERIOD_IMPRESSION_PCT_METRIC_KEYS as readonly string[]).includes(key);
+}
+
 function isRateLikeMetricKey(key: string, valueKind?: MetricValueKind): boolean {
-  if (key === "ctr" || key.endsWith("_rate") || key.endsWith("_share")) return true;
+  if (isPeriodImpressionPctMetricKey(key)) return false;
+  if (
+    key === "ctr" ||
+    key.endsWith("_rate") ||
+    key.endsWith("_share") ||
+    key.endsWith("_pct")
+  ) {
+    return true;
+  }
   return valueKind === "rate" || valueKind === "fraction";
+}
+
+/** Google Ads fraction metrics are 0–1 in API; some responses use 0–100 by mistake. */
+export function normalizeApiFractionMetric(value: number): number | null {
+  if (!Number.isFinite(value) || value < 0) return null;
+  if (value <= 1) return value;
+  if (value <= 100) return value / 100;
+  let v = value;
+  for (let i = 0; i < 4 && v > 1; i++) v /= 100;
+  return v <= 1 ? v : null;
+}
+
+function sanitizeFractionMetricValue(value: number): number | null {
+  return normalizeApiFractionMetric(value);
+}
+
+/** Impr. (Top) % / Impr. (Abs. Top) % must use period aggregates (no segments.date), not summed daily %. */
+export const PERIOD_IMPRESSION_PCT_METRIC_KEYS = [
+  "top_impr_pct",
+  "absolute_top_impr_pct",
+] as const;
+
+/** Google often returns 1.0 (100%) for keywords with zero impressions — hide like Ads UI. */
+export function clearTopImpressionPctWithoutImpressions(
+  metrics: Record<string, number | null>,
+): void {
+  if (pickNum(metrics.impressions) <= 0) {
+    for (const key of PERIOD_IMPRESSION_PCT_METRIC_KEYS) {
+      metrics[key] = null;
+      metrics[`${key}_percent`] = null;
+    }
+  }
+}
+
+export function periodImpressionPctMetricDefs(entity: MetricEntity): MetricDef[] {
+  return PERIOD_IMPRESSION_PCT_METRIC_KEYS.map((k) => METRIC_BY_KEY.get(k))
+    .filter((d): d is MetricDef => Boolean(d && d.entities.includes(entity)));
+}
+
+/** Period overlay query also needs impressions to merge stacked date windows. */
+export function periodImpressionPctOverlayMetricDefs(entity: MetricEntity): MetricDef[] {
+  const pct = periodImpressionPctMetricDefs(entity);
+  const impr = METRIC_BY_KEY.get("impressions");
+  if (impr?.entities.includes(entity)) return [...pct, impr];
+  return pct;
+}
+
+function sanitizeRateLikeMetrics(metrics: Record<string, number | null>): void {
+  for (const [key, raw] of Object.entries(metrics)) {
+    if (raw == null || !Number.isFinite(raw) || key.endsWith("_percent")) continue;
+    const def = METRIC_BY_KEY.get(key);
+    if (!isRateLikeMetricKey(key, def?.valueKind)) continue;
+    const normalized = sanitizeFractionMetricValue(raw);
+    if (normalized != null) {
+      metrics[key] = normalized;
+    }
+  }
+}
+
+function syncDerivedPercentFields(metrics: Record<string, number | null>): void {
+  for (const [key, raw] of Object.entries(metrics)) {
+    if (raw == null || !Number.isFinite(raw)) continue;
+    if (key.endsWith("_percent")) continue;
+    const def = METRIC_BY_KEY.get(key);
+    if (
+      key === "ctr" ||
+      key.endsWith("_rate") ||
+      def?.valueKind === "fraction" ||
+      def?.valueKind === "rate" ||
+      key.endsWith("_share") ||
+      key.endsWith("_pct")
+    ) {
+      metrics[`${key}_percent`] = raw * 100;
+    }
+  }
 }
 
 /** Sum KPI metrics across the full filtered result set (not a single table page). */
@@ -610,6 +740,16 @@ function pickNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** GAQL JSON may nest metric scalars (e.g. { doubleValue: 0.45 }). */
+function pickGaqlMetricScalar(raw: unknown): unknown {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const o = raw as Record<string, unknown>;
+  if (o.value != null) return o.value;
+  if (o.doubleValue != null) return o.doubleValue;
+  if (o.double_value != null) return o.double_value;
+  return raw;
+}
+
 export type NormalizedMetricsRow = {
   id: string;
   identity: Record<string, unknown>;
@@ -673,7 +813,7 @@ export function normalizeGaqlRow(
   for (const def of metricDefs) {
     const fieldName = def.gaqlField.replace(/^metrics\./, "");
     const camel = fieldName.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-    const val = metricsRaw[fieldName] ?? metricsRaw[camel];
+    const val = pickGaqlMetricScalar(metricsRaw[fieldName] ?? metricsRaw[camel]);
     if (val == null) {
       metrics[def.key] = null;
       continue;
@@ -681,7 +821,11 @@ export function normalizeGaqlRow(
     if (def.valueKind === "micros") {
       metrics[def.key] = pickNum(val) / 1_000_000;
     } else if (def.valueKind === "rate" || def.valueKind === "fraction") {
-      const n = pickNum(val);
+      const raw = pickNum(val);
+      const n =
+        def.valueKind === "fraction" || def.key.endsWith("_pct") || def.key.endsWith("_share")
+          ? (normalizeApiFractionMetric(raw) ?? raw)
+          : raw;
       metrics[def.key] = n;
       if (
         def.key === "ctr" ||
@@ -696,6 +840,8 @@ export function normalizeGaqlRow(
       metrics[def.key] = pickNum(val);
     }
   }
+
+  clearTopImpressionPctWithoutImpressions(metrics);
 
   return { id, identity, metrics };
 }
@@ -722,21 +868,34 @@ export function entityResourceKey(
     return parseGoogleAdsResourceId(String(row.id ?? ""));
   }
   if (entity === "keyword") {
-    const compositeId = String(row.id ?? "");
-    const mccMatch = /^(\d{10})-(\d+)$/.exec(compositeId);
-    const customerId = mccMatch?.[1] ?? "";
-    const campaignId = parseGoogleAdsResourceId(String(row.identity.campaign_id ?? ""));
-    const adGroupId = parseGoogleAdsResourceId(String(row.identity.ad_group_id ?? ""));
-    let criterionId = parseGoogleAdsResourceId(String(row.identity.criterion_id ?? ""));
-    if (!criterionId && mccMatch?.[2] && !compositeId.includes("|")) {
-      criterionId = parseGoogleAdsResourceId(mccMatch[2]);
-    }
-    if (!campaignId || !adGroupId || !criterionId) return "";
-    const parts = [customerId, campaignId, adGroupId, criterionId].filter(Boolean);
-    return parts.join("|");
+    return keywordEntityResourceKey(row);
   }
   return parseGoogleAdsResourceId(String(row.id ?? ""));
 }
+
+/** Stable keyword key (customer + campaign + ad group + criterion). */
+export function keywordEntityResourceKey(row: NormalizedMetricsRow): string {
+  const alt = keywordEntityAltResourceKey(row);
+  if (!alt) return "";
+  const fromIdentity = String(row.identity.metrics_customer_id ?? "").replace(/\D/g, "");
+  if (fromIdentity.length === 10) return `${fromIdentity}|${alt}`;
+  const compositeId = String(row.id ?? "");
+  const mccMatch = /^(\d{10})-(\d+)$/.exec(compositeId);
+  const customerId = mccMatch?.[1] ?? "";
+  if (customerId.length === 10) return `${customerId}|${alt}`;
+  return alt;
+}
+
+/** Match period overlay when MCC row id differs but criterion scope is the same. */
+export function keywordEntityAltResourceKey(row: NormalizedMetricsRow): string {
+  const campaignId = parseGoogleAdsResourceId(String(row.identity.campaign_id ?? ""));
+  const adGroupId = parseGoogleAdsResourceId(String(row.identity.ad_group_id ?? ""));
+  const criterionId = parseGoogleAdsResourceId(String(row.identity.criterion_id ?? ""));
+  if (!campaignId || !adGroupId || !criterionId) return "";
+  return `${campaignId}|${adGroupId}|${criterionId}`;
+}
+
+type RateWeightedAcc = { numerator: number; weight: number };
 
 /** Sum metrics when GAQL returns multiple rows per resource (e.g. per-day slices in a page). */
 export function mergeMetricsRowsByEntity(
@@ -744,11 +903,13 @@ export function mergeMetricsRowsByEntity(
   rows: NormalizedMetricsRow[],
 ): NormalizedMetricsRow[] {
   const map = new Map<string, NormalizedMetricsRow>();
+  const rateWeighted = new Map<string, Map<string, RateWeightedAcc>>();
 
   for (const row of rows) {
     const key = entityResourceKey(entity, row);
     if (!key) continue;
 
+    const rowImpressions = pickNum(row.metrics.impressions);
     const existing = map.get(key);
     if (!existing) {
       const displayId =
@@ -760,27 +921,124 @@ export function mergeMetricsRowsByEntity(
         identity: { ...row.identity },
         metrics: { ...row.metrics },
       });
+      const rateAcc = new Map<string, RateWeightedAcc>();
+      for (const [metricKey, value] of Object.entries(row.metrics)) {
+        if (value == null || !Number.isFinite(value) || metricKey.endsWith("_percent")) {
+          continue;
+        }
+        if (isPeriodImpressionPctMetricKey(metricKey)) continue;
+        const def = METRIC_BY_KEY.get(metricKey);
+        if (!isRateLikeMetricKey(metricKey, def?.valueKind) || rowImpressions <= 0) continue;
+        rateAcc.set(metricKey, {
+          numerator: pickNum(value) * rowImpressions,
+          weight: rowImpressions,
+        });
+      }
+      if (rateAcc.size > 0) rateWeighted.set(key, rateAcc);
       continue;
     }
 
+    let rateAcc = rateWeighted.get(key);
+    if (!rateAcc) {
+      rateAcc = new Map<string, RateWeightedAcc>();
+      rateWeighted.set(key, rateAcc);
+    }
+
     for (const [metricKey, value] of Object.entries(row.metrics)) {
-      if (value == null) continue;
+      if (value == null || !Number.isFinite(value) || metricKey.endsWith("_percent")) {
+        continue;
+      }
+      if (isPeriodImpressionPctMetricKey(metricKey)) continue;
+      const def = METRIC_BY_KEY.get(metricKey);
+      if (isRateLikeMetricKey(metricKey, def?.valueKind)) {
+        if (rowImpressions <= 0) continue;
+        const prev = rateAcc.get(metricKey) ?? { numerator: 0, weight: 0 };
+        prev.numerator += pickNum(value) * rowImpressions;
+        prev.weight += rowImpressions;
+        rateAcc.set(metricKey, prev);
+        continue;
+      }
       const prev = existing.metrics[metricKey];
       existing.metrics[metricKey] = pickNum(prev) + pickNum(value);
     }
+  }
 
-    const impr = pickNum(existing.metrics.impressions);
-    const clicks = pickNum(existing.metrics.clicks);
-    if (impr > 0) {
-      if (existing.metrics.ctr != null) {
-        const ctr = clicks / impr;
-        existing.metrics.ctr = ctr;
-        existing.metrics.ctr_percent = ctr * 100;
+  for (const [resourceKey, merged] of map) {
+    const rateAcc = rateWeighted.get(resourceKey);
+    if (rateAcc) {
+      for (const [metricKey, acc] of rateAcc) {
+        if (acc.weight > 0) {
+          merged.metrics[metricKey] = acc.numerator / acc.weight;
+        }
       }
     }
+
+    const impr = pickNum(merged.metrics.impressions);
+    const clicks = pickNum(merged.metrics.clicks);
+    if (impr > 0) {
+      const ctr = clicks / impr;
+      merged.metrics.ctr = ctr;
+      merged.metrics.ctr_percent = ctr * 100;
+    }
+
+    sanitizeRateLikeMetrics(merged.metrics);
+    syncDerivedPercentFields(merged.metrics);
+    clearTopImpressionPctWithoutImpressions(merged.metrics);
   }
 
   return [...map.values()];
+}
+
+function periodOverlayLookupKey(entity: MetricEntity, row: NormalizedMetricsRow): string {
+  if (entity === "keyword") {
+    return keywordEntityResourceKey(row) || keywordEntityAltResourceKey(row);
+  }
+  return entityResourceKey(entity, row);
+}
+
+/** Replace daily-sliced Top/Abs.Top % with period-level values (matches Google Ads UI). */
+export function applyPeriodImpressionPctOverlay(
+  entity: MetricEntity,
+  targetRows: NormalizedMetricsRow[],
+  periodRows: NormalizedMetricsRow[],
+): void {
+  const byResource = new Map<string, NormalizedMetricsRow>();
+  for (const row of periodRows) {
+    const key = periodOverlayLookupKey(entity, row);
+    if (key) byResource.set(key, row);
+    if (entity === "keyword") {
+      const alt = keywordEntityAltResourceKey(row);
+      if (alt && !byResource.has(alt)) byResource.set(alt, row);
+    }
+  }
+  for (const row of targetRows) {
+    const key = periodOverlayLookupKey(entity, row);
+    if (!key) continue;
+    let src = byResource.get(key);
+    if (!src && entity === "keyword") {
+      const alt = keywordEntityAltResourceKey(row);
+      if (alt) src = byResource.get(alt);
+    }
+    if (!src) continue;
+    const targetImpr = pickNum(row.metrics.impressions);
+    const srcImpr = pickNum(src.metrics.impressions);
+    if (targetImpr <= 0 || srcImpr <= 0) {
+      clearTopImpressionPctWithoutImpressions(row.metrics);
+      continue;
+    }
+    for (const metricKey of PERIOD_IMPRESSION_PCT_METRIC_KEYS) {
+      const v = src.metrics[metricKey];
+      if (v == null || !Number.isFinite(v)) {
+        row.metrics[metricKey] = null;
+        row.metrics[`${metricKey}_percent`] = null;
+        continue;
+      }
+      const normalized = normalizeApiFractionMetric(v);
+      if (normalized == null) continue;
+      row.metrics[metricKey] = normalized;
+      row.metrics[`${metricKey}_percent`] = normalized * 100;
+    }
+  }
 }
 
 /**
@@ -834,6 +1092,7 @@ export function mergeKeywordInventoryWithMetrics(
     }
     if (existing) {
       existing.metrics = { ...row.metrics };
+      clearTopImpressionPctWithoutImpressions(existing.metrics);
       Object.assign(existing.identity, row.identity);
       const criterionId = row.identity.criterion_id;
       if (criterionId != null && String(criterionId) !== "") {
@@ -841,10 +1100,12 @@ export function mergeKeywordInventoryWithMetrics(
       }
       continue;
     }
+    const metricsCopy = { ...row.metrics };
+    clearTopImpressionPctWithoutImpressions(metricsCopy);
     map.set(key, {
       id: String(row.identity.criterion_id ?? row.id ?? key),
       identity: { ...row.identity },
-      metrics: { ...row.metrics },
+      metrics: metricsCopy,
     });
     const criterionId = parseGoogleAdsResourceId(String(row.identity.criterion_id ?? ""));
     const campaignId = parseGoogleAdsResourceId(String(row.identity.campaign_id ?? ""));
@@ -854,7 +1115,8 @@ export function mergeKeywordInventoryWithMetrics(
     }
   }
 
-  return mergeMetricsRowsByEntity("keyword", [...map.values()]);
+  // Do not re-merge rate metrics here — overlay runs after this step.
+  return [...map.values()];
 }
 
 /** GAQL errors that may be fixed by dropping nested ad creative fields from SELECT. */

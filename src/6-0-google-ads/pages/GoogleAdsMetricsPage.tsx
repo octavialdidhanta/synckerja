@@ -42,6 +42,7 @@ import {
 } from "@/google-ads/metrics/googleAdsSummaryMetricOptions";
 import { useGoogleAdsMetricCatalog } from "@/google-ads/hooks/useGoogleAdsMetricCatalog";
 import {
+  buildGoogleAdsMetricsQueryKey,
   fetchGoogleAdsMetricsFresh,
   useGoogleAdsMetricsQuery,
 } from "@/google-ads/hooks/useGoogleAdsMetricsQuery";
@@ -65,6 +66,11 @@ import { resolveCampaignFilterIdFromRow } from "@/google-ads/metrics/parseGoogle
 import { parseTotalRowCount } from "@/google-ads/metrics/parseTotalRowCount";
 import { filterUnsupportedMetricsForEntity } from "@/google-ads/metrics/keywordViewExcludedMetrics";
 import { useGoogleAdsSettings } from "@/google-ads/hooks/useGoogleAdsSettings";
+import {
+  resolveCampaignIdFromMetricsRow,
+  useGoogleAdsCampaignServiceMapping,
+} from "@/google-ads/hooks/useGoogleAdsCampaignServiceMapping";
+import { useServices } from "@/6-1-product-knowledge/hooks/useServices";
 import { GoogleAdsSettingsPanel } from "@/google-ads/settings/GoogleAdsSettingsPanel";
 import {
   GOOGLE_ADS_DIGITAL_MARKETING_BASE_PATH,
@@ -471,6 +477,40 @@ export default function GoogleAdsMetricsPage() {
     resetPagination();
   };
 
+  const { data: orgServices = [] } = useServices();
+  const serviceMappingMutation = useGoogleAdsCampaignServiceMapping();
+
+  const handleServiceMappingChange = async (
+    row: GoogleAdsMetricsRow,
+    serviceId: string | null,
+  ) => {
+    if (!organizationId || !effectiveCustomerId) return;
+    const campaignId = resolveCampaignIdFromMetricsRow(row, effectiveCustomerId);
+    if (!campaignId) {
+      toast.error(
+        t("digitalMarketing.googleAds.serviceMappingCampaignError", "Tidak dapat mengenali campaign."),
+      );
+      return;
+    }
+    try {
+      await serviceMappingMutation.mutateAsync({
+        organizationId,
+        customerId: effectiveCustomerId,
+        campaignId,
+        serviceId,
+      });
+      toast.success(
+        t("digitalMarketing.googleAds.serviceMappingSaved", "Mapping service disimpan."),
+      );
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : t("digitalMarketing.googleAds.serviceMappingFailed", "Gagal menyimpan mapping."),
+      );
+    }
+  };
+
   const metricsQuery = useGoogleAdsMetricsQuery(
     organizationId,
     metricsFilters,
@@ -700,25 +740,12 @@ export default function GoogleAdsMetricsPage() {
 
       const refreshFilters = { ...metricsFilters, pageToken: "" };
       const fresh = await fetchGoogleAdsMetricsFresh(organizationId, refreshFilters);
-      queryClient.setQueryData(
-        [
-          "google-ads-metrics-v2",
-          organizationId,
-          refreshFilters.customerId,
-          refreshFilters.entity,
-          [...refreshFilters.metrics].sort().join("|"),
-          refreshFilters.dateRange,
-          refreshFilters.onlyRunning,
-          refreshFilters.statusFilter,
-          refreshFilters.pageToken,
-          refreshFilters.pageSize,
-          refreshFilters.sort?.field,
-          refreshFilters.sort?.direction,
-          refreshFilters.campaignFilterId ?? "",
-          refreshFilters.adGroupFilterId ?? "",
-        ],
-        fresh,
-      );
+      const queryKey = buildGoogleAdsMetricsQueryKey(organizationId, refreshFilters);
+      queryClient.setQueryData(queryKey, fresh);
+      await queryClient.invalidateQueries({
+        queryKey: ["google-ads-metrics-v2", organizationId],
+        refetchType: "none",
+      });
     } catch (e) {
       toast.error((e as Error).message);
       await metricsQuery.refetch();
@@ -1215,6 +1242,19 @@ export default function GoogleAdsMetricsPage() {
                                   metricItems={metricItems}
                                   currencyCode={metricsQuery.data?.currency_code ?? null}
                                   isLoading={metricsTableLoading}
+                                  canEditServiceMapping={
+                                    entity === "campaign" && canManage
+                                  }
+                                  organizationId={organizationId}
+                                  customerId={effectiveCustomerId}
+                                  services={orgServices.map((s) => ({
+                                    id: s.id,
+                                    name: s.name,
+                                  }))}
+                                  onServiceMappingChange={
+                                    entity === "campaign" ? handleServiceMappingChange : undefined
+                                  }
+                                  serviceMappingPending={serviceMappingMutation.isPending}
                                   onCampaignDrillDown={
                                     entity === "campaign" ? handleCampaignDrillDown : undefined
                                   }

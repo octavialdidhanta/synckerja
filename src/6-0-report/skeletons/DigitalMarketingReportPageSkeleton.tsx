@@ -19,40 +19,66 @@ export function DigitalMarketingReportPageSkeleton() {
                   <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                     <Skeleton className="h-5 w-24" />
                     <Skeleton className="mt-2 h-3 w-64 max-w-full" />
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      <Skeleton className="h-9 w-[14rem]" />
                       <Skeleton className="h-9 w-44" />
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                    {Array.from({ length: 4 }, (_, i) => (
+                      <div
+                        key={i}
+                        className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                      >
+                        <Skeleton className="mb-1.5 h-3 w-16" />
+                        <Skeleton className="h-5 w-24" />
+                      </div>
+                    ))}
+                  </div>
                   <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                     <div className="space-y-0 border-b border-gray-200 bg-gray-50 px-3 py-2">
-                      <div className="flex gap-4">
-                        <Skeleton className="h-4 w-20" />
-                        <Skeleton className="h-4 w-14" />
-                        <Skeleton className="h-4 w-24" />
+                      <div className="flex gap-3">
                         <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-14" />
                         <Skeleton className="h-4 w-12" />
+                        <Skeleton className="h-4 w-20" />
                         <Skeleton className="h-4 w-14" />
                         <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-4 w-10" />
+                        <Skeleton className="h-4 w-12" />
+                        <Skeleton className="h-4 w-12" />
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-4 w-14" />
                       </div>
                     </div>
-                    {Array.from({ length: 2 }, (_, i) => (
-                      <div key={i} className="flex gap-4 border-b border-gray-100 px-3 py-3 last:border-0">
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <div key={i} className="flex gap-3 border-b border-gray-100 px-3 py-3 last:border-0">
+                        <Skeleton className="h-4 w-20" />
                         <Skeleton className="h-4 w-24" />
-                        <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-14" />
+                        <Skeleton className="h-4 w-28" />
                         <Skeleton className="h-4 w-20" />
                         <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-4 w-10" />
                         <Skeleton className="h-4 w-12" />
-                        <Skeleton className="h-4 w-14" />
+                        <Skeleton className="h-4 w-12" />
                         <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-4 w-10" />
                       </div>
                     ))}
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                    <Skeleton className="h-5 w-48" />
-                    <Skeleton className="mt-2 h-3 w-72 max-w-full" />
-                    <Skeleton className="mt-4 h-[300px] w-full rounded-md" />
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-2">
+                        <Skeleton className="h-9 w-40" />
+                        <Skeleton className="h-3 w-72 max-w-full" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Skeleton className="h-9 w-[11.5rem]" />
+                        <Skeleton className="h-9 w-[5.5rem]" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-[300px] w-full rounded-md" />
                   </div>
                 </div>
               </div>

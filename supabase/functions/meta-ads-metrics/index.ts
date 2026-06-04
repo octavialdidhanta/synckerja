@@ -8,16 +8,43 @@ import {
   metaGraphVersion,
   readPlatformMetaAdsOAuth,
 } from "../_shared/metaAdsAuth.ts";
+import {
+  enrichMetaCampaignRowsWithServiceEconomics,
+  handleUpsertMetaCampaignServiceMapping,
+} from "../_shared/metaAdsCampaignServices.ts";
 import { metaActId, resolveOrgMetaAdsForMetrics } from "../_shared/metaAdsOrgResolver.ts";
+import {
+  buildChannelPeriodSummary,
+  countMetaAttributedLeadsByMonth,
+  sumAttributedLeadsByMonth,
+  enrichSpendBucketsWithAttribution,
+  type MetaCampaignRef,
+  type MonthWindow,
+} from "../_shared/monthlyReportAttribution.ts";
+import {
+  loadMetaCampaignServiceMappings,
+  parseMonthlyServiceIdFilter,
+  resolveMetaMonthlyServiceScope,
+} from "../_shared/monthlyReportServiceFilter.ts";
+import { metaAdsReportCurrency } from "../_shared/metaAdsReportCurrency.ts";
 
 const CACHE_TTL_MINUTES = 10;
 
-/** Bust cache when summary aggregation logic changes. */
-const METRICS_CACHE_KEY = "account-insights-v3";
+/** Bust cache when chunked long-range insights fetch ships. */
+const METRICS_CACHE_KEY = "account-insights-v6";
 
-const MONTHLY_SPEND_CACHE_KEY = "monthly-spend-v2";
+/** Meta often returns empty rows for very long single-shot insights queries. */
+const MAX_SINGLE_INSIGHTS_RANGE_DAYS = 92;
 
-const ACCOUNT_SUMMARY_FIELDS = "spend,impressions,clicks,account_currency";
+const MONTHLY_SPEND_CACHE_KEY = "monthly-spend-v6";
+
+function monthlySpendCacheKey(serviceIdFilter: string | null): string {
+  return serviceIdFilter
+    ? `${MONTHLY_SPEND_CACHE_KEY}:svc:${serviceIdFilter}`
+    : MONTHLY_SPEND_CACHE_KEY;
+}
+
+const ACCOUNT_SUMMARY_FIELDS = "spend,impressions,clicks,reach,account_currency";
 
 /** Match Ads Manager attribution (unified ad-set settings). */
 const INSIGHTS_ATTRIBUTION_PARAMS = "use_unified_attribution_setting=true";
@@ -123,8 +150,237 @@ type AccountSummary = {
   spend: number;
   impressions: number;
   clicks: number;
+  reach: number;
   currency: string;
 };
+
+function daysBetweenYmd(startYmd: string, endYmd: string): number {
+  const start = parseYmd(startYmd);
+  const end = parseYmd(endYmd);
+  if (!start || !end) return 0;
+  return Math.max(
+    0,
+    Math.round((startOfDayLocal(end).getTime() - startOfDayLocal(start).getTime()) / 86400000),
+  );
+}
+
+/** Split [start, end] into contiguous windows of at most `maxDays` days. */
+function splitDateRangeIntoChunks(
+  startYmd: string,
+  endYmd: string,
+  maxDays: number,
+): { start: string; end: string }[] {
+  const start = parseYmd(startYmd);
+  const end = parseYmd(endYmd);
+  if (!start || !end || start.getTime() > end.getTime()) {
+    return [{ start: startYmd, end: endYmd }];
+  }
+
+  const chunks: { start: string; end: string }[] = [];
+  let cursor = startOfDayLocal(start);
+  const endDay = startOfDayLocal(end);
+
+  while (cursor.getTime() <= endDay.getTime()) {
+    const chunkEnd = new Date(cursor);
+    chunkEnd.setDate(chunkEnd.getDate() + maxDays - 1);
+    const effectiveEnd = chunkEnd.getTime() > endDay.getTime() ? endDay : chunkEnd;
+    chunks.push({
+      start: formatDateYmd(cursor),
+      end: formatDateYmd(effectiveEnd),
+    });
+    const next = new Date(effectiveEnd);
+    next.setDate(next.getDate() + 1);
+    cursor = next;
+  }
+
+  return chunks.length > 0 ? chunks : [{ start: startYmd, end: endYmd }];
+}
+
+function parseNumField(value: unknown): number {
+  const n = parseFloat(String(value ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function entityRowKey(row: Record<string, unknown>, entity: MetricEntity): string {
+  if (entity === "campaign") return String(row.campaign_id ?? "").trim();
+  if (entity === "adset") return String(row.adset_id ?? "").trim();
+  return String(row.ad_id ?? "").trim();
+}
+
+function mergeEntityInsightRows(
+  rows: Record<string, unknown>[],
+  entity: MetricEntity,
+): Record<string, unknown>[] {
+  const byKey = new Map<string, Record<string, unknown>>();
+
+  for (const row of rows) {
+    const key = entityRowKey(row, entity);
+    if (!key) continue;
+
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, { ...row });
+      continue;
+    }
+
+    const spend = parseNumField(prev.spend) + parseNumField(row.spend);
+    const impressions = Math.round(parseNumField(prev.impressions) + parseNumField(row.impressions));
+    const clicks = Math.round(parseNumField(prev.clicks) + parseNumField(row.clicks));
+    const reach = Math.round(parseNumField(prev.reach) + parseNumField(row.reach));
+
+    prev.spend = String(spend);
+    prev.impressions = String(impressions);
+    prev.clicks = String(clicks);
+    prev.reach = String(reach);
+    prev.ctr = impressions > 0 ? String((clicks / impressions) * 100) : "0";
+    prev.cpc = clicks > 0 ? String(spend / clicks) : "0";
+    prev.cpm = impressions > 0 ? String((spend / impressions) * 1000) : "0";
+    if (row.account_currency) prev.account_currency = row.account_currency;
+    if (row.campaign_name) prev.campaign_name = row.campaign_name;
+    if (row.adset_name) prev.adset_name = row.adset_name;
+    if (row.ad_name) prev.ad_name = row.ad_name;
+  }
+
+  return [...byKey.values()];
+}
+
+async function fetchGraphInsightsPages(
+  graphVersion: string,
+  path: string,
+  accessToken: string,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  let currentPath = path;
+
+  for (let page = 0; page < 50; page++) {
+    const url =
+      `https://graph.facebook.com/${graphVersion}/${currentPath}&access_token=${encodeURIComponent(accessToken)}`;
+    const res = await fetch(url);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = (json as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    const rows = (json as { data?: unknown[] })?.data ?? [];
+    for (const row of rows) {
+      out.push(row as Record<string, unknown>);
+    }
+
+    const paging = (json as { paging?: { cursors?: { after?: string } } })?.paging;
+    const after = paging?.cursors?.after;
+    if (!after) break;
+
+    const base = path.includes("&after=") ? path.replace(/&after=[^&]+/, "") : path;
+    currentPath = `${base}&after=${encodeURIComponent(after)}`;
+  }
+
+  return out;
+}
+
+async function fetchEntityInsightsForChunk(
+  graphVersion: string,
+  act: string,
+  entity: MetricEntity,
+  dateStart: string,
+  dateEnd: string,
+  accessToken: string,
+): Promise<Record<string, unknown>[]> {
+  const timeRange = encodeURIComponent(JSON.stringify({ since: dateStart, until: dateEnd }));
+  const level = ENTITY_LEVEL[entity];
+  const filtering = entityInsightsFiltering(entity);
+  const path =
+    `${act}/insights?fields=${INSIGHT_FIELDS}&level=${level}&${INSIGHTS_ATTRIBUTION_PARAMS}&filtering=${filtering}&time_range=${timeRange}&limit=100`;
+  return await fetchGraphInsightsPages(graphVersion, path, accessToken);
+}
+
+async function fetchEntityInsightsForRange(
+  graphVersion: string,
+  act: string,
+  entity: MetricEntity,
+  dateStart: string,
+  dateEnd: string,
+  accessToken: string,
+): Promise<Record<string, unknown>[]> {
+  const spanDays = daysBetweenYmd(dateStart, dateEnd);
+  if (spanDays <= MAX_SINGLE_INSIGHTS_RANGE_DAYS) {
+    return await fetchEntityInsightsForChunk(
+      graphVersion,
+      act,
+      entity,
+      dateStart,
+      dateEnd,
+      accessToken,
+    );
+  }
+
+  const chunks = splitDateRangeIntoChunks(
+    dateStart,
+    dateEnd,
+    MAX_SINGLE_INSIGHTS_RANGE_DAYS,
+  );
+  const parts = await Promise.all(
+    chunks.map((chunk) =>
+      fetchEntityInsightsForChunk(
+        graphVersion,
+        act,
+        entity,
+        chunk.start,
+        chunk.end,
+        accessToken,
+      ),
+    ),
+  );
+  return mergeEntityInsightRows(parts.flat(), entity);
+}
+
+async function fetchAdsManagerAlignedSummaryForRange(
+  graphVersion: string,
+  act: string,
+  dateStart: string,
+  dateEnd: string,
+  accessToken: string,
+): Promise<AccountSummary> {
+  const spanDays = daysBetweenYmd(dateStart, dateEnd);
+  if (spanDays <= MAX_SINGLE_INSIGHTS_RANGE_DAYS) {
+    const timeRange = encodeURIComponent(JSON.stringify({ since: dateStart, until: dateEnd }));
+    return await fetchAdsManagerAlignedSummary(graphVersion, act, timeRange, accessToken);
+  }
+
+  const chunks = splitDateRangeIntoChunks(
+    dateStart,
+    dateEnd,
+    MAX_SINGLE_INSIGHTS_RANGE_DAYS,
+  );
+  const parts = await Promise.all(
+    chunks.map(async (chunk) => {
+      const timeRange = encodeURIComponent(
+        JSON.stringify({ since: chunk.start, until: chunk.end }),
+      );
+      return await fetchAdsManagerAlignedSummary(
+        graphVersion,
+        act,
+        timeRange,
+        accessToken,
+      );
+    }),
+  );
+
+  let spend = 0;
+  let impressions = 0;
+  let clicks = 0;
+  let reach = 0;
+  let currency = metaAdsReportCurrency();
+  for (const part of parts) {
+    spend += part.spend;
+    impressions += part.impressions;
+    clicks += part.clicks;
+    reach += part.reach;
+    if (part.currency) currency = metaAdsReportCurrency(part.currency);
+  }
+
+  return { spend, impressions, clicks, reach, currency };
+}
 
 /** Sum ad-level insights — matches Meta Ads Manager Ads tab footer totals. */
 async function fetchAdsManagerAlignedSummary(
@@ -141,7 +397,8 @@ async function fetchAdsManagerAlignedSummary(
   let spend = 0;
   let impressions = 0;
   let clicks = 0;
-  let currency = "USD";
+  let reach = 0;
+  let currency = metaAdsReportCurrency();
 
   for (let page = 0; page < 50; page++) {
     const url =
@@ -159,12 +416,14 @@ async function fetchAdsManagerAlignedSummary(
         spend?: string;
         impressions?: string;
         clicks?: string;
+        reach?: string;
         account_currency?: string;
       };
       spend += parseFloat(r.spend ?? "0") || 0;
       impressions += parseInt(r.impressions ?? "0", 10) || 0;
       clicks += parseInt(r.clicks ?? "0", 10) || 0;
-      if (r.account_currency) currency = r.account_currency;
+      reach += parseInt(r.reach ?? "0", 10) || 0;
+      if (r.account_currency) currency = metaAdsReportCurrency(r.account_currency);
     }
 
     const paging = (json as { paging?: { cursors?: { after?: string } } })?.paging;
@@ -174,13 +433,85 @@ async function fetchAdsManagerAlignedSummary(
       `${act}/insights?fields=${fields}&level=ad&${INSIGHTS_ATTRIBUTION_PARAMS}&filtering=${filtering}&time_range=${timeRangeEncoded}&limit=500&after=${encodeURIComponent(after)}`;
   }
 
-  return { spend, impressions, clicks, currency };
+  return { spend, impressions, clicks, reach, currency };
 }
 
 type MonthlySpendBucket = { month: number; spend: number };
 
 function emptyMonthlySpendBuckets(): MonthlySpendBucket[] {
   return Array.from({ length: 12 }, (_, i) => ({ month: i + 1, spend: 0 }));
+}
+
+/** Calendar months overlapping [startYmd, endYmd] — clipped to the requested period. */
+function buildMonthWindowsInRange(
+  startYmd: string,
+  endYmd: string,
+): MonthWindow[] {
+  const rangeStart = parseYmd(startYmd);
+  const rangeEnd = parseYmd(endYmd);
+  if (!rangeStart || !rangeEnd || rangeStart.getTime() > rangeEnd.getTime()) return [];
+
+  const windows: MonthWindow[] = [];
+  let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+
+  while (cursor.getTime() <= rangeEnd.getTime()) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const monthStart = startOfDayLocal(new Date(y, m, 1));
+    const monthEnd = startOfDayLocal(new Date(y, m + 1, 0));
+
+    const winStart = monthStart.getTime() < rangeStart.getTime() ? rangeStart : monthStart;
+    const winEnd = monthEnd.getTime() > rangeEnd.getTime() ? rangeEnd : monthEnd;
+
+    windows.push({
+      month: m + 1,
+      start: formatDateYmd(winStart),
+      end: formatDateYmd(winEnd),
+    });
+
+    cursor = new Date(y, m + 1, 1);
+  }
+
+  return windows;
+}
+
+async function fetchMetaCampaignRefs(
+  graphVersion: string,
+  act: string,
+  accessToken: string,
+): Promise<MetaCampaignRef[]> {
+  const refs: MetaCampaignRef[] = [];
+  const seen = new Set<string>();
+  let path = `${act}/campaigns?fields=id,name&limit=500`;
+
+  for (let page = 0; page < 50; page++) {
+    const url =
+      `https://graph.facebook.com/${graphVersion}/${path}&access_token=${encodeURIComponent(accessToken)}`;
+    const res = await fetch(url);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = (json as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`;
+      console.warn("fetchMetaCampaignRefs:", msg);
+      break;
+    }
+
+    const rows = (json as { data?: unknown[] })?.data ?? [];
+    for (const row of rows) {
+      const r = row as { id?: string; name?: string };
+      const id = String(r.id ?? "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      refs.push({ id, name: String(r.name ?? "").trim() });
+    }
+
+    const paging = (json as { paging?: { cursors?: { after?: string } } })?.paging;
+    const after = paging?.cursors?.after;
+    if (!after) break;
+    path =
+      `${act}/campaigns?fields=id,name&limit=500&after=${encodeURIComponent(after)}`;
+  }
+
+  return refs;
 }
 
 function parseMonthlySpendIndex(dateStart: string, year: number): number | null {
@@ -203,7 +534,7 @@ async function fetchMonthlyAdsManagerAlignedSpend(
   let path =
     `${act}/insights?fields=${fields}&level=ad&${INSIGHTS_ATTRIBUTION_PARAMS}&filtering=${filtering}&time_increment=monthly&time_range=${timeRangeEncoded}&limit=500`;
   const buckets = emptyMonthlySpendBuckets();
-  let currency = "USD";
+  let currency = metaAdsReportCurrency();
 
   for (let page = 0; page < 50; page++) {
     const url =
@@ -222,7 +553,7 @@ async function fetchMonthlyAdsManagerAlignedSpend(
         account_currency?: string;
         date_start?: string;
       };
-      if (r.account_currency) currency = r.account_currency;
+      if (r.account_currency) currency = metaAdsReportCurrency(r.account_currency);
       const monthIdx = parseMonthlySpendIndex(String(r.date_start ?? ""), year);
       if (monthIdx == null) continue;
       const spend = parseFloat(r.spend ?? "0") || 0;
@@ -234,6 +565,63 @@ async function fetchMonthlyAdsManagerAlignedSpend(
     if (!after) break;
     path =
       `${act}/insights?fields=${fields}&level=ad&${INSIGHTS_ATTRIBUTION_PARAMS}&filtering=${filtering}&time_increment=monthly&time_range=${timeRangeEncoded}&limit=500&after=${encodeURIComponent(after)}`;
+  }
+
+  return { months: buckets, currency };
+}
+
+/** Monthly spend for a subset of campaigns (service / unmapped filter). */
+async function fetchMonthlyCampaignFilteredSpend(
+  graphVersion: string,
+  act: string,
+  timeRangeEncoded: string,
+  accessToken: string,
+  year: number,
+  allowedCampaignIds: Set<string>,
+): Promise<{ months: MonthlySpendBucket[]; currency: string }> {
+  if (allowedCampaignIds.size === 0) {
+    return { months: emptyMonthlySpendBuckets(), currency: metaAdsReportCurrency() };
+  }
+
+  const fields = "spend,account_currency,date_start,campaign_id";
+  const filtering = entityInsightsFiltering("campaign");
+  let path =
+    `${act}/insights?fields=${fields}&level=campaign&${INSIGHTS_ATTRIBUTION_PARAMS}&filtering=${filtering}&time_increment=monthly&time_range=${timeRangeEncoded}&limit=500`;
+  const buckets = emptyMonthlySpendBuckets();
+  let currency = metaAdsReportCurrency();
+
+  for (let page = 0; page < 50; page++) {
+    const url =
+      `https://graph.facebook.com/${graphVersion}/${path}&access_token=${encodeURIComponent(accessToken)}`;
+    const res = await fetch(url);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = (json as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    const rows = (json as { data?: unknown[] })?.data ?? [];
+    for (const row of rows) {
+      const r = row as {
+        spend?: string;
+        account_currency?: string;
+        date_start?: string;
+        campaign_id?: string;
+      };
+      const cid = String(r.campaign_id ?? "").trim();
+      if (!cid || !allowedCampaignIds.has(cid)) continue;
+      if (r.account_currency) currency = metaAdsReportCurrency(r.account_currency);
+      const monthIdx = parseMonthlySpendIndex(String(r.date_start ?? ""), year);
+      if (monthIdx == null) continue;
+      const spend = parseFloat(r.spend ?? "0") || 0;
+      buckets[monthIdx - 1]!.spend += spend;
+    }
+
+    const paging = (json as { paging?: { cursors?: { after?: string } } })?.paging;
+    const after = paging?.cursors?.after;
+    if (!after) break;
+    path =
+      `${act}/insights?fields=${fields}&level=campaign&${INSIGHTS_ATTRIBUTION_PARAMS}&filtering=${filtering}&time_increment=monthly&time_range=${timeRangeEncoded}&limit=500&after=${encodeURIComponent(after)}`;
   }
 
   return { months: buckets, currency };
@@ -264,6 +652,8 @@ async function handleMonthlySpendBreakdown(
   const endOverride = body.date_end != null ? String(body.date_end).trim() : "";
   const end = endOverride || defaultEnd;
   const { start: dateStart, end: dateEnd } = clampMetaAdsDateRange(start, end, now);
+  const serviceIdFilter = parseMonthlyServiceIdFilter(body);
+  const cacheKey = monthlySpendCacheKey(serviceIdFilter);
 
   const { data: cached } = await admin
     .from("meta_ads_metrics_cache")
@@ -273,13 +663,15 @@ async function handleMonthlySpendBreakdown(
     .eq("entity", "campaign")
     .eq("date_start", dateStart)
     .eq("date_end", dateEnd)
-    .eq("metrics_key", MONTHLY_SPEND_CACHE_KEY)
+    .eq("metrics_key", cacheKey)
     .eq("page_token", "")
     .maybeSingle();
 
   if (cached?.expires_at && new Date(String(cached.expires_at)).getTime() > now.getTime()) {
+    const cachedPayload = cached.response_json as { currency?: string };
     return metaAdsJson({
       ...(cached.response_json as object),
+      currency: metaAdsReportCurrency(cachedPayload.currency),
       cached: true,
       fetched_at: cached.fetched_at,
     }, 200);
@@ -289,21 +681,57 @@ async function handleMonthlySpendBreakdown(
   const timeRange = encodeURIComponent(JSON.stringify({ since: dateStart, until: dateEnd }));
 
   try {
-    const { months, currency } = await fetchMonthlyAdsManagerAlignedSpend(
-      v,
-      act,
-      timeRange,
-      accessToken,
-      year,
+    const campaigns = await fetchMetaCampaignRefs(v, act, accessToken);
+    const mappingsByCampaign = await loadMetaCampaignServiceMappings(
+      admin,
+      organizationId,
+      account.ad_account_id,
     );
+    const scope = resolveMetaMonthlyServiceScope(
+      campaigns,
+      mappingsByCampaign,
+      serviceIdFilter,
+    );
+
+    const { months: spendBuckets, currency } = serviceIdFilter != null
+      ? await fetchMonthlyCampaignFilteredSpend(
+        v,
+        act,
+        timeRange,
+        accessToken,
+        year,
+        scope.googleCampaignIds,
+      )
+      : await fetchMonthlyAdsManagerAlignedSpend(
+        v,
+        act,
+        timeRange,
+        accessToken,
+        year,
+      );
+
+    const monthWindows = buildMonthWindowsInRange(dateStart, dateEnd);
+    const leadsByMonth = await countMetaAttributedLeadsByMonth(
+      admin,
+      organizationId,
+      dateStart,
+      dateEnd,
+      monthWindows,
+      scope.metaCampaignRefs,
+    );
+    const months = enrichSpendBucketsWithAttribution(spendBuckets, leadsByMonth);
+    const periodConvertedLeads = sumAttributedLeadsByMonth(leadsByMonth);
+    const period_summary = buildChannelPeriodSummary(spendBuckets, periodConvertedLeads);
 
     const responsePayload = {
       year,
-      currency,
+      currency: metaAdsReportCurrency(currency),
       months,
+      period_summary,
       ad_account_id: account.ad_account_id,
       date_start: dateStart,
       date_end: dateEnd,
+      service_id: serviceIdFilter,
       cached: false,
     };
 
@@ -315,7 +743,7 @@ async function handleMonthlySpendBreakdown(
         entity: "campaign",
         date_start: dateStart,
         date_end: dateEnd,
-        metrics_key: MONTHLY_SPEND_CACHE_KEY,
+        metrics_key: cacheKey,
         page_token: "",
         response_json: responsePayload,
         fetched_at: now.toISOString(),
@@ -384,6 +812,20 @@ Deno.serve(async (req: Request) => {
     return await handleMonthlySpendBreakdown(admin, body, organizationId, now);
   }
 
+  const action = String(body.action ?? "").trim();
+  if (action === "upsertCampaignServiceMapping") {
+    const result = await handleUpsertMetaCampaignServiceMapping(
+      admin,
+      body,
+      organizationId,
+      userRes.userId,
+    );
+    if ("error" in result) {
+      return metaAdsJson({ error: result.error }, result.status);
+    }
+    return metaAdsJson({ ok: true, mapping: result.mapping }, 200);
+  }
+
   const entity = (String(body.entity ?? "campaign").trim() as MetricEntity) || "campaign";
   if (!ENTITY_LEVEL[entity]) {
     return metaAdsJson({ error: "Invalid entity" }, 400);
@@ -395,6 +837,7 @@ Deno.serve(async (req: Request) => {
   const { start: dateStart, end: dateEnd } = clampMetaAdsDateRange(rawStart, rawEnd, now);
   const adAccountIdParam = body.ad_account_id != null ? String(body.ad_account_id).trim() : null;
   const pageToken = String(body.page_token ?? "").trim();
+  const forceRefresh = body.force_refresh === true;
 
   const resolved = await resolveOrgMetaAdsForMetrics(admin, organizationId, adAccountIdParam);
   if (!resolved) {
@@ -417,60 +860,104 @@ Deno.serve(async (req: Request) => {
     .eq("page_token", pageToken)
     .maybeSingle();
 
-  if (cached?.expires_at && new Date(String(cached.expires_at)).getTime() > now.getTime()) {
-    return metaAdsJson({
-      ...(cached.response_json as object),
-      cached: true,
-      fetched_at: cached.fetched_at,
-    }, 200);
+  const spanDays = daysBetweenYmd(dateStart, dateEnd);
+  const useChunkedInsights = spanDays > MAX_SINGLE_INSIGHTS_RANGE_DAYS;
+
+  if (
+    !forceRefresh &&
+    cached?.expires_at &&
+    new Date(String(cached.expires_at)).getTime() > now.getTime()
+  ) {
+    const cachedPayload = cached.response_json as {
+      rows?: Record<string, unknown>[];
+      summary?: AccountSummary;
+    };
+    const cachedRows = Array.isArray(cachedPayload.rows) ? cachedPayload.rows : [];
+    const cachedSpend = cachedPayload.summary?.spend ?? 0;
+    const staleEmptyLongRange =
+      useChunkedInsights && cachedRows.length === 0 && cachedSpend === 0;
+
+    if (!staleEmptyLongRange) {
+      if (entity === "campaign" && cachedRows.length > 0) {
+        await enrichMetaCampaignRowsWithServiceEconomics(
+          admin,
+          organizationId,
+          account.ad_account_id,
+          dateStart,
+          dateEnd,
+          cachedRows,
+        );
+      }
+      return metaAdsJson({
+        ...cachedPayload,
+        cached: true,
+        fetched_at: cached.fetched_at,
+      }, 200);
+    }
   }
 
   const v = metaGraphVersion();
-  const timeRange = encodeURIComponent(JSON.stringify({ since: dateStart, until: dateEnd }));
-  const level = ENTITY_LEVEL[entity];
-  const filtering = entityInsightsFiltering(entity);
-  let path =
-    `${act}/insights?fields=${INSIGHT_FIELDS}&level=${level}&${INSIGHTS_ATTRIBUTION_PARAMS}&filtering=${filtering}&time_range=${timeRange}&limit=100`;
-  if (pageToken) path += `&after=${encodeURIComponent(pageToken)}`;
 
   let summary: AccountSummary;
   try {
-    if (!pageToken) {
-      summary = await fetchAdsManagerAlignedSummary(v, act, timeRange, accessToken);
-    } else {
-      const { data: summaryCache } = await admin
-        .from("meta_ads_metrics_cache")
-        .select("response_json")
-        .eq("organization_id", organizationId)
-        .eq("ad_account_id", account.ad_account_id)
-        .eq("entity", entity)
-        .eq("date_start", dateStart)
-        .eq("date_end", dateEnd)
-        .eq("metrics_key", metricsKey)
-        .eq("page_token", "")
-        .maybeSingle();
-      const cachedSummary = (summaryCache?.response_json as { summary?: AccountSummary } | null)
-        ?.summary;
-      summary = cachedSummary ??
-        await fetchAdsManagerAlignedSummary(v, act, timeRange, accessToken);
-    }
+    summary = await fetchAdsManagerAlignedSummaryForRange(
+      v,
+      act,
+      dateStart,
+      dateEnd,
+      accessToken,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to load account summary";
     return metaAdsJson({ error: msg }, 400);
   }
 
-  const url = `https://graph.facebook.com/${v}/${path}&access_token=${encodeURIComponent(accessToken)}`;
-  const res = await fetch(url);
-  const json = await res.json().catch(() => ({}));
+  let rows: Record<string, unknown>[] = [];
+  let nextPageToken = "";
+  try {
+    if (useChunkedInsights) {
+      rows = await fetchEntityInsightsForRange(
+        v,
+        act,
+        entity,
+        dateStart,
+        dateEnd,
+        accessToken,
+      );
+    } else {
+      const timeRange = encodeURIComponent(JSON.stringify({ since: dateStart, until: dateEnd }));
+      const level = ENTITY_LEVEL[entity];
+      const filtering = entityInsightsFiltering(entity);
+      let path =
+        `${act}/insights?fields=${INSIGHT_FIELDS}&level=${level}&${INSIGHTS_ATTRIBUTION_PARAMS}&filtering=${filtering}&time_range=${timeRange}&limit=100`;
+      if (pageToken) path += `&after=${encodeURIComponent(pageToken)}`;
 
-  if (!res.ok) {
-    const msg = (json as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`;
+      const url = `https://graph.facebook.com/${v}/${path}&access_token=${encodeURIComponent(accessToken)}`;
+      const res = await fetch(url);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = (json as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      rows = ((json as { data?: unknown[] })?.data ?? []) as Record<string, unknown>[];
+      const paging = (json as { paging?: { cursors?: { after?: string } } })?.paging;
+      nextPageToken = paging?.cursors?.after ?? "";
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to load insights";
     return metaAdsJson({ error: msg }, 400);
   }
 
-  const rows = (json as { data?: unknown[] })?.data ?? [];
-  const paging = (json as { paging?: { cursors?: { after?: string }; next?: string } })?.paging;
-  const nextPageToken = paging?.cursors?.after ?? "";
+  if (entity === "campaign" && rows.length > 0) {
+    await enrichMetaCampaignRowsWithServiceEconomics(
+      admin,
+      organizationId,
+      account.ad_account_id,
+      dateStart,
+      dateEnd,
+      rows,
+    );
+  }
 
   const responsePayload = {
     rows,
@@ -478,7 +965,8 @@ Deno.serve(async (req: Request) => {
       spend: summary.spend,
       impressions: summary.impressions,
       clicks: summary.clicks,
-      currency: summary.currency,
+      reach: summary.reach,
+      currency: metaAdsReportCurrency(summary.currency),
     },
     entity,
     ad_account_id: account.ad_account_id,

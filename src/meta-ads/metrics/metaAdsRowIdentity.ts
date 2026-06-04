@@ -46,6 +46,15 @@ export function metaAdsRowSortKey(
   if (field === "name") return metaAdsRowDisplayName(row, entity).toLowerCase();
   if (field === "campaign_name") return String(r.campaign_name ?? "").toLowerCase();
   if (field === "adset_name") return String(r.adset_name ?? "").toLowerCase();
+  if (field === "service") return String(r.service_name ?? "").toLowerCase();
+  if (field === "service_cpl") {
+    const n = Number(r.service_cpl);
+    return Number.isFinite(n) ? n : -1;
+  }
+  if (field === "service_converted_leads") {
+    const n = Number(r.service_converted_leads);
+    return Number.isFinite(n) ? n : -1;
+  }
   const raw = r[field];
   const n = parseFloat(String(raw ?? "").replace(/,/g, ""));
   if (Number.isFinite(n)) return n;

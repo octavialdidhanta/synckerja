@@ -126,6 +126,7 @@ export function mergeLeadClickIds(
 
 export const LEAD_ATTRIBUTION_SORT_COLUMNS = [
   "created_at",
+  "converted_at",
   "ticket_id",
   "client",
   "title",
@@ -183,6 +184,12 @@ function sortComparable(
   switch (col) {
     case "created_at": {
       const raw = row.created_at;
+      if (raw == null || String(raw).trim() === "") return null;
+      const ms = new Date(String(raw)).getTime();
+      return Number.isNaN(ms) ? null : ms;
+    }
+    case "converted_at": {
+      const raw = row.converted_at;
       if (raw == null || String(raw).trim() === "") return null;
       const ms = new Date(String(raw)).getTime();
       return Number.isNaN(ms) ? null : ms;

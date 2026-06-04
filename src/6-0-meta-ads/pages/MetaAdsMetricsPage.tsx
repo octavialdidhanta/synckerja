@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { format } from "date-fns";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Columns3, Loader2, RefreshCw } from "lucide-react";
@@ -14,8 +14,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/aler
 import { useMetaAdsReportingEnabled } from "@/meta-ads/hooks/useMetaAdsReportingEnabled";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
 import {
+  fetchMetaAdsMetrics,
   useMetaAdsMetricsQuery,
   type MetaAdsMetricEntity,
+  type MetaAdsMetricsRow,
 } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import { MetaAdsSettingsPanel } from "@/meta-ads/settings/MetaAdsSettingsPanel";
 import {
@@ -28,13 +30,27 @@ import { MetaAdsMetricsSummaryBar } from "@/6-0-meta-ads/components/MetaAdsMetri
 import { MetaAdsMetricsTable } from "@/6-0-meta-ads/components/MetaAdsMetricsTable";
 import { MetaAdsMetricsTableFooter } from "@/6-0-meta-ads/components/MetaAdsMetricsTableFooter";
 import { MetaAdsModifyColumnsDialog } from "@/6-0-meta-ads/components/MetaAdsModifyColumnsDialog";
-import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
+import { MetaAdsDateRangePicker } from "@/6-0-meta-ads/components/MetaAdsDateRangePicker";
 import { useMetaAdsMetricsPreferences } from "@/meta-ads/hooks/useMetaAdsMetricsPreferences";
 import {
   buildMetaAdsMetricCatalogResponse,
   getMetaAdsCatalogMetricKeys,
+  getMetaAdsMetricsForEntity,
   resolveMetaAdsMetricItems,
 } from "@/meta-ads/metrics/metaAdsMetricCatalog";
+import {
+  META_ADS_SUMMARY_DEFAULT_SLOT_KEYS,
+  metaAdsSummaryValidKeys,
+  normalizeMetaAdsSummarySlotKeys,
+  type MetaAdsTableMetricKey,
+} from "@/meta-ads/metrics/metaAdsSummaryMetrics";
+import {
+  loadMetaAdsSummarySlotMetrics,
+  saveMetaAdsSummarySlotMetrics,
+} from "@/meta-ads/metrics/metaAdsSummaryMetricStorage";
+import { endOfDay } from "date-fns";
+import { parseYmdLocal, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { metaAdsAllTimeDateRange } from "@/meta-ads/lib/clampMetaAdsDateRange";
 import { toMetaAdsMetricsDateRangePayload } from "@/meta-ads/lib/toMetaAdsMetricsDateRangePayload";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import {
@@ -45,6 +61,11 @@ import {
   type MetaAdsMetricsSort,
 } from "@/meta-ads/metrics/metaAdsSortColumns";
 import { sortMetaAdsRows } from "@/meta-ads/metrics/sortMetaAdsRows";
+import { useServices } from "@/6-1-product-knowledge/hooks/useServices";
+import {
+  resolveCampaignIdFromMetaMetricsRow,
+  useMetaAdsCampaignServiceMapping,
+} from "@/meta-ads/hooks/useMetaAdsCampaignServiceMapping";
 
 export default function MetaAdsMetricsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
@@ -58,6 +79,7 @@ export default function MetaAdsMetricsPage() {
 
 function MetaAdsMetricsPageContent() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const isSettingsView = location.pathname === META_ADS_DIGITAL_MARKETING_SETTINGS_PATH;
@@ -71,6 +93,9 @@ function MetaAdsMetricsPageContent() {
   const { dateSelection, setDateSelection, metaAdAccountId, setMetaAdAccountId } =
     useDigitalMarketingPaidAdsFilters();
   const [entity, setEntity] = useState<MetaAdsMetricEntity>("campaign");
+  const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState<MetaAdsTableMetricKey[]>(
+    () => [...META_ADS_SUMMARY_DEFAULT_SLOT_KEYS],
+  );
   const adAccountId = metaAdAccountId;
   const setAdAccountId = setMetaAdAccountId;
   const [sort, setSort] = useState<MetaAdsMetricsSort>({ field: "spend", direction: "desc" });
@@ -87,6 +112,26 @@ function MetaAdsMetricsPageContent() {
     save: saveMetrics,
     saveSort,
   } = useMetaAdsMetricsPreferences(organizationId, entity, validMetricKeys);
+
+  /** All time on Meta = 37 months (not Google account earliest). */
+  useEffect(() => {
+    if (dateSelection.preset !== "all_time") return;
+    const { start, end } = metaAdsAllTimeDateRange();
+    const from = parseYmdLocal(start);
+    const to = parseYmdLocal(end);
+    if (!from || !to) return;
+    const nextTo = endOfDay(to);
+    const curFrom = dateSelection.range.from
+      ? toYmdLocal(dateSelection.range.from)
+      : "";
+    const curTo = dateSelection.range.to ? toYmdLocal(dateSelection.range.to) : "";
+    if (curFrom === start && curTo === toYmdLocal(nextTo)) return;
+    setDateSelection((prev) => ({
+      ...prev,
+      preset: "all_time",
+      range: { from, to: nextTo },
+    }));
+  }, [dateSelection.preset, dateSelection.range.from, dateSelection.range.to, setDateSelection]);
 
   const dateRange = useMemo(
     () => toMetaAdsMetricsDateRangePayload(dateSelection),
@@ -125,10 +170,22 @@ function MetaAdsMetricsPageContent() {
     }
   }, [metricsReadyAccounts, adAccountId, setMetaAdAccountId]);
 
+  const allEntityMetricItems = useMemo(() => getMetaAdsMetricsForEntity(entity), [entity]);
+
   const metricItems = useMemo(
     () => resolveMetaAdsMetricItems(selectedMetrics, entity),
     [selectedMetrics, entity],
   );
+
+  useEffect(() => {
+    setSummarySlotMetricKeys(
+      normalizeMetaAdsSummarySlotKeys(
+        loadMetaAdsSummarySlotMetrics(entity),
+        metaAdsSummaryValidKeys(entity),
+        entity,
+      ),
+    );
+  }, [entity]);
 
   const sortColumnOptions = useMemo(
     () => buildMetaAdsSortColumnOptions(entity, selectedMetrics),
@@ -169,6 +226,35 @@ function MetaAdsMetricsPageContent() {
       canManage,
   });
 
+  const handleRefreshMetrics = useCallback(async () => {
+    if (!organizationId || !adAccountId) return;
+    try {
+      const fresh = await fetchMetaAdsMetrics({
+        organizationId,
+        adAccountId,
+        entity,
+        dateStart,
+        dateEnd,
+        forceRefresh: true,
+      });
+      queryClient.setQueryData(
+        ["meta-ads-metrics", organizationId, adAccountId, entity, dateStart, dateEnd, ""],
+        fresh,
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+      await metricsQuery.refetch();
+    }
+  }, [
+    organizationId,
+    adAccountId,
+    entity,
+    dateStart,
+    dateEnd,
+    queryClient,
+    metricsQuery,
+  ]);
+
   const sortFieldValue = useMemo(() => {
     if (sortColumnOptions.some((o) => o.key === sort.field)) return sort.field;
     return sortColumnOptions[0]?.key ?? "spend";
@@ -208,6 +294,44 @@ function MetaAdsMetricsPageContent() {
     } catch (e) {
       toast.error((e as Error).message);
       throw e;
+    }
+  };
+
+  const { data: orgServices = [] } = useServices();
+  const serviceMappingMutation = useMetaAdsCampaignServiceMapping();
+
+  const handleServiceMappingChange = async (
+    row: MetaAdsMetricsRow,
+    serviceId: string | null,
+  ) => {
+    if (!organizationId || !adAccountId) return;
+    const campaignId = resolveCampaignIdFromMetaMetricsRow(row);
+    if (!campaignId) {
+      toast.error(
+        t(
+          "digitalMarketing.metaAds.serviceMappingCampaignError",
+          "Tidak dapat mengenali campaign.",
+        ),
+      );
+      return;
+    }
+    try {
+      await serviceMappingMutation.mutateAsync({
+        organizationId,
+        adAccountId,
+        campaignId,
+        serviceId,
+      });
+      toast.success(
+        t("digitalMarketing.metaAds.serviceMappingSaved", "Mapping service disimpan."),
+      );
+      void metricsQuery.refetch();
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : t("digitalMarketing.metaAds.serviceMappingFailed", "Gagal menyimpan mapping."),
+      );
     }
   };
 
@@ -384,7 +508,7 @@ function MetaAdsMetricsPageContent() {
                                       !adAccountId ||
                                       metricsQuery.isFetching
                                     }
-                                    onClick={() => void metricsQuery.refetch()}
+                                    onClick={() => void handleRefreshMetrics()}
                                   >
                                     {metricsQuery.isFetching ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -393,7 +517,7 @@ function MetaAdsMetricsPageContent() {
                                     )}
                                   </Button>
 
-                                  <GoogleAdsDateRangePicker
+                                  <MetaAdsDateRangePicker
                                     value={dateSelection}
                                     onChange={setDateSelection}
                                   />
@@ -415,42 +539,23 @@ function MetaAdsMetricsPageContent() {
                               {reportingEnabled && adAccountId ? (
                                 <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
                                   <MetaAdsMetricsSummaryBar
+                                    entity={entity}
                                     summary={
                                       metricsTableLoading ? undefined : metricsQuery.data?.summary
                                     }
+                                    rows={sortedRows}
+                                    catalogItems={allEntityMetricItems}
+                                    metricKeys={summarySlotMetricKeys}
+                                    onMetricKeysChange={(keys) => {
+                                      setSummarySlotMetricKeys(keys);
+                                      saveMetaAdsSummarySlotMetrics(entity, keys);
+                                    }}
                                     isLoading={metricsTableLoading}
                                   />
                                 </div>
                               ) : null}
 
                               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-gray-100">
-                                <div className="shrink-0 space-y-1 px-4 pt-2 pb-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pt-1.5">
-                                  {metricsQuery.data?.summary?.currency ? (
-                                    <p className="text-xs text-muted-foreground">
-                                      {t("digitalMarketing.metaAds.currency", "Currency")}:{" "}
-                                      <span className="font-medium">
-                                        {metricsQuery.data.summary.currency}
-                                      </span>
-                                      {" · "}
-                                      {format(new Date(dateStart), "dd MMM yyyy")} –{" "}
-                                      {format(new Date(dateEnd), "dd MMM yyyy")}
-                                      {metricsQuery.data.cached ? (
-                                        <span className="ml-2 text-muted-foreground/80">
-                                          ({t("digitalMarketing.metaAds.cached", "cached")})
-                                        </span>
-                                      ) : null}
-                                    </p>
-                                  ) : null}
-                                  {dateRange.wasStartClamped ? (
-                                    <p className="text-xs text-amber-800">
-                                      {t(
-                                        "digitalMarketing.metaAds.dateRangeClampedHint",
-                                        "Meta only allows data from the last 37 months. The start date was adjusted automatically.",
-                                      )}
-                                    </p>
-                                  ) : null}
-                                </div>
-
                                 {metricsQuery.isError ? (
                                   <div className="shrink-0 px-4 pb-2">
                                     <Alert variant="destructive">
@@ -477,6 +582,19 @@ function MetaAdsMetricsPageContent() {
                                         metricsQuery.data?.summary?.currency ?? null
                                       }
                                       isLoading={metricsTableLoading}
+                                      canEditServiceMapping={
+                                        entity === "campaign" && canManage
+                                      }
+                                      services={orgServices.map((s) => ({
+                                        id: s.id,
+                                        name: s.name,
+                                      }))}
+                                      onServiceMappingChange={
+                                        entity === "campaign"
+                                          ? handleServiceMappingChange
+                                          : undefined
+                                      }
+                                      serviceMappingPending={serviceMappingMutation.isPending}
                                     />
                                   </div>
 

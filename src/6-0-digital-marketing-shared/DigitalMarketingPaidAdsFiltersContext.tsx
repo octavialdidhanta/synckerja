@@ -19,6 +19,8 @@ import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import {
   readDmPaidAdsFilters,
   writeDmPaidAdsFilters,
+  type MonthlyChartChannelFilter,
+  type ReportServiceFilterStored,
 } from "@/6-0-digital-marketing-shared/dmPaidAdsFiltersStorage";
 
 export type DigitalMarketingPaidAdsFiltersContextValue = {
@@ -28,6 +30,12 @@ export type DigitalMarketingPaidAdsFiltersContextValue = {
   reportChartYear: number;
   /** Sets chart year and expands the shared date picker to that calendar year. */
   setReportChartYear: (year: number) => void;
+  /** Shared channel filter for report monthly spend & CPA charts. */
+  monthlyChartChannelFilter: MonthlyChartChannelFilter;
+  setMonthlyChartChannelFilter: (filter: MonthlyChartChannelFilter) => void;
+  /** Filters report table rows and monthly spend/CPA charts (`""` = all services). */
+  reportServiceFilter: ReportServiceFilterStored;
+  setReportServiceFilter: (filter: ReportServiceFilterStored) => void;
   googleCustomerId: string;
   setGoogleCustomerId: (customerId: string) => void;
   metaAdAccountId: string;
@@ -63,6 +71,9 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
   const [reportChartYear, setReportChartYearState] = useState(() =>
     new Date().getFullYear(),
   );
+  const [monthlyChartChannelFilter, setMonthlyChartChannelFilterState] =
+    useState<MonthlyChartChannelFilter>("all");
+  const [reportServiceFilter, setReportServiceFilterState] = useState<ReportServiceFilterStored>("");
   const [googleCustomerId, setGoogleCustomerIdState] = useState("");
   const [metaAdAccountId, setMetaAdAccountIdState] = useState("");
   const [filtersHydrated, setFiltersHydrated] = useState(false);
@@ -83,11 +94,15 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
       setGoogleCustomerIdState(stored.googleCustomerId);
       setMetaAdAccountIdState(stored.metaAdAccountId);
       setReportChartYearState(normalizeChartYear(stored.reportChartYear));
+      setMonthlyChartChannelFilterState(stored.monthlyChartChannelFilter);
+      setReportServiceFilterState(stored.reportServiceFilter ?? "");
     } else {
       setDateSelection(defaultGoogleAdsDateSelection());
       setGoogleCustomerIdState("");
       setMetaAdAccountIdState("");
       setReportChartYearState(new Date().getFullYear());
+      setMonthlyChartChannelFilterState("all");
+      setReportServiceFilterState("");
     }
 
     hydratedOrgRef.current = organizationId;
@@ -109,6 +124,8 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
         googleCustomerId,
         metaAdAccountId,
         reportChartYear,
+        monthlyChartChannelFilter,
+        reportServiceFilter,
       });
     }, 150);
     return () => window.clearTimeout(timer);
@@ -119,6 +136,8 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
     googleCustomerId,
     metaAdAccountId,
     reportChartYear,
+    monthlyChartChannelFilter,
+    reportServiceFilter,
   ]);
 
   /** Keep chart year aligned when the date picker covers a single calendar year. */
@@ -147,12 +166,24 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
     setDateSelection(dateSelectionForCalendarYear(y));
   }, []);
 
+  const setMonthlyChartChannelFilter = useCallback((filter: MonthlyChartChannelFilter) => {
+    setMonthlyChartChannelFilterState(filter);
+  }, []);
+
+  const setReportServiceFilter = useCallback((filter: ReportServiceFilterStored) => {
+    setReportServiceFilterState(filter);
+  }, []);
+
   const value = useMemo(
     (): DigitalMarketingPaidAdsFiltersContextValue => ({
       dateSelection,
       setDateSelection,
       reportChartYear,
       setReportChartYear,
+      monthlyChartChannelFilter,
+      setMonthlyChartChannelFilter,
+      reportServiceFilter,
+      setReportServiceFilter,
       googleCustomerId,
       setGoogleCustomerId,
       metaAdAccountId,
@@ -162,12 +193,16 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
     [
       dateSelection,
       reportChartYear,
+      monthlyChartChannelFilter,
+      reportServiceFilter,
       googleCustomerId,
       metaAdAccountId,
       filtersHydrated,
       setGoogleCustomerId,
       setMetaAdAccountId,
       setReportChartYear,
+      setMonthlyChartChannelFilter,
+      setReportServiceFilter,
     ],
   );
 

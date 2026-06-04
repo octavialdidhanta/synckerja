@@ -78,6 +78,9 @@ export const IDENTITY_COLUMNS_API: Record<MetricEntity, IdentityColumnApi[]> = {
     { key: "status", label: "Status" },
   ],
   campaign: [
+    { key: "service", label: "Service" },
+    { key: "service_cpl", label: "CPA" },
+    { key: "service_converted_leads", label: "Conv. leads" },
     { key: "name", label: "Campaign" },
     { key: "status", label: "Status" },
     { key: "channel", label: "Type" },

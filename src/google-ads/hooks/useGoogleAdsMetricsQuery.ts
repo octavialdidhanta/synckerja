@@ -26,7 +26,31 @@ export type GoogleAdsMetricsFilters = {
   summaryPrimaryMetric?: string;
 };
 
-async function fetchMetrics(
+export function buildGoogleAdsMetricsQueryKey(
+  organizationId: string | null | undefined,
+  filters: GoogleAdsMetricsFilters | null,
+): readonly unknown[] {
+  const sortedMetrics = filters?.metrics ? [...filters.metrics].sort().join("|") : "";
+  return [
+    "google-ads-metrics-v2",
+    organizationId,
+    filters?.customerId,
+    filters?.entity,
+    sortedMetrics,
+    filters?.dateRange,
+    filters?.onlyRunning,
+    filters?.statusFilter,
+    filters?.pageToken,
+    filters?.pageSize,
+    filters?.sort?.field,
+    filters?.sort?.direction,
+    filters?.campaignFilterId ?? "",
+    filters?.adGroupFilterId ?? "",
+    filters?.summaryMetrics?.join("|") ?? filters?.summaryPrimaryMetric ?? "spent",
+  ] as const;
+}
+
+export async function fetchGoogleAdsMetrics(
   organizationId: string,
   filters: GoogleAdsMetricsFilters,
 ): Promise<GoogleAdsMetricsResponse> {
@@ -70,31 +94,13 @@ export function useGoogleAdsMetricsQuery(
   filters: GoogleAdsMetricsFilters | null,
   enabled: boolean,
 ) {
-  const sortedMetrics = filters?.metrics ? [...filters.metrics].sort().join("|") : "";
-
   return useQuery({
-    queryKey: [
-      "google-ads-metrics-v2",
-      organizationId,
-      filters?.customerId,
-      filters?.entity,
-      sortedMetrics,
-      filters?.dateRange,
-      filters?.onlyRunning,
-      filters?.statusFilter,
-      filters?.pageToken,
-      filters?.pageSize,
-      filters?.sort?.field,
-      filters?.sort?.direction,
-      filters?.campaignFilterId ?? "",
-      filters?.adGroupFilterId ?? "",
-      filters?.summaryMetrics?.join("|") ?? filters?.summaryPrimaryMetric ?? "spent",
-    ],
+    queryKey: buildGoogleAdsMetricsQueryKey(organizationId, filters),
     queryFn: async () => {
       if (!organizationId || !filters?.customerId) {
         throw new Error("Missing organization or customer");
       }
-      return fetchMetrics(organizationId, filters);
+      return fetchGoogleAdsMetrics(organizationId, filters);
     },
     enabled: Boolean(organizationId) && Boolean(filters?.customerId) && enabled,
     staleTime: 10 * 60 * 1000,
@@ -105,5 +111,5 @@ export async function fetchGoogleAdsMetricsFresh(
   organizationId: string,
   filters: GoogleAdsMetricsFilters,
 ): Promise<GoogleAdsMetricsResponse> {
-  return fetchMetrics(organizationId, { ...filters, forceRefresh: true });
+  return fetchGoogleAdsMetrics(organizationId, { ...filters, forceRefresh: true });
 }

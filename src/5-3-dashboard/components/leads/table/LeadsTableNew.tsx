@@ -333,6 +333,14 @@ export default function LeadsTableNew({
     }
   };
 
+  const formatConvertedAt = (dateString: string) => {
+    try {
+      return format(new Date(dateString), 'dd MMM yyyy, HH:mm');
+    } catch {
+      return dateString;
+    }
+  };
+
   // Get FU Priority with soft rectangular colors
   const getFUPriorityColor = (priority?: string) => {
     const colors = {
@@ -512,6 +520,12 @@ export default function LeadsTableNew({
       { key: "followup", label: "Follow Up", width: "min-w-[124px] w-[124px]", sortKey: "followup" },
       { key: "fu_priority", label: "FU Priority", width: "w-[120px]", sortKey: "fu_priority" },
       { key: "status", label: "Status", width: "w-[120px]", sortKey: "status" },
+      {
+        key: "converted_at",
+        label: t("leadsManagement.table.convertedAt", "Converted at"),
+        width: "w-[130px]",
+        sortKey: "converted_at",
+      },
       ...(showGoogleAdsSyncColumn && !pickerSelection
         ? [
             {
@@ -1315,6 +1329,13 @@ export default function LeadsTableNew({
                         </div>
                       );
                     })()}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-gray-700">
+                    {lead.converted_at ? (
+                      <span title={lead.converted_at}>{formatConvertedAt(lead.converted_at)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   {showGoogleAdsSyncColumn && !pickerSelection ? (
                     <TableCell className="whitespace-nowrap px-1">

@@ -1,16 +1,39 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
-import { toGoogleAdsMetricsDateRangePayload } from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import {
+  intersectDateSelectionWithChartYear,
+  toGoogleAdsMetricsDateRangePayload,
+} from "@/6-0-google-ads/lib/googleAdsDatePresets";
 import { metaAdsEarliestAllowedStartYmd } from "@/meta-ads/lib/clampMetaAdsDateRange";
 import { toMetaAdsMetricsDateRangePayload } from "@/meta-ads/lib/toMetaAdsMetricsDateRangePayload";
 import { useGoogleAdsReportingEnabled } from "@/google-ads/hooks/useGoogleAdsReportingEnabled";
 import { useGoogleAdsMetricsQuery } from "@/google-ads/hooks/useGoogleAdsMetricsQuery";
+import {
+  aggregateCampaignMetricsByService,
+  fetchAllGoogleAdsCampaignRows,
+  type CampaignServiceAggregate,
+} from "@/google-ads/metrics/aggregateCampaignMetricsByService";
+import {
+  aggregateMetaCampaignMetricsByService,
+  fetchAllMetaAdsCampaignRows,
+  type MetaCampaignServiceAggregate,
+} from "@/meta-ads/metrics/aggregateMetaCampaignMetricsByService";
 import { useMetaAdsReportingEnabled } from "@/meta-ads/hooks/useMetaAdsReportingEnabled";
 import { useMetaAdsMetricsQuery } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
+import { normalizeMetaAdsReportCurrency } from "@/meta-ads/lib/metaAdsReportCurrency";
 import { supabase } from "@/shared/lib/supabaseClient";
+
+export type ReportGoogleServiceRow = CampaignServiceAggregate & {
+  currency: string | null;
+};
+
+export type ReportMetaServiceRow = MetaCampaignServiceAggregate & {
+  currency: string | null;
+};
 
 export type ReportChannelCost = {
   amount: number | null;
@@ -67,24 +90,33 @@ function emptyChannelStats(
 }
 
 export function useDigitalMarketingReportCosts() {
+  const { t } = useTranslation();
   const { organizationId, loading: orgLoading } = useCurrentOrg();
-  const { dateSelection, googleCustomerId, metaAdAccountId, filtersHydrated } =
+  const { dateSelection, googleCustomerId, metaAdAccountId, filtersHydrated, reportChartYear } =
     useDigitalMarketingPaidAdsFilters();
 
-  /** Table always follows the shared date picker. */
-  const googleDateRangePayload = useMemo(
-    () => toGoogleAdsMetricsDateRangePayload(dateSelection),
-    [dateSelection],
-  );
-  const metaDateRangePayload = useMemo(
-    () => toMetaAdsMetricsDateRangePayload(dateSelection),
-    [dateSelection],
+  /** Same window as monthly charts: date picker ∩ selected chart year. */
+  const reportDateSelection = useMemo(
+    () => intersectDateSelectionWithChartYear(dateSelection, reportChartYear),
+    [dateSelection, reportChartYear],
   );
 
+  const googleDateRangePayload = useMemo(() => {
+    if (!reportDateSelection) return toGoogleAdsMetricsDateRangePayload(dateSelection);
+    return toGoogleAdsMetricsDateRangePayload(reportDateSelection);
+  }, [dateSelection, reportDateSelection]);
+
+  const metaDateRangePayload = useMemo(() => {
+    if (!reportDateSelection) return toMetaAdsMetricsDateRangePayload(dateSelection);
+    return toMetaAdsMetricsDateRangePayload(reportDateSelection);
+  }, [dateSelection, reportDateSelection]);
+
   const metaRangeUnavailable = useMemo(() => {
-    const raw = toGoogleAdsMetricsDateRangePayload(dateSelection);
+    const raw = reportDateSelection
+      ? toGoogleAdsMetricsDateRangePayload(reportDateSelection)
+      : toMetaAdsMetricsDateRangePayload(dateSelection);
     return raw.end < metaAdsEarliestAllowedStartYmd();
-  }, [dateSelection]);
+  }, [dateSelection, reportDateSelection]);
 
   const { data: googleReportingEnabled = false, isPending: googleReportingPending } =
     useGoogleAdsReportingEnabled(organizationId);
@@ -168,6 +200,42 @@ export function useDigitalMarketingReportCosts() {
     ),
   );
 
+  const googleByServiceQuery = useQuery({
+    queryKey: [
+      "google-ads-report-by-service",
+      organizationId,
+      effectiveGoogleCustomerId,
+      googleDateRangePayload,
+    ],
+    queryFn: async () => {
+      if (!organizationId || !effectiveGoogleCustomerId) {
+        throw new Error("Missing organization or customer");
+      }
+      const unmappedLabel = t(
+        "digitalMarketing.report.serviceUnmapped",
+        "Belum di-map",
+      );
+      const { rows, currencyCode } = await fetchAllGoogleAdsCampaignRows(
+        organizationId,
+        {
+          customerId: effectiveGoogleCustomerId,
+          dateRange: googleDateRangePayload,
+          onlyRunning: false,
+          statusFilter: "all",
+        },
+      );
+      const aggregates = aggregateCampaignMetricsByService(rows, unmappedLabel);
+      return { aggregates, currencyCode };
+    },
+    enabled: Boolean(
+      filtersHydrated &&
+        organizationId &&
+        googleReportingEnabled &&
+        effectiveGoogleCustomerId,
+    ),
+    staleTime: 10 * 60 * 1000,
+  });
+
   const metaMetricsQuery = useMetaAdsMetricsQuery({
     organizationId,
     adAccountId: effectiveMetaAdAccountId,
@@ -181,6 +249,43 @@ export function useDigitalMarketingReportCosts() {
         effectiveMetaAdAccountId &&
         !metaRangeUnavailable,
     ),
+  });
+
+  const metaByServiceQuery = useQuery({
+    queryKey: [
+      "meta-ads-report-by-service",
+      organizationId,
+      effectiveMetaAdAccountId,
+      metaDateRangePayload.start,
+      metaDateRangePayload.end,
+    ],
+    queryFn: async () => {
+      if (!organizationId || !effectiveMetaAdAccountId) {
+        throw new Error("Missing organization or ad account");
+      }
+      const unmappedLabel = t(
+        "digitalMarketing.report.serviceUnmapped",
+        "Belum di-map",
+      );
+      const { rows, currencyCode } = await fetchAllMetaAdsCampaignRows(
+        organizationId,
+        {
+          adAccountId: effectiveMetaAdAccountId,
+          dateStart: metaDateRangePayload.start,
+          dateEnd: metaDateRangePayload.end,
+        },
+      );
+      const aggregates = aggregateMetaCampaignMetricsByService(rows, unmappedLabel);
+      return { aggregates, currencyCode };
+    },
+    enabled: Boolean(
+      filtersHydrated &&
+        organizationId &&
+        metaReportingEnabled &&
+        effectiveMetaAdAccountId &&
+        !metaRangeUnavailable,
+    ),
+    staleTime: 10 * 60 * 1000,
   });
 
   const googleCost: ReportChannelCost = useMemo(() => {
@@ -266,7 +371,7 @@ export function useDigitalMarketingReportCosts() {
       impressions:
         impressions != null && Number.isFinite(impressions) ? impressions : 0,
       clicks: clicks != null && Number.isFinite(clicks) ? clicks : 0,
-      currency: summary?.currency ?? "USD",
+      currency: normalizeMetaAdsReportCurrency(summary?.currency),
       connected: true,
       loading,
       error: null,
@@ -327,17 +432,104 @@ export function useDigitalMarketingReportCosts() {
     };
   }, [googleCost, metaCost]);
 
+  const googleServicesLoading = useMemo(() => {
+    if (!googleReportingEnabled || !effectiveGoogleCustomerId) return false;
+    return (
+      !filtersHydrated ||
+      googleByServiceQuery.isLoading ||
+      googleByServiceQuery.isPending
+    );
+  }, [
+    googleReportingEnabled,
+    effectiveGoogleCustomerId,
+    filtersHydrated,
+    googleByServiceQuery.isLoading,
+    googleByServiceQuery.isPending,
+  ]);
+
+  const googleServiceRows: ReportGoogleServiceRow[] = useMemo(() => {
+    if (!googleReportingEnabled || !googleCost.connected) return [];
+    const currency =
+      googleByServiceQuery.data?.currencyCode ??
+      googleCost.currency ??
+      "IDR";
+    const aggregates = googleByServiceQuery.data?.aggregates ?? [];
+    return aggregates.map((row) => ({
+      ...row,
+      currency,
+    }));
+  }, [
+    googleReportingEnabled,
+    googleCost.connected,
+    googleCost.currency,
+    googleByServiceQuery.data,
+  ]);
+
+  const metaServicesLoading = useMemo(() => {
+    if (!metaReportingEnabled || !effectiveMetaAdAccountId || metaRangeUnavailable) {
+      return false;
+    }
+    return (
+      !filtersHydrated ||
+      metaByServiceQuery.isLoading ||
+      metaByServiceQuery.isPending
+    );
+  }, [
+    metaReportingEnabled,
+    effectiveMetaAdAccountId,
+    metaRangeUnavailable,
+    filtersHydrated,
+    metaByServiceQuery.isLoading,
+    metaByServiceQuery.isPending,
+  ]);
+
+  const metaServiceRows: ReportMetaServiceRow[] = useMemo(() => {
+    if (!metaReportingEnabled || !metaCost.connected || metaCost.error) return [];
+    const currency =
+      normalizeMetaAdsReportCurrency(
+        metaByServiceQuery.data?.currencyCode ?? metaCost.currency,
+      );
+    const aggregates = metaByServiceQuery.data?.aggregates ?? [];
+    return aggregates.map((row) => ({
+      ...row,
+      currency,
+    }));
+  }, [
+    metaReportingEnabled,
+    metaCost.connected,
+    metaCost.error,
+    metaCost.currency,
+    metaByServiceQuery.data,
+  ]);
+
   const pageLoading =
     orgLoading ||
     !filtersHydrated ||
     googleReportingPending ||
     metaReportingPending ||
     googleAccountsPending ||
-    metaSettingsPending;
+    metaSettingsPending ||
+    (googleReportingEnabled &&
+      Boolean(effectiveGoogleCustomerId) &&
+      googleServicesLoading) ||
+    (metaReportingEnabled &&
+      Boolean(effectiveMetaAdAccountId) &&
+      !metaRangeUnavailable &&
+      metaServicesLoading);
 
   return {
     googleCost,
     metaCost,
+    googleServiceRows,
+    googleServicesLoading,
+    metaServiceRows,
+    metaServicesLoading,
+    googleServicesError: googleByServiceQuery.isError
+      ? (googleByServiceQuery.error as Error).message
+      : null,
+    metaServicesError: metaByServiceQuery.isError
+      ? (metaByServiceQuery.error as Error).message
+      : null,
     currencySubtotals,
     totalImpressions,
     pageLoading,

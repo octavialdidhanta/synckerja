@@ -19,8 +19,29 @@ const METRIC_KEYS: MetaAdsSortColumnOption[] = [
   { key: "reach", labelKey: "digitalMarketing.metaAds.reach", defaultLabel: "Reach" },
 ];
 
+const CAMPAIGN_SERVICE_SORT: MetaAdsSortColumnOption[] = [
+  {
+    key: "service",
+    labelKey: "digitalMarketing.metaAds.columnService",
+    defaultLabel: "Service",
+  },
+  {
+    key: "service_cpl",
+    labelKey: "digitalMarketing.metaAds.columnCostPerLead",
+    defaultLabel: "CPA",
+  },
+  {
+    key: "service_converted_leads",
+    labelKey: "digitalMarketing.metaAds.columnConvertedLeads",
+    defaultLabel: "Conv. leads",
+  },
+];
+
 const IDENTITY_BY_ENTITY: Record<MetaAdsMetricEntity, MetaAdsSortColumnOption[]> = {
-  campaign: [{ key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" }],
+  campaign: [
+    ...CAMPAIGN_SERVICE_SORT,
+    { key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" },
+  ],
   adset: [
     { key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" },
     {
@@ -39,7 +60,7 @@ const IDENTITY_BY_ENTITY: Record<MetaAdsMetricEntity, MetaAdsSortColumnOption[]>
   ],
 };
 
-const TEXT_FIELDS = new Set(["name", "campaign_name", "adset_name"]);
+const TEXT_FIELDS = new Set(["name", "campaign_name", "adset_name", "service"]);
 
 export function buildMetaAdsSortColumnOptions(
   entity: MetaAdsMetricEntity,

@@ -22,11 +22,18 @@ const VALID_PRESETS = new Set<GoogleAdsDatePresetId>([
   "last_n_days_yesterday",
 ]);
 
+export type MonthlyChartChannelFilter = "all" | "by_channel" | "google" | "meta";
+
+/** Report table + monthly charts service scope (`""` = all). */
+export type ReportServiceFilterStored = string;
+
 export type DmPaidAdsFiltersStored = {
   dateSelection: GoogleAdsDateRangeSelection;
   googleCustomerId: string;
   metaAdAccountId: string;
   reportChartYear: number;
+  monthlyChartChannelFilter: MonthlyChartChannelFilter;
+  reportServiceFilter: ReportServiceFilterStored;
 };
 
 type StoredJson = {
@@ -37,7 +44,16 @@ type StoredJson = {
   googleCustomerId?: string;
   metaAdAccountId?: string;
   reportChartYear?: number;
+  monthlyChartChannelFilter?: string;
+  reportServiceFilter?: string;
 };
+
+const VALID_MONTHLY_CHART_CHANNEL: ReadonlySet<MonthlyChartChannelFilter> = new Set([
+  "all",
+  "by_channel",
+  "google",
+  "meta",
+]);
 
 function storageKey(organizationId: string): string {
   return `${STORAGE_KEY_PREFIX}${organizationId}`;
@@ -83,6 +99,15 @@ export function readDmPaidAdsFilters(organizationId: string): DmPaidAdsFiltersSt
         parsed.reportChartYear <= 2100
           ? Math.floor(parsed.reportChartYear)
           : new Date().getFullYear(),
+      monthlyChartChannelFilter:
+        typeof parsed.monthlyChartChannelFilter === "string" &&
+        VALID_MONTHLY_CHART_CHANNEL.has(
+          parsed.monthlyChartChannelFilter as MonthlyChartChannelFilter,
+        )
+          ? (parsed.monthlyChartChannelFilter as MonthlyChartChannelFilter)
+          : "all",
+      reportServiceFilter:
+        typeof parsed.reportServiceFilter === "string" ? parsed.reportServiceFilter : "",
     };
   } catch {
     return null;
@@ -103,6 +128,8 @@ export function writeDmPaidAdsFilters(
       googleCustomerId: value.googleCustomerId,
       metaAdAccountId: value.metaAdAccountId,
       reportChartYear: value.reportChartYear,
+      monthlyChartChannelFilter: value.monthlyChartChannelFilter,
+      reportServiceFilter: value.reportServiceFilter,
     };
     sessionStorage.setItem(storageKey(organizationId), JSON.stringify(payload));
   } catch {

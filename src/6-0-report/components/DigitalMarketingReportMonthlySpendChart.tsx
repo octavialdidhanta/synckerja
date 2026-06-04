@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -10,37 +11,19 @@ import {
 } from "recharts";
 import type { TooltipProps } from "recharts";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
 import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
-import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
-import {
-  buildMonthlySpendChartPoints,
-  buildReportYearOptions,
-  useDigitalMarketingReportMonthlySpend,
-  type MonthlySpendChannelFilter,
-  type ReportMonthlySpendChartPoint,
+import type {
+  MonthlySpendChannelFilter,
+  MonthlySpendChannelSeries,
+  ReportMonthlySpendChartPoint,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlySpend";
 
 const GOOGLE_BAR = "hsl(204 70% 42%)";
 const META_BAR = "hsl(262 55% 52%)";
 /** Combined all-channel total — distinct from Google (blue) and Meta (purple). */
 const COMBINED_BAR = "hsl(160 52% 36%)";
-/** Fixed width so trigger & dropdown stay consistent for All / By channel / Google / Meta. */
-const CHANNEL_FILTER_WIDTH = "11.5rem";
-const CHANNEL_FILTER_WRAPPER_CLASS = "w-[11.5rem] shrink-0";
-const CHANNEL_FILTER_TRIGGER_CLASS =
-  "h-9 w-full max-w-full border-gray-200 bg-gray-50 text-sm";
-const CHANNEL_FILTER_CONTENT_CLASS = "z-50 bg-white";
-const CHANNEL_FILTER_ITEM_CLASS = "w-full min-w-full";
-
 const WIDE_MONTHLY_BAR_LAYOUT = {
   barCategoryGap: "1%" as const,
   barGap: 0,
@@ -81,6 +64,75 @@ function formatSpendTooltip(
     return formatMetaMetricValue("spend", value, currency);
   }
   return formatMetaMetricValue("spend", value, currency);
+}
+
+function formatSpendBarLabel(
+  value: unknown,
+  channel: "google" | "meta" | "combined",
+  currency: string | null,
+): string {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return formatSpendTooltip(n, channel, currency);
+}
+
+function resolveLabelNumericValue(
+  raw: number | string | Array<number | string> | undefined,
+  payload: ReportMonthlySpendChartPoint | undefined,
+  dataKey: keyof ReportMonthlySpendChartPoint,
+): number | null {
+  if (Array.isArray(raw)) {
+    const first = raw[0];
+    const n = typeof first === "number" ? first : Number(first);
+    if (Number.isFinite(n)) return n;
+  } else if (raw != null && raw !== "") {
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (Number.isFinite(n)) return n;
+  }
+  if (payload) {
+    const fromRow = payload[dataKey];
+    if (fromRow == null) return null;
+    const n = typeof fromRow === "number" ? fromRow : Number(fromRow);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+/** Recharts 2 `formatter` on LabelList does not receive raw bar values — use `content` instead. */
+function createSpendBarLabelRenderer(
+  currency: string | null,
+  channel: "google" | "meta" | "combined",
+  dataKey: "totalSpend" | "googleSpend" | "metaSpend",
+) {
+  return function SpendBarLabelContent(props: {
+    x?: number | string;
+    y?: number | string;
+    width?: number | string;
+    value?: number | string | Array<number | string>;
+    payload?: ReportMonthlySpendChartPoint;
+  }) {
+    const x = Number(props.x);
+    const y = Number(props.y);
+    const width = Number(props.width);
+    const n = resolveLabelNumericValue(props.value, props.payload, dataKey);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || n == null || n <= 0) {
+      return null;
+    }
+    const text = formatSpendBarLabel(n, channel, currency);
+    if (!text) return null;
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 6}
+        fill="#374151"
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={600}
+      >
+        {text}
+      </text>
+    );
+  };
 }
 
 type SpendTooltipProps = TooltipProps<number, string> & {
@@ -143,6 +195,27 @@ function SpendTooltip({
     );
   }
 
+  if (channelFilter === "by_channel") {
+    return (
+      <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
+        <p className="mb-1 font-medium text-gray-900">{label}</p>
+        {showGoogle ? (
+          <p className="tabular-nums text-gray-900">
+            {labels.google}: {formatSpendTooltip(row.googleSpend, "google", googleCurrency)}
+          </p>
+        ) : null}
+        {showMeta ? (
+          <p className={`tabular-nums text-gray-900${showGoogle ? " mt-0.5" : ""}`}>
+            {labels.meta}: {formatSpendTooltip(row.metaSpend, "meta", metaCurrency)}
+          </p>
+        ) : null}
+        {mixedCurrency ? (
+          <p className="mt-1 text-[11px] text-amber-700">{labels.mixedHint}</p>
+        ) : null}
+      </div>
+    );
+  }
+
   const entry = payload[0];
   const value = Number(entry?.value ?? 0);
   const name = String(entry?.name ?? "");
@@ -164,27 +237,27 @@ function SpendTooltip({
 
 type Props = {
   bootstrapLoading?: boolean;
+  channelFilter: MonthlySpendChannelFilter;
+  chartData: ReportMonthlySpendChartPoint[];
+  googleSeries: MonthlySpendChannelSeries;
+  metaSeries: MonthlySpendChannelSeries;
+  chartLoading: boolean;
+  chartDateOverlap: boolean;
+  /** When true, render chart body only (no card shell or title). */
+  embedded?: boolean;
 };
 
-export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Props) {
-  const { t, language } = useAppTranslation();
-  const [channelFilter, setChannelFilter] = useState<MonthlySpendChannelFilter>("all");
-  const { reportChartYear, setReportChartYear } = useDigitalMarketingPaidAdsFilters();
-  const yearOptions = useMemo(() => buildReportYearOptions(6), []);
-
-  const { selectedYear: year, googleSeries, metaSeries, chartLoading, chartDateOverlap } =
-    useDigitalMarketingReportMonthlySpend(reportChartYear);
-
-  const chartData = useMemo(
-    () =>
-      buildMonthlySpendChartPoints({
-        year,
-        locale: language === "id" ? "id-ID" : "en-US",
-        google: googleSeries,
-        meta: metaSeries,
-      }),
-    [year, language, googleSeries, metaSeries],
-  );
+export function DigitalMarketingReportMonthlySpendChart({
+  bootstrapLoading,
+  channelFilter,
+  chartData,
+  googleSeries,
+  metaSeries,
+  chartLoading,
+  chartDateOverlap,
+  embedded = false,
+}: Props) {
+  const { t } = useAppTranslation();
 
   const showGoogle = googleSeries.connected && channelFilter !== "meta";
   const showMeta = metaSeries.connected && channelFilter !== "google";
@@ -247,10 +320,21 @@ export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Pr
     [t],
   );
 
+  const combinedLabelCurrency =
+    googleSeries.currency &&
+    metaSeries.currency &&
+    googleSeries.currency === metaSeries.currency
+      ? googleSeries.currency
+      : (googleSeries.currency ?? metaSeries.currency);
+
+  const shellClass = embedded
+    ? "min-w-0"
+    : "overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm";
+
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
+    <div className={shellClass}>
+      {!embedded ? (
+        <div className="mb-3 min-w-0">
           <h3 className="text-base font-semibold text-gray-900">
             {t("digitalMarketing.report.monthlySpendTitle", "Monthly spend trend")}
           </h3>
@@ -261,57 +345,7 @@ export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Pr
             )}
           </p>
         </div>
-        <div className="flex shrink-0 flex-nowrap items-center gap-2">
-          <div className={CHANNEL_FILTER_WRAPPER_CLASS}>
-            <Select
-              value={channelFilter}
-              onValueChange={(v) => setChannelFilter(v as MonthlySpendChannelFilter)}
-            >
-              <SelectTrigger className={CHANNEL_FILTER_TRIGGER_CLASS}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent
-                position="popper"
-                align="start"
-                className={CHANNEL_FILTER_CONTENT_CLASS}
-                style={{ width: CHANNEL_FILTER_WIDTH, minWidth: CHANNEL_FILTER_WIDTH }}
-              >
-                <SelectItem value="all" className={CHANNEL_FILTER_ITEM_CLASS}>
-                  {t("digitalMarketing.report.monthlySpendFilterAll", "All channels")}
-                </SelectItem>
-                <SelectItem value="by_channel" className={CHANNEL_FILTER_ITEM_CLASS}>
-                  {t("digitalMarketing.report.monthlySpendFilterByChannel", "By channel")}
-                </SelectItem>
-                {googleSeries.connected ? (
-                  <SelectItem value="google" className={CHANNEL_FILTER_ITEM_CLASS}>
-                    {t("digitalMarketing.report.channelGoogle", "Google Ads")}
-                  </SelectItem>
-                ) : null}
-                {metaSeries.connected ? (
-                  <SelectItem value="meta" className={CHANNEL_FILTER_ITEM_CLASS}>
-                    {t("digitalMarketing.report.channelMeta", "Meta Ads")}
-                  </SelectItem>
-                ) : null}
-              </SelectContent>
-            </Select>
-          </div>
-          <Select
-            value={String(reportChartYear)}
-            onValueChange={(v) => setReportChartYear(Number(v))}
-          >
-            <SelectTrigger className="h-9 w-[5.5rem] shrink-0 border-gray-200 bg-gray-50 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="z-50 bg-white">
-              {yearOptions.map((y) => (
-                <SelectItem key={y} value={y}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      ) : null}
 
       {loading ? (
         <Skeleton className="h-[300px] w-full rounded-md" />
@@ -405,7 +439,7 @@ export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Pr
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartData}
-                margin={{ top: 8, right: 12, left: 4, bottom: 4 }}
+                margin={{ top: 32, right: 12, left: 4, bottom: 4 }}
                 barCategoryGap={barChartSpacing.barCategoryGap}
                 barGap={barChartSpacing.barGap}
               >
@@ -445,7 +479,17 @@ export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Pr
                     radius={[4, 4, 0, 0]}
                     name="totalSpend"
                     barSize={barChartSpacing.combinedBarSize}
-                  />
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createSpendBarLabelRenderer(
+                        combinedLabelCurrency,
+                        "combined",
+                        "totalSpend",
+                      )}
+                    />
+                  </Bar>
                 ) : null}
                 {showGrouped && showGoogle ? (
                   <Bar
@@ -454,7 +498,17 @@ export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Pr
                     radius={[4, 4, 0, 0]}
                     name="googleSpend"
                     barSize={showMeta ? barChartSpacing.groupedBarSize : barChartSpacing.singleBarSize}
-                  />
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createSpendBarLabelRenderer(
+                        googleSeries.currency,
+                        "google",
+                        "googleSpend",
+                      )}
+                    />
+                  </Bar>
                 ) : null}
                 {showGrouped && showMeta ? (
                   <Bar
@@ -463,7 +517,17 @@ export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Pr
                     radius={[4, 4, 0, 0]}
                     name="metaSpend"
                     barSize={showGoogle ? barChartSpacing.groupedBarSize : barChartSpacing.singleBarSize}
-                  />
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createSpendBarLabelRenderer(
+                        metaSeries.currency,
+                        "meta",
+                        "metaSpend",
+                      )}
+                    />
+                  </Bar>
                 ) : null}
                 {channelFilter === "google" ? (
                   <Bar
@@ -472,7 +536,17 @@ export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Pr
                     radius={[4, 4, 0, 0]}
                     name="googleSpend"
                     barSize={barChartSpacing.singleBarSize}
-                  />
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createSpendBarLabelRenderer(
+                        googleSeries.currency,
+                        "google",
+                        "googleSpend",
+                      )}
+                    />
+                  </Bar>
                 ) : null}
                 {channelFilter === "meta" ? (
                   <Bar
@@ -481,7 +555,17 @@ export function DigitalMarketingReportMonthlySpendChart({ bootstrapLoading }: Pr
                     radius={[4, 4, 0, 0]}
                     name="metaSpend"
                     barSize={barChartSpacing.singleBarSize}
-                  />
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createSpendBarLabelRenderer(
+                        metaSeries.currency,
+                        "meta",
+                        "metaSpend",
+                      )}
+                    />
+                  </Bar>
                 ) : null}
               </BarChart>
             </ResponsiveContainer>

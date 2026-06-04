@@ -1,9 +1,22 @@
+import { useMemo } from "react";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
 import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import { useDigitalMarketingReportCosts } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportCosts";
+import {
+  buildReportServiceFilterOptions,
+  type ReportServiceFilterValue,
+} from "@/6-0-digital-marketing-shared/reportServiceFilter";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import { DigitalMarketingReportSummaryBar } from "@/6-0-report/components/DigitalMarketingReportSummaryBar";
 import { DigitalMarketingReportTable } from "@/6-0-report/components/DigitalMarketingReportTable";
-import { DigitalMarketingReportMonthlySpendChart } from "@/6-0-report/components/DigitalMarketingReportMonthlySpendChart";
+import { DigitalMarketingReportMonthlyChartsSection } from "@/6-0-report/components/DigitalMarketingReportMonthlyChartsSection";
 import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -11,7 +24,11 @@ import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 import { DigitalMarketingReportPageSkeleton } from "@/6-0-report/skeletons/DigitalMarketingReportPageSkeleton";
-import type { ReportChannelCost } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportCosts";
+import type {
+  ReportChannelCost,
+  ReportGoogleServiceRow,
+  ReportMetaServiceRow,
+} from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportCosts";
 
 function channelHasNoMetrics(cost: ReportChannelCost): boolean {
   if (!cost.connected) return true;
@@ -22,19 +39,71 @@ function channelHasNoMetrics(cost: ReportChannelCost): boolean {
   );
 }
 
+function googleReportHasNoMetrics(
+  googleCost: ReportChannelCost,
+  googleServiceRows: ReportGoogleServiceRow[],
+): boolean {
+  if (!googleCost.connected) return true;
+  if (googleServiceRows.length === 0) return channelHasNoMetrics(googleCost);
+  return googleServiceRows.every(
+    (r) => r.amount === 0 && r.impressions === 0 && r.clicks === 0,
+  );
+}
+
+function metaReportHasNoMetrics(
+  metaCost: ReportChannelCost,
+  metaServiceRows: ReportMetaServiceRow[],
+): boolean {
+  if (!metaCost.connected) return true;
+  if (metaServiceRows.length === 0) return channelHasNoMetrics(metaCost);
+  return metaServiceRows.every(
+    (r) => r.amount === 0 && r.impressions === 0 && r.clicks === 0,
+  );
+}
+
 export default function DigitalMarketingReportPage() {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
-  const { dateSelection, setDateSelection, filtersHydrated } =
+  const { dateSelection, setDateSelection, filtersHydrated, reportServiceFilter, setReportServiceFilter } =
     useDigitalMarketingPaidAdsFilters();
-  const { googleCost, metaCost, pageLoading, effectiveGoogleCustomerId } =
-    useDigitalMarketingReportCosts();
+  const {
+    googleCost,
+    metaCost,
+    googleServiceRows,
+    googleServicesLoading,
+    metaServiceRows,
+    metaServicesLoading,
+    pageLoading,
+    effectiveGoogleCustomerId,
+  } = useDigitalMarketingReportCosts();
 
   const { data: accountDateBounds } = useGoogleAdsAccountDateBounds(
     organizationId,
     effectiveGoogleCustomerId,
     Boolean(organizationId && effectiveGoogleCustomerId),
   );
+
+  const serviceFilterOptions = useMemo(
+    () =>
+      buildReportServiceFilterOptions(
+        [...googleServiceRows, ...metaServiceRows],
+        {
+          all: t("digitalMarketing.report.serviceFilterAll", "All services"),
+          unmapped: t("digitalMarketing.report.serviceUnmapped", "Belum di-map"),
+        },
+      ),
+    [googleServiceRows, metaServiceRows, t],
+  );
+
+  const reportSubtitle = reportServiceFilter
+    ? t(
+        "digitalMarketing.report.subtitleWithService",
+        "Table and charts use the date range and selected service. Table Cost / Conv. leads / CPA match monthly chart totals in the period.",
+      )
+    : t(
+        "digitalMarketing.report.subtitle",
+        "The table follows the date filter above. Charts show monthly spend and CPA for the selected year within that date range.",
+      );
 
   if (pageLoading) {
     return <DigitalMarketingReportPageSkeleton />;
@@ -54,42 +123,89 @@ export default function DigitalMarketingReportPage() {
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
                     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
                           <h2 className="text-base font-semibold text-gray-900">
                             {t("digitalMarketing.report.title", "Report")}
                           </h2>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {t(
-                              "digitalMarketing.report.subtitle",
-                              "The table follows the date filter above. The chart shows monthly spend for the selected year within that date range.",
-                            )}
-                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{reportSubtitle}</p>
                         </div>
-                        {filtersHydrated ? (
-                          <GoogleAdsDateRangePicker
-                            value={dateSelection}
-                            onChange={setDateSelection}
-                            accountEarliestYmd={accountDateBounds?.earliest_date}
-                          />
-                        ) : (
-                          <Skeleton className="h-9 w-40" />
-                        )}
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {filtersHydrated ? (
+                            <>
+                              <Select
+                                value={reportServiceFilter || "all"}
+                                onValueChange={(v) =>
+                                  setReportServiceFilter(
+                                    v === "all" ? "" : (v as ReportServiceFilterValue),
+                                  )
+                                }
+                              >
+                                <SelectTrigger
+                                  className="h-9 w-[14rem] border-gray-200 bg-gray-50 text-sm"
+                                  aria-label={t(
+                                    "digitalMarketing.report.tableServiceFilterLabel",
+                                    "Service",
+                                  )}
+                                >
+                                  <SelectValue
+                                    placeholder={t(
+                                      "digitalMarketing.report.serviceFilterAll",
+                                      "All services",
+                                    )}
+                                  />
+                                </SelectTrigger>
+                                <SelectContent className="z-50 max-h-72 bg-white">
+                                  {serviceFilterOptions.map((opt) => (
+                                    <SelectItem
+                                      key={opt.value || "all"}
+                                      value={opt.value || "all"}
+                                    >
+                                      {opt.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <GoogleAdsDateRangePicker
+                                value={dateSelection}
+                                onChange={setDateSelection}
+                                accountEarliestYmd={accountDateBounds?.earliest_date}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <Skeleton className="h-9 w-[14rem]" />
+                              <Skeleton className="h-9 w-40" />
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
+
+                    <DigitalMarketingReportSummaryBar
+                      googleServiceRows={googleServiceRows}
+                      metaServiceRows={metaServiceRows}
+                      servicesLoading={googleServicesLoading || metaServicesLoading}
+                    />
 
                     <DigitalMarketingReportTable
                       googleCost={googleCost}
                       metaCost={metaCost}
+                      googleServiceRows={googleServiceRows}
+                      googleServicesLoading={googleServicesLoading}
+                      metaServiceRows={metaServiceRows}
+                      metaServicesLoading={metaServicesLoading}
                     />
 
-                    <DigitalMarketingReportMonthlySpendChart />
+                    <DigitalMarketingReportMonthlyChartsSection />
 
                     {!googleCost.loading &&
                     !metaCost.loading &&
+                    !googleServicesLoading &&
+                    !metaServicesLoading &&
                     (googleCost.connected || metaCost.connected) &&
-                    channelHasNoMetrics(googleCost) &&
-                    channelHasNoMetrics(metaCost) ? (
+                    googleReportHasNoMetrics(googleCost, googleServiceRows) &&
+                    metaReportHasNoMetrics(metaCost, metaServiceRows) ? (
                       <p className="text-center text-sm text-muted-foreground">
                         {t("digitalMarketing.report.noSpendData", "No spend data for this period.")}
                       </p>

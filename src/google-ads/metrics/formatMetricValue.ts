@@ -1,7 +1,7 @@
 import type { MetricValueKind } from "@/google-ads/metrics/types";
+import { fractionMetricToPercent } from "@/google-ads/metrics/fractionMetricToPercent";
 
-export function formatMetricValue(
-  key: string,
+export function formatMetricValue(  key: string,
   value: number | null | undefined,
   currencyCode: string | null | undefined,
   valueKind?: MetricValueKind,
@@ -19,7 +19,8 @@ export function formatMetricValue(
     key.endsWith("_pct") ||
     key.endsWith("_percentage")
   ) {
-    const pct = key.endsWith("_percent") ? value : value * 100;
+    const pct = fractionMetricToPercent(value, key);
+    if (!Number.isFinite(pct)) return "—";
     return `${pct.toFixed(2)}%`;
   }
 

@@ -181,10 +181,22 @@ export function intersectDateSelectionWithChartYear(
   };
 }
 
+export function formatPickerRangeDates(from: Date, to: Date): string {
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  if (from.getTime() === to.getTime()) return fmt(from);
+  return `${fmt(from)} – ${fmt(to)}`;
+}
+
+function formatPickerLabelWithRange(title: string, from?: Date, to?: Date): string {
+  if (from && to) return `${title} · ${formatPickerRangeDates(from, to)}`;
+  return title;
+}
+
 export function formatGoogleAdsPickerButtonLabel(
   selection: GoogleAdsDateRangeSelection,
 ): string {
-  if (selection.preset === "all_time") return "All time";
+  const { from, to } = selection.range;
   const labels: Partial<Record<GoogleAdsDatePresetId, string>> = {
     today: "Today",
     yesterday: "Yesterday",
@@ -199,15 +211,17 @@ export function formatGoogleAdsPickerButtonLabel(
     last_n_days_yesterday: `${selection.rollingDays} days up to yesterday`,
     custom: "Custom",
   };
-  if (selection.preset !== "custom" && labels[selection.preset]) {
-    return labels[selection.preset]!;
+
+  if (selection.preset === "all_time") {
+    return formatPickerLabelWithRange("All time", from, to);
   }
-  const { from, to } = selection.range;
+
+  if (selection.preset !== "custom" && labels[selection.preset]) {
+    return formatPickerLabelWithRange(labels[selection.preset]!, from, to);
+  }
+
   if (!from || !to) return "Custom";
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  if (from.getTime() === to.getTime()) return fmt(from);
-  return `${fmt(from)} – ${fmt(to)}`;
+  return formatPickerRangeDates(from, to);
 }
 
 /** API body for google-ads-metrics edge function. */

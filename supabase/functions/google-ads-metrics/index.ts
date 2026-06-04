@@ -31,6 +31,10 @@ import {
   mergeKeywordInventoryWithMetrics,
   filterClientUnsupportedMetrics,
   mergeMetricsRowsByEntity,
+  applyPeriodImpressionPctOverlay,
+  clearTopImpressionPctWithoutImpressions,
+  periodImpressionPctMetricDefs,
+  periodImpressionPctOverlayMetricDefs,
   KEYWORD_VIEW_EXCLUDED_METRIC_KEYS,
   parseUnsupportedMetricsFromError,
   parseGoogleAdsResourceId,
@@ -40,6 +44,18 @@ import {
   type MetricEntity,
 } from "../_shared/googleAdsMetricsCatalog.ts";
 import { enrichAdRowsWithPreviews } from "../_shared/googleAdsAdPreview.ts";
+import {
+  buildChannelPeriodSummary,
+  countGoogleAttributedLeadsByMonth,
+  sumAttributedLeadsByMonth,
+  enrichSpendBucketsWithAttribution,
+} from "../_shared/monthlyReportAttribution.ts";
+import { loadCampaignServiceMappings } from "../_shared/googleAdsCampaignServices.ts";
+import {
+  parseMonthlyServiceIdFilter,
+  resolveGoogleMonthlyServiceScope,
+  type GoogleCampaignListItem,
+} from "../_shared/monthlyReportServiceFilter.ts";
 import {
   buildListAdGroupsGaql,
   buildListCampaignsGaql,
@@ -66,6 +82,10 @@ import {
   type UiCustomColumnListItem,
 } from "../_shared/googleAdsUiCustomColumns.ts";
 import { resolveOrgGoogleAdsForUpload } from "../_shared/googleAdsOrgResolver.ts";
+import {
+  enrichCampaignRowsWithServiceEconomics,
+  preloadMappingsForRows,
+} from "../_shared/googleAdsCampaignServices.ts";
 import { fetchGoogleAdsAccessToken } from "../google-ads-upload-offline-conversion/googleAdsHelpers.ts";
 import type { GoogleAdsConfig } from "../google-ads-upload-offline-conversion/googleAdsHelpers.ts";
 
@@ -674,6 +694,106 @@ async function handleDeleteUiCustomColumn(
   return googleAdsJson({ ok: true }, 200);
 }
 
+async function handleUpsertCampaignServiceMapping(
+  admin: ReturnType<typeof createClient>,
+  body: Record<string, unknown>,
+  organizationId: string,
+  userId: string,
+): Promise<Response> {
+  const customerId = digitsOnly(String(body.customer_id ?? ""), 10);
+  const campaignId = parseGoogleAdsResourceId(String(body.campaign_id ?? ""));
+  const serviceId = String(body.service_id ?? "").trim();
+
+  if (!customerId) {
+    return googleAdsJson({ error: "customer_id required (10 digits)" }, 400);
+  }
+  if (!campaignId) {
+    return googleAdsJson({ error: "campaign_id required" }, 400);
+  }
+
+  if (!serviceId) {
+    const { error } = await admin
+      .from("organization_google_ads_campaign_services")
+      .delete()
+      .eq("organization_id", organizationId)
+      .eq("customer_id", customerId)
+      .eq("campaign_id", campaignId);
+    if (error) return googleAdsJson({ error: error.message }, 500);
+    return googleAdsJson({ ok: true, mapping: null }, 200);
+  }
+
+  const { data: serviceRow, error: svcErr } = await admin
+    .from("services")
+    .select("id, name")
+    .eq("id", serviceId)
+    .eq("organization_id", organizationId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (svcErr) return googleAdsJson({ error: svcErr.message }, 500);
+  if (!serviceRow) {
+    return googleAdsJson({ error: "Service not found for this organization" }, 400);
+  }
+
+  const { data: row, error } = await admin
+    .from("organization_google_ads_campaign_services")
+    .upsert(
+      {
+        organization_id: organizationId,
+        customer_id: customerId,
+        campaign_id: campaignId,
+        service_id: serviceId,
+        created_by: userId,
+      },
+      { onConflict: "organization_id,customer_id,campaign_id" },
+    )
+    .select("campaign_id, service_id, services!inner(id, name)")
+    .single();
+
+  if (error) return googleAdsJson({ error: error.message }, 500);
+
+  const svc = (row as { services?: { id: string; name: string } | { id: string; name: string }[] })
+    ?.services;
+  const service = Array.isArray(svc) ? svc[0] : svc;
+
+  return googleAdsJson({
+    ok: true,
+    mapping: {
+      campaign_id: campaignId,
+      customer_id: customerId,
+      service_id: service?.id ?? serviceId,
+      service_name: service?.name ?? serviceRow.name,
+    },
+  }, 200);
+}
+
+async function maybeEnrichCampaignServiceRows(
+  admin: ReturnType<typeof createClient>,
+  organizationId: string,
+  entity: MetricEntity,
+  customerId: string,
+  dateStart: string,
+  dateEnd: string,
+  rows: ReturnType<typeof normalizeGaqlRow>[],
+): Promise<void> {
+  if (entity !== "campaign" || rows.length === 0) return;
+  const mappingsCache = await preloadMappingsForRows(
+    admin,
+    organizationId,
+    customerId,
+    rows,
+  );
+  await enrichCampaignRowsWithServiceEconomics(
+    admin,
+    organizationId,
+    customerId,
+    dateStart,
+    dateEnd,
+    rows,
+    mappingsCache,
+  );
+}
+
 async function handleListCustomColumns(
   admin: ReturnType<typeof createClient>,
   body: Record<string, unknown>,
@@ -849,15 +969,28 @@ async function fetchCampaignSpendForDateRange(
   metricsCustomerId: string,
   start: string,
   end: string,
+  allowedCampaignIds?: Set<string> | null,
 ): Promise<{ spend: number; currencyCode: string | null }> {
-  const query =
-    `SELECT metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`;
+  if (allowedCampaignIds && allowedCampaignIds.size === 0) {
+    return { spend: 0, currencyCode: null };
+  }
+
+  const filterByCampaign = allowedCampaignIds != null;
+  const query = filterByCampaign
+    ? `SELECT campaign.id, metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`
+    : `SELECT metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`;
   const rawRows = await fetchAllGaqlListRows(cfg, accessToken, metricsCustomerId, query);
 
   let spend = 0;
   let currencyCode: string | null = null;
 
   for (const raw of rawRows) {
+    if (filterByCampaign && allowedCampaignIds) {
+      const campaign = (raw.campaign ?? raw.Campaign) as Record<string, unknown> | undefined;
+      const campaignId = parseGoogleAdsResourceId(String(campaign?.id ?? ""));
+      if (!campaignId || !allowedCampaignIds.has(campaignId)) continue;
+    }
+
     const metricsRaw = (raw.metrics ?? raw.Metrics) as Record<string, unknown> | undefined;
     const micros = Number(metricsRaw?.costMicros ?? metricsRaw?.cost_micros ?? 0);
     if (Number.isFinite(micros)) spend += micros / 1_000_000;
@@ -874,6 +1007,41 @@ async function fetchCampaignSpendForDateRange(
 
 function emptyMonthlySpendBuckets(): { month: number; spend: number }[] {
   return Array.from({ length: 12 }, (_, i) => ({ month: i + 1, spend: 0 }));
+}
+
+async function fetchGoogleCampaignListForMonthlyAttribution(
+  runtimeConfig: GoogleAdsConfig,
+  accessToken: string,
+  queryTarget: MetricsQueryTarget,
+): Promise<GoogleCampaignListItem[]> {
+  const query = buildListCampaignsGaql("all");
+  const campaigns: GoogleCampaignListItem[] = [];
+  const seen = new Set<string>();
+
+  const clients = queryTarget.managerAggregate
+    ? queryTarget.clientAccounts
+    : [{ customerId: queryTarget.customerId, descriptiveName: "" }];
+
+  for (const client of clients) {
+    const cfg: GoogleAdsConfig = {
+      ...runtimeConfig,
+      customerId: client.customerId,
+      loginCustomerId: queryTarget.loginCustomerId ?? runtimeConfig.loginCustomerId,
+    };
+    const rawRows = await fetchAllGaqlListRows(cfg, accessToken, client.customerId, query);
+    const label = queryTarget.managerAggregate ? client.descriptiveName : undefined;
+    for (const raw of rawRows) {
+      const item = normalizeCampaignListRow(raw, client.customerId, label);
+      if (!item || seen.has(item.id)) continue;
+      seen.add(item.id);
+      campaigns.push({
+        id: item.id,
+        campaign_id: item.campaign_id,
+        name: item.name,
+      });
+    }
+  }
+  return campaigns;
 }
 
 async function handleFetchMonthlySpend(
@@ -902,6 +1070,24 @@ async function handleFetchMonthlySpend(
   const endOverride = body.date_end != null ? String(body.date_end).trim() : "";
   const end = endOverride || defaultEnd;
 
+  const serviceIdFilter = parseMonthlyServiceIdFilter(body);
+  const campaignList = await fetchGoogleCampaignListForMonthlyAttribution(
+    runtimeConfig,
+    accessToken,
+    queryTarget,
+  );
+  const mappingsByCampaign = await loadCampaignServiceMappings(
+    admin,
+    organizationId,
+    customerId,
+  );
+  const scope = resolveGoogleMonthlyServiceScope(
+    campaignList,
+    mappingsByCampaign,
+    serviceIdFilter,
+  );
+  const allowedCampaignIds = serviceIdFilter != null ? scope.googleCampaignIds : null;
+
   const buckets = emptyMonthlySpendBuckets();
   let currencyCode: string | null = null;
   const monthWindows = buildMonthWindowsInRange(start, end);
@@ -925,18 +1111,33 @@ async function handleFetchMonthlySpend(
           client.customerId,
           window.start,
           window.end,
+          allowedCampaignIds,
         );
         buckets[window.month - 1]!.spend += spend;
         if (!currencyCode && clientCurrency) currencyCode = clientCurrency;
       }
     }
 
+    const leadsByMonth = await countGoogleAttributedLeadsByMonth(
+      admin,
+      organizationId,
+      start,
+      end,
+      monthWindows,
+      scope.campaignUtmKeys,
+    );
+    const months = enrichSpendBucketsWithAttribution(buckets, leadsByMonth);
+    const periodConvertedLeads = sumAttributedLeadsByMonth(leadsByMonth);
+    const period_summary = buildChannelPeriodSummary(buckets, periodConvertedLeads);
+
     return googleAdsJson({
       year,
       currency_code: currencyCode,
-      months: buckets,
+      months,
+      period_summary,
       date_start: start,
       date_end: end,
+      service_id: serviceIdFilter,
     }, 200);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -1146,6 +1347,15 @@ Deno.serve(async (req: Request) => {
     return await handleListAdGroups(admin, body, organizationId);
   }
 
+  if (action === "upsertCampaignServiceMapping") {
+    return await handleUpsertCampaignServiceMapping(
+      admin,
+      body,
+      organizationId,
+      userRes.userId,
+    );
+  }
+
   if (action !== "fetchMetrics") {
     return googleAdsJson({ error: "Unknown action" }, 400);
   }
@@ -1256,19 +1466,16 @@ Deno.serve(async (req: Request) => {
     "pagination_total_v1",
     "delivery_count_v1",
     "gaql_metric_retry_v5",
+    "merge_rate_weighted_v1",
+    "period_top_impr_v3_full_range",
+    "keyword_pct_skip_daily_merge_v1",
+    "keyword_zero_impr_null_top_v1",
     "date_range_between_v1",
-    ...(entity === "keyword" ? ["keyword_inventory_v6"] : []),
+    ...(entity === "keyword" ? ["keyword_inventory_v8"] : []),
     "no_billing_v2",
   ];
 
   if (forceRefresh) {
-    const refreshMetricsKey = buildMetricsKey([
-      ...metricDefs.map((d) => d.key),
-      ...summaryConvForFetch,
-      ...uiCustomKeys,
-      summaryCacheToken,
-      ...metricsKeySuffix,
-    ]);
     const { error: delErr } = await admin
       .from("google_ads_metrics_cache")
       .delete()
@@ -1276,11 +1483,7 @@ Deno.serve(async (req: Request) => {
       .eq("customer_id", customerId)
       .eq("entity", entity)
       .eq("date_start", dateStart)
-      .eq("date_end", dateEnd)
-      .eq("metrics_key", refreshMetricsKey)
-      .eq("status_filter", statusFilter)
-      .eq("only_running", onlyRunning)
-      .eq("sort_key", sortKey);
+      .eq("date_end", dateEnd);
     if (delErr) {
       console.warn("google-ads-metrics cache delete on refresh:", delErr.message);
     }
@@ -1352,11 +1555,21 @@ Deno.serve(async (req: Request) => {
       const cached = cacheRow.response_json as CachePayload & {
         all_rows?: ReturnType<typeof normalizeGaqlRow>[];
       };
-      const allRows = sortNormalizedMetricsRows(
+      let allRows = sortNormalizedMetricsRows(
         cached.all_rows ?? cached.rows,
         sortKey,
         entity,
       );
+      await maybeEnrichCampaignServiceRows(
+        admin,
+        organizationId,
+        entity,
+        customerId,
+        dateStart,
+        dateEnd,
+        allRows,
+      );
+      allRows = sortNormalizedMetricsRows(allRows, sortKey, entity);
       const cachedTotal =
         typeof cached.total_row_count === "number" && Number.isFinite(cached.total_row_count)
           ? cached.total_row_count
@@ -1462,6 +1675,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const normalized = normalizeGaqlRow(entity, raw, activeMetricDefs);
+        normalized.identity.metrics_customer_id = metricsCustomerId;
         if (clientLabel) {
           const resourceId = normalized.id;
           normalized.identity.client_account = clientLabel;
@@ -1478,6 +1692,53 @@ Deno.serve(async (req: Request) => {
     }
 
     return { rawRows, currencyCode };
+  }
+
+  /** Period-level Top/Abs.Top % (no segments.date) — matches Google Ads Manager. */
+  async function fetchPeriodPctRowsForWindow(
+    cfg: GoogleAdsConfig,
+    metricsCustomerId: string,
+    windowClause: string,
+    clientLabel?: string,
+  ): Promise<ReturnType<typeof normalizeGaqlRow>[]> {
+    const overlayDefs = periodImpressionPctOverlayMetricDefs(entity);
+    if (overlayDefs.length === 0) return [];
+
+    const windowOpts: MetricsGaqlQueryOpts = {
+      entity,
+      metricDefs: overlayDefs,
+      dateClause: windowClause,
+      statusFilter,
+      sortKey,
+      pageSize: GAQL_FETCH_PAGE_SIZE,
+      segmentByDate: false,
+      campaignFilterId: campaignFilter.resourceId || undefined,
+      adGroupFilterId: adGroupFilter.resourceId || undefined,
+    };
+    let q = buildGaqlQuery(windowOpts);
+    const rawRows: ReturnType<typeof normalizeGaqlRow>[] = [];
+    let gaqlToken: string | null = null;
+
+    for (let pageIndex = 0; pageIndex < MAX_GAQL_PAGES; pageIndex++) {
+      const page = await runGaqlForCustomer(cfg, metricsCustomerId, q, gaqlToken);
+      for (const raw of page.results) {
+        const normalized = normalizeGaqlRow(entity, raw, overlayDefs);
+        normalized.identity.metrics_customer_id = metricsCustomerId;
+        if (clientLabel) {
+          const resourceId = normalized.id;
+          normalized.identity.client_account = clientLabel;
+          if (entity === "campaign") {
+            normalized.identity.campaign_id = resourceId;
+          }
+          normalized.id = `${metricsCustomerId}-${resourceId}`;
+        }
+        rawRows.push(normalized);
+      }
+      gaqlToken = page.nextPageToken;
+      if (!gaqlToken) break;
+    }
+
+    return rawRows;
   }
 
   async function fetchKeywordInventoryRows(
@@ -1498,6 +1759,7 @@ Deno.serve(async (req: Request) => {
       const page = await runGaqlForCustomer(cfg, metricsCustomerId, q, gaqlToken);
       for (const raw of page.results) {
         const normalized = normalizeGaqlRow("keyword", raw, activeMetricDefs);
+        normalized.identity.metrics_customer_id = metricsCustomerId;
         if (clientLabel) {
           const resourceId = String(normalized.identity.criterion_id ?? normalized.id);
           normalized.identity.client_account = clientLabel;
@@ -1536,6 +1798,21 @@ Deno.serve(async (req: Request) => {
     }
 
     let merged = mergeMetricsRowsByEntity(entity, rawRows);
+
+    const needsPeriodTopPct = periodImpressionPctMetricDefs(entity).some((d) =>
+      activeMetricDefs.some((m) => m.key === d.key),
+    );
+    let periodMergedForOverlay: ReturnType<typeof normalizeGaqlRow>[] | null = null;
+    if (needsPeriodTopPct) {
+      const fullPeriodClause = `segments.date BETWEEN '${dateStart}' AND '${dateEnd}'`;
+      const periodRaw = await fetchPeriodPctRowsForWindow(
+        cfg,
+        metricsCustomerId,
+        fullPeriodClause,
+        clientLabel,
+      );
+      periodMergedForOverlay = mergeMetricsRowsByEntity(entity, periodRaw);
+    }
 
     const keysForClient = customKeysForCustomer(summaryConvForFetch, metricsCustomerId);
     if (keysForClient.length > 0) {
@@ -1581,6 +1858,14 @@ Deno.serve(async (req: Request) => {
       merged = mergeKeywordInventoryWithMetrics(inventory, merged, activeMetricDefs);
     }
 
+    if (needsPeriodTopPct && periodMergedForOverlay) {
+      applyPeriodImpressionPctOverlay(entity, merged, periodMergedForOverlay);
+    }
+
+    for (const row of merged) {
+      clearTopImpressionPctWithoutImpressions(row.metrics);
+    }
+
     const totalBeforeDelivery = merged.length;
     merged = merged.filter((r) => rowPassesDeliveryFilter(r.metrics, onlyRunning));
     merged = sortNormalizedMetricsRows(merged, sortKey, entity);
@@ -1624,6 +1909,17 @@ Deno.serve(async (req: Request) => {
       allRows = part.rows;
       totalBeforeDeliveryAll = part.totalBeforeDelivery;
     }
+
+    await maybeEnrichCampaignServiceRows(
+      admin,
+      organizationId,
+      entity,
+      customerId,
+      dateStart,
+      dateEnd,
+      allRows,
+    );
+    allRows = sortNormalizedMetricsRows(allRows, sortKey, entity);
 
     const { pageRows, totalRowCount: sortedTotal, nextOffset } = paginateMetricsRows(
       allRows,

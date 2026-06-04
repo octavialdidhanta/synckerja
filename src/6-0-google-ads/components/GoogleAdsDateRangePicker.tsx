@@ -43,11 +43,25 @@ const PRESET_ROWS: PresetRow[] = [
   { id: "all_time", label: "All time" },
 ];
 
+type PresetRangeOptions = {
+  accountEarliestYmd?: string | null;
+  rollingDays?: number;
+};
+
 type GoogleAdsDateRangePickerProps = {
   value: GoogleAdsDateRangeSelection;
   onChange: (value: GoogleAdsDateRangeSelection) => void;
   accountEarliestYmd?: string | null;
   className?: string;
+  /** Override preset → range (e.g. Meta 37-month all time). */
+  resolvePresetRange?: (
+    preset: GoogleAdsDatePresetId,
+    now: Date,
+    opts?: PresetRangeOptions,
+  ) => DateRange;
+  formatButtonLabel?: (selection: GoogleAdsDateRangeSelection) => string;
+  /** Shown under calendar when all_time is selected (Meta vs Google copy). */
+  allTimePopoverHint?: string;
 };
 
 function formatInputDate(d: Date | undefined): string {
@@ -79,7 +93,17 @@ export function GoogleAdsDateRangePicker({
   onChange,
   accountEarliestYmd,
   className,
+  resolvePresetRange: resolvePresetRangeProp,
+  formatButtonLabel,
+  allTimePopoverHint,
 }: GoogleAdsDateRangePickerProps) {
+  const resolvePresetRange = useCallback(
+    (preset: GoogleAdsDatePresetId, now: Date, opts?: PresetRangeOptions) =>
+      resolvePresetRangeProp
+        ? resolvePresetRangeProp(preset, now, opts)
+        : computePresetRange(preset, now, opts),
+    [resolvePresetRangeProp],
+  );
   const [open, setOpen] = useState(false);
   const [calendarLayoutScrollKey, setCalendarLayoutScrollKey] = useState(0);
   const [draftPreset, setDraftPreset] = useState(value.preset);
@@ -134,9 +158,9 @@ export function GoogleAdsDateRangePicker({
 
   /** When earliest activity date loads, refresh all_time draft without stealing scroll focus. */
   useEffect(() => {
-    if (!accountEarliestYmd) return;
+    if (!accountEarliestYmd || resolvePresetRangeProp) return;
     if (draftPreset !== "all_time" && value.preset !== "all_time") return;
-    const range = computePresetRange("all_time", new Date(), { accountEarliestYmd });
+    const range = resolvePresetRange("all_time", new Date(), { accountEarliestYmd });
     const normalized = normalizeRange(range);
     setDraftRange(normalized);
     setStartInput(formatInputDate(normalized.from));
@@ -144,7 +168,7 @@ export function GoogleAdsDateRangePicker({
     if (!open && normalized.from) {
       setCalendarFocusMonth(startOfMonth(normalized.from));
     }
-  }, [accountEarliestYmd, draftPreset, value.preset, open]);
+  }, [accountEarliestYmd, draftPreset, value.preset, open, resolvePresetRange, resolvePresetRangeProp]);
 
   const calendarMinDate = useMemo(() => {
     const fromBounds = accountEarliestYmd ? parseYmdLocal(accountEarliestYmd) : null;
@@ -196,7 +220,7 @@ export function GoogleAdsDateRangePicker({
     setDraftPreset(preset);
     if (preset === "custom") return;
 
-    const range = computePresetRange(preset, new Date(), {
+    const range = resolvePresetRange(preset, new Date(), {
       accountEarliestYmd,
       rollingDays: draftRolling,
     });
@@ -216,7 +240,7 @@ export function GoogleAdsDateRangePicker({
   };
 
   const applyRolling = (preset: "last_n_days_today" | "last_n_days_yesterday") => {
-    const range = computePresetRange(preset, new Date(), {
+    const range = resolvePresetRange(preset, new Date(), {
       rollingDays: draftRolling,
     });
     commitSelection(preset, range, draftRolling, {
@@ -267,15 +291,18 @@ export function GoogleAdsDateRangePicker({
     }
   };
 
-  const buttonLabel = formatGoogleAdsPickerButtonLabel(value);
+  const buttonLabel = formatButtonLabel
+    ? formatButtonLabel(value)
+    : formatGoogleAdsPickerButtonLabel(value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          title={buttonLabel}
           className={cn(
-            "h-9 min-w-[200px] justify-start gap-2 border-gray-300 bg-white px-3 text-left text-sm font-normal shadow-sm hover:bg-gray-50",
+            "h-9 w-auto shrink-0 min-w-[200px] max-w-[min(300px,50vw)] justify-start gap-2 border-gray-300 bg-white px-3 text-left text-sm font-normal shadow-sm hover:bg-gray-50",
             className,
           )}
         >
@@ -422,9 +449,12 @@ export function GoogleAdsDateRangePicker({
                 {format(draftRange.from, "dd MMM yyyy")} – {format(draftRange.to, "dd MMM yyyy")}
                 {" · "}
                 Jakarta Time
-                {draftPreset === "all_time" && accountEarliestYmd ? (
+                {draftPreset === "all_time" &&
+                (allTimePopoverHint ||
+                  (accountEarliestYmd && !resolvePresetRangeProp)) ? (
                   <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                    All time: from first activity ({accountEarliestYmd}) through today
+                    {allTimePopoverHint ??
+                      `All time: from first activity (${accountEarliestYmd}) through today`}
                   </span>
                 ) : null}
               </p>

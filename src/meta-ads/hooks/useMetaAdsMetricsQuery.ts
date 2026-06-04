@@ -13,6 +13,7 @@ export type MetaAdsMetricsResponse = {
     spend: number;
     impressions: number;
     clicks: number;
+    reach: number;
     currency: string;
   };
   entity: MetaAdsMetricEntity;
@@ -22,6 +23,42 @@ export type MetaAdsMetricsResponse = {
   next_page_token: string | null;
   cached?: boolean;
 };
+
+export async function fetchMetaAdsMetrics(args: {
+  organizationId: string;
+  adAccountId: string;
+  entity: MetaAdsMetricEntity;
+  dateStart: string;
+  dateEnd: string;
+  pageToken?: string;
+  forceRefresh?: boolean;
+}): Promise<MetaAdsMetricsResponse> {
+  const {
+    organizationId,
+    adAccountId,
+    entity,
+    dateStart,
+    dateEnd,
+    pageToken = "",
+    forceRefresh = false,
+  } = args;
+  const { start, end } = clampMetaAdsDateRange(dateStart, dateEnd);
+  const { data, error } = await supabase.functions.invoke("meta-ads-metrics", {
+    body: {
+      organization_id: organizationId,
+      ad_account_id: adAccountId,
+      entity,
+      date_start: start,
+      date_end: end,
+      page_token: pageToken,
+      force_refresh: forceRefresh,
+    },
+  });
+  if (error) throw await parseEdgeFunctionError(error, data);
+  const payload = data as MetaAdsMetricsResponse & { error?: string };
+  if (payload?.error) throw await parseEdgeFunctionError(null, payload);
+  return payload;
+}
 
 export function useMetaAdsMetricsQuery(args: {
   organizationId: string | null | undefined;
@@ -54,21 +91,14 @@ export function useMetaAdsMetricsQuery(args: {
     ],
     queryFn: async () => {
       if (!organizationId || !adAccountId) return null;
-      const { start, end } = clampMetaAdsDateRange(dateStart, dateEnd);
-      const { data, error } = await supabase.functions.invoke("meta-ads-metrics", {
-        body: {
-          organization_id: organizationId,
-          ad_account_id: adAccountId,
-          entity,
-          date_start: start,
-          date_end: end,
-          page_token: pageToken,
-        },
+      return fetchMetaAdsMetrics({
+        organizationId,
+        adAccountId,
+        entity,
+        dateStart,
+        dateEnd,
+        pageToken,
       });
-      if (error) throw await parseEdgeFunctionError(error, data);
-      const payload = data as MetaAdsMetricsResponse & { error?: string };
-      if (payload?.error) throw await parseEdgeFunctionError(null, payload);
-      return payload;
     },
     enabled: Boolean(organizationId && adAccountId && enabled),
     staleTime: 60_000,
