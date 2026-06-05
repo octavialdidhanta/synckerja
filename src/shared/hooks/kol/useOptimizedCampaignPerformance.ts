@@ -73,6 +73,27 @@ export const useOptimizedCampaignPerformance = () => {
 
         const campaignIds = campaigns.map((c) => c.id);
 
+        let spentByCampaign = new Map<string, number>();
+        if (campaignIds.length > 0) {
+          const { data: budgetRows, error: budgetError } = await supabase
+            .from("kol_campaign_budget_allocations")
+            .select("campaign_id, actual_payout, allocated_budget")
+            .in("campaign_id", campaignIds);
+
+          if (budgetError) {
+            console.error("Error fetching budget allocations:", budgetError);
+          } else {
+            for (const row of budgetRows || []) {
+              const cid = row.campaign_id as string;
+              const spent =
+                Number(row.actual_payout) > 0
+                  ? Number(row.actual_payout)
+                  : Number(row.allocated_budget || 0);
+              spentByCampaign.set(cid, (spentByCampaign.get(cid) || 0) + spent);
+            }
+          }
+        }
+
         const { data: contentPosts, error: postsError } = await supabase
           .from("kol_content_posts")
           .select("id, campaign_id, kol_profile_id")
@@ -180,8 +201,8 @@ export const useOptimizedCampaignPerformance = () => {
             total_conversions: totalConversions,
             engagement_rate,
             conversion_rate: conversionRate,
-            total_spent: 0,
-            total_budget: campaign.budget || 0,
+            total_spent: spentByCampaign.get(campaign.id) || 0,
+            total_budget: campaign.budget || campaign.total_budget || 0,
             kol_count,
             content_post_count: campaignPosts.length,
             start_date: campaign.start_date,

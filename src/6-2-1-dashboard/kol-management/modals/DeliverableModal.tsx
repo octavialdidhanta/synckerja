@@ -20,6 +20,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
 import { Package } from "lucide-react";
+import { supabase } from "@/shared/lib/supabaseClient";
+import { useToast } from "@/shared/components/ui/use-toast";
+import {
+  KOL_CONTENT_PLATFORM_OPTIONS,
+  KOL_CONTENT_TYPE_OPTIONS,
+} from "@/shared/constants/kolContentPostOptions";
 
 interface KOLProfile {
   id: string;
@@ -34,6 +40,7 @@ interface DeliverableModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaignId: string;
+  organizationId: string;
   kolProfile: KOLProfile;
   onDeliverableSet: () => void;
 }
@@ -41,10 +48,12 @@ interface DeliverableModalProps {
 const DeliverableModal = ({
   open,
   onOpenChange,
-  campaignId: _campaignId,
+  campaignId,
+  organizationId,
   kolProfile,
   onDeliverableSet,
 }: DeliverableModalProps) => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     deliverable_type: "",
     platform: "",
@@ -56,32 +65,39 @@ const DeliverableModal = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const platformOptions = [
-    "Instagram",
-    "TikTok",
-    "YouTube",
-    "Twitter",
-    "Facebook",
-    "LinkedIn",
-    "Other",
-  ];
-
-  const contentTypeOptions = [
-    "Post",
-    "Story",
-    "Video",
-    "Reel",
-    "Article",
-    "Live Stream",
-    "Review",
-    "Tutorial",
-  ];
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.deliverable_type || !formData.platform) {
+      toast({
+        title: "Error",
+        description: "Content type dan platform wajib diisi",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Placeholder only – actual deliverable creation is disabled in this build.
+      const { error } = await supabase.from("kol_campaign_deliverables").insert({
+        campaign_id: campaignId,
+        kol_profile_id: kolProfile.id,
+        deliverable_type: formData.deliverable_type,
+        content_type: formData.deliverable_type,
+        platform: formData.platform,
+        quantity: formData.quantity,
+        description: formData.description || null,
+        due_date: formData.due_date || null,
+        status: formData.status,
+        organization_id: organizationId,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Berhasil",
+        description: "Deliverable berhasil disimpan",
+      });
+
       onDeliverableSet();
       onOpenChange(false);
       setFormData({
@@ -91,6 +107,16 @@ const DeliverableModal = ({
         description: "",
         due_date: "",
         status: "pending",
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : String((err as { message?: string })?.message || err);
+      toast({
+        title: "Gagal menyimpan deliverable",
+        description: message,
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
@@ -126,11 +152,11 @@ const DeliverableModal = ({
                 <Badge variant="secondary" className="text-xs">
                   {kolProfile.category || "General"}
                 </Badge>
-                {kolProfile.followers_count && (
+                {kolProfile.followers_count ? (
                   <Badge variant="outline" className="text-xs">
                     {kolProfile.followers_count.toLocaleString()} followers
                   </Badge>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -149,9 +175,9 @@ const DeliverableModal = ({
                     <SelectValue placeholder="Select content type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {contentTypeOptions.map((type) => (
-                      <SelectItem key={type} value={type.toLowerCase()}>
-                        {type}
+                    {KOL_CONTENT_TYPE_OPTIONS.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -170,9 +196,9 @@ const DeliverableModal = ({
                     <SelectValue placeholder="Select platform" />
                   </SelectTrigger>
                   <SelectContent>
-                    {platformOptions.map((platform) => (
-                      <SelectItem key={platform} value={platform.toLowerCase()}>
-                        {platform}
+                    {KOL_CONTENT_PLATFORM_OPTIONS.map((platform) => (
+                      <SelectItem key={platform.value} value={platform.value}>
+                        {platform.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -242,4 +268,3 @@ const DeliverableModal = ({
 };
 
 export default DeliverableModal;
-

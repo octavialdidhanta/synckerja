@@ -13,8 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avat
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { ScrollArea } from "@/shared/components/ui/scroll-area";
 import { Search, Users, CheckCircle, Settings } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useKOLProfiles } from "../hooks/useKOLProfiles";
-import { useOptimizedKOLOperations } from "../hooks/useOptimizedKOLOperations";
 import { useKOLCampaigns, type KOLCampaign } from "../hooks/useKOLCampaigns";
 import { useToast } from "@/shared/components/ui/use-toast";
 import DeliverableModal from "./DeliverableModal";
@@ -32,9 +32,9 @@ const AssignKOLModal = ({ open, onOpenChange, campaign }: AssignKOLModalProps) =
   const [deliverableModalOpen, setDeliverableModalOpen] = useState(false);
   const [selectedKOLForDeliverable, setSelectedKOLForDeliverable] = useState<any>(null);
 
+  const queryClient = useQueryClient();
   const { profiles: kolProfiles, loading: kolLoading } = useKOLProfiles();
-  const { campaigns } = useKOLCampaigns();
-  const { assignKOLToCampaign } = useOptimizedKOLOperations();
+  const { campaigns, assignKOLToCampaign } = useKOLCampaigns();
   const { toast } = useToast();
 
   const assignedKOLIds = useMemo(() => {
@@ -104,7 +104,8 @@ const AssignKOLModal = ({ open, onOpenChange, campaign }: AssignKOLModalProps) =
   };
 
   const handleDeliverableSet = () => {
-    // placeholder hook for post-deliverable actions
+    void queryClient.invalidateQueries({ queryKey: ["kol-campaigns"] });
+    void queryClient.invalidateQueries({ queryKey: ["kol-campaign-assignments"] });
   };
 
   const availableKOLs = filteredKOLs.filter((kol) => !assignedKOLIds.includes(kol.id));
@@ -286,6 +287,7 @@ const AssignKOLModal = ({ open, onOpenChange, campaign }: AssignKOLModalProps) =
           open={deliverableModalOpen}
           onOpenChange={setDeliverableModalOpen}
           campaignId={campaign.id}
+          organizationId={campaign.organization_id}
           kolProfile={selectedKOLForDeliverable}
           onDeliverableSet={handleDeliverableSet}
         />

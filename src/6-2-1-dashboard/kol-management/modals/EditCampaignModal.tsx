@@ -19,6 +19,11 @@ import {
 import { Loader2 } from "lucide-react";
 import type { KOLCampaign } from "../hooks/useKOLCampaigns";
 import { useKOLCampaigns } from "../hooks/useKOLCampaigns";
+import {
+  normalizeLegacyEngagementTarget,
+  validateCampaignTargets,
+} from "../utils/campaignTargets";
+import { useToast } from "@/shared/components/ui/use-toast";
 
 interface EditCampaignModalProps {
   open: boolean;
@@ -28,6 +33,7 @@ interface EditCampaignModalProps {
 
 const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalProps) => {
   const { updateCampaign } = useKOLCampaigns();
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -53,7 +59,11 @@ const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalPr
         total_budget: campaign.total_budget?.toString() || "",
         allocated_budget: campaign.allocated_budget?.toString() || "",
         target_reach: campaign.target_reach?.toString() || "",
-        target_engagement: campaign.target_engagement?.toString() || "",
+        target_engagement:
+          normalizeLegacyEngagementTarget(
+            campaign.target_engagement,
+            campaign.target_reach,
+          )?.toString() || "",
         target_conversion: campaign.target_conversion?.toString() || "",
         start_date: campaign.start_date ? campaign.start_date.split("T")[0] : "",
         end_date: campaign.end_date ? campaign.end_date.split("T")[0] : "",
@@ -73,23 +83,39 @@ const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalPr
     e.preventDefault();
     if (!campaign) return;
 
+    const budgetVal = formData.total_budget
+      ? parseFloat(formData.total_budget)
+      : formData.budget
+        ? parseFloat(formData.budget)
+        : null;
+
+    const targetReach = Number(formData.target_reach);
+    const targetEngagement = Number(formData.target_engagement);
+    const targetConversion = Number(formData.target_conversion);
+    const targetCheck = validateCampaignTargets({
+      target_reach: targetReach,
+      target_engagement: targetEngagement,
+      target_conversion: targetConversion,
+    });
+    if (!targetCheck.ok) {
+      toast({
+        title: "Target belum lengkap",
+        description: targetCheck.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const updateData = {
       id: campaign.id,
       name: formData.name,
       description: formData.description || null,
       objectives: formData.objectives || null,
-      budget: formData.budget ? parseFloat(formData.budget) : null,
-      total_budget: formData.total_budget ? parseFloat(formData.total_budget) : null,
-      allocated_budget: formData.allocated_budget
-        ? parseFloat(formData.allocated_budget)
-        : null,
-      target_reach: formData.target_reach ? parseInt(formData.target_reach, 10) : null,
-      target_engagement: formData.target_engagement
-        ? parseInt(formData.target_engagement, 10)
-        : null,
-      target_conversion: formData.target_conversion
-        ? parseInt(formData.target_conversion, 10)
-        : null,
+      budget: budgetVal,
+      total_budget: budgetVal,
+      target_reach: targetReach,
+      target_engagement: targetEngagement,
+      target_conversion: targetConversion,
       start_date: formData.start_date || null,
       end_date: formData.end_date || null,
       status: formData.status,
@@ -227,7 +253,7 @@ const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalPr
             <h3 className="mb-4 text-lg font-medium text-gray-900">Target Metrics</h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <Label htmlFor="target_reach">Target Reach</Label>
+                <Label htmlFor="target_reach">Target Reach *</Label>
                 <Input
                   id="target_reach"
                   type="number"
@@ -236,7 +262,7 @@ const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalPr
                 />
               </div>
               <div>
-                <Label htmlFor="target_engagement">Target Engagement (%)</Label>
+                <Label htmlFor="target_engagement">Target Engagement (%) *</Label>
                 <Input
                   id="target_engagement"
                   type="number"
@@ -254,7 +280,7 @@ const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalPr
                 </p>
               </div>
               <div>
-                <Label htmlFor="target_conversion">Target Conversion</Label>
+                <Label htmlFor="target_conversion">Target Conversion *</Label>
                 <Input
                   id="target_conversion"
                   type="number"

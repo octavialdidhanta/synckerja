@@ -42,6 +42,10 @@ import {
   parseIdrInputToNumber,
 } from "@/shared/lib/idrInputFormat";
 import { Award, DollarSign, Handshake, Plus, Target, Trash2 } from "lucide-react";
+import {
+  getThresholdFieldHint,
+  getThresholdFieldLabel,
+} from "@/6-2-1-dashboard/kol-management/utils/campaignTargets";
 
 const milestoneSchema = z.object({
   milestone_name: z.string().min(1, "Milestone name is required"),
@@ -184,6 +188,7 @@ const AddContentPostModal = ({
   const selectedContentType = form.watch("content_type");
   const baseAmountStr = form.watch("base_amount");
   const milestonesWatch = form.watch("milestones");
+  const watchedThresholds = form.watch("performance_thresholds");
 
   const selectedAssignment = useMemo(
     () => assignments.find((a) => a.id === selectedAssignmentId),
@@ -953,20 +958,29 @@ const AddContentPostModal = ({
                             <FormField
                               control={form.control}
                               name={`performance_thresholds.${index}.threshold`}
-                              render={({ field: f }) => (
-                                <FormItem>
-                                  <FormLabel>Threshold</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      type="number"
-                                      placeholder="0"
-                                      {...f}
-                                      onChange={(e) => f.onChange(parseFloat(e.target.value) || 0)}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
+                              render={({ field: f }) => {
+                                const metric = watchedThresholds?.[index]?.metric || "reach";
+                                const hint = getThresholdFieldHint(metric);
+                                return (
+                                  <FormItem>
+                                    <FormLabel>{getThresholdFieldLabel(metric)}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type="number"
+                                        placeholder={metric === "engagement" ? "5000" : "100000"}
+                                        {...f}
+                                        onChange={(e) =>
+                                          f.onChange(parseFloat(e.target.value) || 0)
+                                        }
+                                      />
+                                    </FormControl>
+                                    {hint ? (
+                                      <FormDescription className="text-xs">{hint}</FormDescription>
+                                    ) : null}
+                                    <FormMessage />
+                                  </FormItem>
+                                );
+                              }}
                             />
 
                             <FormField

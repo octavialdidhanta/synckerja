@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { useKOLCampaigns } from "../hooks/useKOLCampaigns";
+import { validateCampaignTargets } from "../utils/campaignTargets";
+import { useToast } from "@/shared/components/ui/use-toast";
 
 interface CreateCampaignModalProps {
   open: boolean;
@@ -29,6 +31,7 @@ export const CreateCampaignModal = ({
   onOpenChange,
 }: CreateCampaignModalProps) => {
   const { createCampaign } = useKOLCampaigns();
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -52,18 +55,32 @@ export const CreateCampaignModal = ({
   const handleSubmit = async () => {
     if (!formData.name.trim()) return;
 
+    const budgetValue = formData.budget ? Number(formData.budget) : undefined;
+    const targetReach = Number(formData.target_reach);
+    const targetEngagement = Number(formData.target_engagement);
+    const targetConversion = Number(formData.target_conversion);
+
+    const targetCheck = validateCampaignTargets({
+      target_reach: targetReach,
+      target_engagement: targetEngagement,
+      target_conversion: targetConversion,
+    });
+    if (!targetCheck.ok) {
+      toast({
+        title: "Target belum lengkap",
+        description: targetCheck.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const campaignData = {
       ...formData,
-      budget: formData.budget ? Number(formData.budget) : undefined,
-      target_reach: formData.target_reach
-        ? Number(formData.target_reach)
-        : undefined,
-      target_engagement: formData.target_engagement
-        ? Number(formData.target_engagement)
-        : undefined,
-      target_conversion: formData.target_conversion
-        ? Number(formData.target_conversion)
-        : undefined,
+      budget: budgetValue,
+      total_budget: budgetValue,
+      target_reach: targetReach,
+      target_engagement: targetEngagement,
+      target_conversion: targetConversion,
     };
 
     try {
@@ -123,13 +140,13 @@ export const CreateCampaignModal = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="budget">Budget</Label>
+              <Label htmlFor="budget">Total Budget</Label>
               <Input
                 id="budget"
                 type="number"
                 value={formData.budget}
                 onChange={(e) => handleInputChange("budget", e.target.value)}
-                placeholder="Campaign budget"
+                placeholder="Total campaign budget"
               />
             </div>
             <div>
@@ -193,7 +210,7 @@ export const CreateCampaignModal = ({
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="target_reach">Target Reach</Label>
+              <Label htmlFor="target_reach">Target Reach *</Label>
               <Input
                 id="target_reach"
                 type="number"
@@ -205,7 +222,7 @@ export const CreateCampaignModal = ({
               />
             </div>
             <div>
-              <Label htmlFor="target_engagement">Target Engagement (%)</Label>
+              <Label htmlFor="target_engagement">Target Engagement (%) *</Label>
               <Input
                 id="target_engagement"
                 type="number"
@@ -223,7 +240,7 @@ export const CreateCampaignModal = ({
               </p>
             </div>
             <div>
-              <Label htmlFor="target_conversion">Target Conversion</Label>
+              <Label htmlFor="target_conversion">Target Conversion *</Label>
               <Input
                 id="target_conversion"
                 type="number"
@@ -241,7 +258,16 @@ export const CreateCampaignModal = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={createCampaign.isPending}>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              createCampaign.isPending ||
+              !formData.name.trim() ||
+              !formData.target_reach ||
+              !formData.target_engagement ||
+              !formData.target_conversion
+            }
+          >
             {createCampaign.isPending ? "Creating..." : "Create Campaign"}
           </Button>
         </DialogFooter>

@@ -145,6 +145,7 @@ interface LeadsTableNewProps {
   utmTermColumnFilter?: UtmStringColumnFilterConfig | null;
   attributionLabelColumnFilter?: UtmStringColumnFilterConfig | null;
   gclidColumnFilter?: UtmStringColumnFilterConfig | null;
+  fbclidColumnFilter?: UtmStringColumnFilterConfig | null;
   landingUrlContainsColumnFilter?: LandingUrlContainsColumnFilterConfig | null;
   /** Latest customer survey per WhatsApp conversation (leads page hook or RPC fields in picker). */
   getSurveyForLead?: (lead: NewLead) => LatestCustomerSurvey | null;
@@ -176,7 +177,13 @@ interface LeadsTableNewProps {
 const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
 
 /** Extra horizontal room between Attribution label ↔ Assignee ↔ Follow Up (header + body). */
-const ATTRIBUTION_ASSIGNEE_FU_HEAD_KEYS = new Set(["attribution_label", "gclid", "assignee", "followup"]);
+const ATTRIBUTION_ASSIGNEE_FU_HEAD_KEYS = new Set([
+  "attribution_label",
+  "gclid",
+  "fbclid",
+  "assignee",
+  "followup",
+]);
 
 export default function LeadsTableNew({
   leads,
@@ -199,6 +206,7 @@ export default function LeadsTableNew({
   utmTermColumnFilter,
   attributionLabelColumnFilter,
   gclidColumnFilter,
+  fbclidColumnFilter,
   landingUrlContainsColumnFilter,
   getSurveyForLead,
   onOpenSurveyHistory,
@@ -508,14 +516,15 @@ export default function LeadsTableNew({
       { key: "category", label: "Category", width: "w-[200px] max-w-[200px]", sortKey: "category" },
       { key: "created_by", label: "Created By", width: "w-[120px]", sortKey: "created_by_name" },
       { key: "source", label: "Source", width: "w-[100px]", sortKey: "source" },
+      { key: "utm_campaign", label: "UTM Campaign", width: "w-[250px] max-w-[250px]", sortKey: "utm_campaign" },
       { key: "utm_source", label: "UTM Source", width: "w-[110px]", sortKey: "utm_source" },
-      { key: "utm_campaign", label: "UTM Campaign", width: "w-[130px]", sortKey: "utm_campaign" },
       { key: "utm_medium", label: "UTM Medium", width: "w-[120px]", sortKey: "utm_medium" },
-      { key: "utm_content", label: "UTM Content", width: "w-[120px]", sortKey: "utm_content" },
-      { key: "utm_term", label: "UTM Term", width: "w-[110px]", sortKey: "utm_term" },
+      { key: "utm_content", label: "UTM Content", width: "w-[250px] max-w-[250px]", sortKey: "utm_content" },
+      { key: "utm_term", label: "UTM Term", width: "w-[250px] max-w-[250px]", sortKey: "utm_term" },
       { key: "landing_url", label: "Landing URL", width: "w-[200px] max-w-[220px]", sortKey: "landing_url" },
       { key: "attribution_label", label: "Attribution label", width: "min-w-[200px] max-w-[260px]", sortKey: "attribution_label" },
       { key: "gclid", label: "gclid", width: "min-w-[160px] max-w-[220px]", sortKey: "gclid" },
+      { key: "fbclid", label: "fbclid", width: "min-w-[160px] max-w-[220px]", sortKey: "fbclid" },
       { key: "assignee", label: "Assignee", width: "min-w-[168px] w-[168px]", sortKey: "assignee" },
       { key: "followup", label: "Follow Up", width: "min-w-[124px] w-[124px]", sortKey: "followup" },
       { key: "fu_priority", label: "FU Priority", width: "w-[120px]", sortKey: "fu_priority" },
@@ -1057,6 +1066,24 @@ export default function LeadsTableNew({
         </div>
       );
     }
+    if (header.key === "fbclid" && fbclidColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            fbclidColumnFilter.value,
+            fbclidColumnFilter.onChange,
+            t("leadsManagement.filters.allFbclids", "All fbclids"),
+            fbclidColumnFilter.options.map((name, i) => ({
+              key: `fbclid-${i}-${name.slice(0, 24)}`,
+              value: name,
+              label: name.length > 48 ? `${name.slice(0, 45)}…` : name,
+            })),
+            t("leadsManagement.table.filterFbclid", "Filter fbclid"),
+          )}
+        </div>
+      );
+    }
     return renderAttributionSortHead(header);
   };
 
@@ -1194,20 +1221,32 @@ export default function LeadsTableNew({
                       {lead.source || 'Website'}
                     </Badge>
                   </TableCell>
+                  <TableCell className="min-w-0 max-w-[250px] text-xs text-gray-800">
+                    {lead.utm_campaign?.trim() ? (
+                      <span className="block truncate" title={lead.utm_campaign}>
+                        {lead.utm_campaign}
+                      </span>
+                    ) : null}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-gray-800">
                     {lead.utm_source?.trim() ? <span title={lead.utm_source}>{lead.utm_source}</span> : null}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-gray-800">
-                    {lead.utm_campaign?.trim() ? <span title={lead.utm_campaign}>{lead.utm_campaign}</span> : null}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
                     {lead.utm_medium?.trim() ? <span title={lead.utm_medium}>{lead.utm_medium}</span> : null}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
-                    {lead.utm_content?.trim() ? <span title={lead.utm_content}>{lead.utm_content}</span> : null}
+                  <TableCell className="min-w-0 max-w-[250px] text-xs text-gray-800">
+                    {lead.utm_content?.trim() ? (
+                      <span className="block truncate" title={lead.utm_content}>
+                        {lead.utm_content}
+                      </span>
+                    ) : null}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-gray-800">
-                    {lead.utm_term?.trim() ? <span title={lead.utm_term}>{lead.utm_term}</span> : null}
+                  <TableCell className="min-w-0 max-w-[250px] text-xs text-gray-800">
+                    {lead.utm_term?.trim() ? (
+                      <span className="block truncate" title={lead.utm_term}>
+                        {lead.utm_term}
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell className="min-w-0 max-w-[220px] text-xs text-gray-800">
                     {lead.landing_url?.trim() ? (
@@ -1227,6 +1266,13 @@ export default function LeadsTableNew({
                     {lead.gclid?.trim() ? (
                       <span className="block truncate font-mono" title={lead.gclid}>
                         {lead.gclid}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="min-w-0 max-w-[220px] px-5 text-xs text-gray-800 align-middle">
+                    {lead.fbclid?.trim() ? (
+                      <span className="block truncate font-mono" title={lead.fbclid}>
+                        {lead.fbclid}
                       </span>
                     ) : null}
                   </TableCell>

@@ -8,6 +8,8 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Badge } from "@/shared/components/ui/badge";
 import type { KOLCampaign } from "../hooks/useKOLCampaigns";
+import { CampaignContractsSection } from "../components/CampaignContractsSection";
+import { formatCampaignEngagementTarget } from "../utils/campaignTargets";
 
 interface CampaignDetailsModalProps {
   open: boolean;
@@ -156,11 +158,12 @@ const CampaignDetailsModal = ({
                 </p>
               </div>
               <div className="rounded-lg bg-pink-50 p-4">
-                <p className="text-sm font-medium text-gray-700">Target Engagement</p>
+                <p className="text-sm font-medium text-gray-700">Target Engagement (%)</p>
                 <p className="mt-1 text-xl font-semibold text-pink-600">
-                  {campaign.target_engagement
-                    ? `${campaign.target_engagement}%`
-                    : "Not specified"}
+                  {formatCampaignEngagementTarget(
+                    campaign.target_engagement,
+                    campaign.target_reach,
+                  )}
                 </p>
               </div>
               <div className="rounded-lg bg-indigo-50 p-4">
@@ -173,6 +176,8 @@ const CampaignDetailsModal = ({
               </div>
             </div>
           </div>
+
+          <CampaignContractsSection campaign={campaign} />
 
           <div className="border-t pt-4 text-xs text-gray-500">
             <div className="flex justify-between">

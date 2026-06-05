@@ -10,6 +10,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { useKOLPaymentTerms } from "@/shared/hooks/payment-terms/useKOLPaymentTerms";
+import { supabase } from "@/shared/lib/supabaseClient";
 import { DollarSign, Calendar, AlertTriangle } from "lucide-react";
 import {
   formatIdrThousandsFromDigits,
@@ -66,10 +67,38 @@ export const PaymentUpdateModal = ({ isOpen, onClose, paymentTerm }: PaymentUpda
 
     try {
       const baseTotal = Number(paymentTerm.base_amount || 0) + Number(paymentTerm.bonus_amount || 0);
-      const downPayment = Number((paymentTerm as { down_payment_amount?: number }).down_payment_amount || 0);
       const deduction = parseIdrInputToNumber(String(formData.deduction_amount || ""));
       const deductionNum = Number.isFinite(deduction) ? deduction : 0;
-      const calculatedRemaining = baseTotal - downPayment - deductionNum;
+
+      let downPaymentAmount = Number(
+        (paymentTerm as { down_payment_amount?: number }).down_payment_amount || 0,
+      );
+
+      if (formData.status === "dp_paid" && downPaymentAmount <= 0) {
+        const { data: milestones } = await supabase
+          .from("payment_milestones")
+          .select("amount, milestone_order, milestone_name, status")
+          .eq("payment_terms_id", paymentTerm.id)
+          .order("milestone_order", { ascending: true });
+
+        const firstMilestone = (milestones || []).find(
+          (m) =>
+            m.milestone_order === 1 ||
+            String(m.milestone_name || "")
+              .toLowerCase()
+              .includes("dp") ||
+            String(m.milestone_name || "")
+              .toLowerCase()
+              .includes("down"),
+        );
+        const fallbackMilestone = (milestones || [])[0];
+        const source = firstMilestone || fallbackMilestone;
+        if (source?.amount) {
+          downPaymentAmount = Number(source.amount);
+        }
+      }
+
+      const calculatedRemaining = baseTotal - downPaymentAmount - deductionNum;
 
       const cleanedData: Record<string, unknown> = {
         final_payment_date:
@@ -78,6 +107,8 @@ export const PaymentUpdateModal = ({ isOpen, onClose, paymentTerm }: PaymentUpda
         deduction_amount: deductionNum,
         deduction_reason: formData.deduction_reason,
         status: formData.status,
+        down_payment_amount:
+          formData.status === "dp_paid" && downPaymentAmount > 0 ? downPaymentAmount : undefined,
         down_payment_date:
           formData.status === "dp_paid" && !(paymentTerm as { down_payment_date?: string }).down_payment_date
             ? new Date().toISOString().split("T")[0]

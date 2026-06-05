@@ -492,7 +492,15 @@ export const PaymentTermModal = ({ isOpen, onClose, paymentTerm }: PaymentTermMo
                       </Select>
                     </div>
                     <div className="min-w-0 flex-1 space-y-1">
-                      <Label>Threshold</Label>
+                      <Label>
+                        {threshold.metric === "engagement"
+                          ? "Target Engagement (jumlah interaksi)"
+                          : threshold.metric === "reach"
+                            ? "Target Reach (jumlah)"
+                            : threshold.metric === "conversions" || threshold.metric === "conversion"
+                              ? "Target Conversion (jumlah)"
+                              : "Threshold"}
+                      </Label>
                       <Input
                         inputMode="numeric"
                         autoComplete="off"
@@ -505,8 +513,15 @@ export const PaymentTermModal = ({ isOpen, onClose, paymentTerm }: PaymentTermMo
                             digits === "" ? "" : formatIdrThousandsFromDigits(digits),
                           );
                         }}
-                        placeholder="100.000"
+                        placeholder={
+                          threshold.metric === "engagement" ? "5.000" : "100.000"
+                        }
                       />
+                      {threshold.metric === "engagement" ? (
+                        <p className="text-xs text-muted-foreground">
+                          Jumlah interaksi (bukan %). Campaign target engagement tetap dalam persen.
+                        </p>
+                      ) : null}
                     </div>
                     <div className="min-w-0 flex-1 space-y-1">
                       <Label>Bonus %</Label>

@@ -55,16 +55,12 @@ export const useKOLRatings = () => {
     [ratings],
   );
 
-  // Ambil rating TERBARU per KOL (bukan rata-rata seluruh histori),
-  // supaya kolom Performance langsung mencerminkan update terakhir.
   const getAverageRating = useCallback(
     (kolId: string) => {
       const kolRatings = getKOLRatings(kolId);
       if (kolRatings.length === 0) return 0;
-      // useKOLRatings sudah mengurutkan global ratings desc by created_at,
-      // dan getKOLRatings mempertahankan urutan itu, jadi index 0 = rating terbaru.
-      const latest = kolRatings[0];
-      return latest?.overall_rating || 0;
+      const sum = kolRatings.reduce((acc, r) => acc + Number(r.overall_rating || 0), 0);
+      return sum / kolRatings.length;
     },
     [getKOLRatings],
   );

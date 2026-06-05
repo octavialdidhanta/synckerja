@@ -2,7 +2,9 @@
   position: relative;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 100%;
+  width: max-content;
+  /* 15 columns — horizontal scroll when viewport narrower than table */
+  min-width: max(100%, 2280px);
 }
 
 .kol-campaigns-table thead {

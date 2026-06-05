@@ -2,120 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { supabase } from "@/shared/lib/supabaseClient";
-
-type ThresholdCommon = {
-  organization_id: string;
-  payment_terms_id: string;
-  kol_content_post_id: string | null;
-  kol_profile_id: string | null;
-  campaign_id: string | null;
-  is_active: boolean;
-  description: string | null;
-};
-
-const normalizeMetricType = (metric: string): string => {
-  const m = String(metric || "").toLowerCase();
-  return m === "conversions" ? "conversion" : m;
-};
-
-function collectThresholdRows(thresholds: unknown, common: ThresholdCommon): Record<string, unknown>[] {
-  const rows: Record<string, unknown>[] = [];
-
-  const pushRow = (metric: string, value: unknown, bonus?: unknown) => {
-    const metricType = normalizeMetricType(metric);
-    if (value === undefined || value === null || Number.isNaN(Number(value))) return;
-    const n = Number(value);
-    if (!Number.isFinite(n)) return;
-    rows.push({
-      ...common,
-      metric_type: metricType,
-      target_value: n,
-      bonus_percentage: bonus !== undefined && bonus !== null && String(bonus) !== "" ? Number(bonus) : 0,
-    });
-  };
-
-  if (Array.isArray(thresholds)) {
-    thresholds.forEach((t: { metric?: string; threshold?: unknown; bonus_percentage?: unknown }) => {
-      pushRow(String(t.metric || "").toLowerCase(), t.threshold, t.bonus_percentage);
-    });
-    return rows;
-  }
-
-  if (!thresholds || typeof thresholds !== "object") return rows;
-
-  const o = thresholds as Record<string, unknown>;
-  let nestedFound = false;
-
-  for (const [key, val] of Object.entries(o)) {
-    if (val && typeof val === "object" && !Array.isArray(val) && "threshold" in (val as object)) {
-      nestedFound = true;
-      const item = val as { threshold?: unknown; bonus_percentage?: unknown };
-      pushRow(key, item.threshold, item.bonus_percentage);
-    }
-  }
-
-  if (nestedFound) return rows;
-
-  pushRow("reach", o.target_reach, o.reach_bonus_percentage);
-  pushRow("engagement", o.target_engagement, o.engagement_bonus_percentage);
-  pushRow(
-    "conversion",
-    (o as { target_conversions?: unknown }).target_conversions ??
-      (o as { target_conversion?: unknown }).target_conversion,
-    o.conversion_bonus_percentage,
-  );
-  pushRow("views", o.target_views, o.views_bonus_percentage);
-  pushRow("clicks", o.target_clicks, o.clicks_bonus_percentage);
-  pushRow("saves", o.target_saves, o.saves_bonus_percentage);
-  pushRow("shares", o.target_shares, o.shares_bonus_percentage);
-  pushRow("comments", o.target_comments, o.comments_bonus_percentage);
-  pushRow("likes", o.target_likes, o.likes_bonus_percentage);
-
-  return rows;
-}
-
-/** PostgREST / schema cache: table or relation missing on remote DB */
-function isMissingSchemaError(err: unknown): boolean {
-  const code = (err as { code?: string })?.code;
-  const msg = String((err as { message?: string })?.message || "");
-  return (
-    code === "PGRST205" ||
-    code === "42P01" ||
-    msg.includes("Could not find the table") ||
-    msg.includes("schema cache")
-  );
-}
-
-/**
- * After one failed probe, skip further REST calls to this table for the page session
- * (avoids repeated 404s in the network tab until migrations are applied).
- * Hard-refresh after `supabase db push` so sync is tried again.
- */
-let kolPerformanceThresholdsUnavailableSession = false;
-let loggedKolPerformanceThresholdsUnavailable = false;
-
-function markThresholdTableUnavailable() {
-  kolPerformanceThresholdsUnavailableSession = true;
-  if (loggedKolPerformanceThresholdsUnavailable) return;
-  loggedKolPerformanceThresholdsUnavailable = true;
-  console.warn(
-    "[useKOLPaymentTerms] Tabel kol_performance_thresholds belum ada di project Supabase ini. " +
-      "Payment term tetap tersimpan (kolom performance_thresholds di kol_payment_terms). " +
-      "Jalankan migrasi yang membuat kol_performance_thresholds lalu refresh halaman.",
-  );
-}
-
-async function syncPerformanceThresholdRows(rows: Record<string, unknown>[]) {
-  if (rows.length === 0 || kolPerformanceThresholdsUnavailableSession) return;
-  const { error } = await supabase.from("kol_performance_thresholds").insert(rows);
-  if (error) {
-    if (isMissingSchemaError(error)) {
-      markThresholdTableUnavailable();
-      return;
-    }
-    console.error("Failed to sync performance thresholds:", error);
-  }
-}
+import {
+  collectThresholdRows,
+  replacePerformanceThresholdRows,
+  syncPerformanceThresholdRows,
+  type ThresholdCommon,
+} from "@/shared/services/payment-terms/syncPerformanceThresholds";
 
 export const useKOLPaymentTerms = () => {
   const { organizationId } = useCurrentOrg();
@@ -230,33 +122,13 @@ export const useKOLPaymentTerms = () => {
 
       if (data && Object.prototype.hasOwnProperty.call(data, "performance_thresholds")) {
         try {
-          if (!kolPerformanceThresholdsUnavailableSession) {
-            const { error: delErr } = await supabase
-              .from("kol_performance_thresholds")
-              .delete()
-              .eq("payment_terms_id", id)
-              .eq("organization_id", organizationId!);
-
-            if (delErr) {
-              if (isMissingSchemaError(delErr)) {
-                markThresholdTableUnavailable();
-              } else {
-                console.error("Failed to clear performance thresholds on update:", delErr);
-              }
-            }
-          }
-
-          const common: ThresholdCommon = {
-            organization_id: organizationId!,
-            payment_terms_id: id,
+          await replacePerformanceThresholdRows(id, organizationId!, data.performance_thresholds, {
             kol_content_post_id: (data.kol_content_post_id as string | null) ?? null,
             kol_profile_id: (data.kol_profile_id as string | null) ?? null,
             campaign_id: (data.campaign_id as string | null) ?? null,
             is_active: true,
             description: null,
-          };
-          const rows = collectThresholdRows(data.performance_thresholds, common);
-          await syncPerformanceThresholdRows(rows);
+          });
         } catch (e) {
           console.error("Error while syncing thresholds on update:", e);
         }

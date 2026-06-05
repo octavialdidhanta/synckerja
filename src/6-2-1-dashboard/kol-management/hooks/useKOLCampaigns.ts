@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { validateCampaignTargets } from "../utils/campaignTargets";
 import { useToast } from "@/shared/components/ui/use-toast";
 
 export type KOLCampaignAssignmentRow = {
@@ -109,10 +110,25 @@ export const useKOLCampaigns = () => {
         throw new Error("Campaign name is required");
       }
 
+      const targetCheck = validateCampaignTargets({
+        target_reach: campaignData.target_reach,
+        target_engagement: campaignData.target_engagement,
+        target_conversion: campaignData.target_conversion,
+      });
+      if (!targetCheck.ok) {
+        throw new Error(targetCheck.message);
+      }
+
+      const budgetAmount = Number(campaignData.budget ?? campaignData.total_budget ?? 0) || 0;
+
       const insertData = {
         ...campaignData,
         organization_id: organizationId,
         created_by: user.id,
+        budget: budgetAmount || campaignData.budget,
+        total_budget: budgetAmount || campaignData.total_budget,
+        allocated_budget: 0,
+        remaining_budget: budgetAmount,
       };
 
       const { data, error } = await supabase
@@ -208,6 +224,55 @@ export const useKOLCampaigns = () => {
     },
   });
 
+  const assignKOLToCampaign = useMutation({
+    mutationFn: async ({
+      campaignId,
+      kolProfileId,
+    }: {
+      campaignId: string;
+      kolProfileId: string;
+    }) => {
+      const { data: existing, error: selectError } = await supabase
+        .from("kol_campaign_assignments")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("kol_profile_id", kolProfileId)
+        .maybeSingle();
+
+      if (selectError) throw selectError;
+      if (existing?.id) return { id: existing.id };
+
+      const { data, error } = await supabase
+        .from("kol_campaign_assignments")
+        .insert({ campaign_id: campaignId, kol_profile_id: kolProfileId })
+        .select("id")
+        .single();
+
+      if (error) {
+        if (error.code === "23505") {
+          throw new Error("KOL ini sudah ditugaskan ke kampanye ini.");
+        }
+        throw error;
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kol-campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["kol-campaign-assignments"] });
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof Error
+          ? err.message
+          : String((err as { message?: string })?.message || err);
+      toast({
+        title: "Tidak dapat menugaskan KOL",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     campaigns,
     isLoading,
@@ -216,6 +281,7 @@ export const useKOLCampaigns = () => {
     createCampaign,
     updateCampaign,
     deleteCampaign,
+    assignKOLToCampaign,
   };
 };
 

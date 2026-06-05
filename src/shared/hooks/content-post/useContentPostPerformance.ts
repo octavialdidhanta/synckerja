@@ -27,10 +27,19 @@ export const useContentPostPerformance = (postIds: string[]) => {
   });
 
   const metricsByPostId = useMemo(() => {
-    return (metricsQuery.data || []).reduce<Record<string, any>>((acc, row: any) => {
-      acc[row.content_post_id] = row;
-      return acc;
-    }, {});
+    const acc: Record<string, any> = {};
+    for (const row of metricsQuery.data || []) {
+      const key = row.content_post_id as string;
+      const prev = acc[key];
+      const rowTime = new Date(row.recorded_at || row.created_at || 0).getTime();
+      const prevTime = prev
+        ? new Date(prev.recorded_at || prev.created_at || 0).getTime()
+        : -1;
+      if (!prev || rowTime >= prevTime) {
+        acc[key] = row;
+      }
+    }
+    return acc;
   }, [metricsQuery.data]);
 
   const conversionByPostId = useMemo(() => {

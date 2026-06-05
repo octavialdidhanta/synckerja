@@ -9,6 +9,19 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function buildMilestonesJson(milestones: any[]) {
+  return (milestones || []).map((item: any, index: number) => ({
+    milestone_name: item.milestone_name,
+    percentage: item.payment_percentage,
+    amount: item.amount ?? 0,
+    milestone_order: item.milestone_order ?? index + 1,
+    due_date: item.due_date || null,
+    description: item.milestone_description ?? item.description ?? null,
+    status: item.status ?? "pending",
+    trigger_condition: item.trigger_condition ?? "manual",
+  }));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -61,6 +74,8 @@ Deno.serve(async (req) => {
       .single();
     if (postError) throw postError;
 
+    const milestonesJson = buildMilestonesJson(paymentTermsData?.milestones || []);
+
     const { data: paymentTerms, error: paymentError } = await supabase
       .from("kol_payment_terms")
       .insert({
@@ -74,6 +89,7 @@ Deno.serve(async (req) => {
         barter_value: paymentTermsData.barter_value || 0,
         payment_schedule: paymentTermsData.payment_schedule,
         performance_thresholds: paymentTermsData.performance_thresholds || {},
+        milestones: milestonesJson,
         effective_start_date: new Date().toISOString().split("T")[0],
         terms_version: 1,
         currency: "IDR",
@@ -82,23 +98,6 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
     if (paymentError) throw paymentError;
-
-    if (Array.isArray(paymentTermsData?.milestones) && paymentTermsData.milestones.length) {
-      const milestones = paymentTermsData.milestones.map((item: any, idx: number) => ({
-        payment_terms_id: paymentTerms.id,
-        milestone_name: item.milestone_name,
-        milestone_order: item.milestone_order || idx + 1,
-        amount: item.amount,
-        percentage: item.payment_percentage,
-        due_date: item.due_date || null,
-        status: item.status || "pending",
-        trigger_condition: item.trigger_condition || "manual",
-        trigger_details: { content_post_id: post.id, ...(item.trigger_details || {}) },
-        milestone_description: item.milestone_description || null,
-      }));
-      const { error: milestoneError } = await supabase.from("payment_milestones").insert(milestones);
-      if (milestoneError) throw milestoneError;
-    }
 
     return new Response(JSON.stringify({ success: true, content_post_id: post.id }), {
       status: 200,

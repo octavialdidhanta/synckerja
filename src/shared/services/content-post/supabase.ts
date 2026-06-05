@@ -4,6 +4,11 @@ import type {
   CreateContentPostWithPaymentPayload,
   PaymentMilestoneRecord,
 } from "@/shared/types/content-post";
+import { buildMilestonesJson } from "./buildMilestonesJson";
+import {
+  collectThresholdRows,
+  syncPerformanceThresholdRows,
+} from "@/shared/services/payment-terms/syncPerformanceThresholds";
 
 const toThresholdObject = (
   thresholds?: { metric: "reach" | "engagement" | "conversion"; threshold: number; bonus_percentage: number }[],
@@ -42,7 +47,7 @@ export const contentPostService = {
         id,
         campaign_id,
         kol_profile_id,
-        campaign:kol_campaigns(id, name, status),
+        campaign:kol_campaigns(id, name, status, remaining_budget, total_budget),
         kol_profile:kol_profiles(id, name, profile_photo_url)
       `,
       )
@@ -57,7 +62,7 @@ export const contentPostService = {
           id,
           campaign_id,
           kol_profile_id,
-          campaign:kol_campaigns(id, name, status, organization_id),
+          campaign:kol_campaigns(id, name, status, organization_id, remaining_budget, total_budget),
           kol_profile:kol_profiles(id, name, profile_photo_url)
         `,
         );
@@ -118,6 +123,8 @@ export const contentPostService = {
       .single();
     if (postError) throw postError;
 
+    const milestonesJson = buildMilestonesJson(paymentTermsData.milestones);
+
     const { data: paymentTerm, error: paymentError } = await supabase
       .from("kol_payment_terms")
       .insert({
@@ -131,6 +138,7 @@ export const contentPostService = {
         barter_value: paymentTermsData.barter_value || 0,
         payment_schedule: paymentTermsData.payment_schedule,
         performance_thresholds: toThresholdObject(paymentTermsData.performance_thresholds),
+        milestones: milestonesJson,
         effective_start_date: new Date().toISOString().split("T")[0],
         terms_version: 1,
         currency: "IDR",
@@ -140,28 +148,19 @@ export const contentPostService = {
       .single();
     if (paymentError) throw paymentError;
 
-    const milestones = paymentTermsData.milestones.map((item, idx) => ({
-      payment_terms_id: paymentTerm.id,
-      milestone_name: item.milestone_name,
-      milestone_order: item.milestone_order || idx + 1,
-      amount: item.amount,
-      percentage: item.payment_percentage,
-      due_date: item.due_date || null,
-      status: item.status || "pending",
-      trigger_condition: item.trigger_condition || "manual",
-      trigger_details: {
-        content_post_id: contentPost.id,
-        ...(item.trigger_details || {}),
+    const thresholdRows = collectThresholdRows(
+      toThresholdObject(paymentTermsData.performance_thresholds),
+      {
+        organization_id: post.organization_id,
+        payment_terms_id: paymentTerm.id,
+        kol_content_post_id: contentPost.id,
+        kol_profile_id: post.kol_profile_id,
+        campaign_id: post.campaign_id,
+        is_active: true,
+        description: null,
       },
-      milestone_description: item.milestone_description || null,
-      invoice_uploaded: false,
-      invoice_file_path: null,
-    }));
-
-    if (milestones.length) {
-      const { error: milestoneError } = await supabase.from("payment_milestones").insert(milestones);
-      if (milestoneError) throw milestoneError;
-    }
+    );
+    await syncPerformanceThresholdRows(thresholdRows);
 
     return contentPost;
   },

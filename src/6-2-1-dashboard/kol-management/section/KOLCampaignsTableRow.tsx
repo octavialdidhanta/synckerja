@@ -7,6 +7,11 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Progress } from "@/shared/components/ui/progress";
 import { format } from "date-fns";
 import { CampaignsActionsDropdown } from "../components/CampaignsActionsDropdown";
+import {
+  formatCampaignEngagementTarget,
+  getRoiColorClass,
+  parseRoiPercent,
+} from "../utils/campaignTargets";
 
 interface KOLCampaignsTableRowProps {
   campaign: any;
@@ -61,6 +66,10 @@ export const KOLCampaignsTableRow = memo(
       metrics?.totalEngagement ?? metrics?.actualEngagement ?? 0;
     const actualConversions =
       metrics?.totalConversions ?? metrics?.actualConversions ?? 0;
+
+    const roiPercent = parseRoiPercent(campaign);
+    const roiLabel =
+      roiPercent == null ? calculateROI(campaign) : `${roiPercent.toFixed(1)}%`;
 
     return (
       <TableRow className="hover:bg-gray-50">
@@ -124,8 +133,10 @@ export const KOLCampaignsTableRow = memo(
           </span>
         </TableCell>
         <TableCell className="w-32 px-3">
-          <span className="text-xs font-medium text-green-600">
-            {calculateROI(campaign)}
+          <span
+            className={`text-xs font-medium ${getRoiColorClass(roiPercent ?? NaN)}`}
+          >
+            {roiLabel}
           </span>
         </TableCell>
         <TableCell className="w-48 px-3">
@@ -152,9 +163,10 @@ export const KOLCampaignsTableRow = memo(
             <div className="flex justify-between text-xs">
               <span className="text-gray-600">
                 Target:{" "}
-                {campaign.target_engagement
-                  ? `${campaign.target_engagement}%`
-                  : "Not set"}
+                {formatCampaignEngagementTarget(
+                  campaign.target_engagement,
+                  campaign.target_reach,
+                )}
               </span>
               <span className="font-medium text-gray-800">
                 {engagementProgress.toFixed(0)}%
@@ -162,7 +174,10 @@ export const KOLCampaignsTableRow = memo(
             </div>
             <Progress value={engagementProgress} className="h-2" />
             <div className="text-xs text-gray-500">
-              Actual: {actualEngagement.toFixed(2)}%
+              Actual:{" "}
+              {typeof actualEngagement === "number"
+                ? `${actualEngagement.toFixed(2)}%`
+                : "0%"}
             </div>
           </div>
         </TableCell>

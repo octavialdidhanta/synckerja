@@ -21,6 +21,7 @@ interface ContentPostFiltersProps {
   onClearFilters: () => void;
   onCreatePost: () => void;
   campaignOptions: Array<{ id: string; name: string; kolName?: string }>;
+  createDisabled?: boolean;
 }
 
 export const ContentPostFilters = ({
@@ -29,6 +30,7 @@ export const ContentPostFilters = ({
   onClearFilters,
   onCreatePost,
   campaignOptions,
+  createDisabled = false,
 }: ContentPostFiltersProps) => {
   const hasActiveFilters =
     Boolean(filters.search) ||
@@ -117,7 +119,8 @@ export const ContentPostFilters = ({
       <Button
         type="button"
         onClick={onCreatePost}
-        className="flex h-9 items-center gap-1.5 bg-brand-blue text-white hover:bg-brand-blue/90"
+        disabled={createDisabled}
+        className="flex h-9 items-center gap-1.5 bg-brand-blue text-white hover:bg-brand-blue/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Plus className="h-4 w-4" />
         Create Content Post

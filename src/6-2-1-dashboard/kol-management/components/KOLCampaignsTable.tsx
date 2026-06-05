@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback } from "react";
+import { memo, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   TableBody,
   TableCell,
@@ -15,6 +15,7 @@ import AssignKOLModal from "../modals/AssignKOLModal";
 import CampaignDetailsModal from "../modals/CampaignDetailsModal";
 import EditCampaignModal from "../modals/EditCampaignModal";
 import "./KOLCampaignsTable.css";
+import { useToast } from "@/shared/components/ui/use-toast";
 
 interface KOLCampaignsTableProps {
   campaigns?: any[];
@@ -34,6 +35,8 @@ export const KOLCampaignsTable = memo(
       deleteCampaign,
     } = useKOLCampaigns();
     const { getCampaignMetrics } = useCampaignPerformanceMetrics();
+    const { toast } = useToast();
+    const promptedCompletedRef = useRef<Set<string>>(new Set());
 
     const [assignModalCampaign, setAssignModalCampaign] = useState<any | null>(null);
     const [detailsModalCampaign, setDetailsModalCampaign] = useState<any | null>(null);
@@ -41,6 +44,18 @@ export const KOLCampaignsTable = memo(
 
     const campaigns = propCampaigns || hookCampaigns || [];
     const isLoading = propIsLoading !== undefined ? propIsLoading : hookIsLoading;
+
+    useEffect(() => {
+      campaigns.forEach((campaign: any) => {
+        if (campaign.status !== "completed") return;
+        if (promptedCompletedRef.current.has(campaign.id)) return;
+        promptedCompletedRef.current.add(campaign.id);
+        toast({
+          title: "Campaign selesai",
+          description: `Campaign "${campaign.name}" completed — pertimbangkan memberi rating KOL yang terlibat.`,
+        });
+      });
+    }, [campaigns, toast]);
 
     const getStatusColor = useCallback((status: string) => {
       switch (status) {
@@ -199,8 +214,8 @@ export const KOLCampaignsTable = memo(
     return (
       <>
         <div className="flex h-full flex-col">
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <table className="kol-campaigns-table w-full caption-bottom text-sm">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <table className="kol-campaigns-table caption-bottom text-sm">
               <TableHeader className="sticky top-0 z-20 bg-brand-blue-soft shadow-sm shadow-brand-blue/10">
                 <TableRow className="hover:bg-transparent">
                   {tableHeaders.map((header) => (

@@ -142,6 +142,7 @@ export const LEAD_ATTRIBUTION_SORT_COLUMNS = [
   "landing_url",
   "attribution_label",
   "gclid",
+  "fbclid",
   "assignee",
   "followup",
   "fu_priority",
@@ -238,6 +239,7 @@ function sortComparable(
     case "landing_url":
     case "attribution_label":
     case "gclid":
+    case "fbclid":
     case "assignee": {
       const v = row[col];
       if (v == null) return null;
@@ -279,7 +281,8 @@ export type LeadAttributionOptionKey =
   | 'utm_content'
   | 'utm_term'
   | 'attribution_label'
-  | 'gclid';
+  | 'gclid'
+  | 'fbclid';
 
 const OPTION_CAP = 100;
 
