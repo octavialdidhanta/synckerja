@@ -16,6 +16,84 @@ export type ReportByServiceAggregate = {
 
 const UNMAPPED_KEY = "__unmapped__";
 
+/** MonthOfYear enum names (segments.month_of_year / monthOfYear). */
+const GAQL_MONTH_OF_YEAR: Record<string, number> = {
+  JANUARY: 1,
+  FEBRUARY: 2,
+  MARCH: 3,
+  APRIL: 4,
+  MAY: 5,
+  JUNE: 6,
+  JULY: 7,
+  AUGUST: 8,
+  SEPTEMBER: 9,
+  OCTOBER: 10,
+  NOVEMBER: 11,
+  DECEMBER: 12,
+};
+
+function parseGaqlMonthOfYearEnum(raw: unknown): number {
+  if (typeof raw === "number") {
+    // Protobuf MonthOfYear: JANUARY=2 … DECEMBER=13
+    if (raw >= 2 && raw <= 13) return raw - 1;
+    if (raw >= 1 && raw <= 12) return Math.floor(raw);
+    return 0;
+  }
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber)) {
+    if (asNumber >= 2 && asNumber <= 13) return asNumber - 1;
+    if (asNumber >= 1 && asNumber <= 12) return Math.floor(asNumber);
+  }
+  const name = String(raw ?? "")
+    .trim()
+    .toUpperCase();
+  return GAQL_MONTH_OF_YEAR[name] ?? 0;
+}
+
+/** Parse calendar month from GAQL segment row. */
+export function parseGaqlCalendarMonth(segments: Record<string, unknown> | undefined): number {
+  if (!segments) return 0;
+
+  // segments.month is yyyy-MM-dd (first day of month), not 1–12.
+  const monthDate = segments.month ?? segments.Month;
+  if (typeof monthDate === "string") {
+    const fromDate = /^(\d{4})-(\d{2})-\d{2}$/.exec(monthDate.trim());
+    if (fromDate) {
+      const month = Number(fromDate[2]);
+      if (month >= 1 && month <= 12) return month;
+    }
+  }
+
+  const monthOfYear =
+    segments.monthOfYear ??
+    segments.month_of_year ??
+    segments.MonthOfYear ??
+    segments.Month_Of_Year;
+  const fromEnum = parseGaqlMonthOfYearEnum(monthOfYear);
+  if (fromEnum) return fromEnum;
+
+  return parseGaqlMonthOfYearEnum(monthDate);
+}
+
+/** Parse calendar year from GAQL segment row. */
+export function parseGaqlCalendarYear(segments: Record<string, unknown> | undefined): number {
+  if (!segments) return 0;
+
+  const monthDate = segments.month ?? segments.Month;
+  if (typeof monthDate === "string") {
+    const fromDate = /^(\d{4})-(\d{2})-\d{2}$/.exec(monthDate.trim());
+    if (fromDate) {
+      const year = Number(fromDate[1]);
+      if (year >= 2000 && year <= 2100) return year;
+    }
+  }
+
+  const raw = segments.year ?? segments.Year;
+  const year = Number(raw);
+  if (!Number.isFinite(year) || year < 2000 || year > 2100) return 0;
+  return Math.floor(year);
+}
+
 function readMicros(raw: Record<string, unknown> | undefined, key: string): number {
   const metrics = (raw?.metrics ?? raw?.Metrics) as Record<string, unknown> | undefined;
   const camel = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
@@ -137,8 +215,8 @@ export async function fetchCampaignSpendByMonthInRange(
 
   const filterByCampaign = allowedCampaignIds != null;
   const query = filterByCampaign
-    ? `SELECT campaign.id, segments.month, segments.year, metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`
-    : `SELECT segments.month, segments.year, metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`;
+    ? `SELECT campaign.id, segments.month_of_year, segments.year, metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`
+    : `SELECT segments.month_of_year, segments.year, metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`;
 
   const rawRows = await fetchAllGaqlListRows(cfg, accessToken, metricsCustomerId, query);
   const spendByPeriod = new Map<string, number>();
@@ -152,8 +230,8 @@ export async function fetchCampaignSpendByMonthInRange(
     }
 
     const segments = (raw.segments ?? raw.Segments) as Record<string, unknown> | undefined;
-    const month = Number(segments?.month ?? segments?.Month ?? 0);
-    const year = Number(segments?.year ?? segments?.Year ?? 0);
+    const month = parseGaqlCalendarMonth(segments);
+    const year = parseGaqlCalendarYear(segments);
     if (!month || !year) continue;
 
     const periodKey = monthPeriodKey(year, month);

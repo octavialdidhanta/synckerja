@@ -10,18 +10,14 @@ import type { MetaAdsMetricsSort } from "@/meta-ads/metrics/metaAdsSortColumns";
 
 const DEFAULT_SORT: MetaAdsMetricsSort = { field: "spend", direction: "desc" };
 
-const WEB_SPEED_CAMPAIGN_KEYS = [
-  "clicks",
-  "traffic_total_visit_page",
-  "traffic_visit_click_rate",
-] as const;
+const VISIBILITY_CAMPAIGN_KEYS = ["impressions", "clicks", "ctr"] as const;
 
 function globalDefaultMetricsForEntity(
   entity: MetaAdsMetricEntity,
   validKeys: Set<string>,
 ): string[] | null {
   if (entity !== "campaign") return null;
-  const filtered = WEB_SPEED_CAMPAIGN_KEYS.filter((k) => validKeys.has(k));
+  const filtered = VISIBILITY_CAMPAIGN_KEYS.filter((k) => validKeys.has(k));
   return filtered.length > 0 ? [...filtered] : null;
 }
 

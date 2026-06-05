@@ -254,6 +254,48 @@ export function sumMonthlyConvertedLeads(months: MonthlySpendBucket[]): number {
   );
 }
 
+/** Sum bar-chart spend for the active channel filter (must match period totals). */
+export function sumReportMonthlySpendChartPoints(
+  points: ReportMonthlySpendChartPoint[],
+  channelFilter: MonthlySpendChannelFilter = "all",
+): number {
+  return points.reduce((total, row) => {
+    if (channelFilter === "all") return total + row.totalSpend;
+    if (channelFilter === "google") return total + row.googleSpend;
+    if (channelFilter === "meta") return total + row.metaSpend;
+    return total + row.googleSpend + row.metaSpend;
+  }, 0);
+}
+
+export function buildCombinedChartPeriodSummary(
+  google: MonthlySpendChannelSeries,
+  meta: MonthlySpendChannelSeries,
+  scope: ReportCombinedChannelScope,
+  spanMode: ReportChartSpanMode,
+): ChannelPeriodSummary {
+  const googleMonths =
+    spanMode === "all_time"
+      ? aggregateBucketsByCalendarMonth(google.months)
+      : google.months;
+  const metaMonths =
+    spanMode === "all_time" ? aggregateBucketsByCalendarMonth(meta.months) : meta.months;
+
+  const googleSpend = scope.includeGoogle
+    ? (google.periodSummary?.spend ?? sumMonthlySpendBuckets(googleMonths))
+    : 0;
+  const metaSpend = scope.includeMeta
+    ? (meta.periodSummary?.spend ?? sumMonthlySpendBuckets(metaMonths))
+    : 0;
+  const spend = googleSpend + metaSpend;
+
+  const converted_leads =
+    (scope.includeGoogle ? sumMonthlyConvertedLeads(googleMonths) : 0) +
+    (scope.includeMeta ? sumMonthlyConvertedLeads(metaMonths) : 0);
+
+  const cpa = spend > 0 && converted_leads > 0 ? spend / converted_leads : null;
+  return { spend, converted_leads, cpa };
+}
+
 /** Table totals derived from the same monthly buckets as the CPA chart (guaranteed sync). */
 export function buildPeriodSummaryFromMonths(
   months: MonthlySpendBucket[],
@@ -605,7 +647,7 @@ export function useDigitalMarketingReportMonthlySpend(
 
   const googleMonthlyQuery = useQuery({
     queryKey: [
-      "dm-report-google-monthly-spend-v11",
+      "dm-report-google-monthly-spend-v12",
       organizationId,
       effectiveGoogleCustomerId,
       selectedYear,

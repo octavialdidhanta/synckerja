@@ -14,9 +14,16 @@ function globalDefaultMetricsForEntity(
   entity: GoogleAdsMetricEntity,
   validKeys: Set<string>,
 ): string[] | null {
-  // Global default preset: "Web Speed Performance" for campaign entity.
+  // Global default preset: "Visibility Performance" for campaign entity.
   if (entity !== "campaign") return null;
-  const keys = ["clicks", "traffic_total_visit_page", "traffic_visit_click_rate"];
+  const keys = [
+    "impressions",
+    "top_impr_pct",
+    "absolute_top_impr_pct",
+    "search_top_is",
+    "search_budget_lost_is",
+    "search_lost_top_is_rank",
+  ];
   const filtered = keys.filter((k) => validKeys.has(k));
   return filtered.length > 0 ? filtered : null;
 }
