@@ -37,9 +37,18 @@ export async function parseEdgeFunctionError(
   if (errObj?.context) {
     try {
       const cloned = errObj.context.clone?.() ?? errObj.context;
-      const body = (await cloned.json()) as ErrorPayload;
-      if (body?.error) {
-        return attachPayload(new Error(body.error), body);
+      const rawText = await cloned.text();
+      if (rawText) {
+        try {
+          const body = JSON.parse(rawText) as ErrorPayload;
+          if (body?.error) {
+            return attachPayload(new Error(body.error), body);
+          }
+        } catch {
+          if (rawText.trim().length > 0 && rawText.length < 500) {
+            return new Error(rawText.trim()) as GoogleAdsEdgeError;
+          }
+        }
       }
       if (errObj.context.status === 401) {
         const err = new Error(
@@ -48,9 +57,23 @@ export async function parseEdgeFunctionError(
         err.code = "TOKEN_REFRESH_FAILED";
         return err;
       }
-      if (errObj.context.status === 403 && !body?.error) {
+      if (errObj.context.status === 403) {
         const err = new Error("Access denied.") as GoogleAdsEdgeError;
         err.code = "FORBIDDEN";
+        return err;
+      }
+      if (errObj.context.status === 503) {
+        const err = new Error(
+          "Google Ads edge function gagal (HTTP 503 / BOOT_ERROR). Silakan coba reload atau cek konfigurasi & deploy server.",
+        ) as GoogleAdsEdgeError;
+        err.code = "GOOGLE_ADS_EDGE_BOOT_FAILED";
+        return err;
+      }
+      if (errObj.context.status === 504 || errObj.context.status === 546) {
+        const err = new Error(
+          "Google Ads metrics timed out. Try a shorter date range or fewer columns.",
+        ) as GoogleAdsEdgeError;
+        err.code = "EDGE_TIMEOUT";
         return err;
       }
     } catch {

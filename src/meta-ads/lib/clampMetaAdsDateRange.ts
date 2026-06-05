@@ -10,6 +10,16 @@ export function metaAdsEarliestAllowedStartYmd(now: Date = new Date()): string {
   return toYmdLocal(startOfDay(subMonths(startOfDay(now), META_ADS_MAX_LOOKBACK_MONTHS)));
 }
 
+/** Calendar years selectable in Meta date picker (Meta API lookback window). */
+export function buildMetaAdsCalendarYearPresetYears(now: Date = new Date()): number[] {
+  const current = now.getFullYear();
+  const parsed = parseYmdLocal(metaAdsEarliestAllowedStartYmd(now));
+  const startYear = parsed ? parsed.getFullYear() : current;
+  const years: number[] = [];
+  for (let y = current; y >= startYear; y--) years.push(y);
+  return years;
+}
+
 /** All time on Meta = exactly 37 months through today (API max lookback). */
 export function metaAdsAllTimeDateRange(now: Date = new Date()): MetaAdsDateRangePayload & {
   wasStartClamped: boolean;

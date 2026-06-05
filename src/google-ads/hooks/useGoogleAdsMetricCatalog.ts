@@ -1,18 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { parseEdgeFunctionError } from "@/google-ads/lib/parseEdgeFunctionError";
+import { buildGoogleAdsMetricCatalogClient } from "@/google-ads/metrics/googleAdsMetricCatalogClient";
 import type {
   GoogleAdsMetricCatalogResponse,
   GoogleAdsMetricEntity,
 } from "@/google-ads/metrics/types";
-
-const EMPTY_CATALOG: GoogleAdsMetricCatalogResponse = {
-  max_metrics: 50,
-  identity_columns: [],
-  recommended_keys: [],
-  recommended: { id: "recommended", label: "Recommended columns", metrics: [] },
-  categories: [],
-};
 
 async function invokeMetrics(
   organizationId: string,
@@ -28,7 +21,7 @@ async function invokeMetrics(
     max_metrics: payload.max_metrics ?? 50,
     identity_columns: payload.identity_columns ?? [],
     recommended_keys: payload.recommended_keys ?? [],
-    recommended: payload.recommended ?? EMPTY_CATALOG.recommended,
+    recommended: payload.recommended ?? buildGoogleAdsMetricCatalogClient("campaign").recommended,
     categories: payload.categories ?? [],
   };
 }
@@ -38,13 +31,21 @@ export function useGoogleAdsMetricCatalog(
   entity: GoogleAdsMetricEntity,
   enabled: boolean,
 ) {
+  const clientCatalog = buildGoogleAdsMetricCatalogClient(entity);
+
   return useQuery({
-    queryKey: ["google-ads-metric-catalog", organizationId, entity],
+    queryKey: ["google-ads-metric-catalog", "v3", organizationId, entity],
     queryFn: async () => {
-      if (!organizationId) return EMPTY_CATALOG;
-      return invokeMetrics(organizationId, { action: "listMetricCatalog", entity });
+      if (!organizationId) return clientCatalog;
+      try {
+        return await invokeMetrics(organizationId, { action: "listMetricCatalog", entity });
+      } catch {
+        return clientCatalog;
+      }
     },
     enabled: Boolean(organizationId) && enabled,
+    initialData: clientCatalog,
+    placeholderData: () => buildGoogleAdsMetricCatalogClient(entity),
     staleTime: 24 * 60 * 60 * 1000,
   });
 }

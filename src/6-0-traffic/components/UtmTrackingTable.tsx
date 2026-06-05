@@ -323,7 +323,7 @@ export function UtmTrackingTable({
   const hasActiveFilters = Object.values(filters).some((v) => v !== FILTER_ALL);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="shrink-0 border-b border-gray-200 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

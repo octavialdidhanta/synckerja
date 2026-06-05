@@ -8,26 +8,31 @@ import {
   serviceFilterForApi,
   type ReportCombinedChannelScope,
 } from "@/6-0-digital-marketing-shared/reportServiceFilter";
-import {
-  intersectDateSelectionWithChartYear,
-  toGoogleAdsMetricsDateRangePayload,
-} from "@/6-0-google-ads/lib/googleAdsDatePresets";
 import { useGoogleAdsReportingEnabled } from "@/google-ads/hooks/useGoogleAdsReportingEnabled";
+import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { useMetaAdsReportingEnabled } from "@/meta-ads/hooks/useMetaAdsReportingEnabled";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
-import { metaAdsEarliestAllowedStartYmd } from "@/meta-ads/lib/clampMetaAdsDateRange";
-import { toMetaAdsMetricsDateRangePayload } from "@/meta-ads/lib/toMetaAdsMetricsDateRangePayload";
+import {
+  isReportMetaRangeUnavailableForCharts,
+  resolveReportChartMonthlyDateSelection,
+  resolveReportGoogleDateRangePayloadForCharts,
+  resolveReportMetaDateRangePayloadForCharts,
+} from "@/6-0-digital-marketing-shared/lib/resolveReportDateRanges";
 import { parseEdgeFunctionError as parseGoogleEdgeError } from "@/google-ads/lib/parseEdgeFunctionError";
 import { parseEdgeFunctionError as parseMetaEdgeError } from "@/meta-ads/lib/parseEdgeFunctionError";
 import { normalizeMetaAdsReportCurrency } from "@/meta-ads/lib/metaAdsReportCurrency";
+import { googleAdsAccountsReportQueryKey } from "@/6-0-digital-marketing-shared/reportQueryKeys";
 import { supabase } from "@/shared/lib/supabaseClient";
 
 export type MonthlySpendBucket = {
+  year?: number;
   month: number;
   spend: number;
   converted_leads?: number;
   cpa?: number | null;
 };
+
+export type ReportChartSpanMode = "calendar_year" | "all_time";
 
 export type ChannelPeriodSummary = {
   spend: number;
@@ -39,6 +44,8 @@ export type MonthlySpendChannelSeries = {
   connected: boolean;
   loading: boolean;
   error: string | null;
+  /** Soft skip (e.g. Meta beyond 37-month lookback) — chart still shows other channels. */
+  unavailableReason?: string | null;
   currency: string | null;
   months: MonthlySpendBucket[];
   /** Totals for chart date range — aligns table Cost / Conv. leads / CPA with chart data. */
@@ -46,7 +53,9 @@ export type MonthlySpendChannelSeries = {
 };
 
 export type ReportMonthlySpendChartPoint = {
+  year: number;
   month: number;
+  periodKey: string;
   shortMonth: string;
   googleSpend: number;
   metaSpend: number;
@@ -54,7 +63,9 @@ export type ReportMonthlySpendChartPoint = {
 };
 
 export type ReportMonthlyLeadsChartPoint = {
+  year: number;
   month: number;
+  periodKey: string;
   shortMonth: string;
   googleLeads: number;
   metaLeads: number;
@@ -64,7 +75,9 @@ export type ReportMonthlyLeadsChartPoint = {
 export type MonthlySpendChannelFilter = "all" | "by_channel" | "google" | "meta";
 
 export type ReportMonthlyCpaChartPoint = {
+  year: number;
   month: number;
+  periodKey: string;
   shortMonth: string;
   googleCpa: number | null;
   metaCpa: number | null;
@@ -111,8 +124,9 @@ function normalizeYear(year: number | string): number {
   return Math.floor(n);
 }
 
-function emptyMonths(): MonthlySpendBucket[] {
+function emptyMonths(fallbackYear = new Date().getFullYear()): MonthlySpendBucket[] {
   return Array.from({ length: 12 }, (_, i) => ({
+    year: fallbackYear,
     month: i + 1,
     spend: 0,
     converted_leads: 0,
@@ -120,8 +134,32 @@ function emptyMonths(): MonthlySpendBucket[] {
   }));
 }
 
-function normalizeMonthlyBuckets(raw: MonthlySpendBucket[] | undefined): MonthlySpendBucket[] {
-  if (!raw?.length) return emptyMonths();
+function monthPeriodKey(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function normalizeMonthlyBuckets(
+  raw: MonthlySpendBucket[] | undefined,
+  fallbackYear: number,
+): MonthlySpendBucket[] {
+  if (!raw?.length) return emptyMonths(fallbackYear);
+  const hasYear = raw.some((r) => r.year != null && Number.isFinite(Number(r.year)));
+  if (hasYear) {
+    return [...raw]
+      .map((r) => ({
+        year: Number(r.year),
+        month: r.month,
+        spend: r.spend ?? 0,
+        converted_leads: r.converted_leads ?? 0,
+        cpa:
+          r.cpa !== undefined
+            ? r.cpa
+            : (r.spend ?? 0) > 0 && (r.converted_leads ?? 0) > 0
+              ? (r.spend ?? 0) / (r.converted_leads ?? 0)
+              : null,
+      }))
+      .sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+  }
   const byMonth = new Map(raw.map((r) => [r.month, r]));
   return Array.from({ length: 12 }, (_, i) => {
     const month = i + 1;
@@ -134,8 +172,75 @@ function normalizeMonthlyBuckets(raw: MonthlySpendBucket[] | undefined): Monthly
         : spend > 0 && converted_leads > 0
           ? spend / converted_leads
           : null;
-    return { month, spend, converted_leads, cpa };
+    return { year: fallbackYear, month, spend, converted_leads, cpa };
   });
+}
+
+function collectChartPeriods(
+  google: MonthlySpendChannelSeries,
+  meta: MonthlySpendChannelSeries,
+  fallbackYear: number,
+): Array<{ year: number; month: number; periodKey: string }> {
+  const keys = new Map<string, { year: number; month: number }>();
+  const add = (rows: MonthlySpendBucket[]) => {
+    for (const r of rows) {
+      const year = r.year ?? fallbackYear;
+      const key = monthPeriodKey(year, r.month);
+      if (!keys.has(key)) keys.set(key, { year, month: r.month });
+    }
+  };
+  add(google.months);
+  add(meta.months);
+  if (keys.size === 0) {
+    return Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      return { year: fallbackYear, month, periodKey: monthPeriodKey(fallbackYear, month) };
+    });
+  }
+  return [...keys.values()].sort((a, b) =>
+    a.year !== b.year ? a.year - b.year : a.month - b.month,
+  ).map((p) => ({ ...p, periodKey: monthPeriodKey(p.year, p.month) }));
+}
+
+function formatChartMonthLabel(year: number, month: number, locale: string): string {
+  const d = new Date(year, month - 1, 1);
+  return new Intl.DateTimeFormat(locale, { month: "short" }).format(d);
+}
+
+/** All time: sum spend/leads per calendar month (Jan–Dec) across every year in range. */
+function aggregateBucketsByCalendarMonth(
+  rows: MonthlySpendBucket[],
+): MonthlySpendBucket[] {
+  const sums = Array.from({ length: 12 }, (_, i) => ({
+    month: i + 1,
+    spend: 0,
+    converted_leads: 0,
+  }));
+  for (const r of rows) {
+    if (r.month < 1 || r.month > 12) continue;
+    const slot = sums[r.month - 1]!;
+    slot.spend += Number.isFinite(r.spend) ? r.spend : 0;
+    slot.converted_leads += Number.isFinite(r.converted_leads) ? r.converted_leads! : 0;
+  }
+  return sums.map((b) => ({
+    month: b.month,
+    spend: b.spend,
+    converted_leads: b.converted_leads,
+    cpa:
+      b.spend > 0 && b.converted_leads > 0 ? b.spend / b.converted_leads : null,
+  }));
+}
+
+function findBucketForChart(
+  rows: MonthlySpendBucket[],
+  month: number,
+  year: number,
+  spanMode: ReportChartSpanMode,
+): MonthlySpendBucket | undefined {
+  if (spanMode === "all_time") {
+    return rows.find((m) => m.month === month);
+  }
+  return rows.find((m) => (m.year ?? year) === year && m.month === month);
 }
 
 export function sumMonthlySpendBuckets(months: MonthlySpendBucket[]): number {
@@ -183,12 +288,12 @@ export function buildReportYearOptions(maxYears = 6): string[] {
 export function buildMonthlyLeadsChartPoints(args: {
   year: number;
   locale: string;
+  spanMode?: ReportChartSpanMode;
   google: MonthlySpendChannelSeries;
   meta: MonthlySpendChannelSeries;
   combinedScope?: ReportCombinedChannelScope;
 }): ReportMonthlyLeadsChartPoint[] {
-  const { year, locale, google, meta, combinedScope } = args;
-  const formatter = new Intl.DateTimeFormat(locale, { month: "short" });
+  const { year, locale, google, meta, combinedScope, spanMode = "calendar_year" } = args;
   const scope =
     combinedScope ??
     buildReportCombinedChannelScope({
@@ -199,15 +304,30 @@ export function buildMonthlyLeadsChartPoints(args: {
       metaConnected: meta.connected,
     });
 
-  return Array.from({ length: 12 }, (_, i) => {
-    const month = i + 1;
-    const googleRow = google.months.find((m) => m.month === month);
-    const metaRow = meta.months.find((m) => m.month === month);
+  const googleMonths =
+    spanMode === "all_time"
+      ? aggregateBucketsByCalendarMonth(google.months)
+      : google.months;
+  const metaMonths =
+    spanMode === "all_time" ? aggregateBucketsByCalendarMonth(meta.months) : meta.months;
+  const periods =
+    spanMode === "all_time"
+      ? Array.from({ length: 12 }, (_, i) => {
+          const month = i + 1;
+          return { year, month, periodKey: `cal-${month}` };
+        })
+      : collectChartPeriods(google, meta, year);
+
+  return periods.map(({ year: y, month, periodKey }) => {
+    const googleRow = findBucketForChart(googleMonths, month, y, spanMode);
+    const metaRow = findBucketForChart(metaMonths, month, y, spanMode);
     const googleLeads = google.connected ? (googleRow?.converted_leads ?? 0) : 0;
     const metaLeads = meta.connected ? (metaRow?.converted_leads ?? 0) : 0;
     return {
+      year: y,
       month,
-      shortMonth: formatter.format(new Date(year, i, 1)),
+      periodKey,
+      shortMonth: formatChartMonthLabel(y, month, locale),
       googleLeads,
       metaLeads,
       totalLeads: combineMonthlyGoogleMeta(googleLeads, metaLeads, scope),
@@ -218,12 +338,12 @@ export function buildMonthlyLeadsChartPoints(args: {
 export function buildMonthlySpendChartPoints(args: {
   year: number;
   locale: string;
+  spanMode?: ReportChartSpanMode;
   google: MonthlySpendChannelSeries;
   meta: MonthlySpendChannelSeries;
   combinedScope?: ReportCombinedChannelScope;
 }): ReportMonthlySpendChartPoint[] {
-  const { year, locale, google, meta, combinedScope } = args;
-  const formatter = new Intl.DateTimeFormat(locale, { month: "short" });
+  const { year, locale, google, meta, combinedScope, spanMode = "calendar_year" } = args;
   const scope =
     combinedScope ??
     buildReportCombinedChannelScope({
@@ -234,15 +354,30 @@ export function buildMonthlySpendChartPoints(args: {
       metaConnected: meta.connected,
     });
 
-  return Array.from({ length: 12 }, (_, i) => {
-    const month = i + 1;
-    const googleRow = google.months.find((m) => m.month === month);
-    const metaRow = meta.months.find((m) => m.month === month);
+  const googleMonths =
+    spanMode === "all_time"
+      ? aggregateBucketsByCalendarMonth(google.months)
+      : google.months;
+  const metaMonths =
+    spanMode === "all_time" ? aggregateBucketsByCalendarMonth(meta.months) : meta.months;
+  const periods =
+    spanMode === "all_time"
+      ? Array.from({ length: 12 }, (_, i) => {
+          const month = i + 1;
+          return { year, month, periodKey: `cal-${month}` };
+        })
+      : collectChartPeriods(google, meta, year);
+
+  return periods.map(({ year: y, month, periodKey }) => {
+    const googleRow = findBucketForChart(googleMonths, month, y, spanMode);
+    const metaRow = findBucketForChart(metaMonths, month, y, spanMode);
     const googleSpend = google.connected ? (googleRow?.spend ?? 0) : 0;
     const metaSpend = meta.connected ? (metaRow?.spend ?? 0) : 0;
     return {
+      year: y,
       month,
-      shortMonth: formatter.format(new Date(year, i, 1)),
+      periodKey,
+      shortMonth: formatChartMonthLabel(y, month, locale),
       googleSpend,
       metaSpend,
       totalSpend: combineMonthlyGoogleMeta(googleSpend, metaSpend, scope),
@@ -253,12 +388,12 @@ export function buildMonthlySpendChartPoints(args: {
 export function buildMonthlyCpaChartPoints(args: {
   year: number;
   locale: string;
+  spanMode?: ReportChartSpanMode;
   google: MonthlySpendChannelSeries;
   meta: MonthlySpendChannelSeries;
   combinedScope?: ReportCombinedChannelScope;
 }): ReportMonthlyCpaChartPoint[] {
-  const { year, locale, google, meta, combinedScope } = args;
-  const formatter = new Intl.DateTimeFormat(locale, { month: "short" });
+  const { year, locale, google, meta, combinedScope, spanMode = "calendar_year" } = args;
   const scope =
     combinedScope ??
     buildReportCombinedChannelScope({
@@ -278,24 +413,49 @@ export function buildMonthlyCpaChartPoints(args: {
     google.currency !== meta.currency;
   const canCombineCpa = !mixedCurrency;
 
-  return Array.from({ length: 12 }, (_, i) => {
-    const month = i + 1;
-    const googleRow = google.months.find((m) => m.month === month);
-    const metaRow = meta.months.find((m) => m.month === month);
+  const googleMonths =
+    spanMode === "all_time"
+      ? aggregateBucketsByCalendarMonth(google.months)
+      : google.months;
+  const metaMonths =
+    spanMode === "all_time" ? aggregateBucketsByCalendarMonth(meta.months) : meta.months;
+  const periods =
+    spanMode === "all_time"
+      ? Array.from({ length: 12 }, (_, i) => {
+          const month = i + 1;
+          return { year, month, periodKey: `cal-${month}` };
+        })
+      : collectChartPeriods(google, meta, year);
+
+  return periods.map(({ year: y, month, periodKey }) => {
+    const googleRow = findBucketForChart(googleMonths, month, y, spanMode);
+    const metaRow = findBucketForChart(metaMonths, month, y, spanMode);
     const googleSpend = google.connected ? (googleRow?.spend ?? 0) : 0;
     const metaSpend = meta.connected ? (metaRow?.spend ?? 0) : 0;
     const googleLeads = google.connected ? (googleRow?.converted_leads ?? 0) : 0;
     const metaLeads = meta.connected ? (metaRow?.converted_leads ?? 0) : 0;
-    const googleCpa = google.connected ? (googleRow?.cpa ?? null) : null;
-    const metaCpa = meta.connected ? (metaRow?.cpa ?? null) : null;
+    const googleCpa =
+      google.connected && googleSpend > 0 && googleLeads > 0
+        ? googleSpend / googleLeads
+        : google.connected
+          ? (googleRow?.cpa ?? null)
+          : null;
+    const metaCpa =
+      meta.connected && metaSpend > 0 && metaLeads > 0
+        ? metaSpend / metaLeads
+        : meta.connected
+          ? (metaRow?.cpa ?? null)
+          : null;
     const totalLeads = combineMonthlyGoogleMeta(googleLeads, metaLeads, scope);
     const totalSpend = combineMonthlyGoogleMeta(googleSpend, metaSpend, scope);
     const totalCpa =
       canCombineCpa && totalLeads > 0 && totalSpend > 0 ? totalSpend / totalLeads : null;
 
     return {
+      year: y,
       month,
-      shortMonth: formatter.format(new Date(year, i, 1)),
+      periodKey,
+      shortMonth: formatChartMonthLabel(y, month, locale),
       googleCpa,
       metaCpa,
       totalCpa,
@@ -309,37 +469,40 @@ export function buildMonthlyCpaChartPoints(args: {
   });
 }
 
-export function useDigitalMarketingReportMonthlySpend(year: number | string) {
+export type UseDigitalMarketingReportMonthlySpendOptions = {
+  /** When true, applies reportChartCompareEnabled for chart API range and span mode. */
+  forChartsCompare?: boolean;
+  /** When false, monthly chart queries are not fetched (lazy / deferred load). */
+  enabled?: boolean;
+};
+
+export function useDigitalMarketingReportMonthlySpend(
+  year: number | string,
+  options?: UseDigitalMarketingReportMonthlySpendOptions,
+) {
   const selectedYear = normalizeYear(year);
   const { organizationId, loading: orgLoading } = useCurrentOrg();
-  const { dateSelection, googleCustomerId, metaAdAccountId, filtersHydrated, reportServiceFilter } =
-    useDigitalMarketingPaidAdsFilters();
+  const {
+    dateSelection,
+    googleCustomerId,
+    metaAdAccountId,
+    filtersHydrated,
+    reportServiceFilter,
+    reportChartCompareEnabled,
+  } = useDigitalMarketingPaidAdsFilters();
 
-  const apiServiceId = serviceFilterForApi(reportServiceFilter);
+  const chartsQueryEnabled = options?.enabled ?? true;
 
-  /** Chart uses the intersection of date picker range and selected calendar year. */
-  const chartDateSelection = useMemo(
-    () => intersectDateSelectionWithChartYear(dateSelection, selectedYear),
-    [dateSelection, selectedYear],
+  const compareActive = Boolean(
+    options?.forChartsCompare && reportChartCompareEnabled,
   );
 
-  const chartDateOverlap = chartDateSelection != null;
+  const chartSpanMode: ReportChartSpanMode =
+    compareActive || dateSelection.preset !== "all_time"
+      ? "calendar_year"
+      : "all_time";
 
-  const googleReportRange = useMemo(() => {
-    if (!chartDateSelection) return null;
-    return toGoogleAdsMetricsDateRangePayload(chartDateSelection);
-  }, [chartDateSelection]);
-
-  const metaReportRange = useMemo(() => {
-    if (!chartDateSelection) return null;
-    return toMetaAdsMetricsDateRangePayload(chartDateSelection);
-  }, [chartDateSelection]);
-
-  const metaRangeWithinLookback = useMemo(() => {
-    if (!chartDateSelection) return false;
-    const raw = toGoogleAdsMetricsDateRangePayload(chartDateSelection);
-    return raw.end >= metaAdsEarliestAllowedStartYmd();
-  }, [chartDateSelection]);
+  const apiServiceId = serviceFilterForApi(reportServiceFilter);
 
   const { data: googleReportingEnabled = false, isPending: googleReportingPending } =
     useGoogleAdsReportingEnabled(organizationId);
@@ -347,7 +510,7 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
     useMetaAdsReportingEnabled(organizationId);
 
   const { data: googleAccounts = [], isPending: googleAccountsPending } = useQuery({
-    queryKey: ["google-ads-accounts-picker-report", organizationId],
+    queryKey: googleAdsAccountsReportQueryKey(organizationId),
     queryFn: async () => {
       if (!organizationId) return [];
       const { data, error } = await supabase
@@ -369,6 +532,59 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
     return def?.customer_id ?? googleAccounts[0]?.customer_id ?? "";
   }, [googleCustomerId, googleAccounts]);
 
+  const { data: accountDateBounds } = useGoogleAdsAccountDateBounds(
+    organizationId,
+    effectiveGoogleCustomerId,
+    Boolean(organizationId && effectiveGoogleCustomerId),
+  );
+
+  const googleAccountEarliestYmd = accountDateBounds?.earliest_date ?? null;
+
+  const chartDateSelection = useMemo(
+    () =>
+      resolveReportChartMonthlyDateSelection(
+        dateSelection,
+        selectedYear,
+        compareActive,
+        googleAccountEarliestYmd,
+      ),
+    [dateSelection, selectedYear, compareActive, googleAccountEarliestYmd],
+  );
+
+  const chartDateOverlap = chartDateSelection != null;
+
+  const googleReportRange = useMemo(
+    () =>
+      resolveReportGoogleDateRangePayloadForCharts(
+        dateSelection,
+        selectedYear,
+        compareActive,
+        googleAccountEarliestYmd,
+      ),
+    [dateSelection, selectedYear, compareActive, googleAccountEarliestYmd],
+  );
+
+  const metaReportRange = useMemo(
+    () =>
+      resolveReportMetaDateRangePayloadForCharts(
+        dateSelection,
+        selectedYear,
+        compareActive,
+      ),
+    [dateSelection, selectedYear, compareActive],
+  );
+
+  const metaRangeWithinLookback = useMemo(
+    () =>
+      !isReportMetaRangeUnavailableForCharts(
+        dateSelection,
+        selectedYear,
+        compareActive,
+        googleAccountEarliestYmd,
+      ),
+    [dateSelection, selectedYear, compareActive, googleAccountEarliestYmd],
+  );
+
   const { data: metaSettings, isPending: metaSettingsPending } = useMetaAdsSettings(
     organizationId,
     { enabled: Boolean(organizationId) },
@@ -389,13 +605,14 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
 
   const googleMonthlyQuery = useQuery({
     queryKey: [
-      "dm-report-google-monthly-spend-v9",
+      "dm-report-google-monthly-spend-v11",
       organizationId,
       effectiveGoogleCustomerId,
       selectedYear,
       googleReportRange?.start,
       googleReportRange?.end,
       apiServiceId ?? "",
+      compareActive,
     ],
     queryFn: async (): Promise<MonthlySpendApiResponse> => {
       if (!organizationId || !effectiveGoogleCustomerId || !googleReportRange) {
@@ -418,7 +635,8 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
       return payload;
     },
     enabled: Boolean(
-      filtersHydrated &&
+      chartsQueryEnabled &&
+        filtersHydrated &&
         organizationId &&
         googleReportingEnabled &&
         effectiveGoogleCustomerId &&
@@ -430,13 +648,14 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
 
   const metaMonthlyQuery = useQuery({
     queryKey: [
-      "dm-report-meta-monthly-spend-v8",
+      "dm-report-meta-monthly-spend-v10",
       organizationId,
       effectiveMetaAdAccountId,
       selectedYear,
       metaReportRange?.start,
       metaReportRange?.end,
       apiServiceId ?? "",
+      compareActive,
     ],
     queryFn: async (): Promise<MonthlySpendApiResponse> => {
       if (!organizationId || !effectiveMetaAdAccountId || !metaReportRange) {
@@ -459,7 +678,8 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
       return payload;
     },
     enabled: Boolean(
-      filtersHydrated &&
+      chartsQueryEnabled &&
+        filtersHydrated &&
         organizationId &&
         metaReportingEnabled &&
         effectiveMetaAdAccountId &&
@@ -472,18 +692,29 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
 
   const googleSeries: MonthlySpendChannelSeries = useMemo(() => {
     const loading =
-      orgLoading ||
-      !filtersHydrated ||
-      googleReportingPending ||
-      googleAccountsPending ||
-      (googleReportingEnabled && googleMonthlyQuery.isLoading);
+      chartsQueryEnabled &&
+      (orgLoading ||
+        !filtersHydrated ||
+        googleReportingPending ||
+        googleAccountsPending ||
+        (googleReportingEnabled && googleMonthlyQuery.isLoading));
+    if (!chartsQueryEnabled) {
+      return {
+        connected: Boolean(googleReportingEnabled),
+        loading: false,
+        error: null,
+        currency: null,
+        months: emptyMonths(selectedYear),
+        periodSummary: null,
+      };
+    }
     if (!googleReportingEnabled) {
       return {
         connected: false,
         loading,
         error: null,
         currency: null,
-        months: emptyMonths(),
+        months: emptyMonths(selectedYear),
         periodSummary: null,
       };
     }
@@ -493,7 +724,7 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
         loading: false,
         error: "Date range does not overlap the selected chart year.",
         currency: null,
-        months: emptyMonths(),
+        months: emptyMonths(selectedYear),
         periodSummary: null,
       };
     }
@@ -503,12 +734,12 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
         loading: false,
         error: (googleMonthlyQuery.error as Error).message,
         currency: null,
-        months: emptyMonths(),
+        months: emptyMonths(selectedYear),
         periodSummary: null,
       };
     }
     const data = googleMonthlyQuery.data;
-    const months = normalizeMonthlyBuckets(data?.months);
+    const months = normalizeMonthlyBuckets(data?.months, selectedYear);
     return {
       connected: true,
       loading,
@@ -518,6 +749,7 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
       periodSummary: effectivePeriodSummary(months, parsePeriodSummary(data?.period_summary)),
     };
   }, [
+    chartsQueryEnabled,
     orgLoading,
     filtersHydrated,
     googleReportingPending,
@@ -525,22 +757,34 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
     googleReportingEnabled,
     googleMonthlyQuery,
     chartDateOverlap,
+    selectedYear,
   ]);
 
   const metaSeries: MonthlySpendChannelSeries = useMemo(() => {
     const loading =
-      orgLoading ||
-      !filtersHydrated ||
-      metaReportingPending ||
-      metaSettingsPending ||
-      (metaReportingEnabled && metaMonthlyQuery.isLoading);
+      chartsQueryEnabled &&
+      (orgLoading ||
+        !filtersHydrated ||
+        metaReportingPending ||
+        metaSettingsPending ||
+        (metaReportingEnabled && metaMonthlyQuery.isLoading));
+    if (!chartsQueryEnabled) {
+      return {
+        connected: Boolean(metaReportingEnabled),
+        loading: false,
+        error: null,
+        currency: null,
+        months: emptyMonths(selectedYear),
+        periodSummary: null,
+      };
+    }
     if (!metaReportingEnabled) {
       return {
         connected: false,
         loading,
         error: null,
         currency: null,
-        months: emptyMonths(),
+        months: emptyMonths(selectedYear),
         periodSummary: null,
       };
     }
@@ -550,7 +794,7 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
         loading: false,
         error: "Date range does not overlap the selected chart year.",
         currency: null,
-        months: emptyMonths(),
+        months: emptyMonths(selectedYear),
         periodSummary: null,
       };
     }
@@ -558,9 +802,11 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
       return {
         connected: true,
         loading: false,
-        error: "Meta Ads data is unavailable beyond 37 months from today.",
+        error: null,
+        unavailableReason:
+          "Meta Ads data is unavailable beyond 37 months from today.",
         currency: null,
-        months: emptyMonths(),
+        months: emptyMonths(selectedYear),
         periodSummary: null,
       };
     }
@@ -570,12 +816,12 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
         loading: false,
         error: (metaMonthlyQuery.error as Error).message,
         currency: null,
-        months: emptyMonths(),
+        months: emptyMonths(selectedYear),
         periodSummary: null,
       };
     }
     const data = metaMonthlyQuery.data;
-    const months = normalizeMonthlyBuckets(data?.months);
+    const months = normalizeMonthlyBuckets(data?.months, selectedYear);
     return {
       connected: true,
       loading,
@@ -585,6 +831,7 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
       periodSummary: effectivePeriodSummary(months, parsePeriodSummary(data?.period_summary)),
     };
   }, [
+    chartsQueryEnabled,
     orgLoading,
     filtersHydrated,
     metaReportingPending,
@@ -593,6 +840,7 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
     metaMonthlyQuery,
     chartDateOverlap,
     metaRangeWithinLookback,
+    selectedYear,
   ]);
 
   const bootstrapLoading =
@@ -605,10 +853,15 @@ export function useDigitalMarketingReportMonthlySpend(year: number | string) {
 
   return {
     selectedYear,
+    chartSpanMode,
+    compareActive,
     googleSeries,
     metaSeries,
     bootstrapLoading,
-    chartLoading: googleSeries.loading || metaSeries.loading,
+    chartLoading: chartsQueryEnabled
+      ? googleSeries.loading ||
+        (metaRangeWithinLookback ? metaSeries.loading : false)
+      : false,
     chartDateOverlap,
     chartDateSelection,
   };

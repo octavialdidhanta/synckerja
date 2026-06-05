@@ -104,6 +104,7 @@ export function useGoogleAdsMetricsQuery(
     },
     enabled: Boolean(organizationId) && Boolean(filters?.customerId) && enabled,
     staleTime: 10 * 60 * 1000,
+    retry: false,
   });
 }
 

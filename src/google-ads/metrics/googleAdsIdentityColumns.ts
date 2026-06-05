@@ -5,6 +5,7 @@ export type GoogleAdsIdentityColumnDef = {
   label: string;
 };
 
+/** Always visible — not in Modify columns picker. */
 export const GOOGLE_ADS_IDENTITY_COLUMNS: Record<
   GoogleAdsMetricEntity,
   GoogleAdsIdentityColumnDef[]
@@ -14,26 +15,51 @@ export const GOOGLE_ADS_IDENTITY_COLUMNS: Record<
     { key: "match_type", label: "Match type" },
     { key: "campaign", label: "Campaign" },
     { key: "ad_group", label: "Ad group" },
-    { key: "status", label: "Status" },
   ],
   campaign: [
     { key: "service", label: "Service" },
     { key: "service_cpl", label: "CPA" },
     { key: "service_converted_leads", label: "Conv. leads" },
     { key: "name", label: "Campaign" },
-    { key: "status", label: "Status" },
-    { key: "channel", label: "Type" },
   ],
   ad_group: [
     { key: "name", label: "Ad group" },
     { key: "campaign", label: "Campaign" },
-    { key: "status", label: "Status" },
   ],
-  ad: [
-    { key: "preview", label: "Ad" },
-    { key: "status", label: "Status" },
-  ],
+  ad: [{ key: "preview", label: "Ad" }],
 };
+
+/** Optional table columns — user can add/remove/reorder in Modify columns. */
+export const GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS: Record<
+  GoogleAdsMetricEntity,
+  GoogleAdsIdentityColumnDef[]
+> = {
+  keyword: [{ key: "status", label: "Status" }],
+  campaign: [
+    { key: "status", label: "Status" },
+    { key: "channel", label: "Type" },
+  ],
+  ad_group: [{ key: "status", label: "Status" }],
+  ad: [{ key: "status", label: "Status" }],
+};
+
+export function optionalIdentityKeysForEntity(entity: GoogleAdsMetricEntity): Set<string> {
+  return new Set(GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS[entity].map((c) => c.key));
+}
+
+export function isOptionalIdentityColumnKey(
+  entity: GoogleAdsMetricEntity,
+  key: string,
+): boolean {
+  return optionalIdentityKeysForEntity(entity).has(key);
+}
+
+export function allIdentityKeysForEntity(entity: GoogleAdsMetricEntity): Set<string> {
+  return new Set([
+    ...GOOGLE_ADS_IDENTITY_COLUMNS[entity].map((c) => c.key),
+    ...GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS[entity].map((c) => c.key),
+  ]);
+}
 
 export const GOOGLE_ADS_RECOMMENDED_METRIC_KEYS: Record<GoogleAdsMetricEntity, string[]> = {
   keyword: [
@@ -70,6 +96,19 @@ export const GOOGLE_ADS_RECOMMENDED_METRIC_KEYS: Record<GoogleAdsMetricEntity, s
 };
 
 export const GOOGLE_ADS_MAX_METRICS = 50;
+
+export function defaultSelectedColumnKeys(
+  entity: GoogleAdsMetricEntity,
+  validKeys: Set<string>,
+): string[] {
+  const metrics = GOOGLE_ADS_RECOMMENDED_METRIC_KEYS[entity].filter((k) => validKeys.has(k));
+  const fallback = ["impressions", "clicks", "ctr", "spent"].filter((k) => validKeys.has(k));
+  const base = metrics.length > 0 ? metrics : fallback;
+  const optional = GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS[entity]
+    .map((c) => c.key)
+    .filter((k) => validKeys.has(k));
+  return [...base, ...optional];
+}
 
 export function modifyColumnsTitle(entity: GoogleAdsMetricEntity): string {
   const labels: Record<GoogleAdsMetricEntity, string> = {

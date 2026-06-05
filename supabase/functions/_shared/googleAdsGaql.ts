@@ -72,6 +72,32 @@ export async function gaqlSearch<T extends Record<string, unknown>>(
   return page.results;
 }
 
+const LIST_GAQL_MAX_PAGES = 5;
+
+/** Paginated GAQL search for list/report queries (bounded page count). */
+export async function fetchAllGaqlListRows(
+  cfg: GoogleAdsConfig,
+  accessToken: string,
+  metricsCustomerId: string,
+  query: string,
+): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  let token: string | null = null;
+  for (let i = 0; i < LIST_GAQL_MAX_PAGES; i++) {
+    const page = await gaqlSearchPage<Record<string, unknown>>(
+      cfg,
+      accessToken,
+      metricsCustomerId,
+      query,
+      token ?? undefined,
+    );
+    rows.push(...page.results);
+    token = page.nextPageToken;
+    if (!token) break;
+  }
+  return rows;
+}
+
 // --- Manager (MCC) account helpers (metrics must query client accounts, not MCC) ---
 
 export type GoogleAdsClientAccount = {

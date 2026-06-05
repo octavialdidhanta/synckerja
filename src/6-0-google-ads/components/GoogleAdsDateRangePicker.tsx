@@ -19,6 +19,7 @@ import {
   type GoogleAdsDatePresetId,
   type GoogleAdsDateRangeSelection,
   computePresetRange,
+  dateSelectionForCalendarYear,
   formatGoogleAdsPickerButtonLabel,
   toYmdLocal,
 } from "@/6-0-google-ads/lib/googleAdsDatePresets";
@@ -46,6 +47,7 @@ const PRESET_ROWS: PresetRow[] = [
 type PresetRangeOptions = {
   accountEarliestYmd?: string | null;
   rollingDays?: number;
+  calendarYear?: number;
 };
 
 type GoogleAdsDateRangePickerProps = {
@@ -62,6 +64,13 @@ type GoogleAdsDateRangePickerProps = {
   formatButtonLabel?: (selection: GoogleAdsDateRangeSelection) => string;
   /** Shown under calendar when all_time is selected (Meta vs Google copy). */
   allTimePopoverHint?: string;
+  /** Report: years selectable via the month/year dropdown header (not sidebar). */
+  calendarYearPresetYears?: number[];
+  calendarYearFilterHint?: string;
+  /** Report: Compare toggle for monthly chart breakdown (controlled). */
+  compareEnabled?: boolean;
+  onCompareChange?: (enabled: boolean) => void;
+  compareHint?: string;
 };
 
 function formatInputDate(d: Date | undefined): string {
@@ -96,7 +105,13 @@ export function GoogleAdsDateRangePicker({
   resolvePresetRange: resolvePresetRangeProp,
   formatButtonLabel,
   allTimePopoverHint,
+  calendarYearPresetYears,
+  calendarYearFilterHint,
+  compareEnabled: compareEnabledProp,
+  onCompareChange,
+  compareHint,
 }: GoogleAdsDateRangePickerProps) {
+  const compareControlled = onCompareChange != null;
   const resolvePresetRange = useCallback(
     (preset: GoogleAdsDatePresetId, now: Date, opts?: PresetRangeOptions) =>
       resolvePresetRangeProp
@@ -109,9 +124,16 @@ export function GoogleAdsDateRangePicker({
   const [draftPreset, setDraftPreset] = useState(value.preset);
   const [draftRange, setDraftRange] = useState<DateRange | undefined>(value.range);
   const [draftRolling, setDraftRolling] = useState(value.rollingDays);
+  const [draftCalendarYear, setDraftCalendarYear] = useState<number | undefined>(
+    value.calendarYear,
+  );
   const [startInput, setStartInput] = useState(() => formatInputDate(value.range.from));
   const [endInput, setEndInput] = useState(() => formatInputDate(value.range.to));
-  const [compareEnabled, setCompareEnabled] = useState(false);
+  const [compareDraft, setCompareDraft] = useState(compareEnabledProp ?? false);
+  const compareEnabled = compareControlled ? (compareEnabledProp ?? false) : compareDraft;
+  const compareBlockedByAllTime =
+    value.preset === "all_time" || (open && draftPreset === "all_time");
+  const compareSwitchChecked = compareBlockedByAllTime ? false : compareEnabled;
   const [calendarFocusMonth, setCalendarFocusMonth] = useState<Date>(() =>
     startOfMonth(value.range.to ?? value.range.from ?? new Date()),
   );
@@ -123,6 +145,7 @@ export function GoogleAdsDateRangePicker({
     setDraftPreset(value.preset);
     setDraftRange(value.range);
     setDraftRolling(value.rollingDays);
+    setDraftCalendarYear(value.calendarYear);
     setStartInput(formatInputDate(value.range.from));
     setEndInput(formatInputDate(value.range.to));
   }, [open, value]);
@@ -134,15 +157,21 @@ export function GoogleAdsDateRangePicker({
     prevOpenRef.current = open;
 
     if (justOpened) {
+      if (compareControlled) {
+        setCompareDraft(compareEnabledProp ?? false);
+      }
       setDraftPreset(value.preset);
       setDraftRange(value.range);
       setDraftRolling(value.rollingDays);
+      setDraftCalendarYear(value.calendarYear);
       setStartInput(formatInputDate(value.range.from));
       setEndInput(formatInputDate(value.range.to));
       const focusDate =
         value.preset === "all_time"
           ? value.range.from
-          : value.range.to ?? value.range.from;
+          : value.preset === "calendar_year"
+            ? value.range.from
+            : value.range.to ?? value.range.from;
       setCalendarFocusMonth(startOfMonth(focusDate ?? new Date()));
       setCalendarLayoutScrollKey((k) => k + 1);
     }
@@ -151,6 +180,7 @@ export function GoogleAdsDateRangePicker({
       setDraftPreset(value.preset);
       setDraftRange(value.range);
       setDraftRolling(value.rollingDays);
+      setDraftCalendarYear(value.calendarYear);
       setStartInput(formatInputDate(value.range.from));
       setEndInput(formatInputDate(value.range.to));
     }
@@ -190,15 +220,26 @@ export function GoogleAdsDateRangePicker({
       preset: GoogleAdsDatePresetId,
       range: DateRange,
       rollingDays = draftRolling,
-      options?: { closePopover?: boolean; focusScrollMonth?: Date },
+      options?: {
+        closePopover?: boolean;
+        focusScrollMonth?: Date;
+        calendarYear?: number;
+      },
     ) => {
       const normalized = normalizeRange(range);
       const next: GoogleAdsDateRangeSelection = {
         preset,
         range: normalized,
         rollingDays,
+        ...(preset === "calendar_year" && options?.calendarYear != null
+          ? { calendarYear: options.calendarYear }
+          : {}),
       };
       onChange(next);
+      if (preset === "all_time" && compareControlled) {
+        setCompareDraft(false);
+        onCompareChange?.(false);
+      }
       setDraftPreset(preset);
       setDraftRange(normalized);
       setStartInput(formatInputDate(normalized.from));
@@ -213,11 +254,23 @@ export function GoogleAdsDateRangePicker({
         setOpen(false);
       }
     },
-    [draftRolling, onChange],
+    [draftRolling, onChange, compareControlled, onCompareChange],
   );
+
+  const selectCalendarYear = (year: number) => {
+    const sel = dateSelectionForCalendarYear(year);
+    setDraftPreset("calendar_year");
+    setDraftCalendarYear(year);
+    commitSelection("calendar_year", sel.range, sel.rollingDays, {
+      closePopover: false,
+      focusScrollMonth: sel.range.from,
+      calendarYear: year,
+    });
+  };
 
   const selectPreset = (preset: GoogleAdsDatePresetId) => {
     setDraftPreset(preset);
+    setDraftCalendarYear(undefined);
     if (preset === "custom") return;
 
     const range = resolvePresetRange(preset, new Date(), {
@@ -389,18 +442,30 @@ export function GoogleAdsDateRangePicker({
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center justify-between border-t border-gray-200 px-4 py-3">
-              <Label htmlFor="gads-compare" className="text-sm font-normal text-gray-700">
-                Compare
-              </Label>
-              <Switch
-                id="gads-compare"
-                checked={compareEnabled}
-                onCheckedChange={setCompareEnabled}
-                disabled
-                title="Compare is not available yet"
-              />
-            </div>
+            {compareControlled ? (
+              <div className="shrink-0 border-t border-gray-200 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="gads-compare" className="text-sm font-normal text-gray-700">
+                    Compare
+                  </Label>
+                  <Switch
+                    id="gads-compare"
+                    checked={compareSwitchChecked}
+                    disabled={compareBlockedByAllTime}
+                    onCheckedChange={(checked) => {
+                      if (compareBlockedByAllTime) return;
+                      setCompareDraft(checked);
+                      onCompareChange?.(checked);
+                    }}
+                  />
+                </div>
+                {compareHint ? (
+                  <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+                    {compareHint}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {/* Right — inputs + scrollable calendar */}
@@ -441,6 +506,13 @@ export function GoogleAdsDateRangePicker({
                 focusMonth={calendarFocusMonth}
                 layoutScrollKey={calendarLayoutScrollKey}
                 className="flex min-h-0 flex-1 flex-col"
+                onSelectYear={
+                  calendarYearPresetYears?.length ? selectCalendarYear : undefined
+                }
+                selectableYears={calendarYearPresetYears}
+                selectedCalendarYear={
+                  draftPreset === "calendar_year" ? draftCalendarYear : undefined
+                }
               />
             </div>
 
@@ -455,6 +527,11 @@ export function GoogleAdsDateRangePicker({
                   <span className="mt-0.5 block text-[10px] text-muted-foreground">
                     {allTimePopoverHint ??
                       `All time: from first activity (${accountEarliestYmd}) through today`}
+                  </span>
+                ) : null}
+                {calendarYearPresetYears?.length && calendarYearFilterHint ? (
+                  <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                    {calendarYearFilterHint}
                   </span>
                 ) : null}
               </p>

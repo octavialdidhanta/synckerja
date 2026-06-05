@@ -7,6 +7,8 @@ import {
   type NormalizedMetricsRow,
 } from "./googleAdsMetricsCatalog.ts";
 import { isUiCustomMetricKey } from "./googleAdsUiCustomColumns.ts";
+import { isSynckerjaLeadsMetricKey } from "./googleAdsSynckerjaLeadsMetrics.ts";
+import { isSynckerjaTrafficMetricKey } from "./googleAdsSynckerjaTrafficMetrics.ts";
 
 export const CONV_ACTION_METRIC_PREFIX = "conv_action:";
 
@@ -56,20 +58,26 @@ export function splitMetricKeys(keys: string[]): {
   catalogKeys: string[];
   customKeys: string[];
   uiCustomKeys: string[];
+  trafficKeys: string[];
+  leadsKeys: string[];
 } {
   const catalogKeys: string[] = [];
   const customKeys: string[] = [];
   const uiCustomKeys: string[] = [];
+  const trafficKeys: string[] = [];
+  const leadsKeys: string[] = [];
   const seen = new Set<string>();
   for (const raw of keys) {
     const key = String(raw).trim();
     if (!key || seen.has(key)) continue;
     seen.add(key);
     if (isUiCustomMetricKey(key)) uiCustomKeys.push(key);
+    else if (isSynckerjaTrafficMetricKey(key)) trafficKeys.push(key);
+    else if (isSynckerjaLeadsMetricKey(key)) leadsKeys.push(key);
     else if (isConversionActionMetricKey(key)) customKeys.push(key);
     else catalogKeys.push(key);
   }
-  return { catalogKeys, customKeys, uiCustomKeys };
+  return { catalogKeys, customKeys, uiCustomKeys, trafficKeys, leadsKeys };
 }
 
 export function buildListCustomColumnsGaql(): string {

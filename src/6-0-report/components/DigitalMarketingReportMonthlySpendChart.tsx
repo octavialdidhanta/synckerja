@@ -19,6 +19,13 @@ import type {
   MonthlySpendChannelSeries,
   ReportMonthlySpendChartPoint,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlySpend";
+import {
+  getMonthlyChartBlockingError,
+  hasMonthlyChartDisplayableChannel,
+  isGoogleSeriesChartActive,
+  isMetaSeriesChartActive,
+  isMetaSeriesChartSkipped,
+} from "@/6-0-digital-marketing-shared/monthlyReportChartDisplay";
 
 const GOOGLE_BAR = "hsl(204 70% 42%)";
 const META_BAR = "hsl(262 55% 52%)";
@@ -259,8 +266,15 @@ export function DigitalMarketingReportMonthlySpendChart({
 }: Props) {
   const { t } = useAppTranslation();
 
-  const showGoogle = googleSeries.connected && channelFilter !== "meta";
-  const showMeta = metaSeries.connected && channelFilter !== "google";
+  const showGoogle = isGoogleSeriesChartActive(googleSeries, channelFilter);
+  const showMeta = isMetaSeriesChartActive(metaSeries, channelFilter);
+  const metaSkippedNotice =
+    isMetaSeriesChartSkipped(metaSeries) && showGoogle ? metaSeries.unavailableReason : null;
+  const blockingError = getMonthlyChartBlockingError(
+    channelFilter,
+    googleSeries,
+    metaSeries,
+  );
   const showCombined = channelFilter === "all";
   const showGrouped = channelFilter === "by_channel";
 
@@ -289,7 +303,7 @@ export function DigitalMarketingReportMonthlySpendChart({
     return row.googleSpend > 0 || row.metaSpend > 0;
   });
 
-  const loading = bootstrapLoading || chartLoading;
+  const loading = chartLoading;
 
   const barChartSpacing = useMemo(() => {
     if (showCombined || channelFilter === "google" || channelFilter === "meta") {
@@ -348,13 +362,17 @@ export function DigitalMarketingReportMonthlySpendChart({
       ) : null}
 
       {loading ? (
-        <Skeleton className="h-[300px] w-full rounded-md" />
-      ) : !googleSeries.connected && !metaSeries.connected ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground">
-          {t(
-            "digitalMarketing.report.monthlySpendNotConnected",
-            "Connect Google Ads or Meta Ads to see monthly spend.",
-          )}
+        bootstrapLoading ? null : (
+          <Skeleton className="h-[300px] w-full rounded-md" />
+        )
+      ) : !hasMonthlyChartDisplayableChannel(channelFilter, googleSeries, metaSeries) ? (
+        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+          {!googleSeries.connected && !metaSeries.connected
+            ? t(
+                "digitalMarketing.report.monthlySpendNotConnected",
+                "Connect Google Ads or Meta Ads to see monthly spend.",
+              )
+            : blockingError}
         </div>
       ) : !chartDateOverlap ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
@@ -363,9 +381,9 @@ export function DigitalMarketingReportMonthlySpendChart({
             "The date filter does not overlap the selected chart year. Adjust the date range or chart year.",
           )}
         </div>
-      ) : googleSeries.error || metaSeries.error ? (
+      ) : blockingError ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-red-600">
-          {googleSeries.error ?? metaSeries.error}
+          {blockingError}
         </div>
       ) : !hasData ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground">
@@ -373,6 +391,9 @@ export function DigitalMarketingReportMonthlySpendChart({
         </div>
       ) : (
         <>
+          {metaSkippedNotice ? (
+            <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
+          ) : null}
           <div className="mb-2 flex flex-wrap items-center gap-4">
             {showCombined ? (
               <span className="flex items-center gap-1.5 text-xs text-gray-600">
@@ -435,7 +456,11 @@ export function DigitalMarketingReportMonthlySpendChart({
               {tooltipLabels.mixedHint}
             </p>
           ) : null}
-          <div className="h-[300px] w-full min-w-0">
+          <div className="h-[300px] w-full min-w-0 overflow-x-auto">
+            <div
+              className="h-full"
+              style={{ minWidth: Math.max(chartData.length * 48, 560) }}
+            >
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartData}
@@ -569,6 +594,7 @@ export function DigitalMarketingReportMonthlySpendChart({
                 ) : null}
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </div>
         </>
       )}

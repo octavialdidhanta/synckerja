@@ -17,6 +17,7 @@ const VALID_PRESETS = new Set<GoogleAdsDatePresetId>([
   "this_month",
   "last_30_days",
   "last_month",
+  "calendar_year",
   "all_time",
   "last_n_days_today",
   "last_n_days_yesterday",
@@ -32,6 +33,8 @@ export type DmPaidAdsFiltersStored = {
   googleCustomerId: string;
   metaAdAccountId: string;
   reportChartYear: number;
+  /** Report Spend/CPA/Leads charts: monthly breakdown for reportChartYear. */
+  reportChartCompareEnabled: boolean;
   monthlyChartChannelFilter: MonthlyChartChannelFilter;
   reportServiceFilter: ReportServiceFilterStored;
 };
@@ -44,6 +47,8 @@ type StoredJson = {
   googleCustomerId?: string;
   metaAdAccountId?: string;
   reportChartYear?: number;
+  reportChartCompareEnabled?: boolean;
+  calendarYear?: number;
   monthlyChartChannelFilter?: string;
   reportServiceFilter?: string;
 };
@@ -81,6 +86,13 @@ export function readDmPaidAdsFilters(organizationId: string): DmPaidAdsFiltersSt
         ? Math.min(999, Math.floor(parsed.rollingDays))
         : 30;
     const fallback = defaultGoogleAdsDateSelection();
+    const calendarYear =
+      preset === "calendar_year" &&
+      typeof parsed.calendarYear === "number" &&
+      parsed.calendarYear >= 2000 &&
+      parsed.calendarYear <= 2100
+        ? Math.floor(parsed.calendarYear)
+        : undefined;
     const dateSelection: GoogleAdsDateRangeSelection = {
       preset,
       rollingDays,
@@ -88,6 +100,7 @@ export function readDmPaidAdsFilters(organizationId: string): DmPaidAdsFiltersSt
         from: from ?? fallback.range.from,
         to: to ?? fallback.range.to,
       },
+      ...(calendarYear != null ? { calendarYear } : {}),
     };
     return {
       dateSelection,
@@ -99,6 +112,7 @@ export function readDmPaidAdsFilters(organizationId: string): DmPaidAdsFiltersSt
         parsed.reportChartYear <= 2100
           ? Math.floor(parsed.reportChartYear)
           : new Date().getFullYear(),
+      reportChartCompareEnabled: parsed.reportChartCompareEnabled === true,
       monthlyChartChannelFilter:
         typeof parsed.monthlyChartChannelFilter === "string" &&
         VALID_MONTHLY_CHART_CHANNEL.has(
@@ -123,11 +137,13 @@ export function writeDmPaidAdsFilters(
     const payload: StoredJson = {
       preset: value.dateSelection.preset,
       rollingDays: value.dateSelection.rollingDays,
+      calendarYear: value.dateSelection.calendarYear,
       from: value.dateSelection.range.from?.toISOString() ?? null,
       to: value.dateSelection.range.to?.toISOString() ?? null,
       googleCustomerId: value.googleCustomerId,
       metaAdAccountId: value.metaAdAccountId,
       reportChartYear: value.reportChartYear,
+      reportChartCompareEnabled: value.reportChartCompareEnabled,
       monthlyChartChannelFilter: value.monthlyChartChannelFilter,
       reportServiceFilter: value.reportServiceFilter,
     };

@@ -16,8 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Lock, Minus, Plus, Search, X } from "lucide-react";
-import { GoogleAdsImportUiCustomColumnsDialog } from "@/6-0-google-ads/components/GoogleAdsImportUiCustomColumnsDialog";
+import { GripVertical, Lock, Minus, Pencil, Search, Trash2, X } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -26,6 +25,16 @@ import {
 } from "@/shared/components/ui/accordion";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -48,8 +57,17 @@ import {
   TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
+import {
+  GOOGLE_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+  GoogleAdsColumnSetOptionLabel,
+} from "@/google-ads/components/GoogleAdsColumnSetOptionLabel";
 import type { GoogleAdsColumnSet } from "@/google-ads/hooks/useGoogleAdsColumnSets";
-import { modifyColumnsTitle } from "@/google-ads/metrics/googleAdsIdentityColumns";
+import {
+  GOOGLE_ADS_IDENTITY_COLUMNS,
+  GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS,
+  isOptionalIdentityColumnKey,
+  modifyColumnsTitle,
+} from "@/google-ads/metrics/googleAdsIdentityColumns";
 import type {
   GoogleAdsIdentityColumn,
   GoogleAdsMetricCatalogResponse,
@@ -70,7 +88,15 @@ type Props = {
   selectedKeys: string[];
   columnSets: GoogleAdsColumnSet[];
   onApply: (keys: string[], options?: { saveColumnSetName?: string }) => void | Promise<void>;
+  onDeleteColumnSet?: (id: string) => Promise<void>;
+  onUpdateColumnSet?: (input: {
+    id: string;
+    name: string;
+    metric_keys: string[];
+  }) => Promise<{ id: string } | void>;
   isSaving?: boolean;
+  isDeletingColumnSet?: boolean;
+  isUpdatingColumnSet?: boolean;
 };
 
 function uiCustomColumnToMetricItem(col: GoogleAdsUiCustomColumnItem): MetricCatalogItem {
@@ -203,36 +229,79 @@ export function GoogleAdsModifyColumnsDialog({
   selectedKeys,
   columnSets,
   onApply,
+  onDeleteColumnSet,
+  onUpdateColumnSet,
   isSaving,
+  isDeletingColumnSet,
+  isUpdatingColumnSet,
 }: Props) {
   const maxMetrics = catalog?.max_metrics ?? 50;
-  const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [draftKeys, setDraftKeys] = useState<string[]>(selectedKeys);
   const [savePreset, setSavePreset] = useState(false);
   const [presetName, setPresetName] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [activeColumnSetId, setActiveColumnSetId] = useState<string | null>(null);
+  const [isEditingColumnSet, setIsEditingColumnSet] = useState(false);
+  const [editColumnSetName, setEditColumnSetName] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const activeColumnSet = useMemo(
+    () => columnSets.find((s) => s.id === activeColumnSetId) ?? null,
+    [columnSets, activeColumnSetId],
+  );
+  const activeIsReadOnly = activeColumnSet?.scope === "global";
+
+  useEffect(() => {
+    if (
+      activeColumnSetId &&
+      !columnSets.some((set) => set.id === activeColumnSetId)
+    ) {
+      setActiveColumnSetId(null);
+      setIsEditingColumnSet(false);
+      setEditColumnSetName("");
+    }
+  }, [columnSets, activeColumnSetId]);
 
   useEffect(() => {
     if (open) {
       setDraftKeys(selectedKeys);
       setSavePreset(false);
       setPresetName("");
+      setActiveColumnSetId(null);
+      setIsEditingColumnSet(false);
+      setEditColumnSetName("");
+      setDeleteConfirmOpen(false);
       setSearch("");
       setSearchOpen(false);
     }
   }, [open, selectedKeys]);
 
-  const metricByKey = useMemo(
-    () => metricMapFromCatalog(catalog, uiCustomColumns),
-    [catalog, uiCustomColumns],
-  );
   const draftSet = useMemo(() => new Set(draftKeys), [draftKeys]);
 
+  /** Locked columns only — never treat Status/Type as locked (even if API catalog is stale). */
   const identityColumns: GoogleAdsIdentityColumn[] = useMemo(() => {
-    if (catalog?.identity_columns?.length) return catalog.identity_columns;
-    return [];
-  }, [catalog]);
+    const lockedKeys = new Set(GOOGLE_ADS_IDENTITY_COLUMNS[entity].map((c) => c.key));
+    if (catalog?.identity_columns?.length) {
+      const fromApi = catalog.identity_columns.filter((c) => lockedKeys.has(c.key));
+      if (fromApi.length > 0) return fromApi;
+    }
+    return GOOGLE_ADS_IDENTITY_COLUMNS[entity];
+  }, [catalog, entity]);
+
+  const optionalIdentityItems = useMemo(
+    () =>
+      GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS[entity].map((col) => ({
+        key: col.key,
+        label: col.label,
+        description: "",
+        entities: [entity] as GoogleAdsMetricEntity[],
+        valueKind: "count" as const,
+        defaultSelected: false,
+        sortable: true,
+      })),
+    [entity],
+  );
 
   const leftSections = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -243,28 +312,37 @@ export function GoogleAdsModifyColumnsDialog({
       m.description.toLowerCase().includes(q);
 
     const recommended = (catalog?.recommended.metrics ?? []).filter(matches);
+    const synckerjaCat = catalog?.categories.find((c) => c.id === "synckerja_metrics");
+    const synckerja =
+      entity === "campaign" ? (synckerjaCat?.metrics ?? []).filter(matches) : [];
+
+    const optional = optionalIdentityItems.filter(matches);
+
     const categories = (catalog?.categories ?? [])
+      .filter((cat) => cat.id !== "synckerja_metrics")
       .map((cat) => ({
         ...cat,
         metrics: cat.metrics.filter(matches),
       }))
       .filter((c) => c.metrics.length > 0);
-    const matchesUiCustom = (col: GoogleAdsUiCustomColumnItem) =>
-      !q ||
-      col.label.toLowerCase().includes(q) ||
-      col.key.toLowerCase().includes(q) ||
-      col.description.toLowerCase().includes(q);
 
-    const custom = (uiCustomColumns ?? []).filter(matchesUiCustom);
-
-    return { recommended, categories, custom };
-  }, [catalog, uiCustomColumns, search]);
+    return { recommended, categories, synckerja, optional };
+  }, [catalog, entity, search, optionalIdentityItems]);
 
   const accordionDefaults = useMemo(() => {
-    const ids = ["recommended", "custom_columns"];
+    const ids = ["recommended", "optional_identity"];
+    if (entity === "campaign") ids.push("synckerja_metrics");
     for (const c of leftSections.categories) ids.push(c.id);
     return ids;
-  }, [leftSections.categories]);
+  }, [entity, leftSections.categories]);
+
+  const metricByKeyWithOptional = useMemo(() => {
+    const map = metricMapFromCatalog(catalog, uiCustomColumns);
+    for (const item of optionalIdentityItems) {
+      map.set(item.key, item);
+    }
+    return map;
+  }, [catalog, uiCustomColumns, optionalIdentityItems]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -302,10 +380,44 @@ export function GoogleAdsModifyColumnsDialog({
   const loadPreset = (setId: string) => {
     const preset = columnSets.find((s) => s.id === setId);
     if (!preset) return;
-    setDraftKeys(preset.metric_keys.filter((k) => metricByKey.has(k)));
+    setActiveColumnSetId(setId);
+    setDraftKeys(preset.metric_keys.filter((k) => metricByKeyWithOptional.has(k)));
+    setIsEditingColumnSet(false);
+    setEditColumnSetName(preset.name);
+  };
+
+  const handleStartEditColumnSet = () => {
+    if (!activeColumnSet) return;
+    setEditColumnSetName(activeColumnSet.name);
+    setIsEditingColumnSet(true);
+  };
+
+  const handleUpdateColumnSet = async () => {
+    if (!activeColumnSetId || !onUpdateColumnSet) return;
+    const trimmed = editColumnSetName.trim();
+    if (!trimmed) return;
+    const result = await onUpdateColumnSet({
+      id: activeColumnSetId,
+      name: trimmed,
+      metric_keys: draftKeys,
+    });
+    if (result?.id) {
+      setActiveColumnSetId(result.id);
+    }
+    setIsEditingColumnSet(false);
+  };
+
+  const handleDeleteColumnSet = async () => {
+    if (!activeColumnSetId || !onDeleteColumnSet) return;
+    await onDeleteColumnSet(activeColumnSetId);
+    setActiveColumnSetId(null);
+    setIsEditingColumnSet(false);
+    setEditColumnSetName("");
+    setDeleteConfirmOpen(false);
   };
 
   const atLimit = draftKeys.length >= maxMetrics;
+  const hasApiMetric = draftKeys.some((k) => !isOptionalIdentityColumnKey(entity, k));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -384,42 +496,19 @@ export function GoogleAdsModifyColumnsDialog({
                 </AccordionItem>
               ) : null}
 
-              <AccordionItem value="custom_columns" className="border-none">
-                <AccordionTrigger className="py-2 text-sm font-medium hover:no-underline">
-                  Custom columns
-                </AccordionTrigger>
-                <AccordionContent className="pb-3 pt-0">
-                  <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-                    Daftar ini disamakan dengan Custom columns (formula) di Google Ads UI. Google
-                    tidak menyediakan API untuk mengambilnya otomatis — gunakan{" "}
-                    <span className="font-medium">Import</span> dan tempel nama kolom dari Google
-                    Ads. Nilai angka di tabel belum dihitung (fase berikutnya: rumus).
-                  </p>
-                  {onImportUiCustomColumns ? (
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="mb-3 h-auto px-0 text-sm text-blue-600"
-                      onClick={() => setImportOpen(true)}
-                    >
-                      <Plus className="mr-1 h-3.5 w-3.5" />
-                      Import dari Google Ads
-                    </Button>
-                  ) : null}
-                  {uiCustomColumnsLoading ? (
-                    <p className="text-sm text-muted-foreground">Memuat custom columns…</p>
-                  ) : leftSections.custom.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Belum ada custom columns. Klik Import dan tempel daftar dari Google Ads.
-                    </p>
-                  ) : (
+              {leftSections.optional.length > 0 ? (
+                <AccordionItem value="optional_identity" className="border-none">
+                  <AccordionTrigger className="py-2 text-sm font-medium hover:no-underline">
+                    Attributes
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-3 pt-0">
                     <div className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
-                      {leftSections.custom.map((col) => {
-                        const checked = draftSet.has(col.key);
+                      {leftSections.optional.map((m) => {
+                        const checked = draftSet.has(m.key);
                         const disabled = !checked && atLimit;
                         return (
                           <label
-                            key={col.key}
+                            key={m.key}
                             className={cn(
                               "flex min-w-0 cursor-pointer items-start gap-2 text-sm",
                               disabled && "cursor-not-allowed opacity-50",
@@ -429,16 +518,53 @@ export function GoogleAdsModifyColumnsDialog({
                               checked={checked}
                               disabled={disabled}
                               className="mt-0.5 shrink-0 border-blue-600 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
-                              onCheckedChange={(v) => toggleMetric(col.key, v === true)}
+                              onCheckedChange={(v) => toggleMetric(m.key, v === true)}
                             />
-                            <MetricCheckboxLabel label={col.label} description={col.description} />
+                            <MetricCheckboxLabel label={m.label} description={m.description} />
                           </label>
                         );
                       })}
                     </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
+                  </AccordionContent>
+                </AccordionItem>
+              ) : null}
+
+              {entity === "campaign" ? (
+                <AccordionItem value="synckerja_metrics" className="border-none">
+                  <AccordionTrigger className="py-2 text-sm font-medium hover:no-underline">
+                    Synckerja metrics
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-3 pt-0">
+                    {leftSections.synckerja.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Tidak ada metrik Synckerja.</p>
+                    ) : (
+                      <div className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                        {leftSections.synckerja.map((m) => {
+                          const checked = draftSet.has(m.key);
+                          const disabled = !checked && atLimit;
+                          return (
+                            <label
+                              key={m.key}
+                              className={cn(
+                                "flex min-w-0 cursor-pointer items-start gap-2 text-sm",
+                                disabled && "cursor-not-allowed opacity-50",
+                              )}
+                            >
+                              <Checkbox
+                                checked={checked}
+                                disabled={disabled}
+                                className="mt-0.5 shrink-0 border-blue-600 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
+                                onCheckedChange={(v) => toggleMetric(m.key, v === true)}
+                              />
+                              <MetricCheckboxLabel label={m.label} description={m.description} />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </AccordionContent>
+                </AccordionItem>
+              ) : null}
 
               {leftSections.categories.map((cat) => (
                 <AccordionItem key={cat.id} value={cat.id} className="border-none">
@@ -496,7 +622,7 @@ export function GoogleAdsModifyColumnsDialog({
                 <SortableContext items={draftKeys} strategy={verticalListSortingStrategy}>
                   <div className="mt-1 space-y-1">
                     {draftKeys.map((key) => {
-                      const m = metricByKey.get(key);
+                      const m = metricByKeyWithOptional.get(key);
                       if (!m) return null;
                       return (
                         <SortableMetricRow
@@ -521,69 +647,198 @@ export function GoogleAdsModifyColumnsDialog({
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-3 border-t bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="shrink-0 border-t bg-background">
+          <div className="border-b border-border/60 bg-muted/30 px-6 py-3.5">
+            <div className="grid gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
+              <div className="min-w-0 space-y-2">
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Saved column sets
+                </Label>
+                {columnSets.length > 0 ? (
+                  <>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Select
+                        value={activeColumnSetId ?? undefined}
+                        onValueChange={loadPreset}
+                      >
+                        <SelectTrigger className="h-9 min-w-0 flex-1 border-gray-200 bg-white text-sm shadow-sm">
+                          <SelectValue placeholder="Choose a saved set" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {columnSets.map((s) => (
+                            <SelectItem
+                              key={s.id}
+                              value={s.id}
+                              className={GOOGLE_ADS_COLUMN_SET_SELECT_ITEM_CLASS}
+                            >
+                              <GoogleAdsColumnSetOptionLabel set={s} />
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex shrink-0 items-center overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-none border-r border-gray-200"
+                          disabled={!activeColumnSetId || !onUpdateColumnSet || activeIsReadOnly}
+                          onClick={handleStartEditColumnSet}
+                          aria-label="Edit column set"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-none text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={
+                            !activeColumnSetId || !onDeleteColumnSet || isDeletingColumnSet
+                              || activeIsReadOnly
+                          }
+                          onClick={() => setDeleteConfirmOpen(true)}
+                          aria-label="Delete column set"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {isEditingColumnSet && activeColumnSetId ? (
+                      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2">
+                        <Pencil className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
+                        <Input
+                          value={editColumnSetName}
+                          onChange={(e) => setEditColumnSetName(e.target.value)}
+                          className="h-8 min-w-[10rem] flex-1 border-gray-200 bg-white text-sm"
+                          placeholder="Set name"
+                          aria-label="Column set name"
+                          disabled={activeIsReadOnly}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 shrink-0 bg-blue-600 hover:bg-blue-700"
+                          disabled={
+                            !editColumnSetName.trim() ||
+                            isUpdatingColumnSet ||
+                            draftKeys.length === 0
+                              || activeIsReadOnly
+                          }
+                          onClick={() => void handleUpdateColumnSet()}
+                        >
+                          Save changes
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 shrink-0"
+                          onClick={() => setIsEditingColumnSet(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {activeIsReadOnly
+                          ? "This is a shared default set and cannot be edited or deleted."
+                          : "Load a set to apply its columns, or edit and delete the selected set."}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No saved sets yet. Save your current selection on the right.
+                  </p>
+                )}
+              </div>
+
+              <div className="min-w-0 space-y-2 lg:max-w-md lg:justify-self-end">
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Save current selection
+                </Label>
+                <div
+                  className={cn(
+                    "rounded-md border bg-white shadow-sm transition-colors",
+                    savePreset ? "border-blue-200 ring-1 ring-blue-100" : "border-gray-200",
+                  )}
+                >
+                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5">
+                    <Checkbox
+                      checked={savePreset}
+                      onCheckedChange={(v) => setSavePreset(v === true)}
+                      className="border-blue-600 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
+                    />
+                    <span className="text-sm font-medium text-gray-900">Save as new column set</span>
+                  </label>
+                  {savePreset ? (
+                    <div className="border-t border-gray-100 px-3 pb-3 pt-0">
+                      <Input
+                        placeholder="Enter set name"
+                        value={presetName}
+                        onChange={(e) => setPresetName(e.target.value)}
+                        className="h-9 border-gray-200 text-sm"
+                        aria-label="New column set name"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 px-6 py-3.5">
             <Button
               type="button"
-              className="bg-blue-600 hover:bg-blue-700"
-              disabled={isSaving || draftKeys.length === 0 || (savePreset && !presetName.trim())}
+              className="min-w-[5.5rem] bg-blue-600 hover:bg-blue-700"
+              disabled={
+                isSaving ||
+                !hasApiMetric ||
+                (savePreset && !presetName.trim())
+              }
               onClick={() => void handleApply()}
             >
               Apply
             </Button>
             <Button
               type="button"
-              variant="link"
-              className="h-auto px-0 text-blue-600"
+              variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
               onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
           </div>
-
-          <div className="flex flex-col gap-2 sm:items-end">
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <Checkbox
-                  checked={savePreset}
-                  onCheckedChange={(v) => setSavePreset(v === true)}
-                />
-                Save your column set
-              </label>
-              <Input
-                placeholder="Name"
-                value={presetName}
-                onChange={(e) => setPresetName(e.target.value)}
-                disabled={!savePreset}
-                className="h-8 w-40 text-sm"
-              />
-            </div>
-            {columnSets.length > 0 ? (
-              <Select onValueChange={loadPreset}>
-                <SelectTrigger className="h-8 w-full max-w-xs text-sm sm:w-56">
-                  <SelectValue placeholder="Load saved column set" />
-                </SelectTrigger>
-                <SelectContent>
-                  {columnSets.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-          </div>
         </div>
       </DialogContent>
 
-      {onImportUiCustomColumns ? (
-        <GoogleAdsImportUiCustomColumnsDialog
-          open={importOpen}
-          onOpenChange={setImportOpen}
-          isImporting={isImportingUiCustomColumns}
-          onImport={onImportUiCustomColumns}
-        />
-      ) : null}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete column set?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {activeColumnSet
+                ? `"${activeColumnSet.name}" will be removed. This cannot be undone.`
+                : "This column set will be removed. This cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingColumnSet}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeletingColumnSet}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteColumnSet();
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </Dialog>
   );
 }

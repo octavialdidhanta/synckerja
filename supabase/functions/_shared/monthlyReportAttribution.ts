@@ -6,14 +6,81 @@ import {
   type MetaConvertedLeadRow,
 } from "./metaConvertedLeadRules.ts";
 
-export type MonthWindow = { month: number; start: string; end: string };
+export type MonthWindow = { year: number; month: number; start: string; end: string };
 
 export type MonthlyMetricsBucket = {
+  year: number;
   month: number;
   spend: number;
   converted_leads: number;
   cpa: number | null;
 };
+
+export function monthPeriodKey(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+export function monthPeriodKeyFromWindow(win: MonthWindow): string {
+  return monthPeriodKey(win.year, win.month);
+}
+
+function formatDateYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseYmdLocal(ymd: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd).trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function startOfDayLocal(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** Calendar months overlapping [startYmd, endYmd] — clipped to the requested period. */
+export function buildMonthWindowsInRange(
+  startYmd: string,
+  endYmd: string,
+): MonthWindow[] {
+  const rangeStart = parseYmdLocal(startYmd);
+  const rangeEnd = parseYmdLocal(endYmd);
+  if (!rangeStart || !rangeEnd || rangeStart.getTime() > rangeEnd.getTime()) return [];
+
+  const windows: MonthWindow[] = [];
+  let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+
+  while (cursor.getTime() <= rangeEnd.getTime()) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const monthStart = startOfDayLocal(new Date(y, m, 1));
+    const monthEnd = startOfDayLocal(new Date(y, m + 1, 0));
+
+    const winStart = monthStart.getTime() < rangeStart.getTime() ? rangeStart : monthStart;
+    const winEnd = monthEnd.getTime() > rangeEnd.getTime() ? rangeEnd : monthEnd;
+
+    windows.push({
+      year: y,
+      month: m + 1,
+      start: formatDateYmd(winStart),
+      end: formatDateYmd(winEnd),
+    });
+
+    cursor = new Date(y, m + 1, 1);
+  }
+
+  return windows;
+}
+
+export function emptySpendBucketsForWindows(
+  monthWindows: MonthWindow[],
+): { year: number; month: number; spend: number }[] {
+  return monthWindows.map((w) => ({ year: w.year, month: w.month, spend: 0 }));
+}
 
 export type MetaCampaignRef = { id: string; name: string };
 
@@ -28,12 +95,13 @@ export function computeMonthlyCpa(spend: number, convertedLeads: number): number
 }
 
 export function enrichSpendBucketsWithAttribution(
-  buckets: { month: number; spend: number }[],
-  leadsByMonth: Map<number, number>,
+  buckets: { year: number; month: number; spend: number }[],
+  leadsByPeriod: Map<string, number>,
 ): MonthlyMetricsBucket[] {
   return buckets.map((b) => {
-    const converted_leads = leadsByMonth.get(b.month) ?? 0;
+    const converted_leads = leadsByPeriod.get(monthPeriodKey(b.year, b.month)) ?? 0;
     return {
+      year: b.year,
       month: b.month,
       spend: b.spend,
       converted_leads,
@@ -92,13 +160,13 @@ function leadConvertedAtInWindow(
   return ymd >= window.start && ymd <= window.end;
 }
 
-function resolveMonthForLead(
+function resolvePeriodKeyForLead(
   convertedAt: string | null,
   monthWindows: MonthWindow[],
-): number | null {
+): string | null {
   if (!convertedAt || monthWindows.length === 0) return null;
   for (const win of monthWindows) {
-    if (leadConvertedAtInWindow(convertedAt, win)) return win.month;
+    if (leadConvertedAtInWindow(convertedAt, win)) return monthPeriodKeyFromWindow(win);
   }
   const ymd = convertedAtLocalYmd(convertedAt);
   if (!ymd) return null;
@@ -106,14 +174,14 @@ function resolveMonthForLead(
   const last = monthWindows[monthWindows.length - 1]!;
   if (ymd < first.start || ymd > last.end) return null;
   for (const win of monthWindows) {
-    if (ymd >= win.start && ymd <= win.end) return win.month;
+    if (ymd >= win.start && ymd <= win.end) return monthPeriodKeyFromWindow(win);
   }
   return null;
 }
 
-export function sumAttributedLeadsByMonth(leadsByMonth: Map<number, number>): number {
+export function sumAttributedLeadsByMonth(leadsByPeriod: Map<string, number>): number {
   let total = 0;
-  for (const n of leadsByMonth.values()) {
+  for (const n of leadsByPeriod.values()) {
     total += Number.isFinite(n) ? n : 0;
   }
   return total;
@@ -127,10 +195,10 @@ export async function countGoogleAttributedLeadsByMonth(
   dateEnd: string,
   monthWindows: MonthWindow[],
   campaignUtmKeys: Set<string>,
-): Promise<Map<number, number>> {
-  const counts = new Map<number, number>();
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
   for (const win of monthWindows) {
-    counts.set(win.month, 0);
+    counts.set(monthPeriodKeyFromWindow(win), 0);
   }
   if (monthWindows.length === 0 || campaignUtmKeys.size === 0) return counts;
 
@@ -154,9 +222,9 @@ export async function countGoogleAttributedLeadsByMonth(
     return counts;
   }
 
-  const seenByMonth = new Map<number, Set<string>>();
+  const seenByPeriod = new Map<string, Set<string>>();
   for (const win of monthWindows) {
-    seenByMonth.set(win.month, new Set());
+    seenByPeriod.set(monthPeriodKeyFromWindow(win), new Set());
   }
 
   for (const row of data ?? []) {
@@ -166,16 +234,16 @@ export async function countGoogleAttributedLeadsByMonth(
       (row as { attribution?: unknown }).attribution,
     );
     if (!utmKey || !campaignUtmKeys.has(utmKey)) continue;
-    const month = resolveMonthForLead(
+    const periodKey = resolvePeriodKeyForLead(
       String((row as { converted_at?: string | null }).converted_at ?? ""),
       monthWindows,
     );
-    if (month == null) continue;
+    if (periodKey == null) continue;
     const id = String((row as { id: string }).id);
-    const seen = seenByMonth.get(month)!;
+    const seen = seenByPeriod.get(periodKey)!;
     if (seen.has(id)) continue;
     seen.add(id);
-    counts.set(month, (counts.get(month) ?? 0) + 1);
+    counts.set(periodKey, (counts.get(periodKey) ?? 0) + 1);
   }
 
   return counts;
@@ -236,10 +304,10 @@ export async function countMetaAttributedLeadsByMonth(
   dateEnd: string,
   monthWindows: MonthWindow[],
   campaigns: MetaCampaignRef[],
-): Promise<Map<number, number>> {
-  const counts = new Map<number, number>();
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
   for (const win of monthWindows) {
-    counts.set(win.month, 0);
+    counts.set(monthPeriodKeyFromWindow(win), 0);
   }
   if (monthWindows.length === 0 || campaigns.length === 0) return counts;
 
@@ -271,9 +339,9 @@ export async function countMetaAttributedLeadsByMonth(
     if (at) convertedAtById.set(id, at);
   }
 
-  const seenByMonth = new Map<number, Set<string>>();
+  const seenByPeriod = new Map<string, Set<string>>();
   for (const win of monthWindows) {
-    seenByMonth.set(win.month, new Set());
+    seenByPeriod.set(monthPeriodKeyFromWindow(win), new Set());
   }
 
   for (const lead of eligible) {
@@ -287,13 +355,13 @@ export async function countMetaAttributedLeadsByMonth(
     if (!matched) continue;
 
     const convertedAt = convertedAtById.get(lead.id) ?? null;
-    const month = resolveMonthForLead(convertedAt, monthWindows);
-    if (month == null) continue;
+    const periodKey = resolvePeriodKeyForLead(convertedAt, monthWindows);
+    if (periodKey == null) continue;
 
-    const seen = seenByMonth.get(month)!;
+    const seen = seenByPeriod.get(periodKey)!;
     if (seen.has(lead.id)) continue;
     seen.add(lead.id);
-    counts.set(month, (counts.get(month) ?? 0) + 1);
+    counts.set(periodKey, (counts.get(periodKey) ?? 0) + 1);
   }
 
   return counts;

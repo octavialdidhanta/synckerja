@@ -4,7 +4,6 @@ import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPendi
 import { cn } from "@/shared/lib/utils";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { format } from "date-fns";
 import { Columns3, Loader2, RefreshCw } from "lucide-react";
 import type { GoogleAdsMetricsRow } from "@/google-ads/metrics/types";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
@@ -29,6 +28,11 @@ import {
   toYmdLocal,
 } from "@/6-0-google-ads/lib/googleAdsDatePresets";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
+import { buildReportYearOptionsFromEarliest } from "@/6-0-digital-marketing-shared/lib/resolveReportDateRanges";
+import {
+  GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS,
+  isOptionalIdentityColumnKey,
+} from "@/google-ads/metrics/googleAdsIdentityColumns";
 import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { useOmnichannelSurveySettingsAdmin } from "@/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { useGoogleAdsReportingEnabled } from "@/google-ads/hooks/useGoogleAdsReportingEnabled";
@@ -48,7 +52,17 @@ import {
 } from "@/google-ads/hooks/useGoogleAdsMetricsQuery";
 import { useGoogleAdsMetricsPreferences } from "@/google-ads/hooks/useGoogleAdsMetricsPreferences";
 import { GoogleAdsModifyColumnsDialog } from "@/6-0-google-ads/components/GoogleAdsModifyColumnsDialog";
-import { useGoogleAdsColumnSets } from "@/google-ads/hooks/useGoogleAdsColumnSets";
+import { GoogleAdsTrafficWebIdSelect } from "@/6-0-google-ads/components/GoogleAdsTrafficWebIdSelect";
+import { isSynckerjaLeadsMetricKey } from "@/google-ads/metrics/googleAdsSynckerjaLeadsMetrics";
+import { isSynckerjaTrafficMetricKey } from "@/google-ads/metrics/googleAdsSynckerjaTrafficMetrics";
+import {
+  GOOGLE_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+  GoogleAdsColumnSetOptionLabel,
+} from "@/google-ads/components/GoogleAdsColumnSetOptionLabel";
+import {
+  useGoogleAdsColumnSets,
+  type GoogleAdsColumnSet,
+} from "@/google-ads/hooks/useGoogleAdsColumnSets";
 import { GoogleAdsMetricsSummaryBar } from "@/6-0-google-ads/components/GoogleAdsMetricsSummaryBar";
 import { GoogleAdsMetricsTable } from "@/6-0-google-ads/components/GoogleAdsMetricsTable";
 import { GoogleAdsMetricsTableFooter } from "@/6-0-google-ads/components/GoogleAdsMetricsTableFooter";
@@ -79,6 +93,29 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "sonner";
+
+function columnKeysMatch(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((key, index) => key === b[index]);
+}
+
+function columnKeysMatchOrderIndependent(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((key, index) => key === sortedB[index]);
+}
+
+function findMatchingColumnSet(
+  columnSets: GoogleAdsColumnSet[],
+  keys: string[],
+): GoogleAdsColumnSet | null {
+  if (keys.length === 0) return null;
+  return (
+    columnSets.find((set) => columnKeysMatch(set.metric_keys, keys)) ??
+    columnSets.find((set) => columnKeysMatchOrderIndependent(set.metric_keys, keys)) ??
+    null
+  );
+}
 
 function parseMetricsPageOffset(token: string): number {
   const s = token.trim();
@@ -140,13 +177,13 @@ export default function GoogleAdsMetricsPage() {
   const { data: catalogData } = useGoogleAdsMetricCatalog(
     organizationId,
     entity,
-    canManage && reportingEnabled,
+    true,
   );
 
-  const { columnSets, save: saveColumnSet } = useGoogleAdsColumnSets(
+  const { columnSets, save: saveColumnSet, remove: removeColumnSet } = useGoogleAdsColumnSets(
     organizationId,
     entity,
-    canManage && reportingEnabled,
+    true,
   );
 
   const {
@@ -207,8 +244,11 @@ export default function GoogleAdsMetricsPage() {
     for (const col of uiCustomColumns) {
       keys.add(col.key);
     }
+    for (const col of GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS[entity]) {
+      keys.add(col.key);
+    }
     return keys.size > 0 ? keys : null;
-  }, [catalogData, uiCustomColumns]);
+  }, [catalogData, uiCustomColumns, entity]);
 
   const metricLabelByKey = useMemo(() => {
     const map = new Map<string, string>();
@@ -257,6 +297,11 @@ export default function GoogleAdsMetricsPage() {
       return { ...prev, range };
     });
   }, [accountDateBounds?.earliest_date]);
+
+  const calendarYearPresetYears = useMemo(
+    () => buildReportYearOptionsFromEarliest(accountDateBounds?.earliest_date),
+    [accountDateBounds?.earliest_date],
+  );
 
   const dateRangePayload = useMemo(
     () => toGoogleAdsMetricsDateRangePayload(dateSelection),
@@ -324,9 +369,19 @@ export default function GoogleAdsMetricsPage() {
     if (!validMetricKeys) return selectedMetrics;
     return selectedMetrics.filter(
       (k) =>
-        validMetricKeys.has(k) || k.startsWith("conv_action:") || k.startsWith("ui_custom:"),
+        validMetricKeys.has(k) ||
+        k.startsWith("conv_action:") ||
+        k.startsWith("ui_custom:") ||
+        isOptionalIdentityColumnKey(entity, k) ||
+        isSynckerjaTrafficMetricKey(k) ||
+        isSynckerjaLeadsMetricKey(k),
     );
-  }, [selectedMetrics, validMetricKeys]);
+  }, [selectedMetrics, validMetricKeys, entity]);
+
+  const apiMetricKeys = useMemo(
+    () => selectedMetricsForEntity.filter((k) => !isOptionalIdentityColumnKey(entity, k)),
+    [selectedMetricsForEntity, entity],
+  );
 
   const metricItems = useMemo(() => {
     const cats = catalogData?.categories ?? [];
@@ -356,9 +411,14 @@ export default function GoogleAdsMetricsPage() {
       .filter((m): m is NonNullable<typeof m> => Boolean(m));
   }, [catalogData, uiCustomColumnByKey, selectedMetricsForEntity]);
 
+  const matchedColumnSet = useMemo(
+    () => findMatchingColumnSet(columnSets, selectedMetricsForEntity),
+    [columnSets, selectedMetricsForEntity],
+  );
+
   const sortColumnOptions = useMemo(
-    () => buildSortColumnOptions(entity, metricItems),
-    [entity, metricItems],
+    () => buildSortColumnOptions(entity, selectedMetricsForEntity, metricItems),
+    [entity, selectedMetricsForEntity, metricItems],
   );
 
   const sortFieldValue = useMemo(() => {
@@ -436,11 +496,11 @@ export default function GoogleAdsMetricsPage() {
   }, [entity, validMetricKeys, selectedMetrics, prefsPending, saveMetrics]);
 
   const metricsFilters = useMemo(() => {
-    if (!effectiveCustomerId || selectedMetricsForEntity.length === 0) return null;
+    if (!effectiveCustomerId || apiMetricKeys.length === 0) return null;
     return {
       customerId: effectiveCustomerId,
       entity,
-      metrics: selectedMetricsForEntity,
+      metrics: apiMetricKeys,
       dateRange: dateRangePayload,
       onlyRunning,
       statusFilter,
@@ -455,7 +515,7 @@ export default function GoogleAdsMetricsPage() {
   }, [
     effectiveCustomerId,
     entity,
-    selectedMetricsForEntity,
+    apiMetricKeys,
     dateRangePayload,
     onlyRunning,
     statusFilter,
@@ -555,9 +615,9 @@ export default function GoogleAdsMetricsPage() {
   ]);
 
   const metricsTableLoading =
-    metricsQuery.isLoading ||
-    metricsQuery.isPending ||
-    metricsQuery.isFetching;
+    Boolean(metricsFilters) &&
+    !metricsQuery.isError &&
+    (metricsQuery.isFetching || metricsQuery.isPending);
 
   const metricsTotalKey = useMemo(
     () =>
@@ -570,7 +630,7 @@ export default function GoogleAdsMetricsPage() {
         statusFilter,
         selectedCampaignId,
         selectedAdGroupId,
-        metrics: selectedMetricsForEntity,
+        metrics: apiMetricKeys,
       }),
     [
       organizationId,
@@ -581,7 +641,7 @@ export default function GoogleAdsMetricsPage() {
       statusFilter,
       selectedCampaignId,
       selectedAdGroupId,
-      selectedMetricsForEntity,
+      apiMetricKeys,
     ],
   );
 
@@ -647,6 +707,31 @@ export default function GoogleAdsMetricsPage() {
     setPageToken(String(tableLastPageOffset));
   };
 
+  const handleSwitchColumnSet = async (setId: string) => {
+    if (matchedColumnSet?.id === setId) return;
+    const set = columnSets.find((s) => s.id === setId);
+    if (!set) return;
+    const keys = set.metric_keys.filter(
+      (k) =>
+        validMetricKeys?.has(k) ||
+        k.startsWith("conv_action:") ||
+        k.startsWith("ui_custom:") ||
+        isOptionalIdentityColumnKey(entity, k) ||
+        isSynckerjaTrafficMetricKey(k) ||
+        isSynckerjaLeadsMetricKey(k),
+    );
+    if (keys.length === 0) {
+      toast.error(
+        t(
+          "digitalMarketing.googleAds.columnSetEmpty",
+          "This column set has no available columns for this view.",
+        ),
+      );
+      return;
+    }
+    await handleApplyMetrics(keys);
+  };
+
   const handleApplyMetrics = async (
     keys: string[],
     options?: { saveColumnSetName?: string },
@@ -673,7 +758,7 @@ export default function GoogleAdsMetricsPage() {
       const itemsAfterApply = keys
         .map((k) => metricMap.get(k))
         .filter((m): m is NonNullable<typeof m> => Boolean(m));
-      const optionsAfterApply = buildSortColumnOptions(entity, itemsAfterApply);
+      const optionsAfterApply = buildSortColumnOptions(entity, keys, itemsAfterApply);
       const nextSort = resolveSortForOptions(sort, optionsAfterApply, entity, itemsAfterApply);
       setSort(nextSort);
       await saveMetrics.mutateAsync({ selectedMetrics: keys, sort: nextSort });
@@ -1063,9 +1148,25 @@ export default function GoogleAdsMetricsPage() {
                                     )}
                                   </Button>
 
+                                  {entity === "campaign" ? (
+                                    <GoogleAdsTrafficWebIdSelect
+                                      organizationId={organizationId}
+                                      disabled={!reportingEnabled}
+                                      onChanged={() => {
+                                        resetPagination();
+                                        void metricsQuery.refetch();
+                                      }}
+                                    />
+                                  ) : null}
+
                                   <GoogleAdsDateRangePicker
                                     value={dateSelection}
                                     accountEarliestYmd={accountDateBounds?.earliest_date}
+                                    calendarYearPresetYears={calendarYearPresetYears}
+                                    calendarYearFilterHint={t(
+                                      "digitalMarketing.googleAds.calendarYearFilterHint",
+                                      "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
+                                    )}
                                     onChange={(next) => {
                                       setDateSelection(next);
                                       resetPagination();
@@ -1187,39 +1288,44 @@ export default function GoogleAdsMetricsPage() {
                           ) : null}
 
                           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-gray-100">
-                            <div className="shrink-0 space-y-1 px-4 pt-2 pb-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pt-1.5">
-                              {metricsQuery.data?.currency_code ? (
-                                <p className="text-xs text-muted-foreground">
-                                  {t("digitalMarketing.googleAds.currency", "Currency")}:{" "}
-                                  <span className="font-medium">
-                                    {metricsQuery.data.currency_code}
-                                  </span>
-                                  {metricsQuery.data.date_range ? (
-                                    <>
-                                      {" · "}
-                                      {format(
-                                        new Date(metricsQuery.data.date_range.start),
-                                        "dd MMM yyyy",
-                                      )}{" "}
-                                      –{" "}
-                                      {format(
-                                        new Date(metricsQuery.data.date_range.end),
-                                        "dd MMM yyyy",
+                            {columnSets.length > 0 ? (
+                              <div className="flex shrink-0 items-center gap-2 px-4 py-2 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:py-1.5">
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                  {t(
+                                    "digitalMarketing.googleAds.activeColumnSet",
+                                    "Column set",
+                                  )}
+                                </span>
+                                <Select
+                                  value={matchedColumnSet?.id}
+                                  onValueChange={(id) => void handleSwitchColumnSet(id)}
+                                  disabled={saveMetrics.isPending}
+                                >
+                                  <SelectTrigger className="h-7 w-auto min-w-[10rem] max-w-[min(20rem,100%)] border-gray-200 bg-white text-xs font-medium shadow-none">
+                                    <SelectValue
+                                      placeholder={t(
+                                        "digitalMarketing.googleAds.chooseColumnSet",
+                                        "Choose a saved set",
                                       )}
-                                    </>
-                                  ) : null}
-                                  {metricsQuery.data.cached ? (
-                                    <span className="ml-2 text-muted-foreground/80">(cached)</span>
-                                  ) : null}
-                                  <span className="mt-1 block text-muted-foreground/90 [@media(max-height:900px)]:hidden">
-                                    {t(
-                                      "digitalMarketing.googleAds.dateRangeCompareHint",
-                                      "Use the same date range in Google Ads UI to compare numbers.",
-                                    )}
-                                  </span>
-                                </p>
-                              ) : null}
-                            </div>
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {columnSets.map((set) => (
+                                      <SelectItem
+                                        key={set.id}
+                                        value={set.id}
+                                        className={cn(
+                                          "text-xs",
+                                          GOOGLE_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+                                        )}
+                                      >
+                                        <GoogleAdsColumnSetOptionLabel set={set} />
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : null}
 
                             {metricsQuery.isError &&
                             !showTokenDenied &&
@@ -1239,6 +1345,7 @@ export default function GoogleAdsMetricsPage() {
                                 <GoogleAdsMetricsTable
                                   entity={entity}
                                   rows={metricsTableRows}
+                                  selectedColumnKeys={selectedMetricsForEntity}
                                   metricItems={metricItems}
                                   currencyCode={metricsQuery.data?.currency_code ?? null}
                                   isLoading={metricsTableLoading}
@@ -1361,7 +1468,46 @@ export default function GoogleAdsMetricsPage() {
         selectedKeys={selectedMetrics}
         columnSets={columnSets}
         onApply={handleApplyMetrics}
+        onDeleteColumnSet={async (id) => {
+          try {
+            const target = columnSets.find((s) => s.id === id);
+            if (target?.scope === "global") return;
+            await removeColumnSet.mutateAsync({ id });
+            toast.success("Column set deleted");
+          } catch (e) {
+            toast.error((e as Error).message);
+            throw e;
+          }
+        }}
+        onUpdateColumnSet={async ({ id, name, metric_keys }) => {
+          try {
+            const target = columnSets.find((s) => s.id === id);
+            if (target?.scope === "global") return { id };
+            const existing = columnSets.find((s) => s.id === id);
+            const trimmed = name.trim();
+            if (existing && existing.name !== trimmed) {
+              await removeColumnSet.mutateAsync({ id });
+              const saved = await saveColumnSet.mutateAsync({
+                name: trimmed,
+                metric_keys,
+              });
+              toast.success("Column set updated");
+              return { id: saved.id };
+            }
+            const saved = await saveColumnSet.mutateAsync({
+              name: trimmed,
+              metric_keys,
+            });
+            toast.success("Column set updated");
+            return { id: saved.id };
+          } catch (e) {
+            toast.error((e as Error).message);
+            throw e;
+          }
+        }}
         isSaving={saveMetrics.isPending || saveColumnSet.isPending}
+        isDeletingColumnSet={removeColumnSet.isPending}
+        isUpdatingColumnSet={saveColumnSet.isPending || removeColumnSet.isPending}
       />
     </div>
   );

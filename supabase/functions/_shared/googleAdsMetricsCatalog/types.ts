@@ -69,31 +69,32 @@ export const CATEGORY_LABELS: Record<MetricCategory, string> = {
 
 export type IdentityColumnApi = { key: string; label: string };
 
+/** Locked identity columns (always shown). Status/Type are optional — see OPTIONAL_IDENTITY_COLUMN_KEYS. */
 export const IDENTITY_COLUMNS_API: Record<MetricEntity, IdentityColumnApi[]> = {
   keyword: [
     { key: "keyword", label: "Keyword" },
     { key: "match_type", label: "Match type" },
     { key: "campaign", label: "Campaign" },
     { key: "ad_group", label: "Ad group" },
-    { key: "status", label: "Status" },
   ],
   campaign: [
     { key: "service", label: "Service" },
     { key: "service_cpl", label: "CPA" },
     { key: "service_converted_leads", label: "Conv. leads" },
     { key: "name", label: "Campaign" },
-    { key: "status", label: "Status" },
-    { key: "channel", label: "Type" },
   ],
   ad_group: [
     { key: "name", label: "Ad group" },
     { key: "campaign", label: "Campaign" },
-    { key: "status", label: "Status" },
   ],
-  ad: [
-    { key: "preview", label: "Ad" },
-    { key: "status", label: "Status" },
-  ],
+  ad: [{ key: "preview", label: "Ad" }],
+};
+
+export const OPTIONAL_IDENTITY_COLUMN_KEYS: Record<MetricEntity, string[]> = {
+  keyword: ["status"],
+  campaign: ["status", "channel"],
+  ad_group: ["status"],
+  ad: ["status"],
 };
 
 export const RECOMMENDED_METRIC_KEYS: Record<MetricEntity, string[]> = {

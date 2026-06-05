@@ -35,8 +35,12 @@ import {
   DrawerTrigger,
 } from "@/mobile-app/components/ui/drawer";
 import { ChevronDown } from "lucide-react";
-import { getTodayDateRange } from "@/5-3-dashboard/components/leads/filters/dateRangePresets";
-import { endOfDay, endOfMonth, endOfWeek, startOfDay, startOfMonth, startOfWeek, subDays, subMonths } from "date-fns";
+import {
+  computePresetRange,
+  formatGoogleAdsPickerButtonLabel,
+  type GoogleAdsDatePresetId,
+} from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { googleAdsAllTimeSelection } from "@/6-0-digital-marketing-shared/lib/resolveReportDateRanges";
 
 function formatCompactInt(n: number) {
   const safe = Number(n ?? 0);
@@ -64,7 +68,8 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
   const {
     webId,
     setWebId,
-    setRange,
+    dateSelection,
+    setDateSelection,
     webIdsQuery,
     effectiveWebId,
     dashboardQuery,
@@ -72,11 +77,40 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
     fromDate,
     toDate,
     rangeIsMaximum,
-  } = useTrafficDashboardController(() => getTodayDateRange());
+  } = useTrafficDashboardController();
 
-  const [dateFilter, setDateFilter] = useState<
-    "maximum" | "last_30" | "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "custom"
-  >("today");
+  type MobileDateFilter =
+    | "maximum"
+    | "last_30"
+    | "today"
+    | "yesterday"
+    | "this_week"
+    | "this_month"
+    | "last_month"
+    | "custom";
+
+  const dateFilter = useMemo((): MobileDateFilter => {
+    switch (dateSelection.preset) {
+      case "all_time":
+        return "maximum";
+      case "last_30_days":
+        return "last_30";
+      case "today":
+        return "today";
+      case "yesterday":
+        return "yesterday";
+      case "this_week_mon_today":
+        return "this_week";
+      case "this_month":
+        return "this_month";
+      case "last_month":
+        return "last_month";
+      case "custom":
+        return "custom";
+      default:
+        return "last_30";
+    }
+  }, [dateSelection.preset]);
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [periodDrawerOpen, setPeriodDrawerOpen] = useState(false);
@@ -106,73 +140,55 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
   }, [setWebId, webId, webIdsQuery.data]);
 
   const applyDateFilter = useCallback(
-    (value: typeof dateFilter) => {
+    (value: MobileDateFilter) => {
       const now = new Date();
       if (value === "custom") {
         setShowCustomDatePicker(true);
         return;
       }
 
-      setDateFilter(value);
-
       if (value === "maximum") {
         setCustomDateRange(null);
-        setRange(null);
+        setDateSelection(googleAdsAllTimeSelection());
         return;
       }
 
-      const range = (() => {
-        switch (value) {
-          case "last_30":
-            return getLast30DaysDateRange(now);
-          case "today":
-            return { from: startOfDay(now), to: endOfDay(now) };
-          case "yesterday": {
-            const y = subDays(now, 1);
-            return { from: startOfDay(y), to: endOfDay(y) };
-          }
-          case "this_week":
-            return {
-              from: startOfWeek(now, { weekStartsOn: 1 }),
-              to: endOfWeek(now, { weekStartsOn: 1 }),
-            };
-          case "this_month":
-            return { from: startOfMonth(now), to: endOfMonth(now) };
-          case "last_month": {
-            const lm = subMonths(now, 1);
-            return { from: startOfMonth(lm), to: endOfMonth(lm) };
-          }
-          default:
-            return { from: undefined, to: undefined };
-        }
-      })();
+      const presetByFilter: Record<
+        Exclude<MobileDateFilter, "maximum" | "custom">,
+        GoogleAdsDatePresetId
+      > = {
+        last_30: "last_30_days",
+        today: "today",
+        yesterday: "yesterday",
+        this_week: "this_week_mon_today",
+        this_month: "this_month",
+        last_month: "last_month",
+      };
 
+      const preset = presetByFilter[value];
       setCustomDateRange(null);
-      setRange(range.from && range.to ? range : null);
+      setDateSelection({
+        preset,
+        range: computePresetRange(preset, now),
+        rollingDays: 30,
+      });
     },
-    [setRange],
+    [setDateSelection],
   );
 
   const handleCustomDateRange = useCallback(
     (startDate: Date, endDate: Date) => {
       setCustomDateRange({ start: startDate, end: endDate });
-      setDateFilter("custom");
-      setRange({ from: startDate, to: endDate });
+      setDateSelection({
+        preset: "custom",
+        range: { from: startDate, to: endDate },
+        rollingDays: 30,
+      });
     },
-    [setRange],
+    [setDateSelection],
   );
 
-  const periodLabel = (() => {
-    if (dateFilter === "maximum") return t("traffic.mobile.dateRange.maximumShort", "Maximum");
-    if (dateFilter === "last_30") return t("reports.dateFilter.last30Days", "Last 30 days");
-    if (dateFilter === "today") return t("reports.dateFilter.today", "Today");
-    if (dateFilter === "yesterday") return t("reports.dateFilter.yesterday", "Yesterday");
-    if (dateFilter === "this_week") return t("reports.dateFilter.thisWeek", "This Week");
-    if (dateFilter === "this_month") return t("reports.dateFilter.thisMonth", "This Month");
-    if (dateFilter === "last_month") return t("reports.dateFilter.lastMonth", "Last Month");
-    if (dateFilter === "custom") return t("reports.dateFilter.custom", "Custom");
-    return t("traffic.mobile.dateRange.maximumShort", "Maximum");
-  })();
+  const periodLabel = formatGoogleAdsPickerButtonLabel(dateSelection);
 
   const syncRollups = useCallback(async () => {
     if (!effectiveWebId) return;

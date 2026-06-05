@@ -17,6 +17,31 @@ const METRIC_KEYS: MetaAdsSortColumnOption[] = [
   { key: "cpc", labelKey: "digitalMarketing.metaAds.cpc", defaultLabel: "CPC" },
   { key: "cpm", labelKey: "digitalMarketing.metaAds.cpm", defaultLabel: "CPM" },
   { key: "reach", labelKey: "digitalMarketing.metaAds.reach", defaultLabel: "Reach" },
+  {
+    key: "traffic_total_visit_page",
+    labelKey: "digitalMarketing.metaAds.trafficTotalVisitPage",
+    defaultLabel: "Total Visit Page",
+  },
+  {
+    key: "traffic_visit_click_rate",
+    labelKey: "digitalMarketing.metaAds.trafficVisitClickRate",
+    defaultLabel: "Visit / Click %",
+  },
+  {
+    key: "leads_total",
+    labelKey: "digitalMarketing.metaAds.leadsTotal",
+    defaultLabel: "Total Leads",
+  },
+  {
+    key: "leads_visit_rate",
+    labelKey: "digitalMarketing.metaAds.leadsVisitRate",
+    defaultLabel: "Leads / Visit %",
+  },
+  {
+    key: "leads_cost_per_lead",
+    labelKey: "digitalMarketing.metaAds.leadsCostPerLead",
+    defaultLabel: "Cost / Leads",
+  },
 ];
 
 const CAMPAIGN_SERVICE_SORT: MetaAdsSortColumnOption[] = [
@@ -62,14 +87,25 @@ const IDENTITY_BY_ENTITY: Record<MetaAdsMetricEntity, MetaAdsSortColumnOption[]>
 
 const TEXT_FIELDS = new Set(["name", "campaign_name", "adset_name", "service"]);
 
+const CAMPAIGN_ONLY_SORT_KEYS = new Set([
+  "traffic_total_visit_page",
+  "traffic_visit_click_rate",
+  "leads_total",
+  "leads_visit_rate",
+  "leads_cost_per_lead",
+]);
+
 export function buildMetaAdsSortColumnOptions(
   entity: MetaAdsMetricEntity,
   selectedMetricKeys?: string[],
 ): MetaAdsSortColumnOption[] {
+  const allowedMetrics = METRIC_KEYS.filter(
+    (m) => entity === "campaign" || !CAMPAIGN_ONLY_SORT_KEYS.has(m.key),
+  );
   const metrics =
     selectedMetricKeys && selectedMetricKeys.length > 0
-      ? METRIC_KEYS.filter((m) => selectedMetricKeys.includes(m.key))
-      : METRIC_KEYS;
+      ? allowedMetrics.filter((m) => selectedMetricKeys.includes(m.key))
+      : allowedMetrics;
   return [...IDENTITY_BY_ENTITY[entity], ...metrics];
 }
 

@@ -57,6 +57,24 @@ Recommended metric keys per entity are returned in `recommended_keys` / `recomme
 
 Table `organization_google_ads_column_sets` stores named presets (`metric_keys` ordered array) per user, org, and entity. Active table columns come from `organization_google_ads_metrics_preferences.selected_metrics` (also ordered).
 
+### Synckerja metrics (campaign entity)
+
+| Key | Label |
+|-----|-------|
+| `traffic_total_visit_page` | Total Visit Page |
+| `traffic_visit_click_rate` | Visit / Click % |
+| `leads_total` | Total Leads |
+| `leads_visit_rate` | Leads / Visit % |
+| `leads_cost_per_lead` | Cost / Leads |
+
+**Offering Performance** preset (save via Modify columns):
+
+```json
+["traffic_total_visit_page", "leads_total", "leads_visit_rate", "leads_cost_per_lead"]
+```
+
+Leads enrichment uses `service_get_leads_by_utm_campaign` (exact-case `btrim(utm_campaign)` = Google campaign name, `created_at` in date range).
+
 ## Ad previews
 
 For `entity=ad`, creative headlines are enriched via a **separate GAQL query** (no date segment) after metrics fetch/cache read.

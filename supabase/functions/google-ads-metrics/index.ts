@@ -5,10 +5,10 @@ import {
   getUserFromBearer,
   googleAdsCorsHeaders,
   googleAdsJson,
-  readPlatformGoogleAdsOAuth,
   requireOrgAdmin,
 } from "../_shared/googleAdsAuth.ts";
 import {
+  fetchAllGaqlListRows,
   gaqlSearchPage,
   isManagerCustomerAccount,
   listEnabledClientAccountsUnderManager,
@@ -36,6 +36,7 @@ import {
   periodImpressionPctMetricDefs,
   periodImpressionPctOverlayMetricDefs,
   KEYWORD_VIEW_EXCLUDED_METRIC_KEYS,
+  OPTIONAL_IDENTITY_COLUMN_KEYS,
   parseUnsupportedMetricsFromError,
   parseGoogleAdsResourceId,
   resolveMetrics,
@@ -46,10 +47,18 @@ import {
 import { enrichAdRowsWithPreviews } from "../_shared/googleAdsAdPreview.ts";
 import {
   buildChannelPeriodSummary,
+  buildMonthWindowsInRange,
   countGoogleAttributedLeadsByMonth,
+  emptySpendBucketsForWindows,
+  monthPeriodKey,
   sumAttributedLeadsByMonth,
   enrichSpendBucketsWithAttribution,
 } from "../_shared/monthlyReportAttribution.ts";
+import {
+  aggregateRowsByService,
+  fetchCampaignMetricsForReport,
+  fetchCampaignSpendByMonthInRange,
+} from "../_shared/googleAdsReportByService.ts";
 import { loadCampaignServiceMappings } from "../_shared/googleAdsCampaignServices.ts";
 import {
   parseMonthlyServiceIdFilter,
@@ -86,6 +95,16 @@ import {
   enrichCampaignRowsWithServiceEconomics,
   preloadMappingsForRows,
 } from "../_shared/googleAdsCampaignServices.ts";
+import { maybeEnrichCampaignLeadsRows } from "../_shared/googleAdsCampaignLeads.ts";
+import { maybeEnrichCampaignTrafficRows } from "../_shared/googleAdsCampaignTraffic.ts";
+import {
+  LEADS_COST_PER_LEAD_KEY,
+  LEADS_VISIT_RATE_KEY,
+} from "../_shared/googleAdsSynckerjaLeadsMetrics.ts";
+import {
+  TRAFFIC_TOTAL_VISIT_PAGE_KEY,
+  TRAFFIC_VISIT_CLICK_RATE_KEY,
+} from "../_shared/googleAdsSynckerjaTrafficMetrics.ts";
 import { fetchGoogleAdsAccessToken } from "../google-ads-upload-offline-conversion/googleAdsHelpers.ts";
 import type { GoogleAdsConfig } from "../google-ads-upload-offline-conversion/googleAdsHelpers.ts";
 
@@ -364,31 +383,6 @@ async function resolveMetricsQueryTarget(
     managerAggregate: true,
     clientAccounts: clients,
   };
-}
-
-const LIST_GAQL_MAX_PAGES = 5;
-
-async function fetchAllGaqlListRows(
-  cfg: GoogleAdsConfig,
-  accessToken: string,
-  metricsCustomerId: string,
-  query: string,
-): Promise<Record<string, unknown>[]> {
-  const rows: Record<string, unknown>[] = [];
-  let token: string | null = null;
-  for (let i = 0; i < LIST_GAQL_MAX_PAGES; i++) {
-    const page = await gaqlSearchPage<Record<string, unknown>>(
-      cfg,
-      accessToken,
-      metricsCustomerId,
-      query,
-      token ?? undefined,
-    );
-    rows.push(...page.results);
-    token = page.nextPageToken;
-    if (!token) break;
-  }
-  return rows;
 }
 
 async function resolveAccessForCustomer(
@@ -930,39 +924,6 @@ function startOfDayLocal(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-/** Calendar months overlapping [startYmd, endYmd] — clipped to the requested period. */
-function buildMonthWindowsInRange(
-  startYmd: string,
-  endYmd: string,
-): Array<{ month: number; start: string; end: string }> {
-  const rangeStart = parseYmdLocal(startYmd);
-  const rangeEnd = parseYmdLocal(endYmd);
-  if (!rangeStart || !rangeEnd || rangeStart.getTime() > rangeEnd.getTime()) return [];
-
-  const windows: Array<{ month: number; start: string; end: string }> = [];
-  let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
-
-  while (cursor.getTime() <= rangeEnd.getTime()) {
-    const y = cursor.getFullYear();
-    const m = cursor.getMonth();
-    const monthStart = startOfDayLocal(new Date(y, m, 1));
-    const monthEnd = startOfDayLocal(new Date(y, m + 1, 0));
-
-    const winStart = monthStart.getTime() < rangeStart.getTime() ? rangeStart : monthStart;
-    const winEnd = monthEnd.getTime() > rangeEnd.getTime() ? rangeEnd : monthEnd;
-
-    windows.push({
-      month: m + 1,
-      start: formatDateYmd(winStart),
-      end: formatDateYmd(winEnd),
-    });
-
-    cursor = new Date(y, m + 1, 1);
-  }
-
-  return windows;
-}
-
 async function fetchCampaignSpendForDateRange(
   cfg: GoogleAdsConfig,
   accessToken: string,
@@ -1003,10 +964,6 @@ async function fetchCampaignSpendForDateRange(
   }
 
   return { spend, currencyCode };
-}
-
-function emptyMonthlySpendBuckets(): { month: number; spend: number }[] {
-  return Array.from({ length: 12 }, (_, i) => ({ month: i + 1, spend: 0 }));
 }
 
 async function fetchGoogleCampaignListForMonthlyAttribution(
@@ -1088,9 +1045,9 @@ async function handleFetchMonthlySpend(
   );
   const allowedCampaignIds = serviceIdFilter != null ? scope.googleCampaignIds : null;
 
-  const buckets = emptyMonthlySpendBuckets();
-  let currencyCode: string | null = null;
   const monthWindows = buildMonthWindowsInRange(start, end);
+  const buckets = emptySpendBucketsForWindows(monthWindows);
+  let currencyCode: string | null = null;
 
   const clients = queryTarget.managerAggregate
     ? queryTarget.clientAccounts
@@ -1104,18 +1061,21 @@ async function handleFetchMonthlySpend(
         loginCustomerId: queryTarget.loginCustomerId ?? runtimeConfig.loginCustomerId,
       };
 
-      for (const window of monthWindows) {
-        const { spend, currencyCode: clientCurrency } = await fetchCampaignSpendForDateRange(
+      const { spendByPeriod, currencyCode: clientCurrency } =
+        await fetchCampaignSpendByMonthInRange(
           cfg,
           accessToken,
           client.customerId,
-          window.start,
-          window.end,
+          start,
+          end,
           allowedCampaignIds,
         );
-        buckets[window.month - 1]!.spend += spend;
-        if (!currencyCode && clientCurrency) currencyCode = clientCurrency;
+      for (let i = 0; i < monthWindows.length; i++) {
+        const window = monthWindows[i]!;
+        const periodKey = monthPeriodKey(window.year, window.month);
+        buckets[i]!.spend += spendByPeriod.get(periodKey) ?? 0;
       }
+      if (!currencyCode && clientCurrency) currencyCode = clientCurrency;
     }
 
     const leadsByMonth = await countGoogleAttributedLeadsByMonth(
@@ -1145,7 +1105,81 @@ async function handleFetchMonthlySpend(
   }
 }
 
+async function handleFetchReportByService(
+  admin: ReturnType<typeof createClient>,
+  body: Record<string, unknown>,
+  organizationId: string,
+): Promise<Response> {
+  const customerId = digitsOnly(String(body.customer_id ?? ""), 10);
+  if (!customerId) {
+    return googleAdsJson({ error: "customer_id required (10 digits)" }, 400);
+  }
+
+  const access = await resolveAccessForCustomer(admin, organizationId, customerId);
+  if (access instanceof Response) return access;
+
+  const { runtimeConfig, accessToken, queryTarget } = access;
+  const { dateStart, dateEnd } = resolveDateRange(body.date_range);
+  const unmappedLabel = String(body.unmapped_label ?? "Unmapped").trim() || "Unmapped";
+
+  const clients = queryTarget.managerAggregate
+    ? queryTarget.clientAccounts
+    : [{ customerId: queryTarget.customerId, descriptiveName: "" }];
+
+  try {
+    const allRows: Awaited<ReturnType<typeof fetchCampaignMetricsForReport>>["rows"] = [];
+    let currencyCode: string | null = null;
+
+    for (const client of clients) {
+      const cfg: GoogleAdsConfig = {
+        ...runtimeConfig,
+        customerId: client.customerId,
+        loginCustomerId: queryTarget.loginCustomerId ?? runtimeConfig.loginCustomerId,
+      };
+      const { rows, currencyCode: clientCurrency } = await fetchCampaignMetricsForReport(
+        cfg,
+        accessToken,
+        client.customerId,
+        dateStart,
+        dateEnd,
+      );
+      allRows.push(...rows);
+      if (!currencyCode && clientCurrency) currencyCode = clientCurrency;
+    }
+
+    if (allRows.length > 0) {
+      const mappingsCache = await preloadMappingsForRows(
+        admin,
+        organizationId,
+        customerId,
+        allRows,
+      );
+      await enrichCampaignRowsWithServiceEconomics(
+        admin,
+        organizationId,
+        customerId,
+        dateStart,
+        dateEnd,
+        allRows,
+        mappingsCache,
+      );
+    }
+
+    const aggregates = aggregateRowsByService(allRows, unmappedLabel);
+    return googleAdsJson({
+      rows: aggregates,
+      currency_code: currencyCode,
+      date_start: dateStart,
+      date_end: dateEnd,
+    }, 200);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return googleAdsJson({ error: msg, code: "GOOGLE_ADS_API_ERROR" }, 400);
+  }
+}
+
 Deno.serve(async (req: Request) => {
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: googleAdsCorsHeaders });
   }
@@ -1157,10 +1191,6 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
     return googleAdsJson({ error: "Server misconfigured" }, 500);
-  }
-
-  if (!readPlatformGoogleAdsOAuth()) {
-    return googleAdsJson({ error: "Google Ads is not configured on the server" }, 503);
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
@@ -1259,18 +1289,33 @@ Deno.serve(async (req: Request) => {
     const metricKeys = keysRaw.map((k) => String(k).trim()).filter(Boolean);
     const countErr = validateMetricsCount(metricKeys);
     if (countErr) return googleAdsJson({ error: countErr }, 400);
-    const { catalogKeys, customKeys, uiCustomKeys } = splitMetricKeys(metricKeys);
-    const { defs, invalid } = resolveMetrics(catalogKeys, entity);
+    const optionalIdentity = new Set(OPTIONAL_IDENTITY_COLUMN_KEYS[entity] ?? []);
+    const { catalogKeys, customKeys, uiCustomKeys, trafficKeys, leadsKeys } = splitMetricKeys(metricKeys);
+    const catalogKeysForApi = catalogKeys.filter((k) => !optionalIdentity.has(k));
+    const { defs, invalid } = resolveMetrics(catalogKeysForApi, entity);
     if (invalid.length > 0) {
       return googleAdsJson(
         { error: `Invalid metrics for ${entity}: ${invalid.join(", ")}` },
         400,
       );
     }
-    if (defs.length === 0 && customKeys.length === 0 && uiCustomKeys.length === 0) {
+    if (
+      defs.length === 0 &&
+      customKeys.length === 0 &&
+      uiCustomKeys.length === 0 &&
+      trafficKeys.length === 0 &&
+      leadsKeys.length === 0
+    ) {
       return googleAdsJson({ error: "At least one metric is required" }, 400);
     }
-    const allowed = new Set([...defs.map((d) => d.key), ...customKeys, ...uiCustomKeys]);
+    const allowed = new Set([
+      ...defs.map((d) => d.key),
+      ...customKeys,
+      ...uiCustomKeys,
+      ...trafficKeys,
+      ...leadsKeys,
+      ...optionalIdentity,
+    ]);
     const seen = new Set<string>();
     const orderedKeys: string[] = [];
     for (const key of metricKeys) {
@@ -1339,6 +1384,10 @@ Deno.serve(async (req: Request) => {
     return await handleFetchMonthlySpend(admin, body, organizationId);
   }
 
+  if (action === "fetchReportByService") {
+    return await handleFetchReportByService(admin, body, organizationId);
+  }
+
   if (action === "listCampaigns") {
     return await handleListCampaigns(admin, body, organizationId);
   }
@@ -1379,9 +1428,13 @@ Deno.serve(async (req: Request) => {
   const countErr = validateMetricsCount(metricKeysRaw);
   if (countErr) return googleAdsJson({ error: countErr }, 400);
 
-  const { catalogKeys, customKeys, uiCustomKeys } = splitMetricKeys(metricKeysRaw);
+  const { catalogKeys, customKeys, uiCustomKeys, trafficKeys, leadsKeys } = splitMetricKeys(metricKeysRaw);
   const { defs: metricDefs, invalid } =
-    catalogKeys.length > 0 || (customKeys.length === 0 && uiCustomKeys.length === 0)
+    catalogKeys.length > 0 ||
+      (customKeys.length === 0 &&
+        uiCustomKeys.length === 0 &&
+        trafficKeys.length === 0 &&
+        leadsKeys.length === 0)
       ? resolveMetrics(catalogKeys.length > 0 ? catalogKeys : [], entity)
       : { defs: [], invalid: [] as string[] };
   if (uiCustomKeys.some((k) => !isUiCustomMetricKey(k))) {
@@ -1402,6 +1455,22 @@ Deno.serve(async (req: Request) => {
     entity,
     summaryCatalogKeys,
   );
+  if (trafficKeys.includes(TRAFFIC_VISIT_CLICK_RATE_KEY)) {
+    activeMetricDefs = ensureSummaryFetchMetricDefs(activeMetricDefs, entity, "clicks");
+  }
+  if (leadsKeys.includes(LEADS_COST_PER_LEAD_KEY)) {
+    activeMetricDefs = ensureSummaryFetchMetricDefs(activeMetricDefs, entity, "spent");
+  }
+  if (activeMetricDefs.length === 0) {
+    activeMetricDefs = ensureSummaryFetchMetricDefs([], entity, ["spent", "impressions", "clicks"]);
+  }
+  const trafficKeysForEnrichment = [...trafficKeys];
+  if (
+    leadsKeys.includes(LEADS_VISIT_RATE_KEY) &&
+    !trafficKeysForEnrichment.includes(TRAFFIC_TOTAL_VISIT_PAGE_KEY)
+  ) {
+    trafficKeysForEnrichment.push(TRAFFIC_TOTAL_VISIT_PAGE_KEY);
+  }
   const summaryConvForFetch = [
     ...new Set([
       ...customKeys,
@@ -1552,59 +1621,88 @@ Deno.serve(async (req: Request) => {
     }
 
     if (cacheRow?.response_json) {
-      const cached = cacheRow.response_json as CachePayload & {
-        all_rows?: ReturnType<typeof normalizeGaqlRow>[];
-      };
-      let allRows = sortNormalizedMetricsRows(
-        cached.all_rows ?? cached.rows,
-        sortKey,
-        entity,
-      );
-      await maybeEnrichCampaignServiceRows(
-        admin,
-        organizationId,
-        entity,
-        customerId,
-        dateStart,
-        dateEnd,
-        allRows,
-      );
-      allRows = sortNormalizedMetricsRows(allRows, sortKey, entity);
-      const cachedTotal =
-        typeof cached.total_row_count === "number" && Number.isFinite(cached.total_row_count)
-          ? cached.total_row_count
-          : 0;
-      const { pageRows, totalRowCount: sortedTotal, nextOffset } = paginateMetricsRows(
-        allRows,
-        pageOffset,
-        pageSize,
-      );
-      const totalRowCount = Math.max(sortedTotal, cachedTotal);
-      const previewCustomerId = queryTarget.managerAggregate
-        ? queryTarget.clientAccounts[0]?.customerId ?? customerId
-        : queryTarget.customerId;
-      if (entity === "ad" && pageRows.length > 0) {
-        await enrichAdRowsWithPreviews(queryRuntimeConfig, accessToken, previewCustomerId, pageRows);
+      try {
+        const cached = cacheRow.response_json as CachePayload & {
+          all_rows?: ReturnType<typeof normalizeGaqlRow>[];
+        };
+        let allRows = sortNormalizedMetricsRows(
+          cached.all_rows ?? cached.rows,
+          sortKey,
+          entity,
+        );
+        await maybeEnrichCampaignServiceRows(
+          admin,
+          organizationId,
+          entity,
+          customerId,
+          dateStart,
+          dateEnd,
+          allRows,
+        );
+        await maybeEnrichCampaignTrafficRows(
+          admin,
+          organizationId,
+          entity,
+          dateStart,
+          dateEnd,
+          allRows,
+          trafficKeysForEnrichment,
+        );
+        await maybeEnrichCampaignLeadsRows(
+          admin,
+          organizationId,
+          entity,
+          dateStart,
+          dateEnd,
+          allRows,
+          metricKeysRaw,
+        );
+        allRows = sortNormalizedMetricsRows(allRows, sortKey, entity);
+        const cachedTotal =
+          typeof cached.total_row_count === "number" && Number.isFinite(cached.total_row_count)
+            ? cached.total_row_count
+            : 0;
+        const { pageRows, totalRowCount: sortedTotal, nextOffset } = paginateMetricsRows(
+          allRows,
+          pageOffset,
+          pageSize,
+        );
+        const totalRowCount = Math.max(sortedTotal, cachedTotal);
+        const previewCustomerId = queryTarget.managerAggregate
+          ? queryTarget.clientAccounts[0]?.customerId ?? customerId
+          : queryTarget.customerId;
+        if (entity === "ad" && pageRows.length > 0) {
+          await enrichAdRowsWithPreviews(queryRuntimeConfig, accessToken, previewCustomerId, pageRows);
+        }
+        const cachedUnsupported = filterClientUnsupportedMetrics(
+          entity,
+          (cached as { unsupported_metrics?: string[] }).unsupported_metrics ?? [],
+        );
+        return googleAdsJson({
+          ...cached,
+          rows: pageRows,
+          all_rows: undefined,
+          summary_totals: computeSummaryTotals(allRows),
+          next_page_token: nextOffset != null ? String(nextOffset) : null,
+          total_row_count: totalRowCount,
+          total_row_count_before_delivery: cached.total_row_count_before_delivery,
+          ...(cachedUnsupported.length > 0 ? { unsupported_metrics: cachedUnsupported } : {}),
+          cached: true,
+          fetched_at: cacheRow.fetched_at ?? cached.fetched_at,
+        }, 200);
+      } catch (cacheServeErr) {
+        const cacheMsg = cacheServeErr instanceof Error ? cacheServeErr.message : String(cacheServeErr);
+        console.warn("google-ads-metrics cache serve failed, refetching:", cacheMsg);
       }
-      const cachedUnsupported = filterClientUnsupportedMetrics(
-        entity,
-        (cached as { unsupported_metrics?: string[] }).unsupported_metrics ?? [],
-      );
-      return googleAdsJson({
-        ...cached,
-        rows: pageRows,
-        all_rows: undefined,
-        summary_totals: computeSummaryTotals(allRows),
-        next_page_token: nextOffset != null ? String(nextOffset) : null,
-        total_row_count: totalRowCount,
-        total_row_count_before_delivery: cached.total_row_count_before_delivery,
-        ...(cachedUnsupported.length > 0 ? { unsupported_metrics: cachedUnsupported } : {}),
-        cached: true,
-        fetched_at: cacheRow.fetched_at ?? cached.fetched_at,
-      }, 200);
     }
 
-    const segmentByDate = queryDateWindows.length > 1;
+    const needsPeriodTopPctForFetch = periodImpressionPctMetricDefs(entity).some((d) =>
+      activeMetricDefs.some((m) => m.key === d.key),
+    );
+    const needsConvActionsForFetch = summaryConvForFetch.length > 0 || customKeys.length > 0;
+    /** Campaign + additive metrics only: merge per window without daily segments (avoids all_time blow-up). */
+    const segmentByDate = queryDateWindows.length > 1 &&
+      !(entity === "campaign" && !needsPeriodTopPctForFetch && !needsConvActionsForFetch);
     type MetricsGaqlQueryOpts = Parameters<typeof buildGaqlQuery>[0];
     const baseQueryOpts: MetricsGaqlQueryOpts = {
       entity,
@@ -1919,6 +2017,24 @@ Deno.serve(async (req: Request) => {
       dateEnd,
       allRows,
     );
+    await maybeEnrichCampaignTrafficRows(
+      admin,
+      organizationId,
+      entity,
+      dateStart,
+      dateEnd,
+      allRows,
+      trafficKeysForEnrichment,
+    );
+    await maybeEnrichCampaignLeadsRows(
+      admin,
+      organizationId,
+      entity,
+      dateStart,
+      dateEnd,
+      allRows,
+      metricKeysRaw,
+    );
     allRows = sortNormalizedMetricsRows(allRows, sortKey, entity);
 
     const { pageRows, totalRowCount: sortedTotal, nextOffset } = paginateMetricsRows(
@@ -2066,4 +2182,9 @@ Deno.serve(async (req: Request) => {
     code: "UNSUPPORTED_METRICS",
     unsupported_metrics: clientUnsupportedMetrics(),
   }, 400);
+  } catch (unhandled) {
+    const msg = unhandled instanceof Error ? unhandled.message : String(unhandled);
+    console.error("google-ads-metrics unhandled:", msg);
+    return googleAdsJson({ error: msg, code: "INTERNAL_ERROR" }, 500);
+  }
 });

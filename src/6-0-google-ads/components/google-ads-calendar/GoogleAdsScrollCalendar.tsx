@@ -61,6 +61,9 @@ type GoogleAdsScrollCalendarProps = {
   layoutScrollKey?: number;
   className?: string;
   scrollAreaClassName?: string;
+  onSelectYear?: (year: number) => void;
+  selectableYears?: number[];
+  selectedCalendarYear?: number;
 };
 
 export function GoogleAdsScrollCalendar({
@@ -72,6 +75,9 @@ export function GoogleAdsScrollCalendar({
   layoutScrollKey,
   className,
   scrollAreaClassName,
+  onSelectYear,
+  selectableYears,
+  selectedCalendarYear,
 }: GoogleAdsScrollCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const monthRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -171,6 +177,22 @@ export function GoogleAdsScrollCalendar({
     [minBound, maxBound, scrollToMonth],
   );
 
+  const selectFullMonth = useCallback(
+    (month: Date) => {
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+      if (isAfter(monthStart, maxBound) || isBefore(monthEnd, minBound)) return;
+
+      let from = monthStart;
+      let to = monthEnd;
+      if (isBefore(from, minBound)) from = minBound;
+      if (isAfter(to, maxBound)) to = maxBound;
+
+      onSelect?.({ from: startOfDay(from), to: endOfDay(to) });
+    },
+    [minBound, maxBound, onSelect],
+  );
+
   const handleDayClick = (day: Date) => {
     if (isBefore(day, minBound) || isAfter(day, maxBound)) return;
 
@@ -211,6 +233,9 @@ export function GoogleAdsScrollCalendar({
           minDate={minBound}
           maxDate={maxBound}
           onSelectMonth={setViewMonthAndScroll}
+          onSelectYear={onSelectYear}
+          selectableYears={selectableYears}
+          selectedCalendarYear={selectedCalendarYear}
         />
         <div className="flex items-center gap-0.5">
           <button
@@ -266,9 +291,14 @@ export function GoogleAdsScrollCalendar({
               }}
               className="mb-4"
             >
-              <div className="py-2 text-sm font-medium tracking-wide text-gray-900">
+              <button
+                type="button"
+                className="w-full py-2 text-left text-sm font-medium tracking-wide text-gray-900 hover:text-brand-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 rounded-sm"
+                aria-label={`Select all of ${format(month, "MMMM yyyy")}`}
+                onClick={() => selectFullMonth(month)}
+              >
                 {format(month, "MMM yyyy").toUpperCase()}
-              </div>
+              </button>
               <div className="grid w-full grid-cols-7 gap-px border border-gray-200 bg-gray-200">
                 {cells.map((day, idx) => {
                   if (!day) {

@@ -2857,21 +2857,21 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
-                        <Route
-                          path="/digital-marketing/traffic"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/digital-marketing/traffic"
-                              loadingShell={
-                                <TrafficMobileAwareLoadingShell />
-                              }
-                              loadingShellWrapperClassName="bg-gray-100"
-                            >
-                              <TrafficMobileAwareRouteElement />
-                            </PageAccessGuard>
-                          }
-                        />
                         <Route element={<DigitalMarketingPaidAdsLayout />}>
+                          <Route
+                            path="/digital-marketing/traffic"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/traffic"
+                                loadingShell={
+                                  <TrafficMobileAwareLoadingShell />
+                                }
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TrafficMobileAwareRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
                           <Route
                             path="/digital-marketing/google-ads/settings"
                             element={

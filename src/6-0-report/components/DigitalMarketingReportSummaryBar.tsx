@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type {
   ReportGoogleServiceRow,
@@ -19,6 +18,7 @@ import { DigitalMarketingReportSummaryMetricPicker } from "@/6-0-report/componen
 const SLOT_COUNT = REPORT_SUMMARY_SLOT_COUNT;
 
 type Props = {
+  bootstrapLoading?: boolean;
   googleServiceRows: ReportGoogleServiceRow[];
   metaServiceRows: ReportMetaServiceRow[];
   servicesLoading?: boolean;
@@ -36,6 +36,7 @@ function normalizeSlotKeys(keys: ReportTableMetricKey[]): ReportTableMetricKey[]
 }
 
 export function DigitalMarketingReportSummaryBar({
+  bootstrapLoading = false,
   googleServiceRows,
   metaServiceRows,
   servicesLoading = false,
@@ -86,21 +87,8 @@ export function DigitalMarketingReportSummaryBar({
     "Mixed currencies",
   );
 
-  if (loading) {
-    return (
-      <div
-        className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5"
-        aria-busy="true"
-        aria-label={t("digitalMarketing.report.summaryLoading", "Loading summary metrics")}
-      >
-        {Array.from({ length: SLOT_COUNT }, (_, i) => (
-          <div key={i} className="rounded-md border border-gray-200 bg-white px-3 py-2">
-            <Skeleton className="mb-1.5 h-3 w-16" />
-            <Skeleton className="h-5 w-24" />
-          </div>
-        ))}
-      </div>
-    );
+  if (loading && bootstrapLoading) {
+    return null;
   }
 
   return (

@@ -20,7 +20,11 @@ function metaAllTimeRangeDates(now: Date = new Date()) {
 function resolveMetaPresetRange(
   preset: GoogleAdsDatePresetId,
   now: Date,
-  opts?: { accountEarliestYmd?: string | null; rollingDays?: number },
+  opts?: {
+    accountEarliestYmd?: string | null;
+    rollingDays?: number;
+    calendarYear?: number;
+  },
 ) {
   if (preset === "all_time") {
     const range = metaAllTimeRangeDates(now);
@@ -33,14 +37,22 @@ type MetaAdsDateRangePickerProps = {
   value: GoogleAdsDateRangeSelection;
   onChange: (value: GoogleAdsDateRangeSelection) => void;
   className?: string;
+  calendarYearPresetYears?: number[];
+  calendarYearFilterHint?: string;
 };
 
 export function MetaAdsDateRangePicker({
   value,
   onChange,
   className,
+  calendarYearPresetYears,
+  calendarYearFilterHint,
 }: MetaAdsDateRangePickerProps) {
   const handleChange = (next: GoogleAdsDateRangeSelection) => {
+    if (next.preset === "calendar_year") {
+      onChange(next);
+      return;
+    }
     if (next.preset === "all_time") {
       const range = metaAllTimeRangeDates();
       if (range) {
@@ -58,6 +70,8 @@ export function MetaAdsDateRangePicker({
       className={className}
       formatButtonLabel={formatMetaAdsPickerButtonLabel}
       resolvePresetRange={resolveMetaPresetRange}
+      calendarYearPresetYears={calendarYearPresetYears}
+      calendarYearFilterHint={calendarYearFilterHint}
       allTimePopoverHint="All time: last 37 months (Meta API limit) through today"
     />
   );

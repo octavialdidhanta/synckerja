@@ -119,6 +119,15 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.googleAds.sortDescText": "Z → A",
   "digitalMarketing.googleAds.sortAscText": "A → Z",
   "digitalMarketing.googleAds.currency": "Currency",
+  "digitalMarketing.traffic.allTimeRangeHint":
+    "All time uses the same date range as Report and Google Ads tabs.",
+  "digitalMarketing.googleAds.trafficWebIdLabel": "Traffic source",
+  "digitalMarketing.googleAds.trafficWebIdPlaceholder": "Traffic web_id",
+  "digitalMarketing.googleAds.trafficVisitUnavailable":
+    "Traffic data is not available. Sync data on the Traffic page for this date range.",
+  "digitalMarketing.googleAds.activeColumnSet": "Column set",
+  "digitalMarketing.googleAds.chooseColumnSet": "Choose a saved set",
+  "digitalMarketing.googleAds.columnSetEmpty": "This column set has no available columns for this view.",
   "digitalMarketing.googleAds.entityNavLabel": "Report level",
   "digitalMarketing.googleAds.entityNavAria": "Google Ads report navigation",
   "digitalMarketing.googleAds.navSectionCampaigns": "Campaigns",
@@ -302,8 +311,19 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.report.monthlyChartSubtitleForService":
     "{{base}} Filtered by service: {{service}}.",
   "digitalMarketing.report.monthlyChartTabSpend": "Spend",
+  "digitalMarketing.report.monthlyChartTabSpendByService": "Spend/Service",
+  "digitalMarketing.report.monthlyChartTabServiceConverted": "Service Converted",
+  "digitalMarketing.report.monthlyChartTabCostServiceConverted": "CPA Service",
+  "digitalMarketing.report.monthlyCpaByServiceSubtitle":
+    "Cost per converted lead (CPA) per service for the selected date range and channel filter.",
+  "digitalMarketing.report.monthlyCpaByServiceEmptyServices":
+    "No services with calculable CPA in the selected range.",
   "digitalMarketing.report.monthlyChartTabCpa": "CPA",
   "digitalMarketing.report.monthlyChartTabLeads": "Conv. leads",
+  "digitalMarketing.report.monthlyLeadsByServiceSubtitle":
+    "Total converted leads per service for the selected date range and channel filter.",
+  "digitalMarketing.report.monthlyLeadsByServiceEmptyServices":
+    "No services with converted leads in the selected range.",
   "digitalMarketing.report.monthlyLeadsSubtitle":
     "Distinct converted leads per month (matching campaign UTM, by conversion date).",
   "digitalMarketing.report.monthlyLeadsNotConnected":
@@ -313,6 +333,14 @@ export const enTranslations: TranslationDictionary = {
     "All channels sums leads from channels shown in the table for the selected service.",
   "digitalMarketing.report.monthlySpendTitle": "Monthly spend trend",
   "digitalMarketing.report.monthlySpendSubtitle": "Account-level cost by month for the selected year.",
+  "digitalMarketing.report.compareToggleHint":
+    "Charts (Spend, CPA, Conv. leads) show monthly data for the chart year. Table and KPIs keep the date filter above.",
+  "digitalMarketing.report.monthlySpendSubtitleCompare":
+    "Monthly cost for {{year}} (Compare). Table and KPIs still use the date filter above.",
+  "digitalMarketing.report.monthlyCpaSubtitleCompare":
+    "Monthly CPA for {{year}} (Compare). Table and KPIs still use the date filter above.",
+  "digitalMarketing.report.monthlyLeadsSubtitleCompare":
+    "Monthly converted leads for {{year}} (Compare). Table and KPIs still use the date filter above.",
   "digitalMarketing.report.monthlySpendNotConnected": "Connect Google Ads or Meta Ads to see monthly spend.",
   "digitalMarketing.report.monthlySpendEmpty": "No spend data for this year.",
   "digitalMarketing.report.monthlySpendNoOverlap": "The date filter does not overlap the selected chart year. Adjust the date range or chart year.",

@@ -1,12 +1,15 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { HeaderAndTab } from "../container/HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { Button } from "@/shared/components/ui/button";
 import { BarChart3 } from "lucide-react";
 import { UtmTrackingTable, type UtmTableMetricsSlice } from "../components/UtmTrackingTable";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { DateRange } from "react-day-picker";
-import { DateRangeFilter } from "@/5-3-dashboard/components/leads/filters/DateRangeFilter";
+import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
+import { buildReportYearOptionsFromEarliest } from "@/6-0-digital-marketing-shared/lib/resolveReportDateRanges";
+import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
+import { computePresetRange, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { useTranslation } from "react-i18next";
 import { ConnectWebIdDialog } from "../components/ConnectWebIdDialog";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
@@ -170,6 +173,7 @@ function parseTrafficSyncResponse(text: string): TrafficSyncResponseBody | null 
 }
 
 export default function TrafficPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -190,8 +194,10 @@ export default function TrafficPage() {
     organizationId,
     webId,
     setWebId,
-    range,
-    setRange,
+    dateSelection,
+    setDateSelection,
+    filtersHydrated,
+    googleCustomerId,
     webIdsQuery,
     effectiveWebId,
     fromDate,
@@ -201,6 +207,34 @@ export default function TrafficPage() {
     ingestionQuery,
     webAccessQuery,
   } = useTrafficDashboardController();
+
+  const { data: accountDateBounds } = useGoogleAdsAccountDateBounds(
+    organizationId,
+    googleCustomerId || null,
+    Boolean(organizationId && googleCustomerId),
+  );
+
+  useEffect(() => {
+    const earliest = accountDateBounds?.earliest_date;
+    if (!earliest) return;
+    setDateSelection((prev) => {
+      if (prev.preset !== "all_time") return prev;
+      const range = computePresetRange("all_time", new Date(), {
+        accountEarliestYmd: earliest,
+      });
+      const nextFrom = range.from ? toYmdLocal(range.from) : null;
+      const nextTo = range.to ? toYmdLocal(range.to) : null;
+      const prevFrom = prev.range.from ? toYmdLocal(prev.range.from) : null;
+      const prevTo = prev.range.to ? toYmdLocal(prev.range.to) : null;
+      if (prevFrom === nextFrom && prevTo === nextTo) return prev;
+      return { ...prev, range };
+    });
+  }, [accountDateBounds?.earliest_date, setDateSelection]);
+
+  const calendarYearPresetYears = useMemo(
+    () => buildReportYearOptionsFromEarliest(accountDateBounds?.earliest_date),
+    [accountDateBounds?.earliest_date],
+  );
 
   const accessibleWebIds = webIdsQuery.data ?? [];
   const pendingApprovalWebIds = useMemo(() => {
@@ -323,7 +357,7 @@ export default function TrafficPage() {
 
   async function handleSync() {
     if (!effectiveWebId) return;
-    if (range !== null && (!fromDate || !toDate)) {
+    if (!rangeIsMaximum && (!fromDate || !toDate)) {
       toast({
         title: "Select date range",
         description: "Pilih date range (preset atau custom) dulu untuk refresh rollup.",
@@ -347,7 +381,7 @@ export default function TrafficPage() {
 
       const url = `${SUPABASE_URL}/functions/v1/traffic-refresh-rollups`;
       const body =
-        range === null
+        rangeIsMaximum
           ? { web_id: effectiveWebId, from: null as string | null, to: null as string | null }
           : { web_id: effectiveWebId, from: fromDate, to: toDate };
 
@@ -377,7 +411,7 @@ export default function TrafficPage() {
           res.ok && (parsed?.success === true || parsed?.ok === true);
         if (syncOk) {
           const desc =
-            range === null
+            rangeIsMaximum
               ? `Rollup refreshed for ${effectiveWebId} (Maximum: semua tanggal yang tersedia).`
               : `Rollup refreshed for ${effectiveWebId} (${fromDate} → ${toDate}).`;
           toast({
@@ -498,11 +532,27 @@ export default function TrafficPage() {
                             </>
                           )}
                         </select>
-                        <DateRangeFilter
-                          onDateRangeChange={setRange}
-                          defaultPreset="today"
-                          className="w-auto"
-                        />
+                        {filtersHydrated ? (
+                          <GoogleAdsDateRangePicker
+                            value={dateSelection}
+                            onChange={setDateSelection}
+                            accountEarliestYmd={accountDateBounds?.earliest_date}
+                            calendarYearPresetYears={calendarYearPresetYears}
+                            calendarYearFilterHint={t(
+                              "digitalMarketing.report.calendarYearFilterHint",
+                              "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
+                            )}
+                            allTimePopoverHint={t(
+                              "digitalMarketing.traffic.allTimeRangeHint",
+                              "All time uses the same date range as Report and Google Ads tabs.",
+                            )}
+                          />
+                        ) : (
+                          <div
+                            className="h-9 w-[12rem] animate-pulse rounded-md bg-muted"
+                            aria-hidden
+                          />
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -788,7 +838,7 @@ export default function TrafficPage() {
                         </div>
                       </div>
 
-                      <div className="col-span-12 min-h-0">
+                      <div className="col-span-12 flex h-[480px] min-h-0 flex-col [@media(max-height:900px)]:h-[420px] [@media(max-height:760px)]:h-[380px]">
                         <UtmTrackingTable
                           rows={utmRows}
                           onUtmTableMetricsSliceChange={setUtmTableMetrics}

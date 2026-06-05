@@ -10,6 +10,21 @@ import type { MetaAdsMetricsSort } from "@/meta-ads/metrics/metaAdsSortColumns";
 
 const DEFAULT_SORT: MetaAdsMetricsSort = { field: "spend", direction: "desc" };
 
+const WEB_SPEED_CAMPAIGN_KEYS = [
+  "clicks",
+  "traffic_total_visit_page",
+  "traffic_visit_click_rate",
+] as const;
+
+function globalDefaultMetricsForEntity(
+  entity: MetaAdsMetricEntity,
+  validKeys: Set<string>,
+): string[] | null {
+  if (entity !== "campaign") return null;
+  const filtered = WEB_SPEED_CAMPAIGN_KEYS.filter((k) => validKeys.has(k));
+  return filtered.length > 0 ? [...filtered] : null;
+}
+
 function sanitizeKeys(raw: string[], validKeys: Set<string>): string[] {
   const filtered = raw.filter((k) => validKeys.has(k));
   if (filtered.length > 0) return filtered;
@@ -50,7 +65,9 @@ export function useMetaAdsMetricsPreferences(
   const query = useQuery({
     queryKey,
     queryFn: async (): Promise<PreferencesRow> => {
-      const fallback = sanitizeKeys([...META_ADS_DEFAULT_METRIC_KEYS], catalogKeys);
+      const fallback =
+        globalDefaultMetricsForEntity(entity, catalogKeys) ??
+        sanitizeKeys([...META_ADS_DEFAULT_METRIC_KEYS], catalogKeys);
       if (!organizationId) {
         return { visibleColumns: fallback, sort: DEFAULT_SORT };
       }
@@ -137,8 +154,9 @@ export function useMetaAdsMetricsPreferences(
   const visibleColumns = useMemo(
     () =>
       query.data?.visibleColumns ??
+      globalDefaultMetricsForEntity(entity, catalogKeys) ??
       sanitizeKeys([...META_ADS_DEFAULT_METRIC_KEYS], catalogKeys),
-    [query.data?.visibleColumns, catalogKeys],
+    [query.data?.visibleColumns, catalogKeys, entity],
   );
 
   const storedSort = useMemo(() => query.data?.sort ?? DEFAULT_SORT, [query.data?.sort]);

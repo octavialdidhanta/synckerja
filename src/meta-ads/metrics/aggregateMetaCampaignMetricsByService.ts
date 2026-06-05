@@ -86,6 +86,30 @@ export function aggregateMetaCampaignMetricsByService(
   return result.sort((a, b) => b.amount - a.amount);
 }
 
+export type MetaReportByServiceApiRow = {
+  service_id: string | null;
+  service_name: string;
+  amount: number;
+  impressions: number;
+  clicks: number;
+  converted_leads: number | null;
+  cost_per_lead: number | null;
+};
+
+export function mapMetaReportByServiceApiRows(
+  rows: MetaReportByServiceApiRow[] | undefined,
+): MetaCampaignServiceAggregate[] {
+  return (rows ?? []).map((r) => ({
+    serviceId: r.service_id,
+    serviceName: r.service_name,
+    amount: r.amount,
+    impressions: r.impressions,
+    clicks: r.clicks,
+    convertedLeads: r.converted_leads,
+    costPerLead: r.cost_per_lead,
+  }));
+}
+
 const MAX_CAMPAIGN_PAGES = 100;
 
 export async function fetchMetaAdsMetricsPage(

@@ -23,6 +23,7 @@ export type GoogleAdsDatePresetId =
   | "this_month"
   | "last_30_days"
   | "last_month"
+  | "calendar_year"
   | "all_time"
   | "last_n_days_today"
   | "last_n_days_yesterday";
@@ -32,6 +33,8 @@ export type GoogleAdsDateRangeSelection = {
   range: DateRange;
   /** Used for “N days up to today/yesterday” rows. */
   rollingDays: number;
+  /** When preset is calendar_year (Report year rows in date picker). */
+  calendarYear?: number;
 };
 
 const WEEK_OPTS = { weekStartsOn: 1 as const };
@@ -53,7 +56,11 @@ export function parseYmdLocal(ymd: string): Date | null {
 export function computePresetRange(
   preset: GoogleAdsDatePresetId,
   now: Date,
-  opts?: { accountEarliestYmd?: string | null; rollingDays?: number },
+  opts?: {
+    accountEarliestYmd?: string | null;
+    rollingDays?: number;
+    calendarYear?: number;
+  },
 ): DateRange {
   const today = startOfDay(now);
   const rolling = Math.max(1, Math.min(999, opts?.rollingDays ?? 30));
@@ -98,6 +105,16 @@ export function computePresetRange(
         to: endOfDay(y),
       };
     }
+    case "calendar_year": {
+      const y =
+        typeof opts?.calendarYear === "number" && opts.calendarYear >= 2000
+          ? Math.floor(opts.calendarYear)
+          : today.getFullYear();
+      const from = startOfDay(new Date(y, 0, 1));
+      const to =
+        y === today.getFullYear() ? endOfDay(today) : endOfDay(new Date(y, 11, 31));
+      return { from, to };
+    }
     case "all_time": {
       const end = endOfDay(today);
       const parsed = opts?.accountEarliestYmd
@@ -131,7 +148,21 @@ export function dateSelectionForCalendarYear(
   const from = startOfDay(new Date(y, 0, 1));
   const to =
     y === now.getFullYear() ? endOfDay(now) : endOfDay(new Date(y, 11, 31));
-  return { preset: "custom", range: { from, to }, rollingDays: 30 };
+  return { preset: "calendar_year", calendarYear: y, range: { from, to }, rollingDays: 30 };
+}
+
+export function calendarYearFromSelection(
+  selection: GoogleAdsDateRangeSelection,
+): number | null {
+  if (selection.preset === "calendar_year" && selection.calendarYear != null) {
+    return selection.calendarYear;
+  }
+  const from = selection.range.from;
+  const to = selection.range.to;
+  if (from && to && from.getFullYear() === to.getFullYear()) {
+    return from.getFullYear();
+  }
+  return null;
 }
 
 /** True when selection matches {@link dateSelectionForCalendarYear} for the given year. */
@@ -140,6 +171,9 @@ export function isCalendarYearSelection(
   year: number,
   now: Date = new Date(),
 ): boolean {
+  if (selection.preset === "calendar_year" && selection.calendarYear === year) {
+    return true;
+  }
   const expected = dateSelectionForCalendarYear(year, now);
   const from = selection.range.from;
   const to = selection.range.to;
@@ -158,10 +192,21 @@ export function intersectDateSelectionWithChartYear(
   reportChartYear: number,
   now: Date = new Date(),
 ): GoogleAdsDateRangeSelection | null {
-  const calendarYear = dateSelectionForCalendarYear(reportChartYear, now);
-  if (dateSelection.preset === "all_time") {
-    return calendarYear;
+  if (dateSelection.preset === "calendar_year" && dateSelection.calendarYear != null) {
+    return dateSelectionForCalendarYear(dateSelection.calendarYear, now);
   }
+  if (dateSelection.preset === "all_time") {
+    const from = dateSelection.range.from;
+    const to = dateSelection.range.to;
+    if (!from || !to) return null;
+    return {
+      preset: "custom",
+      range: { from: startOfDay(from), to: endOfDay(to) },
+      rollingDays: dateSelection.rollingDays,
+    };
+  }
+
+  const calendarYear = dateSelectionForCalendarYear(reportChartYear, now);
   const from = dateSelection.range.from;
   const to = dateSelection.range.to;
   if (!from || !to) {
@@ -214,6 +259,10 @@ export function formatGoogleAdsPickerButtonLabel(
 
   if (selection.preset === "all_time") {
     return formatPickerLabelWithRange("All time", from, to);
+  }
+
+  if (selection.preset === "calendar_year" && selection.calendarYear != null) {
+    return formatPickerLabelWithRange(String(selection.calendarYear), from, to);
   }
 
   if (selection.preset !== "custom" && labels[selection.preset]) {

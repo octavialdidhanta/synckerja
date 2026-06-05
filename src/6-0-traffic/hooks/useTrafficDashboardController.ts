@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { DateRange } from "react-day-picker";
-import { format } from "date-fns";
-import { getTodayDateRange } from "@/5-3-dashboard/components/leads/filters/dateRangePresets";
+import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
+import { resolveTrafficDateRangeFromSelection } from "@/6-0-digital-marketing-shared/lib/resolveTrafficDateRange";
+import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 
@@ -119,11 +119,22 @@ function emptyTrafficDashboard(webId: string): TrafficDashboardPayload {
   };
 }
 
-export function useTrafficDashboardController(getInitialRange: () => DateRange | null = () => getTodayDateRange()) {
+export function useTrafficDashboardController() {
   const { organizationId } = useCurrentOrg();
+  const {
+    dateSelection,
+    setDateSelection,
+    reportChartYear,
+    googleCustomerId,
+    filtersHydrated,
+  } = useDigitalMarketingPaidAdsFilters();
   const [webId, setWebId] = useState<string>("");
-  /** Default: hari ini; rentang lain & "Maximum" lewat filter. */
-  const [range, setRange] = useState<DateRange | null>(() => getInitialRange());
+
+  const { data: accountDateBounds } = useGoogleAdsAccountDateBounds(
+    organizationId,
+    googleCustomerId || null,
+    Boolean(organizationId && googleCustomerId),
+  );
 
   const webIdsQuery = useQuery({
     queryKey: ["traffic", "accessible-web-ids", organizationId],
@@ -173,31 +184,28 @@ export function useTrafficDashboardController(getInitialRange: () => DateRange |
     return ids[0] ?? "";
   }, [organizationId, webId, webIdsQuery.data]);
 
-  const fromDate = useMemo(() => {
-    if (!range?.from) return null;
-    return format(range.from, "yyyy-MM-dd");
-  }, [range?.from]);
-
-  const toDate = useMemo(() => {
-    if (!range?.to) return null;
-    return format(range.to, "yyyy-MM-dd");
-  }, [range?.to]);
-
-  const rangeIsMaximum = range === null;
+  const { fromDate, toDate, rangeIsMaximum } = useMemo(
+    () =>
+      resolveTrafficDateRangeFromSelection(
+        dateSelection,
+        reportChartYear,
+        accountDateBounds?.earliest_date,
+      ),
+    [dateSelection, reportChartYear, accountDateBounds?.earliest_date],
+  );
 
   const dashboardQuery = useQuery({
     queryKey: ["traffic", "dashboard", organizationId, effectiveWebId, fromDate, toDate],
     enabled:
       Boolean(organizationId) &&
       Boolean(effectiveWebId) &&
-      (range === null || (Boolean(fromDate) && Boolean(toDate))),
+      filtersHydrated &&
+      (rangeIsMaximum || (Boolean(fromDate) && Boolean(toDate))),
     queryFn: async () => {
-      let rpcFrom: string | null = range === null ? null : ymdOnly(fromDate);
-      let rpcTo: string | null = range === null ? null : ymdOnly(toDate);
+      let rpcFrom: string | null = rangeIsMaximum ? null : ymdOnly(fromDate);
+      let rpcTo: string | null = rangeIsMaximum ? null : ymdOnly(toDate);
 
-      // "Maximum" sent null dates; older get_traffic_dashboard (pre–null-range migration) raises "from/to are required".
-      // Resolve to rollup bounds when available (same as server COALESCE(p_from, v_min)).
-      if (range === null) {
+      if (rangeIsMaximum) {
         const { data: ing, error: ingErr } = await supabase.rpc("get_traffic_ingestion_status", {
           p_web_id: effectiveWebId,
         });
@@ -255,8 +263,10 @@ export function useTrafficDashboardController(getInitialRange: () => DateRange |
     organizationId,
     webId,
     setWebId,
-    range,
-    setRange,
+    dateSelection,
+    setDateSelection,
+    filtersHydrated,
+    googleCustomerId,
     webIdsQuery,
     webAccessQuery,
     effectiveWebId,

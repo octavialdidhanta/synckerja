@@ -28,8 +28,11 @@ export type DigitalMarketingPaidAdsFiltersContextValue = {
   setDateSelection: Dispatch<SetStateAction<GoogleAdsDateRangeSelection>>;
   /** Report monthly chart year — synced when date picker spans a single calendar year. */
   reportChartYear: number;
-  /** Sets chart year and expands the shared date picker to that calendar year. */
+  /** Sets report/chart year via calendar-year preset in the date picker. */
   setReportChartYear: (year: number) => void;
+  /** Report charts: monthly Jan–Dec for reportChartYear (Spend/CPA/Leads only). */
+  reportChartCompareEnabled: boolean;
+  setReportChartCompareEnabled: (enabled: boolean) => void;
   /** Shared channel filter for report monthly spend & CPA charts. */
   monthlyChartChannelFilter: MonthlyChartChannelFilter;
   setMonthlyChartChannelFilter: (filter: MonthlyChartChannelFilter) => void;
@@ -71,6 +74,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
   const [reportChartYear, setReportChartYearState] = useState(() =>
     new Date().getFullYear(),
   );
+  const [reportChartCompareEnabled, setReportChartCompareEnabledState] = useState(false);
   const [monthlyChartChannelFilter, setMonthlyChartChannelFilterState] =
     useState<MonthlyChartChannelFilter>("all");
   const [reportServiceFilter, setReportServiceFilterState] = useState<ReportServiceFilterStored>("");
@@ -94,6 +98,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
       setGoogleCustomerIdState(stored.googleCustomerId);
       setMetaAdAccountIdState(stored.metaAdAccountId);
       setReportChartYearState(normalizeChartYear(stored.reportChartYear));
+      setReportChartCompareEnabledState(stored.reportChartCompareEnabled);
       setMonthlyChartChannelFilterState(stored.monthlyChartChannelFilter);
       setReportServiceFilterState(stored.reportServiceFilter ?? "");
     } else {
@@ -101,6 +106,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
       setGoogleCustomerIdState("");
       setMetaAdAccountIdState("");
       setReportChartYearState(new Date().getFullYear());
+      setReportChartCompareEnabledState(false);
       setMonthlyChartChannelFilterState("all");
       setReportServiceFilterState("");
     }
@@ -124,6 +130,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
         googleCustomerId,
         metaAdAccountId,
         reportChartYear,
+        reportChartCompareEnabled,
         monthlyChartChannelFilter,
         reportServiceFilter,
       });
@@ -136,13 +143,27 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
     googleCustomerId,
     metaAdAccountId,
     reportChartYear,
+    reportChartCompareEnabled,
     monthlyChartChannelFilter,
     reportServiceFilter,
   ]);
 
-  /** Keep chart year aligned when the date picker covers a single calendar year. */
+  /** Compare monthly charts are not used with All time (aggregated Jan–Dec view). */
   useEffect(() => {
     if (!filtersHydrated) return;
+    if (dateSelection.preset === "all_time") {
+      setReportChartCompareEnabledState((current) => (current ? false : current));
+    }
+  }, [dateSelection.preset, filtersHydrated]);
+
+  /** Keep chart year aligned with calendar-year preset or single-year custom range. */
+  useEffect(() => {
+    if (!filtersHydrated) return;
+    if (dateSelection.preset === "calendar_year" && dateSelection.calendarYear != null) {
+      const y = normalizeChartYear(dateSelection.calendarYear);
+      setReportChartYearState((current) => (current === y ? current : y));
+      return;
+    }
     const from = dateSelection.range.from;
     const to = dateSelection.range.to;
     if (!from || !to) return;
@@ -174,12 +195,18 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
     setReportServiceFilterState(filter);
   }, []);
 
+  const setReportChartCompareEnabled = useCallback((enabled: boolean) => {
+    setReportChartCompareEnabledState(enabled);
+  }, []);
+
   const value = useMemo(
     (): DigitalMarketingPaidAdsFiltersContextValue => ({
       dateSelection,
       setDateSelection,
       reportChartYear,
       setReportChartYear,
+      reportChartCompareEnabled,
+      setReportChartCompareEnabled,
       monthlyChartChannelFilter,
       setMonthlyChartChannelFilter,
       reportServiceFilter,
@@ -193,6 +220,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
     [
       dateSelection,
       reportChartYear,
+      reportChartCompareEnabled,
       monthlyChartChannelFilter,
       reportServiceFilter,
       googleCustomerId,
@@ -201,6 +229,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
       setGoogleCustomerId,
       setMetaAdAccountId,
       setReportChartYear,
+      setReportChartCompareEnabled,
       setMonthlyChartChannelFilter,
       setReportServiceFilter,
     ],

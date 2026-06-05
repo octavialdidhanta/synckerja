@@ -44,6 +44,7 @@
     "supabase:functions:deploy:google-ads-metrics": "npx supabase functions deploy google-ads-metrics",
     "supabase:functions:deploy:google-ads-all": "npx supabase functions deploy google-ads-upload-offline-conversion && npx supabase functions deploy google-ads-oauth-start && npx supabase functions deploy google-ads-oauth-callback && npx supabase functions deploy google-ads-config && npx supabase functions deploy google-ads-metrics",
     "supabase:functions:deploy:meta-ads-config": "npx supabase functions deploy meta-ads-config",
+    "supabase:functions:deploy:meta-ads-metrics": "npx supabase functions deploy meta-ads-metrics",
     "supabase:functions:deploy:meta-ads-all": "npx supabase functions deploy meta-ads-oauth-start meta-ads-oauth-callback meta-ads-config meta-ads-metrics meta-ads-upload-conversion",
     "supabase:functions:deploy:wa-followup": "npx supabase functions deploy send-whatsapp-template-followup",
     "supabase:functions:deploy:whatsapp-campaign-worker": "node scripts/sync-wa-template-graph.mjs && npx supabase functions deploy whatsapp-campaign-worker --no-verify-jwt",

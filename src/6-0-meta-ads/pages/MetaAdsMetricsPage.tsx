@@ -10,6 +10,13 @@ import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPendi
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { useMetaAdsReportingEnabled } from "@/meta-ads/hooks/useMetaAdsReportingEnabled";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
@@ -33,9 +40,18 @@ import { MetaAdsModifyColumnsDialog } from "@/6-0-meta-ads/components/MetaAdsMod
 import { MetaAdsDateRangePicker } from "@/6-0-meta-ads/components/MetaAdsDateRangePicker";
 import { useMetaAdsMetricsPreferences } from "@/meta-ads/hooks/useMetaAdsMetricsPreferences";
 import {
+  useMetaAdsColumnSets,
+  type MetaAdsColumnSet,
+} from "@/meta-ads/hooks/useMetaAdsColumnSets";
+import {
+  META_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+  MetaAdsColumnSetOptionLabel,
+} from "@/meta-ads/components/MetaAdsColumnSetOptionLabel";
+import {
   buildMetaAdsMetricCatalogResponse,
   getMetaAdsCatalogMetricKeys,
   getMetaAdsMetricsForEntity,
+  isMetaAdsSynckerjaMetricKey,
   resolveMetaAdsMetricItems,
 } from "@/meta-ads/metrics/metaAdsMetricCatalog";
 import {
@@ -50,7 +66,10 @@ import {
 } from "@/meta-ads/metrics/metaAdsSummaryMetricStorage";
 import { endOfDay } from "date-fns";
 import { parseYmdLocal, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
-import { metaAdsAllTimeDateRange } from "@/meta-ads/lib/clampMetaAdsDateRange";
+import {
+  buildMetaAdsCalendarYearPresetYears,
+  metaAdsAllTimeDateRange,
+} from "@/meta-ads/lib/clampMetaAdsDateRange";
 import { toMetaAdsMetricsDateRangePayload } from "@/meta-ads/lib/toMetaAdsMetricsDateRangePayload";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import {
@@ -66,6 +85,38 @@ import {
   resolveCampaignIdFromMetaMetricsRow,
   useMetaAdsCampaignServiceMapping,
 } from "@/meta-ads/hooks/useMetaAdsCampaignServiceMapping";
+
+function columnKeysMatch(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((key, index) => key === b[index]);
+}
+
+function columnKeysMatchOrderIndependent(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((key, index) => key === sortedB[index]);
+}
+
+function findMatchingColumnSet(
+  columnSets: MetaAdsColumnSet[],
+  keys: string[],
+): MetaAdsColumnSet | null {
+  if (keys.length === 0) return null;
+  const orgMatch =
+    columnSets.find(
+      (set) => set.scope === "org" && columnKeysMatch(set.metric_keys, keys),
+    ) ??
+    columnSets.find(
+      (set) =>
+        set.scope === "org" && columnKeysMatchOrderIndependent(set.metric_keys, keys),
+    );
+  if (orgMatch) return orgMatch;
+  return (
+    columnSets.find((set) => columnKeysMatch(set.metric_keys, keys)) ??
+    columnSets.find((set) => columnKeysMatchOrderIndependent(set.metric_keys, keys)) ??
+    null
+  );
+}
 
 export default function MetaAdsMetricsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
@@ -105,6 +156,12 @@ function MetaAdsMetricsPageContent() {
   const validMetricKeys = useMemo(() => getMetaAdsCatalogMetricKeys(), []);
   const catalogData = useMemo(() => buildMetaAdsMetricCatalogResponse(entity), [entity]);
 
+  const { columnSets, save: saveColumnSet, remove: removeColumnSet } = useMetaAdsColumnSets(
+    organizationId,
+    entity,
+    true,
+  );
+
   const {
     visibleColumns: selectedMetrics,
     storedSort,
@@ -132,6 +189,8 @@ function MetaAdsMetricsPageContent() {
       range: { from, to: nextTo },
     }));
   }, [dateSelection.preset, dateSelection.range.from, dateSelection.range.to, setDateSelection]);
+
+  const calendarYearPresetYears = useMemo(() => buildMetaAdsCalendarYearPresetYears(), []);
 
   const dateRange = useMemo(
     () => toMetaAdsMetricsDateRangePayload(dateSelection),
@@ -175,6 +234,11 @@ function MetaAdsMetricsPageContent() {
   const metricItems = useMemo(
     () => resolveMetaAdsMetricItems(selectedMetrics, entity),
     [selectedMetrics, entity],
+  );
+
+  const matchedColumnSet = useMemo(
+    () => findMatchingColumnSet(columnSets, selectedMetrics),
+    [columnSets, selectedMetrics],
   );
 
   useEffect(() => {
@@ -281,7 +345,29 @@ function MetaAdsMetricsPageContent() {
     void saveSort.mutateAsync(next);
   };
 
-  const handleApplyMetrics = async (keys: string[]) => {
+  const handleSwitchColumnSet = async (setId: string) => {
+    if (matchedColumnSet?.id === setId) return;
+    const set = columnSets.find((s) => s.id === setId);
+    if (!set) return;
+    const keys = set.metric_keys.filter(
+      (k) => validMetricKeys.has(k) || isMetaAdsSynckerjaMetricKey(k),
+    );
+    if (keys.length === 0) {
+      toast.error(
+        t(
+          "digitalMarketing.metaAds.columnSetEmpty",
+          "This column set has no available columns for this view.",
+        ),
+      );
+      return;
+    }
+    await handleApplyMetrics(keys);
+  };
+
+  const handleApplyMetrics = async (
+    keys: string[],
+    options?: { saveColumnSetName?: string },
+  ) => {
     try {
       const itemsAfterApply = resolveMetaAdsMetricItems(keys, entity);
       const optionsAfterApply = buildMetaAdsSortColumnOptions(
@@ -291,6 +377,13 @@ function MetaAdsMetricsPageContent() {
       const nextSort = resolveSortForOptions(sort, optionsAfterApply);
       setSort(nextSort);
       await saveMetrics.mutateAsync({ visibleColumns: keys, sort: nextSort });
+      if (options?.saveColumnSetName) {
+        await saveColumnSet.mutateAsync({
+          name: options.saveColumnSetName,
+          metric_keys: keys,
+        });
+        toast.success("Column set saved");
+      }
     } catch (e) {
       toast.error((e as Error).message);
       throw e;
@@ -519,6 +612,11 @@ function MetaAdsMetricsPageContent() {
 
                                   <MetaAdsDateRangePicker
                                     value={dateSelection}
+                                    calendarYearPresetYears={calendarYearPresetYears}
+                                    calendarYearFilterHint={t(
+                                      "digitalMarketing.metaAds.calendarYearFilterHint",
+                                      "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
+                                    )}
                                     onChange={setDateSelection}
                                   />
 
@@ -556,6 +654,45 @@ function MetaAdsMetricsPageContent() {
                               ) : null}
 
                               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-gray-100">
+                                {columnSets.length > 0 ? (
+                                  <div className="flex shrink-0 items-center gap-2 px-4 py-2 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:py-1.5">
+                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                      {t(
+                                        "digitalMarketing.metaAds.activeColumnSet",
+                                        "Column set",
+                                      )}
+                                    </span>
+                                    <Select
+                                      value={matchedColumnSet?.id}
+                                      onValueChange={(id) => void handleSwitchColumnSet(id)}
+                                      disabled={saveMetrics.isPending}
+                                    >
+                                      <SelectTrigger className="h-7 w-auto min-w-[10rem] max-w-[min(20rem,100%)] border-gray-200 bg-white text-xs font-medium shadow-none">
+                                        <SelectValue
+                                          placeholder={t(
+                                            "digitalMarketing.metaAds.chooseColumnSet",
+                                            "Choose a saved set",
+                                          )}
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {columnSets.map((set) => (
+                                          <SelectItem
+                                            key={set.id}
+                                            value={set.id}
+                                            className={cn(
+                                              "text-xs",
+                                              META_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+                                            )}
+                                          >
+                                            <MetaAdsColumnSetOptionLabel set={set} />
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ) : null}
+
                                 {metricsQuery.isError ? (
                                   <div className="shrink-0 px-4 pb-2">
                                     <Alert variant="destructive">
@@ -629,8 +766,48 @@ function MetaAdsMetricsPageContent() {
         entity={entity}
         catalog={catalogData}
         selectedKeys={selectedMetrics}
+        columnSets={columnSets}
         onApply={handleApplyMetrics}
-        isSaving={saveMetrics.isPending}
+        onDeleteColumnSet={async (id) => {
+          try {
+            const target = columnSets.find((s) => s.id === id);
+            if (target?.scope === "global") return;
+            await removeColumnSet.mutateAsync({ id, scope: target?.scope });
+            toast.success("Column set deleted");
+          } catch (e) {
+            toast.error((e as Error).message);
+            throw e;
+          }
+        }}
+        onUpdateColumnSet={async ({ id, name, metric_keys }) => {
+          try {
+            const target = columnSets.find((s) => s.id === id);
+            if (target?.scope === "global") return { id };
+            const existing = columnSets.find((s) => s.id === id);
+            const trimmed = name.trim();
+            if (existing && existing.name !== trimmed) {
+              await removeColumnSet.mutateAsync({ id, scope: "org" });
+              const saved = await saveColumnSet.mutateAsync({
+                name: trimmed,
+                metric_keys,
+              });
+              toast.success("Column set updated");
+              return { id: saved.id };
+            }
+            const saved = await saveColumnSet.mutateAsync({
+              name: trimmed,
+              metric_keys,
+            });
+            toast.success("Column set updated");
+            return { id: saved.id };
+          } catch (e) {
+            toast.error((e as Error).message);
+            throw e;
+          }
+        }}
+        isSaving={saveMetrics.isPending || saveColumnSet.isPending}
+        isDeletingColumnSet={removeColumnSet.isPending}
+        isUpdatingColumnSet={saveColumnSet.isPending || removeColumnSet.isPending}
       />
     </>
   );

@@ -443,6 +443,7 @@ function ServiceRowSkeleton() {
 }
 
 type Props = {
+  bootstrapLoading?: boolean;
   googleCost: ReportChannelCost;
   metaCost: ReportChannelCost;
   googleServiceRows: ReportGoogleServiceRow[];
@@ -452,6 +453,7 @@ type Props = {
 };
 
 export function DigitalMarketingReportTable({
+  bootstrapLoading = false,
   googleCost,
   metaCost,
   googleServiceRows,
@@ -477,6 +479,17 @@ export function DigitalMarketingReportTable({
   const showGoogleServiceRows = googleCost.connected && !googleCost.error;
   const showGoogleLegacyRow = !googleCost.connected;
   const showMetaLegacyRow = !metaCost.connected;
+  const showServiceRowSkeletons =
+    !bootstrapLoading && (googleServicesLoading || metaServicesLoading);
+
+  if (bootstrapLoading && (googleServicesLoading || metaServicesLoading)) {
+    return (
+      <div
+        className="min-h-[12rem] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+        aria-hidden
+      />
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -525,7 +538,7 @@ export function DigitalMarketingReportTable({
                   settingsPath={GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH}
                   settingsLinkKey="digitalMarketing.report.googleSettingsLink"
                 />
-              ) : googleServicesLoading ? (
+              ) : showServiceRowSkeletons && googleServicesLoading ? (
                 <>
                   <ServiceRowSkeleton />
                   <ServiceRowSkeleton />
@@ -552,7 +565,7 @@ export function DigitalMarketingReportTable({
                   settingsPath={META_ADS_DIGITAL_MARKETING_SETTINGS_PATH}
                   settingsLinkKey="digitalMarketing.report.metaSettingsLink"
                 />
-              ) : metaServicesLoading ? (
+              ) : showServiceRowSkeletons && metaServicesLoading ? (
                 <>
                   <ServiceRowSkeleton />
                   <ServiceRowSkeleton />

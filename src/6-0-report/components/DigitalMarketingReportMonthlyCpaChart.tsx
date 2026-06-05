@@ -19,6 +19,13 @@ import type {
   MonthlySpendChannelSeries,
   ReportMonthlyCpaChartPoint,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlySpend";
+import {
+  getMonthlyChartBlockingError,
+  hasMonthlyChartDisplayableChannel,
+  isGoogleSeriesChartActive,
+  isMetaSeriesChartActive,
+  isMetaSeriesChartSkipped,
+} from "@/6-0-digital-marketing-shared/monthlyReportChartDisplay";
 import type { ReportCombinedChannelScope } from "@/6-0-digital-marketing-shared/reportServiceFilter";
 
 const GOOGLE_BAR = "hsl(204 70% 42%)";
@@ -358,8 +365,17 @@ export function DigitalMarketingReportMonthlyCpaChart({
   const effectiveChannelFilter =
     channelFilter === "all" && mixedCurrency ? ("by_channel" as const) : channelFilter;
 
-  const showGoogle = googleSeries.connected && effectiveChannelFilter !== "meta";
-  const showMeta = metaSeries.connected && effectiveChannelFilter !== "google";
+  const showGoogle = isGoogleSeriesChartActive(googleSeries, effectiveChannelFilter);
+  const showMeta = isMetaSeriesChartActive(metaSeries, effectiveChannelFilter);
+  const metaSkippedNotice =
+    isMetaSeriesChartSkipped(metaSeries) && showGoogle
+      ? metaSeries.unavailableReason
+      : null;
+  const blockingError = getMonthlyChartBlockingError(
+    effectiveChannelFilter,
+    googleSeries,
+    metaSeries,
+  );
   const showCombined = effectiveChannelFilter === "all";
   const showGrouped = effectiveChannelFilter === "by_channel";
   const mixedCurrencyBlockedCombined = channelFilter === "all" && mixedCurrency;
@@ -385,7 +401,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
     );
   });
 
-  const loading = bootstrapLoading || chartLoading;
+  const loading = chartLoading;
 
   const barChartSpacing = useMemo(() => {
     if (showCombined || effectiveChannelFilter === "google" || effectiveChannelFilter === "meta") {
@@ -466,13 +482,21 @@ export function DigitalMarketingReportMonthlyCpaChart({
       ) : null}
 
       {loading ? (
-        <Skeleton className="h-[300px] w-full rounded-md" />
-      ) : !googleSeries.connected && !metaSeries.connected ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground">
-          {t(
-            "digitalMarketing.report.monthlyCpaNotConnected",
-            "Connect Google Ads or Meta Ads to see monthly CPA.",
-          )}
+        bootstrapLoading ? null : (
+          <Skeleton className="h-[300px] w-full rounded-md" />
+        )
+      ) : !hasMonthlyChartDisplayableChannel(
+          effectiveChannelFilter,
+          googleSeries,
+          metaSeries,
+        ) ? (
+        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+          {!googleSeries.connected && !metaSeries.connected
+            ? t(
+                "digitalMarketing.report.monthlyCpaNotConnected",
+                "Connect Google Ads or Meta Ads to see monthly CPA.",
+              )
+            : blockingError}
         </div>
       ) : !chartDateOverlap ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
@@ -481,9 +505,9 @@ export function DigitalMarketingReportMonthlyCpaChart({
             "The date filter does not overlap the selected chart year. Adjust the date range or chart year.",
           )}
         </div>
-      ) : googleSeries.error || metaSeries.error ? (
+      ) : blockingError ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-red-600">
-          {googleSeries.error ?? metaSeries.error}
+          {blockingError}
         </div>
       ) : !hasData ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground">
@@ -491,6 +515,9 @@ export function DigitalMarketingReportMonthlyCpaChart({
         </div>
       ) : (
         <>
+          {metaSkippedNotice ? (
+            <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
+          ) : null}
           <div className="mb-2 flex flex-wrap items-center gap-4">
             {showCombined ? (
               <span className="flex items-center gap-1.5 text-xs text-gray-600">
@@ -551,7 +578,11 @@ export function DigitalMarketingReportMonthlyCpaChart({
           {mixedCurrencyBlockedCombined ? (
             <p className="mb-2 text-[11px] text-amber-700">{tooltipLabels.mixedHint}</p>
           ) : null}
-          <div className="h-[300px] w-full min-w-0">
+          <div className="h-[300px] w-full min-w-0 overflow-x-auto">
+            <div
+              className="h-full"
+              style={{ minWidth: Math.max(chartData.length * 48, 560) }}
+            >
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartDataForRender}
@@ -674,6 +705,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
                 ) : null}
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </div>
         </>
       )}

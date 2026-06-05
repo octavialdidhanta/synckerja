@@ -43,6 +43,14 @@ export const META_ADS_DEFAULT_METRIC_KEYS = [
   "ctr",
 ] as const;
 
+export const META_ADS_SYNCKERJA_METRIC_KEYS = [
+  "traffic_total_visit_page",
+  "traffic_visit_click_rate",
+  "leads_total",
+  "leads_visit_rate",
+  "leads_cost_per_lead",
+] as const;
+
 export const META_ADS_ALL_METRIC_KEYS = [
   "spend",
   "impressions",
@@ -51,7 +59,12 @@ export const META_ADS_ALL_METRIC_KEYS = [
   "cpc",
   "cpm",
   "reach",
+  ...META_ADS_SYNCKERJA_METRIC_KEYS,
 ] as const;
+
+export function isMetaAdsSynckerjaMetricKey(key: string): boolean {
+  return (META_ADS_SYNCKERJA_METRIC_KEYS as readonly string[]).includes(String(key ?? "").trim());
+}
 
 const CORE_METRICS: MetaAdsMetricCatalogItem[] = [
   {
@@ -133,12 +146,76 @@ const CORE_METRICS: MetaAdsMetricCatalogItem[] = [
   },
 ];
 
+const SYNCKERJA_METRICS: MetaAdsMetricCatalogItem[] = [
+  {
+    key: "traffic_total_visit_page",
+    labelKey: "digitalMarketing.metaAds.trafficTotalVisitPage",
+    defaultLabel: "Total Visit Page",
+    defaultDescription:
+      "Unique sessions from Traffic where utm_campaign matches this campaign name.",
+    valueKind: "count",
+    entities: ["campaign"],
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "traffic_visit_click_rate",
+    labelKey: "digitalMarketing.metaAds.trafficVisitClickRate",
+    defaultLabel: "Visit / Click %",
+    defaultDescription: "Total Visit Page ÷ Clicks × 100 for this campaign.",
+    valueKind: "percent",
+    entities: ["campaign"],
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "leads_total",
+    labelKey: "digitalMarketing.metaAds.leadsTotal",
+    defaultLabel: "Total Leads",
+    defaultDescription:
+      "Leads where utm_campaign exactly matches this campaign name (created_at in date range).",
+    valueKind: "count",
+    entities: ["campaign"],
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "leads_visit_rate",
+    labelKey: "digitalMarketing.metaAds.leadsVisitRate",
+    defaultLabel: "Leads / Visit %",
+    defaultDescription: "Total Leads ÷ Total Visit Page × 100 for this campaign.",
+    valueKind: "percent",
+    entities: ["campaign"],
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "leads_cost_per_lead",
+    labelKey: "digitalMarketing.metaAds.leadsCostPerLead",
+    defaultLabel: "Cost / Leads",
+    defaultDescription: "Campaign spend ÷ Total Leads for this campaign.",
+    valueKind: "currency",
+    entities: ["campaign"],
+    defaultSelected: false,
+    sortable: true,
+  },
+];
+
 export function getMetaAdsCatalogMetricKeys(): Set<string> {
   return new Set(META_ADS_ALL_METRIC_KEYS);
 }
 
 export function getMetaAdsMetricsForEntity(entity: MetaAdsMetricEntity): MetaAdsMetricCatalogItem[] {
-  return CORE_METRICS.filter((m) => m.entities.includes(entity));
+  const core = CORE_METRICS.filter((m) => m.entities.includes(entity));
+  if (entity !== "campaign") return core;
+  return [...core, ...SYNCKERJA_METRICS];
+}
+
+export function getMetaAdsSynckerjaMetricsForEntity(
+  entity: MetaAdsMetricEntity,
+): MetaAdsMetricCatalogItem[] {
+  if (entity !== "campaign") return [];
+  return SYNCKERJA_METRICS;
 }
 
 export function getMetaAdsIdentityColumns(entity: MetaAdsMetricEntity): MetaAdsIdentityColumn[] {
@@ -182,8 +259,25 @@ export function getMetaAdsIdentityColumns(entity: MetaAdsMetricEntity): MetaAdsI
 export function buildMetaAdsMetricCatalogResponse(
   entity: MetaAdsMetricEntity,
 ): MetaAdsMetricCatalogResponse {
-  const metrics = getMetaAdsMetricsForEntity(entity);
-  const recommended = metrics.filter((m) => m.defaultSelected);
+  const coreMetrics = CORE_METRICS.filter((m) => m.entities.includes(entity));
+  const synckerjaMetrics = getMetaAdsSynckerjaMetricsForEntity(entity);
+  const recommended = coreMetrics.filter((m) => m.defaultSelected);
+  const categories: MetaAdsMetricCatalogCategory[] = [
+    {
+      id: "performance",
+      labelKey: "digitalMarketing.metaAds.catalogPerformance",
+      defaultLabel: "Performance",
+      metrics: coreMetrics,
+    },
+  ];
+  if (synckerjaMetrics.length > 0) {
+    categories.push({
+      id: "synckerja_metrics",
+      labelKey: "digitalMarketing.metaAds.catalogSynckerja",
+      defaultLabel: "Synckerja metrics",
+      metrics: synckerjaMetrics,
+    });
+  }
   return {
     max_metrics: META_ADS_MAX_METRICS,
     identity_columns: getMetaAdsIdentityColumns(entity),
@@ -194,14 +288,7 @@ export function buildMetaAdsMetricCatalogResponse(
       defaultLabel: "Recommended columns",
       metrics: recommended,
     },
-    categories: [
-      {
-        id: "performance",
-        labelKey: "digitalMarketing.metaAds.catalogPerformance",
-        defaultLabel: "Performance",
-        metrics,
-      },
-    ],
+    categories,
   };
 }
 

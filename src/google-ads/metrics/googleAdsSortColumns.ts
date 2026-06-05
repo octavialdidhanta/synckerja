@@ -1,4 +1,8 @@
-import { GOOGLE_ADS_IDENTITY_COLUMNS } from "@/google-ads/metrics/googleAdsIdentityColumns";
+import {
+  GOOGLE_ADS_IDENTITY_COLUMNS,
+  GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS,
+  allIdentityKeysForEntity,
+} from "@/google-ads/metrics/googleAdsIdentityColumns";
 import type { GoogleAdsMetricEntity, GoogleAdsMetricsSort, MetricCatalogItem } from "@/google-ads/metrics/types";
 
 export type SortColumnOption = { key: string; label: string };
@@ -14,8 +18,7 @@ export function getSortColumnKind(
   metricItems: MetricCatalogItem[],
 ): SortColumnKind {
   if (NUMERIC_IDENTITY_KEYS.has(field)) return "numeric";
-  const identityKeys = new Set(GOOGLE_ADS_IDENTITY_COLUMNS[entity].map((c) => c.key));
-  if (identityKeys.has(field)) return "text";
+  if (allIdentityKeysForEntity(entity).has(field)) return "text";
   if (metricItems.some((m) => m.key === field)) return "numeric";
   return "text";
 }
@@ -47,17 +50,33 @@ export function sortDirectionLabelKeys(kind: SortColumnKind): {
   };
 }
 
-/** Identity columns first, then applied metrics — matches table column order. */
+/** Locked identity → ordered selected columns (metrics + optional identity). */
 export function buildSortColumnOptions(
   entity: GoogleAdsMetricEntity,
+  orderedColumnKeys: string[],
   metricItems: MetricCatalogItem[],
 ): SortColumnOption[] {
-  const identity = GOOGLE_ADS_IDENTITY_COLUMNS[entity].map((c) => ({
+  const locked = GOOGLE_ADS_IDENTITY_COLUMNS[entity].map((c) => ({
     key: c.key,
     label: c.label,
   }));
-  const metrics = metricItems.map((m) => ({ key: m.key, label: m.label }));
-  return [...identity, ...metrics];
+  const metricByKey = new Map(metricItems.map((m) => [m.key, m]));
+  const optionalByKey = new Map(
+    GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS[entity].map((c) => [c.key, c]),
+  );
+  const ordered: SortColumnOption[] = [...locked];
+  for (const key of orderedColumnKeys) {
+    const metric = metricByKey.get(key);
+    if (metric) {
+      ordered.push({ key: metric.key, label: metric.label });
+      continue;
+    }
+    const optional = optionalByKey.get(key);
+    if (optional) {
+      ordered.push({ key: optional.key, label: optional.label });
+    }
+  }
+  return ordered;
 }
 
 export function defaultSortForOptions(
@@ -82,7 +101,7 @@ export function fallbackSortWhenFieldRemoved(
   entity: GoogleAdsMetricEntity,
   metricItems: MetricCatalogItem[],
 ): GoogleAdsMetricsSort {
-  const identityKeySet = new Set(GOOGLE_ADS_IDENTITY_COLUMNS[entity].map((c) => c.key));
+  const identityKeySet = allIdentityKeysForEntity(entity);
   const firstMetric = options.find((o) => !identityKeySet.has(o.key));
   const field = firstMetric?.key ?? options[0]?.key ?? "spent";
   const kind = getSortColumnKind(field, entity, metricItems);

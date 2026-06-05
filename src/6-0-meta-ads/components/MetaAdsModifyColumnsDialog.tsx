@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Lock, Minus, Search, X } from "lucide-react";
+import { GripVertical, Lock, Minus, Pencil, Search, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   Accordion,
@@ -33,6 +33,24 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -40,6 +58,11 @@ import {
   TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
+import {
+  META_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+  MetaAdsColumnSetOptionLabel,
+} from "@/meta-ads/components/MetaAdsColumnSetOptionLabel";
+import type { MetaAdsColumnSet } from "@/meta-ads/hooks/useMetaAdsColumnSets";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type {
   MetaAdsMetricCatalogItem,
@@ -58,8 +81,17 @@ type Props = {
   entity: MetaAdsMetricEntity;
   catalog: MetaAdsMetricCatalogResponse;
   selectedKeys: string[];
-  onApply: (keys: string[]) => void | Promise<void>;
+  columnSets?: MetaAdsColumnSet[];
+  onApply: (keys: string[], options?: { saveColumnSetName?: string }) => void | Promise<void>;
+  onDeleteColumnSet?: (id: string) => Promise<void>;
+  onUpdateColumnSet?: (input: {
+    id: string;
+    name: string;
+    metric_keys: string[];
+  }) => Promise<{ id: string } | void>;
   isSaving?: boolean;
+  isDeletingColumnSet?: boolean;
+  isUpdatingColumnSet?: boolean;
 };
 
 function metricMapFromCatalog(
@@ -174,14 +206,25 @@ export function MetaAdsModifyColumnsDialog({
   entity,
   catalog,
   selectedKeys,
+  columnSets = [],
   onApply,
+  onDeleteColumnSet,
+  onUpdateColumnSet,
   isSaving,
+  isDeletingColumnSet,
+  isUpdatingColumnSet,
 }: Props) {
   const { t } = useTranslation();
   const maxMetrics = catalog.max_metrics;
   const [search, setSearch] = useState("");
   const [draftKeys, setDraftKeys] = useState<string[]>(selectedKeys);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [savePreset, setSavePreset] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [activeColumnSetId, setActiveColumnSetId] = useState<string | null>(null);
+  const [isEditingColumnSet, setIsEditingColumnSet] = useState(false);
+  const [editColumnSetName, setEditColumnSetName] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const resolveMetric = (m: MetaAdsMetricCatalogItem): ResolvedMetric => ({
     key: m.key,
@@ -191,11 +234,34 @@ export function MetaAdsModifyColumnsDialog({
       : (m.defaultDescription ?? ""),
   });
 
+  const activeColumnSet = useMemo(
+    () => columnSets.find((s) => s.id === activeColumnSetId) ?? null,
+    [columnSets, activeColumnSetId],
+  );
+  const activeIsReadOnly = activeColumnSet?.scope === "global";
+
+  useEffect(() => {
+    if (
+      activeColumnSetId &&
+      !columnSets.some((set) => set.id === activeColumnSetId)
+    ) {
+      setActiveColumnSetId(null);
+      setIsEditingColumnSet(false);
+      setEditColumnSetName("");
+    }
+  }, [columnSets, activeColumnSetId]);
+
   useEffect(() => {
     if (open) {
       setDraftKeys(selectedKeys);
       setSearch("");
       setSearchOpen(false);
+      setSavePreset(false);
+      setPresetName("");
+      setActiveColumnSetId(null);
+      setIsEditingColumnSet(false);
+      setEditColumnSetName("");
+      setDeleteConfirmOpen(false);
     }
   }, [open, selectedKeys]);
 
@@ -268,8 +334,49 @@ export function MetaAdsModifyColumnsDialog({
     });
   };
 
+  const loadPreset = (setId: string) => {
+    const preset = columnSets.find((s) => s.id === setId);
+    if (!preset) return;
+    setActiveColumnSetId(setId);
+    setDraftKeys(preset.metric_keys.filter((k) => metricByKey.has(k)));
+    setIsEditingColumnSet(false);
+    setEditColumnSetName(preset.name);
+  };
+
+  const handleStartEditColumnSet = () => {
+    if (!activeColumnSet) return;
+    setEditColumnSetName(activeColumnSet.name);
+    setIsEditingColumnSet(true);
+  };
+
+  const handleUpdateColumnSet = async () => {
+    if (!activeColumnSetId || !onUpdateColumnSet || activeIsReadOnly) return;
+    const trimmed = editColumnSetName.trim();
+    if (!trimmed) return;
+    const result = await onUpdateColumnSet({
+      id: activeColumnSetId,
+      name: trimmed,
+      metric_keys: draftKeys,
+    });
+    if (result?.id) {
+      setActiveColumnSetId(result.id);
+    }
+    setIsEditingColumnSet(false);
+  };
+
+  const handleDeleteColumnSet = async () => {
+    if (!activeColumnSetId || !onDeleteColumnSet || activeIsReadOnly) return;
+    await onDeleteColumnSet(activeColumnSetId);
+    setActiveColumnSetId(null);
+    setIsEditingColumnSet(false);
+    setEditColumnSetName("");
+    setDeleteConfirmOpen(false);
+  };
+
   const handleApply = async () => {
-    await onApply(draftKeys);
+    const trimmedName = presetName.trim();
+    if (savePreset && !trimmedName) return;
+    await onApply(draftKeys, savePreset ? { saveColumnSetName: trimmedName } : undefined);
     onOpenChange(false);
   };
 
@@ -458,20 +565,164 @@ export function MetaAdsModifyColumnsDialog({
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-3 border-t bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="shrink-0 border-t bg-background">
+          <div className="border-b border-border/60 bg-muted/30 px-6 py-3.5">
+            <div className="grid gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
+              <div className="min-w-0 space-y-2">
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Saved column sets
+                </Label>
+                {columnSets.length > 0 ? (
+                  <>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Select
+                        value={activeColumnSetId ?? undefined}
+                        onValueChange={loadPreset}
+                      >
+                        <SelectTrigger className="h-9 min-w-0 flex-1 border-gray-200 bg-white text-sm shadow-sm">
+                          <SelectValue placeholder="Choose a saved set" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {columnSets.map((s) => (
+                            <SelectItem
+                              key={s.id}
+                              value={s.id}
+                              className={META_ADS_COLUMN_SET_SELECT_ITEM_CLASS}
+                            >
+                              <MetaAdsColumnSetOptionLabel set={s} />
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex shrink-0 items-center overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-none border-r border-gray-200"
+                          disabled={!activeColumnSetId || !onUpdateColumnSet || activeIsReadOnly}
+                          onClick={handleStartEditColumnSet}
+                          aria-label="Edit column set"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-none text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={
+                            !activeColumnSetId || !onDeleteColumnSet || isDeletingColumnSet
+                              || activeIsReadOnly
+                          }
+                          onClick={() => setDeleteConfirmOpen(true)}
+                          aria-label="Delete column set"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {isEditingColumnSet && activeColumnSetId ? (
+                      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2">
+                        <Pencil className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
+                        <Input
+                          value={editColumnSetName}
+                          onChange={(e) => setEditColumnSetName(e.target.value)}
+                          className="h-8 min-w-[10rem] flex-1 border-gray-200 bg-white text-sm"
+                          placeholder="Set name"
+                          aria-label="Column set name"
+                          disabled={activeIsReadOnly}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 shrink-0 bg-blue-600 hover:bg-blue-700"
+                          disabled={
+                            !editColumnSetName.trim() ||
+                            isUpdatingColumnSet ||
+                            draftKeys.length === 0 ||
+                            activeIsReadOnly
+                          }
+                          onClick={() => void handleUpdateColumnSet()}
+                        >
+                          Save changes
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 shrink-0"
+                          onClick={() => setIsEditingColumnSet(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {activeIsReadOnly
+                          ? "This is a shared default set and cannot be edited or deleted."
+                          : "Load a set to apply its columns, or edit and delete the selected set."}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No saved sets yet. Save your current selection on the right.
+                  </p>
+                )}
+              </div>
+
+              <div className="min-w-0 space-y-2 lg:max-w-md lg:justify-self-end">
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Save current selection
+                </Label>
+                <div
+                  className={cn(
+                    "rounded-md border bg-white shadow-sm transition-colors",
+                    savePreset ? "border-blue-200 ring-1 ring-blue-100" : "border-gray-200",
+                  )}
+                >
+                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5">
+                    <Checkbox
+                      checked={savePreset}
+                      onCheckedChange={(v) => setSavePreset(v === true)}
+                      className="border-blue-600 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white"
+                    />
+                    <span className="text-sm font-medium text-gray-900">Save as new column set</span>
+                  </label>
+                  {savePreset ? (
+                    <div className="border-t border-gray-100 px-3 pb-3 pt-0">
+                      <Input
+                        placeholder="Enter set name"
+                        value={presetName}
+                        onChange={(e) => setPresetName(e.target.value)}
+                        className="h-9 border-gray-200 text-sm"
+                        aria-label="New column set name"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 px-6 py-3.5">
             <Button
               type="button"
-              className="bg-blue-600 hover:bg-blue-700"
-              disabled={isSaving || draftKeys.length === 0}
+              className="min-w-[5.5rem] bg-blue-600 hover:bg-blue-700"
+              disabled={
+                isSaving ||
+                draftKeys.length === 0 ||
+                (savePreset && !presetName.trim())
+              }
               onClick={() => void handleApply()}
             >
               {t("digitalMarketing.metaAds.modifyColumnsApply", "Apply")}
             </Button>
             <Button
               type="button"
-              variant="link"
-              className="h-auto px-0 text-blue-600"
+              variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
               onClick={() => onOpenChange(false)}
             >
               {t("digitalMarketing.metaAds.modifyColumnsCancel", "Cancel")}
@@ -479,6 +730,32 @@ export function MetaAdsModifyColumnsDialog({
           </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete column set?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {activeColumnSet
+                ? `"${activeColumnSet.name}" will be removed. This cannot be undone.`
+                : "This column set will be removed. This cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingColumnSet}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeletingColumnSet}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteColumnSet();
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

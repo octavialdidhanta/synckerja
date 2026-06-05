@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { defaultSelectedColumnKeys } from "@/google-ads/metrics/googleAdsIdentityColumns";
 import {
   DEFAULT_METRIC_KEYS,
   type GoogleAdsMetricEntity,
@@ -8,6 +9,17 @@ import {
 } from "@/google-ads/metrics/types";
 
 const DEFAULT_SORT: GoogleAdsMetricsSort = { field: "spent", direction: "desc" };
+
+function globalDefaultMetricsForEntity(
+  entity: GoogleAdsMetricEntity,
+  validKeys: Set<string>,
+): string[] | null {
+  // Global default preset: "Web Speed Performance" for campaign entity.
+  if (entity !== "campaign") return null;
+  const keys = ["clicks", "traffic_total_visit_page", "traffic_visit_click_rate"];
+  const filtered = keys.filter((k) => validKeys.has(k));
+  return filtered.length > 0 ? filtered : null;
+}
 
 function sanitizeKeys(raw: string[], validKeys: Set<string>): string[] {
   const filtered = raw.filter((k) => validKeys.has(k));
@@ -39,10 +51,10 @@ export function useGoogleAdsMetricsPreferences(
   const query = useQuery({
     queryKey,
     queryFn: async (): Promise<PreferencesRow> => {
-      const fallbackMetrics = sanitizeKeys(
-        [...DEFAULT_METRIC_KEYS],
-        validKeys ?? new Set(DEFAULT_METRIC_KEYS),
-      );
+      const keySet = validKeys ?? new Set(DEFAULT_METRIC_KEYS);
+      const fallbackMetrics =
+        (validKeys ? globalDefaultMetricsForEntity(entity, validKeys) : null) ??
+        defaultSelectedColumnKeys(entity, keySet);
       if (!organizationId || !validKeys) {
         return { selectedMetrics: fallbackMetrics, sort: DEFAULT_SORT };
       }
@@ -135,7 +147,7 @@ export function useGoogleAdsMetricsPreferences(
     mutationFn: async (sort: GoogleAdsMetricsSort) => {
       const metrics =
         query.data?.selectedMetrics ??
-        sanitizeKeys([...DEFAULT_METRIC_KEYS], validKeys ?? new Set(DEFAULT_METRIC_KEYS));
+        defaultSelectedColumnKeys(entity, validKeys ?? new Set(DEFAULT_METRIC_KEYS));
       return upsertPreferences(metrics, sort);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
@@ -144,7 +156,7 @@ export function useGoogleAdsMetricsPreferences(
   const selectedMetrics = useMemo(
     () =>
       query.data?.selectedMetrics ??
-      sanitizeKeys([...DEFAULT_METRIC_KEYS], validKeys ?? new Set(DEFAULT_METRIC_KEYS)),
+        defaultSelectedColumnKeys(entity, validKeys ?? new Set(DEFAULT_METRIC_KEYS)),
     [query.data?.selectedMetrics, validKeys],
   );
 

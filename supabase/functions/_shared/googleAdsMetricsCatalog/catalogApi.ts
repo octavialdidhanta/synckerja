@@ -1,3 +1,5 @@
+import { SYNCKERJA_LEADS_METRICS_API } from "../googleAdsSynckerjaLeadsMetrics.ts";
+import { SYNCKERJA_TRAFFIC_METRICS_API } from "../googleAdsSynckerjaTrafficMetrics.ts";
 import { METRIC_CATALOG } from "./metricsData.ts";
 import {
   CATEGORY_LABELS,
@@ -46,20 +48,39 @@ export function getMetricCatalogForApi(entity?: MetricEntity) {
       label: "Recommended columns",
       metrics: recommendedMetrics,
     },
-    categories: CATEGORY_ORDER.map((id) => ({
-      id,
-      label: CATEGORY_LABELS[id],
-      metrics: defs
-        .filter((m) => m.category === id)
-        .map((m) => ({
-          key: m.key,
-          label: m.label,
-          description: m.description,
-          entities: m.entities,
-          valueKind: m.valueKind,
-          defaultSelected: defaultSet.has(m.key),
-          sortable: m.sortable,
-        })),
-    })).filter((c) => c.metrics.length > 0),
+    categories: [
+      ...(resolvedEntity === "campaign"
+        ? [
+            {
+              id: "synckerja_metrics",
+              label: "Synckerja metrics",
+              metrics: [...SYNCKERJA_TRAFFIC_METRICS_API, ...SYNCKERJA_LEADS_METRICS_API].map((m) => ({
+                key: m.key,
+                label: m.label,
+                description: m.description,
+                entities: [...m.entities],
+                valueKind: m.valueKind,
+                defaultSelected: false,
+                sortable: m.sortable,
+              })),
+            },
+          ]
+        : []),
+      ...CATEGORY_ORDER.map((id) => ({
+        id,
+        label: CATEGORY_LABELS[id],
+        metrics: defs
+          .filter((m) => m.category === id)
+          .map((m) => ({
+            key: m.key,
+            label: m.label,
+            description: m.description,
+            entities: m.entities,
+            valueKind: m.valueKind,
+            defaultSelected: defaultSet.has(m.key),
+            sortable: m.sortable,
+          })),
+      })).filter((c) => c.metrics.length > 0),
+    ],
   };
 }

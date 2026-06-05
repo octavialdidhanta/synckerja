@@ -46,7 +46,7 @@ export function TrafficPageSkeleton() {
                           <Skeleton className="h-40 w-full rounded-lg" />
                         </div>
                         <div className="col-span-12">
-                          <Skeleton className="h-[280px] w-full rounded-lg" />
+                          <Skeleton className="h-[480px] w-full rounded-lg [@media(max-height:900px)]:h-[420px] [@media(max-height:760px)]:h-[380px]" />
                         </div>
                       </div>
                     </div>

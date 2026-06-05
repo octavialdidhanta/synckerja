@@ -2,6 +2,7 @@ import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuer
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import {
   getMetaAdsMetricsForEntity,
+  isMetaAdsSynckerjaMetricKey,
   type MetaAdsMetricCatalogItem,
 } from "@/meta-ads/metrics/metaAdsMetricCatalog";
 import {
@@ -122,7 +123,9 @@ export function buildMetaAdsSummaryTotals(
 }
 
 export function metaAdsSummaryValidKeys(entity: MetaAdsMetricEntity): MetaAdsTableMetricKey[] {
-  const keys = getMetaAdsMetricsForEntity(entity).map((m) => m.key as MetaAdsTableMetricKey);
+  const keys = getMetaAdsMetricsForEntity(entity)
+    .filter((m) => !isMetaAdsSynckerjaMetricKey(m.key))
+    .map((m) => m.key as MetaAdsTableMetricKey);
   if (entity === "campaign") {
     keys.push("service_cpl", "service_converted_leads");
   }
@@ -149,6 +152,7 @@ export function buildMetaAdsSummaryMetricOptions(args: {
   const options: MetaAdsSummaryMetricOption[] = [];
 
   for (const item of args.catalogItems) {
+    if (isMetaAdsSynckerjaMetricKey(item.key)) continue;
     const key = item.key as MetaAdsTableMetricKey;
     options.push({
       key,

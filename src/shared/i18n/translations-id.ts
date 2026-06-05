@@ -119,6 +119,15 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.googleAds.sortDescText": "Z → A",
   "digitalMarketing.googleAds.sortAscText": "A → Z",
   "digitalMarketing.googleAds.currency": "Mata uang",
+  "digitalMarketing.traffic.allTimeRangeHint":
+    "All time memakai rentang tanggal yang sama dengan tab Report dan Google Ads.",
+  "digitalMarketing.googleAds.trafficWebIdLabel": "Sumber traffic",
+  "digitalMarketing.googleAds.trafficWebIdPlaceholder": "web_id traffic",
+  "digitalMarketing.googleAds.trafficVisitUnavailable":
+    "Data traffic belum tersedia. Sync data di halaman Traffic untuk rentang ini.",
+  "digitalMarketing.googleAds.activeColumnSet": "Set kolom",
+  "digitalMarketing.googleAds.chooseColumnSet": "Pilih set tersimpan",
+  "digitalMarketing.googleAds.columnSetEmpty": "Set kolom ini tidak memiliki kolom yang tersedia untuk tampilan ini.",
   "digitalMarketing.googleAds.entityNavLabel": "Tingkat laporan",
   "digitalMarketing.googleAds.entityNavAria": "Navigasi laporan Google Ads",
   "digitalMarketing.googleAds.navSectionCampaigns": "Kampanye",
@@ -302,8 +311,19 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.report.monthlyChartSubtitleForService":
     "{{base}} Difilter per layanan: {{service}}.",
   "digitalMarketing.report.monthlyChartTabSpend": "Biaya",
+  "digitalMarketing.report.monthlyChartTabSpendByService": "Spend/Service",
+  "digitalMarketing.report.monthlyChartTabServiceConverted": "Service Converted",
+  "digitalMarketing.report.monthlyChartTabCostServiceConverted": "CPA Service",
+  "digitalMarketing.report.monthlyCpaByServiceSubtitle":
+    "Biaya per Conv. lead (CPA) per layanan untuk rentang tanggal dan filter channel yang dipilih.",
+  "digitalMarketing.report.monthlyCpaByServiceEmptyServices":
+    "Tidak ada layanan dengan CPA yang dapat dihitung pada rentang yang dipilih.",
   "digitalMarketing.report.monthlyChartTabCpa": "CPA",
   "digitalMarketing.report.monthlyChartTabLeads": "Conv. leads",
+  "digitalMarketing.report.monthlyLeadsByServiceSubtitle":
+    "Total Conv. leads per layanan untuk rentang tanggal dan filter channel yang dipilih.",
+  "digitalMarketing.report.monthlyLeadsByServiceEmptyServices":
+    "Tidak ada layanan dengan Conv. leads pada rentang yang dipilih.",
   "digitalMarketing.report.monthlyLeadsSubtitle":
     "Converted leads unik per bulan (UTM kampanye cocok, menurut tanggal konversi).",
   "digitalMarketing.report.monthlyLeadsNotConnected":
@@ -313,6 +333,14 @@ export const idTranslations: TranslationDictionary = {
     "Semua channel menjumlahkan lead dari channel yang tampil di tabel untuk layanan terpilih.",
   "digitalMarketing.report.monthlySpendTitle": "Tren biaya bulanan",
   "digitalMarketing.report.monthlySpendSubtitle": "Biaya level akun per bulan untuk tahun yang dipilih.",
+  "digitalMarketing.report.compareToggleHint":
+    "Grafik (Spend, CPA, Conv. leads) menampilkan data bulanan untuk tahun grafik. Tabel dan KPI tetap mengikuti filter tanggal di atas.",
+  "digitalMarketing.report.monthlySpendSubtitleCompare":
+    "Biaya bulanan untuk {{year}} (Compare). Tabel dan KPI tetap mengikuti filter tanggal di atas.",
+  "digitalMarketing.report.monthlyCpaSubtitleCompare":
+    "CPA bulanan untuk {{year}} (Compare). Tabel dan KPI tetap mengikuti filter tanggal di atas.",
+  "digitalMarketing.report.monthlyLeadsSubtitleCompare":
+    "Conv. leads bulanan untuk {{year}} (Compare). Tabel dan KPI tetap mengikuti filter tanggal di atas.",
   "digitalMarketing.report.monthlySpendNotConnected": "Hubungkan Google Ads atau Meta Ads untuk melihat biaya bulanan.",
   "digitalMarketing.report.monthlySpendEmpty": "Tidak ada data biaya untuk tahun ini.",
   "digitalMarketing.report.monthlySpendNoOverlap": "Filter tanggal tidak tumpang tindih dengan tahun grafik yang dipilih. Sesuaikan rentang tanggal atau tahun grafik.",

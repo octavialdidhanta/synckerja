@@ -4,23 +4,26 @@ import { useTranslation } from "react-i18next";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import {
-  intersectDateSelectionWithChartYear,
-  toGoogleAdsMetricsDateRangePayload,
-} from "@/6-0-google-ads/lib/googleAdsDatePresets";
-import { metaAdsEarliestAllowedStartYmd } from "@/meta-ads/lib/clampMetaAdsDateRange";
-import { toMetaAdsMetricsDateRangePayload } from "@/meta-ads/lib/toMetaAdsMetricsDateRangePayload";
+  isReportMetaRangeUnavailable,
+  resolveReportGoogleDateRangePayload,
+  resolveReportMetaDateRangePayload,
+} from "@/6-0-digital-marketing-shared/lib/resolveReportDateRanges";
+import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { useGoogleAdsReportingEnabled } from "@/google-ads/hooks/useGoogleAdsReportingEnabled";
 import { useGoogleAdsMetricsQuery } from "@/google-ads/hooks/useGoogleAdsMetricsQuery";
 import {
-  aggregateCampaignMetricsByService,
-  fetchAllGoogleAdsCampaignRows,
+  mapReportByServiceApiRows,
   type CampaignServiceAggregate,
+  type ReportByServiceApiRow,
 } from "@/google-ads/metrics/aggregateCampaignMetricsByService";
 import {
-  aggregateMetaCampaignMetricsByService,
-  fetchAllMetaAdsCampaignRows,
+  mapMetaReportByServiceApiRows,
   type MetaCampaignServiceAggregate,
+  type MetaReportByServiceApiRow,
 } from "@/meta-ads/metrics/aggregateMetaCampaignMetricsByService";
+import { googleAdsAccountsReportQueryKey } from "@/6-0-digital-marketing-shared/reportQueryKeys";
+import { parseEdgeFunctionError as parseGoogleEdgeError } from "@/google-ads/lib/parseEdgeFunctionError";
+import { parseEdgeFunctionError as parseMetaEdgeError } from "@/meta-ads/lib/parseEdgeFunctionError";
 import { useMetaAdsReportingEnabled } from "@/meta-ads/hooks/useMetaAdsReportingEnabled";
 import { useMetaAdsMetricsQuery } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
@@ -95,36 +98,13 @@ export function useDigitalMarketingReportCosts() {
   const { dateSelection, googleCustomerId, metaAdAccountId, filtersHydrated, reportChartYear } =
     useDigitalMarketingPaidAdsFilters();
 
-  /** Same window as monthly charts: date picker ∩ selected chart year. */
-  const reportDateSelection = useMemo(
-    () => intersectDateSelectionWithChartYear(dateSelection, reportChartYear),
-    [dateSelection, reportChartYear],
-  );
-
-  const googleDateRangePayload = useMemo(() => {
-    if (!reportDateSelection) return toGoogleAdsMetricsDateRangePayload(dateSelection);
-    return toGoogleAdsMetricsDateRangePayload(reportDateSelection);
-  }, [dateSelection, reportDateSelection]);
-
-  const metaDateRangePayload = useMemo(() => {
-    if (!reportDateSelection) return toMetaAdsMetricsDateRangePayload(dateSelection);
-    return toMetaAdsMetricsDateRangePayload(reportDateSelection);
-  }, [dateSelection, reportDateSelection]);
-
-  const metaRangeUnavailable = useMemo(() => {
-    const raw = reportDateSelection
-      ? toGoogleAdsMetricsDateRangePayload(reportDateSelection)
-      : toMetaAdsMetricsDateRangePayload(dateSelection);
-    return raw.end < metaAdsEarliestAllowedStartYmd();
-  }, [dateSelection, reportDateSelection]);
-
   const { data: googleReportingEnabled = false, isPending: googleReportingPending } =
     useGoogleAdsReportingEnabled(organizationId);
   const { data: metaReportingEnabled = false, isPending: metaReportingPending } =
     useMetaAdsReportingEnabled(organizationId);
 
   const { data: googleAccounts = [], isPending: googleAccountsPending } = useQuery({
-    queryKey: ["google-ads-accounts-picker-report", organizationId],
+    queryKey: googleAdsAccountsReportQueryKey(organizationId),
     queryFn: async () => {
       if (!organizationId) return [];
       const { data, error } = await supabase
@@ -145,6 +125,39 @@ export function useDigitalMarketingReportCosts() {
     const def = googleAccounts.find((a) => a.is_default);
     return def?.customer_id ?? googleAccounts[0]?.customer_id ?? "";
   }, [googleCustomerId, googleAccounts]);
+
+  const { data: accountDateBounds } = useGoogleAdsAccountDateBounds(
+    organizationId,
+    effectiveGoogleCustomerId,
+    Boolean(organizationId && effectiveGoogleCustomerId),
+  );
+
+  const googleAccountEarliestYmd = accountDateBounds?.earliest_date ?? null;
+
+  const googleDateRangePayload = useMemo(
+    () =>
+      resolveReportGoogleDateRangePayload(
+        dateSelection,
+        reportChartYear,
+        googleAccountEarliestYmd,
+      ),
+    [dateSelection, reportChartYear, googleAccountEarliestYmd],
+  );
+
+  const metaDateRangePayload = useMemo(
+    () => resolveReportMetaDateRangePayload(dateSelection, reportChartYear),
+    [dateSelection, reportChartYear],
+  );
+
+  const metaRangeUnavailable = useMemo(
+    () =>
+      isReportMetaRangeUnavailable(
+        dateSelection,
+        reportChartYear,
+        googleAccountEarliestYmd,
+      ),
+    [dateSelection, reportChartYear, googleAccountEarliestYmd],
+  );
 
   const googleAccountLabel = useMemo(() => {
     const row = googleAccounts.find((a) => a.customer_id === effectiveGoogleCustomerId);
@@ -215,17 +228,26 @@ export function useDigitalMarketingReportCosts() {
         "digitalMarketing.report.serviceUnmapped",
         "Belum di-map",
       );
-      const { rows, currencyCode } = await fetchAllGoogleAdsCampaignRows(
-        organizationId,
-        {
-          customerId: effectiveGoogleCustomerId,
-          dateRange: googleDateRangePayload,
-          onlyRunning: false,
-          statusFilter: "all",
+      const { data, error } = await supabase.functions.invoke("google-ads-metrics", {
+        body: {
+          action: "fetchReportByService",
+          organization_id: organizationId,
+          customer_id: effectiveGoogleCustomerId,
+          date_range: googleDateRangePayload,
+          unmapped_label: unmappedLabel,
         },
-      );
-      const aggregates = aggregateCampaignMetricsByService(rows, unmappedLabel);
-      return { aggregates, currencyCode };
+      });
+      if (error) throw await parseGoogleEdgeError(error, data);
+      const payload = data as {
+        rows?: ReportByServiceApiRow[];
+        currency_code?: string | null;
+        error?: string;
+      };
+      if (payload?.error) throw await parseGoogleEdgeError(null, payload);
+      return {
+        aggregates: mapReportByServiceApiRows(payload.rows),
+        currencyCode: payload.currency_code ?? null,
+      };
     },
     enabled: Boolean(
       filtersHydrated &&
@@ -267,16 +289,27 @@ export function useDigitalMarketingReportCosts() {
         "digitalMarketing.report.serviceUnmapped",
         "Belum di-map",
       );
-      const { rows, currencyCode } = await fetchAllMetaAdsCampaignRows(
-        organizationId,
-        {
-          adAccountId: effectiveMetaAdAccountId,
-          dateStart: metaDateRangePayload.start,
-          dateEnd: metaDateRangePayload.end,
+      const { data, error } = await supabase.functions.invoke("meta-ads-metrics", {
+        body: {
+          action: "fetchReportByService",
+          organization_id: organizationId,
+          ad_account_id: effectiveMetaAdAccountId,
+          date_start: metaDateRangePayload.start,
+          date_end: metaDateRangePayload.end,
+          unmapped_label: unmappedLabel,
         },
-      );
-      const aggregates = aggregateMetaCampaignMetricsByService(rows, unmappedLabel);
-      return { aggregates, currencyCode };
+      });
+      if (error) throw await parseMetaEdgeError(error, data);
+      const payload = data as {
+        rows?: MetaReportByServiceApiRow[];
+        currency_code?: string | null;
+        error?: string;
+      };
+      if (payload?.error) throw await parseMetaEdgeError(null, payload);
+      return {
+        aggregates: mapMetaReportByServiceApiRows(payload.rows),
+        currencyCode: payload.currency_code ?? null,
+      };
     },
     enabled: Boolean(
       filtersHydrated &&

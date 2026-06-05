@@ -30,6 +30,11 @@ type GoogleAdsUnifiedMonthYearPickerProps = {
   minDate: Date;
   maxDate: Date;
   onSelectMonth: (month: Date) => void;
+  /** When set, clicking a year label selects that calendar year (Report filter). */
+  onSelectYear?: (year: number) => void;
+  /** Limit which year labels are clickable; defaults to all years shown in the panel. */
+  selectableYears?: number[];
+  selectedCalendarYear?: number;
 };
 
 export function GoogleAdsUnifiedMonthYearPicker({
@@ -37,7 +42,14 @@ export function GoogleAdsUnifiedMonthYearPicker({
   minDate,
   maxDate,
   onSelectMonth,
+  onSelectYear,
+  selectableYears,
+  selectedCalendarYear,
 }: GoogleAdsUnifiedMonthYearPickerProps) {
+  const selectableYearSet = useMemo(
+    () => (selectableYears?.length ? new Set(selectableYears) : null),
+    [selectableYears],
+  );
   const anchorRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -88,9 +100,31 @@ export function GoogleAdsUnifiedMonthYearPicker({
             googleAdsScrollAreaClass,
           )}
         >
-          {years.map((year) => (
+          {years.map((year) => {
+            const yearFilterEnabled =
+              onSelectYear != null &&
+              (selectableYearSet == null || selectableYearSet.has(year));
+            return (
             <div key={year} className="mb-1">
-              <div className="px-4 py-1.5 text-sm font-semibold text-gray-900">{year}</div>
+              {yearFilterEnabled ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "w-full px-4 py-1.5 text-left text-sm font-semibold hover:bg-brand-blue-soft/50 hover:text-brand-blue",
+                    selectedCalendarYear === year
+                      ? "bg-brand-blue-soft text-brand-blue-on-soft"
+                      : "text-gray-900",
+                  )}
+                  onClick={() => {
+                    onSelectYear(year);
+                    setOpen(false);
+                  }}
+                >
+                  {year}
+                </button>
+              ) : (
+                <div className="px-4 py-1.5 text-sm font-semibold text-gray-900">{year}</div>
+              )}
               <div className="grid grid-cols-4 gap-0.5 px-3 pb-2">
                 {MONTH_ABBR.map((abbr, monthIndex) => {
                   const monthDate = startOfMonth(new Date(year, monthIndex, 1));
@@ -122,7 +156,8 @@ export function GoogleAdsUnifiedMonthYearPicker({
                 })}
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       ) : null}
     </div>

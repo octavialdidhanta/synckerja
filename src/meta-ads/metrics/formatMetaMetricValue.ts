@@ -59,9 +59,21 @@ export function parseMetricNumber(value: unknown): number | null {
 }
 
 function inferMetaKind(key: string): MetaMetricValueKind {
-  if (key === "spend" || key === "cpc" || key === "cpm") return "currency";
-  if (key === "ctr") return "percent";
-  if (key === "impressions" || key === "clicks" || key === "reach") return "count";
+  if (key === "spend" || key === "cpc" || key === "cpm" || key === "leads_cost_per_lead") {
+    return "currency";
+  }
+  if (key === "ctr" || key === "traffic_visit_click_rate" || key === "leads_visit_rate") {
+    return "percent";
+  }
+  if (
+    key === "impressions" ||
+    key === "clicks" ||
+    key === "reach" ||
+    key === "traffic_total_visit_page" ||
+    key === "leads_total"
+  ) {
+    return "count";
+  }
   return "decimal";
 }
 
