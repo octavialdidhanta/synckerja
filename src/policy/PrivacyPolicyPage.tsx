@@ -73,7 +73,7 @@ export default function PrivacyPolicyPage() {
             <p className={paraClass}><strong>Location Information:</strong> Approximate location derived from your IP address.</p>
             <p className={paraClass}><strong>Log Files:</strong> System logs generated when using our APIs or back-end systems, which may include timestamped metadata, request headers, and usage traces.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">C. Information from Third Parties and Integrations</h3>
-            <p className={paraClass}>If you connect third-party services to Synckerja, we may collect information from those platforms, such as social platforms (e.g., Facebook Page ID, Instagram account data, WhatsApp business number), e-commerce platforms (e.g., Shopify, WooCommerce), email and CRM tools, and authentication services.</p>
+            <p className={paraClass}>If you connect third-party services to Synckerja, we may collect information from those platforms, such as social platforms (e.g., Facebook Page ID, Instagram account data, YouTube channel ID and video performance metrics such as views, likes, and comments, WhatsApp business number), e-commerce platforms (e.g., Shopify, WooCommerce), email and CRM tools, and authentication services.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">D. Cookies and Tracking Technologies</h3>
             <p className={paraClass}>We and our partners use cookies, pixels, and similar technologies to collect data about how users interact with our platform. Read more in our Cookie Policy.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">E. Aggregated and De-Identified Data</h3>
@@ -140,7 +140,7 @@ export default function PrivacyPolicyPage() {
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Google API Limited Use Disclosure</h2>
-            <p className={paraClass}>Our application may integrate with Google Workspace APIs. We confirm that any user data obtained through these APIs is used solely to provide or improve user-facing features. We do not use this data to develop, improve, or train generalized AI or machine learning models. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.</p>
+            <p className={paraClass}>Our application may integrate with Google APIs, including Google sign-in, Google Drive (when you choose to connect Drive for file preview), Google Ads (when an administrator connects an ad account), and YouTube (when an administrator connects a YouTube channel for organic content performance reporting). We confirm that any user data obtained through these APIs is used solely to provide or improve user-facing features within Synckerja for the organization that connected the service. We do not use this data to develop, improve, or train generalized AI or machine learning models. We do not sell Google or YouTube user data. You may disconnect these integrations in your organization settings, which stops our further use of stored OAuth tokens for that integration. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.</p>
           </section>
 
           <section className={sectionClass}>
