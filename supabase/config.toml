@@ -165,6 +165,19 @@ verify_jwt = false
 [functions.tiktok-content-metrics]
 verify_jwt = false
 
+# YouTube Content Insight: user JWT validated inside; OAuth callback has no JWT.
+[functions.youtube-content-oauth-start]
+verify_jwt = false
+
+[functions.youtube-content-oauth-callback]
+verify_jwt = false
+
+[functions.youtube-content-config]
+verify_jwt = false
+
+[functions.youtube-content-metrics]
+verify_jwt = false
+
 # Cron / service role: apply_attendance_auto_checkout (also scheduled via pg_cron every 15 min).
 [functions.attendance-auto-checkout]
 verify_jwt = false

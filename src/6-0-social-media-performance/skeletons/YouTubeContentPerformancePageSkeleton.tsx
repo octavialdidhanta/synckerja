@@ -1,7 +1,7 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { SocialMediaPerformanceHeaderAndTab } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
 
-export function TikTokContentPerformancePageSkeleton() {
+export function YouTubeContentPerformancePageSkeleton() {
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div className="flex min-h-0 flex-1 flex-col">

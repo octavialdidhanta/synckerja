@@ -67,6 +67,7 @@ import {
   TikTokAdsMetricsPageSkeleton,
   SocialMediaPerformanceHubPageSkeleton,
   TikTokContentPerformancePageSkeleton,
+  YouTubeContentPerformancePageSkeleton,
   DigitalMarketingReportPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
@@ -156,6 +157,9 @@ const SocialMediaPerformanceHubPage = lazy(
 );
 const TikTokContentPerformancePage = lazy(
   () => import("@/6-0-social-media-performance/pages/TikTokContentPerformancePage"),
+);
+const YouTubeContentPerformancePage = lazy(
+  () => import("@/6-0-social-media-performance/pages/YouTubeContentPerformancePage"),
 );
 const DigitalMarketingReportPage = lazy(
   () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
@@ -1711,6 +1715,20 @@ function TikTokContentPerformancePageRouteElement() {
   );
 }
 
+function YouTubeContentPerformancePageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <YouTubeContentPerformancePageSkeleton />
+        </div>
+      }
+    >
+      <YouTubeContentPerformancePage />
+    </Suspense>
+  );
+}
+
 function DigitalMarketingReportPageRouteElement() {
   return (
     <Suspense
@@ -3017,6 +3035,30 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <TikTokContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/youtube/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance/youtube/settings"
+                                loadingShell={<YouTubeContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <YouTubeContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/youtube"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<YouTubeContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <YouTubeContentPerformancePageRouteElement />
                               </PageAccessGuard>
                             }
                           />

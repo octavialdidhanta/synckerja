@@ -369,6 +369,14 @@ export const TikTokContentPerformancePageSkeleton = createDeferredSkeleton(() =>
   ),
 );
 
+export const YouTubeContentPerformancePageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-performance/skeletons/YouTubeContentPerformancePageSkeleton").then(
+    (m) => ({
+      default: m.YouTubeContentPerformancePageSkeleton,
+    }),
+  ),
+);
+
 export const DigitalMarketingReportPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-report/skeletons/DigitalMarketingReportPageSkeleton").then((m) => ({
     default: m.DigitalMarketingReportPageSkeleton,

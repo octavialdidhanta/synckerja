@@ -143,6 +143,11 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: ["/digital-marketing/social-media"],
       },
       {
+        titleKey: "sidebar.digitalMarketing.socialMediaPerformance.title",
+        path: "/digital-marketing/social-media-performance/tiktok",
+        activePathPrefixes: ["/digital-marketing/social-media-performance"],
+      },
+      {
         titleKey: "sidebar.digitalMarketing.adsPerformance.title",
         path: "/digital-marketing/traffic",
         activePathPrefixes: [
@@ -150,7 +155,6 @@ export const mainNavItems: MainNavItem[] = [
           "/digital-marketing/google-ads",
           "/digital-marketing/meta-ads",
           "/digital-marketing/tiktok-ads",
-          "/digital-marketing/social-media-performance",
           "/digital-marketing/report",
         ],
       },

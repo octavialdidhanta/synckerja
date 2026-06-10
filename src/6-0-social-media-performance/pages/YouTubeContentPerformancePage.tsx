@@ -13,21 +13,21 @@ import { parseYmdLocal, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePre
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import { Button } from "@/shared/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
-import { useTikTokContentReportingEnabled } from "@/tiktok-content/hooks/useTikTokContentReportingEnabled";
-import { useTikTokContentSettings } from "@/tiktok-content/hooks/useTikTokContentSettings";
+import { useYouTubeContentReportingEnabled } from "@/youtube-content/hooks/useYouTubeContentReportingEnabled";
+import { useYouTubeContentSettings } from "@/youtube-content/hooks/useYouTubeContentSettings";
 import {
-  fetchTikTokContentVideos,
-  useTikTokContentVideosQuery,
-} from "@/tiktok-content/hooks/useTikTokContentVideosQuery";
-import { TikTokContentSettingsPanel } from "@/tiktok-content/settings/TikTokContentSettingsPanel";
+  fetchYouTubeContentVideos,
+  useYouTubeContentVideosQuery,
+} from "@/youtube-content/hooks/useYouTubeContentVideosQuery";
+import { YouTubeContentSettingsPanel } from "@/youtube-content/settings/YouTubeContentSettingsPanel";
 import {
-  TIKTOK_CONTENT_DIGITAL_MARKETING_BASE_PATH,
-  TIKTOK_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH,
-} from "@/tiktok-content/settings/tiktokContentSettingsPaths";
-import { TikTokContentPerformancePageSkeleton } from "@/6-0-social-media-performance/skeletons/TikTokContentPerformancePageSkeleton";
-import { TikTokContentAccountNav } from "@/6-0-social-media-performance/components/TikTokContentAccountNav";
-import { TikTokContentSummaryBar } from "@/6-0-social-media-performance/components/TikTokContentSummaryBar";
-import { TikTokContentVideosTable } from "@/6-0-social-media-performance/components/TikTokContentVideosTable";
+  YOUTUBE_CONTENT_DIGITAL_MARKETING_BASE_PATH,
+  YOUTUBE_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH,
+} from "@/youtube-content/settings/youtubeContentSettingsPaths";
+import { YouTubeContentPerformancePageSkeleton } from "@/6-0-social-media-performance/skeletons/YouTubeContentPerformancePageSkeleton";
+import { YouTubeContentAccountNav } from "@/6-0-social-media-performance/components/YouTubeContentAccountNav";
+import { YouTubeContentSummaryBar } from "@/6-0-social-media-performance/components/YouTubeContentSummaryBar";
+import { YouTubeContentVideosTable } from "@/6-0-social-media-performance/components/YouTubeContentVideosTable";
 import { TikTokAdsDateRangePicker } from "@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker";
 import { buildTikTokAdsCalendarYearPresetYears } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
 import { toTikTokAdsMetricsDateRangePayload } from "@/tiktok-ads/lib/toTikTokAdsMetricsDateRangePayload";
@@ -35,31 +35,31 @@ import { tiktokAdsAllTimeDateRange } from "@/tiktok-ads/lib/clampTikTokAdsDateRa
 
 const SOCIAL_MEDIA_PERFORMANCE_PATH = "/digital-marketing/social-media-performance";
 
-export default function TikTokContentPerformancePage() {
+export default function YouTubeContentPerformancePage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
-  if (orgBootstrapPending) return <TikTokContentPerformancePageSkeleton />;
+  if (orgBootstrapPending) return <YouTubeContentPerformancePageSkeleton />;
   return (
     <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
-      <TikTokContentPerformancePageContent />
+      <YouTubeContentPerformancePageContent />
     </ModuleShellContentGate>
   );
 }
 
-function TikTokContentPerformancePageContent() {
+function YouTubeContentPerformancePageContent() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
-  const isSettingsView = location.pathname === TIKTOK_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH;
+  const isSettingsView = location.pathname === YOUTUBE_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH;
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
   const { data: reportingEnabled = false, isPending: reportingPending } =
-    useTikTokContentReportingEnabled(organizationId);
-  const { data: settings, isPending: settingsPending } = useTikTokContentSettings(organizationId, {
+    useYouTubeContentReportingEnabled(organizationId);
+  const { data: settings, isPending: settingsPending } = useYouTubeContentSettings(organizationId, {
     enabled: Boolean(organizationId) && !gatePending,
   });
 
   const { dateSelection, setDateSelection } = useDigitalMarketingPaidAdsFilters();
-  const [openId, setOpenId] = useState("");
+  const [channelId, setChannelId] = useState("");
 
   useEffect(() => {
     if (dateSelection.preset !== "all_time") return;
@@ -93,44 +93,44 @@ function TikTokContentPerformancePageContent() {
   );
 
   useEffect(() => {
-    if (!openId && activeAccounts.length > 0) {
+    if (!channelId && activeAccounts.length > 0) {
       const def = activeAccounts.find((a) => a.is_default) ?? activeAccounts[0];
-      setOpenId(def.open_id);
+      setChannelId(def.channel_id);
     }
-  }, [activeAccounts, openId]);
+  }, [activeAccounts, channelId]);
 
-  const videosQuery = useTikTokContentVideosQuery({
+  const videosQuery = useYouTubeContentVideosQuery({
     organizationId,
-    openId,
+    channelId,
     dateStart,
     dateEnd,
     enabled:
       reportingEnabled &&
-      Boolean(openId) &&
-      activeAccounts.some((a) => a.open_id === openId) &&
+      Boolean(channelId) &&
+      activeAccounts.some((a) => a.channel_id === channelId) &&
       !isSettingsView &&
       canManage,
   });
 
   const handleRefresh = useCallback(async () => {
-    if (!organizationId || !openId) return;
+    if (!organizationId || !channelId) return;
     try {
-      const fresh = await fetchTikTokContentVideos({
+      const fresh = await fetchYouTubeContentVideos({
         organizationId,
-        openId,
+        channelId,
         dateStart,
         dateEnd,
         forceRefresh: true,
       });
       queryClient.setQueryData(
-        ["tiktok-content-videos", organizationId, openId, dateStart, dateEnd],
+        ["youtube-content-videos", organizationId, channelId, dateStart, dateEnd],
         fresh,
       );
     } catch (e) {
       toast.error((e as Error).message);
       await videosQuery.refetch();
     }
-  }, [organizationId, openId, dateStart, dateEnd, queryClient, videosQuery]);
+  }, [organizationId, channelId, dateStart, dateEnd, queryClient, videosQuery]);
 
   const metricsLoading =
     videosQuery.isLoading || (videosQuery.isFetching && !videosQuery.data);
@@ -138,7 +138,7 @@ function TikTokContentPerformancePageContent() {
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
 
   if (rawPageLoadPending) {
-    return <TikTokContentPerformancePageSkeleton />;
+    return <YouTubeContentPerformancePageSkeleton />;
   }
 
   return (
@@ -158,46 +158,46 @@ function TikTokContentPerformancePageContent() {
                       <Alert>
                         <AlertTitle>
                           {t(
-                            "digitalMarketing.tiktokContent.accessDeniedTitle",
+                            "digitalMarketing.youtubeContent.accessDeniedTitle",
                             "Access restricted",
                           )}
                         </AlertTitle>
                         <AlertDescription>
                           {t(
-                            "digitalMarketing.tiktokContent.accessDeniedBody",
-                            "Only the organization owner or an omnichannel admin can view TikTok content insights.",
+                            "digitalMarketing.youtubeContent.accessDeniedBody",
+                            "Only the organization owner or an omnichannel admin can view YouTube content insights.",
                           )}{" "}
                           <Link
-                            to={TIKTOK_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH}
+                            to={YOUTUBE_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH}
                             className="font-medium text-primary underline"
                           >
-                            {t("digitalMarketing.tiktokContent.settingsLink", "TikTok settings")}
+                            {t("digitalMarketing.youtubeContent.settingsLink", "YouTube settings")}
                           </Link>
                         </AlertDescription>
                       </Alert>
                     </div>
                   ) : (
                     <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-row overflow-hidden">
-                      <TikTokContentAccountNav
+                      <YouTubeContentAccountNav
                         accounts={activeAccounts}
-                        openId={openId}
-                        onOpenIdChange={(next) => {
-                          setOpenId(next);
+                        channelId={channelId}
+                        onChannelIdChange={(next) => {
+                          setChannelId(next);
                           if (isSettingsView) {
-                            navigate(TIKTOK_CONTENT_DIGITAL_MARKETING_BASE_PATH);
+                            navigate(YOUTUBE_CONTENT_DIGITAL_MARKETING_BASE_PATH);
                           }
                         }}
                         settingsActive={isSettingsView}
                         onSettingsSelect={() =>
-                          navigate(TIKTOK_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH)
+                          navigate(YOUTUBE_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH)
                         }
                       />
 
                       <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
                         {isSettingsView ? (
-                          <TikTokContentSettingsPanel
+                          <YouTubeContentSettingsPanel
                             organizationId={organizationId}
-                            oauthReturnPath={TIKTOK_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH}
+                            oauthReturnPath={YOUTUBE_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH}
                           />
                         ) : (
                           <>
@@ -206,14 +206,14 @@ function TikTokContentPerformancePageContent() {
                                 <Alert variant="destructive">
                                   <AlertTitle>
                                     {t(
-                                      "digitalMarketing.tiktokContent.serverNotConfigured",
+                                      "digitalMarketing.youtubeContent.serverNotConfigured",
                                       "Server not configured",
                                     )}
                                   </AlertTitle>
                                   <AlertDescription>
                                     {t(
-                                      "digitalMarketing.tiktokContent.serverNotConfiguredDesc",
-                                      "Set TIKTOK_CONTENT_CLIENT_KEY and TIKTOK_CONTENT_CLIENT_SECRET in Supabase Edge Function secrets.",
+                                      "digitalMarketing.youtubeContent.serverNotConfiguredDesc",
+                                      "Set YOUTUBE_CONTENT_CLIENT_ID and YOUTUBE_CONTENT_CLIENT_SECRET in Supabase Edge Function secrets.",
                                     )}
                                   </AlertDescription>
                                 </Alert>
@@ -221,20 +221,20 @@ function TikTokContentPerformancePageContent() {
                                 <Alert>
                                   <AlertTitle>
                                     {t(
-                                      "digitalMarketing.tiktokContent.notConnected",
-                                      "TikTok not connected",
+                                      "digitalMarketing.youtubeContent.notConnected",
+                                      "YouTube not connected",
                                     )}
                                   </AlertTitle>
                                   <AlertDescription>
                                     {t(
-                                      "digitalMarketing.tiktokContent.notConnectedDesc",
-                                      "Connect a TikTok creator account in settings to view video insights.",
+                                      "digitalMarketing.youtubeContent.notConnectedDesc",
+                                      "Connect a YouTube channel in settings to view video insights.",
                                     )}{" "}
                                     <Link
-                                      to={TIKTOK_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH}
+                                      to={YOUTUBE_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH}
                                       className="font-medium text-primary underline"
                                     >
-                                      {t("digitalMarketing.tiktokContent.openSettings", "Open settings")}
+                                      {t("digitalMarketing.youtubeContent.openSettings", "Open settings")}
                                     </Link>
                                   </AlertDescription>
                                 </Alert>
@@ -245,8 +245,8 @@ function TikTokContentPerformancePageContent() {
                                   type="button"
                                   size="icon"
                                   variant="outline"
-                                  aria-label={t("digitalMarketing.tiktokContent.refresh", "Refresh")}
-                                  disabled={!reportingEnabled || !openId || videosQuery.isFetching}
+                                  aria-label={t("digitalMarketing.youtubeContent.refresh", "Refresh")}
+                                  disabled={!reportingEnabled || !channelId || videosQuery.isFetching}
                                   onClick={() => void handleRefresh()}
                                 >
                                   {videosQuery.isFetching ? (
@@ -263,7 +263,7 @@ function TikTokContentPerformancePageContent() {
                               </div>
                             </div>
 
-                            <TikTokContentSummaryBar
+                            <YouTubeContentSummaryBar
                               summary={videosQuery.data?.summary}
                               isLoading={metricsLoading}
                             />
@@ -273,19 +273,19 @@ function TikTokContentPerformancePageContent() {
                                 <div className="p-4">
                                   <Alert variant="destructive">
                                     <AlertTitle>
-                                      {t("digitalMarketing.tiktokContent.error", "Failed to load videos")}
+                                      {t("digitalMarketing.youtubeContent.error", "Failed to load videos")}
                                     </AlertTitle>
                                     <AlertDescription>
                                       {(videosQuery.error as Error)?.message ??
                                         t(
-                                          "digitalMarketing.tiktokContent.errorGeneric",
-                                          "An error occurred while loading TikTok videos.",
+                                          "digitalMarketing.youtubeContent.errorGeneric",
+                                          "An error occurred while loading YouTube videos.",
                                         )}
                                     </AlertDescription>
                                   </Alert>
                                 </div>
                               ) : (
-                                <TikTokContentVideosTable rows={videosQuery.data?.rows ?? []} />
+                                <YouTubeContentVideosTable rows={videosQuery.data?.rows ?? []} />
                               )}
                             </div>
                           </>
