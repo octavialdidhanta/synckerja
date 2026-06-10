@@ -15,6 +15,12 @@ const emptySeries = (): MonthlySpendChannelSeries => ({
   periodSummary: null,
 });
 
+const emptyTikTok = (): MonthlySpendChannelSeries => ({
+  ...emptySeries(),
+  connected: false,
+  months: [],
+});
+
 describe("report monthly spend chart totals", () => {
   it("all_time bars sum equals combined period spend (Google + Meta)", () => {
     const google: MonthlySpendChannelSeries = {
@@ -34,7 +40,8 @@ describe("report monthly spend chart totals", () => {
       ],
       periodSummary: { spend: 400_000, converted_leads: 1, cpa: 400_000 },
     };
-    const scope = { includeGoogle: true, includeMeta: true };
+    const scope = { includeGoogle: true, includeMeta: true, includeTikTok: false };
+    const tiktok = emptyTikTok();
 
     const points = buildMonthlySpendChartPoints({
       year: 2025,
@@ -42,11 +49,12 @@ describe("report monthly spend chart totals", () => {
       spanMode: "all_time",
       google,
       meta,
+      tiktok,
       combinedScope: scope,
     });
 
     const barTotal = sumReportMonthlySpendChartPoints(points, "all");
-    const periodTotal = buildCombinedChartPeriodSummary(google, meta, scope, "all_time");
+    const periodTotal = buildCombinedChartPeriodSummary(google, meta, tiktok, scope, "all_time");
 
     expect(barTotal).toBe(2_100_000);
     expect(periodTotal.spend).toBe(2_100_000);
@@ -70,7 +78,8 @@ describe("report monthly spend chart totals", () => {
       ],
       periodSummary: { spend: 328_660, converted_leads: 0, cpa: null },
     };
-    const scope = { includeGoogle: true, includeMeta: true };
+    const scope = { includeGoogle: true, includeMeta: true, includeTikTok: false };
+    const tiktok = emptyTikTok();
 
     const points = buildMonthlySpendChartPoints({
       year: 2025,
@@ -78,11 +87,12 @@ describe("report monthly spend chart totals", () => {
       spanMode: "calendar_year",
       google,
       meta,
+      tiktok,
       combinedScope: scope,
     });
 
     const barTotal = sumReportMonthlySpendChartPoints(points, "all");
-    const periodTotal = buildCombinedChartPeriodSummary(google, meta, scope, "calendar_year");
+    const periodTotal = buildCombinedChartPeriodSummary(google, meta, tiktok, scope, "calendar_year");
 
     expect(barTotal).toBe(2_611_404);
     expect(periodTotal.spend).toBe(2_611_404);

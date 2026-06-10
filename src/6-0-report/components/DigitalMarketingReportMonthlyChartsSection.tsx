@@ -24,7 +24,7 @@ import {
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlySpend";
 import type { DigitalMarketingReportDataContextValue } from "@/6-0-digital-marketing-shared/DigitalMarketingReportDataContext";
 import { DigitalMarketingReportChartsSkeleton } from "@/6-0-report/skeletons/DigitalMarketingReportChartsSkeleton";
-import { isMetaSeriesChartSkipped } from "@/6-0-digital-marketing-shared/monthlyReportChartDisplay";
+import { isMetaSeriesChartSkipped, isTikTokSeriesChartSkipped } from "@/6-0-digital-marketing-shared/monthlyReportChartDisplay";
 import { DigitalMarketingReportMonthlySpendChart } from "@/6-0-report/components/DigitalMarketingReportMonthlySpendChart";
 import { DigitalMarketingReportMonthlyCpaChart } from "@/6-0-report/components/DigitalMarketingReportMonthlyCpaChart";
 import { DigitalMarketingReportMonthlyLeadsChart } from "@/6-0-report/components/DigitalMarketingReportMonthlyLeadsChart";
@@ -73,7 +73,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
   const chartUsesAllTime = dateSelection.preset === "all_time";
   const showServiceBreakdownTabs = !reportServiceFilter;
 
-  const { googleServiceRows, metaServiceRows } = useDigitalMarketingReportData();
+  const { googleServiceRows, metaServiceRows, tiktokServiceRows } = useDigitalMarketingReportData();
 
   useEffect(() => {
     if (
@@ -87,14 +87,14 @@ export function DigitalMarketingReportMonthlyChartsSection({
   }, [showServiceBreakdownTabs, chartTab]);
   const activeServiceName = useMemo(() => {
     const options = buildReportServiceFilterOptions(
-      [...googleServiceRows, ...metaServiceRows],
+      [...googleServiceRows, ...metaServiceRows, ...tiktokServiceRows],
       {
         all: t("digitalMarketing.report.serviceFilterAll", "All services"),
         unmapped: t("digitalMarketing.report.serviceUnmapped", "Belum di-map"),
       },
     );
     return serviceFilterLabel(options, reportServiceFilter);
-  }, [googleServiceRows, metaServiceRows, reportServiceFilter, t]);
+  }, [googleServiceRows, metaServiceRows, tiktokServiceRows, reportServiceFilter, t]);
 
   const locale = language === "id" ? "id-ID" : "en-US";
 
@@ -104,6 +104,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
     compareActive,
     googleSeries,
     metaSeries,
+    tiktokSeries,
     chartLoading,
     chartDateOverlap,
   } = monthlySpend;
@@ -114,30 +115,38 @@ export function DigitalMarketingReportMonthlyChartsSection({
     chartTab === "cost_service_converted";
   const serviceBreakdownFetchEnabled = showServiceBreakdownTabs && isServiceBreakdownTab;
 
-  const { filteredGoogleRows, filteredMetaRows } = useDigitalMarketingReportFilteredRows(
-    googleServiceRows,
-    metaServiceRows,
-  );
+  const { filteredGoogleRows, filteredMetaRows, filteredTikTokRows } =
+    useDigitalMarketingReportFilteredRows(
+      googleServiceRows,
+      metaServiceRows,
+      tiktokServiceRows,
+    );
 
   const combinedScope = useMemo(() => {
     const base = buildReportCombinedChannelScope({
       serviceFilterActive: Boolean(reportServiceFilter),
       hasGoogleServiceRow: filteredGoogleRows.length > 0,
       hasMetaServiceRow: filteredMetaRows.length > 0,
+      hasTikTokServiceRow: filteredTikTokRows.length > 0,
       googleConnected: googleSeries.connected,
       metaConnected: metaSeries.connected,
+      tiktokConnected: tiktokSeries.connected,
     });
     return {
       includeGoogle: base.includeGoogle,
       includeMeta: base.includeMeta && !isMetaSeriesChartSkipped(metaSeries),
+      includeTikTok: base.includeTikTok && !isTikTokSeriesChartSkipped(tiktokSeries),
     };
   }, [
     reportServiceFilter,
     filteredGoogleRows.length,
     filteredMetaRows.length,
+    filteredTikTokRows.length,
     googleSeries.connected,
     metaSeries.connected,
+    tiktokSeries.connected,
     metaSeries.unavailableReason,
+    tiktokSeries.unavailableReason,
   ]);
 
   const chartPointsArgs = useMemo(
@@ -147,9 +156,10 @@ export function DigitalMarketingReportMonthlyChartsSection({
       spanMode: chartSpanMode,
       google: googleSeries,
       meta: metaSeries,
+      tiktok: tiktokSeries,
       combinedScope,
     }),
-    [year, locale, chartSpanMode, googleSeries, metaSeries, combinedScope],
+    [year, locale, chartSpanMode, googleSeries, metaSeries, tiktokSeries, combinedScope],
   );
 
   const spendChartData = useMemo(
@@ -292,6 +302,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
     channelFilter: monthlyChartChannelFilter,
     googleSeries,
     metaSeries,
+    tiktokSeries,
     combinedScope,
     chartLoading,
     chartDateOverlap,
@@ -376,6 +387,11 @@ export function DigitalMarketingReportMonthlyChartsSection({
                       {t("digitalMarketing.report.channelMeta", "Meta Ads")}
                     </SelectItem>
                   ) : null}
+                  {tiktokSeries.connected ? (
+                    <SelectItem value="tiktok" className={CHANNEL_FILTER_ITEM_CLASS}>
+                      {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
+                    </SelectItem>
+                  ) : null}
                 </SelectContent>
               </Select>
             </div>
@@ -395,6 +411,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
               chartData={spendByServiceChartData}
               googleSeries={googleSeries}
               metaSeries={metaSeries}
+              tiktokSeries={tiktokSeries}
               chartLoading={serviceBreakdownLoading}
               chartDateOverlap={chartDateOverlap}
               currency={spendByServiceCurrency}
@@ -408,6 +425,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
               chartData={leadsByServiceChartData}
               googleSeries={googleSeries}
               metaSeries={metaSeries}
+              tiktokSeries={tiktokSeries}
               chartLoading={serviceBreakdownLoading}
               chartDateOverlap={chartDateOverlap}
               error={serviceBreakdownError}
@@ -420,6 +438,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
               chartData={cpaByServiceChartData}
               googleSeries={googleSeries}
               metaSeries={metaSeries}
+              tiktokSeries={tiktokSeries}
               chartLoading={serviceBreakdownLoading}
               chartDateOverlap={chartDateOverlap}
               currency={spendByServiceCurrency}

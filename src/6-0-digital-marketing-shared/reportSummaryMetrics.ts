@@ -4,6 +4,7 @@ import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue"
 import type {
   ReportGoogleServiceRow,
   ReportMetaServiceRow,
+  ReportTikTokServiceRow,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportCosts";
 
 /** Metrics available as table columns (excludes channel, service, status, account). */
@@ -86,12 +87,14 @@ function ingestRow(
 export function aggregateReportTableMetrics(
   googleRows: ReportGoogleServiceRow[],
   metaRows: ReportMetaServiceRow[],
+  tiktokRows: ReportTikTokServiceRow[] = [],
 ): ReportSummaryTotals {
   const costByCurrency = new Map<string, number>();
   const totals = { impressions: 0, clicks: 0, convertedLeads: 0, hasLeads: false };
 
   for (const row of googleRows) ingestRow(row, costByCurrency, totals);
   for (const row of metaRows) ingestRow(row, costByCurrency, totals);
+  for (const row of tiktokRows) ingestRow(row, costByCurrency, totals);
 
   const costEntries = [...costByCurrency.entries()]
     .filter(([, amount]) => amount > 0)

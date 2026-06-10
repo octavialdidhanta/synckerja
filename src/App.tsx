@@ -64,6 +64,9 @@ import {
   TrafficPageSkeleton,
   GoogleAdsMetricsPageSkeleton,
   MetaAdsMetricsPageSkeleton,
+  TikTokAdsMetricsPageSkeleton,
+  SocialMediaPerformanceHubPageSkeleton,
+  TikTokContentPerformancePageSkeleton,
   DigitalMarketingReportPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
@@ -147,6 +150,13 @@ const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings
 const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
 const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
 const MetaAdsMetricsPage = lazy(() => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"));
+const TikTokAdsMetricsPage = lazy(() => import("@/6-0-tiktok-ads/pages/TikTokAdsMetricsPage"));
+const SocialMediaPerformanceHubPage = lazy(
+  () => import("@/6-0-social-media-performance/pages/SocialMediaPerformanceHubPage"),
+);
+const TikTokContentPerformancePage = lazy(
+  () => import("@/6-0-social-media-performance/pages/TikTokContentPerformancePage"),
+);
 const DigitalMarketingReportPage = lazy(
   () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
 );
@@ -1659,6 +1669,48 @@ function MetaAdsMetricsPageRouteElement() {
   );
 }
 
+function TikTokAdsMetricsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <TikTokAdsMetricsPageSkeleton />
+        </div>
+      }
+    >
+      <TikTokAdsMetricsPage />
+    </Suspense>
+  );
+}
+
+function SocialMediaPerformanceHubPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <SocialMediaPerformanceHubPageSkeleton />
+        </div>
+      }
+    >
+      <SocialMediaPerformanceHubPage />
+    </Suspense>
+  );
+}
+
+function TikTokContentPerformancePageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <TikTokContentPerformancePageSkeleton />
+        </div>
+      }
+    >
+      <TikTokContentPerformancePage />
+    </Suspense>
+  );
+}
+
 function DigitalMarketingReportPageRouteElement() {
   return (
     <Suspense
@@ -2917,6 +2969,66 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <MetaAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/tiktok-ads/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/tiktok-ads"
+                                loadingShell={<TikTokAdsMetricsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/tiktok-ads"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/tiktok-ads"
+                                loadingShell={<TikTokAdsMetricsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/tiktok/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance/tiktok/settings"
+                                loadingShell={<TikTokContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/tiktok"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<TikTokContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<SocialMediaPerformanceHubPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <SocialMediaPerformanceHubPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

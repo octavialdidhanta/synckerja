@@ -3,6 +3,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type {
   ReportGoogleServiceRow,
   ReportMetaServiceRow,
+  ReportTikTokServiceRow,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportCosts";
 import { useDigitalMarketingReportFilteredRows } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportFilteredRows";
 import {
@@ -21,6 +22,7 @@ type Props = {
   bootstrapLoading?: boolean;
   googleServiceRows: ReportGoogleServiceRow[];
   metaServiceRows: ReportMetaServiceRow[];
+  tiktokServiceRows?: ReportTikTokServiceRow[];
   servicesLoading?: boolean;
 };
 
@@ -39,6 +41,7 @@ export function DigitalMarketingReportSummaryBar({
   bootstrapLoading = false,
   googleServiceRows,
   metaServiceRows,
+  tiktokServiceRows = [],
   servicesLoading = false,
 }: Props) {
   const { t } = useAppTranslation();
@@ -46,12 +49,12 @@ export function DigitalMarketingReportSummaryBar({
     () => [...REPORT_SUMMARY_DEFAULT_SLOT_KEYS],
   );
 
-  const { filteredGoogleRows, filteredMetaRows, rowsLoading } =
-    useDigitalMarketingReportFilteredRows(googleServiceRows, metaServiceRows);
+  const { filteredGoogleRows, filteredMetaRows, filteredTikTokRows, rowsLoading } =
+    useDigitalMarketingReportFilteredRows(googleServiceRows, metaServiceRows, tiktokServiceRows);
 
   const totals = useMemo(
-    () => aggregateReportTableMetrics(filteredGoogleRows, filteredMetaRows),
-    [filteredGoogleRows, filteredMetaRows],
+    () => aggregateReportTableMetrics(filteredGoogleRows, filteredMetaRows, filteredTikTokRows),
+    [filteredGoogleRows, filteredMetaRows, filteredTikTokRows],
   );
 
   const slots = useMemo(() => normalizeSlotKeys(metricKeys), [metricKeys]);

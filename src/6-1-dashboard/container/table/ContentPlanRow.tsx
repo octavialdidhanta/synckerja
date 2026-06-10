@@ -2,9 +2,18 @@ import React, { memo, useState, useRef, useEffect } from 'react';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/shared/components/ui/command';
 import { Switch } from '@/shared/components/ui/switch';
 import { Button } from '@/shared/components/ui/button';
-import { Lock, User } from 'lucide-react';
+import { ChevronDown, Lock, User } from 'lucide-react';
 import { ContentPlan, ContentType, Service, SubService, ContentPillar } from '../../types/social-media';
 import { BriefPreview } from './BriefPreview';
 import { RevisionCounter } from './RevisionCounter';
@@ -94,6 +103,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   onCarouselAllRemoved,
   onProductionResubmitForReview
 }) => {
+  const [pillarPickerOpen, setPillarPickerOpen] = useState(false);
   const [isGoogleDriveDialogOpen, setIsGoogleDriveDialogOpen] = useState(false);
   const [isSocialLinksDialogOpen, setIsSocialLinksDialogOpen] = useState(false);
   const [showApprovalOptions, setShowApprovalOptions] = useState({
@@ -736,6 +746,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
     });
   }
   const isSelected = selectedItems.includes(plan.id);
+  const selectedContentPillar = contentPillars.find((pillar) => pillar.id === plan.content_pillar_id);
 
   const selectTriggerRow = isSelected
     ? 'h-8 rounded-[5px] border border-white bg-transparent text-left text-xs text-white shadow-none ring-offset-0 hover:bg-white/10 focus:ring-2 focus:ring-white/50 focus:ring-offset-0 data-[placeholder]:text-white/75 disabled:border-white/45 disabled:text-white/65 disabled:opacity-100 [&>span]:text-inherit [&_svg]:text-white [&_svg]:opacity-90'
@@ -892,20 +903,48 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         minWidth: '180px',
         maxWidth: '180px'
       }} className="px-2 py-1 border-r border-gray-200 border-b border-gray-200">
-          <Select value={plan.content_pillar_id || 'placeholder'} onValueChange={value => {
-          if (value === 'placeholder') return;
-          onFieldChange(plan.id, 'content_pillar_id', value);
-        }}>
-              <SelectTrigger className={selectTriggerRow}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="placeholder" disabled>Select Pillar</SelectItem>
-                {contentPillars.map(pillar => <SelectItem key={pillar.id} value={pillar.id}>
-                    {pillar.name}
-                  </SelectItem>)}
-              </SelectContent>
-            </Select>
+          <Popover open={pillarPickerOpen} onOpenChange={setPillarPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                role="combobox"
+                aria-expanded={pillarPickerOpen}
+                className={cn(
+                  selectTriggerRow,
+                  'w-full justify-between px-2 font-normal hover:bg-gray-50',
+                  isSelected && 'hover:bg-white/10'
+                )}
+              >
+                <span className={cn('truncate', !selectedContentPillar && 'opacity-60')}>
+                  {selectedContentPillar?.name ?? 'Select Pillar'}
+                </span>
+                <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search pillar..." className="h-8 text-xs" />
+                <CommandList>
+                  <CommandEmpty>No pillar found.</CommandEmpty>
+                  <CommandGroup>
+                    {contentPillars.map((pillar) => (
+                      <CommandItem
+                        key={pillar.id}
+                        value={pillar.name}
+                        onSelect={() => {
+                          onFieldChange(plan.id, 'content_pillar_id', pillar.id);
+                          setPillarPickerOpen(false);
+                        }}
+                      >
+                        {pillar.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </td>
 
         {/* POINT 4: Brief - No longer locked when approved */}

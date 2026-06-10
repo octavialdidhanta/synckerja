@@ -1504,7 +1504,7 @@ export function ExpenseDashboard() {
           </div>
         </div>
 
-        <div className="h-[min(32rem,calc(100vh-18rem))] max-h-[32rem] min-h-[14rem] min-w-0 shrink-0 overflow-auto">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-[min(32rem,calc(100vh-18rem))] max-h-[32rem] min-h-[14rem] min-w-0 shrink-0 overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <table className="w-full min-w-[1400px]">
               <thead className="sticky top-0 z-10 border-b border-border bg-gray-50 shadow-sm">
                 <tr>
@@ -1748,160 +1748,6 @@ export function ExpenseDashboard() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2 flex items-center justify-between">
-                  Expense Type <span className="text-brand-red">*</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={() => setIsExpenseTypeCrudOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Manage Expense Types
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </label>
-                <Select 
-                  onValueChange={handleExpenseTypeChange}
-                  disabled={expenseTypesLoading}
-                  value={form.watch('expense_type') || undefined}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={expenseTypesLoading ? "Loading expense types..." : "Select expense type"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {expenseTypes.map(type => (
-                      <SelectItem key={type.id} value={type.name}>
-                        {type.name}
-                        {type.is_default && <Badge variant="outline" className="ml-2 text-xs">Default</Badge>}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.expense_type && (
-                  <p className="text-sm text-brand-red mt-1">{form.formState.errors.expense_type.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 flex items-center justify-between">
-                  Category <span className="text-brand-red">*</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" disabled={!selectedExpenseTypeId}>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={() => setIsExpenseCategoryCrudOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Manage Categories
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </label>
-                <Select 
-                  onValueChange={(value) => form.setValue('category', value)}
-                  disabled={!selectedExpenseTypeId || expenseCategories.length === 0}
-                  value={form.watch('category') || undefined}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={
-                      !selectedExpenseTypeId 
-                        ? "Select expense type first" 
-                        : expenseCategories.length === 0 
-                        ? "No categories available" 
-                        : "Select category"
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {expenseCategories.map(category => (
-                      <SelectItem key={category.id} value={category.name}>
-                        {category.name}
-                        {category.is_default && <Badge variant="outline" className="ml-2 text-xs">Default</Badge>}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.category && (
-                  <p className="text-sm text-brand-red mt-1">{form.formState.errors.category.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 flex items-center justify-between">
-                  Department
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={() => setIsDepartmentCrudOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Manage Departments
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </label>
-                <Select 
-                  onValueChange={(value) => form.setValue('department', value)}
-                  disabled={departmentsLoading}
-                  value={form.watch('department') || undefined}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={departmentsLoading ? "Loading departments..." : "Select department (optional)"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map(department => (
-                      <SelectItem key={department.id} value={department.name}>
-                        {department.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Create Date <span className="text-brand-red">*</span>
-                </label>
-                <Popover open={isCreateDatePickerOpen} onOpenChange={setIsCreateDatePickerOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !selectedDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, "MM/dd/yyyy") : format(new Date(), "MM/dd/yyyy")}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate || new Date()}
-                      onSelect={(date) => {
-                        setSelectedDate(date);
-                        if (date) {
-                          form.setValue('create_date', format(date, 'yyyy-MM-dd'));
-                          setIsCreateDatePickerOpen(false); // Close popover after date selection
-                        }
-                      }}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium mb-2">
                   Withdrawal From Balance <span className="text-brand-red">*</span>
                 </label>
@@ -2046,6 +1892,41 @@ export function ExpenseDashboard() {
                 )}
               </div>
 
+              <div>
+                <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                  Department
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => setIsDepartmentCrudOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Manage Departments
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </label>
+                <Select 
+                  onValueChange={(value) => form.setValue('department', value)}
+                  disabled={departmentsLoading}
+                  value={form.watch('department') || undefined}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={departmentsLoading ? "Loading departments..." : "Select department (optional)"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map(department => (
+                      <SelectItem key={department.id} value={department.name}>
+                        {department.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <IncomeAllocationOptionalSection
                 bankAccountId={form.watch('bank_account_id')}
                 referenceAmount={form.watch('amount') || 0}
@@ -2055,6 +1936,125 @@ export function ExpenseDashboard() {
                 allocationAmountStr={incomeAllocAmountStr}
                 onAllocationAmountStrChange={setIncomeAllocAmountStr}
               />
+
+              <div>
+                <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                  Expense Type <span className="text-brand-red">*</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => setIsExpenseTypeCrudOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Manage Expense Types
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </label>
+                <Select 
+                  onValueChange={handleExpenseTypeChange}
+                  disabled={expenseTypesLoading}
+                  value={form.watch('expense_type') || undefined}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={expenseTypesLoading ? "Loading expense types..." : "Select expense type"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseTypes.map(type => (
+                      <SelectItem key={type.id} value={type.name}>
+                        {type.name}
+                        {type.is_default && <Badge variant="outline" className="ml-2 text-xs">Default</Badge>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.expense_type && (
+                  <p className="text-sm text-brand-red mt-1">{form.formState.errors.expense_type.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                  Category <span className="text-brand-red">*</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" disabled={!selectedExpenseTypeId}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => setIsExpenseCategoryCrudOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Manage Categories
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </label>
+                <Select 
+                  onValueChange={(value) => form.setValue('category', value)}
+                  disabled={!selectedExpenseTypeId || expenseCategories.length === 0}
+                  value={form.watch('category') || undefined}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={
+                      !selectedExpenseTypeId 
+                        ? "Select expense type first" 
+                        : expenseCategories.length === 0 
+                        ? "No categories available" 
+                        : "Select category"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategories.map(category => (
+                      <SelectItem key={category.id} value={category.name}>
+                        {category.name}
+                        {category.is_default && <Badge variant="outline" className="ml-2 text-xs">Default</Badge>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.category && (
+                  <p className="text-sm text-brand-red mt-1">{form.formState.errors.category.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Create Date <span className="text-brand-red">*</span>
+                </label>
+                <Popover open={isCreateDatePickerOpen} onOpenChange={setIsCreateDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !selectedDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, "MM/dd/yyyy") : format(new Date(), "MM/dd/yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate || new Date()}
+                      onSelect={(date) => {
+                        setSelectedDate(date);
+                        if (date) {
+                          form.setValue('create_date', format(date, 'yyyy-MM-dd'));
+                          setIsCreateDatePickerOpen(false); // Close popover after date selection
+                        }
+                      }}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
               <div className="flex items-center space-x-2">
                 <Checkbox 

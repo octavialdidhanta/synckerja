@@ -21,6 +21,18 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"),
   },
   {
+    prefix: "/digital-marketing/tiktok-ads",
+    prefetch: () => import("@/6-0-tiktok-ads/pages/TikTokAdsMetricsPage"),
+  },
+  {
+    prefix: "/digital-marketing/social-media-performance/tiktok",
+    prefetch: () => import("@/6-0-social-media-performance/pages/TikTokContentPerformancePage"),
+  },
+  {
+    prefix: "/digital-marketing/social-media-performance",
+    prefetch: () => import("@/6-0-social-media-performance/pages/SocialMediaPerformanceHubPage"),
+  },
+  {
     prefix: "/digital-marketing/report",
     prefetch: () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
   },

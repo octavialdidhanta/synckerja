@@ -91,7 +91,7 @@ export function ExpenseDashboardSkeleton() {
                     <Skeleton className="h-9 w-full shrink-0 sm:w-32" />
                   </div>
                 </div>
-                <div className="min-h-0 min-w-0 flex-1 overflow-auto space-y-2 p-3">
+                <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-auto space-y-2 p-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <Skeleton key={i} className="h-11 w-full rounded-md" />
                   ))}

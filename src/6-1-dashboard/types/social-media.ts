@@ -98,6 +98,7 @@ export interface ContentPillar {
   id: string;
   name: string;
   description?: string;
+  category?: string;
   color?: string;
   funnel_stage?: string;
   organization_id?: string;
@@ -154,4 +155,6 @@ export interface PillarData {
   funnel: 'top' | 'middle' | 'bottom';
   previousMonthCount?: number;
   isDefault: boolean;
+  description?: string | null;
+  category?: string | null;
 }

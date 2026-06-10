@@ -19,10 +19,12 @@ import type {
   ReportChannelCost,
   ReportGoogleServiceRow,
   ReportMetaServiceRow,
+  ReportTikTokServiceRow,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportCosts";
 import { useDigitalMarketingReportFilteredRows } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportFilteredRows";
 import { GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH } from "@/google-ads/settings/googleAdsSettingsPaths";
 import { META_ADS_DIGITAL_MARKETING_SETTINGS_PATH } from "@/meta-ads/settings/metaAdsSettingsPaths";
+import { TIKTOK_ADS_DIGITAL_MARKETING_SETTINGS_PATH } from "@/tiktok-ads/settings/tiktokAdsSettingsPaths";
 
 const thClass =
   "h-10 whitespace-nowrap bg-gray-50 px-3 text-left align-middle text-sm font-medium text-muted-foreground";
@@ -114,12 +116,118 @@ type MetaServiceTableRowProps = {
   cpaTooltip: string;
 };
 
+type TikTokServiceTableRowProps = {
+  channelLabel: string;
+  row: ReportTikTokServiceRow;
+  channelCost: ReportChannelCost;
+  cpaTooltip: string;
+};
+
 function MetaServiceTableRow({
   channelLabel,
   row,
   channelCost,
   cpaTooltip,
 }: MetaServiceTableRowProps) {
+  const { t } = useAppTranslation();
+  const connected = channelCost.connected && !channelCost.error;
+  const currency = row.currency ?? channelCost.currency ?? "USD";
+
+  return (
+    <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
+      <td className="px-3 py-3 align-middle text-sm font-medium text-gray-900">
+        {channelLabel}
+      </td>
+      <td className="max-w-[12rem] px-3 py-3 align-middle text-sm">
+        <ReportServiceCell serviceId={row.serviceId} serviceName={row.serviceName} />
+      </td>
+      <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
+        {channelCost.loading ? (
+          <Skeleton className="ml-auto h-5 w-20" />
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-help">
+                {formatMetaMetricValue("spend", row.costPerLead, currency)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-xs">
+              {cpaTooltip}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </td>
+      <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
+        {channelCost.loading ? (
+          <Skeleton className="ml-auto h-5 w-12" />
+        ) : (
+          formatCount(row.convertedLeads)
+        )}
+      </td>
+      <td className="px-3 py-3 align-middle text-sm">
+        {channelCost.loading ? (
+          <Skeleton className="h-4 w-16" />
+        ) : channelCost.error ? (
+          <span className="text-xs text-destructive">{channelCost.error}</span>
+        ) : (
+          <span className="text-xs text-emerald-700">
+            {t("digitalMarketing.report.statusConnected", "Connected")}
+          </span>
+        )}
+      </td>
+      <td className="max-w-[12rem] truncate px-3 py-3 align-middle text-sm text-muted-foreground">
+        {channelCost.accountLabel ?? "—"}
+      </td>
+      <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
+        {channelCost.loading ? (
+          <Skeleton className="ml-auto h-5 w-24" />
+        ) : (
+          formatMetaMetricValue("spend", row.amount, currency)
+        )}
+      </td>
+      <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
+        {channelCost.loading ? (
+          <Skeleton className="ml-auto h-5 w-20" />
+        ) : (
+          formatCount(row.impressions)
+        )}
+      </td>
+      <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
+        {channelCost.loading ? (
+          <Skeleton className="ml-auto h-5 w-16" />
+        ) : (
+          formatChannelCtr(row.clicks, row.impressions, connected)
+        )}
+      </td>
+      <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
+        {channelCost.loading ? (
+          <Skeleton className="ml-auto h-5 w-20" />
+        ) : (
+          formatCount(row.clicks)
+        )}
+      </td>
+      <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
+        {channelCost.loading ? (
+          <Skeleton className="ml-auto h-5 w-20" />
+        ) : (
+          formatMetaCpc({
+            connected,
+            amount: row.amount,
+            clicks: row.clicks,
+            currency,
+          })
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function TikTokServiceTableRow({
+  channelLabel,
+  row,
+  channelCost,
+  cpaTooltip,
+}: TikTokServiceTableRowProps) {
   const { t } = useAppTranslation();
   const connected = channelCost.connected && !channelCost.error;
   const currency = row.currency ?? channelCost.currency ?? "USD";
@@ -311,7 +419,7 @@ type ChannelTableRowProps = {
   channelLabel: string;
   serviceLabel: string;
   cost: ReportChannelCost;
-  channel: "google" | "meta";
+  channel: "google" | "meta" | "tiktok";
   notConnectedKey: string;
   settingsPath: string;
   settingsLinkKey: string;
@@ -446,26 +554,30 @@ type Props = {
   bootstrapLoading?: boolean;
   googleCost: ReportChannelCost;
   metaCost: ReportChannelCost;
+  tiktokCost: ReportChannelCost;
   googleServiceRows: ReportGoogleServiceRow[];
   googleServicesLoading?: boolean;
   metaServiceRows: ReportMetaServiceRow[];
   metaServicesLoading?: boolean;
+  tiktokServiceRows: ReportTikTokServiceRow[];
+  tiktokServicesLoading?: boolean;
 };
 
 export function DigitalMarketingReportTable({
   bootstrapLoading = false,
   googleCost,
   metaCost,
+  tiktokCost,
   googleServiceRows,
   googleServicesLoading = false,
   metaServiceRows,
   metaServicesLoading = false,
+  tiktokServiceRows,
+  tiktokServicesLoading = false,
 }: Props) {
   const { t } = useAppTranslation();
-  const { filteredGoogleRows, filteredMetaRows } = useDigitalMarketingReportFilteredRows(
-    googleServiceRows,
-    metaServiceRows,
-  );
+  const { filteredGoogleRows, filteredMetaRows, filteredTikTokRows } =
+    useDigitalMarketingReportFilteredRows(googleServiceRows, metaServiceRows, tiktokServiceRows);
   const cpaTooltip = t(
     "digitalMarketing.report.serviceCplTooltip",
     "CPA per service: total mapped campaign spend divided by Converted leads (UTM campaign per campaign row, summed per service). CPL is for non-converted leads.",
@@ -474,15 +586,22 @@ export function DigitalMarketingReportTable({
     "digitalMarketing.report.metaServiceCplTooltip",
     "CPA per service (Meta): total mapped campaign spend divided by Converted leads with fbclid (UTM campaign per row, summed per service). CPL is for non-converted leads.",
   );
+  const tiktokCpaTooltip = t(
+    "digitalMarketing.report.tiktokServiceCplTooltip",
+    "CPA per service (TikTok): total mapped campaign spend divided by Converted leads (UTM campaign per row, summed per service). CPL is for non-converted leads.",
+  );
   const googleChannelLabel = t("digitalMarketing.report.channelGoogle", "Google Ads");
   const metaChannelLabel = t("digitalMarketing.report.channelMeta", "Meta Ads");
+  const tiktokChannelLabel = t("digitalMarketing.report.channelTikTok", "TikTok Ads");
   const showGoogleServiceRows = googleCost.connected && !googleCost.error;
   const showGoogleLegacyRow = !googleCost.connected;
   const showMetaLegacyRow = !metaCost.connected;
+  const showTikTokLegacyRow = !tiktokCost.connected;
   const showServiceRowSkeletons =
-    !bootstrapLoading && (googleServicesLoading || metaServicesLoading);
+    !bootstrapLoading &&
+    (googleServicesLoading || metaServicesLoading || tiktokServicesLoading);
 
-  if (bootstrapLoading && (googleServicesLoading || metaServicesLoading)) {
+  if (bootstrapLoading && (googleServicesLoading || metaServicesLoading || tiktokServicesLoading)) {
     return (
       <div
         className="min-h-[12rem] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
@@ -578,6 +697,33 @@ export function DigitalMarketingReportTable({
                     row={row}
                     channelCost={metaCost}
                     cpaTooltip={metaCpaTooltip}
+                  />
+                ))
+              )}
+
+              {showTikTokLegacyRow ? (
+                <ChannelTableRow
+                  channelLabel={tiktokChannelLabel}
+                  serviceLabel="—"
+                  cost={tiktokCost}
+                  channel="tiktok"
+                  notConnectedKey="digitalMarketing.report.tiktokNotConnected"
+                  settingsPath={TIKTOK_ADS_DIGITAL_MARKETING_SETTINGS_PATH}
+                  settingsLinkKey="digitalMarketing.report.tiktokSettingsLink"
+                />
+              ) : showServiceRowSkeletons && tiktokServicesLoading ? (
+                <>
+                  <ServiceRowSkeleton />
+                  <ServiceRowSkeleton />
+                </>
+              ) : (
+                filteredTikTokRows.map((row) => (
+                  <TikTokServiceTableRow
+                    key={`tiktok-${row.serviceId ?? `unmapped-${row.serviceName}`}`}
+                    channelLabel={tiktokChannelLabel}
+                    row={row}
+                    channelCost={tiktokCost}
+                    cpaTooltip={tiktokCpaTooltip}
                   />
                 ))
               )}

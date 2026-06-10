@@ -83,31 +83,41 @@ export function serviceFilterLabel(
 export type ReportCombinedChannelScope = {
   includeGoogle: boolean;
   includeMeta: boolean;
+  includeTikTok: boolean;
 };
 
 export function buildReportCombinedChannelScope(args: {
   serviceFilterActive: boolean;
   hasGoogleServiceRow: boolean;
   hasMetaServiceRow: boolean;
+  hasTikTokServiceRow: boolean;
   googleConnected: boolean;
   metaConnected: boolean;
+  tiktokConnected: boolean;
 }): ReportCombinedChannelScope {
   if (!args.serviceFilterActive) {
     return {
       includeGoogle: args.googleConnected,
       includeMeta: args.metaConnected,
+      includeTikTok: args.tiktokConnected,
     };
   }
   return {
     includeGoogle: args.hasGoogleServiceRow,
     includeMeta: args.hasMetaServiceRow,
+    includeTikTok: args.hasTikTokServiceRow,
   };
 }
 
 export function combineMonthlyGoogleMeta(
   googleValue: number,
   metaValue: number,
+  tiktokValue: number,
   scope: ReportCombinedChannelScope,
 ): number {
-  return (scope.includeGoogle ? googleValue : 0) + (scope.includeMeta ? metaValue : 0);
+  return (
+    (scope.includeGoogle ? googleValue : 0) +
+    (scope.includeMeta ? metaValue : 0) +
+    (scope.includeTikTok ? tiktokValue : 0)
+  );
 }

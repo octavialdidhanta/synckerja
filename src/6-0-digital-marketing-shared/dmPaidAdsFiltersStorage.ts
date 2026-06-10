@@ -23,7 +23,7 @@ const VALID_PRESETS = new Set<GoogleAdsDatePresetId>([
   "last_n_days_yesterday",
 ]);
 
-export type MonthlyChartChannelFilter = "all" | "by_channel" | "google" | "meta";
+export type MonthlyChartChannelFilter = "all" | "by_channel" | "google" | "meta" | "tiktok";
 
 /** Report table + monthly charts service scope (`""` = all). */
 export type ReportServiceFilterStored = string;
@@ -32,6 +32,7 @@ export type DmPaidAdsFiltersStored = {
   dateSelection: GoogleAdsDateRangeSelection;
   googleCustomerId: string;
   metaAdAccountId: string;
+  tiktokAdvertiserId: string;
   reportChartYear: number;
   /** Report Spend/CPA/Leads charts: monthly breakdown for reportChartYear. */
   reportChartCompareEnabled: boolean;
@@ -46,6 +47,7 @@ type StoredJson = {
   to?: string | null;
   googleCustomerId?: string;
   metaAdAccountId?: string;
+  tiktokAdvertiserId?: string;
   reportChartYear?: number;
   reportChartCompareEnabled?: boolean;
   calendarYear?: number;
@@ -58,6 +60,7 @@ const VALID_MONTHLY_CHART_CHANNEL: ReadonlySet<MonthlyChartChannelFilter> = new 
   "by_channel",
   "google",
   "meta",
+  "tiktok",
 ]);
 
 function storageKey(organizationId: string): string {
@@ -106,6 +109,8 @@ export function readDmPaidAdsFilters(organizationId: string): DmPaidAdsFiltersSt
       dateSelection,
       googleCustomerId: typeof parsed.googleCustomerId === "string" ? parsed.googleCustomerId : "",
       metaAdAccountId: typeof parsed.metaAdAccountId === "string" ? parsed.metaAdAccountId : "",
+      tiktokAdvertiserId:
+        typeof parsed.tiktokAdvertiserId === "string" ? parsed.tiktokAdvertiserId : "",
       reportChartYear:
         typeof parsed.reportChartYear === "number" &&
         parsed.reportChartYear >= 2000 &&
@@ -142,6 +147,7 @@ export function writeDmPaidAdsFilters(
       to: value.dateSelection.range.to?.toISOString() ?? null,
       googleCustomerId: value.googleCustomerId,
       metaAdAccountId: value.metaAdAccountId,
+      tiktokAdvertiserId: value.tiktokAdvertiserId,
       reportChartYear: value.reportChartYear,
       reportChartCompareEnabled: value.reportChartCompareEnabled,
       monthlyChartChannelFilter: value.monthlyChartChannelFilter,

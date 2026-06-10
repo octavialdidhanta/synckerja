@@ -20,7 +20,7 @@ export const useContentPillarData = (selectedMonth?: Date, serviceFilter?: strin
         // Optimized query using the new is_default column
         const { data: pillarsData, error: pillarsError } = await supabase
           .from('content_pillars')
-          .select('id, name, funnel_stage, organization_id, is_default')
+          .select('id, name, funnel_stage, organization_id, is_default, description, category')
           .eq('is_active', true)
           .or(organizationId ? `is_default.eq.true,organization_id.eq.${organizationId}` : 'is_default.eq.true')
           .order('is_default', { ascending: false })
@@ -141,7 +141,9 @@ export const useContentPillarData = (selectedMonth?: Date, serviceFilter?: strin
             count: usageCounts[pillar.id] || 0,
             funnel: (pillar.funnel_stage as 'top' | 'middle' | 'bottom') || 'top',
             previousMonthCount: prevUsageCounts[pillar.id] || 0,
-            isDefault: pillar.is_default || false
+            isDefault: pillar.is_default || false,
+            description: pillar.description ?? null,
+            category: pillar.category ?? null,
           };
           return pillarData;
         });

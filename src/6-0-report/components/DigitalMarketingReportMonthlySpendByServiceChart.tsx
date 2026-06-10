@@ -134,6 +134,7 @@ type Props = {
   chartData: ReportSpendByServiceChartPoint[];
   googleSeries: MonthlySpendChannelSeries;
   metaSeries: MonthlySpendChannelSeries;
+  tiktokSeries: MonthlySpendChannelSeries;
   chartLoading: boolean;
   chartDateOverlap: boolean;
   currency: string | null;
@@ -147,6 +148,7 @@ export function DigitalMarketingReportMonthlySpendByServiceChart({
   chartData,
   googleSeries,
   metaSeries,
+  tiktokSeries,
   chartLoading,
   chartDateOverlap,
   currency,
@@ -156,9 +158,9 @@ export function DigitalMarketingReportMonthlySpendByServiceChart({
   const { t } = useAppTranslation();
 
   const blockingError =
-    serviceFetchError ?? getMonthlyChartBlockingError(channelFilter, googleSeries, metaSeries);
+    serviceFetchError ?? getMonthlyChartBlockingError(channelFilter, googleSeries, metaSeries, tiktokSeries);
   const metaSkippedNotice =
-    isMetaSeriesChartSkipped(metaSeries) && channelFilter !== "google"
+    isMetaSeriesChartSkipped(metaSeries) && channelFilter !== "google" && channelFilter !== "tiktok"
       ? metaSeries.unavailableReason
       : null;
 
@@ -189,9 +191,9 @@ export function DigitalMarketingReportMonthlySpendByServiceChart({
         bootstrapLoading ? null : (
           <Skeleton className="h-[300px] w-full rounded-md" />
         )
-      ) : !hasMonthlyChartDisplayableChannel(channelFilter, googleSeries, metaSeries) ? (
+      ) : !hasMonthlyChartDisplayableChannel(channelFilter, googleSeries, metaSeries, tiktokSeries) ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
-          {!googleSeries.connected && !metaSeries.connected
+          {!googleSeries.connected && !metaSeries.connected && !tiktokSeries.connected
             ? t(
                 "digitalMarketing.report.monthlySpendNotConnected",
                 "Connect Google Ads or Meta Ads to see monthly spend.",

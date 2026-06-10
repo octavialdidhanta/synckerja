@@ -32,6 +32,7 @@ import type {
   ReportChannelCost,
   ReportGoogleServiceRow,
   ReportMetaServiceRow,
+  ReportTikTokServiceRow,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportCosts";
 
 function channelHasNoMetrics(cost: ReportChannelCost): boolean {
@@ -65,6 +66,17 @@ function metaReportHasNoMetrics(
   );
 }
 
+function tiktokReportHasNoMetrics(
+  tiktokCost: ReportChannelCost,
+  tiktokServiceRows: ReportTikTokServiceRow[],
+): boolean {
+  if (!tiktokCost.connected) return true;
+  if (tiktokServiceRows.length === 0) return channelHasNoMetrics(tiktokCost);
+  return tiktokServiceRows.every(
+    (r) => r.amount === 0 && r.impressions === 0 && r.clicks === 0,
+  );
+}
+
 type ReportPageBodyProps = {
   chartsFetchEnabled: boolean;
   onTablePhaseReady: () => void;
@@ -88,10 +100,13 @@ function DigitalMarketingReportPageBody({
   const {
     googleCost,
     metaCost,
+    tiktokCost,
     googleServiceRows,
     googleServicesLoading,
     metaServiceRows,
     metaServicesLoading,
+    tiktokServiceRows,
+    tiktokServicesLoading,
     pageLoading,
     effectiveGoogleCustomerId,
     monthlySpend,
@@ -100,7 +115,7 @@ function DigitalMarketingReportPageBody({
   const { chartLoading } = monthlySpend;
 
   const rawTablePhasePending =
-    pageLoading || googleCost.loading || metaCost.loading;
+    pageLoading || googleCost.loading || metaCost.loading || tiktokCost.loading;
 
   const [showTableSkeletonOverlay, setShowTableSkeletonOverlay] = useState(true);
   const revealRafOuterRef = useRef<number | null>(null);
@@ -189,13 +204,13 @@ function DigitalMarketingReportPageBody({
   const serviceFilterOptions = useMemo(
     () =>
       buildReportServiceFilterOptions(
-        [...googleServiceRows, ...metaServiceRows],
+        [...googleServiceRows, ...metaServiceRows, ...tiktokServiceRows],
         {
           all: t("digitalMarketing.report.serviceFilterAll", "All services"),
           unmapped: t("digitalMarketing.report.serviceUnmapped", "Belum di-map"),
         },
       ),
-    [googleServiceRows, metaServiceRows, t],
+    [googleServiceRows, metaServiceRows, tiktokServiceRows, t],
   );
 
   const calendarYearPresetYears = useMemo(
@@ -316,17 +331,23 @@ function DigitalMarketingReportPageBody({
                           bootstrapLoading={showTableSkeletonOverlay}
                           googleServiceRows={googleServiceRows}
                           metaServiceRows={metaServiceRows}
-                          servicesLoading={googleServicesLoading || metaServicesLoading}
+                          tiktokServiceRows={tiktokServiceRows}
+                          servicesLoading={
+                            googleServicesLoading || metaServicesLoading || tiktokServicesLoading
+                          }
                         />
 
                         <DigitalMarketingReportTable
                           bootstrapLoading={showTableSkeletonOverlay}
                           googleCost={googleCost}
                           metaCost={metaCost}
+                          tiktokCost={tiktokCost}
                           googleServiceRows={googleServiceRows}
                           googleServicesLoading={googleServicesLoading}
                           metaServiceRows={metaServiceRows}
                           metaServicesLoading={metaServicesLoading}
+                          tiktokServiceRows={tiktokServiceRows}
+                          tiktokServicesLoading={tiktokServicesLoading}
                         />
 
                         <DigitalMarketingReportMonthlyChartsSection
@@ -337,11 +358,14 @@ function DigitalMarketingReportPageBody({
 
                         {!googleCost.loading &&
                         !metaCost.loading &&
+                        !tiktokCost.loading &&
                         !googleServicesLoading &&
                         !metaServicesLoading &&
-                        (googleCost.connected || metaCost.connected) &&
+                        !tiktokServicesLoading &&
+                        (googleCost.connected || metaCost.connected || tiktokCost.connected) &&
                         googleReportHasNoMetrics(googleCost, googleServiceRows) &&
-                        metaReportHasNoMetrics(metaCost, metaServiceRows) ? (
+                        metaReportHasNoMetrics(metaCost, metaServiceRows) &&
+                        tiktokReportHasNoMetrics(tiktokCost, tiktokServiceRows) ? (
                           <p className="text-center text-sm text-muted-foreground">
                             {t(
                               "digitalMarketing.report.noSpendData",

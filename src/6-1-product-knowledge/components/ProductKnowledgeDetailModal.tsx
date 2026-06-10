@@ -32,6 +32,21 @@ import { useContentPillarsSelect } from '../hooks/useContentPillarsSelect';
 import type { ProductKnowledgeDetail } from '../hooks/useProductKnowledgeDetail';
 import { Badge } from '@/shared/components/ui/badge';
 import { BookOpen, Plus, Search, X } from 'lucide-react';
+import type { ContentPillarOption } from '../hooks/useContentPillarsSelect';
+
+function buildPillarDescriptionBlock(pillar: Pick<ContentPillarOption, 'name' | 'description'>): string {
+  const description = pillar.description?.trim();
+  if (!description) return '';
+  return `${pillar.name.trim()}\n${description}`;
+}
+
+function appendPillarDescriptionToContent(content: string, block: string): string {
+  if (!block) return content;
+  const trimmedContent = content.trim();
+  if (!trimmedContent) return block;
+  if (trimmedContent.includes(block)) return content;
+  return `${trimmedContent}\n\n${block}`;
+}
 
 export type ProductKnowledgeDetailFormPayload = Pick<
   ProductKnowledgeDetail,
@@ -110,11 +125,26 @@ export const ProductKnowledgeDetailModal: React.FC<ProductKnowledgeDetailModalPr
   }, [open, initialData]);
 
   const handlePillarToggle = (pillarId: string) => {
+    const pillar = contentPillars.find((p) => p.id === pillarId);
     setFormData((prev) => {
-      const next = prev.content_pillar_ids.includes(pillarId)
+      const isRemoving = prev.content_pillar_ids.includes(pillarId);
+      const nextPillarIds = isRemoving
         ? prev.content_pillar_ids.filter((id) => id !== pillarId)
         : [...prev.content_pillar_ids, pillarId];
-      return { ...prev, content_pillar_ids: next };
+
+      if (isRemoving || !pillar) {
+        return { ...prev, content_pillar_ids: nextPillarIds };
+      }
+
+      const descriptionBlock = buildPillarDescriptionBlock(pillar);
+      return {
+        ...prev,
+        content_pillar_ids: nextPillarIds,
+        product_knowledge_content: appendPillarDescriptionToContent(
+          prev.product_knowledge_content,
+          descriptionBlock,
+        ),
+      };
     });
   };
 

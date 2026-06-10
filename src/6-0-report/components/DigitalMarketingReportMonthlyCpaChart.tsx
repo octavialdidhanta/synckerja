@@ -25,11 +25,14 @@ import {
   isGoogleSeriesChartActive,
   isMetaSeriesChartActive,
   isMetaSeriesChartSkipped,
+  isTikTokSeriesChartActive,
+  isTikTokSeriesChartSkipped,
 } from "@/6-0-digital-marketing-shared/monthlyReportChartDisplay";
 import type { ReportCombinedChannelScope } from "@/6-0-digital-marketing-shared/reportServiceFilter";
 
 const GOOGLE_BAR = "hsl(204 70% 42%)";
 const META_BAR = "hsl(262 55% 52%)";
+const TIKTOK_BAR = "hsl(350 80% 50%)";
 const COMBINED_BAR = "hsl(160 52% 36%)";
 
 const WIDE_MONTHLY_BAR_LAYOUT = {
@@ -99,7 +102,7 @@ function resolveLabelNumericValue(
 /** Recharts 2 `formatter` on LabelList does not receive raw bar values — use `content` instead. */
 function createCpaBarLabelRenderer(
   currency: string | null,
-  dataKey: "totalCpa" | "googleCpa" | "metaCpa",
+  dataKey: "totalCpa" | "googleCpa" | "metaCpa" | "tiktokCpa",
 ) {
   return function CpaBarLabelContent(props: {
     x?: number | string;
@@ -136,15 +139,19 @@ type CpaTooltipProps = TooltipProps<number, string> & {
   channelFilter: MonthlySpendChannelFilter;
   googleCurrency: string | null;
   metaCurrency: string | null;
+  tiktokCurrency: string | null;
   metaPeriodSpend: number;
+  tiktokPeriodSpend: number;
   showGoogle: boolean;
   showMeta: boolean;
+  showTikTok: boolean;
   combinedScope: ReportCombinedChannelScope;
   mixedCurrency: boolean;
   labels: {
     total: string;
     google: string;
     meta: string;
+    tiktok: string;
     mixedHint: string;
     notCalculable: string;
     cpaNotAvailable: string;
@@ -162,9 +169,12 @@ function CpaTooltip({
   channelFilter,
   googleCurrency,
   metaCurrency,
+  tiktokCurrency,
   metaPeriodSpend,
+  tiktokPeriodSpend,
   showGoogle,
   showMeta,
+  showTikTok,
   combinedScope,
   mixedCurrency,
   labels,
@@ -218,9 +228,10 @@ function CpaTooltip({
 
   if (channelFilter === "all") {
     const primaryCurrency =
-      googleCurrency && metaCurrency && googleCurrency === metaCurrency
-        ? googleCurrency
-        : (googleCurrency ?? metaCurrency);
+      [googleCurrency, metaCurrency, tiktokCurrency].filter(Boolean).length > 0 &&
+      new Set([googleCurrency, metaCurrency, tiktokCurrency].filter(Boolean)).size === 1
+        ? (googleCurrency ?? metaCurrency ?? tiktokCurrency)
+        : (googleCurrency ?? metaCurrency ?? tiktokCurrency);
     return (
       <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
         <p className="mb-1 font-medium text-gray-900">{label}</p>
@@ -252,6 +263,21 @@ function CpaTooltip({
               metaCurrency,
               {
                 periodSpend: metaPeriodSpend,
+                noSpendHint: labels.cpaNoSpendThisMonthHint,
+              },
+            )}
+          </div>
+        ) : null}
+        {showTikTok && combinedScope.includeTikTok && (row.tiktokSpend > 0 || row.tiktokLeads > 0) ? (
+          <div className="mt-1 border-t border-gray-100 pt-1">
+            {renderChannelBlock(
+              row.tiktokCpa,
+              row.tiktokSpend,
+              row.tiktokLeads,
+              labels.tiktok,
+              tiktokCurrency,
+              {
+                periodSpend: tiktokPeriodSpend,
                 noSpendHint: labels.cpaNoSpendThisMonthHint,
               },
             )}
@@ -294,6 +320,23 @@ function CpaTooltip({
             )}
           </div>
         ) : null}
+        {showTikTok ? (
+          <div
+            className={showGoogle || showMeta ? "mt-1 border-t border-gray-100 pt-1" : undefined}
+          >
+            {renderChannelBlock(
+              row.tiktokCpa,
+              row.tiktokSpend,
+              row.tiktokLeads,
+              labels.tiktok,
+              tiktokCurrency,
+              {
+                periodSpend: tiktokPeriodSpend,
+                noSpendHint: labels.cpaNoSpendThisMonthHint,
+              },
+            )}
+          </div>
+        ) : null}
         {mixedCurrency ? (
           <p className="mt-1 text-[11px] text-amber-700">{labels.mixedHint}</p>
         ) : null}
@@ -304,10 +347,13 @@ function CpaTooltip({
   const entry = payload[0];
   const name = String(entry?.name ?? "");
   const isGoogle = name === "googleCpa";
-  const cpa = isGoogle ? row.googleCpa : row.metaCpa;
-  const spend = isGoogle ? row.googleSpend : row.metaSpend;
-  const leads = isGoogle ? row.googleLeads : row.metaLeads;
-  const currency = isGoogle ? googleCurrency : metaCurrency;
+  const isMeta = name === "metaCpa";
+  const isTikTok = name === "tiktokCpa";
+  const cpa = isGoogle ? row.googleCpa : isMeta ? row.metaCpa : row.tiktokCpa;
+  const spend = isGoogle ? row.googleSpend : isMeta ? row.metaSpend : row.tiktokSpend;
+  const leads = isGoogle ? row.googleLeads : isMeta ? row.metaLeads : row.tiktokLeads;
+  const currency = isGoogle ? googleCurrency : isMeta ? metaCurrency : tiktokCurrency;
+  const channelLabel = isGoogle ? labels.google : isMeta ? labels.meta : labels.tiktok;
 
   return (
     <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
@@ -316,12 +362,12 @@ function CpaTooltip({
         cpa,
         spend,
         leads,
-        isGoogle ? labels.google : labels.meta,
+        channelLabel,
         currency,
         isGoogle
           ? undefined
           : {
-              periodSpend: metaPeriodSpend,
+              periodSpend: isMeta ? metaPeriodSpend : tiktokPeriodSpend,
               noSpendHint: labels.cpaNoSpendThisMonthHint,
             },
       )}
@@ -335,6 +381,7 @@ type Props = {
   chartData: ReportMonthlyCpaChartPoint[];
   googleSeries: MonthlySpendChannelSeries;
   metaSeries: MonthlySpendChannelSeries;
+  tiktokSeries: MonthlySpendChannelSeries;
   combinedScope: ReportCombinedChannelScope;
   chartLoading: boolean;
   chartDateOverlap: boolean;
@@ -348,6 +395,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
   chartData,
   googleSeries,
   metaSeries,
+  tiktokSeries,
   combinedScope,
   chartLoading,
   chartDateOverlap,
@@ -356,25 +404,30 @@ export function DigitalMarketingReportMonthlyCpaChart({
   const { t } = useAppTranslation();
 
   const mixedCurrency =
-    googleSeries.connected &&
-    metaSeries.connected &&
-    googleSeries.currency != null &&
-    metaSeries.currency != null &&
-    googleSeries.currency !== metaSeries.currency;
+    [googleSeries, metaSeries, tiktokSeries]
+      .filter((s) => s.connected && s.currency != null)
+      .map((s) => s.currency!)
+      .filter((c, i, arr) => arr.indexOf(c) === i).length > 1;
 
   const effectiveChannelFilter =
     channelFilter === "all" && mixedCurrency ? ("by_channel" as const) : channelFilter;
 
   const showGoogle = isGoogleSeriesChartActive(googleSeries, effectiveChannelFilter);
   const showMeta = isMetaSeriesChartActive(metaSeries, effectiveChannelFilter);
+  const showTikTok = isTikTokSeriesChartActive(tiktokSeries, effectiveChannelFilter);
   const metaSkippedNotice =
-    isMetaSeriesChartSkipped(metaSeries) && showGoogle
+    isMetaSeriesChartSkipped(metaSeries) && (showGoogle || showTikTok)
       ? metaSeries.unavailableReason
+      : null;
+  const tiktokSkippedNotice =
+    isTikTokSeriesChartSkipped(tiktokSeries) && (showGoogle || showMeta)
+      ? tiktokSeries.unavailableReason
       : null;
   const blockingError = getMonthlyChartBlockingError(
     effectiveChannelFilter,
     googleSeries,
     metaSeries,
+    tiktokSeries,
   );
   const showCombined = effectiveChannelFilter === "all";
   const showGrouped = effectiveChannelFilter === "by_channel";
@@ -382,29 +435,38 @@ export function DigitalMarketingReportMonthlyCpaChart({
 
   const axisCurrency =
     showCombined && !mixedCurrency
-      ? (googleSeries.currency ?? metaSeries.currency)
+      ? (googleSeries.currency ?? metaSeries.currency ?? tiktokSeries.currency)
       : effectiveChannelFilter === "google"
         ? googleSeries.currency
         : effectiveChannelFilter === "meta"
           ? metaSeries.currency
-          : showGoogle && showMeta && mixedCurrency
+          : effectiveChannelFilter === "tiktok"
+            ? tiktokSeries.currency
+          : showGoogle && showMeta && showTikTok && mixedCurrency
             ? null
-            : (googleSeries.currency ?? metaSeries.currency);
+            : (googleSeries.currency ?? metaSeries.currency ?? tiktokSeries.currency);
 
   const hasData = chartData.some((row) => {
     if (effectiveChannelFilter === "all") return row.totalCpa != null && row.totalCpa > 0;
     if (effectiveChannelFilter === "google") return row.googleCpa != null && row.googleCpa > 0;
     if (effectiveChannelFilter === "meta") return row.metaCpa != null && row.metaCpa > 0;
+    if (effectiveChannelFilter === "tiktok") return row.tiktokCpa != null && row.tiktokCpa > 0;
     return (
       (row.googleCpa != null && row.googleCpa > 0) ||
-      (row.metaCpa != null && row.metaCpa > 0)
+      (row.metaCpa != null && row.metaCpa > 0) ||
+      (row.tiktokCpa != null && row.tiktokCpa > 0)
     );
   });
 
   const loading = chartLoading;
 
   const barChartSpacing = useMemo(() => {
-    if (showCombined || effectiveChannelFilter === "google" || effectiveChannelFilter === "meta") {
+    if (
+      showCombined ||
+      effectiveChannelFilter === "google" ||
+      effectiveChannelFilter === "meta" ||
+      effectiveChannelFilter === "tiktok"
+    ) {
       return WIDE_MONTHLY_BAR_LAYOUT;
     }
     if (showGrouped) {
@@ -424,6 +486,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
       total: t("digitalMarketing.report.monthlySpendFilterAll", "All channels"),
       google: t("digitalMarketing.report.channelGoogle", "Google Ads"),
       meta: t("digitalMarketing.report.channelMeta", "Meta Ads"),
+      tiktok: t("digitalMarketing.report.channelTikTok", "TikTok Ads"),
       mixedHint: t(
         "digitalMarketing.report.monthlyCpaMixedCurrencyHint",
         "Combined CPA is unavailable when channels use different currencies. Showing per channel.",
@@ -457,6 +520,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
         totalCpa: row.totalCpa ?? undefined,
         googleCpa: row.googleCpa ?? undefined,
         metaCpa: row.metaCpa ?? undefined,
+        tiktokCpa: row.tiktokCpa ?? undefined,
       })),
     [chartData],
   );
@@ -489,12 +553,13 @@ export function DigitalMarketingReportMonthlyCpaChart({
           effectiveChannelFilter,
           googleSeries,
           metaSeries,
+          tiktokSeries,
         ) ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
-          {!googleSeries.connected && !metaSeries.connected
+          {!googleSeries.connected && !metaSeries.connected && !tiktokSeries.connected
             ? t(
                 "digitalMarketing.report.monthlyCpaNotConnected",
-                "Connect Google Ads or Meta Ads to see monthly CPA.",
+                "Connect Google Ads, Meta Ads, or TikTok Ads to see monthly CPA.",
               )
             : blockingError}
         </div>
@@ -517,6 +582,9 @@ export function DigitalMarketingReportMonthlyCpaChart({
         <>
           {metaSkippedNotice ? (
             <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
+          ) : null}
+          {tiktokSkippedNotice ? (
+            <p className="mb-2 text-xs text-amber-700">{tiktokSkippedNotice}</p>
           ) : null}
           <div className="mb-2 flex flex-wrap items-center gap-4">
             {showCombined ? (
@@ -552,6 +620,17 @@ export function DigitalMarketingReportMonthlyCpaChart({
                 {metaSeries.currency ? ` (${metaSeries.currency})` : ""}
               </span>
             ) : null}
+            {showGrouped && showTikTok ? (
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ backgroundColor: TIKTOK_BAR }}
+                  aria-hidden
+                />
+                {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
+                {tiktokSeries.currency ? ` (${tiktokSeries.currency})` : ""}
+              </span>
+            ) : null}
             {effectiveChannelFilter === "google" ? (
               <span className="flex items-center gap-1.5 text-xs text-gray-600">
                 <span
@@ -572,6 +651,17 @@ export function DigitalMarketingReportMonthlyCpaChart({
                 />
                 {t("digitalMarketing.report.channelMeta", "Meta Ads")}
                 {metaSeries.currency ? ` (${metaSeries.currency})` : ""}
+              </span>
+            ) : null}
+            {effectiveChannelFilter === "tiktok" ? (
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ backgroundColor: TIKTOK_BAR }}
+                  aria-hidden
+                />
+                {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
+                {tiktokSeries.currency ? ` (${tiktokSeries.currency})` : ""}
               </span>
             ) : null}
           </div>
@@ -612,9 +702,12 @@ export function DigitalMarketingReportMonthlyCpaChart({
                       channelFilter={effectiveChannelFilter}
                       googleCurrency={googleSeries.currency}
                       metaCurrency={metaSeries.currency}
+                      tiktokCurrency={tiktokSeries.currency}
                       metaPeriodSpend={metaSeries.periodSummary?.spend ?? 0}
+                      tiktokPeriodSpend={tiktokSeries.periodSummary?.spend ?? 0}
                       showGoogle={googleSeries.connected}
                       showMeta={metaSeries.connected}
+                      showTikTok={tiktokSeries.connected}
                       combinedScope={combinedScope}
                       mixedCurrency={mixedCurrency}
                       labels={tooltipLabels}
@@ -633,11 +726,18 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     <LabelList
                       position="top"
                       content={createCpaBarLabelRenderer(
-                        googleSeries.currency &&
-                          metaSeries.currency &&
-                          googleSeries.currency === metaSeries.currency
-                          ? googleSeries.currency
-                          : (googleSeries.currency ?? metaSeries.currency),
+                        (() => {
+                          const codes = [
+                            googleSeries.currency,
+                            metaSeries.currency,
+                            tiktokSeries.currency,
+                          ].filter(Boolean);
+                          return codes.length > 0 && new Set(codes).size === 1
+                            ? codes[0]!
+                            : (googleSeries.currency ??
+                                metaSeries.currency ??
+                                tiktokSeries.currency);
+                        })(),
                         "totalCpa",
                       )}
                     />
@@ -649,7 +749,11 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleCpa"
-                    barSize={showMeta ? barChartSpacing.groupedBarSize : barChartSpacing.singleBarSize}
+                    barSize={
+                      showMeta || showTikTok
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -664,12 +768,35 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaCpa"
-                    barSize={showGoogle ? barChartSpacing.groupedBarSize : barChartSpacing.singleBarSize}
+                    barSize={
+                      showGoogle || showTikTok
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
                     isAnimationActive={false}
                   >
                     <LabelList
                       position="top"
                       content={createCpaBarLabelRenderer(metaSeries.currency, "metaCpa")}
+                    />
+                  </Bar>
+                ) : null}
+                {showGrouped && showTikTok ? (
+                  <Bar
+                    dataKey="tiktokCpa"
+                    fill={TIKTOK_BAR}
+                    radius={[4, 4, 0, 0]}
+                    name="tiktokCpa"
+                    barSize={
+                      showGoogle || showMeta
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createCpaBarLabelRenderer(tiktokSeries.currency, "tiktokCpa")}
                     />
                   </Bar>
                 ) : null}
@@ -700,6 +827,21 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     <LabelList
                       position="top"
                       content={createCpaBarLabelRenderer(metaSeries.currency, "metaCpa")}
+                    />
+                  </Bar>
+                ) : null}
+                {effectiveChannelFilter === "tiktok" ? (
+                  <Bar
+                    dataKey="tiktokCpa"
+                    fill={TIKTOK_BAR}
+                    radius={[4, 4, 0, 0]}
+                    name="tiktokCpa"
+                    barSize={barChartSpacing.singleBarSize}
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createCpaBarLabelRenderer(tiktokSeries.currency, "tiktokCpa")}
                     />
                   </Bar>
                 ) : null}

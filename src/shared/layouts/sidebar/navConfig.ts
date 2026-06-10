@@ -149,6 +149,8 @@ export const mainNavItems: MainNavItem[] = [
           "/digital-marketing/traffic",
           "/digital-marketing/google-ads",
           "/digital-marketing/meta-ads",
+          "/digital-marketing/tiktok-ads",
+          "/digital-marketing/social-media-performance",
           "/digital-marketing/report",
         ],
       },

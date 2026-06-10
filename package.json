@@ -46,6 +46,8 @@
     "supabase:functions:deploy:meta-ads-config": "npx supabase functions deploy meta-ads-config",
     "supabase:functions:deploy:meta-ads-metrics": "npx supabase functions deploy meta-ads-metrics",
     "supabase:functions:deploy:meta-ads-all": "npx supabase functions deploy meta-ads-oauth-start meta-ads-oauth-callback meta-ads-config meta-ads-metrics meta-ads-upload-conversion",
+    "supabase:functions:deploy:tiktok-ads-all": "npx supabase functions deploy tiktok-ads-oauth-start tiktok-ads-oauth-callback tiktok-ads-config tiktok-ads-metrics",
+    "supabase:functions:deploy:tiktok-content-all": "npx supabase functions deploy tiktok-content-oauth-start tiktok-content-oauth-callback tiktok-content-config tiktok-content-metrics",
     "supabase:functions:deploy:wa-followup": "npx supabase functions deploy send-whatsapp-template-followup",
     "supabase:functions:deploy:whatsapp-campaign-worker": "node scripts/sync-wa-template-graph.mjs && npx supabase functions deploy whatsapp-campaign-worker --no-verify-jwt",
     "supabase:functions:deploy:send-instagram-message": "npx supabase functions deploy send-instagram-message",

@@ -139,6 +139,32 @@ verify_jwt = false
 [functions.meta-ads-metrics]
 verify_jwt = false
 
+# TikTok Ads per-tenant: user JWT validated inside; OAuth callback has no JWT.
+[functions.tiktok-ads-oauth-start]
+verify_jwt = false
+
+[functions.tiktok-ads-oauth-callback]
+verify_jwt = false
+
+[functions.tiktok-ads-config]
+verify_jwt = false
+
+[functions.tiktok-ads-metrics]
+verify_jwt = false
+
+# TikTok Content Insight: user JWT validated inside; OAuth callback has no JWT.
+[functions.tiktok-content-oauth-start]
+verify_jwt = false
+
+[functions.tiktok-content-oauth-callback]
+verify_jwt = false
+
+[functions.tiktok-content-config]
+verify_jwt = false
+
+[functions.tiktok-content-metrics]
+verify_jwt = false
+
 # Cron / service role: apply_attendance_auto_checkout (also scheduled via pg_cron every 15 min).
 [functions.attendance-auto-checkout]
 verify_jwt = false

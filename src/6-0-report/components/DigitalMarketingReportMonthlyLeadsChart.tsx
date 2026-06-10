@@ -23,11 +23,14 @@ import {
   isGoogleSeriesChartActive,
   isMetaSeriesChartActive,
   isMetaSeriesChartSkipped,
+  isTikTokSeriesChartActive,
+  isTikTokSeriesChartSkipped,
 } from "@/6-0-digital-marketing-shared/monthlyReportChartDisplay";
 import type { ReportCombinedChannelScope } from "@/6-0-digital-marketing-shared/reportServiceFilter";
 
 const GOOGLE_BAR = "hsl(204 70% 42%)";
 const META_BAR = "hsl(262 55% 52%)";
+const TIKTOK_BAR = "hsl(350 80% 50%)";
 const COMBINED_BAR = "hsl(24 75% 48%)";
 
 const WIDE_MONTHLY_BAR_LAYOUT = {
@@ -79,7 +82,9 @@ function resolveLabelNumericValue(
   return null;
 }
 
-function createLeadsBarLabelRenderer(dataKey: "totalLeads" | "googleLeads" | "metaLeads") {
+function createLeadsBarLabelRenderer(
+  dataKey: "totalLeads" | "googleLeads" | "metaLeads" | "tiktokLeads",
+) {
   return function LeadsBarLabelContent(props: {
     x?: number | string;
     y?: number | string;
@@ -113,11 +118,13 @@ type LeadsTooltipProps = TooltipProps<number, string> & {
   channelFilter: MonthlySpendChannelFilter;
   showGoogle: boolean;
   showMeta: boolean;
+  showTikTok: boolean;
   combinedScope: ReportCombinedChannelScope;
   labels: {
     total: string;
     google: string;
     meta: string;
+    tiktok: string;
     combinedSumHint: string;
   };
 };
@@ -129,6 +136,7 @@ function LeadsTooltip({
   channelFilter,
   showGoogle,
   showMeta,
+  showTikTok,
   combinedScope,
   labels,
 }: LeadsTooltipProps) {
@@ -154,10 +162,15 @@ function LeadsTooltip({
             {labels.meta}: {formatLeadsCount(row.metaLeads)}
           </p>
         ) : null}
-        {combinedScope.includeGoogle &&
-        combinedScope.includeMeta &&
-        row.googleLeads > 0 &&
-        row.metaLeads > 0 ? (
+        {showTikTok && combinedScope.includeTikTok && row.tiktokLeads > 0 ? (
+          <p className="mt-0.5 tabular-nums text-muted-foreground">
+            {labels.tiktok}: {formatLeadsCount(row.tiktokLeads)}
+          </p>
+        ) : null}
+        {(combinedScope.includeGoogle && row.googleLeads > 0 ? 1 : 0) +
+          (combinedScope.includeMeta && row.metaLeads > 0 ? 1 : 0) +
+          (combinedScope.includeTikTok && row.tiktokLeads > 0 ? 1 : 0) >=
+        2 ? (
           <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
             {labels.combinedSumHint}
           </p>
@@ -180,6 +193,13 @@ function LeadsTooltip({
             {labels.meta}: {formatLeadsCount(row.metaLeads)}
           </p>
         ) : null}
+        {showTikTok ? (
+          <p
+            className={`tabular-nums text-gray-900${showGoogle || showMeta ? " mt-0.5" : ""}`}
+          >
+            {labels.tiktok}: {formatLeadsCount(row.tiktokLeads)}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -188,11 +208,13 @@ function LeadsTooltip({
   const value = Number(entry?.value ?? 0);
   const name = String(entry?.name ?? "");
   const isGoogle = name === "googleLeads";
+  const isMeta = name === "metaLeads";
+  const labelText = isGoogle ? labels.google : isMeta ? labels.meta : labels.tiktok;
   return (
     <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
       <p className="mb-1 font-medium text-gray-900">{label}</p>
       <p className="tabular-nums text-gray-900">
-        {isGoogle ? labels.google : labels.meta}: {formatLeadsCount(value)}
+        {labelText}: {formatLeadsCount(value)}
       </p>
     </div>
   );
@@ -204,6 +226,7 @@ type Props = {
   chartData: ReportMonthlyLeadsChartPoint[];
   googleSeries: MonthlySpendChannelSeries;
   metaSeries: MonthlySpendChannelSeries;
+  tiktokSeries: MonthlySpendChannelSeries;
   combinedScope: ReportCombinedChannelScope;
   chartLoading: boolean;
   chartDateOverlap: boolean;
@@ -216,6 +239,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
   chartData,
   googleSeries,
   metaSeries,
+  tiktokSeries,
   combinedScope,
   chartLoading,
   chartDateOverlap,
@@ -225,12 +249,20 @@ export function DigitalMarketingReportMonthlyLeadsChart({
 
   const showGoogle = isGoogleSeriesChartActive(googleSeries, channelFilter);
   const showMeta = isMetaSeriesChartActive(metaSeries, channelFilter);
+  const showTikTok = isTikTokSeriesChartActive(tiktokSeries, channelFilter);
   const metaSkippedNotice =
-    isMetaSeriesChartSkipped(metaSeries) && showGoogle ? metaSeries.unavailableReason : null;
+    isMetaSeriesChartSkipped(metaSeries) && (showGoogle || showTikTok)
+      ? metaSeries.unavailableReason
+      : null;
+  const tiktokSkippedNotice =
+    isTikTokSeriesChartSkipped(tiktokSeries) && (showGoogle || showMeta)
+      ? tiktokSeries.unavailableReason
+      : null;
   const blockingError = getMonthlyChartBlockingError(
     channelFilter,
     googleSeries,
     metaSeries,
+    tiktokSeries,
   );
   const showCombined = channelFilter === "all";
   const showGrouped = channelFilter === "by_channel";
@@ -239,13 +271,19 @@ export function DigitalMarketingReportMonthlyLeadsChart({
     if (channelFilter === "all") return row.totalLeads > 0;
     if (channelFilter === "google") return row.googleLeads > 0;
     if (channelFilter === "meta") return row.metaLeads > 0;
-    return row.googleLeads > 0 || row.metaLeads > 0;
+    if (channelFilter === "tiktok") return row.tiktokLeads > 0;
+    return row.googleLeads > 0 || row.metaLeads > 0 || row.tiktokLeads > 0;
   });
 
   const loading = chartLoading;
 
   const barChartSpacing = useMemo(() => {
-    if (showCombined || channelFilter === "google" || channelFilter === "meta") {
+    if (
+      showCombined ||
+      channelFilter === "google" ||
+      channelFilter === "meta" ||
+      channelFilter === "tiktok"
+    ) {
       return WIDE_MONTHLY_BAR_LAYOUT;
     }
     if (showGrouped) {
@@ -265,6 +303,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
       total: t("digitalMarketing.report.monthlySpendFilterAll", "All channels"),
       google: t("digitalMarketing.report.channelGoogle", "Google Ads"),
       meta: t("digitalMarketing.report.channelMeta", "Meta Ads"),
+      tiktok: t("digitalMarketing.report.channelTikTok", "TikTok Ads"),
       combinedSumHint: t(
         "digitalMarketing.report.monthlyLeadsCombinedSumHint",
         "All channels sums leads from channels shown in the table for the selected service.",
@@ -283,12 +322,17 @@ export function DigitalMarketingReportMonthlyLeadsChart({
         bootstrapLoading ? null : (
           <Skeleton className="h-[300px] w-full rounded-md" />
         )
-      ) : !hasMonthlyChartDisplayableChannel(channelFilter, googleSeries, metaSeries) ? (
+      ) : !hasMonthlyChartDisplayableChannel(
+          channelFilter,
+          googleSeries,
+          metaSeries,
+          tiktokSeries,
+        ) ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
-          {!googleSeries.connected && !metaSeries.connected
+          {!googleSeries.connected && !metaSeries.connected && !tiktokSeries.connected
             ? t(
                 "digitalMarketing.report.monthlyLeadsNotConnected",
-                "Connect Google Ads or Meta Ads to see converted leads by month.",
+                "Connect Google Ads, Meta Ads, or TikTok Ads to see converted leads by month.",
               )
             : blockingError}
         </div>
@@ -311,6 +355,9 @@ export function DigitalMarketingReportMonthlyLeadsChart({
         <>
           {metaSkippedNotice ? (
             <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
+          ) : null}
+          {tiktokSkippedNotice ? (
+            <p className="mb-2 text-xs text-amber-700">{tiktokSkippedNotice}</p>
           ) : null}
           <div className="mb-2 flex flex-wrap items-center gap-4">
             {showCombined ? (
@@ -343,6 +390,16 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                 {t("digitalMarketing.report.channelMeta", "Meta Ads")}
               </span>
             ) : null}
+            {showGrouped && showTikTok ? (
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ backgroundColor: TIKTOK_BAR }}
+                  aria-hidden
+                />
+                {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
+              </span>
+            ) : null}
             {channelFilter === "google" ? (
               <span className="flex items-center gap-1.5 text-xs text-gray-600">
                 <span
@@ -361,6 +418,16 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                   aria-hidden
                 />
                 {t("digitalMarketing.report.channelMeta", "Meta Ads")}
+              </span>
+            ) : null}
+            {channelFilter === "tiktok" ? (
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ backgroundColor: TIKTOK_BAR }}
+                  aria-hidden
+                />
+                {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
               </span>
             ) : null}
           </div>
@@ -399,6 +466,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                       channelFilter={channelFilter}
                       showGoogle={googleSeries.connected}
                       showMeta={metaSeries.connected}
+                      showTikTok={tiktokSeries.connected}
                       combinedScope={combinedScope}
                       labels={tooltipLabels}
                     />
@@ -422,7 +490,11 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleLeads"
-                    barSize={showMeta ? barChartSpacing.groupedBarSize : barChartSpacing.singleBarSize}
+                    barSize={
+                      showMeta || showTikTok
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
                     isAnimationActive={false}
                   >
                     <LabelList content={createLeadsBarLabelRenderer("googleLeads")} />
@@ -434,10 +506,30 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaLeads"
-                    barSize={showGoogle ? barChartSpacing.groupedBarSize : barChartSpacing.singleBarSize}
+                    barSize={
+                      showGoogle || showTikTok
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
                     isAnimationActive={false}
                   >
                     <LabelList content={createLeadsBarLabelRenderer("metaLeads")} />
+                  </Bar>
+                ) : null}
+                {showGrouped && showTikTok ? (
+                  <Bar
+                    dataKey="tiktokLeads"
+                    fill={TIKTOK_BAR}
+                    radius={[4, 4, 0, 0]}
+                    name="tiktokLeads"
+                    barSize={
+                      showGoogle || showMeta
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
+                    isAnimationActive={false}
+                  >
+                    <LabelList content={createLeadsBarLabelRenderer("tiktokLeads")} />
                   </Bar>
                 ) : null}
                 {channelFilter === "google" ? (
@@ -462,6 +554,18 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     isAnimationActive={false}
                   >
                     <LabelList content={createLeadsBarLabelRenderer("metaLeads")} />
+                  </Bar>
+                ) : null}
+                {channelFilter === "tiktok" ? (
+                  <Bar
+                    dataKey="tiktokLeads"
+                    fill={TIKTOK_BAR}
+                    radius={[4, 4, 0, 0]}
+                    name="tiktokLeads"
+                    barSize={barChartSpacing.singleBarSize}
+                    isAnimationActive={false}
+                  >
+                    <LabelList content={createLeadsBarLabelRenderer("tiktokLeads")} />
                   </Bar>
                 ) : null}
               </BarChart>

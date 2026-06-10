@@ -11,6 +11,8 @@ import {
   type MetaAdsDateRangePayload,
 } from "@/meta-ads/lib/clampMetaAdsDateRange";
 import { toMetaAdsMetricsDateRangePayload } from "@/meta-ads/lib/toMetaAdsMetricsDateRangePayload";
+import { toTikTokAdsMetricsDateRangePayload } from "@/tiktok-ads/lib/toTikTokAdsMetricsDateRangePayload";
+import { tiktokAdsAllTimeDateRange } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
 
 /** Years from account earliest (or last N) through today, newest first. */
 export function buildReportYearOptionsFromEarliest(
@@ -90,6 +92,37 @@ export function resolveReportMetaDateRangePayload(
     return toMetaAdsMetricsDateRangePayload(dateSelection);
   }
   return toMetaAdsMetricsDateRangePayload(effective);
+}
+
+/**
+ * Report TikTok metrics: All time stays within TikTok API lookback (365 days).
+ */
+export function resolveReportTikTokDateRangePayload(
+  dateSelection: GoogleAdsDateRangeSelection,
+  reportChartYear: number,
+): ReturnType<typeof toTikTokAdsMetricsDateRangePayload> {
+  if (dateSelection.preset === "all_time") {
+    return tiktokAdsAllTimeDateRange();
+  }
+  const effective = resolveReportEffectiveSelection(dateSelection, reportChartYear);
+  if (!effective) {
+    return toTikTokAdsMetricsDateRangePayload(dateSelection);
+  }
+  return toTikTokAdsMetricsDateRangePayload(effective);
+}
+
+/** True when the picker range ends before TikTok's earliest allowed Reporting start. */
+export function isReportTikTokRangeUnavailable(
+  dateSelection: GoogleAdsDateRangeSelection,
+  reportChartYear: number,
+  accountEarliestYmd?: string | null,
+): boolean {
+  const google = resolveReportGoogleDateRangePayload(
+    dateSelection,
+    reportChartYear,
+    accountEarliestYmd,
+  );
+  return google.end < tiktokAdsAllTimeDateRange().start;
 }
 
 /** True when the picker range ends before Meta's earliest allowed Insights start. */
@@ -174,6 +207,41 @@ export function resolveReportMetaDateRangePayloadForCharts(
     return toMetaAdsMetricsDateRangePayload(dateSelection);
   }
   return toMetaAdsMetricsDateRangePayload(effective);
+}
+
+export function resolveReportTikTokDateRangePayloadForCharts(
+  dateSelection: GoogleAdsDateRangeSelection,
+  reportChartYear: number,
+  compareEnabled: boolean,
+): ReturnType<typeof toTikTokAdsMetricsDateRangePayload> {
+  if (compareEnabled) {
+    const effective = dateSelectionForCalendarYear(reportChartYear);
+    return toTikTokAdsMetricsDateRangePayload(effective);
+  }
+  if (dateSelection.preset === "all_time") {
+    return tiktokAdsAllTimeDateRange();
+  }
+  const effective = resolveReportEffectiveSelection(dateSelection, reportChartYear);
+  if (!effective) {
+    return toTikTokAdsMetricsDateRangePayload(dateSelection);
+  }
+  return toTikTokAdsMetricsDateRangePayload(effective);
+}
+
+/** TikTok unavailable check for chart monthly fetch (Compare uses calendar year, not all-time TikTok window). */
+export function isReportTikTokRangeUnavailableForCharts(
+  dateSelection: GoogleAdsDateRangeSelection,
+  reportChartYear: number,
+  compareEnabled: boolean,
+  accountEarliestYmd?: string | null,
+): boolean {
+  const google = resolveReportGoogleDateRangePayloadForCharts(
+    dateSelection,
+    reportChartYear,
+    compareEnabled,
+    accountEarliestYmd,
+  );
+  return google.end < tiktokAdsAllTimeDateRange().start;
 }
 
 /** Meta unavailable check for chart monthly fetch (Compare uses calendar year, not all-time Meta window). */

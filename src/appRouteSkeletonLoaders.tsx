@@ -347,6 +347,28 @@ export const MetaAdsMetricsPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const TikTokAdsMetricsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-tiktok-ads/skeletons/TikTokAdsMetricsPageSkeleton").then((m) => ({
+    default: m.TikTokAdsMetricsPageSkeleton,
+  })),
+);
+
+export const SocialMediaPerformanceHubPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-performance/skeletons/SocialMediaPerformanceHubPageSkeleton").then(
+    (m) => ({
+      default: m.SocialMediaPerformanceHubPageSkeleton,
+    }),
+  ),
+);
+
+export const TikTokContentPerformancePageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-performance/skeletons/TikTokContentPerformancePageSkeleton").then(
+    (m) => ({
+      default: m.TikTokContentPerformancePageSkeleton,
+    }),
+  ),
+);
+
 export const DigitalMarketingReportPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-report/skeletons/DigitalMarketingReportPageSkeleton").then((m) => ({
     default: m.DigitalMarketingReportPageSkeleton,

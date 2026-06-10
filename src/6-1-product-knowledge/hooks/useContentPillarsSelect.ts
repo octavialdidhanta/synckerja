@@ -6,6 +6,7 @@ import { dedupeMasterRowsByNamePreferOrg } from '@/6-1-script-generator/utils/de
 export type ContentPillarOption = {
   id: string;
   name: string;
+  description?: string | null;
   organization_id?: string | null;
 };
 
@@ -22,7 +23,7 @@ export function useContentPillarsSelect() {
 
       const { data, error } = await supabase
         .from('content_pillars')
-        .select('id, name, organization_id, is_default')
+        .select('id, name, description, organization_id, is_default')
         .or(`organization_id.eq.${organizationId},organization_id.is.null`)
         .eq('is_active', true)
         .order('name', { ascending: true });

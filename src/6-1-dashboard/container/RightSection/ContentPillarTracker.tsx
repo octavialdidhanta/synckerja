@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { MoreVertical, Download, RefreshCw, Shield, Wifi } from 'lucide-react';
+import { Download, Info, MoreVertical, RefreshCw, Shield, Wifi } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
 import { toast } from 'sonner';
 import { useContentPillarData } from '../../hook/useContentPillarData';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 const FUNNEL_CONFIG = {
   top: {
@@ -36,7 +38,39 @@ interface ContentPillarTrackerProps {
   serviceFilter?: string;
 }
 
+const TRACKER_INFO_DESCRIPTION =
+  'Tracks how many content pieces use each content pillar in the selected month, grouped by marketing funnel stage: Awareness (top), Consideration (middle), and Conversion (bottom).';
+
+function InfoDescriptionPopover({
+  title,
+  description,
+  ariaLabel,
+}: {
+  title: string;
+  description: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+          aria-label={ariaLabel ?? title}
+        >
+          <Info className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="start" side="bottom">
+        <p className="mb-1 text-sm font-medium text-gray-900">{title}</p>
+        <p className="whitespace-pre-wrap text-sm text-gray-600">{description}</p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ selectedMonth, serviceFilter }) => {
+  const { t } = useAppTranslation();
   const [selectedFunnel, setSelectedFunnel] = useState<'top' | 'middle' | 'bottom'>('top');
   const {
     organizationId
@@ -98,10 +132,28 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
     };
   }, [pillarData]);
 
+  const trackerTitle = t('socialMedia.contentPillarTracker.title', 'Content Pillar Tracker');
+  const trackerInfoDescription = t(
+    'socialMedia.contentPillarTracker.infoDescription',
+    TRACKER_INFO_DESCRIPTION,
+  );
+  const noDescriptionText = t('socialMedia.contentPillarTracker.noDescription', 'No description available.');
+
+  const renderTrackerTitle = () => (
+    <div className="flex items-center gap-1.5">
+      <h3 className="text-lg font-semibold text-gray-900">{trackerTitle}</h3>
+      <InfoDescriptionPopover
+        title={trackerTitle}
+        description={trackerInfoDescription}
+        ariaLabel={t('socialMedia.contentPillarTracker.infoAria', 'About Content Pillar Tracker')}
+      />
+    </div>
+  );
+
   if (isLoading) {
     return <div className="w-full rounded-[5px] border border-gray-200 bg-white shadow-sm">
         <div className="p-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Content Pillar Tracker</h3>
+          {renderTrackerTitle()}
           <p className="text-sm text-gray-600">Loading...</p>
         </div>
         <div className="p-4">
@@ -115,7 +167,7 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
   if (error) {
     return <div className="w-full rounded-[5px] border border-gray-200 bg-white shadow-sm">
         <div className="p-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Content Pillar Tracker</h3>
+          {renderTrackerTitle()}
           <p className="text-sm text-red-600">Error loading data</p>
         </div>
         <div className="p-4">
@@ -141,7 +193,7 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
       <div className="flex items-center justify-between p-2 border-b border-gray-200 flex-shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-gray-900">Content Pillar Tracker</h3>
+            {renderTrackerTitle()}
             <div className="flex items-center gap-1 rounded-[5px] bg-success-muted px-2 py-1 text-xs text-success-foreground">
               <Wifi className="h-3 w-3 shrink-0 text-success" />
               Live
@@ -212,21 +264,33 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
         <div className="space-y-3">
           {filteredPillars.length === 0 ? <div className="text-center py-8 text-gray-500">
               <p className="text-sm">No pillars found for {selectedConfig.name}</p>
-            </div> : filteredPillars.map(pillar => <div key={pillar.pillar_id} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-sm font-medium text-gray-900">
-                      {pillar.pillar_name}
-                    </span>
-                    {pillar.isDefault && <div className="flex items-center">
+            </div> : filteredPillars.map(pillar => <div key={pillar.pillar_id} className="space-y-1">
+                <span className="block truncate text-sm font-medium text-gray-900">
+                  {pillar.pillar_name}
+                </span>
+                <div className="flex items-end justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-end gap-1.5">
+                    {pillar.category?.trim() ? (
+                      <span className="min-w-0 flex-1 truncate text-xs leading-tight text-gray-500">
+                        {pillar.category.trim()}
+                      </span>
+                    ) : (
+                      <span className="min-w-0 flex-1" aria-hidden />
+                    )}
+                    <InfoDescriptionPopover
+                      title={pillar.pillar_name}
+                      description={pillar.description?.trim() || noDescriptionText}
+                      ariaLabel={t('socialMedia.contentPillarTracker.pillarInfoAria', 'View pillar description')}
+                    />
+                    {pillar.isDefault && (
+                      <div className="flex shrink-0 items-center">
                         <Shield className="h-3 w-3 text-blue-500" />
-                        <span className="text-xs text-blue-600 ml-1">Default</span>
-                      </div>}
+                        <span className="ml-1 text-xs leading-tight text-blue-600">Default</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-900">
-                      {pillar.count}
-                    </span>
+                  <div className="flex shrink-0 items-end gap-2 leading-none">
+                    <span className="text-sm font-medium text-gray-900">{pillar.count}</span>
                     <span>{selectedConfig.emoji}</span>
                   </div>
                 </div>

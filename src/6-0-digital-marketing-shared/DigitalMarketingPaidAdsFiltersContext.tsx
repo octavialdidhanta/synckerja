@@ -43,6 +43,8 @@ export type DigitalMarketingPaidAdsFiltersContextValue = {
   setGoogleCustomerId: (customerId: string) => void;
   metaAdAccountId: string;
   setMetaAdAccountId: (adAccountId: string) => void;
+  tiktokAdvertiserId: string;
+  setTikTokAdvertiserId: (advertiserId: string) => void;
   filtersHydrated: boolean;
 };
 
@@ -80,6 +82,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
   const [reportServiceFilter, setReportServiceFilterState] = useState<ReportServiceFilterStored>("");
   const [googleCustomerId, setGoogleCustomerIdState] = useState("");
   const [metaAdAccountId, setMetaAdAccountIdState] = useState("");
+  const [tiktokAdvertiserId, setTikTokAdvertiserIdState] = useState("");
   const [filtersHydrated, setFiltersHydrated] = useState(false);
   const hydratedOrgRef = useRef<string | null>(null);
   const persistSkipRef = useRef(true);
@@ -97,6 +100,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
       setDateSelection(stored.dateSelection);
       setGoogleCustomerIdState(stored.googleCustomerId);
       setMetaAdAccountIdState(stored.metaAdAccountId);
+      setTikTokAdvertiserIdState(stored.tiktokAdvertiserId);
       setReportChartYearState(normalizeChartYear(stored.reportChartYear));
       setReportChartCompareEnabledState(stored.reportChartCompareEnabled);
       setMonthlyChartChannelFilterState(stored.monthlyChartChannelFilter);
@@ -105,6 +109,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
       setDateSelection(defaultGoogleAdsDateSelection());
       setGoogleCustomerIdState("");
       setMetaAdAccountIdState("");
+      setTikTokAdvertiserIdState("");
       setReportChartYearState(new Date().getFullYear());
       setReportChartCompareEnabledState(false);
       setMonthlyChartChannelFilterState("all");
@@ -129,6 +134,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
         dateSelection,
         googleCustomerId,
         metaAdAccountId,
+        tiktokAdvertiserId,
         reportChartYear,
         reportChartCompareEnabled,
         monthlyChartChannelFilter,
@@ -142,6 +148,7 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
     dateSelection,
     googleCustomerId,
     metaAdAccountId,
+    tiktokAdvertiserId,
     reportChartYear,
     reportChartCompareEnabled,
     monthlyChartChannelFilter,
@@ -181,6 +188,10 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
     setMetaAdAccountIdState(id);
   }, []);
 
+  const setTikTokAdvertiserId = useCallback((id: string) => {
+    setTikTokAdvertiserIdState(id);
+  }, []);
+
   const setReportChartYear = useCallback((year: number) => {
     const y = normalizeChartYear(year);
     setReportChartYearState(y);
@@ -215,6 +226,8 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
       setGoogleCustomerId,
       metaAdAccountId,
       setMetaAdAccountId,
+      tiktokAdvertiserId,
+      setTikTokAdvertiserId,
       filtersHydrated,
     }),
     [
@@ -225,9 +238,11 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
       reportServiceFilter,
       googleCustomerId,
       metaAdAccountId,
+      tiktokAdvertiserId,
       filtersHydrated,
       setGoogleCustomerId,
       setMetaAdAccountId,
+      setTikTokAdvertiserId,
       setReportChartYear,
       setReportChartCompareEnabled,
       setMonthlyChartChannelFilter,

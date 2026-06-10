@@ -25,10 +25,13 @@ import {
   isGoogleSeriesChartActive,
   isMetaSeriesChartActive,
   isMetaSeriesChartSkipped,
+  isTikTokSeriesChartActive,
+  isTikTokSeriesChartSkipped,
 } from "@/6-0-digital-marketing-shared/monthlyReportChartDisplay";
 
 const GOOGLE_BAR = "hsl(204 70% 42%)";
 const META_BAR = "hsl(262 55% 52%)";
+const TIKTOK_BAR = "hsl(350 80% 50%)";
 /** Combined all-channel total — distinct from Google (blue) and Meta (purple). */
 const COMBINED_BAR = "hsl(160 52% 36%)";
 const WIDE_MONTHLY_BAR_LAYOUT = {
@@ -61,7 +64,7 @@ function formatAxisTick(value: number, currency: string | null): string {
 
 function formatSpendTooltip(
   value: number,
-  channel: "google" | "meta" | "combined",
+  channel: "google" | "meta" | "tiktok" | "combined",
   currency: string | null,
 ): string {
   if (channel === "google") {
@@ -75,7 +78,7 @@ function formatSpendTooltip(
 
 function formatSpendBarLabel(
   value: unknown,
-  channel: "google" | "meta" | "combined",
+  channel: "google" | "meta" | "tiktok" | "combined",
   currency: string | null,
 ): string {
   const n = typeof value === "number" ? value : Number(value);
@@ -108,8 +111,8 @@ function resolveLabelNumericValue(
 /** Recharts 2 `formatter` on LabelList does not receive raw bar values — use `content` instead. */
 function createSpendBarLabelRenderer(
   currency: string | null,
-  channel: "google" | "meta" | "combined",
-  dataKey: "totalSpend" | "googleSpend" | "metaSpend",
+  channel: "google" | "meta" | "tiktok" | "combined",
+  dataKey: "totalSpend" | "googleSpend" | "metaSpend" | "tiktokSpend",
 ) {
   return function SpendBarLabelContent(props: {
     x?: number | string;
@@ -146,13 +149,16 @@ type SpendTooltipProps = TooltipProps<number, string> & {
   channelFilter: MonthlySpendChannelFilter;
   googleCurrency: string | null;
   metaCurrency: string | null;
+  tiktokCurrency: string | null;
   showGoogle: boolean;
   showMeta: boolean;
+  showTikTok: boolean;
   mixedCurrency: boolean;
   labels: {
     total: string;
     google: string;
     meta: string;
+    tiktok: string;
     mixedHint: string;
   };
 };
@@ -164,8 +170,10 @@ function SpendTooltip({
   channelFilter,
   googleCurrency,
   metaCurrency,
+  tiktokCurrency,
   showGoogle,
   showMeta,
+  showTikTok,
   mixedCurrency,
   labels,
 }: SpendTooltipProps) {
@@ -176,9 +184,10 @@ function SpendTooltip({
 
   if (channelFilter === "all") {
     const primaryCurrency =
-      googleCurrency && metaCurrency && googleCurrency === metaCurrency
-        ? googleCurrency
-        : (googleCurrency ?? metaCurrency);
+      [googleCurrency, metaCurrency, tiktokCurrency].filter(Boolean).length > 0 &&
+      new Set([googleCurrency, metaCurrency, tiktokCurrency].filter(Boolean)).size === 1
+        ? (googleCurrency ?? metaCurrency ?? tiktokCurrency)
+        : (googleCurrency ?? metaCurrency ?? tiktokCurrency);
     return (
       <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
         <p className="mb-1 font-medium text-gray-900">{label}</p>
@@ -193,6 +202,11 @@ function SpendTooltip({
         {showMeta && row.metaSpend > 0 ? (
           <p className="mt-0.5 tabular-nums text-muted-foreground">
             {labels.meta}: {formatSpendTooltip(row.metaSpend, "meta", metaCurrency)}
+          </p>
+        ) : null}
+        {showTikTok && row.tiktokSpend > 0 ? (
+          <p className="mt-0.5 tabular-nums text-muted-foreground">
+            {labels.tiktok}: {formatSpendTooltip(row.tiktokSpend, "tiktok", tiktokCurrency)}
           </p>
         ) : null}
         {mixedCurrency ? (
@@ -216,6 +230,13 @@ function SpendTooltip({
             {labels.meta}: {formatSpendTooltip(row.metaSpend, "meta", metaCurrency)}
           </p>
         ) : null}
+        {showTikTok ? (
+          <p
+            className={`tabular-nums text-gray-900${showGoogle || showMeta ? " mt-0.5" : ""}`}
+          >
+            {labels.tiktok}: {formatSpendTooltip(row.tiktokSpend, "tiktok", tiktokCurrency)}
+          </p>
+        ) : null}
         {mixedCurrency ? (
           <p className="mt-1 text-[11px] text-amber-700">{labels.mixedHint}</p>
         ) : null}
@@ -227,16 +248,15 @@ function SpendTooltip({
   const value = Number(entry?.value ?? 0);
   const name = String(entry?.name ?? "");
   const isGoogle = name === "googleSpend";
+  const isMeta = name === "metaSpend";
+  const channel: "google" | "meta" | "tiktok" = isGoogle ? "google" : isMeta ? "meta" : "tiktok";
+  const labelText = isGoogle ? labels.google : isMeta ? labels.meta : labels.tiktok;
+  const currency = isGoogle ? googleCurrency : isMeta ? metaCurrency : tiktokCurrency;
   return (
     <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
       <p className="mb-1 font-medium text-gray-900">{label}</p>
       <p className="tabular-nums text-gray-900">
-        {isGoogle ? labels.google : labels.meta}:{" "}
-        {formatSpendTooltip(
-          value,
-          isGoogle ? "google" : "meta",
-          isGoogle ? googleCurrency : metaCurrency,
-        )}
+        {labelText}: {formatSpendTooltip(value, channel, currency)}
       </p>
     </div>
   );
@@ -248,6 +268,7 @@ type Props = {
   chartData: ReportMonthlySpendChartPoint[];
   googleSeries: MonthlySpendChannelSeries;
   metaSeries: MonthlySpendChannelSeries;
+  tiktokSeries: MonthlySpendChannelSeries;
   chartLoading: boolean;
   chartDateOverlap: boolean;
   /** When true, render chart body only (no card shell or title). */
@@ -260,6 +281,7 @@ export function DigitalMarketingReportMonthlySpendChart({
   chartData,
   googleSeries,
   metaSeries,
+  tiktokSeries,
   chartLoading,
   chartDateOverlap,
   embedded = false,
@@ -268,45 +290,59 @@ export function DigitalMarketingReportMonthlySpendChart({
 
   const showGoogle = isGoogleSeriesChartActive(googleSeries, channelFilter);
   const showMeta = isMetaSeriesChartActive(metaSeries, channelFilter);
+  const showTikTok = isTikTokSeriesChartActive(tiktokSeries, channelFilter);
   const metaSkippedNotice =
-    isMetaSeriesChartSkipped(metaSeries) && showGoogle ? metaSeries.unavailableReason : null;
+    isMetaSeriesChartSkipped(metaSeries) && (showGoogle || showTikTok)
+      ? metaSeries.unavailableReason
+      : null;
+  const tiktokSkippedNotice =
+    isTikTokSeriesChartSkipped(tiktokSeries) && (showGoogle || showMeta)
+      ? tiktokSeries.unavailableReason
+      : null;
   const blockingError = getMonthlyChartBlockingError(
     channelFilter,
     googleSeries,
     metaSeries,
+    tiktokSeries,
   );
   const showCombined = channelFilter === "all";
   const showGrouped = channelFilter === "by_channel";
 
   const mixedCurrency =
-    googleSeries.connected &&
-    metaSeries.connected &&
-    googleSeries.currency != null &&
-    metaSeries.currency != null &&
-    googleSeries.currency !== metaSeries.currency;
+    [googleSeries, metaSeries, tiktokSeries].filter((s) => s.connected && s.currency != null)
+      .map((s) => s.currency!)
+      .filter((c, i, arr) => arr.indexOf(c) === i).length > 1;
 
   const axisCurrency =
     showCombined && !mixedCurrency
-      ? (googleSeries.currency ?? metaSeries.currency)
+      ? (googleSeries.currency ?? metaSeries.currency ?? tiktokSeries.currency)
       : channelFilter === "google"
         ? googleSeries.currency
         : channelFilter === "meta"
           ? metaSeries.currency
-          : showGoogle && showMeta && mixedCurrency
+          : channelFilter === "tiktok"
+            ? tiktokSeries.currency
+          : showGoogle && showMeta && showTikTok && mixedCurrency
             ? null
-            : (googleSeries.currency ?? metaSeries.currency);
+            : (googleSeries.currency ?? metaSeries.currency ?? tiktokSeries.currency);
 
   const hasData = chartData.some((row) => {
     if (channelFilter === "all") return row.totalSpend > 0;
     if (channelFilter === "google") return row.googleSpend > 0;
     if (channelFilter === "meta") return row.metaSpend > 0;
-    return row.googleSpend > 0 || row.metaSpend > 0;
+    if (channelFilter === "tiktok") return row.tiktokSpend > 0;
+    return row.googleSpend > 0 || row.metaSpend > 0 || row.tiktokSpend > 0;
   });
 
   const loading = chartLoading;
 
   const barChartSpacing = useMemo(() => {
-    if (showCombined || channelFilter === "google" || channelFilter === "meta") {
+    if (
+      showCombined ||
+      channelFilter === "google" ||
+      channelFilter === "meta" ||
+      channelFilter === "tiktok"
+    ) {
       return WIDE_MONTHLY_BAR_LAYOUT;
     }
     if (showGrouped) {
@@ -326,6 +362,7 @@ export function DigitalMarketingReportMonthlySpendChart({
       total: t("digitalMarketing.report.monthlySpendFilterAll", "All channels"),
       google: t("digitalMarketing.report.channelGoogle", "Google Ads"),
       meta: t("digitalMarketing.report.channelMeta", "Meta Ads"),
+      tiktok: t("digitalMarketing.report.channelTikTok", "TikTok Ads"),
       mixedHint: t(
         "digitalMarketing.report.monthlySpendMixedCurrencyHint",
         "Totals add amounts in different currencies without conversion.",
@@ -334,12 +371,14 @@ export function DigitalMarketingReportMonthlySpendChart({
     [t],
   );
 
-  const combinedLabelCurrency =
-    googleSeries.currency &&
-    metaSeries.currency &&
-    googleSeries.currency === metaSeries.currency
-      ? googleSeries.currency
-      : (googleSeries.currency ?? metaSeries.currency);
+  const combinedLabelCurrency = (() => {
+    const codes = [googleSeries.currency, metaSeries.currency, tiktokSeries.currency].filter(
+      Boolean,
+    );
+    return codes.length > 0 && new Set(codes).size === 1
+      ? codes[0]!
+      : (googleSeries.currency ?? metaSeries.currency ?? tiktokSeries.currency);
+  })();
 
   const shellClass = embedded
     ? "min-w-0"
@@ -365,12 +404,17 @@ export function DigitalMarketingReportMonthlySpendChart({
         bootstrapLoading ? null : (
           <Skeleton className="h-[300px] w-full rounded-md" />
         )
-      ) : !hasMonthlyChartDisplayableChannel(channelFilter, googleSeries, metaSeries) ? (
+      ) : !hasMonthlyChartDisplayableChannel(
+          channelFilter,
+          googleSeries,
+          metaSeries,
+          tiktokSeries,
+        ) ? (
         <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
-          {!googleSeries.connected && !metaSeries.connected
+          {!googleSeries.connected && !metaSeries.connected && !tiktokSeries.connected
             ? t(
                 "digitalMarketing.report.monthlySpendNotConnected",
-                "Connect Google Ads or Meta Ads to see monthly spend.",
+                "Connect Google Ads, Meta Ads, or TikTok Ads to see monthly spend.",
               )
             : blockingError}
         </div>
@@ -393,6 +437,9 @@ export function DigitalMarketingReportMonthlySpendChart({
         <>
           {metaSkippedNotice ? (
             <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
+          ) : null}
+          {tiktokSkippedNotice ? (
+            <p className="mb-2 text-xs text-amber-700">{tiktokSkippedNotice}</p>
           ) : null}
           <div className="mb-2 flex flex-wrap items-center gap-4">
             {showCombined ? (
@@ -428,6 +475,17 @@ export function DigitalMarketingReportMonthlySpendChart({
                 {metaSeries.currency ? ` (${metaSeries.currency})` : ""}
               </span>
             ) : null}
+            {showGrouped && showTikTok ? (
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ backgroundColor: TIKTOK_BAR }}
+                  aria-hidden
+                />
+                {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
+                {tiktokSeries.currency ? ` (${tiktokSeries.currency})` : ""}
+              </span>
+            ) : null}
             {channelFilter === "google" ? (
               <span className="flex items-center gap-1.5 text-xs text-gray-600">
                 <span
@@ -448,6 +506,17 @@ export function DigitalMarketingReportMonthlySpendChart({
                 />
                 {t("digitalMarketing.report.channelMeta", "Meta Ads")}
                 {metaSeries.currency ? ` (${metaSeries.currency})` : ""}
+              </span>
+            ) : null}
+            {channelFilter === "tiktok" ? (
+              <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ backgroundColor: TIKTOK_BAR }}
+                  aria-hidden
+                />
+                {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
+                {tiktokSeries.currency ? ` (${tiktokSeries.currency})` : ""}
               </span>
             ) : null}
           </div>
@@ -490,8 +559,10 @@ export function DigitalMarketingReportMonthlySpendChart({
                       channelFilter={channelFilter}
                       googleCurrency={googleSeries.currency}
                       metaCurrency={metaSeries.currency}
-                      showGoogle={googleSeries.connected}
-                      showMeta={metaSeries.connected}
+                      tiktokCurrency={tiktokSeries.currency}
+                      showGoogle={showGoogle}
+                      showMeta={showMeta}
+                      showTikTok={showTikTok}
                       mixedCurrency={mixedCurrency}
                       labels={tooltipLabels}
                     />
@@ -522,7 +593,11 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleSpend"
-                    barSize={showMeta ? barChartSpacing.groupedBarSize : barChartSpacing.singleBarSize}
+                    barSize={
+                      showMeta || showTikTok
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -541,7 +616,11 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaSpend"
-                    barSize={showGoogle ? barChartSpacing.groupedBarSize : barChartSpacing.singleBarSize}
+                    barSize={
+                      showGoogle || showTikTok
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -550,6 +629,29 @@ export function DigitalMarketingReportMonthlySpendChart({
                         metaSeries.currency,
                         "meta",
                         "metaSpend",
+                      )}
+                    />
+                  </Bar>
+                ) : null}
+                {showGrouped && showTikTok ? (
+                  <Bar
+                    dataKey="tiktokSpend"
+                    fill={TIKTOK_BAR}
+                    radius={[4, 4, 0, 0]}
+                    name="tiktokSpend"
+                    barSize={
+                      showGoogle || showMeta
+                        ? barChartSpacing.groupedBarSize
+                        : barChartSpacing.singleBarSize
+                    }
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createSpendBarLabelRenderer(
+                        tiktokSeries.currency,
+                        "tiktok",
+                        "tiktokSpend",
                       )}
                     />
                   </Bar>
@@ -588,6 +690,25 @@ export function DigitalMarketingReportMonthlySpendChart({
                         metaSeries.currency,
                         "meta",
                         "metaSpend",
+                      )}
+                    />
+                  </Bar>
+                ) : null}
+                {channelFilter === "tiktok" ? (
+                  <Bar
+                    dataKey="tiktokSpend"
+                    fill={TIKTOK_BAR}
+                    radius={[4, 4, 0, 0]}
+                    name="tiktokSpend"
+                    barSize={barChartSpacing.singleBarSize}
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      position="top"
+                      content={createSpendBarLabelRenderer(
+                        tiktokSeries.currency,
+                        "tiktok",
+                        "tiktokSpend",
                       )}
                     />
                   </Bar>

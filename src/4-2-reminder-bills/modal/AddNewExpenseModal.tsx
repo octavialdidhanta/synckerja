@@ -914,384 +914,6 @@ export function AddNewExpenseModal({
 
             <div>
               <label className="block text-sm font-medium mb-2">
-                {t("expenses.createDate", "Create Date")} <span className="text-brand-red">*</span>
-              </label>
-              {isMobile ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal text-sm",
-                      !selectedDate && "text-muted-foreground"
-                    )}
-                    onClick={() => setIsCreateDatePickerOpen(true)}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate
-                      ? format(selectedDate, "MM/dd/yyyy")
-                      : format(new Date(), "MM/dd/yyyy")}
-                  </Button>
-                  <Dialog open={isCreateDatePickerOpen} onOpenChange={setIsCreateDatePickerOpen}>
-                    <DialogContent
-                      overlayClassName="z-[60]"
-                      className="z-[60] w-auto max-w-[min(92vw,380px)] p-0 gap-0 overflow-hidden border rounded-lg shadow-lg bg-background"
-                    >
-                      <DialogTitle className="sr-only">
-                        {t("expenses.createDate", "Create Date")}
-                      </DialogTitle>
-                      <div className="p-0">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate ?? new Date()}
-                          onSelect={(date) => {
-                            setSelectedDate(date);
-                            if (date) {
-                              form.setValue("create_date", format(date, "yyyy-MM-dd"));
-                              setIsCreateDatePickerOpen(false);
-                            }
-                          }}
-                          initialFocus
-                        />
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </>
-              ) : (
-                <Popover open={isCreateDatePickerOpen} onOpenChange={setIsCreateDatePickerOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal text-sm",
-                        !selectedDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate
-                        ? format(selectedDate, "MM/dd/yyyy")
-                        : format(new Date(), "MM/dd/yyyy")}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate ?? new Date()}
-                      onSelect={(date) => {
-                        setSelectedDate(date);
-                        if (date) {
-                          form.setValue("create_date", format(date, "yyyy-MM-dd"));
-                          setIsCreateDatePickerOpen(false);
-                        }
-                      }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
-
-            {/* Type: parent. On mobile use drawer, else Select. */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                {t("expenses.type", "Expense Type")} <span className="text-brand-red">*</span>
-              </label>
-              {isMobile ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-between text-sm font-normal"
-                    disabled={expenseTypesLoading}
-                    onClick={() => setTypeDrawerOpen(true)}
-                  >
-                    <span className={cn(!form.watch("expense_type") && "text-muted-foreground")}>
-                      {expenseTypesLoading
-                        ? t("expenses.loadingExpenseTypes", "Loading expense types...")
-                        : form.watch("expense_type") ||
-                          t("expenses.placeholderExpenseType", "Select expense type")}
-                    </span>
-                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                  <Drawer open={typeDrawerOpen} onOpenChange={setTypeDrawerOpen}>
-                    <DrawerContent
-                      className="z-[60]"
-                      overlayClassName="z-[60]"
-                    >
-                      <DrawerHeader className="text-left">
-                        <DrawerTitle>
-                          {t("expenses.type", "Expense Type")}
-                        </DrawerTitle>
-                      </DrawerHeader>
-                      <div className="max-h-[60vh] overflow-y-auto px-4 pb-4">
-                        <div className="flex flex-col gap-0 rounded-md border bg-card">
-                          {expenseTypes.map((type) => (
-                            <button
-                              key={type.id}
-                              type="button"
-                              onClick={() => {
-                                handleExpenseTypeChange(type.name);
-                                setTypeDrawerOpen(false);
-                              }}
-                              className={cn(
-                                "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border last:border-b-0",
-                                form.watch("expense_type") === type.name
-                                  ? "bg-primary/10 text-primary font-medium"
-                                  : "hover:bg-muted/50"
-                              )}
-                            >
-                              <span className="truncate">{type.name}</span>
-                              {form.watch("expense_type") === type.name ? (
-                                <Check className="h-4 w-4 shrink-0 text-primary" />
-                              ) : null}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </DrawerContent>
-                  </Drawer>
-                </>
-              ) : (
-                <Select onValueChange={handleExpenseTypeChange} disabled={expenseTypesLoading}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue
-                      placeholder={
-                        expenseTypesLoading
-                          ? t("expenses.loadingExpenseTypes", "Loading expense types...")
-                          : t("expenses.placeholderExpenseType", "Select expense type")
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {expenseTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.name}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {form.formState.errors.expense_type && (
-                <p className="text-sm text-brand-red mt-1">
-                  {form.formState.errors.expense_type.message}
-                </p>
-              )}
-            </div>
-
-            {/* Category: child of Type. On mobile use drawer (options depend on selected type), else Select. */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                {t("expenses.category", "Category")} <span className="text-brand-red">*</span>
-              </label>
-              {isMobile ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-between text-sm font-normal"
-                    disabled={!selectedExpenseTypeId || expenseCategories.length === 0}
-                    onClick={() => selectedExpenseTypeId && setCategoryDrawerOpen(true)}
-                  >
-                    <span
-                      className={cn(
-                        !form.watch("category") && "text-muted-foreground"
-                      )}
-                    >
-                      {!selectedExpenseTypeId
-                        ? t("expenses.selectExpenseTypeFirst", "Select expense type first")
-                        : expenseCategories.length === 0
-                          ? t("expenses.noCategoriesAvailable", "No categories available")
-                          : form.watch("category") ||
-                            t("expenses.placeholderCategory", "Select category")}
-                    </span>
-                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                  <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
-                    <DrawerContent
-                      className="z-[60]"
-                      overlayClassName="z-[60]"
-                    >
-                      <DrawerHeader className="text-left">
-                        <DrawerTitle>
-                          {t("expenses.category", "Category")}
-                        </DrawerTitle>
-                        {selectedExpenseTypeId && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {t("expenses.type", "Expense Type")}: {form.watch("expense_type")}
-                          </p>
-                        )}
-                      </DrawerHeader>
-                      <div className="max-h-[60vh] overflow-y-auto px-4 pb-4">
-                        <div className="flex flex-col gap-0 rounded-md border bg-card">
-                          {expenseCategories.map((cat) => (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              onClick={() => {
-                                form.setValue("category", cat.name);
-                                setCategoryDrawerOpen(false);
-                              }}
-                              className={cn(
-                                "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border last:border-b-0",
-                                form.watch("category") === cat.name
-                                  ? "bg-primary/10 text-primary font-medium"
-                                  : "hover:bg-muted/50"
-                              )}
-                            >
-                              <span className="truncate">{cat.name}</span>
-                              {form.watch("category") === cat.name ? (
-                                <Check className="h-4 w-4 shrink-0 text-primary" />
-                              ) : null}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </DrawerContent>
-                  </Drawer>
-                </>
-              ) : (
-                <Select
-                  onValueChange={(v) => form.setValue("category", v)}
-                  disabled={!selectedExpenseTypeId || expenseCategories.length === 0}
-                >
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue
-                      placeholder={
-                        !selectedExpenseTypeId
-                          ? t("expenses.selectExpenseTypeFirst", "Select expense type first")
-                          : expenseCategories.length === 0
-                            ? t("expenses.noCategoriesAvailable", "No categories available")
-                            : t("expenses.placeholderCategory", "Select category")
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {expenseCategories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.name}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {form.formState.errors.category && (
-                <p className="text-sm text-brand-red mt-1">
-                  {form.formState.errors.category.message}
-                </p>
-              )}
-            </div>
-
-            {/* Department: optional. On mobile use drawer, else Select. */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                {t("expenses.department", "Department")}
-              </label>
-              {isMobile ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-between text-sm font-normal"
-                    disabled={departmentsLoading}
-                    onClick={() => setDepartmentDrawerOpen(true)}
-                  >
-                    <span
-                      className={cn(
-                        !form.watch("department") && "text-muted-foreground"
-                      )}
-                    >
-                      {departmentsLoading
-                        ? t("expenses.loadingDepartments", "Loading departments...")
-                        : form.watch("department") ||
-                          t("expenses.placeholderDepartment", "Select department (optional)")}
-                    </span>
-                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                  <Drawer open={departmentDrawerOpen} onOpenChange={setDepartmentDrawerOpen}>
-                    <DrawerContent className="z-[60]" overlayClassName="z-[60]">
-                      <DrawerHeader className="text-left">
-                        <DrawerTitle>
-                          {t("expenses.department", "Department")}
-                        </DrawerTitle>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {t("expenses.optional", "Optional")}
-                        </p>
-                      </DrawerHeader>
-                      <div className="max-h-[60vh] overflow-y-auto px-4 pb-4">
-                        <div className="flex flex-col gap-0 rounded-md border bg-card">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              form.setValue("department", "");
-                              setDepartmentDrawerOpen(false);
-                            }}
-                            className={cn(
-                              "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border",
-                              !form.watch("department")
-                                ? "bg-primary/10 text-primary font-medium"
-                                : "hover:bg-muted/50"
-                            )}
-                          >
-                            <span className="text-muted-foreground">
-                              {t("expenses.placeholderDepartment", "Select department (optional)")}
-                            </span>
-                            {!form.watch("department") ? (
-                              <Check className="h-4 w-4 shrink-0 text-primary" />
-                            ) : null}
-                          </button>
-                          {departments.map((d) => (
-                            <button
-                              key={d.id}
-                              type="button"
-                              onClick={() => {
-                                form.setValue("department", d.name);
-                                setDepartmentDrawerOpen(false);
-                              }}
-                              className={cn(
-                                "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border last:border-b-0",
-                                form.watch("department") === d.name
-                                  ? "bg-primary/10 text-primary font-medium"
-                                  : "hover:bg-muted/50"
-                              )}
-                            >
-                              <span className="truncate">{d.name}</span>
-                              {form.watch("department") === d.name ? (
-                                <Check className="h-4 w-4 shrink-0 text-primary" />
-                              ) : null}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </DrawerContent>
-                  </Drawer>
-                </>
-              ) : (
-                <Select
-                  onValueChange={(v) => form.setValue("department", v)}
-                  disabled={departmentsLoading}
-                >
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue
-                      placeholder={
-                        departmentsLoading
-                          ? t("expenses.loadingDepartments", "Loading departments...")
-                          : t("expenses.placeholderDepartment", "Select department (optional)")
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.name}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
                 {t("expenses.withdrawalFromBalance", "Withdrawal From Balance")}{" "}
                 <span className="text-brand-red">*</span>
               </label>
@@ -1546,6 +1168,115 @@ export function AddNewExpenseModal({
               )}
             </div>
 
+            {/* Department: optional. On mobile use drawer, else Select. */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                {t("expenses.department", "Department")}
+              </label>
+              {isMobile ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between text-sm font-normal"
+                    disabled={departmentsLoading}
+                    onClick={() => setDepartmentDrawerOpen(true)}
+                  >
+                    <span
+                      className={cn(
+                        !form.watch("department") && "text-muted-foreground"
+                      )}
+                    >
+                      {departmentsLoading
+                        ? t("expenses.loadingDepartments", "Loading departments...")
+                        : form.watch("department") ||
+                          t("expenses.placeholderDepartment", "Select department (optional)")}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                  <Drawer open={departmentDrawerOpen} onOpenChange={setDepartmentDrawerOpen}>
+                    <DrawerContent className="z-[60]" overlayClassName="z-[60]">
+                      <DrawerHeader className="text-left">
+                        <DrawerTitle>
+                          {t("expenses.department", "Department")}
+                        </DrawerTitle>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {t("expenses.optional", "Optional")}
+                        </p>
+                      </DrawerHeader>
+                      <div className="max-h-[60vh] overflow-y-auto px-4 pb-4">
+                        <div className="flex flex-col gap-0 rounded-md border bg-card">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              form.setValue("department", "");
+                              setDepartmentDrawerOpen(false);
+                            }}
+                            className={cn(
+                              "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border",
+                              !form.watch("department")
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "hover:bg-muted/50"
+                            )}
+                          >
+                            <span className="text-muted-foreground">
+                              {t("expenses.placeholderDepartment", "Select department (optional)")}
+                            </span>
+                            {!form.watch("department") ? (
+                              <Check className="h-4 w-4 shrink-0 text-primary" />
+                            ) : null}
+                          </button>
+                          {departments.map((d) => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => {
+                                form.setValue("department", d.name);
+                                setDepartmentDrawerOpen(false);
+                              }}
+                              className={cn(
+                                "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border last:border-b-0",
+                                form.watch("department") === d.name
+                                  ? "bg-primary/10 text-primary font-medium"
+                                  : "hover:bg-muted/50"
+                              )}
+                            >
+                              <span className="truncate">{d.name}</span>
+                              {form.watch("department") === d.name ? (
+                                <Check className="h-4 w-4 shrink-0 text-primary" />
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+                </>
+              ) : (
+                <Select
+                  onValueChange={(v) => form.setValue("department", v)}
+                  disabled={departmentsLoading}
+                >
+                  <SelectTrigger className="w-full text-sm">
+                    <SelectValue
+                      placeholder={
+                        departmentsLoading
+                          ? t("expenses.loadingDepartments", "Loading departments...")
+                          : t("expenses.placeholderDepartment", "Select department (optional)")
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((d) => (
+                      <SelectItem key={d.id} value={d.name}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
             <IncomeAllocationOptionalSection
               bankAccountId={form.watch("bank_account_id")}
               referenceAmount={form.watch("amount") ?? 0}
@@ -1555,6 +1286,275 @@ export function AddNewExpenseModal({
               allocationAmountStr={incomeAllocAmountStr}
               onAllocationAmountStrChange={setIncomeAllocAmountStr}
             />
+
+            {/* Type: parent. On mobile use drawer, else Select. */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                {t("expenses.type", "Expense Type")} <span className="text-brand-red">*</span>
+              </label>
+              {isMobile ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between text-sm font-normal"
+                    disabled={expenseTypesLoading}
+                    onClick={() => setTypeDrawerOpen(true)}
+                  >
+                    <span className={cn(!form.watch("expense_type") && "text-muted-foreground")}>
+                      {expenseTypesLoading
+                        ? t("expenses.loadingExpenseTypes", "Loading expense types...")
+                        : form.watch("expense_type") ||
+                          t("expenses.placeholderExpenseType", "Select expense type")}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                  <Drawer open={typeDrawerOpen} onOpenChange={setTypeDrawerOpen}>
+                    <DrawerContent
+                      className="z-[60]"
+                      overlayClassName="z-[60]"
+                    >
+                      <DrawerHeader className="text-left">
+                        <DrawerTitle>
+                          {t("expenses.type", "Expense Type")}
+                        </DrawerTitle>
+                      </DrawerHeader>
+                      <div className="max-h-[60vh] overflow-y-auto px-4 pb-4">
+                        <div className="flex flex-col gap-0 rounded-md border bg-card">
+                          {expenseTypes.map((type) => (
+                            <button
+                              key={type.id}
+                              type="button"
+                              onClick={() => {
+                                handleExpenseTypeChange(type.name);
+                                setTypeDrawerOpen(false);
+                              }}
+                              className={cn(
+                                "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border last:border-b-0",
+                                form.watch("expense_type") === type.name
+                                  ? "bg-primary/10 text-primary font-medium"
+                                  : "hover:bg-muted/50"
+                              )}
+                            >
+                              <span className="truncate">{type.name}</span>
+                              {form.watch("expense_type") === type.name ? (
+                                <Check className="h-4 w-4 shrink-0 text-primary" />
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+                </>
+              ) : (
+                <Select onValueChange={handleExpenseTypeChange} disabled={expenseTypesLoading}>
+                  <SelectTrigger className="w-full text-sm">
+                    <SelectValue
+                      placeholder={
+                        expenseTypesLoading
+                          ? t("expenses.loadingExpenseTypes", "Loading expense types...")
+                          : t("expenses.placeholderExpenseType", "Select expense type")
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.name}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {form.formState.errors.expense_type && (
+                <p className="text-sm text-brand-red mt-1">
+                  {form.formState.errors.expense_type.message}
+                </p>
+              )}
+            </div>
+
+            {/* Category: child of Type. On mobile use drawer (options depend on selected type), else Select. */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                {t("expenses.category", "Category")} <span className="text-brand-red">*</span>
+              </label>
+              {isMobile ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between text-sm font-normal"
+                    disabled={!selectedExpenseTypeId || expenseCategories.length === 0}
+                    onClick={() => selectedExpenseTypeId && setCategoryDrawerOpen(true)}
+                  >
+                    <span
+                      className={cn(
+                        !form.watch("category") && "text-muted-foreground"
+                      )}
+                    >
+                      {!selectedExpenseTypeId
+                        ? t("expenses.selectExpenseTypeFirst", "Select expense type first")
+                        : expenseCategories.length === 0
+                          ? t("expenses.noCategoriesAvailable", "No categories available")
+                          : form.watch("category") ||
+                            t("expenses.placeholderCategory", "Select category")}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                  <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
+                    <DrawerContent
+                      className="z-[60]"
+                      overlayClassName="z-[60]"
+                    >
+                      <DrawerHeader className="text-left">
+                        <DrawerTitle>
+                          {t("expenses.category", "Category")}
+                        </DrawerTitle>
+                        {selectedExpenseTypeId && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {t("expenses.type", "Expense Type")}: {form.watch("expense_type")}
+                          </p>
+                        )}
+                      </DrawerHeader>
+                      <div className="max-h-[60vh] overflow-y-auto px-4 pb-4">
+                        <div className="flex flex-col gap-0 rounded-md border bg-card">
+                          {expenseCategories.map((cat) => (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                form.setValue("category", cat.name);
+                                setCategoryDrawerOpen(false);
+                              }}
+                              className={cn(
+                                "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border last:border-b-0",
+                                form.watch("category") === cat.name
+                                  ? "bg-primary/10 text-primary font-medium"
+                                  : "hover:bg-muted/50"
+                              )}
+                            >
+                              <span className="truncate">{cat.name}</span>
+                              {form.watch("category") === cat.name ? (
+                                <Check className="h-4 w-4 shrink-0 text-primary" />
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+                </>
+              ) : (
+                <Select
+                  onValueChange={(v) => form.setValue("category", v)}
+                  disabled={!selectedExpenseTypeId || expenseCategories.length === 0}
+                >
+                  <SelectTrigger className="w-full text-sm">
+                    <SelectValue
+                      placeholder={
+                        !selectedExpenseTypeId
+                          ? t("expenses.selectExpenseTypeFirst", "Select expense type first")
+                          : expenseCategories.length === 0
+                            ? t("expenses.noCategoriesAvailable", "No categories available")
+                            : t("expenses.placeholderCategory", "Select category")
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.name}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {form.formState.errors.category && (
+                <p className="text-sm text-brand-red mt-1">
+                  {form.formState.errors.category.message}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                {t("expenses.createDate", "Create Date")} <span className="text-brand-red">*</span>
+              </label>
+              {isMobile ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal text-sm",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                    onClick={() => setIsCreateDatePickerOpen(true)}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate
+                      ? format(selectedDate, "MM/dd/yyyy")
+                      : format(new Date(), "MM/dd/yyyy")}
+                  </Button>
+                  <Dialog open={isCreateDatePickerOpen} onOpenChange={setIsCreateDatePickerOpen}>
+                    <DialogContent
+                      overlayClassName="z-[60]"
+                      className="z-[60] w-auto max-w-[min(92vw,380px)] p-0 gap-0 overflow-hidden border rounded-lg shadow-lg bg-background"
+                    >
+                      <DialogTitle className="sr-only">
+                        {t("expenses.createDate", "Create Date")}
+                      </DialogTitle>
+                      <div className="p-0">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate ?? new Date()}
+                          onSelect={(date) => {
+                            setSelectedDate(date);
+                            if (date) {
+                              form.setValue("create_date", format(date, "yyyy-MM-dd"));
+                              setIsCreateDatePickerOpen(false);
+                            }
+                          }}
+                          initialFocus
+                        />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </>
+              ) : (
+                <Popover open={isCreateDatePickerOpen} onOpenChange={setIsCreateDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal text-sm",
+                        !selectedDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate
+                        ? format(selectedDate, "MM/dd/yyyy")
+                        : format(new Date(), "MM/dd/yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate ?? new Date()}
+                      onSelect={(date) => {
+                        setSelectedDate(date);
+                        if (date) {
+                          form.setValue("create_date", format(date, "yyyy-MM-dd"));
+                          setIsCreateDatePickerOpen(false);
+                        }
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
 
             <div className="flex items-center space-x-2">
               <Checkbox
