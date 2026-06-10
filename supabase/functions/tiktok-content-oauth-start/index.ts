@@ -83,6 +83,8 @@ Deno.serve(async (req: Request) => {
     response_type: "code",
     redirect_uri: redirectUri,
     state: stateToken,
+    // Always show TikTok login/consent so user can switch to another account.
+    disable_auto_auth: "1",
   });
 
   const url = `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`;

@@ -174,6 +174,7 @@ Deno.serve(async (req: Request) => {
   const existingOpenId = (existingAccounts ?? []).find(
     (a) => String((a as { open_id?: string }).open_id) === openId,
   );
+  const isExistingAccount = Boolean(existingOpenId);
 
   const { error: accErr } = await admin.from("organization_tiktok_content_accounts").upsert(
     {
@@ -195,5 +196,6 @@ Deno.serve(async (req: Request) => {
     return redirectDefault("?oauth_error=save_account_failed", oauthReturnPath);
   }
 
-  return redirectDefault("?connected=1", oauthReturnPath);
+  const query = isExistingAccount ? "?connected=1&existing=1" : "?connected=1";
+  return redirectDefault(query, oauthReturnPath);
 });

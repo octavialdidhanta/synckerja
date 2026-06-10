@@ -40,12 +40,23 @@ export function TikTokContentSettingsPanel({
 
   useEffect(() => {
     const connected = searchParams.get("connected");
+    const existing = searchParams.get("existing");
     const oauthError = searchParams.get("oauth_error");
     if (connected === "1") {
-      toast.success(
-        t("digitalMarketing.tiktokContent.connectedToast", "TikTok account connected successfully."),
-      );
+      if (existing === "1") {
+        toast.info(
+          t(
+            "digitalMarketing.tiktokContent.reconnectedToast",
+            "This TikTok account is already connected. Log in with a different TikTok account to add another.",
+          ),
+        );
+      } else {
+        toast.success(
+          t("digitalMarketing.tiktokContent.connectedToast", "TikTok account connected successfully."),
+        );
+      }
       searchParams.delete("connected");
+      searchParams.delete("existing");
       setSearchParams(searchParams, { replace: true });
     }
     if (oauthError) {
@@ -102,6 +113,15 @@ export function TikTokContentSettingsPanel({
         </Alert>
       )}
 
+      {accounts.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "digitalMarketing.tiktokContent.connectAnotherHint",
+            "To add another account, click Connect and sign in with a different TikTok user on the TikTok screen.",
+          )}
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -109,7 +129,9 @@ export function TikTokContentSettingsPanel({
           onClick={() => startOAuth.mutate(oauthReturnPath)}
         >
           {startOAuth.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {t("digitalMarketing.tiktokContent.connectAccount", "Connect TikTok account")}
+          {accounts.length > 0
+            ? t("digitalMarketing.tiktokContent.connectAnotherAccount", "Connect another TikTok account")
+            : t("digitalMarketing.tiktokContent.connectAccount", "Connect TikTok account")}
         </Button>
         {oauthConnected && (
           <Button
