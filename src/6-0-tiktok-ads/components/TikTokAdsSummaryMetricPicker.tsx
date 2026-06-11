@@ -11,6 +11,7 @@ import {
   CommandList,
 } from "@/shared/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 import {
   findTikTokAdsSummaryMetricOption,
   formatTikTokAdsSummaryMetricValue,
@@ -19,6 +20,8 @@ import {
   type TikTokAdsSummaryTotals,
   type TikTokAdsTableMetricKey,
 } from "@/tiktok-ads/metrics/tiktokAdsSummaryMetrics";
+import { ProgressBar } from "@/shared/components/ProgressBar";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 
 type Props = {
   selectedKey: TikTokAdsTableMetricKey;
@@ -29,6 +32,9 @@ type Props = {
   searchPlaceholder?: string;
   emptyLabel?: string;
   className?: string;
+  targetProgress?: DmReportTargetProgress;
+  targetsLoading?: boolean;
+  progressRatioText?: string | null;
 };
 
 export function TikTokAdsSummaryMetricPicker({
@@ -40,6 +46,9 @@ export function TikTokAdsSummaryMetricPicker({
   searchPlaceholder = "Search metrics…",
   emptyLabel = "No metrics found.",
   className,
+  targetProgress,
+  targetsLoading = false,
+  progressRatioText = null,
 }: Props) {
   const [open, setOpen] = useState(false);
   const groups = useMemo(() => tiktokAdsSummaryMetricGroups(options), [options]);
@@ -109,6 +118,28 @@ export function TikTokAdsSummaryMetricPicker({
           </Command>
         </PopoverContent>
       </Popover>
+      <div className="mt-2 min-h-[1.125rem]">
+        {isLoading || targetsLoading ? (
+          <Skeleton className="h-1.5 w-full" />
+        ) : targetProgress?.showProgress &&
+          targetProgress.target != null &&
+          targetProgress.target > 0 &&
+          targetProgress.actual != null ? (
+          <ProgressBar
+            current={targetProgress.actual}
+            target={targetProgress.target}
+            percentage={targetProgress.percentage ?? undefined}
+            color="primary"
+          />
+        ) : (
+          <div className="flex h-[1.125rem] items-center">
+            <span className="text-xs text-gray-400">—</span>
+          </div>
+        )}
+      </div>
+      {progressRatioText ? (
+        <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">{progressRatioText}</p>
+      ) : null}
     </div>
   );
 }

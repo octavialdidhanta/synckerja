@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Target } from "lucide-react";
+import { Link } from "react-router-dom";
 import { computePresetRange, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { DM_REPORT_TARGETS_PATH } from "@/6-0-digital-marketing-shared/dmReportTargetPaths";
+import { resolveDmReportTargetPeriod } from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
 import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
@@ -11,6 +15,7 @@ import {
   buildReportServiceFilterOptions,
   type ReportServiceFilterValue,
 } from "@/6-0-digital-marketing-shared/reportServiceFilter";
+import { Button } from "@/shared/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -218,6 +223,25 @@ function DigitalMarketingReportPageBody({
     [accountDateBounds?.earliest_date],
   );
 
+  const resolvedTargetPeriod = useMemo(
+    () => resolveDmReportTargetPeriod(dateSelection),
+    [dateSelection],
+  );
+
+  const manageTargetsHref = useMemo(() => {
+    if (!resolvedTargetPeriod) return DM_REPORT_TARGETS_PATH;
+    const params = new URLSearchParams();
+    params.set("periodType", resolvedTargetPeriod.periodType);
+    params.set("year", String(resolvedTargetPeriod.year));
+    if (resolvedTargetPeriod.month != null) {
+      params.set("month", String(resolvedTargetPeriod.month));
+    }
+    if (resolvedTargetPeriod.quarter != null) {
+      params.set("quarter", String(resolvedTargetPeriod.quarter));
+    }
+    return `${DM_REPORT_TARGETS_PATH}?${params.toString()}`;
+  }, [resolvedTargetPeriod]);
+
   const reportSubtitle = reportServiceFilter
     ? t(
         "digitalMarketing.report.subtitleWithService",
@@ -313,6 +337,23 @@ function DigitalMarketingReportPageBody({
                                       "Charts (Spend, CPA, Conv. leads) show monthly data for the chart year. Table and KPIs keep the date filter above.",
                                     )}
                                   />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 shrink-0 gap-1.5"
+                                    asChild
+                                  >
+                                    <Link to={manageTargetsHref}>
+                                      <Target className="h-4 w-4" />
+                                      <span className="hidden sm:inline">
+                                        {t(
+                                          "digitalMarketing.report.manageTargets",
+                                          "KPI targets",
+                                        )}
+                                      </span>
+                                    </Link>
+                                  </Button>
                                 </>
                               ) : (
                                 <div

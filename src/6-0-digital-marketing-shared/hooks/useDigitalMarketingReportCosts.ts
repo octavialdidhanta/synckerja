@@ -246,20 +246,30 @@ export function useDigitalMarketingReportCosts() {
     return row?.label ?? (effectiveTikTokAdvertiserId || null);
   }, [metricsReadyTikTokAccounts, effectiveTikTokAdvertiserId]);
 
+  const googleReportSummaryMetrics = [
+    "spent",
+    "avg_cpc",
+    "cost_per_conv",
+    "conversions",
+    "impressions",
+    "ctr",
+    "clicks",
+  ] as const;
+
   const googleMetricsQuery = useGoogleAdsMetricsQuery(
     organizationId,
     effectiveGoogleCustomerId
       ? {
           customerId: effectiveGoogleCustomerId,
           entity: "campaign",
-          metrics: ["spent", "impressions", "clicks"],
+          metrics: [...googleReportSummaryMetrics],
           dateRange: googleDateRangePayload,
           onlyRunning: false,
           statusFilter: "all",
           pageToken: "",
           pageSize: 1,
           sort: { field: "spent", direction: "desc" },
-          summaryMetrics: ["spent", "impressions", "clicks"],
+          summaryMetrics: [...googleReportSummaryMetrics],
         }
       : null,
     Boolean(
@@ -780,6 +790,8 @@ export function useDigitalMarketingReportCosts() {
       !tiktokRangeUnavailable &&
       tiktokServicesLoading);
 
+  const googleSummaryTotals = googleMetricsQuery.data?.summary_totals ?? null;
+
   return {
     googleCost,
     metaCost,
@@ -805,5 +817,6 @@ export function useDigitalMarketingReportCosts() {
     effectiveGoogleCustomerId,
     effectiveMetaAdAccountId,
     effectiveTikTokAdvertiserId,
+    googleSummaryTotals,
   };
 }

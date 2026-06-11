@@ -28,6 +28,12 @@ import { SocialInsightObjectiveBadge } from '@/6-0-social-media-performance-shar
 import { useInsightLinkedIndividualObjectiveIds } from '@/6-0-social-media-performance-shared/hooks/useInsightLinkedIndividualObjectiveIds';
 import { useInsightTargetMetricsByObjectiveId } from '@/6-0-social-media-performance-shared/hooks/useInsightTargetMetricsByObjectiveId';
 import { useSyncInsightTargetOkrProgress } from '@/6-0-social-media-performance-shared/hooks/useSyncInsightTargetOkrProgress';
+import { useSyncDmReportTargetOkrProgress } from '@/6-0-digital-marketing-shared/hooks/useSyncDmReportTargetOkrProgress';
+import { useDmReportTargetMetricsByObjectiveId } from '@/6-0-digital-marketing-shared/hooks/useDmReportTargetMetricsByObjectiveId';
+import { useDmReportObjectiveProgressByObjectiveId } from '@/6-0-digital-marketing-shared/hooks/useDmReportObjectiveProgressByObjectiveId';
+import { DmReportObjectiveBadge } from '@/6-0-digital-marketing-shared/components/DmReportObjectiveBadge';
+import { DmReportObjectiveTargetSummary } from '@/6-0-digital-marketing-shared/components/DmReportObjectiveTargetSummary';
+import { DmReportMetricProgressDisplay } from '@/6-0-digital-marketing-shared/components/DmReportMetricProgressDisplay';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useDepartmentObjectives, useDeleteDepartmentObjective } from '../../modal/useDepartmentObjectives';
@@ -66,7 +72,10 @@ export const DepartmentObjectivesView = ({
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { data: linkedInsightIoIds = new Set<string>() } = useInsightLinkedIndividualObjectiveIds();
   const { data: insightMetricsByObjective = new Map() } = useInsightTargetMetricsByObjectiveId();
+  const { data: dmMetricsByObjective = new Map() } = useDmReportTargetMetricsByObjectiveId();
+  const { data: dmProgressByObjective = new Map() } = useDmReportObjectiveProgressByObjectiveId();
   useSyncInsightTargetOkrProgress(true);
+  useSyncDmReportTargetOkrProgress(true);
 
   // Individual objectives modal states
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
@@ -176,8 +185,11 @@ export const DepartmentObjectivesView = ({
     const { data: krProgress = 0, isLoading: progressLoading } = useIndividualObjectiveProgress(indObj.id);
     const isInsightLinked = linkedInsightIoIds.has(indObj.id);
     const insightMetric = insightMetricsByObjective.get(indObj.id);
+    const dmMetric = dmMetricsByObjective.get(indObj.id);
+    const dmProgress = dmProgressByObjective.get(indObj.id);
+    const isDmLinked = Boolean(dmMetric);
     const objectiveProgress = Number(indObj.progress_percentage ?? 0);
-    const displayProgress = isInsightLinked ? objectiveProgress : krProgress;
+    const displayProgress = isInsightLinked || isDmLinked ? objectiveProgress : krProgress;
 
     return (
       <div key={indObj.id} className="bg-success-muted border border-primary/20 rounded-lg p-3">
@@ -185,8 +197,9 @@ export const DepartmentObjectivesView = ({
           <span className="text-sm font-medium text-foreground">{indObj.title}</span>
           <div className="flex items-center space-x-2">
             {isInsightLinked ? <SocialInsightObjectiveBadge /> : null}
+            {isDmLinked ? <DmReportObjectiveBadge /> : null}
             <Badge variant="outline" className="text-xs bg-accent text-success-foreground border-primary/25">
-              {progressLoading && !isInsightLinked ? '...' : `${Math.round(displayProgress)}%`}
+              {progressLoading && !isInsightLinked && !isDmLinked ? '...' : `${Math.round(displayProgress)}%`}
             </Badge>
             <ObjectiveCheckinForm
               objectiveId={indObj.id}
@@ -209,12 +222,23 @@ export const DepartmentObjectivesView = ({
             Target: {insightMetric.targetValue} {insightMetric.unit}
           </div>
         ) : null}
+        {isDmLinked && dmMetric ? (
+          <div className="mb-2">
+            <DmReportObjectiveTargetSummary
+              metric={dmMetric}
+              metricDirections={dmProgress?.metricDirections}
+            />
+          </div>
+        ) : null}
         <div className="space-y-2">
-          <div className="text-xs text-gray-600">Progress</div>
-          <Progress 
-            value={displayProgress} 
-            className="h-2"
-          />
+          {isDmLinked && dmProgress ? (
+            <DmReportMetricProgressDisplay input={dmProgress} size="sm" />
+          ) : (
+            <>
+              <div className="text-xs text-gray-600">Progress</div>
+              <Progress value={displayProgress} className="h-2" />
+            </>
+          )}
         </div>
         <div className="mt-2 text-xs text-gray-600">
           {getEmployeeName(indObj.employee_id)}

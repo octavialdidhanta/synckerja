@@ -638,6 +638,7 @@ function MetaAdsMetricsPageContent() {
                                 <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
                                   <MetaAdsMetricsSummaryBar
                                     entity={entity}
+                                    adAccountId={adAccountId}
                                     summary={
                                       metricsTableLoading ? undefined : metricsQuery.data?.summary
                                     }

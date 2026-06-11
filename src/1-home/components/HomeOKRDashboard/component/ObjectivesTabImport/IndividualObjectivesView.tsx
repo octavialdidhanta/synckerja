@@ -25,6 +25,16 @@ import { SocialInsightObjectiveBadge } from '@/6-0-social-media-performance-shar
 import { useInsightLinkedIndividualObjectiveIds } from '@/6-0-social-media-performance-shared/hooks/useInsightLinkedIndividualObjectiveIds';
 import { useInsightTargetMetricsByObjectiveId } from '@/6-0-social-media-performance-shared/hooks/useInsightTargetMetricsByObjectiveId';
 import { useSyncInsightTargetOkrProgress } from '@/6-0-social-media-performance-shared/hooks/useSyncInsightTargetOkrProgress';
+import { useSyncDmReportTargetOkrProgress } from '@/6-0-digital-marketing-shared/hooks/useSyncDmReportTargetOkrProgress';
+import { useDmReportTargetMetricsByObjectiveId } from '@/6-0-digital-marketing-shared/hooks/useDmReportTargetMetricsByObjectiveId';
+import { useDmReportObjectiveProgressByObjectiveId } from '@/6-0-digital-marketing-shared/hooks/useDmReportObjectiveProgressByObjectiveId';
+import { DmReportObjectiveBadge } from '@/6-0-digital-marketing-shared/components/DmReportObjectiveBadge';
+import { DmReportObjectiveTargetSummary } from '@/6-0-digital-marketing-shared/components/DmReportObjectiveTargetSummary';
+import {
+  DmReportMetricProgressDisplay,
+  getDmReportOkrHeadlineLabel,
+} from '@/6-0-digital-marketing-shared/components/DmReportMetricProgressDisplay';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 interface IndividualObjectivesViewProps {
   organizationId: string;
   cycleId?: string;
@@ -69,7 +79,11 @@ export const IndividualObjectivesView = ({
   const { toast } = useToast();
   const { data: linkedInsightIoIds = new Set<string>() } = useInsightLinkedIndividualObjectiveIds();
   const { data: insightMetricsByObjective = new Map() } = useInsightTargetMetricsByObjectiveId();
+  const { data: dmMetricsByObjective = new Map() } = useDmReportTargetMetricsByObjectiveId();
+  const { data: dmProgressByObjective = new Map() } = useDmReportObjectiveProgressByObjectiveId();
+  const { t } = useAppTranslation();
   useSyncInsightTargetOkrProgress(true);
+  useSyncDmReportTargetOkrProgress(true);
 
   // Filter out terminated employees
   const activeEmployees = useMemo(() => {
@@ -408,6 +422,9 @@ export const IndividualObjectivesView = ({
     const krCount = keyResults.length;
     const isInsightLinked = linkedInsightIoIds.has(objective.id);
     const insightMetric = insightMetricsByObjective.get(objective.id);
+    const dmMetric = dmMetricsByObjective.get(objective.id);
+    const dmProgress = dmProgressByObjective.get(objective.id);
+    const isDmLinked = Boolean(dmMetric);
     return (
       <AccordionItem key={objective.id} value={objective.id} className={`border-l-4 ${borderColor} shadow-sm mb-2 last:mb-0`}>
         <AccordionTrigger className="py-0 px-0 hover:bg-gray-50 transition-colors [&>svg]:hidden">
@@ -422,6 +439,7 @@ export const IndividualObjectivesView = ({
                     {objective.title}
                   </span>
                   {isInsightLinked ? <SocialInsightObjectiveBadge /> : null}
+                  {isDmLinked ? <DmReportObjectiveBadge /> : null}
                 </div>
                 <div className="flex items-center space-x-2 flex-shrink-0">
                   <div
@@ -444,6 +462,15 @@ export const IndividualObjectivesView = ({
                 </div>
               </div>
             </div>
+
+            {isDmLinked && dmMetric ? (
+              <div className="px-4 pb-2">
+                <DmReportObjectiveTargetSummary
+                  metric={dmMetric}
+                  metricDirections={dmProgress?.metricDirections}
+                />
+              </div>
+            ) : null}
             
             {/* Weekly Check-in Button with Progress Info */}
             <div className="px-4 pb-3">
@@ -472,10 +499,18 @@ export const IndividualObjectivesView = ({
                 </div>
                 <div className="flex items-center space-x-3">
                   <span className="text-gray-500">Average Progress</span>
-                  <span className="font-medium">{Math.round(syncedProgress)}%</span>
+                  <span className="font-medium tabular-nums">
+                    {isDmLinked && dmProgress
+                      ? getDmReportOkrHeadlineLabel(dmProgress, t)
+                      : `${Math.round(syncedProgress)}%`}
+                  </span>
                 </div>
               </div>
-              <Progress value={syncedProgress} className="h-2" />
+              {isDmLinked && dmProgress ? (
+                <DmReportMetricProgressDisplay input={dmProgress} showLabel={false} size="sm" />
+              ) : (
+                <Progress value={syncedProgress} className="h-2" />
+              )}
             </div>
           </div>
         </AccordionTrigger>
@@ -503,7 +538,24 @@ export const IndividualObjectivesView = ({
               </div>
             </div>
           ) : null}
-          {!isInsightLinked && keyResults.length > 0 ? (
+          {isDmLinked && dmMetric ? (
+            <div className="mb-4 space-y-2">
+              <h4 className="text-xs font-medium uppercase tracking-wide text-gray-700">
+                Paid Ads Target
+              </h4>
+              <DmReportObjectiveTargetSummary
+                metric={dmMetric}
+                metricDirections={dmProgress?.metricDirections}
+                variant="card"
+              />
+              {dmProgress ? (
+                <DmReportMetricProgressDisplay input={dmProgress} size="sm" />
+              ) : (
+                <Progress value={syncedProgress} className="h-2" />
+              )}
+            </div>
+          ) : null}
+          {!isInsightLinked && !isDmLinked && keyResults.length > 0 ? (
             <div className="mb-4 space-y-2">
               <h4 className="text-xs font-medium uppercase tracking-wide text-gray-700">
                 Key Results

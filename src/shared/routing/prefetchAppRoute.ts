@@ -50,6 +50,10 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-0-social-media-performance/pages/SocialMediaPerformanceHubPage"),
   },
   {
+    prefix: "/digital-marketing/report/targets",
+    prefetch: () => import("@/6-0-report/pages/DigitalMarketingReportTargetsSettingsPage"),
+  },
+  {
     prefix: "/digital-marketing/report",
     prefetch: () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
   },

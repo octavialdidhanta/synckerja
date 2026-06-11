@@ -406,3 +406,9 @@ export const DigitalMarketingReportPageSkeleton = createDeferredSkeleton(() =>
     default: m.DigitalMarketingReportPageSkeleton,
   })),
 );
+
+export const DigitalMarketingReportTargetsSettingsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-report/skeletons/DigitalMarketingReportTargetsSettingsPageSkeleton").then((m) => ({
+    default: m.DigitalMarketingReportTargetsSettingsPageSkeleton,
+  })),
+);

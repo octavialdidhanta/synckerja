@@ -1273,6 +1273,7 @@ export default function GoogleAdsMetricsPage() {
                           {reportingEnabled && effectiveCustomerId ? (
                             <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
                               <GoogleAdsMetricsSummaryBar
+                                customerId={effectiveCustomerId}
                                 totals={
                                   metricsTableLoading
                                     ? undefined

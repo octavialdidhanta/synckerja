@@ -72,6 +72,7 @@ import {
   SocialMediaInsightReportPageSkeleton,
   SocialMediaInsightTargetsSettingsPageSkeleton,
   DigitalMarketingReportPageSkeleton,
+  DigitalMarketingReportTargetsSettingsPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
@@ -175,6 +176,9 @@ const SocialMediaInsightTargetsSettingsPage = lazy(
 );
 const DigitalMarketingReportPage = lazy(
   () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
+);
+const DigitalMarketingReportTargetsSettingsPage = lazy(
+  () => import("@/6-0-report/pages/DigitalMarketingReportTargetsSettingsPage"),
 );
 const MobileWebTrafficPage = lazy(() => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPage"));
 const MobileWebTrafficPageSkeleton = lazy(
@@ -1797,6 +1801,20 @@ function DigitalMarketingReportPageRouteElement() {
   );
 }
 
+function DigitalMarketingReportTargetsSettingsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <DigitalMarketingReportTargetsSettingsPageSkeleton />
+        </div>
+      }
+    >
+      <DigitalMarketingReportTargetsSettingsPage />
+    </Suspense>
+  );
+}
+
 const SocialMediaProductKnowledgeSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -3173,6 +3191,18 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <SocialMediaPerformanceHubPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/report/targets"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/report"
+                                loadingShell={<DigitalMarketingReportTargetsSettingsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <DigitalMarketingReportTargetsSettingsPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

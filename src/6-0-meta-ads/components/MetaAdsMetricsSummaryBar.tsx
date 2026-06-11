@@ -1,6 +1,9 @@
 import { useMemo } from "react";
+import { useMetaAdsReportTargetProgress } from "@/6-0-digital-marketing-shared/hooks/useMetaAdsReportTargetProgress";
+import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricCatalogItem } from "@/meta-ads/metrics/metaAdsMetricCatalog";
@@ -24,6 +27,7 @@ type Summary = {
 
 type Props = {
   entity: MetaAdsMetricEntity;
+  adAccountId: string | null;
   summary: Summary | null | undefined;
   rows: MetaAdsMetricsRow[];
   catalogItems: MetaAdsMetricCatalogItem[];
@@ -32,8 +36,42 @@ type Props = {
   isLoading?: boolean;
 };
 
+function formatMetaProgressRatioValue(
+  tableKey: MetaAdsTableMetricKey,
+  value: number,
+  currency: string,
+): string {
+  if (tableKey === "ctr") {
+    return formatMetaMetricValue("ctr", value, currency, { ctrSource: "computed" });
+  }
+  if (tableKey === "service_cpl") {
+    return formatMetaMetricValue("service_cpl", value, currency);
+  }
+  if (tableKey === "service_converted_leads") {
+    return formatMetaMetricValue("service_converted_leads", value, currency);
+  }
+  return formatMetaMetricValue(tableKey, value, currency);
+}
+
+function progressRatioTextForTableKey(
+  tableKey: MetaAdsTableMetricKey,
+  progress: DmReportTargetProgress | undefined,
+  currency: string,
+): string | null {
+  if (
+    !progress?.showProgress ||
+    progress.target == null ||
+    progress.target <= 0 ||
+    progress.actual == null
+  ) {
+    return null;
+  }
+  return `${formatMetaProgressRatioValue(tableKey, progress.actual, currency)} / ${formatMetaProgressRatioValue(tableKey, progress.target, currency)}`;
+}
+
 export function MetaAdsMetricsSummaryBar({
   entity,
+  adAccountId,
   summary,
   rows,
   catalogItems,
@@ -83,6 +121,15 @@ export function MetaAdsMetricsSummaryBar({
     [metricKeys, validKeys, entity],
   );
 
+  const { progressByTableMetric, targetsLoading } = useMetaAdsReportTargetProgress({
+    adAccountId,
+    summary: summary ?? null,
+    rows,
+    tableMetricKeys: slots,
+  });
+
+  const currencyCode = summary?.currency ?? "IDR";
+
   if (isLoading) {
     return (
       <div
@@ -94,6 +141,7 @@ export function MetaAdsMetricsSummaryBar({
           <div key={i} className="rounded-md border border-gray-200 bg-white px-3 py-2">
             <Skeleton className="mb-1.5 h-3 w-16" />
             <Skeleton className="h-5 w-24" />
+            <Skeleton className="mt-2 h-1.5 w-full" />
           </div>
         ))}
       </div>
@@ -102,28 +150,34 @@ export function MetaAdsMetricsSummaryBar({
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {slots.map((key, index) => (
-        <MetaAdsSummaryMetricPicker
-          key={index}
-          selectedKey={key}
-          onSelectKey={(nextKey) => {
-            const next = normalizeMetaAdsSummarySlotKeys(
-              slots.map((k, i) => (i === index ? nextKey : k)),
-              validKeys,
-              entity,
-            );
-            onMetricKeysChange(next);
-          }}
-          options={metricOptions}
-          totals={totals}
-          isLoading={isLoading}
-          searchPlaceholder={t(
-            "digitalMarketing.metaAds.summarySearchMetrics",
-            "Search metrics…",
-          )}
-          emptyLabel={t("digitalMarketing.metaAds.summaryNoMetrics", "No metrics found.")}
-        />
-      ))}
+      {slots.map((key, index) => {
+        const progress = progressByTableMetric.get(key);
+        return (
+          <MetaAdsSummaryMetricPicker
+            key={index}
+            selectedKey={key}
+            onSelectKey={(nextKey) => {
+              const next = normalizeMetaAdsSummarySlotKeys(
+                slots.map((k, i) => (i === index ? nextKey : k)),
+                validKeys,
+                entity,
+              );
+              onMetricKeysChange(next);
+            }}
+            options={metricOptions}
+            totals={totals}
+            isLoading={isLoading}
+            searchPlaceholder={t(
+              "digitalMarketing.metaAds.summarySearchMetrics",
+              "Search metrics…",
+            )}
+            emptyLabel={t("digitalMarketing.metaAds.summaryNoMetrics", "No metrics found.")}
+            targetProgress={progress}
+            targetsLoading={targetsLoading}
+            progressRatioText={progressRatioTextForTableKey(key, progress, currencyCode)}
+          />
+        );
+      })}
     </div>
   );
 }

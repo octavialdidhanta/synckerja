@@ -1,4 +1,8 @@
 import { useMemo, useState } from "react";
+import { useDigitalMarketingReportData } from "@/6-0-digital-marketing-shared/DigitalMarketingReportDataContext";
+import { formatDmActualValue } from "@/6-0-digital-marketing-shared/dmReportTargetActuals";
+import { reportMetricValueKind } from "@/6-0-digital-marketing-shared/dmReportTargetMetricMapping";
+import { useDmReportTargetProgress } from "@/6-0-digital-marketing-shared/hooks/useDmReportTargetProgress";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type {
   ReportGoogleServiceRow,
@@ -45,6 +49,8 @@ export function DigitalMarketingReportSummaryBar({
   servicesLoading = false,
 }: Props) {
   const { t } = useAppTranslation();
+  const { googleCost } = useDigitalMarketingReportData();
+
   const [metricKeys, setMetricKeys] = useState<ReportTableMetricKey[]>(
     () => [...REPORT_SUMMARY_DEFAULT_SLOT_KEYS],
   );
@@ -84,11 +90,29 @@ export function DigitalMarketingReportSummaryBar({
     [t],
   );
 
+  const metricValueKinds = useMemo(() => {
+    const map: Record<string, ReturnType<typeof reportMetricValueKind>> = {};
+    for (const opt of REPORT_SUMMARY_METRIC_OPTIONS) {
+      map[opt.key] = reportMetricValueKind(opt.key);
+    }
+    return map;
+  }, []);
+
+  const { progressByReportSlot, targetsLoading } = useDmReportTargetProgress({
+    // Report summary is multi-channel aggregate — do not scope to a single Google default account.
+    googleCustomerId: null,
+    metaAdAccountId: null,
+    tiktokAdvertiserId: null,
+    selectedReportMetrics: slots,
+    valueKinds: metricValueKinds,
+  });
+
   const loading = servicesLoading || rowsLoading;
   const mixedCurrencyLabel = t(
     "digitalMarketing.report.summaryMixedCurrency",
     "Mixed currencies",
   );
+  const currencyCode = googleCost.currency;
 
   if (loading && bootstrapLoading) {
     return null;
@@ -96,28 +120,42 @@ export function DigitalMarketingReportSummaryBar({
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {slots.map((key, index) => (
-        <DigitalMarketingReportSummaryMetricPicker
-          key={index}
-          selectedKey={key}
-          onSelectKey={(nextKey) => {
-            setMetricKeys((prev) => {
-              const next = normalizeSlotKeys(prev);
-              next[index] = nextKey;
-              return next;
-            });
-          }}
-          options={metricOptions}
-          totals={totals}
-          isLoading={loading}
-          mixedCurrencyLabel={mixedCurrencyLabel}
-          searchPlaceholder={t(
-            "digitalMarketing.report.summarySearchMetrics",
-            "Search metrics…",
-          )}
-          emptyLabel={t("digitalMarketing.report.summaryNoMetrics", "No metrics found.")}
-        />
-      ))}
+      {slots.map((key, index) => {
+        const progress = progressByReportSlot.get(key);
+        const ratioText =
+          progress?.showProgress &&
+          progress.target != null &&
+          progress.target > 0 &&
+          progress.actual != null
+            ? `${formatDmActualValue("google", key, progress.actual, currencyCode)} / ${formatDmActualValue("google", key, progress.target, currencyCode)}`
+            : null;
+
+        return (
+          <DigitalMarketingReportSummaryMetricPicker
+            key={index}
+            selectedKey={key}
+            onSelectKey={(nextKey) => {
+              setMetricKeys((prev) => {
+                const next = normalizeSlotKeys(prev);
+                next[index] = nextKey;
+                return next;
+              });
+            }}
+            options={metricOptions}
+            totals={totals}
+            isLoading={loading}
+            mixedCurrencyLabel={mixedCurrencyLabel}
+            searchPlaceholder={t(
+              "digitalMarketing.report.summarySearchMetrics",
+              "Search metrics…",
+            )}
+            emptyLabel={t("digitalMarketing.report.summaryNoMetrics", "No metrics found.")}
+            targetProgress={progress}
+            targetsLoading={targetsLoading}
+            progressRatioText={ratioText}
+          />
+        );
+      })}
     </div>
   );
 }

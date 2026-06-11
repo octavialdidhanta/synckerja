@@ -19,6 +19,9 @@ import {
   type GoogleAdsSummaryMetricOption,
 } from "@/google-ads/metrics/googleAdsSummaryMetricOptions";
 import type { GoogleAdsMetricsSummaryTotals } from "@/google-ads/metrics/types";
+import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
+import { ProgressBar } from "@/shared/components/ProgressBar";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 
 type Props = {
   selectedKey: string;
@@ -28,6 +31,9 @@ type Props = {
   currencyCode: string | null;
   isLoading?: boolean;
   className?: string;
+  targetProgress?: DmReportTargetProgress;
+  targetsLoading?: boolean;
+  progressRatioText?: string | null;
 };
 
 function summaryValueForKey(
@@ -55,6 +61,9 @@ export function GoogleAdsSummaryPrimaryMetricPicker({
   currencyCode,
   isLoading,
   className,
+  targetProgress,
+  targetsLoading = false,
+  progressRatioText = null,
 }: Props) {
   const [open, setOpen] = useState(false);
   const groups = useMemo(() => summaryMetricGroups(options), [options]);
@@ -128,6 +137,28 @@ export function GoogleAdsSummaryPrimaryMetricPicker({
           </Command>
         </PopoverContent>
       </Popover>
+      <div className="mt-2 min-h-[1.125rem]">
+        {isLoading || targetsLoading ? (
+          <Skeleton className="h-1.5 w-full" />
+        ) : targetProgress?.showProgress &&
+          targetProgress.target != null &&
+          targetProgress.target > 0 &&
+          targetProgress.actual != null ? (
+          <ProgressBar
+            current={targetProgress.actual}
+            target={targetProgress.target}
+            percentage={targetProgress.percentage ?? undefined}
+            color="primary"
+          />
+        ) : (
+          <div className="flex h-[1.125rem] items-center">
+            <span className="text-xs text-gray-400">—</span>
+          </div>
+        )}
+      </div>
+      {progressRatioText ? (
+        <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">{progressRatioText}</p>
+      ) : null}
     </div>
   );
 }

@@ -26,6 +26,21 @@ import {
 import { formatActualReferenceValue } from '@/6-0-social-media-performance-shared/insightTargetPlatformActuals';
 import { useInsightWeeklyCheckinActuals } from '@/6-0-social-media-performance-shared/hooks/useInsightWeeklyCheckinActuals';
 import type { InsightTargetMetric } from '@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes';
+import {
+  dmKeyResultMetricType,
+  dmKeyResultProgress,
+  dmKeyResultUnit,
+} from '@/6-0-digital-marketing-shared/dmReportTargetOkrProgress';
+import { formatDmActualValue } from '@/6-0-digital-marketing-shared/dmReportTargetActuals';
+import { reportMetricValueKind } from '@/6-0-digital-marketing-shared/dmReportTargetMetricMapping';
+import { dmReportSuggestedCheckinStatus } from '@/6-0-digital-marketing-shared/dmReportMetricDirections';
+import { useDmReportTargetWeeklyCheckinActuals } from '@/6-0-digital-marketing-shared/hooks/useDmReportTargetWeeklyCheckinActuals';
+import {
+  DmReportMetricProgressDisplay,
+  getDmReportOkrHeadlineLabel,
+} from '@/6-0-digital-marketing-shared/components/DmReportMetricProgressDisplay';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import type { ReportTableMetricKey } from '@/6-0-digital-marketing-shared/reportSummaryMetrics';
 interface WeeklyPeriod {
   weekStart: Date;
   weekEnd: Date;
@@ -58,6 +73,7 @@ export const ObjectiveCheckinForm = ({
   onSuccess,
   disableActivitiesTab = false
 }: ObjectiveCheckinFormProps) => {
+  const { t } = useAppTranslation();
   const { data: unifiedData } = useUnifiedProfile();
   const profile = unifiedData ? { ...unifiedData.profile, ...unifiedData.profileDetails } : null;
   const {
@@ -102,7 +118,15 @@ export const ObjectiveCheckinForm = ({
     isOpen && insightWeekInputs.length > 0,
   );
 
+  const { data: dmReportCheckinContext } = useDmReportTargetWeeklyCheckinActuals(
+    objectiveId,
+    insightWeekInputs,
+    isOpen && insightWeekInputs.length > 0,
+  );
+
   const isInsightKpiObjective = Boolean(insightCheckinContext?.targetRow);
+  const isDmReportKpiObjective = Boolean(dmReportCheckinContext?.targetRow);
+  const isSyncedKpiObjective = isInsightKpiObjective || isDmReportKpiObjective;
   const insightMetric: InsightTargetMetric | undefined = insightCheckinContext?.targetRow?.metric;
 
   useEffect(() => {
@@ -134,6 +158,46 @@ export const ObjectiveCheckinForm = ({
     });
   }, [insightCheckinContext, objectiveId]);
 
+  useEffect(() => {
+    if (!dmReportCheckinContext) return;
+
+    const { targetRow, weeklyActuals, periodToDateActual, metricDirections } = dmReportCheckinContext;
+    const valueKind = reportMetricValueKind(targetRow.metric_key as ReportTableMetricKey);
+    const targetValue = Number(targetRow.target_value);
+    setKeyResultData({
+      target_value: targetValue,
+      current_value: periodToDateActual ?? 0,
+      unit: dmKeyResultUnit(targetRow.metric_key, valueKind),
+      metric_type: dmKeyResultMetricType(targetRow.metric_key, valueKind),
+      id: objectiveId,
+    });
+
+    setCheckinData((prev) => {
+      const next = { ...prev };
+      for (const [weekKey, actual] of weeklyActuals) {
+        const existing = next[weekKey];
+        const suggestedStatus =
+          actual != null
+            ? dmReportSuggestedCheckinStatus(
+                actual,
+                targetValue,
+                targetRow.metric_key,
+                metricDirections,
+              )
+            : 'on_track';
+        next[weekKey] = {
+          progress_percentage: actual ?? 0,
+          status: existing?.id ? (existing?.status ?? 'on_track') : suggestedStatus,
+          comments: existing?.comments ?? '',
+          blockers: existing?.blockers ?? '',
+          hasChanges: existing?.hasChanges ?? false,
+          id: existing?.id,
+        };
+      }
+      return next;
+    });
+  }, [dmReportCheckinContext, objectiveId]);
+
   const getInsightProgressPercent = (): number => {
     if (!insightCheckinContext?.targetRow) return 0;
     const { targetRow, periodToDateActual } = insightCheckinContext;
@@ -145,10 +209,45 @@ export const ObjectiveCheckinForm = ({
   };
 
   const getInsightOverviewLabel = (): string => {
-    if (!insightCheckinContext?.targetRow) return '0';
-    const { targetRow, periodToDateActual } = insightCheckinContext;
-    const target = Number(targetRow.target_value);
-    return `${formatActualReferenceValue(targetRow.metric, periodToDateActual)} / ${formatActualReferenceValue(targetRow.metric, target)}`;
+    if (insightCheckinContext?.targetRow) {
+      const { targetRow, periodToDateActual } = insightCheckinContext;
+      const target = Number(targetRow.target_value);
+      return `${formatActualReferenceValue(targetRow.metric, periodToDateActual)} / ${formatActualReferenceValue(targetRow.metric, target)}`;
+    }
+    if (dmReportCheckinContext?.targetRow) {
+      const { targetRow, periodToDateActual } = dmReportCheckinContext;
+      const target = Number(targetRow.target_value);
+      return `${formatDmActualValue(targetRow.channel, targetRow.metric_key, periodToDateActual, null)} / ${formatDmActualValue(targetRow.channel, targetRow.metric_key, target, null)}`;
+    }
+    return '0';
+  };
+
+  const getSyncedKpiOkrScorePercent = (): number => {
+    if (insightCheckinContext?.targetRow) return getInsightProgressPercent();
+    if (dmReportCheckinContext?.targetRow) {
+      const { targetRow, periodToDateActual } = dmReportCheckinContext;
+      const valueKind = reportMetricValueKind(targetRow.metric_key as ReportTableMetricKey);
+      return dmKeyResultProgress(
+        targetRow.metric_key,
+        valueKind,
+        periodToDateActual,
+        Number(targetRow.target_value),
+        dmReportCheckinContext.metricDirections,
+      );
+    }
+    return 0;
+  };
+
+  const getDmReportProgressInput = () => {
+    if (!dmReportCheckinContext?.targetRow) return null;
+    const { targetRow, periodToDateActual, metricDirections } = dmReportCheckinContext;
+    return {
+      metricKey: targetRow.metric_key,
+      channel: targetRow.channel,
+      actual: periodToDateActual,
+      target: Number(targetRow.target_value),
+      metricDirections,
+    };
   };
 
   // Load OKR cycle data
@@ -365,6 +464,14 @@ export const ObjectiveCheckinForm = ({
             .eq('individual_objective_id', objectiveId)
             .maybeSingle();
 
+          const { data: dmReportTarget } = await supabase
+            .from('digital_marketing_report_targets')
+            .select('id')
+            .eq('individual_objective_id', objectiveId)
+            .maybeSingle();
+
+          const isAutoKpiObjective = Boolean(insightTarget || dmReportTarget);
+
           const {
             data: existingCheckins,
             error: checkinError,
@@ -376,22 +483,27 @@ export const ObjectiveCheckinForm = ({
             .eq('individual_objective_id', objectiveId);
 
           if (!checkinError && existingCheckins) {
-            const checkinMap: Record<string, CheckinData> = {};
-            existingCheckins.forEach((checkin) => {
-              const weekKey = checkin.week_start_date;
-              checkinMap[weekKey] = {
-                id: checkin.id,
-                progress_percentage: insightTarget ? 0 : checkin.current_value || 0,
-                status: checkin.status || 'on_track',
-                comments: checkin.comments || '',
-                blockers: checkin.blockers || '',
-                hasChanges: false,
-              };
+            setCheckinData((prev) => {
+              const next = { ...prev };
+              existingCheckins.forEach((checkin) => {
+                const weekKey = checkin.week_start_date;
+                const existing = next[weekKey];
+                next[weekKey] = {
+                  progress_percentage: isAutoKpiObjective
+                    ? (existing?.progress_percentage ?? 0)
+                    : (checkin.current_value || 0),
+                  status: checkin.status || existing?.status || 'on_track',
+                  comments: checkin.comments || '',
+                  blockers: checkin.blockers || '',
+                  hasChanges: false,
+                  id: checkin.id,
+                };
+              });
+              return next;
             });
-            setCheckinData(checkinMap);
           }
 
-          if (insightTarget) {
+          if (isAutoKpiObjective) {
             return;
           }
 
@@ -520,7 +632,7 @@ export const ObjectiveCheckinForm = ({
 
   // Update checkin data for a specific week
   const updateCheckinData = (weekKey: string, field: keyof CheckinData, value: any) => {
-    if (isInsightKpiObjective && field === 'progress_percentage') return;
+    if (isSyncedKpiObjective && field === 'progress_percentage') return;
     setCheckinData(prev => {
       const current = prev[weekKey] || {
         progress_percentage: 0,
@@ -565,9 +677,11 @@ export const ObjectiveCheckinForm = ({
         return;
       }
 
-      if (isInsightKpiObjective && insightCheckinContext) {
+      if (isSyncedKpiObjective && (insightCheckinContext || dmReportCheckinContext)) {
+        const weeklyActuals =
+          insightCheckinContext?.weeklyActuals ?? dmReportCheckinContext?.weeklyActuals;
         for (const [weekKey, data] of changedWeeks) {
-          const actualValue = insightCheckinContext.weeklyActuals.get(weekKey) ?? data.progress_percentage;
+          const actualValue = weeklyActuals?.get(weekKey) ?? data.progress_percentage;
           if (data.id) {
             const { error } = await supabase
               .from('weekly_checkins')
@@ -992,10 +1106,10 @@ export const ObjectiveCheckinForm = ({
             </span>
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground mt-1">
-            {isInsightKpiObjective ? (
+            {isSyncedKpiObjective ? (
               <span className="flex flex-wrap items-center gap-2">
-                <SocialInsightObjectiveBadge />
-                Progress diisi otomatis dari data organic. Hanya Status, Comments, dan Blockers yang dapat diedit.
+                {isInsightKpiObjective ? <SocialInsightObjectiveBadge /> : null}
+                Progress diisi otomatis dari data KPI. Hanya Status, Comments, dan Blockers yang dapat diedit.
               </span>
             ) : (
               'Weekly periods run from Saturday to Friday. Current and past weeks can be edited.'
@@ -1008,7 +1122,7 @@ export const ObjectiveCheckinForm = ({
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-gray-800">Progress Overview</span>
                 <span className="text-sm font-medium text-primary bg-white px-2 py-1 rounded-md">
-                  {isInsightKpiObjective
+                  {isSyncedKpiObjective
                     ? getInsightOverviewLabel()
                     : (() => {
                         const latestCheckin = Object.values(checkinData).reduce((latest, current) => {
@@ -1032,42 +1146,62 @@ export const ObjectiveCheckinForm = ({
                       })()}
                 </span>
               </div>
-              <Progress
-                value={
-                  isInsightKpiObjective
-                    ? getInsightProgressPercent()
-                    : (() => {
-                        const latestCheckin = Object.values(checkinData).reduce((latest, current) => {
-                          if (!latest || current.progress_percentage > latest.progress_percentage) {
-                            return current;
+              {isDmReportKpiObjective && getDmReportProgressInput() ? (
+                <DmReportMetricProgressDisplay
+                  input={getDmReportProgressInput()!}
+                  showLabel={false}
+                />
+              ) : (
+                <Progress
+                  value={
+                    isSyncedKpiObjective
+                      ? getSyncedKpiOkrScorePercent()
+                      : (() => {
+                          const latestCheckin = Object.values(checkinData).reduce((latest, current) => {
+                            if (!latest || current.progress_percentage > latest.progress_percentage) {
+                              return current;
+                            }
+                            return latest;
+                          }, null as CheckinData | null);
+
+                          const currentValue =
+                            latestCheckin?.progress_percentage ||
+                            (keyResultData?.metric_type === 'number'
+                              ? keyResultData?.current_value
+                              : keyResultData?.progress_percentage) ||
+                            0;
+
+                          if (keyResultData?.metric_type === 'number') {
+                            return keyResultData?.target_value > 0
+                              ? (currentValue / keyResultData.target_value) * 100
+                              : 0;
                           }
-                          return latest;
-                        }, null as CheckinData | null);
-
-                        const currentValue =
-                          latestCheckin?.progress_percentage ||
-                          (keyResultData?.metric_type === 'number'
-                            ? keyResultData?.current_value
-                            : keyResultData?.progress_percentage) ||
-                          0;
-
-                        if (keyResultData?.metric_type === 'number') {
                           return keyResultData?.target_value > 0
                             ? (currentValue / keyResultData.target_value) * 100
                             : 0;
-                        }
-                        return keyResultData?.target_value > 0
-                          ? (currentValue / keyResultData.target_value) * 100
-                          : 0;
-                      })()
-                }
-                className="h-3 bg-white border border-primary/20"
-              />
+                        })()
+                  }
+                  className="h-3 bg-white border border-primary/20"
+                />
+              )}
               <div className="flex justify-between mt-2 text-xs text-gray-600">
-                <span>{keyResultData?.metric_type === 'number' ? `0 ${keyResultData?.unit || ''}` : '0%'}</span>
+                <span>
+                  {isDmReportKpiObjective && dmReportCheckinContext?.targetRow
+                    ? formatDmActualValue(
+                        dmReportCheckinContext.targetRow.channel,
+                        dmReportCheckinContext.targetRow.metric_key,
+                        0,
+                        null,
+                      )
+                    : keyResultData?.metric_type === 'number'
+                      ? `0 ${keyResultData?.unit || ''}`
+                      : '0%'}
+                </span>
                 <span className="font-medium">
-                  {isInsightKpiObjective
-                    ? `${Math.round(getInsightProgressPercent())}% Complete`
+                  {isDmReportKpiObjective && getDmReportProgressInput()
+                    ? getDmReportOkrHeadlineLabel(getDmReportProgressInput()!, t)
+                    : isSyncedKpiObjective
+                    ? `${Math.round(getSyncedKpiOkrScorePercent())}% Complete`
                     : (() => {
                         const latestCheckin = Object.values(checkinData).reduce((latest, current) => {
                           if (!latest || current.progress_percentage > latest.progress_percentage) {
@@ -1083,6 +1217,13 @@ export const ObjectiveCheckinForm = ({
                 <span>
                   {isInsightKpiObjective && insightMetric
                     ? formatActualReferenceValue(insightMetric, keyResultData?.target_value ?? 0)
+                    : isDmReportKpiObjective && dmReportCheckinContext?.targetRow
+                      ? formatDmActualValue(
+                          dmReportCheckinContext.targetRow.channel,
+                          dmReportCheckinContext.targetRow.metric_key,
+                          keyResultData?.target_value ?? 0,
+                          null,
+                        )
                     : keyResultData?.metric_type === 'number'
                       ? `${keyResultData?.target_value || 0} ${keyResultData?.unit || ''}`
                       : '100%'}
@@ -1165,15 +1306,26 @@ export const ObjectiveCheckinForm = ({
 
                       {/* Progress */}
                       <div className="w-32 shrink-0 flex items-center gap-1">
-                        {isInsightKpiObjective && insightMetric ? (
+                        {isSyncedKpiObjective ? (
                           <>
                             <Input
                               type="text"
                               readOnly
                               disabled
-                              value={formatActualReferenceValue(insightMetric, data.progress_percentage)}
+                              value={
+                                isInsightKpiObjective && insightMetric
+                                  ? formatActualReferenceValue(insightMetric, data.progress_percentage)
+                                  : isDmReportKpiObjective && dmReportCheckinContext?.targetRow
+                                    ? formatDmActualValue(
+                                        dmReportCheckinContext.targetRow.channel,
+                                        dmReportCheckinContext.targetRow.metric_key,
+                                        data.progress_percentage,
+                                        null,
+                                      )
+                                    : String(data.progress_percentage)
+                              }
                               className="h-9 text-sm border-gray-300 bg-gray-100 cursor-not-allowed"
-                              title="Diisi otomatis dari data organic Social Insight"
+                              title="Diisi otomatis dari data KPI"
                             />
                             <Lock className="h-3 w-3 shrink-0 text-gray-400" aria-hidden />
                           </>
@@ -1192,7 +1344,7 @@ export const ObjectiveCheckinForm = ({
                             placeholder="0"
                           />
                         )}
-                        {!isInsightKpiObjective ? getProgressIndicator(weekKey, data.progress_percentage) : null}
+                        {!isSyncedKpiObjective ? getProgressIndicator(weekKey, data.progress_percentage) : null}
                       </div>
 
                       {/* Status */}
