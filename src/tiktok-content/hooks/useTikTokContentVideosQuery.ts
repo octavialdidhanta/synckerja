@@ -26,6 +26,7 @@ export type TikTokContentVideosResponse = {
   rows: TikTokContentVideoRow[];
   summary: {
     video_count: number;
+    follower_count: number | null;
     total_views: number;
     total_likes: number;
     total_comments: number;

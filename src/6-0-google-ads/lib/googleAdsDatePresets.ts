@@ -24,6 +24,7 @@ export type GoogleAdsDatePresetId =
   | "last_30_days"
   | "last_month"
   | "calendar_year"
+  | "calendar_quarter"
   | "all_time"
   | "last_n_days_today"
   | "last_n_days_yesterday";
@@ -33,9 +34,13 @@ export type GoogleAdsDateRangeSelection = {
   range: DateRange;
   /** Used for “N days up to today/yesterday” rows. */
   rollingDays: number;
-  /** When preset is calendar_year (Report year rows in date picker). */
+  /** When preset is calendar_year or calendar_quarter. */
   calendarYear?: number;
+  /** When preset is calendar_quarter (Q1–Q4). */
+  calendarQuarter?: CalendarQuarter;
 };
+
+export type CalendarQuarter = 1 | 2 | 3 | 4;
 
 const WEEK_OPTS = { weekStartsOn: 1 as const };
 
@@ -60,6 +65,7 @@ export function computePresetRange(
     accountEarliestYmd?: string | null;
     rollingDays?: number;
     calendarYear?: number;
+    calendarQuarter?: CalendarQuarter;
   },
 ): DateRange {
   const today = startOfDay(now);
@@ -115,6 +121,14 @@ export function computePresetRange(
         y === today.getFullYear() ? endOfDay(today) : endOfDay(new Date(y, 11, 31));
       return { from, to };
     }
+    case "calendar_quarter": {
+      const sel = dateSelectionForCalendarQuarter(
+        opts?.calendarYear ?? today.getFullYear(),
+        opts?.calendarQuarter ?? currentCalendarQuarter(today),
+        now,
+      );
+      return sel.range;
+    }
     case "all_time": {
       const end = endOfDay(today);
       const parsed = opts?.accountEarliestYmd
@@ -136,15 +150,98 @@ export function defaultGoogleAdsDateSelection(
   return { preset: "last_30_days", range, rollingDays: 30 };
 }
 
+function normalizeCalendarYear(year: number, fallback: number): number {
+  return Number.isFinite(year) && year >= 2000 && year <= 2100
+    ? Math.floor(year)
+    : fallback;
+}
+
+function normalizeCalendarQuarter(quarter: number): CalendarQuarter {
+  const q = Math.floor(quarter);
+  if (q >= 1 && q <= 4) return q as CalendarQuarter;
+  return 1;
+}
+
+export function currentCalendarQuarter(now: Date = new Date()): CalendarQuarter {
+  return (Math.floor(now.getMonth() / 3) + 1) as CalendarQuarter;
+}
+
+/** Calendar quarter bounds (Q1 = Jan–Mar, …, Q4 = Oct–Dec). End is today when quarter is in progress. */
+export function dateSelectionForCalendarQuarter(
+  year: number,
+  quarter: CalendarQuarter,
+  now: Date = new Date(),
+): GoogleAdsDateRangeSelection {
+  const y = normalizeCalendarYear(year, now.getFullYear());
+  const q = normalizeCalendarQuarter(quarter);
+  const startMonth = (q - 1) * 3;
+  const from = startOfDay(new Date(y, startMonth, 1));
+  const quarterEnd = endOfDay(new Date(y, startMonth + 3, 0));
+  const today = startOfDay(now);
+  const isCurrentYear = y === today.getFullYear();
+  const activeQuarter = currentCalendarQuarter(now);
+  const to =
+    isCurrentYear && q === activeQuarter
+      ? endOfDay(now)
+      : isCurrentYear && q > activeQuarter
+        ? endOfDay(from)
+        : quarterEnd;
+  return {
+    preset: "calendar_quarter",
+    calendarYear: y,
+    calendarQuarter: q,
+    range: { from, to },
+    rollingDays: 30,
+  };
+}
+
+export function isCalendarQuarterSelection(
+  selection: GoogleAdsDateRangeSelection,
+  year: number,
+  quarter: CalendarQuarter,
+  now: Date = new Date(),
+): boolean {
+  if (
+    selection.preset === "calendar_quarter" &&
+    selection.calendarYear === year &&
+    selection.calendarQuarter === quarter
+  ) {
+    return true;
+  }
+  const expected = dateSelectionForCalendarQuarter(year, quarter, now);
+  const from = selection.range.from;
+  const to = selection.range.to;
+  const expFrom = expected.range.from;
+  const expTo = expected.range.to;
+  if (!from || !to || !expFrom || !expTo) return false;
+  return toYmdLocal(from) === toYmdLocal(expFrom) && toYmdLocal(to) === toYmdLocal(expTo);
+}
+
+/** True when the quarter has any overlap with [minDate, maxDate]. */
+export function calendarQuarterOverlapsRange(
+  year: number,
+  quarter: CalendarQuarter,
+  minDate: Date,
+  maxDate: Date = new Date(),
+  now: Date = new Date(),
+): boolean {
+  const sel = dateSelectionForCalendarQuarter(year, quarter, now);
+  const from = sel.range.from;
+  const to = sel.range.to;
+  if (!from || !to) return false;
+  const rangeStart = startOfDay(from);
+  const rangeEnd = endOfDay(to);
+  const min = startOfDay(minDate);
+  const max = endOfDay(maxDate);
+  return rangeStart.getTime() <= max.getTime() && rangeEnd.getTime() >= min.getTime();
+}
+
 /** Jan 1 – Dec 31 (or today when year is current). Used by Report monthly chart year filter. */
 export function dateSelectionForCalendarYear(
   year: number,
   now: Date = new Date(),
 ): GoogleAdsDateRangeSelection {
-  const y =
-    Number.isFinite(year) && year >= 2000 && year <= 2100
-      ? Math.floor(year)
-      : now.getFullYear();
+  const y = normalizeCalendarYear(year, now.getFullYear());
   const from = startOfDay(new Date(y, 0, 1));
   const to =
     y === now.getFullYear() ? endOfDay(now) : endOfDay(new Date(y, 11, 31));
@@ -194,6 +291,18 @@ export function intersectDateSelectionWithChartYear(
 ): GoogleAdsDateRangeSelection | null {
   if (dateSelection.preset === "calendar_year" && dateSelection.calendarYear != null) {
     return dateSelectionForCalendarYear(dateSelection.calendarYear, now);
+  }
+  if (
+    dateSelection.preset === "calendar_quarter" &&
+    dateSelection.calendarYear != null &&
+    dateSelection.calendarQuarter != null
+  ) {
+    if (dateSelection.calendarYear !== reportChartYear) return null;
+    return dateSelectionForCalendarQuarter(
+      dateSelection.calendarYear,
+      dateSelection.calendarQuarter,
+      now,
+    );
   }
   if (dateSelection.preset === "all_time") {
     const from = dateSelection.range.from;
@@ -263,6 +372,18 @@ export function formatGoogleAdsPickerButtonLabel(
 
   if (selection.preset === "calendar_year" && selection.calendarYear != null) {
     return formatPickerLabelWithRange(String(selection.calendarYear), from, to);
+  }
+
+  if (
+    selection.preset === "calendar_quarter" &&
+    selection.calendarYear != null &&
+    selection.calendarQuarter != null
+  ) {
+    return formatPickerLabelWithRange(
+      `${selection.calendarYear} Q${selection.calendarQuarter}`,
+      from,
+      to,
+    );
   }
 
   if (selection.preset !== "custom" && labels[selection.preset]) {

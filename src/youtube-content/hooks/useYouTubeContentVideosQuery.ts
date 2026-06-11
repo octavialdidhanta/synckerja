@@ -12,6 +12,7 @@ export type YouTubeContentVideoRow = {
   like_count: number;
   comment_count: number;
   share_count: number;
+  subscribers_gained: number;
   engagement_rate: number | null;
   posted_at: string | null;
   plan_id: string | null;
@@ -26,10 +27,12 @@ export type YouTubeContentVideosResponse = {
   rows: YouTubeContentVideoRow[];
   summary: {
     video_count: number;
+    subscriber_count: number | null;
     total_views: number;
     total_likes: number;
     total_comments: number;
     total_shares: number;
+    total_subscribers_gained: number;
     avg_engagement_rate: number | null;
     matched_plans: number;
   };

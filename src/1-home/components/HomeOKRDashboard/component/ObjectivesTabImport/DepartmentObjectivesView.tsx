@@ -24,6 +24,10 @@ import { CreateKeyResultDialog } from './CompanyObjectivesDetailViewImport/Creat
 import { ModalAddDepartmentContribution } from '../../modal/ModalAddDepartmentContribution';
 
 import { DepartmentObjectivesEmptyState } from './DepartmentObjectivesViewImport/DepartmentObjectivesEmptyState';
+import { SocialInsightObjectiveBadge } from '@/6-0-social-media-performance-shared/components/SocialInsightObjectiveBadge';
+import { useInsightLinkedIndividualObjectiveIds } from '@/6-0-social-media-performance-shared/hooks/useInsightLinkedIndividualObjectiveIds';
+import { useInsightTargetMetricsByObjectiveId } from '@/6-0-social-media-performance-shared/hooks/useInsightTargetMetricsByObjectiveId';
+import { useSyncInsightTargetOkrProgress } from '@/6-0-social-media-performance-shared/hooks/useSyncInsightTargetOkrProgress';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useDepartmentObjectives, useDeleteDepartmentObjective } from '../../modal/useDepartmentObjectives';
@@ -60,6 +64,9 @@ export const DepartmentObjectivesView = ({
     open: false
   });
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const { data: linkedInsightIoIds = new Set<string>() } = useInsightLinkedIndividualObjectiveIds();
+  const { data: insightMetricsByObjective = new Map() } = useInsightTargetMetricsByObjectiveId();
+  useSyncInsightTargetOkrProgress(true);
 
   // Individual objectives modal states
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
@@ -147,11 +154,17 @@ export const DepartmentObjectivesView = ({
 
         if (keyResults && keyResults.length > 0) {
           const keyResult = keyResults[0];
-          // Use the progress_percentage from key_results as it's more accurate
           return keyResult.progress_percentage || 0;
         }
 
-        return 0;
+        const { data: objective, error: objectiveError } = await supabase
+          .from('individual_objectives')
+          .select('progress_percentage')
+          .eq('id', individualObjectiveId)
+          .maybeSingle();
+
+        if (objectiveError) return 0;
+        return Number(objective?.progress_percentage ?? 0);
       },
       enabled: !!individualObjectiveId,
       staleTime: 1000 * 60 * 5, // 5 minutes
@@ -160,35 +173,64 @@ export const DepartmentObjectivesView = ({
 
   // Component to display individual objective with correct progress
   const IndividualObjectiveCard = ({ indObj }: { indObj: any }) => {
-    const { data: correctProgress = 0, isLoading: progressLoading } = useIndividualObjectiveProgress(indObj.id);
-    
+    const { data: krProgress = 0, isLoading: progressLoading } = useIndividualObjectiveProgress(indObj.id);
+    const isInsightLinked = linkedInsightIoIds.has(indObj.id);
+    const insightMetric = insightMetricsByObjective.get(indObj.id);
+    const objectiveProgress = Number(indObj.progress_percentage ?? 0);
+    const displayProgress = isInsightLinked ? objectiveProgress : krProgress;
+
     return (
       <div key={indObj.id} className="bg-success-muted border border-primary/20 rounded-lg p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-foreground">{indObj.title}</span>
           <div className="flex items-center space-x-2">
+            {isInsightLinked ? <SocialInsightObjectiveBadge /> : null}
             <Badge variant="outline" className="text-xs bg-accent text-success-foreground border-primary/25">
-              {progressLoading ? '...' : `${Math.round(correctProgress)}%`}
+              {progressLoading && !isInsightLinked ? '...' : `${Math.round(displayProgress)}%`}
             </Badge>
+            <ObjectiveCheckinForm
+              objectiveId={indObj.id}
+              objectiveTitle={indObj.title}
+              objectiveType="individual"
+              trigger={
+                <div className="inline-flex h-6 cursor-pointer items-center justify-center rounded-md border border-input bg-background px-2 text-xs hover:bg-accent hover:text-accent-foreground">
+                  <Calendar className="mr-1 h-3 w-3" />
+                  Check-in
+                </div>
+              }
+            />
             <Badge variant="outline" className="text-xs text-gray-600">
               Individual
             </Badge>
           </div>
         </div>
+        {isInsightLinked && insightMetric ? (
+          <div className="mb-2 text-xs text-muted-foreground">
+            Target: {insightMetric.targetValue} {insightMetric.unit}
+          </div>
+        ) : null}
         <div className="space-y-2">
           <div className="text-xs text-gray-600">Progress</div>
           <Progress 
-            value={correctProgress} 
+            value={displayProgress} 
             className="h-2"
           />
         </div>
         <div className="mt-2 text-xs text-gray-600">
           {getEmployeeName(indObj.employee_id)}
         </div>
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>Start: {new Date(indObj.start_date).toLocaleDateString()}</span>
-          <span>End: {new Date(indObj.end_date).toLocaleDateString()}</span>
-        </div>
+        {indObj.start_date || indObj.end_date ? (
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            {indObj.start_date ? (
+              <span>Start: {new Date(indObj.start_date).toLocaleDateString()}</span>
+            ) : (
+              <span />
+            )}
+            {indObj.end_date ? (
+              <span>End: {new Date(indObj.end_date).toLocaleDateString()}</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     );
   };

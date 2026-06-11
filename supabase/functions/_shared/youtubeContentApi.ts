@@ -18,6 +18,7 @@ export type YouTubeVideoRow = {
   like_count?: number;
   comment_count?: number;
   share_count?: number;
+  subscribers_gained?: number;
 };
 
 type GoogleTokenResponse = {
@@ -200,6 +201,51 @@ async function fetchVideoStatistics(
   return map;
 }
 
+async function fetchVideoSubscribersGainedInRange(
+  accessToken: string,
+  channelId: string,
+  videoIds: string[],
+  dateStartYmd: string,
+  dateEndYmd: string,
+): Promise<Map<string, number>> {
+  const gained = new Map<string, number>();
+  if (videoIds.length === 0) return gained;
+
+  try {
+    for (let i = 0; i < videoIds.length; i += 200) {
+      const batch = videoIds.slice(i, i + 200);
+      const params = new URLSearchParams({
+        ids: `channel==${channelId}`,
+        startDate: dateStartYmd,
+        endDate: dateEndYmd,
+        dimensions: "video",
+        metrics: "subscribersGained",
+        filters: `video==${batch.join(",")}`,
+        maxResults: "200",
+      });
+      const res = await fetch(`${YOUTUBE_ANALYTICS_API}/reports?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await res.json().catch(() => ({})) as {
+        rows?: Array<[string, number]>;
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        console.warn("youtube analytics subscribersGained:", json.error?.message ?? res.status);
+        return gained;
+      }
+      for (const row of json.rows ?? []) {
+        const vid = String(row[0] ?? "").trim();
+        const count = Number(row[1] ?? 0) || 0;
+        if (vid) gained.set(vid, count);
+      }
+    }
+  } catch (e) {
+    console.warn("youtube analytics subscribersGained error:", e);
+  }
+  return gained;
+}
+
 async function fetchVideoSharesInRange(
   accessToken: string,
   channelId: string,
@@ -295,13 +341,10 @@ export async function fetchAllYouTubeVideosInRange(
 
   const uniqueIds = [...new Set(videoIdsInRange)];
   const statsMap = await fetchVideoStatistics(accessToken, uniqueIds);
-  const sharesMap = await fetchVideoSharesInRange(
-    accessToken,
-    channelId,
-    uniqueIds,
-    dateStartYmd,
-    dateEndYmd,
-  );
+  const [sharesMap, subscribersGainedMap] = await Promise.all([
+    fetchVideoSharesInRange(accessToken, channelId, uniqueIds, dateStartYmd, dateEndYmd),
+    fetchVideoSubscribersGainedInRange(accessToken, channelId, uniqueIds, dateStartYmd, dateEndYmd),
+  ]);
 
   const videos: YouTubeVideoRow[] = [];
   for (const id of uniqueIds) {
@@ -310,6 +353,7 @@ export async function fetchAllYouTubeVideosInRange(
     videos.push({
       ...row,
       share_count: sharesMap.get(id) ?? 0,
+      subscribers_gained: subscribersGainedMap.get(id) ?? 0,
     });
   }
 
@@ -320,6 +364,25 @@ export async function fetchAllYouTubeVideosInRange(
   });
 
   return videos;
+}
+
+/** Current total subscriber count for the channel (null if hidden by channel owner). */
+export async function fetchChannelSubscriberCount(
+  accessToken: string,
+  channelId: string,
+): Promise<number | null> {
+  const json = await youtubeDataGet<{
+    items?: Array<{
+      statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean };
+    }>;
+  }>(accessToken, "/channels", {
+    part: "statistics",
+    id: channelId,
+  });
+  const stats = json.items?.[0]?.statistics;
+  if (stats?.hiddenSubscriberCount) return null;
+  const n = Number(stats?.subscriberCount ?? NaN);
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function resolveUploadsPlaylistId(

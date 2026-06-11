@@ -12,6 +12,7 @@ import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
 import { getEmployeeStatus } from '@/2-1-employees/utils/employeeUtils';
 import { toast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { pickKeyResultDbWrite } from '@/1-home/components/HomeOKRDashboard/lib/keyResultDb';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Objective } from '@/types/okr';
 
@@ -164,38 +165,26 @@ export const CreateKeyResultDialog: React.FC<CreateKeyResultDialogProps> = ({
 
     try {
       // Create the key result with assigned employee
-      const keyResultData: any = {
-        organization_id: organizationId,
+      const parentRef =
+        objective.level === 'company'
+          ? { company_objective_id: objective.id }
+          : objective.level === 'department'
+            ? { department_objective_id: objective.id }
+            : { individual_objective_id: objective.id };
+
+      const keyResultData = pickKeyResultDbWrite({
+        ...parentRef,
         title: formData.title.trim(),
-        description: formData.description?.trim() || null,
         metric_type: formData.metric_type,
-        calculation_type: formData.calculation_type,
-        start_value: formData.start_value,
         target_value: formData.target_value,
         current_value: formData.start_value,
         unit: formData.unit?.trim() || null,
         weight: formData.weight,
         progress_percentage: 0,
-        is_inverse: formData.is_inverse,
-        created_by: user.id,
-        owner_level: objective.level as 'company' | 'department' | 'individual',
-        department_id: formData.department_id || null,
-        created_by_department_id: formData.department_id || null,
-        assigned_employee_id: formData.assigned_employee_id || null
-      };
-
-      // Set the correct objective reference based on objective level
-      if (objective.level === 'company') {
-        keyResultData.company_objective_id = objective.id;
-      } else if (objective.level === 'department') {
-        keyResultData.department_objective_id = objective.id;
-      } else if (objective.level === 'individual') {
-        keyResultData.individual_objective_id = objective.id;
-      }
+      });
 
       console.log('📝 Final key result data:', keyResultData);
 
-      // Insert key result directly using Supabase
       const { data: insertedKeyResult, error: insertError } = await supabase
         .from('key_results')
         .insert([keyResultData])

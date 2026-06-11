@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { logger } from '@/shared/lib/logger';
+import { sanitizeIndividualObjectiveWrite } from '@/1-home/components/HomeOKRDashboard/lib/objectiveDb';
 import { filterValidCycleIds } from '@/shared/lib/uuidValidation';
 import { globalIndividualObjectivesManager } from './globalIndividualObjectivesManager';
 
@@ -150,7 +151,7 @@ export const useCreateIndividualObjective = () => {
 
       const { data, error } = await supabase
         .from('individual_objectives')
-        .insert(objectiveData)
+        .insert(sanitizeIndividualObjectiveWrite(objectiveData as Record<string, unknown>))
         .select()
         .single();
 
@@ -197,7 +198,7 @@ export const useUpdateIndividualObjective = () => {
 
       const { data, error } = await supabase
         .from('individual_objectives')
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .update(sanitizeIndividualObjectiveWrite(updates as Record<string, unknown>))
         .eq('id', id)
         .select()
         .single();

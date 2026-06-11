@@ -27,6 +27,7 @@ import {
 import { TikTokContentPerformancePageSkeleton } from "@/6-0-social-media-performance/skeletons/TikTokContentPerformancePageSkeleton";
 import { TikTokContentAccountNav } from "@/6-0-social-media-performance/components/TikTokContentAccountNav";
 import { TikTokContentSummaryBar } from "@/6-0-social-media-performance/components/TikTokContentSummaryBar";
+import { useTikTokContentTargetProgress } from "@/6-0-social-media-performance-shared/hooks/useTikTokContentTargetProgress";
 import { TikTokContentVideosTable } from "@/6-0-social-media-performance/components/TikTokContentVideosTable";
 import { TikTokAdsDateRangePicker } from "@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker";
 import { buildTikTokAdsCalendarYearPresetYears } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
@@ -131,6 +132,20 @@ function TikTokContentPerformancePageContent() {
       await videosQuery.refetch();
     }
   }, [organizationId, openId, dateStart, dateEnd, queryClient, videosQuery]);
+
+  const selectedAccountLabel = useMemo(() => {
+    const fromQuery = videosQuery.data?.account_label?.trim();
+    if (fromQuery) return fromQuery;
+    const account = activeAccounts.find((a) => a.open_id === openId);
+    return account?.label?.trim() ?? account?.display_name?.trim() ?? null;
+  }, [videosQuery.data?.account_label, activeAccounts, openId]);
+
+  const { progressList, targetsLoading } = useTikTokContentTargetProgress({
+    openId,
+    summary: videosQuery.data?.summary,
+    accountLabel: selectedAccountLabel,
+    enabled: reportingEnabled && Boolean(openId) && !isSettingsView && canManage,
+  });
 
   const metricsLoading =
     videosQuery.isLoading || (videosQuery.isFetching && !videosQuery.data);
@@ -265,7 +280,9 @@ function TikTokContentPerformancePageContent() {
 
                             <TikTokContentSummaryBar
                               summary={videosQuery.data?.summary}
+                              targetProgress={progressList}
                               isLoading={metricsLoading}
+                              targetsLoading={targetsLoading}
                             />
 
                             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

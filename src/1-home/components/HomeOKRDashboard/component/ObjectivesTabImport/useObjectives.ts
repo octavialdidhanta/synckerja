@@ -1,12 +1,18 @@
-﻿
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { Objective, OkrStatus } from './okr';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { isValidUUID } from '@/shared/lib/uuidValidation';
+import { whyImportantFromRow } from '@/1-home/components/HomeOKRDashboard/lib/objectiveDb';
+import { filterValidCycleIds, isValidUUID } from '@/shared/lib/uuidValidation';
 
-export const useObjectives = (organizationId?: string, cycleId?: string, level?: string) => {
+export const useObjectives = (
+  organizationId?: string,
+  cycleId?: string,
+  level?: string,
+  cycleIds?: string[],
+) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -108,10 +114,10 @@ export const useObjectives = (organizationId?: string, cycleId?: string, level?:
         }
       });
     };
-  }, [organizationId, cycleId, level, queryClient]);
+  }, [organizationId, cycleId, cycleIds, level, queryClient]);
 
   const { data: objectives = [], isLoading, error, refetch } = useQuery({
-    queryKey: [`${level}-objectives`, organizationId, cycleId],
+    queryKey: [`${level}-objectives`, organizationId, cycleId, cycleIds],
     queryFn: async () => {
       if (!organizationId) {
         // console.log('❌ No organizationId provided');
@@ -250,7 +256,7 @@ export const useObjectives = (organizationId?: string, cycleId?: string, level?:
           
           return {
             ...obj,
-            why_important: obj.why_important || '',
+            why_important: whyImportantFromRow(obj),
             level: 'department' as const,
             key_results: allKeyResults,
             child_objectives: [],
@@ -272,11 +278,11 @@ export const useObjectives = (organizationId?: string, cycleId?: string, level?:
           .select('*')
           .eq('organization_id', organizationId);
 
-        if (cycleId && isValidUUID(cycleId)) {
-          // console.log('🔍 Applying cycle filter for individual objectives:', cycleId);
+        const validCycleIds = filterValidCycleIds(cycleIds);
+        if (validCycleIds.length > 0) {
+          query = query.in('cycle_id', validCycleIds);
+        } else if (cycleId && isValidUUID(cycleId)) {
           query = query.eq('cycle_id', cycleId);
-        } else {
-          // console.log('⚠️ No cycleId provided for individual objectives - fetching all');
         }
 
         const { data: indivData, error } = await query.order('created_at', { ascending: false });
@@ -321,7 +327,7 @@ export const useObjectives = (organizationId?: string, cycleId?: string, level?:
         
         data = objectivesWithKeyResults?.map(obj => ({
           ...obj,
-          why_important: obj.why_important || '',
+          why_important: whyImportantFromRow(obj),
           level: 'individual' as const,
           key_results: obj.key_results || [],
           child_objectives: [],

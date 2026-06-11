@@ -18,6 +18,7 @@ const VALID_PRESETS = new Set<GoogleAdsDatePresetId>([
   "last_30_days",
   "last_month",
   "calendar_year",
+  "calendar_quarter",
   "all_time",
   "last_n_days_today",
   "last_n_days_yesterday",
@@ -51,6 +52,7 @@ type StoredJson = {
   reportChartYear?: number;
   reportChartCompareEnabled?: boolean;
   calendarYear?: number;
+  calendarQuarter?: number;
   monthlyChartChannelFilter?: string;
   reportServiceFilter?: string;
 };
@@ -90,11 +92,18 @@ export function readDmPaidAdsFilters(organizationId: string): DmPaidAdsFiltersSt
         : 30;
     const fallback = defaultGoogleAdsDateSelection();
     const calendarYear =
-      preset === "calendar_year" &&
+      (preset === "calendar_year" || preset === "calendar_quarter") &&
       typeof parsed.calendarYear === "number" &&
       parsed.calendarYear >= 2000 &&
       parsed.calendarYear <= 2100
         ? Math.floor(parsed.calendarYear)
+        : undefined;
+    const calendarQuarter =
+      preset === "calendar_quarter" &&
+      typeof parsed.calendarQuarter === "number" &&
+      parsed.calendarQuarter >= 1 &&
+      parsed.calendarQuarter <= 4
+        ? (Math.floor(parsed.calendarQuarter) as 1 | 2 | 3 | 4)
         : undefined;
     const dateSelection: GoogleAdsDateRangeSelection = {
       preset,
@@ -104,6 +113,7 @@ export function readDmPaidAdsFilters(organizationId: string): DmPaidAdsFiltersSt
         to: to ?? fallback.range.to,
       },
       ...(calendarYear != null ? { calendarYear } : {}),
+      ...(calendarQuarter != null ? { calendarQuarter } : {}),
     };
     return {
       dateSelection,
@@ -143,6 +153,7 @@ export function writeDmPaidAdsFilters(
       preset: value.dateSelection.preset,
       rollingDays: value.dateSelection.rollingDays,
       calendarYear: value.dateSelection.calendarYear,
+      calendarQuarter: value.dateSelection.calendarQuarter,
       from: value.dateSelection.range.from?.toISOString() ?? null,
       to: value.dateSelection.range.to?.toISOString() ?? null,
       googleCustomerId: value.googleCustomerId,

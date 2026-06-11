@@ -11,6 +11,7 @@ import {
 import {
   buildYouTubeWatchUrl,
   fetchAllYouTubeVideosInRange,
+  fetchChannelSubscriberCount,
   resolveUploadsPlaylistId,
 } from "../_shared/youtubeContentApi.ts";
 import { resolveOrgYouTubeContentForMetrics } from "../_shared/youtubeContentOrgResolver.ts";
@@ -24,7 +25,7 @@ import {
 } from "../_shared/youtubeContentPlanMatcher.ts";
 
 const CACHE_TTL_MINUTES = 15;
-const METRICS_CACHE_KEY = "video-list-v1";
+const METRICS_CACHE_KEY = "video-list-v2";
 const MAX_LOOKBACK_DAYS = 365;
 
 function formatDateYmd(d: Date): string {
@@ -127,18 +128,24 @@ Deno.serve(async (req: Request) => {
     }
 
     let videos;
+    let subscriberCount: number | null = null;
     try {
       const uploadsPlaylistId = await resolveUploadsPlaylistId(accessToken, channelId);
       if (!uploadsPlaylistId) {
         return youtubeContentJson({ error: "Could not resolve uploads playlist for channel" }, 400);
       }
-      videos = await fetchAllYouTubeVideosInRange(
-        accessToken,
-        channelId,
-        uploadsPlaylistId,
-        dateStart,
-        dateEnd,
-      );
+      const [fetchedVideos, fetchedSubscribers] = await Promise.all([
+        fetchAllYouTubeVideosInRange(
+          accessToken,
+          channelId,
+          uploadsPlaylistId,
+          dateStart,
+          dateEnd,
+        ),
+        fetchChannelSubscriberCount(accessToken, channelId),
+      ]);
+      videos = fetchedVideos;
+      subscriberCount = fetchedSubscribers;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("youtube-content-metrics fetchVideos:", msg);
@@ -170,6 +177,7 @@ Deno.serve(async (req: Request) => {
         like_count: video.like_count ?? 0,
         comment_count: video.comment_count ?? 0,
         share_count: video.share_count ?? 0,
+        subscribers_gained: video.subscribers_gained ?? 0,
         engagement_rate: engagementRate,
         posted_at: postedAt,
         plan_id: match.plan_id,
@@ -187,10 +195,12 @@ Deno.serve(async (req: Request) => {
 
     const summary = {
       video_count: rows.length,
+      subscriber_count: subscriberCount,
       total_views: rows.reduce((s, r) => s + (Number(r.view_count) || 0), 0),
       total_likes: rows.reduce((s, r) => s + (Number(r.like_count) || 0), 0),
       total_comments: rows.reduce((s, r) => s + (Number(r.comment_count) || 0), 0),
       total_shares: rows.reduce((s, r) => s + (Number(r.share_count) || 0), 0),
+      total_subscribers_gained: rows.reduce((s, r) => s + (Number(r.subscribers_gained) || 0), 0),
       avg_engagement_rate: rows.length > 0
         ? rows.reduce((s, r) => s + (Number(r.engagement_rate) || 0), 0) / rows.length
         : null,

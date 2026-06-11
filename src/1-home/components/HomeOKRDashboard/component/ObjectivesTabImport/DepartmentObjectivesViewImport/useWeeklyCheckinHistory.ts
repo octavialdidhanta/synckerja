@@ -1,4 +1,4 @@
-﻿
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 
@@ -23,7 +23,7 @@ export const useWeeklyCheckinHistory = (keyResultId: string, organizationId: str
       // Get key result details including metric type
       const { data: keyResult, error: keyResultError } = await supabase
         .from('key_results')
-        .select('id, title, metric_type, start_value, target_value, unit, current_value')
+        .select('id, title, metric_type, target_value, unit, current_value, progress_percentage')
         .eq('id', keyResultId)
         .single();
 
@@ -137,7 +137,7 @@ export const useObjectiveWeeklyCheckinHistory = (objectiveId: string, organizati
             const firstKeyResult = childKeyResults[0];
             const { data: keyResultDetails } = await supabase
               .from('key_results')
-              .select('id, title, metric_type, start_value, target_value, unit, current_value')
+              .select('id, title, metric_type, target_value, unit, current_value, progress_percentage')
               .eq('id', firstKeyResult.id)
               .single();
             
@@ -160,7 +160,7 @@ export const useObjectiveWeeklyCheckinHistory = (objectiveId: string, organizati
       const firstKeyResult = keyResults[0];
       const { data: keyResultDetails } = await supabase
         .from('key_results')
-        .select('id, title, metric_type, start_value, target_value, unit, current_value')
+        .select('id, title, metric_type, target_value, unit, current_value, progress_percentage')
         .eq('id', firstKeyResult.id)
         .single();
       

@@ -27,6 +27,7 @@ import {
 import { YouTubeContentPerformancePageSkeleton } from "@/6-0-social-media-performance/skeletons/YouTubeContentPerformancePageSkeleton";
 import { YouTubeContentAccountNav } from "@/6-0-social-media-performance/components/YouTubeContentAccountNav";
 import { YouTubeContentSummaryBar } from "@/6-0-social-media-performance/components/YouTubeContentSummaryBar";
+import { useYouTubeContentTargetProgress } from "@/6-0-social-media-performance-shared/hooks/useYouTubeContentTargetProgress";
 import { YouTubeContentVideosTable } from "@/6-0-social-media-performance/components/YouTubeContentVideosTable";
 import { TikTokAdsDateRangePicker } from "@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker";
 import { buildTikTokAdsCalendarYearPresetYears } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
@@ -131,6 +132,20 @@ function YouTubeContentPerformancePageContent() {
       await videosQuery.refetch();
     }
   }, [organizationId, channelId, dateStart, dateEnd, queryClient, videosQuery]);
+
+  const selectedAccountLabel = useMemo(() => {
+    const fromQuery = videosQuery.data?.account_label?.trim();
+    if (fromQuery) return fromQuery;
+    const account = activeAccounts.find((a) => a.channel_id === channelId);
+    return account?.label?.trim() ?? account?.display_name?.trim() ?? null;
+  }, [videosQuery.data?.account_label, activeAccounts, channelId]);
+
+  const { progressList, targetsLoading } = useYouTubeContentTargetProgress({
+    channelId,
+    summary: videosQuery.data?.summary,
+    accountLabel: selectedAccountLabel,
+    enabled: reportingEnabled && Boolean(channelId) && !isSettingsView && canManage,
+  });
 
   const metricsLoading =
     videosQuery.isLoading || (videosQuery.isFetching && !videosQuery.data);
@@ -265,7 +280,9 @@ function YouTubeContentPerformancePageContent() {
 
                             <YouTubeContentSummaryBar
                               summary={videosQuery.data?.summary}
+                              targetProgress={progressList}
                               isLoading={metricsLoading}
+                              targetsLoading={targetsLoading}
                             />
 
                             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

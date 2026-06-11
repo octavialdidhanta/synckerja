@@ -1,4 +1,5 @@
-﻿import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { pickKeyResultDbWrite } from '@/1-home/components/HomeOKRDashboard/lib/keyResultDb';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 // Hook to ensure department objectives also appear as key results in company objective
@@ -23,31 +24,20 @@ export const useDepartmentAsKeyResult = (organizationId: string, companyObjectiv
       const newKRs = [];
       for (const deptObj of departmentObjectives) {
         // Check if this department objective already exists as a key result
-        const existingKR = existingKRs?.find(kr => 
-          kr.title === deptObj.title && kr.department_objective_id === deptObj.id
-        );
+        const existingKR = existingKRs?.find((kr) => kr.title === deptObj.title);
 
         if (!existingKR) {
           // Create a new key result for this department objective
-          const newKR = {
-            organization_id: organizationId,
+          const newKR = pickKeyResultDbWrite({
             company_objective_id: companyObjectiveId,
-            department_objective_id: deptObj.id,
             title: deptObj.title,
-            description: deptObj.description || `Department objective: ${deptObj.title}`,
-            metric_type: 'percentage' as const,
-            calculation_type: 'increase' as const,
-            start_value: 0,
+            metric_type: 'percentage',
             target_value: 100,
             current_value: deptObj.progress_percentage || 0,
             unit: '%',
             weight: deptObj.weight || 100,
             progress_percentage: deptObj.progress_percentage || 0,
-            is_inverse: false,
-            owner_level: 'department' as const,
-            created_by: deptObj.created_by,
-            department_id: deptObj.department_id,
-          };
+          });
 
           const { data: createdKR, error: createError } = await supabase
             .from('key_results')

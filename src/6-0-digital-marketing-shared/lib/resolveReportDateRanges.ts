@@ -1,5 +1,6 @@
 import {
   computePresetRange,
+  dateSelectionForCalendarQuarter,
   dateSelectionForCalendarYear,
   intersectDateSelectionWithChartYear,
   parseYmdLocal,
@@ -47,6 +48,16 @@ function resolveReportEffectiveSelection(
 ): GoogleAdsDateRangeSelection | null {
   if (dateSelection.preset === "calendar_year" && dateSelection.calendarYear != null) {
     return dateSelectionForCalendarYear(dateSelection.calendarYear);
+  }
+  if (
+    dateSelection.preset === "calendar_quarter" &&
+    dateSelection.calendarYear != null &&
+    dateSelection.calendarQuarter != null
+  ) {
+    return dateSelectionForCalendarQuarter(
+      dateSelection.calendarYear,
+      dateSelection.calendarQuarter,
+    );
   }
   if (dateSelection.preset === "all_time") {
     const sel = googleAdsAllTimeSelection(accountEarliestYmd, dateSelection.rollingDays);

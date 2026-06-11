@@ -21,6 +21,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/co
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { UnifiedAvatar } from '@/shared/components/UnifiedAvatar';
+import { SocialInsightObjectiveBadge } from '@/6-0-social-media-performance-shared/components/SocialInsightObjectiveBadge';
+import { useInsightLinkedIndividualObjectiveIds } from '@/6-0-social-media-performance-shared/hooks/useInsightLinkedIndividualObjectiveIds';
+import { useInsightTargetMetricsByObjectiveId } from '@/6-0-social-media-performance-shared/hooks/useInsightTargetMetricsByObjectiveId';
+import { useSyncInsightTargetOkrProgress } from '@/6-0-social-media-performance-shared/hooks/useSyncInsightTargetOkrProgress';
 interface IndividualObjectivesViewProps {
   organizationId: string;
   cycleId?: string;
@@ -63,6 +67,9 @@ export const IndividualObjectivesView = ({
     error: employeesError,
   } = useEmployees();
   const { toast } = useToast();
+  const { data: linkedInsightIoIds = new Set<string>() } = useInsightLinkedIndividualObjectiveIds();
+  const { data: insightMetricsByObjective = new Map() } = useInsightTargetMetricsByObjectiveId();
+  useSyncInsightTargetOkrProgress(true);
 
   // Filter out terminated employees
   const activeEmployees = useMemo(() => {
@@ -86,7 +93,7 @@ export const IndividualObjectivesView = ({
     data: individualObjectives = [],
     isLoading: loadingObjectives,
     error: individualObjectivesError,
-  } = useObjectives(organizationId, finalCycleId, 'individual');
+  } = useObjectives(organizationId, finalCycleId, 'individual', finalCycleIds);
 
   // Get department objectives for showing as key results in Department tab
   const {
@@ -397,6 +404,10 @@ export const IndividualObjectivesView = ({
 
   const renderEmployeeObjectiveCard = (objective: any, employeeId: string, status: string, borderColor: string, iconColor: string) => {
     const syncedProgress = getSyncedProgress(objective);
+    const keyResults = objective.key_results ?? [];
+    const krCount = keyResults.length;
+    const isInsightLinked = linkedInsightIoIds.has(objective.id);
+    const insightMetric = insightMetricsByObjective.get(objective.id);
     return (
       <AccordionItem key={objective.id} value={objective.id} className={`border-l-4 ${borderColor} shadow-sm mb-2 last:mb-0`}>
         <AccordionTrigger className="py-0 px-0 hover:bg-gray-50 transition-colors [&>svg]:hidden">
@@ -410,6 +421,7 @@ export const IndividualObjectivesView = ({
                   <span className="text-sm font-medium text-gray-900 truncate text-left">
                     {objective.title}
                   </span>
+                  {isInsightLinked ? <SocialInsightObjectiveBadge /> : null}
                 </div>
                 <div className="flex items-center space-x-2 flex-shrink-0">
                   <div
@@ -448,7 +460,7 @@ export const IndividualObjectivesView = ({
                     }
                   />
                   <Badge variant="outline" className="text-xs bg-gray-50">
-                    0 KRs
+                    {krCount} KRs
                   </Badge>
                   <Badge variant="outline" className={`text-xs ${
                     status === 'active' ? 'border-primary/20 bg-success-muted text-success-foreground' :
@@ -469,6 +481,55 @@ export const IndividualObjectivesView = ({
         </AccordionTrigger>
         
         <AccordionContent className="px-4 pb-4">
+          {isInsightLinked && insightMetric ? (
+            <div className="mb-4 space-y-2">
+              <h4 className="text-xs font-medium uppercase tracking-wide text-gray-700">
+                Insight Target
+              </h4>
+              <div className="rounded-lg border border-primary/20 bg-info-muted p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-foreground">Target progress</span>
+                  <Badge variant="outline" className="text-xs">
+                    {Math.round(syncedProgress)}%
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-primary">Target</span>
+                  <span className="font-medium text-foreground">
+                    {insightMetric.targetValue} {insightMetric.unit}
+                  </span>
+                </div>
+                <Progress value={syncedProgress} className="mt-2 h-2 bg-muted" />
+              </div>
+            </div>
+          ) : null}
+          {!isInsightLinked && keyResults.length > 0 ? (
+            <div className="mb-4 space-y-2">
+              <h4 className="text-xs font-medium uppercase tracking-wide text-gray-700">
+                Key Results
+              </h4>
+              {keyResults.map((kr: any) => (
+                <div key={kr.id} className="rounded-lg border border-primary/20 bg-info-muted p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-foreground">{kr.title}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {Math.round(kr.progress_percentage || 0)}%
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-primary">Progress</span>
+                      <span className="font-medium text-foreground">
+                        {kr.current_value ?? 0} / {kr.target_value} {kr.unit || ''}
+                      </span>
+                    </div>
+                    <Progress value={kr.progress_percentage || 0} className="h-2 bg-muted" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           {/* Why this is important section */}
           <div className="mt-4 rounded-lg border border-primary/20 bg-info-muted p-4">
             <h4 className="mb-2 text-sm font-medium uppercase tracking-wide text-info-foreground">
@@ -656,6 +717,8 @@ export const IndividualObjectivesView = ({
         onOpenChange={setShowContributionModal}
         organizationId={organizationId}
         cycleId={cycleId || finalCycleIds?.[0] || ''}
+        cycleIds={finalCycleIds}
+        departmentId={selectedDepartmentId || undefined}
         onSuccess={() => {}}
       />
 
@@ -674,6 +737,7 @@ export const IndividualObjectivesView = ({
           onOpenChange={(open) => setEditModal({ open })}
           organizationId={organizationId}
           cycleId={cycleId || finalCycleIds?.[0] || ''}
+          cycleIds={finalCycleIds}
           editObjective={editModal.objective}
           onSuccess={() => setEditModal({ open: false })}
         />

@@ -1,4 +1,4 @@
-import { Facebook, Instagram, Youtube } from "lucide-react";
+import { Facebook, FileText, Instagram, Linkedin, Youtube } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -13,6 +13,10 @@ export const SOCIAL_MEDIA_PERFORMANCE_FACEBOOK_PATH =
   "/digital-marketing/social-media-performance/facebook";
 export const SOCIAL_MEDIA_PERFORMANCE_YOUTUBE_PATH =
   "/digital-marketing/social-media-performance/youtube";
+export const SOCIAL_MEDIA_PERFORMANCE_LINKEDIN_PATH =
+  "/digital-marketing/social-media-performance/linkedin";
+export const SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH =
+  "/digital-marketing/social-media-performance/report";
 
 const tabClass =
   "flex items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors";
@@ -21,12 +25,20 @@ const tabInactive =
   "border-transparent text-muted-foreground hover:border-border hover:text-foreground";
 const tabDisabled = "cursor-not-allowed border-transparent text-muted-foreground opacity-50";
 
-export function SocialMediaPerformanceHeaderAndTab() {
+type SocialMediaPerformanceHeaderAndTabProps = {
+  activeReportPath?: string;
+};
+
+export function SocialMediaPerformanceHeaderAndTab({
+  activeReportPath = SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH,
+}: SocialMediaPerformanceHeaderAndTabProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const isTikTok = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_TIKTOK_PATH);
   const isYouTube = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_YOUTUBE_PATH);
+  const isLinkedIn = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_LINKEDIN_PATH);
+  const isReport = location.pathname.startsWith(activeReportPath);
 
   const showComingSoon = () => {
     toast.info(
@@ -100,6 +112,24 @@ export function SocialMediaPerformanceHeaderAndTab() {
             icon={Youtube}
             isActive={isYouTube}
             onActivate={() => navigate(SOCIAL_MEDIA_PERFORMANCE_YOUTUBE_PATH)}
+            activeClassName={tabActive}
+            inactiveClassName={tabInactive}
+          />
+          <ModuleTabNavItem
+            pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}
+            label={t("digitalMarketing.socialMediaPerformance.platformLinkedIn", "LinkedIn")}
+            icon={Linkedin}
+            isActive={isLinkedIn}
+            onActivate={() => navigate(SOCIAL_MEDIA_PERFORMANCE_LINKEDIN_PATH)}
+            activeClassName={tabActive}
+            inactiveClassName={tabInactive}
+          />
+          <ModuleTabNavItem
+            pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}
+            label={t("digitalMarketing.socialMediaInsightReport.tabReport", "Report")}
+            icon={FileText}
+            isActive={isReport}
+            onActivate={() => navigate(SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH)}
             activeClassName={tabActive}
             inactiveClassName={tabInactive}
           />

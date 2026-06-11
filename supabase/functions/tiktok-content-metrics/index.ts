@@ -8,7 +8,7 @@ import {
   tiktokContentCorsHeaders,
   tiktokContentJson,
 } from "../_shared/tiktokContentAuth.ts";
-import { fetchAllTikTokVideosInRange } from "../_shared/tiktokContentApi.ts";
+import { fetchAllTikTokVideosInRange, fetchTikTokUserInfo } from "../_shared/tiktokContentApi.ts";
 import { resolveOrgTikTokContentForMetrics } from "../_shared/tiktokContentOrgResolver.ts";
 import {
   backfillLinkVideoIds,
@@ -20,7 +20,7 @@ import {
 } from "../_shared/tiktokContentPlanMatcher.ts";
 
 const CACHE_TTL_MINUTES = 15;
-const METRICS_CACHE_KEY = "video-list-v1";
+const METRICS_CACHE_KEY = "video-list-v2";
 const MAX_LOOKBACK_DAYS = 365;
 
 function formatDateYmd(d: Date): string {
@@ -123,8 +123,18 @@ Deno.serve(async (req: Request) => {
     }
 
     let videos;
+    let followerCount: number | null = null;
     try {
-      videos = await fetchAllTikTokVideosInRange(accessToken, dateStart, dateEnd);
+      const [fetchedVideos, userInfo] = await Promise.all([
+        fetchAllTikTokVideosInRange(accessToken, dateStart, dateEnd),
+        fetchTikTokUserInfo(accessToken).catch((e) => {
+          console.warn("tiktok-content-metrics userInfo:", e instanceof Error ? e.message : e);
+          return {};
+        }),
+      ]);
+      videos = fetchedVideos;
+      const fc = Number(userInfo.follower_count ?? NaN);
+      followerCount = Number.isFinite(fc) ? fc : null;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("tiktok-content-metrics fetchVideos:", msg);
@@ -176,6 +186,7 @@ Deno.serve(async (req: Request) => {
 
     const summary = {
       video_count: rows.length,
+      follower_count: followerCount,
       total_views: rows.reduce((s, r) => s + (Number(r.view_count) || 0), 0),
       total_likes: rows.reduce((s, r) => s + (Number(r.like_count) || 0), 0),
       total_comments: rows.reduce((s, r) => s + (Number(r.comment_count) || 0), 0),

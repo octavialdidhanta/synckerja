@@ -68,6 +68,9 @@ import {
   SocialMediaPerformanceHubPageSkeleton,
   TikTokContentPerformancePageSkeleton,
   YouTubeContentPerformancePageSkeleton,
+  LinkedInContentPerformancePageSkeleton,
+  SocialMediaInsightReportPageSkeleton,
+  SocialMediaInsightTargetsSettingsPageSkeleton,
   DigitalMarketingReportPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
@@ -160,6 +163,15 @@ const TikTokContentPerformancePage = lazy(
 );
 const YouTubeContentPerformancePage = lazy(
   () => import("@/6-0-social-media-performance/pages/YouTubeContentPerformancePage"),
+);
+const LinkedInContentPerformancePage = lazy(
+  () => import("@/6-0-social-media-performance/pages/LinkedInContentPerformancePage"),
+);
+const SocialMediaInsightReportPage = lazy(
+  () => import("@/6-0-social-media-report/pages/SocialMediaInsightReportPage"),
+);
+const SocialMediaInsightTargetsSettingsPage = lazy(
+  () => import("@/6-0-social-media-report/pages/SocialMediaInsightTargetsSettingsPage"),
 );
 const DigitalMarketingReportPage = lazy(
   () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
@@ -1729,6 +1741,48 @@ function YouTubeContentPerformancePageRouteElement() {
   );
 }
 
+function LinkedInContentPerformancePageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <LinkedInContentPerformancePageSkeleton />
+        </div>
+      }
+    >
+      <LinkedInContentPerformancePage />
+    </Suspense>
+  );
+}
+
+function SocialMediaInsightReportPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <SocialMediaInsightReportPageSkeleton />
+        </div>
+      }
+    >
+      <SocialMediaInsightReportPage />
+    </Suspense>
+  );
+}
+
+function SocialMediaInsightTargetsSettingsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <SocialMediaInsightTargetsSettingsPageSkeleton />
+        </div>
+      }
+    >
+      <SocialMediaInsightTargetsSettingsPage />
+    </Suspense>
+  );
+}
+
 function DigitalMarketingReportPageRouteElement() {
   return (
     <Suspense
@@ -3059,6 +3113,54 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <YouTubeContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/linkedin/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance/linkedin/settings"
+                                loadingShell={<LinkedInContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <LinkedInContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/linkedin"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<LinkedInContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <LinkedInContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/report/targets"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<SocialMediaInsightTargetsSettingsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <SocialMediaInsightTargetsSettingsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/report"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<SocialMediaInsightReportPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <SocialMediaInsightReportPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

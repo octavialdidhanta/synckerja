@@ -2,12 +2,17 @@ import { endOfDay } from "date-fns";
 import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
 import {
   computePresetRange,
+  dateSelectionForCalendarQuarter,
   parseYmdLocal,
   formatGoogleAdsPickerButtonLabel,
+  type CalendarQuarter,
   type GoogleAdsDatePresetId,
   type GoogleAdsDateRangeSelection,
 } from "@/6-0-google-ads/lib/googleAdsDatePresets";
-import { tiktokAdsAllTimeDateRange } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
+import {
+  tiktokAdsAllTimeDateRange,
+  tiktokAdsEarliestAllowedStartYmd,
+} from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
 
 function tiktokAllTimeRangeDates(now: Date = new Date()) {
   const { start, end } = tiktokAdsAllTimeDateRange(now);
@@ -24,11 +29,23 @@ function resolveTikTokPresetRange(
     accountEarliestYmd?: string | null;
     rollingDays?: number;
     calendarYear?: number;
+    calendarQuarter?: CalendarQuarter;
   },
 ) {
   if (preset === "all_time") {
     const range = tiktokAllTimeRangeDates(now);
     if (range) return range;
+  }
+  if (
+    preset === "calendar_quarter" &&
+    opts?.calendarYear != null &&
+    opts?.calendarQuarter != null
+  ) {
+    return dateSelectionForCalendarQuarter(
+      opts.calendarYear,
+      opts.calendarQuarter,
+      now,
+    ).range;
   }
   return computePresetRange(preset, now, opts);
 }
@@ -49,7 +66,7 @@ export function TikTokAdsDateRangePicker({
   calendarYearFilterHint,
 }: TikTokAdsDateRangePickerProps) {
   const handleChange = (next: GoogleAdsDateRangeSelection) => {
-    if (next.preset === "calendar_year") {
+    if (next.preset === "calendar_year" || next.preset === "calendar_quarter") {
       onChange(next);
       return;
     }
@@ -68,10 +85,14 @@ export function TikTokAdsDateRangePicker({
       value={value}
       onChange={handleChange}
       className={className}
+      accountEarliestYmd={tiktokAdsEarliestAllowedStartYmd()}
       formatButtonLabel={formatGoogleAdsPickerButtonLabel}
       resolvePresetRange={resolveTikTokPresetRange}
       calendarYearPresetYears={calendarYearPresetYears}
-      calendarYearFilterHint={calendarYearFilterHint}
+      calendarYearFilterHint={
+        calendarYearFilterHint ??
+        "Quarters: use Q1–Q4 per year; TikTok data is limited to the last 365 days"
+      }
       allTimePopoverHint="All time: last 365 days (TikTok API limit) through today"
     />
   );

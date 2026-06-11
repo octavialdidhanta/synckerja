@@ -777,7 +777,8 @@ export const CompanyObjectivesDetailView = ({
           open={editModal.open}
           onOpenChange={(open) => setEditModal({ open })}
           organizationId={organizationId}
-          cycleId={cycleId || ''}
+          cycleId={cycleId || filteredCycleIds?.[0] || ''}
+          cycleIds={cycleIds ?? filteredCycleIds}
           editObjective={editModal.objective}
           onSuccess={() => {
             logger.debug('✅ Individual objective updated successfully');

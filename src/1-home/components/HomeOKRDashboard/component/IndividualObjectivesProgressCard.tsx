@@ -15,6 +15,7 @@ interface SectionIndividualObjectivesProgressOverviewProps {
   // Props for modal functionality
   organizationId?: string;
   cycleId?: string;
+  cycleIds?: string[];
   departmentId?: string;
   yearQuarterSelection?: YearQuarterSelection;
   onYearQuarterChange?: (selection: YearQuarterSelection) => void;
@@ -33,6 +34,7 @@ export const IndividualObjectivesProgressCard = ({
   // Props for modal functionality
   organizationId,
   cycleId,
+  cycleIds,
   departmentId,
   yearQuarterSelection,
   onYearQuarterChange,
@@ -199,6 +201,7 @@ export const IndividualObjectivesProgressCard = ({
                 onOpenChange={setShowCreateModal}
                 organizationId={organizationId}
                 cycleId={cycleId}
+                cycleIds={cycleIds}
                 departmentId={departmentId}
               />
             )}

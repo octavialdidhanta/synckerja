@@ -236,22 +236,17 @@ export const AddObjectiveDialog = ({
         // Create corresponding key result for company objectives
         if (type === 'company' && companyObjective && (companyObjective as any).id) {
           try {
-            const { data: keyResultData, error: keyResultError } = await (supabase as any)
+            const { data: keyResultData, error: keyResultError } = await supabase
               .from('key_results')
               .insert({
-                organization_id: organizationId,
                 company_objective_id: (companyObjective as any).id,
                 title: formData.title,
-                description: formData.why_important,
-                metric_type: 'percentage', // Default to percentage for company objectives
-                calculation_type: 'increase', // Required field
-                start_value: 0,
+                metric_type: 'percentage',
                 target_value: 100,
                 unit: '%',
                 current_value: 0,
+                progress_percentage: 0,
                 weight: 100,
-                created_by: profile.user_id,
-                owner_level: 'company'
               })
               .select()
               .single();

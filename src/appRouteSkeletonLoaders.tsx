@@ -377,6 +377,30 @@ export const YouTubeContentPerformancePageSkeleton = createDeferredSkeleton(() =
   ),
 );
 
+export const LinkedInContentPerformancePageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-performance/skeletons/LinkedInContentPerformancePageSkeleton").then(
+    (m) => ({
+      default: m.LinkedInContentPerformancePageSkeleton,
+    }),
+  ),
+);
+
+export const SocialMediaInsightReportPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-report/skeletons/SocialMediaInsightReportPageSkeleton").then(
+    (m) => ({
+      default: m.SocialMediaInsightReportPageSkeleton,
+    }),
+  ),
+);
+
+export const SocialMediaInsightTargetsSettingsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-report/skeletons/SocialMediaInsightTargetsSettingsPageSkeleton").then(
+    (m) => ({
+      default: m.SocialMediaInsightTargetsSettingsPageSkeleton,
+    }),
+  ),
+);
+
 export const DigitalMarketingReportPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-report/skeletons/DigitalMarketingReportPageSkeleton").then((m) => ({
     default: m.DigitalMarketingReportPageSkeleton,

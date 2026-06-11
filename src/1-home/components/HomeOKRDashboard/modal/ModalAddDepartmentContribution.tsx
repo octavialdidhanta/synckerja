@@ -18,6 +18,11 @@ import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { Building } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { KEY_RESULT_SELECT_COLUMNS, pickKeyResultDbWrite } from '@/1-home/components/HomeOKRDashboard/lib/keyResultDb';
+import {
+  sanitizeDepartmentObjectiveWrite,
+  whyImportantFromRow,
+} from '@/1-home/components/HomeOKRDashboard/lib/objectiveDb';
 
 export interface ModalAddDepartmentContributionProps {
   open: boolean;
@@ -65,7 +70,7 @@ export const ModalAddDepartmentContribution = ({
           company_objective_id: editObjective.company_objective_id || '',
           title: editObjective.title || '',
           description: editObjective.description || '',
-          why_important: editObjective.why_important || '',
+          why_important: whyImportantFromRow(editObjective),
           metric_type: 'number' as 'number' | 'percentage' | 'currency' | 'boolean',
           unit: '',
           start_value: '0',
@@ -77,7 +82,7 @@ export const ModalAddDepartmentContribution = ({
         try {
           const { data: keyResults, error: krError } = await supabase
             .from('key_results')
-            .select('target_value, start_value, unit, metric_type')
+            .select('target_value, current_value, unit, metric_type')
             .eq('department_objective_id', editObjective.id)
             .limit(1)
             .maybeSingle();
@@ -85,7 +90,7 @@ export const ModalAddDepartmentContribution = ({
           if (!krError && keyResults) {
             // Use data from key_results if available
             initialData.target_value = keyResults.target_value?.toString() || '100';
-            initialData.start_value = keyResults.start_value?.toString() || '0';
+            initialData.start_value = keyResults.current_value?.toString() || '0';
             initialData.unit = keyResults.unit || '';
             initialData.metric_type = (keyResults.metric_type as 'number' | 'percentage' | 'currency' | 'boolean') || 'number';
           } else {
@@ -208,16 +213,17 @@ export const ModalAddDepartmentContribution = ({
     try {
       if (editObjective) {
         // Update existing department objective
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
           .from('department_objectives')
-          .update({
-            company_objective_id: formData.company_objective_id,
-            title: formData.title,
-            description: formData.description,
-            why_important: formData.why_important,
-            weight: parseFloat(formData.weight),
-            updated_at: new Date().toISOString()
-          })
+          .update(
+            sanitizeDepartmentObjectiveWrite({
+              company_objective_id: formData.company_objective_id,
+              title: formData.title,
+              description: formData.description,
+              why_important: formData.why_important,
+              weight: parseFloat(formData.weight),
+            }),
+          )
           .eq('id', editObjective.id)
           .select()
           .single();
@@ -236,16 +242,16 @@ export const ModalAddDepartmentContribution = ({
           // Update existing key result
           const { error: krUpdateError } = await supabase
             .from('key_results')
-            .update({
-              title: formData.title,
-              description: formData.description,
-              metric_type: formData.metric_type || 'percentage',
-              start_value: parseFloat(formData.start_value) || 0,
-              target_value: parseFloat(formData.target_value) || 100,
-              unit: formData.unit || '%',
-              weight: parseFloat(formData.weight),
-              updated_at: new Date().toISOString()
-            })
+            .update(
+              pickKeyResultDbWrite({
+                title: formData.title,
+                metric_type: formData.metric_type || 'percentage',
+                current_value: parseFloat(formData.start_value) || 0,
+                target_value: parseFloat(formData.target_value) || 100,
+                unit: formData.unit || '%',
+                weight: parseFloat(formData.weight),
+              }),
+            )
             .eq('id', existingKeyResult.id);
 
           if (krUpdateError) {
@@ -260,21 +266,18 @@ export const ModalAddDepartmentContribution = ({
           // Create new key result if it doesn't exist
           const { error: krCreateError } = await supabase
             .from('key_results')
-            .insert({
-              organization_id: organizationId,
-              department_objective_id: editObjective.id,
-              title: formData.title,
-              description: formData.description,
-              metric_type: formData.metric_type || 'percentage',
-              calculation_type: 'increase',
-              start_value: parseFloat(formData.start_value) || 0,
-              target_value: parseFloat(formData.target_value) || 100,
-              unit: formData.unit || '%',
-              current_value: 0,
-              weight: parseFloat(formData.weight),
-              created_by: currentUser?.id || '',
-              owner_level: 'department'
-            });
+            .insert(
+              pickKeyResultDbWrite({
+                department_objective_id: editObjective.id,
+                title: formData.title,
+                metric_type: formData.metric_type || 'percentage',
+                target_value: parseFloat(formData.target_value) || 100,
+                unit: formData.unit || '%',
+                current_value: parseFloat(formData.start_value) || 0,
+                progress_percentage: 0,
+                weight: parseFloat(formData.weight),
+              }),
+            );
 
           if (krCreateError) {
             console.error('Error creating key result:', krCreateError);
@@ -292,46 +295,45 @@ export const ModalAddDepartmentContribution = ({
         });
       } else {
         // Create new department objective
-        const { data: deptObjective, error: deptError } = await (supabase as any)
+        const { data: deptObjective, error: deptError } = await supabase
           .from('department_objectives')
-          .insert({
-            organization_id: organizationId,
-            cycle_id: cycleId,
-            department_id: departmentId,
-            company_objective_id: formData.company_objective_id,
-            title: formData.title,
-            description: formData.description,
-            why_important: formData.why_important,
-            weight: parseFloat(formData.weight),
-            status: 'active',
-            owner_id: currentUser?.id || '',
-            created_by: currentUser?.id || '',
-            progress_percentage: 0
-          })
+          .insert(
+            sanitizeDepartmentObjectiveWrite({
+              organization_id: organizationId,
+              cycle_id: cycleId,
+              department_id: departmentId,
+              company_objective_id: formData.company_objective_id,
+              title: formData.title,
+              description: formData.description,
+              why_important: formData.why_important,
+              weight: parseFloat(formData.weight),
+              status: 'active',
+              owner_id: currentUser?.id || '',
+              created_by: currentUser?.id || '',
+              progress_percentage: 0,
+            }),
+          )
           .select()
           .single();
 
         if (deptError) throw deptError;
 
         // Create corresponding key result for the department objective
-        const { data: keyResultData, error: keyResultError } = await (supabase as any)
+        const { data: keyResultData, error: keyResultError } = await supabase
           .from('key_results')
-          .insert({
-            organization_id: organizationId,
-            department_objective_id: deptObjective.id,
-            title: formData.title,
-            description: formData.description,
-            metric_type: formData.metric_type || 'percentage',
-            calculation_type: 'increase', // Required field - valid values: increase, decrease, maintain
-            start_value: parseFloat(formData.start_value) || 0,
-            target_value: parseFloat(formData.target_value) || 100,
-            unit: formData.unit || '%',
-            current_value: 0,
-            weight: parseFloat(formData.weight),
-            created_by: currentUser?.id || '',
-            owner_level: 'department'
-          })
-          .select()
+          .insert(
+            pickKeyResultDbWrite({
+              department_objective_id: deptObjective.id,
+              title: formData.title,
+              metric_type: formData.metric_type || 'percentage',
+              target_value: parseFloat(formData.target_value) || 100,
+              unit: formData.unit || '%',
+              current_value: parseFloat(formData.start_value) || 0,
+              progress_percentage: 0,
+              weight: parseFloat(formData.weight),
+            }),
+          )
+          .select(KEY_RESULT_SELECT_COLUMNS)
           .single();
 
         if (keyResultError) {

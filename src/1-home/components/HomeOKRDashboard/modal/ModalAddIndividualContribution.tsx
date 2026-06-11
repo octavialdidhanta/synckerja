@@ -14,20 +14,21 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { useCreateIndividualObjective, useUpdateIndividualObjective } from './useIndividualObjectives';
-// TODO: File not found - import { useDepartmentObjectives } from './useDepartmentObjectives';
+import { useDepartmentObjectives } from './useDepartmentObjectives';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
-// TODO: File not found - import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { useObjectives } from '../component/ObjectivesTabImport/useObjectives';
 import { Target } from 'lucide-react';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { KEY_RESULT_SELECT_COLUMNS, pickKeyResultDbWrite } from '@/1-home/components/HomeOKRDashboard/lib/keyResultDb';
+import { whyImportantFromRow } from '@/1-home/components/HomeOKRDashboard/lib/objectiveDb';
 
 export interface ModalAddIndividualContributionProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   cycleId?: string;
+  cycleIds?: string[];
   departmentId?: string;
   employeeId?: string;
   employeeName?: string;
@@ -40,6 +41,7 @@ export const ModalAddIndividualContribution = ({
   onOpenChange,
   organizationId,
   cycleId,
+  cycleIds,
   departmentId,
   employeeId,
   employeeName,
@@ -73,7 +75,7 @@ export const ModalAddIndividualContribution = ({
         try {
           const { data: keyResultData, error: keyResultError } = await supabase
             .from('key_results')
-            .select('unit, target_value, start_value, metric_type')
+            .select('unit, target_value, current_value, metric_type')
             .eq('individual_objective_id', editObjective.id)
             .maybeSingle();
 
@@ -86,10 +88,10 @@ export const ModalAddIndividualContribution = ({
             company_objective_id: editObjective.department_objective_id || '',
             title: editObjective.title || '',
             description: editObjective.description || '',
-            why_important: editObjective.why_important || '',
+            why_important: whyImportantFromRow(editObjective),
             metric_type: (keyResultData?.metric_type as 'number' | 'percentage' | 'currency' | 'boolean') || 'number',
             unit: keyResultData?.unit || '',
-            start_value: keyResultData?.start_value?.toString() || '0',
+            start_value: keyResultData?.current_value?.toString() || '0',
             target_value: keyResultData?.target_value?.toString() || '100',
             weight: editObjective.weight?.toString() || '100'
           });
@@ -100,7 +102,7 @@ export const ModalAddIndividualContribution = ({
             company_objective_id: editObjective.department_objective_id || '',
             title: editObjective.title || '',
             description: editObjective.description || '',
-            why_important: editObjective.why_important || '',
+            why_important: whyImportantFromRow(editObjective),
             metric_type: 'number',
             unit: '',
             start_value: '0',
@@ -127,27 +129,28 @@ export const ModalAddIndividualContribution = ({
     loadEditData();
   }, [editObjective, open]);
 
-  // Get department objectives to show in dropdown - using useObjectives hook
-  const { objectives: allDepartmentObjectives = [], isLoading: loadingObjectives, error: objectivesError } = useObjectives(organizationId, cycleId, 'department');
-  
-  // Memoize filtered objectives to prevent unnecessary re-renders
+  const resolvedCycleIds = useMemo(
+    () => (cycleIds && cycleIds.length > 0 ? cycleIds : cycleId ? [cycleId] : undefined),
+    [cycleIds, cycleId],
+  );
+
+  const {
+    data: allDepartmentObjectives = [],
+    isLoading: loadingObjectives,
+    error: objectivesError,
+  } = useDepartmentObjectives(organizationId, resolvedCycleIds, false);
+
   const departmentObjectives = useMemo(() => {
-    return departmentId 
-      ? allDepartmentObjectives.filter((obj: any) => obj.department_id === departmentId)
-      : allDepartmentObjectives;
+    const activeOnly = allDepartmentObjectives.filter(
+      (obj: { status?: string }) => obj.status === 'active',
+    );
+    return departmentId
+      ? activeOnly.filter((obj: { department_id?: string }) => obj.department_id === departmentId)
+      : activeOnly;
   }, [departmentId, allDepartmentObjectives]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!cycleId) {
-      toast({
-        title: 'Error',
-        description: 'No OKR cycle selected. Please select a time period and try again.',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     if (!currentEmployee) {
       toast({
@@ -167,9 +170,20 @@ export const ModalAddIndividualContribution = ({
       return;
     }
 
-    // Find selected department objective
-    const selectedDeptObjective = departmentObjectives.find(obj => obj.id === formData.company_objective_id);
-    
+    const selectedDeptObjective = departmentObjectives.find(
+      (obj: { id: string }) => obj.id === formData.company_objective_id,
+    );
+
+    const objectiveCycleId = selectedDeptObjective?.cycle_id as string | undefined;
+    if (!objectiveCycleId) {
+      toast({
+        title: 'Error',
+        description: 'No OKR cycle selected. Please select a time period and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       if (editObjective && editObjective.id) {
         await updateObjective.mutateAsync({
@@ -178,8 +192,6 @@ export const ModalAddIndividualContribution = ({
             department_objective_id: formData.company_objective_id,
             title: formData.title,
             description: formData.description,
-            // If there is a separate why_important column, include it; otherwise ignore
-            // @ts-ignore
             why_important: formData.why_important,
             weight: parseFloat(formData.weight),
           }
@@ -202,15 +214,16 @@ export const ModalAddIndividualContribution = ({
             // Update existing key result
             const { error: updateKeyResultError } = await supabase
               .from('key_results')
-              .update({
-                title: formData.title,
-                description: formData.description,
-                metric_type: formData.metric_type || 'number',
-                start_value: parseFloat(formData.start_value) || 0,
-                target_value: parseFloat(formData.target_value) || 100,
-                unit: formData.unit || '',
-                weight: parseFloat(formData.weight),
-              })
+              .update(
+                pickKeyResultDbWrite({
+                  title: formData.title,
+                  metric_type: formData.metric_type || 'number',
+                  current_value: parseFloat(formData.start_value) || 0,
+                  target_value: parseFloat(formData.target_value) || 100,
+                  unit: formData.unit || '',
+                  weight: parseFloat(formData.weight),
+                }),
+              )
               .eq('id', existingKeyResult.id);
 
             if (updateKeyResultError) {
@@ -227,21 +240,18 @@ export const ModalAddIndividualContribution = ({
             // Create key result if it doesn't exist
             const { error: createKeyResultError } = await supabase
               .from('key_results')
-              .insert({
-                organization_id: organizationId,
-                individual_objective_id: editObjective.id,
-                title: formData.title,
-                description: formData.description,
-                metric_type: formData.metric_type || 'number',
-                calculation_type: 'increase',
-                start_value: parseFloat(formData.start_value) || 0,
-                target_value: parseFloat(formData.target_value) || 100,
-                unit: formData.unit || '',
-                current_value: 0,
-                weight: parseFloat(formData.weight),
-                created_by: currentUser?.id || '',
-                owner_level: 'individual'
-              });
+              .insert(
+                pickKeyResultDbWrite({
+                  individual_objective_id: editObjective.id,
+                  title: formData.title,
+                  metric_type: formData.metric_type || 'number',
+                  target_value: parseFloat(formData.target_value) || 100,
+                  unit: formData.unit || '',
+                  current_value: parseFloat(formData.start_value) || 0,
+                  progress_percentage: 0,
+                  weight: parseFloat(formData.weight),
+                }),
+              );
 
             if (createKeyResultError) {
               console.error('Error creating key result:', createKeyResultError);
@@ -265,7 +275,7 @@ export const ModalAddIndividualContribution = ({
       } else {
         const individualObjective = await createObjective.mutateAsync({
           organization_id: organizationId,
-          cycle_id: cycleId,
+          cycle_id: objectiveCycleId,
           employee_id: (currentEmployee as any).id,
           owner_id: currentUser?.id || '',
           department_objective_id: formData.company_objective_id,
@@ -280,24 +290,21 @@ export const ModalAddIndividualContribution = ({
         // Create corresponding key result for the individual objective (create mode only)
         if (individualObjective && (individualObjective as any).id) {
           try {
-            const { data: keyResultData, error: keyResultError } = await (supabase as any)
+            const { data: keyResultData, error: keyResultError } = await supabase
               .from('key_results')
-              .insert({
-                organization_id: organizationId,
-                individual_objective_id: (individualObjective as any).id,
-                title: formData.title,
-                description: formData.description,
-                metric_type: formData.metric_type || 'percentage',
-                calculation_type: 'increase',
-                start_value: parseFloat(formData.start_value) || 0,
-                target_value: parseFloat(formData.target_value) || 100,
-                unit: formData.unit || '%',
-                current_value: 0,
-                weight: parseFloat(formData.weight),
-                created_by: currentUser?.id || '',
-                owner_level: 'individual'
-              })
-              .select()
+              .insert(
+                pickKeyResultDbWrite({
+                  individual_objective_id: (individualObjective as any).id,
+                  title: formData.title,
+                  metric_type: formData.metric_type || 'percentage',
+                  target_value: parseFloat(formData.target_value) || 100,
+                  unit: formData.unit || '%',
+                  current_value: parseFloat(formData.start_value) || 0,
+                  progress_percentage: 0,
+                  weight: parseFloat(formData.weight),
+                }),
+              )
+              .select(KEY_RESULT_SELECT_COLUMNS)
               .single();
 
             if (keyResultError) {
@@ -349,7 +356,7 @@ export const ModalAddIndividualContribution = ({
         variant: 'destructive',
       });
     }
-  }, [currentEmployee, formData, departmentObjectives, createObjective, updateObjective, editObjective, currentUser, organizationId, cycleId, toast, onSuccess, onOpenChange]);
+  }, [currentEmployee, formData, departmentObjectives, createObjective, updateObjective, editObjective, currentUser, organizationId, toast, onSuccess, onOpenChange]);
 
   const handleCancel = useCallback(() => {
     // Reset form

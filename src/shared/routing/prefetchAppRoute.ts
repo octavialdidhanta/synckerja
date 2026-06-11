@@ -33,6 +33,19 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-0-social-media-performance/pages/YouTubeContentPerformancePage"),
   },
   {
+    prefix: "/digital-marketing/social-media-performance/linkedin",
+    prefetch: () => import("@/6-0-social-media-performance/pages/LinkedInContentPerformancePage"),
+  },
+  {
+    prefix: "/digital-marketing/social-media-performance/report/targets",
+    prefetch: () =>
+      import("@/6-0-social-media-report/pages/SocialMediaInsightTargetsSettingsPage"),
+  },
+  {
+    prefix: "/digital-marketing/social-media-performance/report",
+    prefetch: () => import("@/6-0-social-media-report/pages/SocialMediaInsightReportPage"),
+  },
+  {
     prefix: "/digital-marketing/social-media-performance",
     prefetch: () => import("@/6-0-social-media-performance/pages/SocialMediaPerformanceHubPage"),
   },

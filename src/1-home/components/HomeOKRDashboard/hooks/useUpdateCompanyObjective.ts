@@ -1,4 +1,4 @@
-﻿import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 
@@ -40,14 +40,10 @@ export const useUpdateCompanyObjective = () => {
       if (updates.title !== undefined || updates.why_important !== undefined) {
         console.log('🔄 Syncing changes to company objective key result');
         
-        const updateData: any = {};
+        const updateData: { title?: string } = {};
         if (updates.title !== undefined) {
           updateData.title = updates.title;
         }
-        if (updates.why_important !== undefined) {
-          updateData.description = updates.why_important;
-        }
-        updateData.updated_at = new Date().toISOString();
 
         const { data: keyResult, error: keyResultError } = await supabase
           .from('key_results')

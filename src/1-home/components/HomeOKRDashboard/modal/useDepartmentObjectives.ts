@@ -1,3 +1,5 @@
+import { pickKeyResultDbWrite } from '@/1-home/components/HomeOKRDashboard/lib/keyResultDb';
+import { sanitizeDepartmentObjectiveWrite } from '@/1-home/components/HomeOKRDashboard/lib/objectiveDb';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -167,11 +169,14 @@ export const useCreateDepartmentObjective = () => {
 
       // Extract key_results from objective data
       const { key_results, ...departmentObjectiveData } = objectiveData;
+      const dbPayload = sanitizeDepartmentObjectiveWrite(
+        departmentObjectiveData as Record<string, unknown>,
+      );
 
       // First, create the department objective
       const { data: departmentObjective, error: objectiveError } = await supabase
         .from('department_objectives')
-        .insert(departmentObjectiveData)
+        .insert(dbPayload)
         .select()
         .single();
 
@@ -188,25 +193,16 @@ export const useCreateDepartmentObjective = () => {
         console.log('🔑 Creating key result in company objective for department objective:', departmentObjective.id);
       }
       
-      const companyKeyResultData = {
-        organization_id: departmentObjectiveData.organization_id,
+      const companyKeyResultData = pickKeyResultDbWrite({
         company_objective_id: departmentObjectiveData.company_objective_id,
-        department_objective_id: departmentObjective.id,
         title: departmentObjective.title,
-        description: '', // Keep description empty to prevent auto-generation issue
-        metric_type: 'percentage' as const,
-        calculation_type: 'increase' as const,
-        start_value: 0,
+        metric_type: 'percentage',
         target_value: 100,
         current_value: departmentObjective.progress_percentage || 0,
         unit: '%',
         weight: departmentObjective.weight || 100,
         progress_percentage: departmentObjective.progress_percentage || 0,
-        is_inverse: false,
-        owner_level: 'department' as const,
-        created_by: departmentObjectiveData.created_by,
-        department_id: departmentObjectiveData.department_id,
-      };
+      });
 
       const { data: companyKeyResult, error: companyKRError } = await supabase
         .from('key_results')
@@ -230,24 +226,18 @@ export const useCreateDepartmentObjective = () => {
           console.log('🔑 Creating key results for department objective:', departmentObjective.id);
         }
         
-        const keyResultsData = key_results.map(kr => ({
-          organization_id: departmentObjectiveData.organization_id,
-          department_objective_id: departmentObjective.id,
-          title: kr.title,
-          description: kr.description || '',
-          metric_type: kr.metric_type,
-          calculation_type: kr.calculation_type,
-          start_value: kr.start_value,
-          target_value: kr.target_value,
-          current_value: kr.start_value,
-          unit: kr.unit,
-          weight: kr.weight,
-          progress_percentage: 0,
-          is_inverse: false,
-          owner_level: 'department' as const,
-          created_by: departmentObjectiveData.created_by,
-          department_id: departmentObjectiveData.department_id,
-        }));
+        const keyResultsData = key_results.map((kr) =>
+          pickKeyResultDbWrite({
+            department_objective_id: departmentObjective.id,
+            title: kr.title,
+            metric_type: kr.metric_type,
+            target_value: kr.target_value,
+            current_value: kr.start_value ?? 0,
+            unit: kr.unit,
+            weight: kr.weight,
+            progress_percentage: 0,
+          }),
+        );
 
         const { data: keyResults, error: keyResultsError } = await supabase
           .from('key_results')
@@ -306,7 +296,7 @@ export const useUpdateDepartmentObjective = () => {
 
       const { data, error } = await supabase
         .from('department_objectives')
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .update(sanitizeDepartmentObjectiveWrite(updates as Record<string, unknown>))
         .eq('id', id)
         .select()
         .single();

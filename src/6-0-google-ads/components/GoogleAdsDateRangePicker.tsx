@@ -16,9 +16,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/
 import { Switch } from "@/shared/components/ui/switch";
 import { cn } from "@/shared/lib/utils";
 import {
+  type CalendarQuarter,
   type GoogleAdsDatePresetId,
   type GoogleAdsDateRangeSelection,
+  calendarQuarterOverlapsRange,
   computePresetRange,
+  dateSelectionForCalendarQuarter,
   dateSelectionForCalendarYear,
   formatGoogleAdsPickerButtonLabel,
   toYmdLocal,
@@ -48,7 +51,10 @@ type PresetRangeOptions = {
   accountEarliestYmd?: string | null;
   rollingDays?: number;
   calendarYear?: number;
+  calendarQuarter?: CalendarQuarter;
 };
+
+const CALENDAR_QUARTERS: CalendarQuarter[] = [1, 2, 3, 4];
 
 type GoogleAdsDateRangePickerProps = {
   value: GoogleAdsDateRangeSelection;
@@ -127,6 +133,9 @@ export function GoogleAdsDateRangePicker({
   const [draftCalendarYear, setDraftCalendarYear] = useState<number | undefined>(
     value.calendarYear,
   );
+  const [draftCalendarQuarter, setDraftCalendarQuarter] = useState<
+    CalendarQuarter | undefined
+  >(value.calendarQuarter);
   const [startInput, setStartInput] = useState(() => formatInputDate(value.range.from));
   const [endInput, setEndInput] = useState(() => formatInputDate(value.range.to));
   const [compareDraft, setCompareDraft] = useState(compareEnabledProp ?? false);
@@ -146,6 +155,7 @@ export function GoogleAdsDateRangePicker({
     setDraftRange(value.range);
     setDraftRolling(value.rollingDays);
     setDraftCalendarYear(value.calendarYear);
+    setDraftCalendarQuarter(value.calendarQuarter);
     setStartInput(formatInputDate(value.range.from));
     setEndInput(formatInputDate(value.range.to));
   }, [open, value]);
@@ -164,12 +174,13 @@ export function GoogleAdsDateRangePicker({
       setDraftRange(value.range);
       setDraftRolling(value.rollingDays);
       setDraftCalendarYear(value.calendarYear);
+      setDraftCalendarQuarter(value.calendarQuarter);
       setStartInput(formatInputDate(value.range.from));
       setEndInput(formatInputDate(value.range.to));
       const focusDate =
         value.preset === "all_time"
           ? value.range.from
-          : value.preset === "calendar_year"
+          : value.preset === "calendar_year" || value.preset === "calendar_quarter"
             ? value.range.from
             : value.range.to ?? value.range.from;
       setCalendarFocusMonth(startOfMonth(focusDate ?? new Date()));
@@ -181,6 +192,7 @@ export function GoogleAdsDateRangePicker({
       setDraftRange(value.range);
       setDraftRolling(value.rollingDays);
       setDraftCalendarYear(value.calendarYear);
+      setDraftCalendarQuarter(value.calendarQuarter);
       setStartInput(formatInputDate(value.range.from));
       setEndInput(formatInputDate(value.range.to));
     }
@@ -224,6 +236,7 @@ export function GoogleAdsDateRangePicker({
         closePopover?: boolean;
         focusScrollMonth?: Date;
         calendarYear?: number;
+        calendarQuarter?: CalendarQuarter;
       },
     ) => {
       const normalized = normalizeRange(range);
@@ -233,6 +246,14 @@ export function GoogleAdsDateRangePicker({
         rollingDays,
         ...(preset === "calendar_year" && options?.calendarYear != null
           ? { calendarYear: options.calendarYear }
+          : {}),
+        ...(preset === "calendar_quarter" &&
+        options?.calendarYear != null &&
+        options?.calendarQuarter != null
+          ? {
+              calendarYear: options.calendarYear,
+              calendarQuarter: options.calendarQuarter,
+            }
           : {}),
       };
       onChange(next);
@@ -261,6 +282,7 @@ export function GoogleAdsDateRangePicker({
     const sel = dateSelectionForCalendarYear(year);
     setDraftPreset("calendar_year");
     setDraftCalendarYear(year);
+    setDraftCalendarQuarter(undefined);
     commitSelection("calendar_year", sel.range, sel.rollingDays, {
       closePopover: false,
       focusScrollMonth: sel.range.from,
@@ -268,9 +290,23 @@ export function GoogleAdsDateRangePicker({
     });
   };
 
+  const selectCalendarQuarter = (year: number, quarter: CalendarQuarter) => {
+    const sel = dateSelectionForCalendarQuarter(year, quarter);
+    setDraftPreset("calendar_quarter");
+    setDraftCalendarYear(year);
+    setDraftCalendarQuarter(quarter);
+    commitSelection("calendar_quarter", sel.range, sel.rollingDays, {
+      closePopover: false,
+      focusScrollMonth: sel.range.from,
+      calendarYear: year,
+      calendarQuarter: quarter,
+    });
+  };
+
   const selectPreset = (preset: GoogleAdsDatePresetId) => {
     setDraftPreset(preset);
     setDraftCalendarYear(undefined);
+    setDraftCalendarQuarter(undefined);
     if (preset === "custom") return;
 
     const range = resolvePresetRange(preset, new Date(), {
@@ -398,6 +434,51 @@ export function GoogleAdsDateRangePicker({
                 </button>
               ))}
 
+              {calendarYearPresetYears?.length ? (
+                <div className="mt-1 space-y-2 border-t border-gray-100 px-1 pt-2">
+                  {calendarYearPresetYears.map((year) => {
+                    const visibleQuarters = CALENDAR_QUARTERS.filter((quarter) =>
+                      calendarQuarterOverlapsRange(
+                        year,
+                        quarter,
+                        calendarMinDate,
+                        new Date(),
+                      ),
+                    );
+                    if (visibleQuarters.length === 0) return null;
+                    return (
+                      <div key={year}>
+                        <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          {year}
+                        </p>
+                        <div className="grid grid-cols-4 gap-0.5 px-1">
+                          {visibleQuarters.map((quarter) => {
+                            const active =
+                              draftPreset === "calendar_quarter" &&
+                              draftCalendarYear === year &&
+                              draftCalendarQuarter === quarter;
+                            return (
+                              <button
+                                key={`${year}-q${quarter}`}
+                                type="button"
+                                className={cn(
+                                  "rounded-sm px-1 py-1.5 text-center text-xs text-gray-800 hover:bg-brand-blue-soft/50",
+                                  active &&
+                                    "bg-brand-blue-soft font-medium text-brand-blue-on-soft",
+                                )}
+                                onClick={() => selectCalendarQuarter(year, quarter)}
+                              >
+                                Q{quarter}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
               <div className="mt-1 space-y-1 border-t border-gray-100 px-2 pt-2">
                 <button
                   type="button"
@@ -511,7 +592,9 @@ export function GoogleAdsDateRangePicker({
                 }
                 selectableYears={calendarYearPresetYears}
                 selectedCalendarYear={
-                  draftPreset === "calendar_year" ? draftCalendarYear : undefined
+                  draftPreset === "calendar_year" || draftPreset === "calendar_quarter"
+                    ? draftCalendarYear
+                    : undefined
                 }
               />
             </div>

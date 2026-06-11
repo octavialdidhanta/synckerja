@@ -37,7 +37,7 @@ export function YouTubeContentVideosTable({ rows }: YouTubeContentVideosTablePro
 
   return (
     <div className="min-h-0 overflow-auto">
-      <table className="w-full min-w-[1040px] table-fixed text-sm">
+      <table className="w-full min-w-[1120px] table-fixed text-sm">
         <colgroup>
           <col className="w-[220px]" />
           <col className="w-[160px]" />
@@ -47,6 +47,7 @@ export function YouTubeContentVideosTable({ rows }: YouTubeContentVideosTablePro
           <col className="w-[64px]" />
           <col className="w-[80px]" />
           <col className="w-[64px]" />
+          <col className="w-[72px]" />
           <col className="w-[88px]" />
           <col className="w-[88px]" />
         </colgroup>
@@ -60,6 +61,9 @@ export function YouTubeContentVideosTable({ rows }: YouTubeContentVideosTablePro
             <th className="px-3 py-2 font-medium text-right">{t("digitalMarketing.youtubeContent.colLikes", "Likes")}</th>
             <th className="px-3 py-2 font-medium text-right">{t("digitalMarketing.youtubeContent.colComments", "Comments")}</th>
             <th className="px-3 py-2 font-medium text-right">{t("digitalMarketing.youtubeContent.colShares", "Shares")}</th>
+            <th className="px-3 py-2 font-medium text-right" title={t("digitalMarketing.youtubeContent.colSubscribeHint", "New subscribers attributed to this video in the selected date range")}>
+              {t("digitalMarketing.youtubeContent.colSubscribe", "Subscribe")}
+            </th>
             <th className="px-3 py-2 font-medium text-right">{t("digitalMarketing.youtubeContent.colEngagement", "Engagement")}</th>
             <th className="px-3 py-2 font-medium">{t("digitalMarketing.youtubeContent.colPosted", "Posted")}</th>
           </tr>
@@ -110,6 +114,7 @@ export function YouTubeContentVideosTable({ rows }: YouTubeContentVideosTablePro
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.like_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.comment_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.share_count)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.subscribers_gained ?? 0)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatPercent(row.engagement_rate)}</td>
                 <td className="px-3 py-2 text-muted-foreground">{formatDate(row.posted_at)}</td>
               </tr>

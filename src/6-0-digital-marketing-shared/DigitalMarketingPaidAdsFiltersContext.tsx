@@ -166,7 +166,11 @@ export function DigitalMarketingPaidAdsProvider({ children }: { children: ReactN
   /** Keep chart year aligned with calendar-year preset or single-year custom range. */
   useEffect(() => {
     if (!filtersHydrated) return;
-    if (dateSelection.preset === "calendar_year" && dateSelection.calendarYear != null) {
+    if (
+      (dateSelection.preset === "calendar_year" ||
+        dateSelection.preset === "calendar_quarter") &&
+      dateSelection.calendarYear != null
+    ) {
       const y = normalizeChartYear(dateSelection.calendarYear);
       setReportChartYearState((current) => (current === y ? current : y));
       return;
