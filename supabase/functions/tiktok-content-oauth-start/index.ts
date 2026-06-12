@@ -83,10 +83,10 @@ Deno.serve(async (req: Request) => {
     response_type: "code",
     redirect_uri: redirectUri,
     state: stateToken,
-    // Always show TikTok login/consent so user can switch to another account.
     disable_auto_auth: "1",
   });
 
+  // Account Comment API: account-holder OAuth (v2 authorize + tt_user token exchange).
   const url = `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`;
   return tiktokContentJson({ url }, 200);
 });

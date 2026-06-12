@@ -71,6 +71,8 @@ import {
   LinkedInContentPerformancePageSkeleton,
   SocialMediaInsightReportPageSkeleton,
   SocialMediaInsightTargetsSettingsPageSkeleton,
+  ManageCommentsHubPageSkeleton,
+  TikTokManageCommentsPageSkeleton,
   DigitalMarketingReportPageSkeleton,
   DigitalMarketingReportTargetsSettingsPageSkeleton,
   VisitSchedulingPageSkeleton,
@@ -173,6 +175,12 @@ const SocialMediaInsightReportPage = lazy(
 );
 const SocialMediaInsightTargetsSettingsPage = lazy(
   () => import("@/6-0-social-media-report/pages/SocialMediaInsightTargetsSettingsPage"),
+);
+const ManageCommentsHubPage = lazy(
+  () => import("@/6-0-social-media-manage-comments/pages/ManageCommentsHubPage"),
+);
+const TikTokManageCommentsPage = lazy(
+  () => import("@/6-0-social-media-manage-comments/pages/TikTokManageCommentsPage"),
 );
 const DigitalMarketingReportPage = lazy(
   () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
@@ -1787,6 +1795,34 @@ function SocialMediaInsightTargetsSettingsPageRouteElement() {
   );
 }
 
+function ManageCommentsHubPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <ManageCommentsHubPageSkeleton />
+        </div>
+      }
+    >
+      <ManageCommentsHubPage />
+    </Suspense>
+  );
+}
+
+function TikTokManageCommentsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <TikTokManageCommentsPageSkeleton />
+        </div>
+      }
+    >
+      <TikTokManageCommentsPage />
+    </Suspense>
+  );
+}
+
 function DigitalMarketingReportPageRouteElement() {
   return (
     <Suspense
@@ -3083,6 +3119,42 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <TikTokAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/manage-comments/tiktok/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<TikTokManageCommentsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokManageCommentsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/manage-comments/tiktok"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<TikTokManageCommentsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokManageCommentsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/manage-comments"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<ManageCommentsHubPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <ManageCommentsHubPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

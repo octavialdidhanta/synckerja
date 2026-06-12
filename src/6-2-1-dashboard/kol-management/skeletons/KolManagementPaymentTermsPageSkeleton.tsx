@@ -13,36 +13,36 @@ export type KolManagementPaymentTermsPageSkeletonProps = {
 /** Mirror `PaymentTermsPage` + header tab: baris TabsList + CTA, lalu kartu daftar payment terms. */
 function KolManagementPaymentTermsSkeletonMain() {
   return (
-    <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+    <div className="grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
       <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-4 py-5 shadow-sm sm:px-5 sm:py-6">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-3 py-3 shadow-sm sm:px-5 sm:py-5">
+          <div className="flex shrink-0 min-w-0 flex-wrap items-center gap-2">
             <Skeleton className="h-8 w-[220px] max-w-full rounded-md" />
             <Skeleton className="h-7 w-[160px] shrink-0 rounded-md" />
           </div>
 
-          <div className="mt-5 min-w-0 flex-1 space-y-5">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden sm:mt-3 sm:gap-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+                className="shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
               >
-                <div className="space-y-3 border-b border-gray-100 p-5 sm:p-6">
+                <div className="space-y-2 border-b border-gray-100 p-3 sm:p-5">
                   <div className="flex flex-wrap items-start gap-2">
-                    <Skeleton className="h-6 w-[min(280px,85vw)] rounded-md" />
+                    <Skeleton className="h-5 w-[min(280px,85vw)] rounded-md sm:h-6" />
                     <Skeleton className="h-5 w-20 rounded-full" />
                   </div>
-                  <Skeleton className="h-4 w-[min(400px,90vw)] rounded-md" />
+                  <Skeleton className="h-3 w-[min(400px,90vw)] rounded-md sm:h-4" />
                   <div className="flex flex-wrap gap-2">
-                    <Skeleton className="h-8 w-24 rounded-md" />
-                    <Skeleton className="h-8 w-28 rounded-md" />
+                    <Skeleton className="h-7 w-24 rounded-md sm:h-8" />
+                    <Skeleton className="h-7 w-28 rounded-md sm:h-8" />
                   </div>
                 </div>
-                <div className="space-y-3 p-5 sm:p-6">
+                <div className="space-y-2 p-3 sm:space-y-3 sm:p-5">
                   <Skeleton className="h-2 w-full rounded-full" />
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Skeleton className="h-16 w-full rounded-md" />
-                    <Skeleton className="h-16 w-full rounded-md" />
+                    <Skeleton className="h-14 w-full rounded-md sm:h-16" />
+                    <Skeleton className="h-14 w-full rounded-md sm:h-16" />
                   </div>
                 </div>
               </div>

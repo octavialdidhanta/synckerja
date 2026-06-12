@@ -6,6 +6,7 @@ import {
 } from "@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes";
 import { useLinkedInContentSettings } from "@/linkedin-content/hooks/useLinkedInContentSettings";
 import { useTikTokContentSettings } from "@/tiktok-content/hooks/useTikTokContentSettings";
+import { getTikTokAccountDisplayLabel } from "@/tiktok-content/lib/tiktokAccountDisplayLabel";
 import { useYouTubeContentSettings } from "@/youtube-content/hooks/useYouTubeContentSettings";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 
@@ -33,7 +34,7 @@ export function useSocialMediaInsightTargetAccounts() {
         list.push({
           platform: "tiktok",
           accountId: acc.open_id,
-          accountLabel: acc.label || acc.display_name || acc.open_id,
+          accountLabel: getTikTokAccountDisplayLabel(acc),
           avatarUrl: acc.avatar_url,
         });
       }

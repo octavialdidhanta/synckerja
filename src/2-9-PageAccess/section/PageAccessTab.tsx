@@ -320,24 +320,22 @@ export const PageAccessTab = () => {
                                   Add New Page
                                 </Button>
                               </DialogTrigger>
-              <DialogContent className="flex h-[520px] w-[520px] max-h-[95vh] max-w-[95vw] flex-col overflow-hidden p-0">
+              <DialogContent
+                hideCloseButton
+                className="flex h-[520px] w-[520px] max-h-[95vh] max-w-[95vw] flex-col overflow-hidden p-0"
+              >
                 <DialogHeader className="flex-shrink-0 border-b bg-gradient-to-r from-brand-blue/10 to-brand-blue/5 px-6 pb-4 pt-6 dark:from-brand-blue/15 dark:to-brand-blue/5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-blue/15">
-                        <Plus className="h-5 w-5 text-brand-blue" />
-                      </div>
-                      <div className="min-w-0">
-                        <DialogTitle className="text-xl font-semibold truncate">
-                          Create New Page Access
-                        </DialogTitle>
-                        <DialogDescription className="text-sm text-muted-foreground mt-1 truncate">
-                          Add a custom page with specific access permissions.
-                        </DialogDescription>
-                      </div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-blue/15">
+                      <Plus className="h-5 w-5 text-brand-blue" />
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formData.page_path || '/path'}
+                    <div className="min-w-0">
+                      <DialogTitle className="truncate text-xl font-semibold">
+                        Create New Page Access
+                      </DialogTitle>
+                      <DialogDescription className="mt-1 truncate text-sm text-muted-foreground">
+                        Add a custom page with specific access permissions.
+                      </DialogDescription>
                     </div>
                   </div>
                 </DialogHeader>

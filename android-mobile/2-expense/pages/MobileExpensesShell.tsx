@@ -13,6 +13,7 @@ import {
 } from "@/mobile/2-expense/shared/ExpenseTabs";
 import { ExpenseDashboardRefreshContext } from "@/mobile/2-expense/ExpenseDashboardRefreshContext";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
 const INDICATOR_HEIGHT = 56;
@@ -131,6 +132,8 @@ export function MobileExpensesShell({
               </div>
               <div />
             </header>
+
+            <SubscriptionExpiryBannerSlot />
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div

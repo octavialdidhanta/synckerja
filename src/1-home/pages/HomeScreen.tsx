@@ -124,11 +124,13 @@ export function HomeScreen({ layoutVariant = "desktop" }: { layoutVariant?: Home
 
 function HomeOkrPanel() {
   return (
-    <OKRSectionVisibilityProvider>
-      <Suspense fallback={<OkrPanelPlaceholder />}>
-        <HomeOKRDashboard />
-      </Suspense>
-    </OKRSectionVisibilityProvider>
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <OKRSectionVisibilityProvider>
+        <Suspense fallback={<OkrPanelPlaceholder />}>
+          <HomeOKRDashboard />
+        </Suspense>
+      </OKRSectionVisibilityProvider>
+    </div>
   );
 }
 

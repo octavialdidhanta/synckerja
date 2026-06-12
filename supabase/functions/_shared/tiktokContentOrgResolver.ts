@@ -3,8 +3,17 @@ import {
   decryptTikTokContentToken,
   encryptTikTokContentToken,
 } from "./tiktokContentConfigCrypto.ts";
-import { readPlatformTikTokContentOAuth } from "./tiktokContentAuth.ts";
-import { refreshTikTokContentAccessToken } from "./tiktokContentApi.ts";
+import {
+  mergeTikTokContentOAuthScopes,
+  readPlatformTikTokContentOAuth,
+  TIKTOK_CONTENT_OAUTH_SCOPES,
+  TIKTOK_CONTENT_OAUTH_TOKEN_KINDS,
+  type TikTokContentOAuthTokenKind,
+} from "./tiktokContentAuth.ts";
+import {
+  refreshTikTokBusinessOrganicAccessToken,
+  refreshTikTokContentAccessToken,
+} from "./tiktokContentApi.ts";
 
 export type TikTokContentAccountRow = {
   id: string;
@@ -22,22 +31,31 @@ type TokenRow = {
   access_token_enc: string;
   refresh_token_enc: string;
   access_token_expires_at: string | null;
+  oauth_scopes: string | null;
+  oauth_token_kind: string | null;
 };
+
+function normalizeTokenKind(raw: string | null | undefined): TikTokContentOAuthTokenKind {
+  return raw === TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.ttUser
+    ? TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.ttUser
+    : TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.loginKit;
+}
 
 export async function getTikTokContentAccessToken(
   admin: SupabaseClient,
   organizationId: string,
   openId: string,
-): Promise<string | null> {
+): Promise<{ accessToken: string; tokenKind: TikTokContentOAuthTokenKind } | null> {
   const { data: row } = await admin
     .from("organization_tiktok_content_connection_tokens")
-    .select("access_token_enc, refresh_token_enc, access_token_expires_at")
+    .select("access_token_enc, refresh_token_enc, access_token_expires_at, oauth_scopes, oauth_token_kind")
     .eq("organization_id", organizationId)
     .eq("open_id", openId)
     .maybeSingle();
   if (!row?.access_token_enc || !row?.refresh_token_enc) return null;
 
   const tokenRow = row as TokenRow;
+  const tokenKind = normalizeTokenKind(tokenRow.oauth_token_kind);
   const expiresAtMs = tokenRow.access_token_expires_at
     ? new Date(String(tokenRow.access_token_expires_at)).getTime()
     : null;
@@ -47,7 +65,8 @@ export async function getTikTokContentAccessToken(
 
   if (!needsRefresh) {
     try {
-      return await decryptTikTokContentToken(String(tokenRow.access_token_enc));
+      const accessToken = await decryptTikTokContentToken(String(tokenRow.access_token_enc));
+      return { accessToken, tokenKind };
     } catch (e) {
       console.error("getTikTokContentAccessToken decrypt:", e);
     }
@@ -63,41 +82,63 @@ export async function getTikTokContentAccessToken(
 
   const oauth = readPlatformTikTokContentOAuth();
   const refreshed = oauth
-    ? await refreshTikTokContentAccessToken(oauth.clientKey, oauth.clientSecret, refreshToken)
+    ? tokenKind === TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.ttUser
+      ? await refreshTikTokBusinessOrganicAccessToken(
+        oauth.clientKey,
+        oauth.clientSecret,
+        refreshToken,
+      )
+      : await refreshTikTokContentAccessToken(oauth.clientKey, oauth.clientSecret, refreshToken)
     : null;
 
   if (!refreshed?.access_token) {
     try {
-      return await decryptTikTokContentToken(String(tokenRow.access_token_enc));
+      const accessToken = await decryptTikTokContentToken(String(tokenRow.access_token_enc));
+      return { accessToken, tokenKind };
     } catch {
       return null;
     }
   }
 
-  const now = new Date().toISOString();
-  const accessEnc = await encryptTikTokContentToken(refreshed.access_token);
-  const refreshEnc = refreshed.refresh_token
-    ? await encryptTikTokContentToken(refreshed.refresh_token)
-    : String(tokenRow.refresh_token_enc);
-  const accessExpires = refreshed.expires_in
-    ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
-    : tokenRow.access_token_expires_at;
+  try {
+    const now = new Date().toISOString();
+    const accessEnc = await encryptTikTokContentToken(refreshed.access_token);
+    const refreshEnc = refreshed.refresh_token
+      ? await encryptTikTokContentToken(refreshed.refresh_token)
+      : String(tokenRow.refresh_token_enc);
+    const accessExpires = refreshed.expires_in
+      ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
+      : tokenRow.access_token_expires_at;
 
-  await admin.from("organization_tiktok_content_connection_tokens").update({
-    access_token_enc: accessEnc,
-    refresh_token_enc: refreshEnc,
-    access_token_expires_at: accessExpires,
-    updated_at: now,
-  }).eq("organization_id", organizationId).eq("open_id", openId);
+    const resolvedScopes = mergeTikTokContentOAuthScopes(
+      tokenRow.oauth_scopes,
+      refreshed.scope,
+      TIKTOK_CONTENT_OAUTH_SCOPES,
+    );
 
-  return refreshed.access_token;
+    await admin.from("organization_tiktok_content_connection_tokens").update({
+      access_token_enc: accessEnc,
+      refresh_token_enc: refreshEnc,
+      access_token_expires_at: accessExpires,
+      oauth_scopes: resolvedScopes,
+      updated_at: now,
+    }).eq("organization_id", organizationId).eq("open_id", openId);
+  } catch (e) {
+    console.error("getTikTokContentAccessToken persist refresh:", e);
+  }
+
+  return { accessToken: refreshed.access_token, tokenKind };
 }
 
 export async function resolveOrgTikTokContentForMetrics(
   admin: SupabaseClient,
   organizationId: string,
   openIdParam?: string | null,
-): Promise<{ accessToken: string; account: TikTokContentAccountRow } | null> {
+): Promise<{
+  accessToken: string;
+  account: TikTokContentAccountRow;
+  tokenKind: TikTokContentOAuthTokenKind;
+} | null> {
   let account: TikTokContentAccountRow | null = null;
 
   if (openIdParam) {
@@ -136,8 +177,12 @@ export async function resolveOrgTikTokContentForMetrics(
 
   if (!account?.open_id) return null;
 
-  const accessToken = await getTikTokContentAccessToken(admin, organizationId, account.open_id);
-  if (!accessToken) return null;
+  const tokenResult = await getTikTokContentAccessToken(admin, organizationId, account.open_id);
+  if (!tokenResult) return null;
 
-  return { accessToken, account };
+  return {
+    accessToken: tokenResult.accessToken,
+    account,
+    tokenKind: tokenResult.tokenKind,
+  };
 }

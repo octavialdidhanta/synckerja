@@ -1,15 +1,11 @@
 import { LayoutDashboard, CreditCard, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
-import { SubscriptionBanner } from "@/10-subscription/shared/SubscriptionBanner";
 
 export function SubscriptionSectionLayout({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { subscriptionStatus, statusLoading } = useOptimizedSubscription();
-
   const activeTab =
     location.pathname === "/subscription/plans"
       ? "plans"
@@ -37,9 +33,6 @@ export function SubscriptionSectionLayout({ children }: { children: React.ReactN
       path: "/subscription/management",
     },
   ];
-
-  const daysLeft = subscriptionStatus?.days_until_expiry ?? Number.POSITIVE_INFINITY;
-  const showBanner = !statusLoading && !!subscriptionStatus && daysLeft <= 3;
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-gray-100 font-sans">
@@ -83,11 +76,6 @@ export function SubscriptionSectionLayout({ children }: { children: React.ReactN
             </div>
           </div>
         </div>
-        {showBanner && subscriptionStatus && (
-          <div className="shrink-0 border-b border-border bg-card">
-            <SubscriptionBanner subscriptionStatus={subscriptionStatus} />
-          </div>
-        )}
         <div className="flex min-w-0 flex-col">{children}</div>
       </div>
     </div>

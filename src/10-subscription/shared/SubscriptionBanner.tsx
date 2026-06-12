@@ -3,9 +3,22 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/shared/components/ui/button";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
+import { cn } from "@/shared/lib/utils";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
 
-export function SubscriptionBanner({ subscriptionStatus }: { subscriptionStatus: SubscriptionStatus }) {
+export type SubscriptionBannerProps = {
+  subscriptionStatus: SubscriptionStatus;
+  canRenew?: boolean;
+  placement?: "inline" | "sticky";
+  className?: string;
+};
+
+export function SubscriptionBanner({
+  subscriptionStatus,
+  canRenew = true,
+  placement = "inline",
+  className,
+}: SubscriptionBannerProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
@@ -25,26 +38,32 @@ export function SubscriptionBanner({ subscriptionStatus }: { subscriptionStatus:
 
   const expiryMessage =
     daysLeft < 0
-      ? t("subscription.banner.expired")
+      ? t("subscription.banner.expired", "Subscription expired")
       : daysLeft === 0
-        ? t("subscription.banner.expiresToday")
+        ? t("subscription.banner.expiresToday", "Expires today")
         : daysLeft === 1
-          ? t("subscription.banner.expiresTomorrow")
-          : t("subscription.banner.expiresInDays", { count: daysLeft });
+          ? t("subscription.banner.expiresTomorrow", "Expires tomorrow")
+          : t("subscription.banner.expiresInDays", "Expires in {{count}} days", { count: daysLeft });
 
   const secondaryMessage = subscriptionStatus.is_trial
-    ? t("subscription.banner.trialEnds")
-    : t("subscription.banner.subscriptionEnds");
+    ? t("subscription.banner.trialEnds", "Trial ends")
+    : t("subscription.banner.subscriptionEnds", "Subscription ending soon");
 
   return (
     <Alert
-      className={cnBorder(isUrgent)}
+      className={cn(
+        cnBorder(isUrgent),
+        placement === "sticky" && "rounded-none shadow-sm",
+        className,
+      )}
     >
       <AlertTriangle className={cnIcon(isUrgent)} />
       <AlertDescription className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className={cnTitle(isUrgent)}>
-            {subscriptionStatus.is_trial ? t("subscription.banner.trialLabel") : t("subscription.banner.subscriptionLabel")}
+            {subscriptionStatus.is_trial
+              ? t("subscription.banner.trialLabel", "Trial")
+              : t("subscription.banner.subscriptionLabel", "Subscription")}
             {" "}
             {expiryMessage}
           </p>
@@ -53,16 +72,28 @@ export function SubscriptionBanner({ subscriptionStatus }: { subscriptionStatus:
             {secondaryMessage}
             {expiryDate ? ` ${formatDate(expiryDate)}` : ""}
           </p>
+          {!canRenew ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t(
+                "subscription.banner.contactAdminToRenew",
+                "Contact your organization Owner or Admin to renew the subscription.",
+              )}
+            </p>
+          ) : null}
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => navigate("/subscription/plans")}
-          className={`text-white ${cnBtn(isUrgent)}`}
-        >
-          <CreditCard className="mr-2 h-4 w-4" />
-          {subscriptionStatus.is_trial ? t("subscription.banner.choosePlan") : t("subscription.banner.renew")}
-        </Button>
+        {canRenew ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => navigate("/subscription/plans")}
+            className={cn("shrink-0 text-white", cnBtn(isUrgent))}
+          >
+            <CreditCard className="mr-2 h-4 w-4" />
+            {subscriptionStatus.is_trial
+              ? t("subscription.banner.choosePlan", "Choose Plan")
+              : t("subscription.banner.renew", "Renew")}
+          </Button>
+        ) : null}
       </AlertDescription>
     </Alert>
   );

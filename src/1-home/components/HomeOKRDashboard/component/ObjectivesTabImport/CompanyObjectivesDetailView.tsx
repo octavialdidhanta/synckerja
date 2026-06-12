@@ -511,7 +511,7 @@ export const CompanyObjectivesDetailView = ({
         
         {/* Average Progress Bar moved outside trigger */}
         {objective.all_key_results && objective.all_key_results.length > 0 && (
-          <div className="px-4 pb-2">
+          <div className="px-4 pb-3">
             <div className="flex items-center justify-between text-sm mb-2">
               <span className="text-primary font-medium">Average Progress</span>
               <div className="flex items-center space-x-3">

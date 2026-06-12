@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { parseEdgeFunctionError } from "@/tiktok-ads/lib/parseEdgeFunctionError";
 import { supabase } from "@/shared/lib/supabaseClient";
 
@@ -71,8 +71,20 @@ export function useTikTokContentVideosQuery(args: {
   dateStart: string;
   dateEnd: string;
   enabled?: boolean;
+  refetchIntervalMs?: number | false;
+  /** Bypass server-side metrics cache (use for live Manage Comments polling). */
+  forceRefresh?: boolean;
 }) {
-  const { organizationId, openId, dateStart, dateEnd, enabled = true } = args;
+  const {
+    organizationId,
+    openId,
+    dateStart,
+    dateEnd,
+    enabled = true,
+    refetchIntervalMs = false,
+    forceRefresh = false,
+  } = args;
+  const queryEnabled = Boolean(organizationId && openId && enabled);
   return useQuery({
     queryKey: ["tiktok-content-videos", organizationId, openId, dateStart, dateEnd],
     queryFn: async () => {
@@ -82,9 +94,13 @@ export function useTikTokContentVideosQuery(args: {
         openId,
         dateStart,
         dateEnd,
+        forceRefresh,
       });
     },
-    enabled: Boolean(organizationId && openId && enabled),
-    staleTime: 60_000,
+    enabled: queryEnabled,
+    staleTime: refetchIntervalMs ? 0 : 60_000,
+    placeholderData: keepPreviousData,
+    refetchInterval: queryEnabled && refetchIntervalMs ? refetchIntervalMs : false,
+    refetchIntervalInBackground: false,
   });
 }

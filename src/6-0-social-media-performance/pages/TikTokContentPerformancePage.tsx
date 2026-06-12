@@ -26,6 +26,7 @@ import {
 } from "@/tiktok-content/settings/tiktokContentSettingsPaths";
 import { TikTokContentPerformancePageSkeleton } from "@/6-0-social-media-performance/skeletons/TikTokContentPerformancePageSkeleton";
 import { TikTokContentAccountNav } from "@/6-0-social-media-performance/components/TikTokContentAccountNav";
+import { getTikTokAccountDisplayLabel } from "@/tiktok-content/lib/tiktokAccountDisplayLabel";
 import { TikTokContentSummaryBar } from "@/6-0-social-media-performance/components/TikTokContentSummaryBar";
 import { useTikTokContentTargetProgress } from "@/6-0-social-media-performance-shared/hooks/useTikTokContentTargetProgress";
 import { TikTokContentVideosTable } from "@/6-0-social-media-performance/components/TikTokContentVideosTable";
@@ -137,7 +138,7 @@ function TikTokContentPerformancePageContent() {
     const fromQuery = videosQuery.data?.account_label?.trim();
     if (fromQuery) return fromQuery;
     const account = activeAccounts.find((a) => a.open_id === openId);
-    return account?.label?.trim() ?? account?.display_name?.trim() ?? null;
+    return account ? getTikTokAccountDisplayLabel(account) : null;
   }, [videosQuery.data?.account_label, activeAccounts, openId]);
 
   const { progressList, targetsLoading } = useTikTokContentTargetProgress({

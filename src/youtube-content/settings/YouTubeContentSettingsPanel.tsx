@@ -179,15 +179,6 @@ export function YouTubeContentSettingsPanel({
           </Alert>
         )}
 
-        {accounts.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "digitalMarketing.youtubeContent.connectAnotherHint",
-              "To add another channel, click Connect and sign in with a different Google account on the Google screen.",
-            )}
-          </p>
-        )}
-
         <div className="flex flex-wrap gap-2">
         <Button
           type="button"

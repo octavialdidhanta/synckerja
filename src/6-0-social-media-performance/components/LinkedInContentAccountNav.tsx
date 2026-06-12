@@ -1,7 +1,10 @@
-import { Linkedin, Settings } from "lucide-react";
+import { Linkedin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import type { LinkedInContentAccountRow } from "@/linkedin-content/hooks/useLinkedInContentSettings";
+import { CollapsibleContentAccountNav } from "@/6-0-social-media-performance/components/CollapsibleContentAccountNav";
+
+const COLLAPSED_STORAGE_KEY = "synckerja.linkedin-content-account-nav.collapsed";
 
 type LinkedInContentAccountNavProps = {
   accounts: LinkedInContentAccountRow[];
@@ -23,54 +26,49 @@ export function LinkedInContentAccountNav({
   const { t } = useTranslation();
 
   return (
-    <div className={cn("flex h-full w-[180px] shrink-0 flex-col border-r border-gray-200 bg-gray-50/80", className)}>
-      <div className="border-b border-gray-200/80 px-3 py-3">
-        <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {t("digitalMarketing.linkedinContent.accounts", "Pages")}
-        </p>
-        <div className="space-y-1">
-          {accounts.map((acc) => {
-            const active = acc.page_id === pageId;
-            return (
-              <button
-                key={acc.id}
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                  active
-                    ? "bg-gray-200/80 font-medium text-gray-900"
-                    : "text-gray-700 hover:bg-gray-100",
-                )}
-                onClick={() => onPageIdChange(acc.page_id)}
-              >
-                {acc.thumbnail_url ? (
-                  <img src={acc.thumbnail_url} alt="" className="h-5 w-5 shrink-0 rounded-full object-cover" />
-                ) : (
-                  <Linkedin className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className="truncate">{acc.label || acc.display_name || acc.page_id}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      {onSettingsSelect && (
-        <div className="mt-auto border-t border-gray-200/80 px-3 py-3">
+    <CollapsibleContentAccountNav
+      storageKey={COLLAPSED_STORAGE_KEY}
+      sectionLabel={t("digitalMarketing.linkedinContent.accounts", "Pages")}
+      collapseLabel={t(
+        "digitalMarketing.linkedinContent.collapsePages",
+        "Collapse pages",
+      )}
+      expandLabel={t("digitalMarketing.linkedinContent.expandPages", "Expand pages")}
+      settingsLabel={t("digitalMarketing.linkedinContent.settings", "Settings")}
+      settingsActive={settingsActive}
+      onSettingsSelect={onSettingsSelect}
+      className={className}
+      accounts={accounts.map((acc) => {
+        const active = acc.page_id === pageId;
+        const label = acc.label || acc.display_name || acc.page_id;
+
+        return (
           <button
+            key={acc.id}
             type="button"
+            title={label}
+            aria-label={label}
             className={cn(
               "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-              settingsActive
+              active
                 ? "bg-gray-200/80 font-medium text-gray-900"
                 : "text-gray-700 hover:bg-gray-100",
             )}
-            onClick={onSettingsSelect}
+            onClick={() => onPageIdChange(acc.page_id)}
           >
-            <Settings className="h-4 w-4 shrink-0" />
-            {t("digitalMarketing.linkedinContent.settings", "Settings")}
+            {acc.thumbnail_url ? (
+              <img
+                src={acc.thumbnail_url}
+                alt=""
+                className="h-5 w-5 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <Linkedin className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            )}
+            <span className="truncate">{label}</span>
           </button>
-        </div>
-      )}
-    </div>
+        );
+      })}
+    />
   );
 }

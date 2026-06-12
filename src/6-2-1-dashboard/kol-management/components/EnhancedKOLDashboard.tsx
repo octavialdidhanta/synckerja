@@ -9,7 +9,7 @@ import { useKOLManagementData } from "../hooks/useKOLManagementData";
 import { useKOLCampaignsBrief } from "../hooks/useKOLCampaignsBrief";
 import { useKolDeferredShowContent } from "../hooks/useKolDeferredShowContent";
 import { KolManagementDashboardPageSkeleton } from "../skeletons/KolManagementDashboardPageSkeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Card, CardContent } from "@/shared/components/ui/card";
 import { KOLDashboardAnalyticsTabs, type PlatformChartRow } from "./KOLDashboardAnalyticsTabs";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
@@ -191,6 +191,14 @@ export const EnhancedKOLDashboard = () => {
     ];
   }, [analytics, campaignsBrief, t]);
 
+  const kpiCards = useMemo(
+    () => [
+      ...overviewStats.map((stat) => ({ ...stat, variant: "primary" as const })),
+      ...secondaryStats.map((stat) => ({ ...stat, variant: "secondary" as const })),
+    ],
+    [overviewStats, secondaryStats],
+  );
+
   return (
     <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
       <div className="relative col-span-12 flex min-h-0 min-w-0 flex-col">
@@ -201,16 +209,16 @@ export const EnhancedKOLDashboard = () => {
         ) : null}
         <div
           className={cn(
-            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-primary/20 bg-white px-4 py-5 shadow-sm sm:px-6 sm:py-6",
+            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-primary/20 bg-white px-3 py-3 shadow-sm sm:px-4 sm:py-4",
             !showContent && "invisible pointer-events-none",
           )}
           aria-hidden={!showContent}
         >
-          <div className="mb-6 border-b border-primary/15 pb-4">
-            <h2 className="border-l-4 border-primary pl-3 text-lg font-semibold text-foreground">
+          <div className="mb-3 border-b border-primary/15 pb-2">
+            <h2 className="border-l-4 border-primary pl-2.5 text-base font-semibold text-foreground">
               {t("kolManagement.dashboard.mergedTitle", "Ringkasan & analitik")}
             </h2>
-            <p className="mt-1 pl-3 text-sm text-muted-foreground">
+            <p className="mt-0.5 pl-2.5 text-xs text-muted-foreground">
               {t(
                 "kolManagement.dashboard.mergedDescription",
                 "Metrik utama, kampanye, dan tren performa KOL dalam satu tampilan.",
@@ -218,25 +226,49 @@ export const EnhancedKOLDashboard = () => {
             </p>
           </div>
 
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {overviewStats.map((stat, index) => {
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {kpiCards.map((stat, index) => {
                 const Icon = stat.icon;
+                const isPrimary = stat.variant === "primary";
                 return (
                   <Card
                     key={`kpi-${index}`}
-                    className="border-primary/15 shadow-sm transition-shadow hover:border-primary/25 hover:shadow-md"
+                    className={cn(
+                      "border-primary/15 shadow-sm",
+                      isPrimary
+                        ? "transition-shadow hover:border-primary/25 hover:shadow-md"
+                        : "bg-brand-blue-soft/40",
+                    )}
                   >
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between gap-3">
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                          <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">{stat.value}</p>
-                          <p className={`mt-1 text-xs font-medium ${stat.accent}`}>{stat.sub}</p>
+                          <p className="text-xs font-medium text-muted-foreground">{stat.title}</p>
+                          <p
+                            className={cn(
+                              "mt-0.5 font-bold tracking-tight text-foreground",
+                              isPrimary ? "text-xl" : "text-lg",
+                            )}
+                          >
+                            {stat.value}
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-0.5 text-[11px] font-medium",
+                              isPrimary ? stat.accent : "text-muted-foreground",
+                            )}
+                          >
+                            {stat.sub}
+                          </p>
                         </div>
-                        <div className="rounded-full bg-brand-blue-soft p-2.5">
-                          <Icon className={`h-5 w-5 ${stat.accent}`} />
-                        </div>
+                        {isPrimary ? (
+                          <div className="rounded-full bg-brand-blue-soft p-1.5">
+                            <Icon className={cn("h-4 w-4", stat.accent)} />
+                          </div>
+                        ) : (
+                          <Icon className="h-4 w-4 shrink-0 text-primary" />
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -244,48 +276,14 @@ export const EnhancedKOLDashboard = () => {
               })}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {secondaryStats.map((stat, index) => {
-                const Icon = stat.icon;
-                return (
-                  <Card
-                    key={`sec-${index}`}
-                    className="border-primary/15 bg-brand-blue-soft/40 shadow-sm"
-                  >
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                          <p className="mt-1 text-xl font-bold text-foreground">{stat.value}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{stat.sub}</p>
-                        </div>
-                        <Icon className="h-5 w-5 shrink-0 text-primary" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            <div>
-              <Card className="border-primary/20 shadow-sm">
-                <CardHeader className="border-b border-primary/15 bg-brand-blue-soft/35 pb-4">
-                  <CardTitle className="border-l-4 border-primary pl-3 text-base font-semibold text-foreground">
-                    {t("kolManagement.dashboard.analyticsSectionTitle", "Detail performa")}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <KOLDashboardAnalyticsTabs
-                    analytics={analytics ?? undefined}
-                    campaignPerformance={campaignPerformance ?? []}
-                    performanceChartData={performanceChartData}
-                    platformData={platformData}
-                    fmtInt={fmtInt}
-                    fmtDecimal={fmtDecimal}
-                  />
-                </CardContent>
-              </Card>
-            </div>
+            <KOLDashboardAnalyticsTabs
+              analytics={analytics ?? undefined}
+              campaignPerformance={campaignPerformance ?? []}
+              performanceChartData={performanceChartData}
+              platformData={platformData}
+              fmtInt={fmtInt}
+              fmtDecimal={fmtDecimal}
+            />
           </div>
         </div>
       </div>

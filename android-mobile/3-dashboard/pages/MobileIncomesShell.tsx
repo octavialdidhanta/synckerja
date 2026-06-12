@@ -10,6 +10,7 @@ import { IncomeBottomTabs } from "@/mobile/3-incomes/shared/IncomeBottomTabs";
 import { IncomeDashboardRefreshContext } from "@/mobile/3-dashboard/IncomeDashboardRefreshContext";
 import { cn } from "@/shared/lib/utils";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 
 /**
  * Shared fixed-viewport mobile shell for `/incomes/*` routes (dashboard, transaction, bank).
@@ -127,6 +128,8 @@ export function MobileIncomesShell({
               </div>
               <div />
             </header>
+
+            <SubscriptionExpiryBannerSlot />
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div

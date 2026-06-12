@@ -438,35 +438,14 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
           )}
         </p>
       ) : null}
-      {!companyObjectiveId && hasMatchingCycle ? (
+      {wasDateClamped ? (
         <p className="text-xs text-muted-foreground">
           {t(
-            "digitalMarketing.socialMediaInsightTargets.companyObjectiveHint",
-            "Select a Company Objective before setting targets or assigning PICs. Social Media KPI will sync as a Department Objective.",
+            "digitalMarketing.socialMediaInsightTargets.actualsClampedHint",
+            "TikTok data may be limited to the last 365 days.",
           )}
         </p>
       ) : null}
-
-      <p className="text-xs text-muted-foreground">
-        {t(
-          "digitalMarketing.socialMediaInsightTargets.formHintPerAccount",
-          "Set targets per connected account. Leave blank to clear.",
-        )}{" "}
-        {t(
-          "digitalMarketing.socialMediaInsightTargets.assigneeHint",
-          "Assign a PIC per account to sync targets as Individual OKR Key Results.",
-        )}{" "}
-        {t(
-          "digitalMarketing.socialMediaInsightTargets.actualsHint",
-          "Reference numbers show organic performance for the selected period (current = to date).",
-        )}
-        {wasDateClamped
-          ? ` ${t(
-              "digitalMarketing.socialMediaInsightTargets.actualsClampedHint",
-              "TikTok data may be limited to the last 365 days.",
-            )}`
-          : null}
-      </p>
 
       {accountsListLoading ? (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">

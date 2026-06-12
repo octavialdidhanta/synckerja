@@ -9,7 +9,16 @@ import {
   requireTikTokContentPlatformConfigured,
   tiktokContentCorsHeaders,
   tiktokContentJson,
+  mergeTikTokContentOAuthScopes,
+  resolveTikTokContentOAuthScopes,
+  TIKTOK_CONTENT_OAUTH_SCOPES,
+  TIKTOK_CONTENT_OAUTH_TOKEN_KINDS,
+  tiktokContentScopesIncludeComments,
 } from "../_shared/tiktokContentAuth.ts";
+import {
+  pickTikTokAccountLabel,
+  syncTikTokContentAccountProfiles,
+} from "../_shared/tiktokContentAccountProfile.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -58,13 +67,81 @@ Deno.serve(async (req: Request) => {
 
     const { data: tokenRows } = await admin
       .from("organization_tiktok_content_connection_tokens")
-      .select("open_id")
+      .select("open_id, oauth_scopes, oauth_token_kind")
       .eq("organization_id", organizationId);
+
+    const scopesByOpenId = new Map<string, string | null>();
+    const tokenKindByOpenId = new Map<string, string | null>();
+    for (const row of tokenRows ?? []) {
+      const r = row as { open_id?: string; oauth_scopes?: string | null; oauth_token_kind?: string | null };
+      if (r.open_id) {
+        scopesByOpenId.set(String(r.open_id), r.oauth_scopes ?? null);
+        tokenKindByOpenId.set(String(r.open_id), r.oauth_token_kind ?? null);
+      }
+    }
+
+    const now = new Date().toISOString();
+    const backfillUpdates: Promise<unknown>[] = [];
+    for (const [openId, storedScope] of scopesByOpenId) {
+      const resolvedScope = resolveTikTokContentOAuthScopes(storedScope);
+      scopesByOpenId.set(openId, resolvedScope);
+      const storedTrimmed = storedScope != null ? storedScope.trim() : "";
+      if (resolvedScope !== storedTrimmed) {
+        backfillUpdates.push(
+          admin
+            .from("organization_tiktok_content_connection_tokens")
+            .update({ oauth_scopes: resolvedScope, updated_at: now })
+            .eq("organization_id", organizationId)
+            .eq("open_id", openId),
+        );
+      }
+    }
+    if (backfillUpdates.length > 0) {
+      await Promise.all(backfillUpdates);
+    }
+
+    let accountRows = (accounts ?? []) as Array<{
+      id: string;
+      open_id: string;
+      label: string;
+      display_name: string | null;
+      avatar_url?: string | null;
+      is_active: boolean;
+      [key: string]: unknown;
+    }>;
+
+    const profileSyncCount = await syncTikTokContentAccountProfiles(
+      admin,
+      organizationId,
+      accountRows,
+    );
+    if (profileSyncCount > 0) {
+      const { data: refreshedAccounts } = await admin
+        .from("organization_tiktok_content_accounts")
+        .select("id, open_id, label, display_name, avatar_url, is_default, sort_order, is_active, created_at, updated_at")
+        .eq("organization_id", organizationId)
+        .order("sort_order", { ascending: true });
+      accountRows = (refreshedAccounts ?? accountRows) as typeof accountRows;
+    }
+
+    const accountsWithScopes = accountRows.map((acc) => {
+      const scope = scopesByOpenId.get(acc.open_id) ?? null;
+      const tokenKind = tokenKindByOpenId.get(acc.open_id) ?? TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.loginKit;
+      const resolvedLabel = pickTikTokAccountLabel(acc);
+      return {
+        ...acc,
+        label: resolvedLabel,
+        display_name: resolvedLabel,
+        oauth_scopes: scope,
+        oauth_token_kind: tokenKind,
+        comments_scopes_granted: tokenKind === TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.ttUser,
+      };
+    });
 
     return tiktokContentJson({
       connection: connection ?? null,
       oauthConnected: (tokenRows ?? []).length > 0,
-      accounts: accounts ?? [],
+      accounts: accountsWithScopes,
       serverConfigured: isTikTokContentPlatformConfigured(),
     }, 200);
   }

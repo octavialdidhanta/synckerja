@@ -12,6 +12,9 @@ export type TikTokContentAccountRow = {
   is_default: boolean;
   sort_order: number;
   is_active: boolean;
+  oauth_scopes?: string | null;
+  oauth_token_kind?: string | null;
+  comments_scopes_granted?: boolean;
 };
 
 type SettingsResponse = {

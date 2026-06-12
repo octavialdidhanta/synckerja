@@ -162,17 +162,19 @@ const HomeOKRDashboardContent = () => {
       [index]: !prev[index]
     }));
   };
+  const okrTabScrollClassName =
+    "home-okr-tab-scroll scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-2">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden space-y-2">
       <Suspense fallback={greetingFallback}>
         <div className="flex-shrink-0">
           <SectionGreetings currentTime={currentTime} greeting={getGreeting()} />
         </div>
       </Suspense>
 
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border border-border">
-        
-        <CardContent className="flex-1 flex flex-col overflow-hidden">
+      <Card className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border border-border">
+        <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-6 pt-0">
           <Tabs
             defaultValue={DEFAULT_OKR_TAB}
             onValueChange={markOkrTabVisited}
@@ -186,9 +188,10 @@ const HomeOKRDashboardContent = () => {
 
             <TabsContent
               value="company-objectives"
-              className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+              className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
             >
-              <div className="space-y-4" role="region" aria-label="Objectives list">
+              <div className={okrTabScrollClassName} role="region" aria-label="Objectives list">
+              <div className="space-y-4">
               <Suspense fallback={progressCardFallback}>
                 <CompanyObjectivesProgressCard
                   enhancedCompanyObjectives={[]}
@@ -227,13 +230,15 @@ const HomeOKRDashboardContent = () => {
                 </Suspense>
               ) : null}
               </div>
+              </div>
             </TabsContent>
 
             <TabsContent
               value="department-objectives"
-              className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+              className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
             >
-              <div className="space-y-4" role="region" aria-label="Objectives list">
+              <div className={okrTabScrollClassName} role="region" aria-label="Objectives list">
+              <div className="space-y-4">
               {visitedOkrTabs.has('department-objectives') ? (
                 <Suspense fallback={progressCardFallback}>
                   <DepartmentObjectivesProgressCard
@@ -275,13 +280,15 @@ const HomeOKRDashboardContent = () => {
                 </Suspense>
               ) : null}
               </div>
+              </div>
             </TabsContent>
 
             <TabsContent
               value="individual-objectives"
-              className="mt-4 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+              className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
             >
-              <div className="space-y-4" role="region" aria-label="Objectives list">
+              <div className={okrTabScrollClassName} role="region" aria-label="Objectives list">
+              <div className="space-y-4">
               {visitedOkrTabs.has('individual-objectives') ? (
                 <Suspense fallback={progressCardFallback}>
                   <IndividualObjectivesProgressCard
@@ -321,6 +328,7 @@ const HomeOKRDashboardContent = () => {
                   />
                 </Suspense>
               ) : null}
+              </div>
               </div>
             </TabsContent>
           </Tabs>

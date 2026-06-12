@@ -1,4 +1,4 @@
-import { Facebook, FileText, Instagram, Linkedin, Youtube } from "lucide-react";
+import { Facebook, FileText, Instagram, Linkedin, MessageSquare, Youtube } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -17,6 +17,8 @@ export const SOCIAL_MEDIA_PERFORMANCE_LINKEDIN_PATH =
   "/digital-marketing/social-media-performance/linkedin";
 export const SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH =
   "/digital-marketing/social-media-performance/report";
+export const SOCIAL_MEDIA_PERFORMANCE_MANAGE_COMMENTS_PATH =
+  "/digital-marketing/social-media-performance/manage-comments";
 
 const tabClass =
   "flex items-center space-x-1.5 border-b-2 px-1 py-1.5 text-sm font-medium transition-colors";
@@ -35,10 +37,15 @@ export function SocialMediaPerformanceHeaderAndTab({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const isTikTok = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_TIKTOK_PATH);
+  const isTikTok =
+    location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_TIKTOK_PATH) &&
+    !location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_MANAGE_COMMENTS_PATH);
   const isYouTube = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_YOUTUBE_PATH);
   const isLinkedIn = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_LINKEDIN_PATH);
   const isReport = location.pathname.startsWith(activeReportPath);
+  const isManageComments = location.pathname.startsWith(
+    SOCIAL_MEDIA_PERFORMANCE_MANAGE_COMMENTS_PATH,
+  );
 
   const showComingSoon = () => {
     toast.info(
@@ -130,6 +137,17 @@ export function SocialMediaPerformanceHeaderAndTab({
             icon={FileText}
             isActive={isReport}
             onActivate={() => navigate(SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH)}
+            activeClassName={tabActive}
+            inactiveClassName={tabInactive}
+          />
+          <ModuleTabNavItem
+            pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}
+            label={t("digitalMarketing.manageComments.tab", "Manage Comment")}
+            icon={MessageSquare}
+            isActive={isManageComments}
+            onActivate={() =>
+              navigate(`${SOCIAL_MEDIA_PERFORMANCE_MANAGE_COMMENTS_PATH}/tiktok`)
+            }
             activeClassName={tabActive}
             inactiveClassName={tabInactive}
           />

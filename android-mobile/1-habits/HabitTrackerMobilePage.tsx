@@ -18,6 +18,7 @@ import { useProfile } from '@/mobile-app/hooks/useProfile';
 import { useNotificationBadgeCount } from '@/shared/hooks/useNotificationBadgeCount';
 import { NotificationsModal } from '@/mobile-app/components/NotificationsModal';
 import { useAuth } from '@/shared/auth/contexts/AuthContext';
+import { SubscriptionExpiryBannerSlot } from '@/10-subscription/shared/SubscriptionExpiryBannerSlot';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
@@ -143,6 +144,8 @@ const HabitTrackerMobilePage = () => {
                     </button>
                   </div>
                 </header>
+
+                <SubscriptionExpiryBannerSlot />
 
                 <ModuleShellContentGate
                   pagePath={MOBILE_PAGE_PATH.toolsHabitsTracker}

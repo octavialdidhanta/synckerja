@@ -107,10 +107,10 @@ const ContentPostPage = () => {
   }, [queryClient]);
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         className={cn(
-          "grid min-h-[calc(100vh-120px)] min-w-0 flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch transition-opacity duration-200 ease-out",
+          "grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch transition-opacity duration-200 ease-out",
           showContent ? "relative z-0 opacity-100" : "pointer-events-none opacity-0",
         )}
         aria-hidden={!showContent}
@@ -149,8 +149,8 @@ const ContentPostPage = () => {
               <ContentPostMetricsCards posts={filteredPosts} totalMilestoneAmount={totalMilestoneAmount} />
             </div>
 
-            <div className="flex-1 min-h-0">
-              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white shadow-sm shadow-brand-blue/5">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <div className="flex min-h-[360px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white shadow-sm shadow-brand-blue/5 [@media(max-height:900px)]:min-h-[400px] [@media(max-height:760px)]:min-h-[440px]">
                 <ContentPostTable
                   contentPosts={filteredPosts}
                   milestonesByPost={milestonesByPost}

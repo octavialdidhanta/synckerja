@@ -8,8 +8,18 @@ import {
   tiktokContentCorsHeaders,
   tiktokContentJson,
 } from "../_shared/tiktokContentAuth.ts";
-import { fetchAllTikTokVideosInRange, fetchTikTokUserInfo } from "../_shared/tiktokContentApi.ts";
+import {
+  fetchAllTikTokBusinessVideos,
+  fetchAllTikTokBusinessVideosInRange,
+  fetchAllTikTokVideos,
+  fetchAllTikTokVideosInRange,
+  fetchTikTokUserInfo,
+} from "../_shared/tiktokContentApi.ts";
+import { pickTikTokAccountLabel } from "../_shared/tiktokContentAccountProfile.ts";
 import { resolveOrgTikTokContentForMetrics } from "../_shared/tiktokContentOrgResolver.ts";
+import {
+  TIKTOK_CONTENT_OAUTH_TOKEN_KINDS,
+} from "../_shared/tiktokContentAuth.ts";
 import {
   backfillLinkVideoIds,
   buildPlanMatchIndex,
@@ -21,6 +31,7 @@ import {
 
 const CACHE_TTL_MINUTES = 15;
 const METRICS_CACHE_KEY = "video-list-v2";
+const COMMENTS_INBOX_CACHE_KEY = "video-list-comments-inbox-v1";
 const MAX_LOOKBACK_DAYS = 365;
 
 function formatDateYmd(d: Date): string {
@@ -89,20 +100,32 @@ Deno.serve(async (req: Request) => {
     const orgForbidden = await requireActiveOrg(admin, userRes.userId, organizationId);
     if (orgForbidden) return orgForbidden;
 
+    const inboxMode = body.inbox_mode === true;
+    const now = new Date();
     const dr = defaultDateRange();
     const rawStart = String(body.date_start ?? dr.start).trim();
     const rawEnd = String(body.date_end ?? dr.end).trim();
-    const { start: dateStart, end: dateEnd } = clampDateRange(rawStart, rawEnd);
+    const clamped = clampDateRange(rawStart, rawEnd, now);
+    const inboxCacheStart = formatDateYmd(
+      (() => {
+        const min = new Date(now);
+        min.setDate(min.getDate() - MAX_LOOKBACK_DAYS);
+        return min;
+      })(),
+    );
+    const inboxCacheEnd = formatDateYmd(now);
+    const dateStart = inboxMode ? inboxCacheStart : clamped.start;
+    const dateEnd = inboxMode ? inboxCacheEnd : clamped.end;
+    const metricsCacheKey = inboxMode ? COMMENTS_INBOX_CACHE_KEY : METRICS_CACHE_KEY;
     const openIdParam = body.open_id != null ? String(body.open_id).trim() : null;
     const forceRefresh = body.force_refresh === true;
-    const now = new Date();
 
     const resolved = await resolveOrgTikTokContentForMetrics(admin, organizationId, openIdParam);
     if (!resolved) {
       return tiktokContentJson({ error: "TikTok Content not connected or no account configured" }, 400);
     }
 
-    const { accessToken, account } = resolved;
+    const { accessToken, account, tokenKind } = resolved;
     const openId = account.open_id;
 
     if (!forceRefresh) {
@@ -113,7 +136,7 @@ Deno.serve(async (req: Request) => {
         .eq("open_id", openId)
         .eq("date_start", dateStart)
         .eq("date_end", dateEnd)
-        .eq("metrics_key", METRICS_CACHE_KEY)
+        .eq("metrics_key", metricsCacheKey)
         .eq("page_token", "")
         .gt("expires_at", now.toISOString())
         .maybeSingle();
@@ -126,7 +149,13 @@ Deno.serve(async (req: Request) => {
     let followerCount: number | null = null;
     try {
       const [fetchedVideos, userInfo] = await Promise.all([
-        fetchAllTikTokVideosInRange(accessToken, dateStart, dateEnd),
+        tokenKind === TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.ttUser
+          ? inboxMode
+            ? fetchAllTikTokBusinessVideos(accessToken, openId)
+            : fetchAllTikTokBusinessVideosInRange(accessToken, openId, dateStart, dateEnd)
+          : inboxMode
+            ? fetchAllTikTokVideos(accessToken)
+            : fetchAllTikTokVideosInRange(accessToken, dateStart, dateEnd),
         fetchTikTokUserInfo(accessToken).catch((e) => {
           console.warn("tiktok-content-metrics userInfo:", e instanceof Error ? e.message : e);
           return {};
@@ -202,9 +231,10 @@ Deno.serve(async (req: Request) => {
       summary,
       open_id: openId,
       account_id: account.id,
-      account_label: account.label || account.display_name,
+      account_label: pickTikTokAccountLabel(account),
       date_start: dateStart,
       date_end: dateEnd,
+      inbox_mode: inboxMode,
       fetched_at: now.toISOString(),
     };
 
@@ -214,7 +244,7 @@ Deno.serve(async (req: Request) => {
       open_id: openId,
       date_start: dateStart,
       date_end: dateEnd,
-      metrics_key: METRICS_CACHE_KEY,
+      metrics_key: metricsCacheKey,
       page_token: "",
       response_json: payload,
       fetched_at: now.toISOString(),

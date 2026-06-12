@@ -3,6 +3,7 @@ import { AppShellLayout } from "@/shared/layouts/AppShellLayout";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
 import { useToolsModuleMobileViewport } from "@/shared/hooks/useToolsModuleMobileViewport";
 import { SHARE_RECEIPT_VALIDATION_PATH } from "@/shared/native/shareReceiptValidationPath";
+import { MobileSubscriptionExpiryBannerHost } from "@/10-subscription/shared/MobileSubscriptionExpiryBannerHost";
 
 /** Bottom-nav parity routes render full-screen chrome inside the page (no desktop AppHeader / sidebar). */
 const MOBILE_MAIN_TAB_PATHS = new Set([
@@ -13,7 +14,7 @@ const MOBILE_MAIN_TAB_PATHS = new Set([
   "/profile",
 ]);
 
-export function AdaptiveAppLayout() {
+function AdaptiveAppLayoutContent() {
   const { isDesktop } = useAuthSurface();
   const { pathname } = useLocation();
   const toolsMobileViewport = useToolsModuleMobileViewport();
@@ -89,4 +90,13 @@ export function AdaptiveAppLayout() {
   }
 
   return <AppShellLayout />;
+}
+
+export function AdaptiveAppLayout() {
+  return (
+    <>
+      <MobileSubscriptionExpiryBannerHost />
+      <AdaptiveAppLayoutContent />
+    </>
+  );
 }

@@ -71,23 +71,23 @@ export function KOLDashboardAnalyticsTabs({
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="overview" className="mt-6 space-y-6">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <TabsContent value="overview" className="mt-3 space-y-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Card className="border-primary/20 shadow-sm">
-            <CardHeader className="border-b border-primary/10 bg-brand-blue-soft/30 pb-2">
-              <CardTitle className="border-l-4 border-primary pl-3 text-base font-semibold text-foreground">
+            <CardHeader className="space-y-0 border-b border-primary/10 bg-brand-blue-soft/30 px-4 py-2">
+              <CardTitle className="border-l-4 border-primary pl-2.5 text-sm font-semibold text-foreground">
                 Performance Trends
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 pt-3 sm:p-4">
               {performanceChartData.length === 0 ||
               performanceChartData.every((r) => r.reach === 0 && r.engagement === 0) ? (
-                <div className="flex h-[300px] items-center justify-center px-2 text-center text-sm text-muted-foreground">
+                <div className="flex h-[240px] items-center justify-center px-2 text-center text-xs text-muted-foreground">
                   Belum ada data performa per bulan (isi metrik pada content post atau tunggu tanggal post /
                   konversi dalam 6 bulan terakhir).
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={performanceChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(204 70% 42% / 0.12)" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -106,18 +106,18 @@ export function KOLDashboardAnalyticsTabs({
           </Card>
 
           <Card className="border-primary/20 shadow-sm">
-            <CardHeader className="border-b border-primary/10 bg-brand-blue-soft/30 pb-2">
-              <CardTitle className="border-l-4 border-primary pl-3 text-base font-semibold text-foreground">
+            <CardHeader className="space-y-0 border-b border-primary/10 bg-brand-blue-soft/30 px-4 py-2">
+              <CardTitle className="border-l-4 border-primary pl-2.5 text-sm font-semibold text-foreground">
                 Platform Distribution
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 pt-3 sm:p-4">
               {platformData.length === 0 ? (
-                <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+                <div className="flex h-[240px] items-center justify-center text-xs text-muted-foreground">
                   Tidak ada data platform
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
                     <Pie
                       data={platformData}
@@ -141,15 +141,15 @@ export function KOLDashboardAnalyticsTabs({
         </div>
 
         <Card className="border-primary/20 shadow-sm">
-          <CardHeader className="border-b border-primary/10 bg-brand-blue-soft/30 pb-2">
-            <CardTitle className="border-l-4 border-primary pl-3 text-base font-semibold text-foreground">
+          <CardHeader className="space-y-0 border-b border-primary/10 bg-brand-blue-soft/30 px-4 py-2">
+            <CardTitle className="border-l-4 border-primary pl-2.5 text-sm font-semibold text-foreground">
               Campaign Performance Summary
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 pt-3 sm:p-4">
             <div className="divide-y divide-primary/10">
               {safeCampaignPerformance.slice(0, 5).map((campaign) => (
-                <div key={campaign.campaign_id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+                <div key={campaign.campaign_id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                   <div className="min-w-0">
                     <h4 className="font-medium text-foreground">{campaign.campaign_name}</h4>
                     <p className="text-sm text-muted-foreground">
@@ -167,19 +167,19 @@ export function KOLDashboardAnalyticsTabs({
         </Card>
       </TabsContent>
 
-      <TabsContent value="performance" className="mt-6 space-y-6">
+      <TabsContent value="performance" className="mt-3 space-y-3">
         <Card className="border-primary/20 shadow-sm">
-          <CardHeader className="border-b border-primary/10 bg-brand-blue-soft/30 pb-2">
-            <CardTitle className="border-l-4 border-primary pl-3 text-base font-semibold text-foreground">
+          <CardHeader className="space-y-0 border-b border-primary/10 bg-brand-blue-soft/30 px-4 py-2">
+            <CardTitle className="border-l-4 border-primary pl-2.5 text-sm font-semibold text-foreground">
               Kampanye & performa
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 pt-3 sm:p-4">
             <div className="divide-y divide-primary/10">
               {safeCampaignPerformance.slice(0, 10).map((campaign) => (
                 <div
                   key={campaign.campaign_id}
-                  className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
+                  className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
                 >
                   <div className="min-w-0">
                     <h4 className="font-medium text-foreground">{campaign.campaign_name}</h4>
@@ -198,19 +198,19 @@ export function KOLDashboardAnalyticsTabs({
         </Card>
       </TabsContent>
 
-      <TabsContent value="engagement" className="mt-6 space-y-6">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <TabsContent value="engagement" className="mt-3 space-y-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Card className="border-primary/20 shadow-sm">
-            <CardHeader className="border-b border-primary/10 bg-brand-blue-soft/30 pb-2">
-              <CardTitle className="border-l-4 border-primary pl-3 text-base font-semibold text-foreground">
+            <CardHeader className="space-y-0 border-b border-primary/10 bg-brand-blue-soft/30 px-4 py-2">
+              <CardTitle className="border-l-4 border-primary pl-2.5 text-sm font-semibold text-foreground">
                 Engagement rate per platform
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 pt-3 sm:p-4">
               {platformData.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">Tidak ada data platform</div>
+                <div className="py-6 text-center text-xs text-muted-foreground">Tidak ada data platform</div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-2.5">
                   {platformData.map((platform) => {
                     const engagementRate =
                       platform.followers > 0 ? ((platform.engagement / platform.followers) * 100).toFixed(1) : "0";
@@ -233,18 +233,18 @@ export function KOLDashboardAnalyticsTabs({
           </Card>
 
           <Card className="border-primary/20 shadow-sm">
-            <CardHeader className="border-b border-primary/10 bg-brand-blue-soft/30 pb-2">
-              <CardTitle className="border-l-4 border-primary pl-3 text-base font-semibold text-foreground">
+            <CardHeader className="space-y-0 border-b border-primary/10 bg-brand-blue-soft/30 px-4 py-2">
+              <CardTitle className="border-l-4 border-primary pl-2.5 text-sm font-semibold text-foreground">
                 Top performing KOLs
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 pt-3 sm:p-4">
               {!analytics?.topPerformingKOLs || analytics.topPerformingKOLs.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">Belum ada data KOL</div>
+                <div className="py-6 text-center text-xs text-muted-foreground">Belum ada data KOL</div>
               ) : (
                 <div className="divide-y divide-primary/10">
                   {analytics.topPerformingKOLs.slice(0, 5).map((kol) => (
-                    <div key={kol.id} className="flex items-center justify-between gap-3 py-4 first:pt-0 last:pb-0">
+                    <div key={kol.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                       <div className="min-w-0">
                         <span className="font-medium text-foreground">{kol.name}</span>
                         <p className="text-sm text-muted-foreground">{fmtInt(kol.totalReach)} reach</p>

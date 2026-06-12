@@ -153,13 +153,11 @@ type SpendTooltipProps = TooltipProps<number, string> & {
   showGoogle: boolean;
   showMeta: boolean;
   showTikTok: boolean;
-  mixedCurrency: boolean;
   labels: {
     total: string;
     google: string;
     meta: string;
     tiktok: string;
-    mixedHint: string;
   };
 };
 
@@ -174,7 +172,6 @@ function SpendTooltip({
   showGoogle,
   showMeta,
   showTikTok,
-  mixedCurrency,
   labels,
 }: SpendTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -209,9 +206,6 @@ function SpendTooltip({
             {labels.tiktok}: {formatSpendTooltip(row.tiktokSpend, "tiktok", tiktokCurrency)}
           </p>
         ) : null}
-        {mixedCurrency ? (
-          <p className="mt-1 text-[11px] text-amber-700">{labels.mixedHint}</p>
-        ) : null}
       </div>
     );
   }
@@ -236,9 +230,6 @@ function SpendTooltip({
           >
             {labels.tiktok}: {formatSpendTooltip(row.tiktokSpend, "tiktok", tiktokCurrency)}
           </p>
-        ) : null}
-        {mixedCurrency ? (
-          <p className="mt-1 text-[11px] text-amber-700">{labels.mixedHint}</p>
         ) : null}
       </div>
     );
@@ -363,10 +354,6 @@ export function DigitalMarketingReportMonthlySpendChart({
       google: t("digitalMarketing.report.channelGoogle", "Google Ads"),
       meta: t("digitalMarketing.report.channelMeta", "Meta Ads"),
       tiktok: t("digitalMarketing.report.channelTikTok", "TikTok Ads"),
-      mixedHint: t(
-        "digitalMarketing.report.monthlySpendMixedCurrencyHint",
-        "Totals add amounts in different currencies without conversion.",
-      ),
     }),
     [t],
   );
@@ -520,11 +507,6 @@ export function DigitalMarketingReportMonthlySpendChart({
               </span>
             ) : null}
           </div>
-          {showCombined && mixedCurrency ? (
-            <p className="mb-2 text-[11px] text-amber-700">
-              {tooltipLabels.mixedHint}
-            </p>
-          ) : null}
           <div className="h-[300px] w-full min-w-0 overflow-x-auto">
             <div
               className="h-full"
@@ -563,7 +545,6 @@ export function DigitalMarketingReportMonthlySpendChart({
                       showGoogle={showGoogle}
                       showMeta={showMeta}
                       showTikTok={showTikTok}
-                      mixedCurrency={mixedCurrency}
                       labels={tooltipLabels}
                     />
                   }

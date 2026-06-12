@@ -17,13 +17,13 @@ const PaymentTermsPage = () => {
     <div className="relative min-h-0 w-full flex-1">
       <div
         className={cn(
-          "grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch transition-opacity duration-200 ease-out",
+          "grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch transition-opacity duration-200 ease-out",
           showContent ? "relative z-0 opacity-100" : "pointer-events-none opacity-0",
         )}
         aria-hidden={!showContent}
       >
         <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-4 py-5 shadow-sm sm:px-5 sm:py-6">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-3 py-3 shadow-sm sm:px-5 sm:py-5">
             <KOLPaymentTermsTab />
           </div>
         </div>

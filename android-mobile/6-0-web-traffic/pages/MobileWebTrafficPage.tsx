@@ -418,32 +418,29 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
               ) : null}
 
               <div className="rounded-lg border border-primary/35 bg-card p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                      <WebIdPicker
-                        value={effectiveWebId}
-                        onChange={setWebId}
-                        options={webIdsQuery.data ?? []}
-                        disabled={webIdsQuery.isLoading}
-                        aria-label={t("traffic.mobile.webId", "Web ID")}
-                      />
-                    </div>
+                <div className="flex min-w-0 flex-col gap-2">
+                  <div className="min-w-0 w-full">
+                    <WebIdPicker
+                      value={effectiveWebId}
+                      onChange={setWebId}
+                      options={webIdsQuery.data ?? []}
+                      disabled={webIdsQuery.isLoading}
+                      aria-label={t("traffic.mobile.webId", "Web ID")}
+                    />
                   </div>
 
-                  <div className="h-6 w-px shrink-0 bg-border" aria-hidden />
-
-                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                  <div className="min-w-0 w-full">
                     <Drawer open={periodDrawerOpen} onOpenChange={setPeriodDrawerOpen}>
                       <DrawerTrigger asChild>
                         <Button
                           variant="outline"
                           size="sm"
-                            className="h-8 w-full text-xs gap-2 justify-between"
+                          className="h-8 w-full min-w-0 gap-2 justify-between text-xs"
+                          title={periodLabel}
                           aria-label={t("traffic.mobile.dateRange", "Tanggal")}
                         >
-                          {periodLabel}
-                          <ChevronDown className="h-4 w-4 opacity-70" aria-hidden />
+                          <span className="min-w-0 flex-1 truncate text-left">{periodLabel}</span>
+                          <ChevronDown className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
                         </Button>
                       </DrawerTrigger>
                       <DrawerContent className="max-h-[80dvh]">

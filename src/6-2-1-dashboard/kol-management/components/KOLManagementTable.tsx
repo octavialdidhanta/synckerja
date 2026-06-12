@@ -158,8 +158,8 @@ export const KOLManagementTable = memo(
 
     return (
       <>
-        <div className="flex h-full flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <table className="w-full caption-bottom text-sm kol-management-table">
               <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
                 <TableRow className="hover:bg-transparent">

@@ -61,7 +61,7 @@ const KOLManagementPage = () => {
   }, [filteredProfiles]);
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {!showContent ? (
         <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain absolute inset-0 z-20 min-h-0 overflow-y-auto overflow-x-hidden bg-gray-100 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <KolManagementKolManagementPageSkeleton variant="embedded" />
@@ -71,7 +71,7 @@ const KOLManagementPage = () => {
       {/* Grid: section utama (tabel) + sidebar kanan */}
       <div
         className={cn(
-          "grid min-h-[calc(100vh-120px)] min-w-0 flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch",
+          "grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch",
           !showContent && "invisible pointer-events-none",
         )}
         aria-hidden={!showContent}
@@ -94,8 +94,8 @@ const KOLManagementPage = () => {
               <KOLManagementMetricsCards metrics={metrics} isLoading={isLoading && showContent} />
             </div>
 
-            <div className="flex-1 min-h-0">
-              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <div className="flex min-h-[360px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm [@media(max-height:900px)]:min-h-[400px] [@media(max-height:760px)]:min-h-[440px]">
                 <KOLManagementTable
                   profiles={filteredProfiles}
                   isLoading={isLoading && showContent}

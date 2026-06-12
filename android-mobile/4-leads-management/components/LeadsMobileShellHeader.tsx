@@ -1,5 +1,6 @@
 import { SidebarTrigger } from '@/mobile-app/components/ui/sidebar';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { SubscriptionExpiryBannerSlot } from '@/10-subscription/shared/SubscriptionExpiryBannerSlot';
 
 type LeadsMobileShellHeaderProps = {
   isReportView: boolean;
@@ -13,6 +14,7 @@ export function LeadsMobileShellHeader({ isReportView }: LeadsMobileShellHeaderP
   const { t } = useAppTranslation();
 
   return (
+    <>
     <header className="safe-area-top sticky top-0 z-30 flex flex-shrink-0 items-center justify-between border-b border-border bg-card p-3">
       <div className="flex min-w-0 items-center gap-2">
         <SidebarTrigger className="md:hidden shrink-0" />
@@ -40,5 +42,7 @@ export function LeadsMobileShellHeader({ isReportView }: LeadsMobileShellHeaderP
       </div>
       <div className="w-9 shrink-0" aria-hidden />
     </header>
+    <SubscriptionExpiryBannerSlot />
+    </>
   );
 }

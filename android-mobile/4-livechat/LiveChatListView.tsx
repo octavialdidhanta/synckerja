@@ -22,6 +22,7 @@ import type { WhatsAppAccount } from '@/5-3-whatsapp/types';
 import { MobileConversationList } from './components/MobileConversationList';
 import { MobileSearchConversationPopup } from './components/MobileSearchConversationPopup';
 import { ConsultantCrmNavigationFooter } from '@/mobile/4-leads-management/components/ConsultantCrmNavigationFooter';
+import { SubscriptionExpiryBannerSlot } from '@/10-subscription/shared/SubscriptionExpiryBannerSlot';
 
 const PULL_THRESHOLD = 52;
 const MAX_PULL = 72;
@@ -346,6 +347,8 @@ export function LiveChatListView({
                 </DialogContent>
               </Dialog>
             </header>
+
+            <SubscriptionExpiryBannerSlot />
 
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               {invalidTicketId && (

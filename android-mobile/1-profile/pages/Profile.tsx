@@ -19,6 +19,7 @@ import { OrganizationSelectDrawer } from "@/mobile-app/components/OrganizationSe
 import { useOrganizationSwitchCallback } from "@/shared/hooks/useOrganizationSwitchCallback";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useUserOrganizations } from "@/shared/hooks/useUserOrganizations";
 import type { AppLanguage } from "@/shared/i18n/translations";
@@ -287,6 +288,8 @@ const Profile = () => {
               </div>
               <div></div>
             </header>
+
+            <SubscriptionExpiryBannerSlot />
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div

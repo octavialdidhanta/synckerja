@@ -6,7 +6,7 @@ export const ContentPostTableFooter = ({
   postedPosts: number;
 }) => {
   return (
-    <div className="flex items-center justify-between border-t border-brand-blue/20 bg-brand-blue-soft px-3 py-2 text-xs text-brand-blue-on-soft">
+    <div className="flex flex-shrink-0 items-center justify-between border-t border-brand-blue/20 bg-brand-blue-soft px-3 py-2 text-xs text-brand-blue-on-soft">
       <span>
         Total: <span className="font-medium text-brand-blue-deep">{totalPosts}</span> post
       </span>

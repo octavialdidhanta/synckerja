@@ -106,13 +106,16 @@ const KOLPaymentTermsTab = () => {
     return Math.round((completedMilestones / milestones.length) * 100);
   };
 
+  const cardListScrollClass =
+    "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
   return (
     <Tabs
       value={activeTab}
       onValueChange={(v) => setActiveTab(v as "templates" | "agreements")}
-      className="flex w-full min-w-0 max-w-full flex-1 flex-col gap-5"
+      className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col gap-2 overflow-hidden sm:gap-3"
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <div className="flex shrink-0 min-w-0 flex-wrap items-center gap-2">
         <TabsList className="inline-flex h-8 w-auto shrink-0 rounded-md border border-gray-200 bg-gray-100/80 p-0.5">
           <TabsTrigger
             value="templates"
@@ -135,10 +138,13 @@ const KOLPaymentTermsTab = () => {
         </Button>
       </div>
 
-      <TabsContent value="templates" className="mt-0 min-w-0 space-y-5">
+      <TabsContent
+        value="templates"
+        className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
+      >
         {templates.length === 0 ? (
           <Card className="overflow-hidden">
-            <CardContent className="flex flex-col items-center justify-center px-5 py-12 sm:px-8 sm:py-14">
+            <CardContent className="flex flex-col items-center justify-center px-4 py-8 sm:px-8 sm:py-12">
               <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
                 <FileText className="mb-4 h-12 w-12 shrink-0 text-muted-foreground" />
                 <h3 className="mb-2 text-lg font-semibold">{t("kolManagement.paymentTerms.emptyTemplates.title")}</h3>
@@ -169,13 +175,14 @@ const KOLPaymentTermsTab = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid min-w-0 gap-5">
+          <div className={cardListScrollClass}>
+            <div className="flex min-w-0 flex-col gap-2 pb-1 sm:gap-3">
             {templates.map((term: PaymentTermRow) => (
               <Card key={String(term.id)} className="overflow-hidden transition-shadow hover:shadow-md">
-                <CardHeader className="space-y-0 border-b border-border/60 p-5 pb-4 sm:p-6 sm:pb-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <CardHeader className="space-y-0 border-b border-border/60 p-3 pb-2.5 sm:p-5 sm:pb-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div className="min-w-0 flex-1">
-                      <CardTitle className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-snug">
+                      <CardTitle className="flex flex-wrap items-center gap-1.5 text-base font-semibold leading-snug sm:gap-2 sm:text-lg">
                         <span className="break-words">
                           {term.template_name || t("kolManagement.paymentTerms.card.defaultTemplateName")}
                         </span>
@@ -183,39 +190,39 @@ const KOLPaymentTermsTab = () => {
                           {t("kolManagement.paymentTerms.badge.template")}
                         </Badge>
                       </CardTitle>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      <p className="mt-1 text-xs leading-snug text-muted-foreground sm:mt-2 sm:text-sm sm:leading-relaxed">
                         {String(term.payment_model || "").replace("_", " ").toUpperCase()} • {t("kolManagement.paymentTerms.inlineBase")}:{" "}
                         {term.currency} {formatAmount(Number(term.base_amount ?? NaN))}
                       </p>
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2 sm:justify-end">
                       <Badge
                         variant={getStatusVariant(String(term.status || ""))}
-                        className="flex w-fit items-center gap-1"
+                        className="flex w-fit items-center gap-1 text-[10px] sm:text-xs"
                       >
                         {getStatusIcon(String(term.status || ""))}
                         {String(term.status || "draft").toUpperCase()}
                       </Badge>
                       <div className="flex items-center gap-0.5">
-                        <Button variant="ghost" size="sm" type="button" onClick={() => handleEdit(term)}>
-                          <Edit className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" type="button" className="h-8 w-8 p-0" onClick={() => handleEdit(term)}>
+                          <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           type="button"
                           onClick={() => handleDelete(String(term.id), String(term.status) === "active")}
-                          className="text-destructive hover:text-destructive/80"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive/80"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-5 pt-4 sm:p-6 sm:pt-5">
-                  <div className="rounded-lg border border-border/50 bg-muted/20 p-4 sm:p-5">
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(11.25rem,1fr))] gap-x-5 gap-y-4">
+                <CardContent className="p-3 pt-2.5 sm:p-5 sm:pt-4">
+                  <div className="rounded-lg border border-border/50 bg-muted/20 p-3 sm:p-4">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-3 gap-y-2 sm:grid-cols-[repeat(auto-fill,minmax(11.25rem,1fr))] sm:gap-x-5 sm:gap-y-3">
                       <div className="flex min-w-0 items-start gap-2.5">
                         <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0">
@@ -265,14 +272,18 @@ const KOLPaymentTermsTab = () => {
                 </CardContent>
               </Card>
             ))}
+            </div>
           </div>
         )}
       </TabsContent>
 
-      <TabsContent value="agreements" className="mt-0 min-w-0 space-y-5">
+      <TabsContent
+        value="agreements"
+        className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
+      >
         {agreements.length === 0 ? (
           <Card className="overflow-hidden">
-            <CardContent className="flex flex-col items-center justify-center px-5 py-12 sm:px-8 sm:py-14">
+            <CardContent className="flex flex-col items-center justify-center px-4 py-8 sm:px-8 sm:py-12">
               <div className="mx-auto w-full max-w-md text-center">
                 <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
                 <h3 className="mb-2 text-lg font-semibold">{t("kolManagement.paymentTerms.emptyAgreements.title")}</h3>
@@ -284,20 +295,21 @@ const KOLPaymentTermsTab = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid min-w-0 gap-5">
+          <div className={cardListScrollClass}>
+            <div className="flex min-w-0 flex-col gap-2 pb-1 sm:gap-3">
             {agreements.map((term: PaymentTermRow) => (
               <Card key={String(term.id)} className="overflow-hidden transition-shadow hover:shadow-md">
-                <CardHeader className="space-y-0 border-b border-border/60 p-5 pb-4 sm:p-6 sm:pb-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <CardHeader className="space-y-0 border-b border-border/60 p-3 pb-2.5 sm:p-5 sm:pb-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div className="min-w-0 flex-1">
-                      <CardTitle className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-snug">
+                      <CardTitle className="flex flex-wrap items-center gap-1.5 text-base font-semibold leading-snug sm:gap-2 sm:text-lg">
                         <span className="break-words">
                           {(term.kol_profiles as { name?: string } | undefined)?.name ||
                             t("kolManagement.paymentTerms.agreements.unknownKol")}
                         </span>
                         <Badge className="shrink-0">{t("kolManagement.paymentTerms.badge.agreement")}</Badge>
                       </CardTitle>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      <p className="mt-1 text-xs leading-snug text-muted-foreground sm:mt-2 sm:text-sm sm:leading-relaxed">
                         {String(term.payment_model || "").replace("_", " ").toUpperCase()} • {t("kolManagement.paymentTerms.totalPrefix")}:{" "}
                         {term.currency}{" "}
                         {formatAmount(
@@ -307,16 +319,16 @@ const KOLPaymentTermsTab = () => {
                         )}
                       </p>
                       {term.kol_content_posts ? (
-                        <p className="mt-2 break-words text-xs leading-relaxed text-blue-600">
+                        <p className="mt-1 break-words text-[11px] leading-snug text-blue-600 sm:mt-1.5 sm:text-xs sm:leading-relaxed">
                           {t("kolManagement.paymentTerms.field.content")}:{" "}
                           {(term.kol_content_posts as { title?: string }).title}
                         </p>
                       ) : null}
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2 sm:justify-end">
                       <Badge
                         variant={getStatusVariant(String(term.status || ""))}
-                        className="flex w-fit items-center gap-1"
+                        className="flex w-fit items-center gap-1 text-[10px] sm:text-xs"
                       >
                         {getStatusIcon(String(term.status || ""))}
                         {String(term.status || "draft").toUpperCase()}
@@ -326,30 +338,31 @@ const KOLPaymentTermsTab = () => {
                           variant="ghost"
                           size="sm"
                           type="button"
+                          className="h-8 w-8 p-0"
                           onClick={() => handleUpdatePayment(term)}
                           title={t("kolManagement.paymentTerms.updatePaymentTitle")}
                         >
-                          <CreditCard className="h-4 w-4" />
+                          <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" type="button" onClick={() => handleEdit(term)}>
-                          <Edit className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" type="button" className="h-8 w-8 p-0" onClick={() => handleEdit(term)}>
+                          <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           type="button"
                           onClick={() => handleDelete(String(term.id), String(term.status) === "active")}
-                          className="text-destructive hover:text-destructive/80"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive/80"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4 p-5 pt-4 sm:p-6 sm:pt-5">
-                  <div className="rounded-lg border border-border/50 bg-muted/20 p-4 sm:p-5">
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(11.25rem,1fr))] gap-x-5 gap-y-4">
+                <CardContent className="space-y-2.5 p-3 pt-2.5 sm:space-y-3 sm:p-5 sm:pt-4">
+                  <div className="rounded-lg border border-border/50 bg-muted/20 p-3 sm:p-4">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-3 gap-y-2 sm:grid-cols-[repeat(auto-fill,minmax(11.25rem,1fr))] sm:gap-x-5 sm:gap-y-3">
                       <div className="flex min-w-0 items-start gap-2.5">
                         <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0">
@@ -394,13 +407,13 @@ const KOLPaymentTermsTab = () => {
                   </div>
 
                   {(term as { down_payment_amount?: number }).down_payment_amount ? (
-                    <div className="rounded-lg border border-border/50 bg-muted/15 p-4 sm:p-5">
+                    <div className="rounded-lg border border-border/50 bg-muted/15 p-3 sm:p-4">
                       {(() => {
                         const dp = Number((term as { down_payment_amount?: number }).down_payment_amount) || 0;
                         const denom = Number(term.base_amount || 0) + Number(term.bonus_amount || 0);
                         const pct = denom > 0 ? Math.round((dp / denom) * 100) : 0;
                         return (
-                          <div className="space-y-3">
+                          <div className="space-y-2 sm:space-y-2.5">
                             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                               <h4 className="text-sm font-semibold">{t("kolManagement.paymentTerms.paymentProgress")}</h4>
                               <span className="text-xs text-muted-foreground">
@@ -440,8 +453,8 @@ const KOLPaymentTermsTab = () => {
                   ) : null}
 
                   {term.milestones && Array.isArray(term.milestones) && term.milestones.length > 0 ? (
-                    <div className="rounded-lg border border-border/50 bg-muted/15 p-4 sm:p-5">
-                      <div className="space-y-3">
+                    <div className="rounded-lg border border-border/50 bg-muted/15 p-3 sm:p-4">
+                      <div className="space-y-2 sm:space-y-2.5">
                         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                           <h4 className="text-sm font-semibold">{t("kolManagement.paymentTerms.milestoneProgress")}</h4>
                           <span className="text-xs text-muted-foreground">
@@ -483,6 +496,7 @@ const KOLPaymentTermsTab = () => {
                 </CardContent>
               </Card>
             ))}
+            </div>
           </div>
         )}
       </TabsContent>

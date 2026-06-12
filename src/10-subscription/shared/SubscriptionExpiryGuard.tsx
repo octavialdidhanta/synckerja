@@ -1,27 +1,17 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useSubscriptionExpiry } from "@/10-subscription/hooks/useSubscriptionExpiry";
 import { useSubscriptionExpiryRealtime } from "@/10-subscription/hooks/useSubscriptionExpiryRealtime";
 import { SubscriptionExpiredPage } from "@/10-subscription/shared/SubscriptionExpiredPage";
-
-const ALLOWED_EXPIRED_ROUTES = [
-  "/login",
-  "/forgot-password",
-  "/reset-password",
-  "/register",
-  "/verify-email",
-  "/email-verified",
-  "/create-organization",
-  "/create-plan",
-  "/subscription/plans",
-  "/subscription/management",
-];
+import { isAllowedWhenExpired } from "@/10-subscription/shared/subscriptionExpiryPolicy";
 
 export function SubscriptionExpiryGuard() {
   const location = useLocation();
   const [user, setUser] = useState<{ id: string } | null>(null);
-  const { expiryStatus } = useSubscriptionExpiry();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
+  const { expiryStatus, isLoading, error, subscriptionStatus } = useSubscriptionExpiry();
 
   useSubscriptionExpiryRealtime();
 
@@ -43,10 +33,7 @@ export function SubscriptionExpiryGuard() {
     };
   }, []);
 
-  const isAllowedRoute = ALLOWED_EXPIRED_ROUTES.some((route) => {
-    const pathname = location.pathname;
-    return pathname === route || pathname.startsWith(`${route}/`);
-  });
+  const isAllowedRoute = isAllowedWhenExpired(location.pathname);
 
   // Do not replace <Outlet /> with a full-viewport spinner while org or subscription
   // is still resolving — that hides AppShellLayout (header/sidebar). Pages use skeletons instead.
@@ -56,6 +43,16 @@ export function SubscriptionExpiryGuard() {
   }
 
   if (isAllowedRoute) {
+    return <Outlet />;
+  }
+
+  const statusResolved = !orgBootstrapPending && !!organizationId && !isLoading;
+
+  // Fail-open when status cannot be loaded (e.g. missing subscription row) to avoid locking entire org.
+  if (statusResolved && (error || subscriptionStatus === null)) {
+    if (error) {
+      console.warn("[SubscriptionExpiryGuard] subscription status unavailable:", error);
+    }
     return <Outlet />;
   }
 

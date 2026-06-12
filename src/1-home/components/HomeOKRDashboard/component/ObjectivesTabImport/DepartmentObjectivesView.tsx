@@ -427,7 +427,7 @@ export const DepartmentObjectivesView = ({
             </div>
             
             {/* Progress Bar - Full Width with padding */}
-            <div className="px-4 w-full">
+            <div className="w-full px-4 pb-3">
               <Progress value={syncedProgress || 0} className="h-2 w-full" />
             </div>
 

@@ -8,7 +8,45 @@ export const tiktokContentCorsHeaders: Record<string, string> = {
 };
 
 export const TIKTOK_CONTENT_API_BASE = "https://open.tiktokapis.com/v2";
-export const TIKTOK_CONTENT_OAUTH_SCOPES = "user.info.basic,video.list,user.info.stats";
+export const TIKTOK_BUSINESS_API_BASE = "https://business-api.tiktok.com/open_api/v1.3";
+export const TIKTOK_CONTENT_OAUTH_SCOPES =
+  "user.info.basic,video.list,user.info.stats,comment.list,comment.list.manage";
+
+export type TikTokContentOAuthTokenKind = "login_kit" | "tt_user";
+
+export const TIKTOK_CONTENT_OAUTH_TOKEN_KINDS = {
+  loginKit: "login_kit" as TikTokContentOAuthTokenKind,
+  ttUser: "tt_user" as TikTokContentOAuthTokenKind,
+};
+
+export const TIKTOK_CONTENT_COMMENT_SCOPES = ["comment.list", "comment.list.manage"] as const;
+
+/** Union comma-separated OAuth scope strings (deduped, stable order). */
+export function mergeTikTokContentOAuthScopes(
+  ...scopeStrings: (string | null | undefined)[]
+): string {
+  const merged = new Set<string>();
+  for (const raw of scopeStrings) {
+    for (const part of String(raw ?? "").split(",")) {
+      const trimmed = part.trim();
+      if (trimmed) merged.add(trimmed);
+    }
+  }
+  return [...merged].join(",");
+}
+
+/** TikTok often omits scopes in token JSON; merge stored + requested scopes. */
+export function resolveTikTokContentOAuthScopes(stored: string | null | undefined): string {
+  return mergeTikTokContentOAuthScopes(stored, TIKTOK_CONTENT_OAUTH_SCOPES);
+}
+
+export function tiktokContentScopesIncludeComments(scope: string | null | undefined): boolean {
+  const parts = String(scope ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return TIKTOK_CONTENT_COMMENT_SCOPES.every((required) => parts.includes(required));
+}
 
 export function tiktokContentJson(body: object, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -60,6 +98,7 @@ export function appPublicOrigin(): string {
 
 export const TIKTOK_CONTENT_OAUTH_RETURN_PATHS = new Set([
   "/digital-marketing/social-media-performance/tiktok/settings",
+  "/digital-marketing/social-media-performance/manage-comments/tiktok/settings",
 ]);
 
 export async function getUserFromBearer(

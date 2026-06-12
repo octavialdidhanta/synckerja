@@ -40,6 +40,7 @@ import { parseAttendanceValidationRow, parseCheckoutValidationRow } from "@/shar
 import { uploadAttendancePhoto } from "@/shared/lib/attendance/uploadAttendancePhoto";
 import { getCheckInValidationFailureMessage } from "@/shared/lib/attendance/attendanceValidationMessages";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 import { LeaveRequestMobileModal } from "@/mobile/1-home/components/LeaveRequestMobileModal";
 
@@ -883,6 +884,8 @@ const Absensi = () => {
               </button>
             </div>
           </header>
+
+          <SubscriptionExpiryBannerSlot />
 
           <ModuleShellContentGate
             pagePath={MOBILE_PAGE_PATH.home}

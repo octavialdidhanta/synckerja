@@ -13,7 +13,7 @@ export type KolManagementKolManagementPageSkeletonProps = {
 /** Mirror `KOLManagementPage`: filter bar, 4 metrik, tabel utama, sidebar overview. */
 function KolManagementKolManagementSkeletonMain() {
   return (
-    <div className="grid min-h-[calc(100vh-120px)] min-w-0 flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+    <div className="grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
       <div className="col-span-12 flex min-h-0 min-w-0 flex-col xl:col-span-9">
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="mb-2 flex-shrink-0">

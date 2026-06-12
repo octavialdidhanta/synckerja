@@ -262,10 +262,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
         ? compareChartSubtitle
         : chartTab === "spend"
           ? chartUsesAllTime
-            ? t(
-                "digitalMarketing.report.monthlySpendSubtitleAllTime",
-                "Account-level cost by calendar month (Jan–Dec), aggregated across the selected date range.",
-              )
+            ? ""
             : t(
                 "digitalMarketing.report.monthlySpendSubtitle",
                 "Account-level cost by month for the selected year.",
@@ -352,7 +349,9 @@ export function DigitalMarketingReportMonthlyChartsSection({
                 </>
               ) : null}
             </TabsList>
-            <p className="mt-2 text-xs text-muted-foreground">{chartSubtitle}</p>
+            {chartSubtitle ? (
+              <p className="mt-2 text-xs text-muted-foreground">{chartSubtitle}</p>
+            ) : null}
           </div>
           <div className="flex shrink-0 flex-nowrap items-center gap-2">
             <div className={CHANNEL_FILTER_WRAPPER_CLASS}>

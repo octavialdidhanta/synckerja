@@ -15,6 +15,7 @@ import { DetailedStatsCard } from "@/mobile/1-reports/components/DetailedStatsCa
 import { WorkTimeAnalysisCard } from "@/mobile/1-reports/components/WorkTimeAnalysisCard";
 import { AttendanceChart } from "@/mobile/1-reports/components/AttendanceChart";
 import { RealtimeStatusIndicator } from "@/mobile-app/components/RealtimeStatusIndicator";
+import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths, isWithinInterval, format } from "date-fns";
 import { Button } from "@/shared/components/ui/button";
@@ -254,6 +255,8 @@ const Reports = () => {
               </div>
             </div>
           </header>
+
+          <SubscriptionExpiryBannerSlot />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div

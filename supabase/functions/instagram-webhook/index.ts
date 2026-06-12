@@ -113,6 +113,108 @@ async function ensureLeadForNewInstagramConversation(
 /** Inline: deploy bundle — avoid separate module import. */
 type LivechatPushTable = "whatsapp_messages" | "instagram_messages" | "email_messages";
 
+type InstagramWebhookAccount = {
+  organization_id: string;
+  page_access_token: string | null;
+  instagram_username: string | null;
+  instagram_name: string | null;
+  instagram_business_account_id: string;
+};
+
+type MessagingEvt = {
+  message?: { is_echo?: boolean; mid?: string; text?: unknown; attachments?: unknown[]; reply_to?: { mid?: string } };
+  sender?: { id?: unknown };
+  recipient?: { id?: unknown };
+  timestamp?: unknown;
+};
+
+const SUPPORTED_INSTAGRAM_WEBHOOK_OBJECTS = new Set(["instagram", "page"]);
+
+async function resolveInstagramAccountByEntryId(
+  supabase: ReturnType<typeof createClient>,
+  entryId: string | null,
+): Promise<InstagramWebhookAccount | null> {
+  const select =
+    "organization_id, page_access_token, instagram_username, instagram_name, instagram_business_account_id, facebook_page_id";
+  const trimmed = entryId?.trim() ?? "";
+
+  if (trimmed) {
+    const { data: byIg, error: byIgErr } = await supabase
+      .from("organization_instagram_accounts")
+      .select(select)
+      .eq("instagram_business_account_id", trimmed)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    if (byIgErr) {
+      console.error("[instagram-webhook] account lookup by ig id error:", byIgErr.message);
+    }
+    if (byIg) return byIg as InstagramWebhookAccount;
+
+    const { data: byPage, error: byPageErr } = await supabase
+      .from("organization_instagram_accounts")
+      .select(select)
+      .eq("facebook_page_id", trimmed)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    if (byPageErr) {
+      console.error("[instagram-webhook] account lookup by page id error:", byPageErr.message);
+    }
+    if (byPage) {
+      console.log("[instagram-webhook] matched account via facebook_page_id:", trimmed);
+      return byPage as InstagramWebhookAccount;
+    }
+  }
+
+  const { data: singleAccount } = await supabase
+    .from("organization_instagram_accounts")
+    .select(select)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (singleAccount) {
+    console.log("[instagram-webhook] using single active account fallback");
+    return singleAccount as InstagramWebhookAccount;
+  }
+  return null;
+}
+
+function extractMessagingFromEntry(entry: Record<string, unknown>): MessagingEvt[] {
+  const events: MessagingEvt[] = [];
+  const messaging = entry.messaging;
+  if (Array.isArray(messaging) && messaging.length > 0) {
+    events.push(...(messaging as MessagingEvt[]));
+  }
+
+  const changes = entry.changes;
+  if (!Array.isArray(changes)) return events;
+
+  for (const ch of changes) {
+    const change = ch as Record<string, unknown>;
+    const field = typeof change.field === "string" ? change.field : "";
+    const val = change.value as Record<string, unknown> | undefined;
+    if (!val) continue;
+
+    if (field === "messages" || field === "messaging") {
+      if (Array.isArray(val.messaging)) {
+        events.push(...(val.messaging as MessagingEvt[]));
+        continue;
+      }
+      const nested = val.messaging_event as MessagingEvt | undefined;
+      if (nested?.sender?.id != null && nested.message) {
+        events.push(nested);
+        continue;
+      }
+      if (val.sender && val.message) {
+        events.push(val as MessagingEvt);
+      }
+    }
+  }
+
+  return events;
+}
+
 function livechatPushUsesDatabaseWebhookOnly(): boolean {
   return Deno.env.get("LIVECHAT_USE_DATABASE_WEBHOOK_FOR_PUSH") === "true";
 }
@@ -230,9 +332,17 @@ Deno.serve(async (req: Request) => {
     const bodyObject = body?.object ?? "(missing)";
     const entryCount = Array.isArray(body?.entry) ? body.entry.length : 0;
     console.log("[instagram-webhook] POST received — object:", bodyObject, "entries:", entryCount);
-    if (body?.object !== "instagram") {
-      console.log("[instagram-webhook] POST: object is not 'instagram', ignoring. Payload object:", bodyObject);
-      return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const webhookObject = String(body?.object ?? "").trim();
+    if (!SUPPORTED_INSTAGRAM_WEBHOOK_OBJECTS.has(webhookObject)) {
+      console.log(
+        "[instagram-webhook] POST: unsupported object, ignoring. Payload object:",
+        bodyObject,
+        "(expected instagram or page)",
+      );
+      return new Response(JSON.stringify({ success: true, ignored: true, reason: "unsupported_object" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const entries = body?.entry ?? [];
@@ -247,55 +357,34 @@ Deno.serve(async (req: Request) => {
       }
     }
     const ensuredLivechatStatusOrgs = new Set<string>();
+    let processedCount = 0;
     for (const entry of entries) {
-      const igAccountId = entry?.id != null && entry?.id !== "" ? String(entry.id).trim() : null;
-      let messaging = entry?.messaging ?? [];
-      if ((!igAccountId || igAccountId === "0" || !Array.isArray(messaging) || messaging.length === 0) && Array.isArray((entry as Record<string, unknown>)?.changes)) {
-        const changes = (entry as Record<string, unknown>).changes as Array<Record<string, unknown>>;
-        for (const ch of changes) {
-          const val = ch?.value as Record<string, unknown> | undefined;
-          if (val && (val.messaging_event || (val.sender && val.message))) {
-            messaging = [val.messaging_event ?? val] as typeof messaging;
-            console.log("[instagram-webhook] using message from entry.changes");
-            break;
-          }
-        }
-      }
-      if (!Array.isArray(messaging) || messaging.length === 0) continue;
-      let effectiveId = igAccountId && igAccountId !== "0" ? igAccountId : null;
-      console.log("[instagram-webhook] entry id:", effectiveId ?? "(from changes)", "messaging events:", messaging.length);
-      if (!effectiveId && messaging.length > 0) {
-        const { data: singleAccount } = await supabase
-          .from("organization_instagram_accounts")
-          .select("instagram_business_account_id")
-          .eq("is_active", true)
-          .limit(1)
-          .maybeSingle();
-        if (singleAccount?.instagram_business_account_id) {
-          effectiveId = String(singleAccount.instagram_business_account_id).trim();
-          console.log("[instagram-webhook] using single account fallback id:", effectiveId);
-        }
-      }
-      if (!effectiveId) continue;
+      const entryRecord = entry as Record<string, unknown>;
+      const entryId = entry?.id != null && entry?.id !== "" ? String(entry.id).trim() : null;
+      const messaging = extractMessagingFromEntry(entryRecord);
+      if (messaging.length === 0) continue;
 
-      const { data: accountRows, error: accError } = await supabase
-        .from("organization_instagram_accounts")
-        .select("organization_id, page_access_token, instagram_username, instagram_name")
-        .eq("instagram_business_account_id", effectiveId)
-        .eq("is_active", true);
+      console.log(
+        "[instagram-webhook] entry id:",
+        entryId ?? "(missing)",
+        "object:",
+        webhookObject,
+        "messaging events:",
+        messaging.length,
+      );
 
-      if (accError || !accountRows?.length) {
-        console.error("[instagram-webhook] config not found for instagram_business_account_id:", effectiveId, "— pastikan akun Instagram ini yang di-connect di halaman Connect Instagram. Error:", accError ?? "");
+      const account = await resolveInstagramAccountByEntryId(supabase, entryId);
+      if (!account) {
+        console.error(
+          "[instagram-webhook] config not found for entry id:",
+          entryId,
+          "— pastikan akun Instagram (@octa.vialdi) di-connect di halaman Connect Instagram.",
+        );
         continue;
       }
 
-      console.log("[instagram-webhook] account found for ig id:", effectiveId, "org:", accountRows[0]?.organization_id);
-      const account = accountRows[0] as {
-        organization_id: string;
-        page_access_token: string | null;
-        instagram_username: string | null;
-        instagram_name: string | null;
-      };
+      const effectiveId = String(account.instagram_business_account_id).trim();
+      console.log("[instagram-webhook] account found — ig id:", effectiveId, "org:", account.organization_id);
       const orgId = account.organization_id;
       if (!ensuredLivechatStatusOrgs.has(orgId)) {
         const { error: ensureStatusErr } = await supabase.rpc("ensure_livechat_lead_statuses_for_org", {
@@ -313,9 +402,9 @@ Deno.serve(async (req: Request) => {
         (account.instagram_name ?? "").trim() ||
         "Instagram";
 
-      type MessagingEvt = { message?: { is_echo?: boolean; mid?: string }; sender?: { id?: unknown }; recipient?: { id?: unknown }; timestamp?: unknown };
+      type MessagingEvtLoop = MessagingEvt;
       for (const evt of messaging) {
-        const e = evt as MessagingEvt;
+        const e = evt as MessagingEvtLoop;
         if (e.message?.is_echo) {
           console.log("[instagram-webhook] skip: is_echo");
           continue;
@@ -560,10 +649,11 @@ Deno.serve(async (req: Request) => {
         }
 
         console.log("[instagram-webhook] message saved", { convId: conv.id, mid });
+        processedCount += 1;
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, processed: processedCount }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -401,6 +401,22 @@ export const SocialMediaInsightTargetsSettingsPageSkeleton = createDeferredSkele
   ),
 );
 
+export const ManageCommentsHubPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-manage-comments/skeletons/ManageCommentsHubPageSkeleton").then(
+    (m) => ({
+      default: m.ManageCommentsHubPageSkeleton,
+    }),
+  ),
+);
+
+export const TikTokManageCommentsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-manage-comments/skeletons/TikTokManageCommentsPageSkeleton").then(
+    (m) => ({
+      default: m.TikTokManageCommentsPageSkeleton,
+    }),
+  ),
+);
+
 export const DigitalMarketingReportPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-report/skeletons/DigitalMarketingReportPageSkeleton").then((m) => ({
     default: m.DigitalMarketingReportPageSkeleton,

@@ -3,15 +3,16 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encryptTikTokContentToken } from "../_shared/tiktokContentConfigCrypto.ts";
 import {
+  mergeTikTokContentOAuthScopes,
+  TIKTOK_CONTENT_OAUTH_SCOPES,
   TIKTOK_CONTENT_OAUTH_RETURN_PATHS,
+  TIKTOK_CONTENT_OAUTH_TOKEN_KINDS,
   appPublicOrigin,
   readPlatformTikTokContentOAuth,
   tiktokContentOAuthRedirectUri,
 } from "../_shared/tiktokContentAuth.ts";
-import {
-  exchangeTikTokContentAuthCode,
-  fetchTikTokUserInfo,
-} from "../_shared/tiktokContentApi.ts";
+import { exchangeTikTokBusinessOrganicAuthCode, fetchTikTokUserInfo } from "../_shared/tiktokContentApi.ts";
+import { isPlaceholderTikTokAccountLabel } from "../_shared/tiktokContentAccountProfile.ts";
 
 function redirectToAppPath(path: string, query: string, status = 302): Response {
   const origin = appPublicOrigin() || "http://localhost:5173";
@@ -34,9 +35,18 @@ function sanitizeOAuthError(msg: string): string {
   return trimmed;
 }
 
+type OAuthStateRow = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  expires_at: string;
+  return_path?: string | null;
+};
+
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
-  const authCode = url.searchParams.get("code")?.trim() ?? "";
+  const authCode = url.searchParams.get("auth_code")?.trim() ??
+    url.searchParams.get("code")?.trim() ?? "";
   const state = url.searchParams.get("state")?.trim() ?? "";
   const oauthError = url.searchParams.get("error")?.trim() ?? "";
 
@@ -50,30 +60,56 @@ Deno.serve(async (req: Request) => {
     return redirectDefault("?oauth_error=missing_code_or_state");
   }
 
+  const oauth = readPlatformTikTokContentOAuth();
+  if (!oauth) {
+    return redirectDefault("?oauth_error=oauth_not_configured");
+  }
+
+  const redirectUri = tiktokContentOAuthRedirectUri();
+  const tokenKind = TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.ttUser;
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
     return redirectDefault("?oauth_error=server_misconfigured");
   }
 
-  const oauth = readPlatformTikTokContentOAuth();
-  if (!oauth) {
-    return redirectDefault("?oauth_error=oauth_not_configured");
-  }
-
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: stateRow, error: stateErr } = await admin
-    .from("tiktok_content_oauth_states")
-    .select("id, organization_id, user_id, expires_at, return_path")
-    .eq("state_token", state)
-    .maybeSingle();
+  // Exchange auth code immediately (parallel with state lookup) — codes expire in seconds.
+  const [stateRes, tokenResult] = await Promise.all([
+    admin
+      .from("tiktok_content_oauth_states")
+      .select("id, organization_id, user_id, expires_at, return_path")
+      .eq("state_token", state)
+      .maybeSingle(),
+    exchangeTikTokBusinessOrganicAuthCode(
+      oauth.clientKey,
+      oauth.clientSecret,
+      authCode,
+      redirectUri,
+    ).then(
+      (data) => ({ ok: true as const, data }),
+      (e) => ({ ok: false as const, error: e }),
+    ),
+  ]);
 
+  const stateRow = stateRes.data as OAuthStateRow | null;
   const oauthReturnPath = resolveOAuthReturnPath(
     stateRow?.return_path != null ? String(stateRow.return_path) : null,
   );
 
-  if (stateErr || !stateRow?.id) {
+  if (!tokenResult.ok) {
+    const msg = sanitizeOAuthError(
+      tokenResult.error instanceof Error ? tokenResult.error.message : "token_exchange_failed",
+    );
+    console.error("tiktok-content-oauth-callback:", msg);
+    return redirectDefault(`?oauth_error=${encodeURIComponent(msg)}`, oauthReturnPath);
+  }
+
+  const tokenData = tokenResult.data;
+
+  if (stateRes.error || !stateRow?.id) {
     return redirectDefault("?oauth_error=invalid_state", oauthReturnPath);
   }
 
@@ -85,31 +121,8 @@ Deno.serve(async (req: Request) => {
 
   await admin.from("tiktok_content_oauth_states").delete().eq("id", stateRow.id);
 
-  const redirectUri = tiktokContentOAuthRedirectUri();
-  let tokenData;
-  try {
-    tokenData = await exchangeTikTokContentAuthCode(
-      oauth.clientKey,
-      oauth.clientSecret,
-      authCode,
-      redirectUri,
-    );
-  } catch (e) {
-    const msg = sanitizeOAuthError(e instanceof Error ? e.message : "token_exchange_failed");
-    console.error("tiktok-content-oauth-callback:", msg);
-    return redirectDefault(`?oauth_error=${encodeURIComponent(msg)}`, oauthReturnPath);
-  }
-
   const organizationId = String(stateRow.organization_id);
   const openId = tokenData.open_id;
-
-  let userInfo;
-  try {
-    userInfo = await fetchTikTokUserInfo(tokenData.access_token);
-  } catch (e) {
-    console.warn("tiktok-content-oauth-callback user info:", e);
-    userInfo = { open_id: openId };
-  }
 
   let accessEnc: string;
   let refreshEnc: string;
@@ -128,6 +141,22 @@ Deno.serve(async (req: Request) => {
   const refreshExpires = tokenData.refresh_expires_in
     ? new Date(Date.now() + tokenData.refresh_expires_in * 1000).toISOString()
     : null;
+
+  let displayName = "";
+  let avatarUrl: string | null = null;
+  try {
+    const userInfo = await fetchTikTokUserInfo(tokenData.access_token);
+    displayName = userInfo.display_name?.trim() ?? "";
+    avatarUrl = userInfo.avatar_url?.trim() || null;
+  } catch (e) {
+    console.warn(
+      "tiktok-content-oauth-callback userInfo:",
+      e instanceof Error ? e.message : e,
+    );
+  }
+  if (!displayName || isPlaceholderTikTokAccountLabel(displayName, openId)) {
+    displayName = `TikTok ${openId.slice(0, 8)}`;
+  }
 
   const { error: connErr } = await admin.from("organization_tiktok_content_connections").upsert(
     {
@@ -152,6 +181,8 @@ Deno.serve(async (req: Request) => {
       refresh_token_enc: refreshEnc,
       access_token_expires_at: accessExpires,
       refresh_token_expires_at: refreshExpires,
+      oauth_scopes: mergeTikTokContentOAuthScopes(tokenData.scope, TIKTOK_CONTENT_OAUTH_SCOPES),
+      oauth_token_kind: tokenKind,
       updated_at: now,
     },
     { onConflict: "organization_id,open_id" },
@@ -161,7 +192,6 @@ Deno.serve(async (req: Request) => {
     return redirectDefault("?oauth_error=save_token_failed", oauthReturnPath);
   }
 
-  const displayName = String(userInfo.display_name ?? "").trim() || `TikTok ${openId.slice(0, 8)}`;
   const { data: existingAccounts } = await admin
     .from("organization_tiktok_content_accounts")
     .select("id, is_default, open_id")
@@ -182,7 +212,7 @@ Deno.serve(async (req: Request) => {
       open_id: openId,
       label: displayName,
       display_name: displayName,
-      avatar_url: userInfo.avatar_url ?? null,
+      avatar_url: avatarUrl,
       is_default: existingOpenId
         ? Boolean((existingOpenId as { is_default?: boolean }).is_default)
         : !hasDefault,

@@ -242,16 +242,6 @@ function DigitalMarketingReportPageBody({
     return `${DM_REPORT_TARGETS_PATH}?${params.toString()}`;
   }, [resolvedTargetPeriod]);
 
-  const reportSubtitle = reportServiceFilter
-    ? t(
-        "digitalMarketing.report.subtitleWithService",
-        "Table and charts use the date range and selected service. Cost / Conv. leads / CPA match monthly chart totals in the period.",
-      )
-    : t(
-        "digitalMarketing.report.subtitle",
-        "The table and charts follow the date filter above (presets include calendar years and All time).",
-      );
-
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <ModuleShellContentGate pagePath="/digital-marketing/report">
@@ -279,7 +269,6 @@ function DigitalMarketingReportPageBody({
                               <h2 className="text-base font-semibold text-gray-900">
                                 {t("digitalMarketing.report.title", "Report")}
                               </h2>
-                              <p className="mt-0.5 text-xs text-muted-foreground">{reportSubtitle}</p>
                             </div>
                             <div className="flex flex-wrap items-center justify-end gap-2">
                               {filtersHydrated ? (

@@ -11,6 +11,7 @@ import {
 } from '@/mobile-app/components/ui/drawer';
 import { Button } from '@/shared/components/ui/button';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { SubscriptionExpiryBannerSlot } from '@/10-subscription/shared/SubscriptionExpiryBannerSlot';
 import { useLeads } from '@/shared/hooks/organized/sales';
 import { LeadsFilters } from '@/5-3-dashboard/components/leads/filters/LeadsFilters';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -342,6 +343,8 @@ export function LeadsManagementLayout() {
           </Drawer>
         </div>
       </header>
+
+      <SubscriptionExpiryBannerSlot />
 
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         <div

@@ -47,7 +47,7 @@
     "supabase:functions:deploy:meta-ads-metrics": "npx supabase functions deploy meta-ads-metrics",
     "supabase:functions:deploy:meta-ads-all": "npx supabase functions deploy meta-ads-oauth-start meta-ads-oauth-callback meta-ads-config meta-ads-metrics meta-ads-upload-conversion",
     "supabase:functions:deploy:tiktok-ads-all": "npx supabase functions deploy tiktok-ads-oauth-start tiktok-ads-oauth-callback tiktok-ads-config tiktok-ads-metrics",
-    "supabase:functions:deploy:tiktok-content-all": "npx supabase functions deploy tiktok-content-oauth-start tiktok-content-oauth-callback tiktok-content-config tiktok-content-metrics",
+    "supabase:functions:deploy:tiktok-content-all": "npx supabase functions deploy tiktok-content-oauth-start tiktok-content-oauth-callback tiktok-content-config tiktok-content-metrics tiktok-content-comments",
     "supabase:functions:deploy:youtube-content-all": "npx supabase functions deploy youtube-content-oauth-start youtube-content-oauth-callback youtube-content-config youtube-content-metrics",
     "supabase:functions:deploy:linkedin-content-all": "npx supabase functions deploy linkedin-content-oauth-start linkedin-content-oauth-callback linkedin-content-config linkedin-content-metrics",
     "supabase:functions:deploy:wa-followup": "npx supabase functions deploy send-whatsapp-template-followup",

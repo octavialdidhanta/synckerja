@@ -13,6 +13,7 @@ import {
   type SubscriptionMobileShellHeaderVariant,
 } from "@/mobile/6-subscription/components/SubscriptionMobileShellHeader";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 import { useMobileToolsShellLayout } from "@/shared/hooks/useMobileToolsShellLayout";
 import { cn } from "@/shared/lib/utils";
 
@@ -77,6 +78,8 @@ export function MobileSubscriptionPageShell({
               className={resolvedHeaderClassName}
               style={resolvedHeaderStyle}
             />
+
+            <SubscriptionExpiryBannerSlot />
 
             {showDenyShellHeader ? (
               <ToolsMobileDenyGateArea

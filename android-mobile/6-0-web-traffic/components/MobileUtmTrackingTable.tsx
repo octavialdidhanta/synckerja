@@ -391,7 +391,7 @@ export function MobileUtmTrackingTable({
   const hasActiveFilters = Object.values(filters).some((v) => v !== FILTER_ALL);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-primary/35 bg-card shadow-sm">
+    <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-primary/35 bg-card shadow-sm">
       <div className="shrink-0 border-b border-primary/25 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -424,7 +424,7 @@ export function MobileUtmTrackingTable({
 
       <div
         data-horizontal-scroll-zone
-        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-[260px] max-h-[min(56dvh,460px)] w-full overflow-x-auto overflow-y-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [@media(max-height:760px)]:min-h-[220px] [@media(max-height:760px)]:max-h-[min(50dvh,380px)]"
         style={{ touchAction: "pan-x pan-y" }}
       >
         <table className="min-w-[1590px] w-full table-fixed border-separate border-spacing-0">

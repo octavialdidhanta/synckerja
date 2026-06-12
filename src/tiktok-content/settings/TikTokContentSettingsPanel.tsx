@@ -9,6 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/aler
 import { cn } from "@/shared/lib/utils";
 import { useTikTokContentSettings } from "@/tiktok-content/hooks/useTikTokContentSettings";
 import type { TikTokContentOAuthReturnPath } from "@/tiktok-content/settings/tiktokContentSettingsPaths";
+import { getTikTokAccountDisplayLabel } from "@/tiktok-content/lib/tiktokAccountDisplayLabel";
+import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 
 export type TikTokContentSettingsPanelProps = {
   organizationId: string | null | undefined;
@@ -113,14 +115,23 @@ export function TikTokContentSettingsPanel({
         </Alert>
       )}
 
-      {accounts.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {t(
-            "digitalMarketing.tiktokContent.connectAnotherHint",
-            "To add another account, click Connect and sign in with a different TikTok user on the TikTok screen.",
-          )}
-        </p>
-      )}
+      {oauthConnected &&
+        accounts.some((a) => a.is_active && a.comments_scopes_granted === false) && (
+          <Alert>
+            <AlertTitle>
+              {t(
+                "digitalMarketing.manageComments.reconnectForCommentsTitle",
+                "Comment permissions required",
+              )}
+            </AlertTitle>
+            <AlertDescription>
+              {t(
+                "digitalMarketing.manageComments.reconnectForComments",
+                "Reconnect your TikTok account to grant comment.list and comment.list.manage scopes.",
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -151,14 +162,20 @@ export function TikTokContentSettingsPanel({
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {t("digitalMarketing.tiktokContent.connectedAccounts", "Connected accounts")}
           </p>
-          {accounts.map((acc) => (
+          {accounts.map((acc) => {
+            const accountName = getTikTokAccountDisplayLabel(acc);
+            const initials = accountName.slice(0, 2).toUpperCase();
+            return (
             <div
               key={acc.id}
               className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2"
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{acc.label || acc.display_name}</p>
-                <p className="truncate text-xs text-muted-foreground">{acc.open_id}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <Avatar className="h-9 w-9 shrink-0">
+                  <AvatarImage src={acc.avatar_url ?? undefined} alt={accountName} />
+                  <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                </Avatar>
+                <p className="truncate text-sm font-medium">{accountName}</p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {!acc.is_default && (
@@ -185,7 +202,8 @@ export function TikTokContentSettingsPanel({
                 </Button>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>
