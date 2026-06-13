@@ -32,9 +32,8 @@ export function PromoSimulationModuleShell({
                 <div className="mb-1 min-w-0 shrink-0">
                   <PricingToolsHeaderAndTab />
                 </div>
-                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  <ModuleShellContentGate>{children}</ModuleShellContentGate>
-                </div>
+
+                <ModuleShellContentGate>{children}</ModuleShellContentGate>
               </div>
             </div>
           </div>

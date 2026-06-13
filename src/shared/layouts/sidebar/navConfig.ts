@@ -216,7 +216,17 @@ export const mainNavItems: MainNavItem[] = [
       {
         titleKey: "sidebar.operations.sales.title",
         path: "/operations/sales/activities",
-        activePathPrefixes: ["/operations/sales"],
+        activePathPrefixes: ["/operations/sales/activities", "/operations/sales/jadwal-kunjungan", "/operations/sales/client-visits"],
+      },
+      {
+        titleKey: "sidebar.operations.sales.tiktokShop.title",
+        path: "/operations/sales/tiktok-shop/settings",
+        activePathPrefixes: ["/operations/sales/tiktok-shop"],
+      },
+      {
+        titleKey: "sidebar.operations.sales.stockManagement.title",
+        path: "/operations/sales/stock-management",
+        activePathPrefixes: ["/operations/sales/stock-management"],
       },
     ],
   },

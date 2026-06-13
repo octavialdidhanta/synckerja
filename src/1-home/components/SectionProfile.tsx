@@ -9,7 +9,6 @@ import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/
 import { useUserData } from '@/shared/auth/hooks/useUserData';
 import { useProfile } from '@/shared/hooks/useProfile';
 import { useTeamAvailability } from './useTeamAvailability';
-import { toast } from 'sonner';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from 'date-fns';
@@ -137,6 +136,7 @@ export const SectionProfile = () => {
 
   const handlePhotoUpdate = async (photoUrl: string | null) => {
     try {
+      const { toast } = await import("sonner");
       const loadingToast = toast.loading(t('profile.updatingPhoto', 'Updating profile photo...'));
       const result = await syncAvatarAcrossApp(photoUrl);
       toast.dismiss(loadingToast);
@@ -147,6 +147,7 @@ export const SectionProfile = () => {
         toast.error(t('profile.failedToSyncPhoto', 'Failed to sync photo across the app'));
       }
     } catch {
+      const { toast } = await import("sonner");
       toast.error(t('profile.failedToUpdatePhoto', 'Failed to update profile photo'));
     }
   };

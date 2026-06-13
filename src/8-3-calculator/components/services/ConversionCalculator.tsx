@@ -7,6 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { ConversionTemplateManager } from './ConversionTemplateManager';
+import {
+  calculateConversionResults,
+  type RemarketingAudienceSource,
+} from '@/8-3-calculator/lib/servicesCalculatorMath';
 
 const normalizeCurrencyValue = (value: string) => value.replace(/[^\d]/g, '');
 
@@ -80,8 +84,7 @@ const PercentageInputField = ({
 interface ConversionCalculatorProps {
   initialSettings?: {
     conversionFrequency?: string;
-    budget?: string;
-    cpm?: string;
+    conversionCpm?: string;
     ctrLink?: string;
     adsClickToVisit?: string;
     whatsappClick?: string;
@@ -96,8 +99,7 @@ interface ConversionCalculatorProps {
   };
   onSettingsChange?: (settings: {
     conversionFrequency: string;
-    budget: string;
-    cpm: string;
+    conversionCpm: string;
     ctrLink: string;
     adsClickToVisit: string;
     whatsappClick: string;
@@ -123,8 +125,9 @@ const ConversionCalculator = ({
   const { t } = useAppTranslation();
 
   const [conversionFrequency, setConversionFrequency] = useState<string>(normalizeFloatValue(initialSettings.conversionFrequency || ''));
-  const [budget, setBudget] = useState<string>(normalizeCurrencyValue(initialSettings.budget || ''));
-  const [cpm, setCpm] = useState<string>(normalizeCurrencyValue(initialSettings.cpm || ''));
+  const [conversionCpm, setConversionCpm] = useState<string>(
+    normalizeCurrencyValue(initialSettings.conversionCpm || ''),
+  );
   const [ctrLink, setCtrLink] = useState<string>(normalizePercentageValue(initialSettings.ctrLink || ''));
   const [adsClickToVisit, setAdsClickToVisit] = useState<string>(normalizePercentageValue(initialSettings.adsClickToVisit || ''));
   const [whatsappClick, setWhatsappClick] = useState<string>(normalizePercentageValue(initialSettings.whatsappClick || ''));
@@ -141,6 +144,9 @@ const ConversionCalculator = ({
   // Use ref to track if update is from user input or from props
   const isSyncingFromPropsRef = useRef(false);
   const prevInitialSettingsRef = useRef<string>(JSON.stringify(initialSettings));
+  const onSettingsChangeRef = useRef(onSettingsChange);
+  onSettingsChangeRef.current = onSettingsChange;
+  const lastNotifiedSettingsRef = useRef<string>('');
 
   interface ConversionResults {
     impressions: number;
@@ -168,8 +174,7 @@ const ConversionCalculator = ({
   useEffect(() => {
     const currentSettingsStr = JSON.stringify({
       conversionFrequency: initialSettings.conversionFrequency || '',
-      budget: initialSettings.budget || '',
-      cpm: initialSettings.cpm || '',
+      conversionCpm: initialSettings.conversionCpm || '',
       ctrLink: initialSettings.ctrLink || '',
       adsClickToVisit: initialSettings.adsClickToVisit || '',
       whatsappClick: initialSettings.whatsappClick || '',
@@ -190,8 +195,7 @@ const ConversionCalculator = ({
       isSyncingFromPropsRef.current = true;
       
       setConversionFrequency(normalizeFloatValue(initialSettings.conversionFrequency || ''));
-      setBudget(normalizeCurrencyValue(initialSettings.budget || ''));
-      setCpm(normalizeCurrencyValue(initialSettings.cpm || ''));
+      setConversionCpm(normalizeCurrencyValue(initialSettings.conversionCpm || ''));
       setCtrLink(normalizePercentageValue(initialSettings.ctrLink || ''));
       setAdsClickToVisit(normalizePercentageValue(initialSettings.adsClickToVisit || ''));
       setWhatsappClick(normalizePercentageValue(initialSettings.whatsappClick || ''));
@@ -213,8 +217,7 @@ const ConversionCalculator = ({
     }
   }, [
     initialSettings.conversionFrequency,
-    initialSettings.budget,
-    initialSettings.cpm,
+    initialSettings.conversionCpm,
     initialSettings.ctrLink,
     initialSettings.adsClickToVisit,
     initialSettings.whatsappClick,
@@ -228,34 +231,11 @@ const ConversionCalculator = ({
     initialSettings.remarketingAudience
   ]);
 
-  // Helper function to notify parent of settings change (only when user makes changes)
-  const notifySettingsChange = React.useCallback((updatedSettings: {
-    conversionFrequency: string;
-    budget: string;
-    cpm: string;
-    ctrLink: string;
-    adsClickToVisit: string;
-    whatsappClick: string;
-    prospectToClient: string;
-    reservation: string;
-    crossSelling: string;
-    servicePackageValue: string;
-    serviceProfitMargin: string;
-    clientRetentionRate: string;
-    remarketingAudienceSource: string;
-    remarketingAudience: string;
-  }) => {
-    if (!isSyncingFromPropsRef.current && onSettingsChange) {
-      onSettingsChange(updatedSettings);
-    }
-  }, [onSettingsChange]);
-
   useEffect(() => {
     calculateResults();
   }, [
     conversionFrequency,
-    budget,
-    cpm,
+    conversionCpm,
     ctrLink,
     adsClickToVisit,
     whatsappClick,
@@ -269,64 +249,27 @@ const ConversionCalculator = ({
   ]);
 
   const calculateResults = () => {
-    const conversionFrequencyNum = floatStringToNumber(conversionFrequency);
-    const safeConversionFrequency = conversionFrequencyNum > 0 ? conversionFrequencyNum : 1;
-    const cpmNum = currencyStringToNumber(cpm) || 1;
-    const ctrLinkNum = percentageStringToNumber(ctrLink);
-    const adsClickToVisitNum = percentageStringToNumber(adsClickToVisit);
-    const whatsappClickNum = percentageStringToNumber(whatsappClick);
-    const prospectToClientNum = percentageStringToNumber(prospectToClient);
-    const reservationNum = percentageStringToNumber(reservation);
-    const crossSellingNum = percentageStringToNumber(crossSelling);
-
-    const remarketingAudienceManualNum = currencyStringToNumber(remarketingAudience);
-    let activeRemarketingAudience = 0;
-    if (remarketingAudienceSource === 'branding') {
-      activeRemarketingAudience = brandingWarmAudience;
-    } else if (remarketingAudienceSource === 'traffic') {
-      activeRemarketingAudience = trafficWebsiteVisitors;
-    } else {
-      activeRemarketingAudience = remarketingAudienceManualNum;
-    }
-
-    const baseImpressions = activeRemarketingAudience > 0 ? Math.floor(activeRemarketingAudience * safeConversionFrequency) : 0;
-    const fallbackBudgetNum = currencyStringToNumber(budget);
-    const fallbackImpressions = Math.floor((fallbackBudgetNum / cpmNum) * 1000);
-    const impressions = baseImpressions > 0 ? baseImpressions : fallbackImpressions;
-    const calculatedBudgetNum = Math.round((impressions / 1000) * cpmNum);
-
-    const adClicks = Math.floor(impressions * (ctrLinkNum / 100));
-    const websiteVisitors = Math.floor(adClicks * (adsClickToVisitNum / 100));
-    const leads = Math.floor(websiteVisitors * (whatsappClickNum / 100));
-    const leadsToPatients = Math.floor(leads * (prospectToClientNum / 100));
-    const realPatients = Math.floor(leadsToPatients * (reservationNum / 100));
-    const crossSellingMultiplier = crossSellingNum > 0 ? crossSellingNum / 100 : 0;
-    const estimatedClients = Math.floor(realPatients * (crossSellingMultiplier > 0 ? crossSellingMultiplier : 1));
-    const totalClients = estimatedClients > 0 ? estimatedClients : realPatients;
-
-    const costPerClient = totalClients > 0 ? calculatedBudgetNum / totalClients : 0;
-
-    setResults({
-      impressions,
-      calculatedBudget: calculatedBudgetNum,
-      leads,
-      totalClients,
-      costPerClient,
-      adClicks,
-      websiteVisitors,
-      activeRemarketingAudience,
+    const next = calculateConversionResults({
+      remarketingAudienceSource: remarketingAudienceSource as RemarketingAudienceSource,
+      remarketingAudienceManual: currencyStringToNumber(remarketingAudience),
+      brandingWarmAudience,
+      trafficWebsiteVisitors,
+      conversionFrequency: floatStringToNumber(conversionFrequency),
+      conversionCpm: currencyStringToNumber(conversionCpm),
+      ctrLink: percentageStringToNumber(ctrLink),
+      adsClickToVisit: percentageStringToNumber(adsClickToVisit),
+      whatsappClick: percentageStringToNumber(whatsappClick),
+      prospectToClient: percentageStringToNumber(prospectToClient),
+      reservation: percentageStringToNumber(reservation),
+      crossSelling: percentageStringToNumber(crossSelling),
     });
 
-    // Update budget if calculated budget is different
-    if (budget !== calculatedBudgetNum.toString()) {
-      setBudget(calculatedBudgetNum.toString());
-    }
+    setResults(next);
   };
 
   const handleResetConversion = () => {
     setConversionFrequency('');
-    setBudget('');
-    setCpm('');
+    setConversionCpm('');
     setCtrLink('');
     setAdsClickToVisit('');
     setWhatsappClick('');
@@ -340,12 +283,14 @@ const ConversionCalculator = ({
     setRemarketingAudience('');
   };
 
-  // Notify parent of changes
+  // Notify parent when local fields change. Use a ref for the callback + payload dedupe so an
+  // unstable inline `onSettingsChange` from the parent cannot retrigger this effect forever.
   useEffect(() => {
-    notifySettingsChange({
+    if (isSyncingFromPropsRef.current) return;
+
+    const payload = {
       conversionFrequency,
-      budget,
-      cpm,
+      conversionCpm,
       ctrLink,
       adsClickToVisit,
       whatsappClick,
@@ -357,11 +302,14 @@ const ConversionCalculator = ({
       clientRetentionRate,
       remarketingAudienceSource,
       remarketingAudience,
-    });
+    };
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastNotifiedSettingsRef.current) return;
+    lastNotifiedSettingsRef.current = serialized;
+    onSettingsChangeRef.current?.(payload);
   }, [
     conversionFrequency,
-    budget,
-    cpm,
+    conversionCpm,
     ctrLink,
     adsClickToVisit,
     whatsappClick,
@@ -373,7 +321,6 @@ const ConversionCalculator = ({
     clientRetentionRate,
     remarketingAudienceSource,
     remarketingAudience,
-    notifySettingsChange
   ]);
 
   return (
@@ -387,8 +334,7 @@ const ConversionCalculator = ({
           <ConversionTemplateManager
             currentSettings={{
               conversionFrequency,
-              budget,
-              cpm,
+              conversionCpm,
               ctrLink,
               adsClickToVisit,
               whatsappClick,
@@ -406,8 +352,7 @@ const ConversionCalculator = ({
               isSyncingFromPropsRef.current = true;
               
               setConversionFrequency(normalizeFloatValue(settings.conversionFrequency));
-              setBudget(normalizeCurrencyValue(settings.budget));
-              setCpm(normalizeCurrencyValue(settings.cpm));
+              setConversionCpm(normalizeCurrencyValue(settings.conversionCpm));
               setCtrLink(normalizePercentageValue(settings.ctrLink));
               setAdsClickToVisit(normalizePercentageValue(settings.adsClickToVisit));
               setWhatsappClick(normalizePercentageValue(settings.whatsappClick));
@@ -603,12 +548,12 @@ const ConversionCalculator = ({
                 </p>
               </div>
               <div>
-                <Label htmlFor="cpm">CPM (Rp)</Label>
+                <Label htmlFor="conversion-cpm">CPM (Rp)</Label>
                 <Input
-                  id="cpm"
+                  id="conversion-cpm"
                   type="text"
-                  value={formatCurrencyDisplay(cpm)}
-                  onChange={(e) => setCpm(normalizeCurrencyValue(e.target.value))}
+                  value={formatCurrencyDisplay(conversionCpm)}
+                  onChange={(e) => setConversionCpm(normalizeCurrencyValue(e.target.value))}
                   className="mt-1"
                   placeholder="0"
                 />

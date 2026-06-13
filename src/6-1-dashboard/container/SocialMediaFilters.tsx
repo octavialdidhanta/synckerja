@@ -3,7 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Search, Filter, Plus, Trash2, CalendarIcon } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
+import { Dialog, DialogContent } from '@/shared/components/ui/dialog';
 import { MonthPicker } from '@/shared/calendar';
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -178,7 +178,7 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
         >
           <SelectTrigger className="w-auto min-w-[160px] max-w-[220px] h-9 text-sm text-gray-700 text-left whitespace-nowrap overflow-hidden">
             <div className="flex items-center gap-2 whitespace-nowrap overflow-hidden">
-              <CalendarIcon className="h-4 w-4 text-blue-500" />
+              <CalendarIcon className="h-4 w-4 text-primary" />
               <SelectValue placeholder="This Month" className="truncate">
                 {getMonthFilterDisplayText()}
               </SelectValue>
@@ -191,28 +191,23 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
             <SelectItem value="custom">Custom Month</SelectItem>
           </SelectContent>
         </Select>
-        <Popover open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
-          <PopoverTrigger asChild>
-            <div className="hidden" aria-hidden />
-          </PopoverTrigger>
-          <PopoverContent 
-            className="w-auto p-0 border border-gray-200 rounded-lg shadow-lg" 
-            align="start"
-            side="bottom"
-            sideOffset={4}
-          >
-            <div className="p-2">
-              <div className="text-sm font-medium text-gray-700 mb-2 px-2 flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-blue-500" />
+        <Dialog open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
+          <DialogContent className="w-auto max-w-[min(100vw-2rem,360px)] gap-0 overflow-hidden border border-primary/15 p-0 sm:rounded-lg [&>button]:right-1.5 [&>button]:top-1.5 [&>button]:h-8 [&>button]:w-8 sm:[&>button]:right-1.5 sm:[&>button]:top-1.5">
+            <div className="border-b border-primary/10 bg-brand-blue-soft px-4 pb-3 pt-3">
+              <div className="flex items-center gap-2 pr-8 text-sm font-medium text-brand-blue-on-soft">
+                <CalendarIcon className="h-4 w-4 text-primary" />
                 Select Month
               </div>
+            </div>
+            <div className="p-4 pt-3">
               <MonthPicker
                 selected={selectedMonth}
                 onSelect={handleCustomMonthSelect}
+                className="mx-auto border-0 shadow-none"
               />
             </div>
-          </PopoverContent>
-        </Popover>
+          </DialogContent>
+        </Dialog>
         <Button 
           type="button"
           size="sm" 

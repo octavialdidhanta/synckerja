@@ -6,8 +6,7 @@ import { ServiceKPISettings } from '@/8-3-calculator/types/kpi-templates';
 interface ConversionTemplateManagerProps {
   currentSettings: {
     conversionFrequency: string;
-    budget: string;
-    cpm: string;
+    conversionCpm: string;
     ctrLink: string;
     adsClickToVisit: string;
     whatsappClick: string;
@@ -20,29 +19,13 @@ interface ConversionTemplateManagerProps {
     remarketingAudienceSource: string;
     remarketingAudience: string;
   };
-  onLoadTemplate: (settings: {
-    conversionFrequency: string;
-    budget: string;
-    cpm: string;
-    ctrLink: string;
-    adsClickToVisit: string;
-    whatsappClick: string;
-    prospectToClient: string;
-    reservation: string;
-    crossSelling: string;
-    servicePackageValue: string;
-    serviceProfitMargin: string;
-    clientRetentionRate: string;
-    remarketingAudienceSource: string;
-    remarketingAudience: string;
-  }) => void;
+  onLoadTemplate: (settings: ConversionTemplateManagerProps['currentSettings']) => void;
 }
 
 export const ConversionTemplateManager: React.FC<ConversionTemplateManagerProps> = ({
   currentSettings,
   onLoadTemplate
 }) => {
-  // Convert conversion settings to ServiceKPISettings format for saving
   const fullSettings: ServiceKPISettings = {
     brandingBudget: '',
     brandingCpm: '',
@@ -50,8 +33,9 @@ export const ConversionTemplateManager: React.FC<ConversionTemplateManagerProps>
     brandingEngagementRate: '',
     brandingQualificationRate: '',
     conversionFrequency: currentSettings.conversionFrequency,
-    budget: currentSettings.budget,
-    cpm: currentSettings.cpm,
+    budget: '',
+    cpm: '',
+    conversionCpm: currentSettings.conversionCpm,
     ctrLink: currentSettings.ctrLink,
     adsClickToVisit: currentSettings.adsClickToVisit,
     whatsappClick: currentSettings.whatsappClick,
@@ -65,12 +49,10 @@ export const ConversionTemplateManager: React.FC<ConversionTemplateManagerProps>
     remarketingAudience: currentSettings.remarketingAudience,
   };
 
-  // Handle template load - extract only conversion fields
-  const handleLoadTemplate = (settings: ServiceKPISettings | any) => {
+  const handleLoadTemplate = (settings: ServiceKPISettings | Record<string, string>) => {
     onLoadTemplate({
       conversionFrequency: settings.conversionFrequency || '',
-      budget: settings.budget || '',
-      cpm: settings.cpm || '',
+      conversionCpm: settings.conversionCpm || settings.cpm || '',
       ctrLink: settings.ctrLink || '',
       adsClickToVisit: settings.adsClickToVisit || '',
       whatsappClick: settings.whatsappClick || '',
@@ -99,4 +81,3 @@ export const ConversionTemplateManager: React.FC<ConversionTemplateManagerProps>
     </div>
   );
 };
-

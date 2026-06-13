@@ -63,7 +63,10 @@ export function PricingToolsHeaderAndTab() {
       </div>
 
       <div className="-mb-3">
-        <nav className="flex flex-wrap gap-x-6 gap-y-1" aria-label={t("pricingTools.header.toolsNav", "Navigasi alat harga")}>
+        <nav
+          className="flex flex-wrap gap-x-6 gap-y-1"
+          aria-label={t("pricingTools.header.toolsNav", "Navigasi alat harga")}
+        >
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeId === tab.id;

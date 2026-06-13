@@ -26,7 +26,6 @@ dist-ssr
 # Env (keep secrets out of git)
 .env
 .env.*
-!.env.example
 
 # Cursor agent scratch (not source)
 .cursor/_payroll*

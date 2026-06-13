@@ -1,6 +1,4 @@
 import { useState, useCallback, useRef } from "react";
-import { History, GitCompare, Calculator } from "lucide-react";
-import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
@@ -11,6 +9,7 @@ import {
   CalculationHistoryViewer,
   MultipleProductComparison,
 } from "../components";
+import { PricingToolsViewNav, type PricingToolsView } from "../components/PricingToolsViewNav";
 import type { PricingCalculationResult, PricingCalculationInput } from "../types/pricingTypes";
 import type { SavedCalculation } from "../hooks/usePricingCalculations";
 import type { PricingWizardRef } from "../components/PricingWizard";
@@ -24,7 +23,7 @@ const PricingToolsPage = () => {
   /** Short debounce only to absorb org/bootstrap flicker; keeps skeleton ↔ live layout aligned. */
   const showContent = useDebouncedReady(!orgLoading, 120);
 
-  const [activeView, setActiveView] = useState<"calculator" | "history" | "comparison">("calculator");
+  const [activeView, setActiveView] = useState<PricingToolsView>("calculator");
   const [calculationResults, setCalculationResults] = useState<PricingCalculationResult | null>(null);
   const [calculationInput, setCalculationInput] = useState<PricingCalculationInput | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -69,41 +68,12 @@ const PricingToolsPage = () => {
 
   return (
     <PricingToolsModuleShell showContent={showContent}>
-      {/* Match synckerja-reference: toolbar above the 9+3 grid (not a third grid row). */}
-      <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="mb-2 flex shrink-0 flex-wrap gap-2 px-1">
-          <Button
-            variant={activeView === "calculator" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveView("calculator")}
-            className="text-xs"
-          >
-            <Calculator className="mr-1 h-3 w-3" />
-            {t("pricingTools.views.calculator", "Kalkulator")}
-          </Button>
-          <Button
-            variant={activeView === "history" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveView("history")}
-            className="text-xs"
-          >
-            <History className="mr-1 h-3 w-3" />
-            {t("pricingTools.views.history", "Riwayat")}
-          </Button>
-          <Button
-            variant={activeView === "comparison" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveView("comparison")}
-            className="text-xs"
-          >
-            <GitCompare className="mr-1 h-3 w-3" />
-            {t("pricingTools.views.comparison", "Perbandingan")}
-          </Button>
-        </div>
-
-        <div className="grid min-h-0 min-w-0 flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-          <div className="col-span-12 flex min-h-0 min-w-0 xl:col-span-9">
+      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+        <div className="col-span-12 flex min-h-0 min-w-0 xl:col-span-9">
             <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-primary/15 bg-card shadow-sm ring-1 ring-primary/5">
+              <div className="shrink-0 border-b border-border/60 bg-muted/20 px-4 py-3 sm:px-6">
+                <PricingToolsViewNav value={activeView} onChange={setActiveView} />
+              </div>
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className={`${MAIN_INNER_SCROLL} px-6 py-6`}>
                   {!organizationId ? (
@@ -175,7 +145,6 @@ const PricingToolsPage = () => {
             )}
           </div>
         </div>
-      </div>
     </PricingToolsModuleShell>
   );
 };

@@ -73,13 +73,13 @@ function MonthPicker({
           disabled={disabled}
           className={cn(
             buttonVariants({ variant: "outline" }),
-            "h-8 w-8 bg-white p-0 hover:bg-gray-50 transition-all duration-200 border-gray-200 hover:border-gray-300 rounded-md shadow-sm flex items-center justify-center mr-1 sm:mr-2",
+            "h-8 w-8 bg-white p-0 hover:bg-brand-blue-soft transition-all duration-200 border-gray-200 hover:border-primary/30 rounded-md shadow-sm flex items-center justify-center mr-1 sm:mr-2",
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >
-          <ChevronLeft className="h-4 w-4 text-gray-700" />
+          <ChevronLeft className="h-4 w-4 text-brand-blue-deep" />
         </button>
-        <span className={cn("font-semibold text-gray-800 text-center", compact ? "text-sm mx-2 min-w-[56px]" : "text-base sm:text-lg mx-2 sm:mx-4 min-w-[64px] sm:min-w-[80px]")}>
+        <span className={cn("font-semibold text-brand-blue-deep text-center", compact ? "text-sm mx-2 min-w-[56px]" : "text-base sm:text-lg mx-2 sm:mx-4 min-w-[64px] sm:min-w-[80px]")}>
           {currentYear}
         </span>
         <button
@@ -88,11 +88,11 @@ function MonthPicker({
           disabled={disabled}
           className={cn(
             buttonVariants({ variant: "outline" }),
-            "h-8 w-8 bg-white p-0 hover:bg-gray-50 transition-all duration-200 border-gray-200 hover:border-gray-300 rounded-md shadow-sm flex items-center justify-center ml-1 sm:ml-2",
+            "h-8 w-8 bg-white p-0 hover:bg-brand-blue-soft transition-all duration-200 border-gray-200 hover:border-primary/30 rounded-md shadow-sm flex items-center justify-center ml-1 sm:ml-2",
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >
-          <ChevronRight className="h-4 w-4 text-gray-700" />
+          <ChevronRight className="h-4 w-4 text-brand-blue-deep" />
         </button>
       </div>
 
@@ -112,14 +112,14 @@ function MonthPicker({
               disabled={disabled}
               className={cn(
                 "font-medium rounded-md transition-all duration-200 border touch-manipulation",
-                "hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
+                "hover:bg-brand-blue-soft focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
                 compact ? "h-10 min-h-[44px] px-2 py-2 text-xs" : "h-9 sm:h-12 min-h-[44px] sm:min-h-0 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm",
                 // Default styling
                 !isSelected && !isCurrentMonth && "border-gray-200 text-gray-700 bg-white",
                 // Current month styling (not selected)
-                isCurrentMonth && !isSelected && "border-blue-300 text-blue-700 bg-blue-50",
+                isCurrentMonth && !isSelected && "border-primary/30 text-brand-blue-on-soft bg-brand-blue-soft",
                 // Selected month styling
-                isSelected && "bg-gradient-to-br from-blue-500 to-blue-600 text-white border-blue-600 font-semibold shadow-md",
+                isSelected && "bg-primary text-primary-foreground border-primary font-semibold shadow-md",
                 // Disabled styling
                 disabled && "opacity-50 cursor-not-allowed hover:bg-transparent"
               )}

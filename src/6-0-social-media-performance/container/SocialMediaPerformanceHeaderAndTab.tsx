@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ModuleTabNavItem } from "@/shared/auth/page-access/ModuleTabNavItem";
+import { ThreadsTabIcon } from "@/6-0-social-media-performance/components/ThreadsTabIcon";
 import { TikTokTabIcon } from "@/6-0-traffic/container/TikTokTabIcon";
 import { cn } from "@/shared/lib/utils";
 
@@ -112,6 +113,22 @@ export function SocialMediaPerformanceHeaderAndTab({
             <span>
               {t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram")}
             </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={false}
+            aria-disabled
+            onClick={showComingSoon}
+            title={t(
+              "digitalMarketing.socialMediaPerformance.platformThreadsHint",
+              "Threads organic insights",
+            )}
+            className={cn(tabClass, tabDisabled)}
+            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+          >
+            <ThreadsTabIcon className="h-4 w-4 shrink-0" />
+            <span>{t("digitalMarketing.socialMediaPerformance.platformThreads", "Threads")}</span>
           </button>
           <ModuleTabNavItem
             pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}

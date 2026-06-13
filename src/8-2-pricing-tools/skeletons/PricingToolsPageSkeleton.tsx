@@ -24,35 +24,34 @@ export function PricingToolsPageSkeleton() {
         <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
         <div className={`${MAIN_SCROLL} min-w-0`}>
           <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
-            {/* Match `PricingToolsHeaderAndTab`: px-1 py-3, title block, three tabs */}
+            {/* Match `PricingToolsHeaderAndTab` — same as Default Prices header rhythm */}
             <div className="mb-1 min-w-0 shrink-0">
               <div className="px-1 py-3">
                 <div className="mb-3">
                   <Skeleton className="mb-1 h-7 w-56 max-w-full" />
                   <Skeleton className="h-3 w-80 max-w-full" />
                 </div>
-                <div className="-mb-3 flex flex-wrap gap-x-6 gap-y-1">
-                  <Skeleton className="h-8 w-36 max-w-[32%]" />
-                  <Skeleton className="h-8 w-36 max-w-[32%]" />
-                  <Skeleton className="h-8 w-40 max-w-[32%]" />
+                <div className="-mb-3">
+                  <div className="flex flex-wrap gap-x-6 gap-y-1">
+                    <Skeleton className="h-8 w-36 max-w-[32%]" />
+                    <Skeleton className="h-8 w-36 max-w-[32%]" />
+                    <Skeleton className="h-8 w-40 max-w-[32%]" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Same outer grid as shell: `PricingToolsPage` is single col-span-12 child */}
+            {/* Same outer grid as `PricingToolsPage` (inside ModuleShellContentGate) */}
             <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-              <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
-                {/* View toolbar — same as live page */}
-                <div className="mb-2 flex shrink-0 flex-wrap gap-2 px-1">
-                  <Skeleton className="h-8 w-[5.75rem] rounded-md" />
-                  <Skeleton className="h-8 w-[5.75rem] rounded-md" />
-                  <Skeleton className="h-8 w-[6.5rem] rounded-md" />
-                </div>
-
-                <div className="grid min-h-0 min-w-0 flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  {/* Main column — card shell matches `PricingToolsPage` */}
-                  <div className="col-span-12 flex min-h-0 min-w-0 xl:col-span-9">
+              <div className="col-span-12 flex min-h-0 min-w-0 xl:col-span-9">
                     <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-primary/15 bg-card shadow-sm ring-1 ring-primary/5">
+                      <div className="shrink-0 border-b border-border/60 bg-muted/20 px-4 py-3 sm:px-6">
+                        <div className="inline-flex w-full max-w-lg gap-1 rounded-lg border border-border/70 bg-muted/40 p-1">
+                          <Skeleton className="h-9 flex-1 rounded-md sm:w-[5.75rem] sm:flex-none" />
+                          <Skeleton className="h-9 flex-1 rounded-md sm:w-[5.75rem] sm:flex-none" />
+                          <Skeleton className="h-9 flex-1 rounded-md sm:w-[6.5rem] sm:flex-none" />
+                        </div>
+                      </div>
                       <div className="flex min-h-0 flex-1 flex-col">
                         <div className={`${MAIN_INNER_SCROLL} px-6 py-6`}>
                           <div className="space-y-4">
@@ -152,8 +151,6 @@ export function PricingToolsPageSkeleton() {
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
             </div>
 
           </div>

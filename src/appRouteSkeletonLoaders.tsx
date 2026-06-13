@@ -353,6 +353,30 @@ export const TikTokAdsMetricsPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const TikTokShopSettingsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-tiktok-shop/skeletons/TikTokShopSettingsPageSkeleton").then((m) => ({
+    default: m.TikTokShopSettingsPageSkeleton,
+  })),
+);
+
+export const TikTokShopDashboardPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-tiktok-shop/skeletons/TikTokShopDashboardPageSkeleton").then((m) => ({
+    default: m.TikTokShopDashboardPageSkeleton,
+  })),
+);
+
+export const TikTokShopProductsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-tiktok-shop/skeletons/TikTokShopProductsPageSkeleton").then((m) => ({
+    default: m.TikTokShopProductsPageSkeleton,
+  })),
+);
+
+export const StockManagementDashboardSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-stock-management/skeletons/StockManagementDashboardSkeleton").then((m) => ({
+    default: m.StockManagementDashboardSkeleton,
+  })),
+);
+
 export const SocialMediaPerformanceHubPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-social-media-performance/skeletons/SocialMediaPerformanceHubPageSkeleton").then(
     (m) => ({

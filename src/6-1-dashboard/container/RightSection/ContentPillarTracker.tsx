@@ -269,27 +269,33 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
                   {pillar.pillar_name}
                 </span>
                 <div className="flex items-end justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-end gap-1.5">
+                  <div className="flex min-w-0 flex-1 items-center gap-1">
                     {pillar.category?.trim() ? (
-                      <span className="min-w-0 flex-1 truncate text-xs leading-tight text-gray-500">
-                        {pillar.category.trim()}
-                      </span>
+                      <>
+                        <span className="min-w-0 truncate text-xs leading-tight text-gray-500">
+                          {pillar.category.trim()}
+                        </span>
+                        <InfoDescriptionPopover
+                          title={pillar.pillar_name}
+                          description={pillar.description?.trim() || noDescriptionText}
+                          ariaLabel={t('socialMedia.contentPillarTracker.pillarInfoAria', 'View pillar description')}
+                        />
+                      </>
                     ) : (
-                      <span className="min-w-0 flex-1" aria-hidden />
+                      <InfoDescriptionPopover
+                        title={pillar.pillar_name}
+                        description={pillar.description?.trim() || noDescriptionText}
+                        ariaLabel={t('socialMedia.contentPillarTracker.pillarInfoAria', 'View pillar description')}
+                      />
                     )}
-                    <InfoDescriptionPopover
-                      title={pillar.pillar_name}
-                      description={pillar.description?.trim() || noDescriptionText}
-                      ariaLabel={t('socialMedia.contentPillarTracker.pillarInfoAria', 'View pillar description')}
-                    />
+                  </div>
+                  <div className="flex shrink-0 items-end gap-2 leading-none">
                     {pillar.isDefault && (
-                      <div className="flex shrink-0 items-center">
+                      <div className="flex items-center">
                         <Shield className="h-3 w-3 text-blue-500" />
                         <span className="ml-1 text-xs leading-tight text-blue-600">Default</span>
                       </div>
                     )}
-                  </div>
-                  <div className="flex shrink-0 items-end gap-2 leading-none">
                     <span className="text-sm font-medium text-gray-900">{pillar.count}</span>
                     <span>{selectedConfig.emoji}</span>
                   </div>

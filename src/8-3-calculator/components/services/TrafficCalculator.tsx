@@ -4,6 +4,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
+import { calculateTrafficResults } from '@/8-3-calculator/lib/servicesCalculatorMath';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { TrafficTemplateManager } from './TrafficTemplateManager';
@@ -260,62 +261,24 @@ const TrafficCalculator = ({
   }, [budget, cpm, cpc, ctrLink, adsClickToVisit, adType]);
 
   const calculateResults = () => {
-    const budgetNum = currencyStringToNumber(budget);
-    const adsClickToVisitNum = percentageStringToNumber(adsClickToVisit);
-
-    let impressions = 0;
-    let adClicks = 0;
-    let costPerClick = 0;
-
-    if (adType === 'meta') {
-      // Meta Ads: CPM-based calculation (CTR-driven)
-      const cpmNum = currencyStringToNumber(cpm) || 1;
-      const ctrLinkNum = percentageStringToNumber(ctrLink);
-      
-      impressions = Math.floor((budgetNum / cpmNum) * 1000);
-      adClicks = Math.floor(impressions * (ctrLinkNum / 100));
-      costPerClick = adClicks > 0 ? budgetNum / adClicks : 0;
-    } else {
-      // Google Ads: CTR-driven calculation
-      // CPC is calculated based on CTR (higher CTR = better Quality Score = lower CPC)
-      const ctrLinkNum = percentageStringToNumber(ctrLink);
-      const baseCpcNum = currencyStringToNumber(cpc);
-      
-      if (baseCpcNum > 0) {
-        // Google Ads: CPC-based calculation (no discount)
-        // Base CPC = Actual CPC (what you pay)
-        // CTR only affects Ad Clicks and Impressions calculation
-        costPerClick = baseCpcNum;
-        
-        // Calculate Ad Clicks from Budget and CPC
-        adClicks = Math.floor(budgetNum / baseCpcNum);
-        
-        // Calculate Impressions from Ad Clicks and CTR
-        if (ctrLinkNum > 0) {
-          impressions = Math.floor((adClicks / ctrLinkNum) * 100);
-        } else {
-          impressions = 0;
-        }
-      } else {
-        // If Base CPC is not set, show 0
-        adClicks = 0;
-        costPerClick = 0;
-        impressions = 0;
-      }
-    }
-
-    const websiteVisitors = Math.floor(adClicks * (adsClickToVisitNum / 100));
-
-    setResults({
-      impressions,
-      adClicks,
-      websiteVisitors,
-      costPerClick,
+    const next = calculateTrafficResults({
+      adType,
+      budget: currencyStringToNumber(budget),
+      cpm: currencyStringToNumber(cpm),
+      cpc: currencyStringToNumber(cpc),
+      ctrLink: percentageStringToNumber(ctrLink),
+      adsClickToVisit: percentageStringToNumber(adsClickToVisit),
     });
 
-    // Notify parent of website visitors changes
+    setResults({
+      impressions: next.impressions,
+      adClicks: next.adClicks,
+      websiteVisitors: next.websiteVisitors,
+      costPerClick: next.costPerClick,
+    });
+
     if (onWebsiteVisitorsChange) {
-      onWebsiteVisitorsChange(websiteVisitors);
+      onWebsiteVisitorsChange(next.websiteVisitors);
     }
   };
 

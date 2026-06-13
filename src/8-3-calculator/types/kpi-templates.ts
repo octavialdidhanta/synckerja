@@ -36,6 +36,7 @@ export interface ServiceKPISettings {
   conversionFrequency: string;
   budget: string;
   cpm: string;
+  conversionCpm?: string;
   cpc?: string;
   ctrLink: string;
   adsClickToVisit: string;

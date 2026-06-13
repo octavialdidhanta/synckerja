@@ -165,6 +165,27 @@ verify_jwt = false
 [functions.tiktok-content-metrics]
 verify_jwt = false
 
+# TikTok Shop: user JWT validated inside; OAuth callback has no JWT.
+[functions.tiktok-shop-oauth-start]
+verify_jwt = false
+
+[functions.tiktok-shop-oauth-callback]
+verify_jwt = false
+
+[functions.tiktok-shop-config]
+verify_jwt = false
+
+[functions.tiktok-shop-metrics]
+verify_jwt = false
+
+[functions.tiktok-shop-catalog]
+verify_jwt = false
+
+[functions.stock-management-api]
+verify_jwt = false
+
+# stock-sync-worker and stock-order-ingest merged into stock-management-api (processSyncQueue, pollTikTokOrders)
+
 # YouTube Content Insight: user JWT validated inside; OAuth callback has no JWT.
 [functions.youtube-content-oauth-start]
 verify_jwt = false

@@ -170,6 +170,8 @@ export default defineConfig(({ mode }) => {
             return "vendor-react";
           }
           if (id.includes("@supabase")) return "vendor-supabase";
+          if (id.includes("sonner")) return "vendor-sonner";
+          if (id.includes("@capacitor")) return "vendor-capacitor";
           if (id.includes("date-fns")) return "vendor-date";
           if (id.includes("i18next")) return "vendor-i18n";
           if (id.includes("xlsx")) return "vendor-xlsx";

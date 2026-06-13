@@ -5,6 +5,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
+import { calculateEngagementResults } from '@/8-3-calculator/lib/servicesCalculatorMath';
 import { EngagementTemplateManager } from './EngagementTemplateManager';
 
 const normalizeCurrencyValue = (value: string) => value.replace(/[^\d]/g, '');
@@ -240,37 +241,15 @@ const EngagementCalculator = ({
   }, [results.brandingWarmAudience, onWarmAudienceChange]);
 
   const calculateResults = () => {
-    const brandingBudgetNum = currencyStringToNumber(brandingBudget);
-    const brandingCpmNum = currencyStringToNumber(brandingCpm) || 1;
-    const brandingFrequencyNum = floatStringToNumber(brandingFrequency);
-    const brandingEngagementRateNum = percentageStringToNumber(brandingEngagementRate);
-    const brandingQualificationRateNum = percentageStringToNumber(brandingQualificationRate);
-
-    // If frequency is 0 or less, all results should be 0
-    if (brandingFrequencyNum <= 0) {
-      setResults({
-        brandingImpressions: 0,
-        brandingReach: 0,
-        brandingEngagements: 0,
-        brandingWarmAudience: 0,
-        brandingCostPerEngagement: 0,
-      });
-      return;
-    }
-
-    const brandingImpressions = Math.floor((brandingBudgetNum / brandingCpmNum) * 1000);
-    const brandingReach = Math.floor(brandingImpressions / brandingFrequencyNum);
-    const brandingEngagements = Math.floor(brandingReach * (brandingEngagementRateNum / 100));
-    const brandingWarmAudience = Math.floor(brandingEngagements * (brandingQualificationRateNum / 100));
-    const brandingCostPerEngagement = brandingEngagements > 0 ? brandingBudgetNum / brandingEngagements : 0;
-
-    setResults({
-      brandingImpressions,
-      brandingReach,
-      brandingEngagements,
-      brandingWarmAudience,
-      brandingCostPerEngagement,
+    const next = calculateEngagementResults({
+      brandingBudget: currencyStringToNumber(brandingBudget),
+      brandingCpm: currencyStringToNumber(brandingCpm),
+      brandingFrequency: floatStringToNumber(brandingFrequency),
+      brandingEngagementRate: percentageStringToNumber(brandingEngagementRate),
+      brandingQualificationRate: percentageStringToNumber(brandingQualificationRate),
     });
+
+    setResults(next);
   };
 
   const handleResetBranding = () => {

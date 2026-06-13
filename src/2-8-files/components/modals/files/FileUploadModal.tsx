@@ -6,6 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFormScrollArea,
+  DialogClose,
 } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -788,12 +790,18 @@ export const FileUploadModal = ({
     }
 
     return (
-      <div className="flex-shrink-0 border-t bg-muted/30 px-6 pb-6 pt-4">
-        <div className="flex items-center justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose} disabled={uploading}>
+      <div className="flex-shrink-0 border-t bg-muted/30 px-4 py-3">
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={uploading}>
             {t('profile.myFiles.cancelButton', 'Cancel')}
           </Button>
-          <Button type="button" onClick={handleUpload} disabled={submitDisabled} className="min-w-[120px]">
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleUpload}
+            disabled={submitDisabled}
+            className="min-w-[108px]"
+          >
             {uploading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -816,10 +824,10 @@ export const FileUploadModal = ({
         className={cn(
           isMobile
             ? profileFullscreenDialogContentClass(true)
-            : 'flex h-[600px] max-h-[90vh] w-[600px] max-w-[90vw] flex-col p-0',
+            : 'flex h-[600px] max-h-[90vh] w-[600px] max-w-[90vw] flex-col gap-0 overflow-hidden p-0',
         )}
         fullscreenAnimation={isMobile}
-        hideCloseButton={isMobile}
+        hideCloseButton
       >
         {isMobile ? (
           <ProfileDetailModalHeader
@@ -830,14 +838,14 @@ export const FileUploadModal = ({
             onClose={onClose}
           />
         ) : (
-          <DialogHeader className="flex-shrink-0 border-b border-border bg-gradient-to-r from-accent/80 to-primary/5 px-6 pb-4 pt-6 dark:from-accent/20 dark:to-primary/10">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Upload className="h-5 w-5 text-primary" />
+          <DialogHeader className="flex shrink-0 flex-row items-center justify-between space-y-0 border-b border-border bg-gradient-to-r from-accent/80 to-primary/5 px-4 py-2.5 dark:from-accent/20 dark:to-primary/10">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 pr-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                <Upload className="h-4 w-4 text-primary" />
               </div>
-              <div>
-                <DialogTitle className="text-xl font-semibold">{modalTitle}</DialogTitle>
-                <DialogDescription className="mt-1 text-sm text-muted-foreground">
+              <div className="min-w-0">
+                <DialogTitle className="text-base font-semibold leading-tight">{modalTitle}</DialogTitle>
+                <DialogDescription className="mt-0.5 text-xs leading-snug text-muted-foreground">
                   {sourceType === 'upload'
                     ? t(
                         'profile.myFiles.uploadSubtitle',
@@ -850,28 +858,25 @@ export const FileUploadModal = ({
                 </DialogDescription>
               </div>
             </div>
+            <DialogClose
+              className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
+                'opacity-80 ring-offset-background transition-opacity hover:opacity-100',
+                'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+              )}
+            >
+              <X className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="sr-only">{t('layout.sheetClose', 'Close')}</span>
+            </DialogClose>
           </DialogHeader>
         )}
 
-        <div className={cn(isMobile && 'flex min-h-0 flex-1 flex-col')}>
-          <div
-            className={cn(
-              isMobile
-                ? profileFullscreenScrollBodyClass()
-                : 'flex-1 overflow-y-auto px-6 py-6',
-            )}
-            style={
-              isMobile
-                ? undefined
-                : {
-                    scrollbarWidth: 'thin',
-                    scrollBehavior: 'smooth',
-                    scrollbarColor: '#d1d5db transparent',
-                  }
-            }
-          >
-            {renderFormBody()}
-          </div>
+        <div className="flex min-h-0 flex-1 flex-col">
+          {isMobile ? (
+            <div className={profileFullscreenScrollBodyClass()}>{renderFormBody()}</div>
+          ) : (
+            <DialogFormScrollArea className="px-4 py-4">{renderFormBody()}</DialogFormScrollArea>
+          )}
           {renderFooter()}
         </div>
 

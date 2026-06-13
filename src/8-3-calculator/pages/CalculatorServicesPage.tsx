@@ -17,6 +17,7 @@ const CalculatorServicesPage = () => {
     conversionFrequency: "",
     budget: "",
     cpm: "",
+    conversionCpm: "",
     cpc: "",
     ctrLink: "",
     adsClickToVisit: "",
@@ -98,8 +99,8 @@ const CalculatorServicesPage = () => {
                     <ConversionCalculator
                       initialSettings={{
                         conversionFrequency: servicesSettings.conversionFrequency,
-                        budget: servicesSettings.budget,
-                        cpm: servicesSettings.cpm,
+                        conversionCpm:
+                          servicesSettings.conversionCpm || servicesSettings.cpm,
                         ctrLink: servicesSettings.ctrLink,
                         adsClickToVisit: servicesSettings.adsClickToVisit,
                         whatsappClick: servicesSettings.whatsappClick,
@@ -116,8 +117,7 @@ const CalculatorServicesPage = () => {
                         setServicesSettings((prev) => ({
                           ...prev,
                           conversionFrequency: settings.conversionFrequency,
-                          budget: settings.budget,
-                          cpm: settings.cpm,
+                          conversionCpm: settings.conversionCpm,
                           ctrLink: settings.ctrLink,
                           adsClickToVisit: settings.adsClickToVisit,
                           whatsappClick: settings.whatsappClick,

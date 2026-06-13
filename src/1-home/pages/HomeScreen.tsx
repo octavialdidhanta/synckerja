@@ -142,7 +142,9 @@ function HomeDesktopGrid() {
       </div>
 
       <div className="col-span-6 flex h-full min-h-0 flex-col">
-        <HomeOkrPanel />
+        <DeferredMount fallback={<OkrPanelPlaceholder />} idleTimeoutMs={700} delayMs={60}>
+          <HomeOkrPanel />
+        </DeferredMount>
       </div>
 
       <div className="col-span-3 flex h-full min-h-0 flex-col">
@@ -162,7 +164,9 @@ function HomeMobileStack() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <SectionProfile />
-      <HomeOkrPanel />
+      <DeferredMount fallback={<OkrPanelPlaceholder />} idleTimeoutMs={900} delayMs={80}>
+        <HomeOkrPanel />
+      </DeferredMount>
       <DeferredMount fallback={<ActivityColumnPlaceholder />} idleTimeoutMs={1200} delayMs={120}>
         <Suspense fallback={<ActivityColumnPlaceholder />}>
           <div className="min-h-[320px] shrink-0">

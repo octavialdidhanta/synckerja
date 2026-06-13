@@ -119,7 +119,7 @@ export function initI18n(options?: InitI18nOptions): Promise<typeof i18n> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    const preferFastBoot = options?.preferFastBoot ?? isPublicAuthRoute();
+    const preferFastBoot = options?.preferFastBoot ?? true;
     const initialLng = resolveInitialLanguage();
     const otherLng: AppLanguage = initialLng === "en" ? "id" : "en";
     const jsonInitial = await loadLocaleJson(initialLng);
@@ -138,7 +138,7 @@ export function initI18n(options?: InitI18nOptions): Promise<typeof i18n> {
     if (preferFastBoot) {
       scheduleIdleTask(() => {
         void ensureLocaleBundleReady(initialLng);
-      }, 1500);
+      }, 400);
     } else {
       await ensureLocaleBundleReady(initialLng);
     }

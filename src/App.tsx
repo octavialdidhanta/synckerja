@@ -7,8 +7,8 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { Toaster as Sonner } from "@/shared/components/ui/sonner";
-import { Toaster } from "@/shared/components/ui/toaster";
+import { DeferredAppToasters } from "@/shared/components/DeferredAppToasters";
+import { DeferredNativeAppServices } from "@/shared/components/DeferredNativeAppServices";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { RequireAuth } from "@/shared/components/RequireAuth";
 import {
@@ -20,13 +20,8 @@ import { CapacitorKeyboardInsetProvider } from "@/shared/native/useCapacitorKeyb
 import { NativeAppDisplayInit } from "@/shared/components/mobile/NativeAppDisplayInit";
 import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVars";
 import { NativeBootstrapSplashGate } from "@/shared/components/mobile/NativeBootstrapSplashGate";
-import { NativeFcmRegistration } from "@/shared/native/NativeFcmRegistration";
 import { ShareIntentRouteSync } from "@/shared/native/ShareIntentRouteSync";
-import { NativeGoogleAuthInit } from "@/0-auth/native/NativeGoogleAuthInit";
-import { NativeSupabaseOAuthBridge } from "@/0-auth/native/NativeSupabaseOAuthBridge";
-import { NativeNotificationTapBridge } from "@/shared/native/NativeNotificationTapBridge";
 import { AdaptiveAppLayout } from "@/shared/layouts";
-import { DigitalMarketingPaidAdsLayout } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsLayout";
 import NotFound from "@/shared/pages/NotFound";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
@@ -65,6 +60,10 @@ import {
   GoogleAdsMetricsPageSkeleton,
   MetaAdsMetricsPageSkeleton,
   TikTokAdsMetricsPageSkeleton,
+  TikTokShopSettingsPageSkeleton,
+  TikTokShopDashboardPageSkeleton,
+  TikTokShopProductsPageSkeleton,
+  StockManagementDashboardSkeleton,
   SocialMediaPerformanceHubPageSkeleton,
   TikTokContentPerformancePageSkeleton,
   YouTubeContentPerformancePageSkeleton,
@@ -158,6 +157,16 @@ const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
 const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
 const MetaAdsMetricsPage = lazy(() => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"));
 const TikTokAdsMetricsPage = lazy(() => import("@/6-0-tiktok-ads/pages/TikTokAdsMetricsPage"));
+const TikTokShopSettingsPage = lazy(() => import("@/6-0-tiktok-shop/pages/TikTokShopSettingsPage"));
+const TikTokShopDashboardPage = lazy(() => import("@/6-0-tiktok-shop/pages/TikTokShopDashboardPage"));
+const TikTokShopProductsPage = lazy(() => import("@/6-0-tiktok-shop/pages/TikTokShopProductsPage"));
+const StockManagementDashboardPage = lazy(
+  () => import("@/6-0-stock-management/pages/StockManagementDashboardPage"),
+);
+const StockPlatformMappingPage = lazy(
+  () => import("@/6-0-stock-management/pages/StockPlatformMappingPage"),
+);
+const StockSyncLogsPage = lazy(() => import("@/6-0-stock-management/pages/StockSyncLogsPage"));
 const SocialMediaPerformanceHubPage = lazy(
   () => import("@/6-0-social-media-performance/pages/SocialMediaPerformanceHubPage"),
 );
@@ -187,6 +196,11 @@ const DigitalMarketingReportPage = lazy(
 );
 const DigitalMarketingReportTargetsSettingsPage = lazy(
   () => import("@/6-0-report/pages/DigitalMarketingReportTargetsSettingsPage"),
+);
+const DigitalMarketingPaidAdsLayout = lazy(() =>
+  import("@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsLayout").then((m) => ({
+    default: m.DigitalMarketingPaidAdsLayout,
+  })),
 );
 const MobileWebTrafficPage = lazy(() => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPage"));
 const MobileWebTrafficPageSkeleton = lazy(
@@ -1711,6 +1725,90 @@ function TikTokAdsMetricsPageRouteElement() {
   );
 }
 
+function TikTokShopDashboardPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <TikTokShopDashboardPageSkeleton />
+        </div>
+      }
+    >
+      <TikTokShopDashboardPage />
+    </Suspense>
+  );
+}
+
+function StockManagementDashboardPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <StockManagementDashboardSkeleton />
+        </div>
+      }
+    >
+      <StockManagementDashboardPage />
+    </Suspense>
+  );
+}
+
+function StockPlatformMappingPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <StockManagementDashboardSkeleton />
+        </div>
+      }
+    >
+      <StockPlatformMappingPage />
+    </Suspense>
+  );
+}
+
+function StockSyncLogsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <StockManagementDashboardSkeleton />
+        </div>
+      }
+    >
+      <StockSyncLogsPage />
+    </Suspense>
+  );
+}
+
+function TikTokShopProductsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <TikTokShopProductsPageSkeleton />
+        </div>
+      }
+    >
+      <TikTokShopProductsPage />
+    </Suspense>
+  );
+}
+
+function TikTokShopSettingsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <TikTokShopSettingsPageSkeleton />
+        </div>
+      }
+    >
+      <TikTokShopSettingsPage />
+    </Suspense>
+  );
+}
+
 function SocialMediaPerformanceHubPageRouteElement() {
   return (
     <Suspense
@@ -1960,15 +2058,13 @@ const App = () => (
       <NativeAppDisplayInit />
       <NativeSafeAreaCssVarsInit />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <Toaster />
-        <Sonner />
+        <DeferredAppToasters />
         <AuthProvider>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CentralizedUserDataProvider>
             <PermissionConfigurationProvider>
               <CurrentOrgProvider>
               <NativeBootstrapSplashGate />
-              <NativeFcmRegistration />
               <BrowserRouter
                 future={{
                   v7_relativeSplatPath: true,
@@ -1978,9 +2074,7 @@ const App = () => (
               <LanguageProvider>
                 <ShareIntentRouteSync />
                 <CentralizedUserDataPathSync />
-                <NativeGoogleAuthInit />
-                <NativeSupabaseOAuthBridge />
-                <NativeNotificationTapBridge />
+                <DeferredNativeAppServices />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <Suspense
                     fallback={
@@ -3035,7 +3129,13 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
-                        <Route element={<DigitalMarketingPaidAdsLayout />}>
+                        <Route
+                          element={
+                            <Suspense fallback={<StandardRouteLoadingShell />}>
+                              <DigitalMarketingPaidAdsLayout />
+                            </Suspense>
+                          }
+                        >
                           <Route
                             path="/digital-marketing/traffic"
                             element={
@@ -3121,6 +3221,86 @@ const App = () => (
                                 <TikTokAdsMetricsPageRouteElement />
                               </PageAccessGuard>
                             }
+                          />
+                          <Route
+                            path="/operations/sales/tiktok-shop"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/tiktok-shop"
+                                loadingShell={<TikTokShopDashboardPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokShopDashboardPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/operations/sales/stock-management"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/stock-management"
+                                loadingShell={<StockManagementDashboardSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <StockManagementDashboardPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/operations/sales/stock-management/mapping"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/stock-management"
+                                loadingShell={<StockManagementDashboardSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <StockPlatformMappingPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/operations/sales/stock-management/sync-logs"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/stock-management"
+                                loadingShell={<StockManagementDashboardSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <StockSyncLogsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/operations/sales/tiktok-shop/products"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/tiktok-shop"
+                                loadingShell={<TikTokShopProductsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokShopProductsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/operations/sales/tiktok-shop/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/tiktok-shop"
+                                loadingShell={<TikTokShopSettingsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <TikTokShopSettingsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/tiktok-shop/settings"
+                            element={<Navigate to="/operations/sales/tiktok-shop/settings" replace />}
+                          />
+                          <Route
+                            path="/digital-marketing/tiktok-shop"
+                            element={<Navigate to="/operations/sales/tiktok-shop" replace />}
                           />
                           <Route
                             path="/digital-marketing/social-media-performance/manage-comments/tiktok/settings"

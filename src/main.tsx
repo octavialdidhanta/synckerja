@@ -45,13 +45,7 @@ deferRegisterServiceWorker();
 const surveyHost = import.meta.env.VITE_PUBLIC_SURVEY_HOSTNAME?.trim();
 const rootEl = document.getElementById("root")!;
 
-const preferFastI18nBoot =
-  typeof window !== "undefined" &&
-  /^\/(?:login|register|forgot-password|reset-password|verify-email|email-verified|terms-and-conditions)(?:\/|$)/.test(
-    window.location.pathname,
-  );
-
-void initI18n({ preferFastBoot: preferFastI18nBoot }).then((i18n) => {
+void initI18n({ preferFastBoot: true }).then((i18n) => {
   const isSurveyHost =
     typeof window !== "undefined" &&
     surveyHost &&
