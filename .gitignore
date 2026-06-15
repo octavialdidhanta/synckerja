@@ -47,3 +47,5 @@ supabase/.mcp-deploy-tmp/
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
