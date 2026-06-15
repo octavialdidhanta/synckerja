@@ -10,6 +10,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { useDebts } from '../hooks';
 import { DebtTable, DebtForm, DebtPaymentHistoryModal } from '../components';
+import { BrickImportSettingsPanel } from '../components/BrickImportSettingsPanel';
 import { DebtPaymentModal } from '../components/DebtPaymentModal';
 import { Debt, CreateDebtData, UpdateDebtData } from '../types';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
@@ -23,6 +24,9 @@ import {
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { debtDisplayBalance, resolveDebtDisplay } from '../utils/resolveDebtDisplay';
+import { useBrickFinancialOAuth } from '@/shared/hooks/finance/useBrickFinancialOAuth';
+import { useBrickOAuthReturn } from '@/4-1-transaction/hooks/useBrickOAuthReturn';
+import { useToast } from '@/shared/components/ui/use-toast';
 
 /**
  * Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`):
@@ -67,6 +71,40 @@ export const DebtPage = () => {
   const showShellContent = useDebouncedReady(!showFullPageSkeleton);
   const { user } = useCurrentUser();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [brickBusyId, setBrickBusyId] = useState<string | null>(null);
+  const { startOAuth, unlinkBrick, syncBrick } = useBrickFinancialOAuth();
+
+  useBrickOAuthReturn('debt', refetchDebts);
+
+  const handleLinkBrickDebt = async (debt: Debt) => {
+    setBrickBusyId(debt.id);
+    try {
+      await startOAuth({ targetType: 'debt', targetId: debt.id, returnPath: '/expenses/debt' });
+    } finally {
+      setBrickBusyId(null);
+    }
+  };
+
+  const handleUnlinkBrickDebt = async (debt: Debt) => {
+    setBrickBusyId(debt.id);
+    try {
+      await unlinkBrick({ targetType: 'debt', targetId: debt.id });
+      await refetchDebts();
+    } finally {
+      setBrickBusyId(null);
+    }
+  };
+
+  const handleSyncBrickDebt = async (debt: Debt) => {
+    setBrickBusyId(debt.id);
+    try {
+      await syncBrick({ debtId: debt.id });
+      await refetchDebts();
+    } finally {
+      setBrickBusyId(null);
+    }
+  };
 
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);
@@ -295,6 +333,10 @@ export const DebtPage = () => {
                       </div>
                     </div>
 
+                    <div className="flex-shrink-0">
+                      <BrickImportSettingsPanel />
+                    </div>
+
                     <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
                       <DebtTable
                         debts={debts}
@@ -305,6 +347,10 @@ export const DebtPage = () => {
                         onDelete={handleDeleteClick}
                         onViewDetails={handleViewDetails}
                         onPaidClick={setPaymentHistoryDebt}
+                        onLinkBrick={handleLinkBrickDebt}
+                        onUnlinkBrick={handleUnlinkBrickDebt}
+                        onSyncBrick={handleSyncBrickDebt}
+                        brickBusyId={brickBusyId}
                       />
                     </div>
                   </div>

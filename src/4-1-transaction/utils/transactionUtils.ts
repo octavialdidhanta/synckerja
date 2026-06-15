@@ -11,6 +11,7 @@ export interface IncomeTransaction {
   amount: number;
   status: string;
   transaction_date: string;
+  deposit_confirmed_at?: string | null;
   income_type_id?: string | null;
   category_id?: string | null;
   bank_account_id?: string | null;

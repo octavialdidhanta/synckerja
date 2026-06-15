@@ -64,7 +64,10 @@ export function IncomeTransactionPage() {
   }, [incomeTransactions, filters]);
 
   const needsAllocationCount = useMemo(
-    () => incomeTransactions.filter((tx) => isIncomeAllocationIncomplete(tx)).length,
+    () =>
+      incomeTransactions.filter(
+        (tx) => tx.status === 'deposited' && isIncomeAllocationIncomplete(tx),
+      ).length,
     [incomeTransactions],
   );
 

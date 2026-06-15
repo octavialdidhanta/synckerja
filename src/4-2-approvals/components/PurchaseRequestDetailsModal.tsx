@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogClose,
@@ -11,7 +11,6 @@ import {
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Separator } from '@/shared/components/ui/separator';
@@ -19,11 +18,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/components/ui
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format } from 'date-fns';
 import { PurchaseRequest, useUpdatePurchaseRequestStatus } from '@/9-request-form/hooks/usePurchaseRequests';
-import { useExpenseTypes } from '@/shared/hooks/finance/useExpenseTypes';
-import { useExpenseCategories } from '@/shared/hooks/finance/useExpenseCategories';
-import { useDebtsForExpense } from '@/shared/hooks/finance/useDebtsForExpense';
-import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
-import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { useCurrentUserRole } from '@/shared/hooks/useCurrentUserRole';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -54,40 +48,15 @@ interface PurchaseRequestDetailsModalProps {
 }
 
 export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: PurchaseRequestDetailsModalProps) => {
-  const [selectedExpenseTypeId, setSelectedExpenseTypeId] = useState<string>(request?.expense_type_id || '');
-  const [selectedExpenseCategoryId, setSelectedExpenseCategoryId] = useState<string>(request?.expense_category_id || '');
-  const [selectedWithdrawalFromBalance, setSelectedWithdrawalFromBalance] = useState<string | undefined>(request?.withdrawal_from_balance);
-  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string | undefined>(request?.bank_account_id);
   const [approvalNotes, setApprovalNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionTextarea, setShowRejectionTextarea] = useState(false);
 
-  const { expenseTypes } = useExpenseTypes();
-  const { expenseCategories } = useExpenseCategories(selectedExpenseTypeId);
-  const { debts: debtsForExpense, isLoading: debtsLoading } = useDebtsForExpense();
-  const { bankAccounts, loading: bankAccountsLoading } = useBankAccounts();
-  const { balances: bankAccountBalances, loading: balancesLoading } = useBankAccountBalances();
   const { data: userRole } = useCurrentUserRole();
   const { t } = useAppTranslation();
   const updateStatus = useUpdatePurchaseRequestStatus();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-
-  useEffect(() => {
-    if (request?.expense_type_id) {
-      setSelectedExpenseTypeId(request.expense_type_id);
-    }
-    if (request?.expense_category_id) {
-      setSelectedExpenseCategoryId(request.expense_category_id);
-    }
-    setSelectedWithdrawalFromBalance(request?.withdrawal_from_balance);
-    setSelectedBankAccountId(request?.bank_account_id);
-  }, [request?.expense_type_id, request?.expense_category_id, request?.withdrawal_from_balance, request?.bank_account_id]);
-
-  // Reset category when expense type changes
-  useEffect(() => {
-    setSelectedExpenseCategoryId('');
-  }, [selectedExpenseTypeId]);
 
   if (!request) return null;
 
@@ -110,33 +79,11 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
   };
 
   const handleApprove = async () => {
-    if (!selectedExpenseTypeId) {
-      toast({
-        title: "Expense Type Required",
-        description: "Please select an expense type.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!selectedExpenseCategoryId) {
-      toast({
-        title: "Expense Category Required",
-        description: "Please select an expense category.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       await updateStatus.mutateAsync({
         id: request.id,
         status: 'approved',
-        approvalNotes: approvalNotes,
-        expenseTypeId: selectedExpenseTypeId,
-        expenseCategoryId: selectedExpenseCategoryId,
-        withdrawalFromBalance: selectedWithdrawalFromBalance,
-        bankAccountId: selectedBankAccountId,
+        approvalNotes: approvalNotes || undefined,
       });
       toast({
         title: "Request Approved",
@@ -144,10 +91,6 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
       });
       onClose();
       setApprovalNotes('');
-      setSelectedExpenseTypeId('');
-      setSelectedExpenseCategoryId('');
-      setSelectedWithdrawalFromBalance(undefined);
-      setSelectedBankAccountId(undefined);
     } catch (error) {
       console.error('Approval error:', error);
       toast({
@@ -479,157 +422,6 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
           {canTakeAction && (
             <>
               <Separator className="my-6" />
-              
-              {/* Expense Classification */}
-              <Card className="border-slate-200">
-                <CardHeader className="px-4 py-3 pb-2">
-                  <CardTitle className="text-base font-semibold text-slate-900">
-                    Expense Classification
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 py-3 space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="expense-type" className="text-sm font-medium">
-                        Expense Type <span className="text-brand-red">*</span>
-                      </Label>
-                      <Select
-                        value={selectedExpenseTypeId}
-                        onValueChange={setSelectedExpenseTypeId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select expense type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {expenseTypes.map((type) => (
-                            <SelectItem key={type.id} value={type.id}>
-                              {type.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {selectedExpenseTypeId && (
-                      <div className="space-y-2">
-                        <Label htmlFor="expense-category" className="text-sm font-medium">
-                          Expense Category <span className="text-brand-red">*</span>
-                        </Label>
-                        <Select
-                          value={selectedExpenseCategoryId}
-                          onValueChange={setSelectedExpenseCategoryId}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select expense category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {expenseCategories.length > 0 ? (
-                              expenseCategories.map((category) => (
-                                <SelectItem key={category.id} value={category.id}>
-                                  {category.name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="no-categories" disabled>
-                                No categories available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Withdrawal From Balance (optional at approval) */}
-                  <div className="space-y-2">
-                    <Label htmlFor="withdrawal-from-balance" className="text-sm font-medium">
-                      {t('expenses.withdrawalFromBalanceOptional', 'Withdrawal From Balance (Optional)')}
-                    </Label>
-                    <Select
-                      value={
-                        selectedWithdrawalFromBalance
-                          ? `debt_${selectedWithdrawalFromBalance}`
-                          : selectedBankAccountId
-                            ? `bank_${selectedBankAccountId}`
-                            : 'none'
-                      }
-                      onValueChange={(value) => {
-                        if (value === 'none') {
-                          setSelectedWithdrawalFromBalance(undefined);
-                          setSelectedBankAccountId(undefined);
-                        } else if (value.startsWith('debt_')) {
-                          setSelectedWithdrawalFromBalance(value.replace('debt_', ''));
-                          setSelectedBankAccountId(undefined);
-                        } else if (value.startsWith('bank_')) {
-                          setSelectedBankAccountId(value.replace('bank_', ''));
-                          setSelectedWithdrawalFromBalance(undefined);
-                        }
-                      }}
-                      disabled={debtsLoading || bankAccountsLoading || balancesLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={(debtsLoading || bankAccountsLoading) ? t('expenses.loading', 'Loading...') : t('expenses.selectSourceOptional', 'Select Source (Optional)')}>
-                          {selectedWithdrawalFromBalance
-                            ? (() => {
-                                const debt = debtsForExpense.find(d => d.id === selectedWithdrawalFromBalance);
-                                if (debt) {
-                                  const availableLimit = debt.available_limit ?? 0;
-                                  return `${debt.debt_name} (Rp ${availableLimit.toLocaleString('id-ID')} available)`;
-                                }
-                                return '';
-                              })()
-                            : selectedBankAccountId
-                              ? (() => {
-                                  const bank = bankAccounts.find(b => b.id === selectedBankAccountId);
-                                  if (bank) {
-                                    const balance = bankAccountBalances.find(b => b.bank_account_id === bank.id);
-                                    const availableBalance = balance?.balance ?? 0;
-                                    return bank.account_number
-                                      ? `${bank.name} - ${bank.account_number} (Rp ${availableBalance.toLocaleString('id-ID')} available)`
-                                      : `${bank.name} (Rp ${availableBalance.toLocaleString('id-ID')} available)`;
-                                  }
-                                  return '';
-                                })()
-                              : ''}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">{t('expenses.none', 'None')}</SelectItem>
-                        {bankAccounts.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">{t('expenses.bankAccounts', 'Bank Accounts')}</div>
-                            {bankAccounts.map((bankAccount) => {
-                              const balance = bankAccountBalances.find(b => b.bank_account_id === bankAccount.id);
-                              const availableBalance = balance?.balance ?? 0;
-                              const displayText = bankAccount.account_number
-                                ? `${bankAccount.name} - ${bankAccount.account_number} (Rp ${availableBalance.toLocaleString('id-ID')} available)`
-                                : `${bankAccount.name} (Rp ${availableBalance.toLocaleString('id-ID')} available)`;
-                              return (
-                                <SelectItem key={`bank_${bankAccount.id}`} value={`bank_${bankAccount.id}`}>
-                                  {displayText}
-                                </SelectItem>
-                              );
-                            })}
-                          </>
-                        )}
-                        {debtsForExpense.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">{t('expenses.debts', 'Debts')}</div>
-                            {debtsForExpense.map((debt) => {
-                              const availableLimit = debt.available_limit ?? 0;
-                              return (
-                                <SelectItem key={`debt_${debt.id}`} value={`debt_${debt.id}`}>
-                                  {debt.debt_name} (Rp {availableLimit.toLocaleString('id-ID')} available)
-                                </SelectItem>
-                              );
-                            })}
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
 
               {/* Approval Notes */}
               <Card className="border-slate-200">
@@ -688,7 +480,7 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
                     <Button
                       type="button"
                       onClick={handleApprove}
-                      disabled={updateStatus.isPending || !selectedExpenseTypeId || !selectedExpenseCategoryId}
+                      disabled={updateStatus.isPending}
                       className="bg-green-600 hover:bg-green-700 text-white"
                     >
                       <ThumbsUp className="mr-2 h-4 w-4" />

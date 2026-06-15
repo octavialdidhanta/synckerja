@@ -429,6 +429,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         step={step}
                         index={index}
                         taskCreatedBy={task.created_by}
+                        taskAssignedTo={task.assigned_to}
                         taskTitle={task.title}
                         autoReorder={true}
                         isRevealed={revealedStepId === step.id}

@@ -42,6 +42,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { format, isSameMonth } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { TaskStep } from '../TaskStep';
+import { plainTextPreview } from '@/8-2-DailyTask/lib/taskStepDescription';
 import {
   getStatusBadge,
   getPriorityBadge,
@@ -213,11 +214,19 @@ export function TaskListRow({
                 )}
               </div>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="start" className="max-w-md p-4 bg-gray-900 text-white shadow-lg border-gray-700">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{task.title}</p>
-              {task.description && (
-                <p className="text-xs text-gray-300 mt-2 border-t border-gray-700 pt-2">{task.description}</p>
-              )}
+            <TooltipContent
+              side="bottom"
+              align="start"
+              className="max-w-md flex max-h-[min(280px,45vh)] flex-col overflow-hidden p-0 bg-gray-900 text-white shadow-lg border-gray-700"
+            >
+              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{task.title}</p>
+                {task.description && (
+                  <p className="text-xs text-gray-300 mt-2 border-t border-gray-700 pt-2 whitespace-pre-wrap break-words">
+                    {plainTextPreview(task.description, 300)}
+                  </p>
+                )}
+              </div>
             </TooltipContent>
           </Tooltip>
           {taskRejectReason && (
@@ -664,6 +673,7 @@ export function TaskListRow({
                             step={step}
                             index={index}
                             taskCreatedBy={task.created_by}
+                            taskAssignedTo={task.assigned_to}
                             taskTitle={task.title}
                             autoReorder={true}
                           />

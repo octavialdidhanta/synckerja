@@ -27,12 +27,12 @@ type SettingsResponse = {
   serverConfigured?: boolean;
 };
 
-async function invokeConfig(
+async function invokeLinkedInApi(
   organizationId: string,
   action: string,
   extra?: Record<string, unknown>,
 ) {
-  const { data, error } = await supabase.functions.invoke("linkedin-content-config", {
+  const { data, error } = await supabase.functions.invoke("linkedin-content-api", {
     body: { action, organization_id: organizationId, ...extra },
   });
   if (error) throw await parseEdgeFunctionError(error, data);
@@ -54,7 +54,7 @@ export function useLinkedInContentSettings(
     queryKey,
     queryFn: async () => {
       if (!organizationId) return null;
-      return (await invokeConfig(organizationId, "getSettings")) as SettingsResponse;
+      return (await invokeLinkedInApi(organizationId, "getSettings")) as SettingsResponse;
     },
     enabled: Boolean(organizationId) && options?.enabled !== false,
     staleTime: 30_000,
@@ -65,8 +65,9 @@ export function useLinkedInContentSettings(
   const startOAuth = useMutation({
     mutationFn: async (returnPath?: LinkedInContentOAuthReturnPath) => {
       if (!organizationId) throw new Error("No organization");
-      const { data, error } = await supabase.functions.invoke("linkedin-content-oauth-start", {
+      const { data, error } = await supabase.functions.invoke("linkedin-content-api", {
         body: {
+          action: "oauthStart",
           organization_id: organizationId,
           ...(returnPath ? { return_path: returnPath } : {}),
         },
@@ -83,7 +84,7 @@ export function useLinkedInContentSettings(
   const disconnect = useMutation({
     mutationFn: async (pageId?: string) => {
       if (!organizationId) throw new Error("No organization");
-      await invokeConfig(organizationId, "disconnect", pageId ? { page_id: pageId } : {});
+      await invokeLinkedInApi(organizationId, "disconnect", pageId ? { page_id: pageId } : {});
     },
     onSuccess: invalidate,
   });
@@ -91,7 +92,7 @@ export function useLinkedInContentSettings(
   const setDefaultAccount = useMutation({
     mutationFn: async (accountId: string) => {
       if (!organizationId) throw new Error("No organization");
-      await invokeConfig(organizationId, "setDefaultAccount", { account_id: accountId });
+      await invokeLinkedInApi(organizationId, "setDefaultAccount", { account_id: accountId });
     },
     onSuccess: invalidate,
   });
@@ -99,7 +100,7 @@ export function useLinkedInContentSettings(
   const deleteAccount = useMutation({
     mutationFn: async (accountId: string) => {
       if (!organizationId) throw new Error("No organization");
-      await invokeConfig(organizationId, "deleteAccount", { account_id: accountId });
+      await invokeLinkedInApi(organizationId, "deleteAccount", { account_id: accountId });
     },
     onSuccess: invalidate,
   });
@@ -107,7 +108,7 @@ export function useLinkedInContentSettings(
   const getPendingPages = useMutation({
     mutationFn: async () => {
       if (!organizationId) throw new Error("No organization");
-      const result = await invokeConfig(organizationId, "getPendingPages");
+      const result = await invokeLinkedInApi(organizationId, "getPendingPages");
       return result as { pending: boolean; pages: LinkedInPendingPage[] };
     },
   });
@@ -115,7 +116,7 @@ export function useLinkedInContentSettings(
   const completePageConnect = useMutation({
     mutationFn: async (pageId: string) => {
       if (!organizationId) throw new Error("No organization");
-      const result = await invokeConfig(organizationId, "completePageConnect", {
+      const result = await invokeLinkedInApi(organizationId, "completePageConnect", {
         page_id: pageId,
       });
       return result as { ok: boolean; isExistingAccount?: boolean };

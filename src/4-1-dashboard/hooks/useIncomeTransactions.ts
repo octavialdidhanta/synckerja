@@ -11,8 +11,8 @@ import { deleteIncomeTransactionForOrg } from '@/shared/lib/finance/deleteIncome
 import { refetchIncomeModuleQueries } from '@/shared/lib/finance/refetchIncomeModuleQueries';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import {
-  isIncomeAllocationComplete,
   isIncomeAllocationIncomplete,
+  resolveIncomeTransactionStatus,
 } from '../utils/incomeAllocationStatus';
 
 const ALLOCATION_FIELD_KEYS = ['income_type_id', 'category_id', 'bank_account_id', 'status'] as const;
@@ -292,17 +292,10 @@ export const useIncomeTransactions = () => {
       const bankIdForInsert = uuidOrNull(transactionData.bank_account_id);
       const typeIdForInsert = uuidOrNull(transactionData.income_type_id);
       const categoryIdResolved = categoryIdForInsert ?? uuidOrNull(transactionData.category_id);
-      const allocationComplete = isIncomeAllocationComplete({
-        income_type_id: typeIdForInsert,
-        category_id: categoryIdResolved,
-        bank_account_id: bankIdForInsert,
-      });
       const statusForInsert =
         transactionData.status === 'cancelled'
           ? 'cancelled'
-          : allocationComplete
-            ? 'completed'
-            : 'pending';
+          : 'pending';
 
       const { data, error } = await supabase
         .from('income_transactions')
@@ -328,22 +321,7 @@ export const useIncomeTransactions = () => {
 
       if (error) throw error;
       
-      // Credit balance only when allocation is complete (pending + preset bank waits for finance allocation)
-      const bankForBalance = uuidOrNull(newTransaction.bank_account_id);
-      if (bankForBalance && data?.id && allocationComplete) {
-        try {
-          await updateBalance(
-            bankForBalance,
-            newTransaction.amount, // Positive for income
-            'income',
-            data.id,
-            `Income: ${newTransaction.description || newTransaction.customer_name || 'Transaction'}`
-          );
-        } catch (balanceError) {
-          console.error('Error updating bank account balance:', balanceError);
-          // Don't fail the income creation if balance update fails
-        }
-      }
+      // Bank balance credits only after deposit confirmation (RPC), not on create.
       
       return data;
     },
@@ -412,7 +390,7 @@ export const useIncomeTransactions = () => {
       // Get old transaction data to calculate balance difference and merge allocation status
       const { data: oldTransaction } = await supabase
         .from('income_transactions')
-        .select('bank_account_id, amount, income_type_id, category_id, status')
+        .select('bank_account_id, amount, income_type_id, category_id, status, deposit_confirmed_at')
         .eq('id', id)
         .single();
 
@@ -491,9 +469,11 @@ export const useIncomeTransactions = () => {
             : oldTransaction?.bank_account_id ?? null,
       };
       if (oldTransaction?.status !== 'cancelled' && !('status' in cleanedUpdates)) {
-        cleanedUpdates.status = isIncomeAllocationComplete(mergedForAllocation)
-          ? 'completed'
-          : 'pending';
+        cleanedUpdates.status = resolveIncomeTransactionStatus({
+          status: oldTransaction?.status,
+          deposit_confirmed_at: oldTransaction?.deposit_confirmed_at,
+          ...mergedForAllocation,
+        });
       }
 
       const { data, error } = await supabase
@@ -522,48 +502,28 @@ export const useIncomeTransactions = () => {
         oldTransaction?.amount != null ? parseFloat(oldTransaction.amount.toString()) : 0;
       const descBase = updates.description || updates.customer_name || data.description || data.customer_name || 'Transaction';
 
-      const wasAllocIncomplete =
-        oldTransaction &&
-        isIncomeAllocationIncomplete({
-          income_type_id: oldTransaction.income_type_id,
-          category_id: oldTransaction.category_id,
-          bank_account_id: oldTransaction.bank_account_id,
-        });
-      const nowAllocComplete = isIncomeAllocationComplete(mergedForAllocation);
+      const wasDepositConfirmed = Boolean(oldTransaction?.deposit_confirmed_at);
+      const nowDepositConfirmed = Boolean(data?.deposit_confirmed_at);
 
-      if (data?.id) {
+      if (data?.id && (wasDepositConfirmed || nowDepositConfirmed)) {
         try {
           if (newBankAccountId) {
-            if (
-              wasAllocIncomplete &&
-              nowAllocComplete &&
-              oldBankId === newBankAccountId
-            ) {
-              await updateBalance(
-                newBankAccountId,
-                newAmount,
-                'income',
-                data.id,
-                `Income: ${descBase}`
-              );
-            } else if (oldBankId && oldBankId !== newBankAccountId) {
-              // Moved to another account: remove full old amount from old, add new amount to new
+            if (oldBankId && oldBankId !== newBankAccountId) {
               await updateBalance(
                 oldBankId,
                 -oldAmount,
                 'expense',
                 data.id,
-                `Income moved: ${descBase}`
+                `Income moved: ${descBase}`,
               );
               await updateBalance(
                 newBankAccountId,
                 newAmount,
                 'income',
                 data.id,
-                `Income: ${descBase}`
+                `Income: ${descBase}`,
               );
             } else if (oldBankId === newBankAccountId) {
-              // Same account: only apply the difference (avoid double-counting on edit)
               const delta = newAmount - oldAmount;
               if (Math.abs(delta) > 1e-6) {
                 await updateBalance(
@@ -571,35 +531,32 @@ export const useIncomeTransactions = () => {
                   delta,
                   'income',
                   data.id,
-                  `Income updated: ${descBase}`
+                  `Income updated: ${descBase}`,
                 );
               }
-            } else {
-              // No bank on old row (e.g. first time linking): credit full new amount
+            } else if (!oldBankId) {
               await updateBalance(
                 newBankAccountId,
                 newAmount,
                 'income',
                 data.id,
-                `Income: ${descBase}`
+                `Income: ${descBase}`,
               );
             }
           } else if (oldBankId) {
-            // Bank account removed from transaction: reverse prior credit
             await updateBalance(
               oldBankId,
               -oldAmount,
               'expense',
               data.id,
-              `Income updated (unlinked): ${descBase}`
+              `Income updated (unlinked): ${descBase}`,
             );
           }
         } catch (balanceError) {
           console.error('Error updating bank account balance:', balanceError);
-          // Don't fail the income update if balance update fails
         }
       }
-      
+
       return data;
     },
     onSuccess: () => {

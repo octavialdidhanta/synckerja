@@ -3,6 +3,8 @@ import { Calendar, Receipt, CreditCard, Hash } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import type { DebtPaymentRecord } from '../hooks/useDebtPayments';
 import { cn } from '@/shared/lib/utils';
+import { DebtXenditDisburseButton } from './DebtXenditDisburseButton';
+import { DebtBrickDisburseButton } from './DebtBrickDisburseButton';
 
 export function DebtPaymentHistoryCardContent({
   payment,
@@ -67,6 +69,24 @@ export function DebtPaymentHistoryCardContent({
           {payment.notes?.trim() ? payment.notes : t('debt.paymentHistory.notSelected', '—')}
         </span>
       </div>
+      {!payment.xendit_disbursement_id || !payment.brick_disbursement_id ? (
+        <div className="mt-3 pt-2 border-t border-gray-100 flex flex-wrap gap-2">
+          {!payment.xendit_disbursement_id ? (
+            <DebtXenditDisburseButton
+              debtPaymentId={payment.id}
+              amount={payment.payment_amount}
+              description={payment.notes ?? undefined}
+            />
+          ) : null}
+          {!payment.brick_disbursement_id ? (
+            <DebtBrickDisburseButton
+              debtPaymentId={payment.id}
+              amount={payment.payment_amount}
+              description={payment.notes ?? undefined}
+            />
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

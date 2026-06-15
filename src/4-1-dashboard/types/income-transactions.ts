@@ -22,6 +22,9 @@ export interface IncomeTransaction {
   /** External ref from receipt (share flow); unique per org when set. */
   transaction_reference?: string | null;
   status: string;
+  deposit_confirmed_at?: string | null;
+  deposit_confirmed_by?: string | null;
+  deposit_source?: string | null;
   created_at: string;
   updated_at: string;
   created_by?: string;

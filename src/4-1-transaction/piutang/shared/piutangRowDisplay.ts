@@ -8,6 +8,7 @@ export type PiutangActivityTableBaseProps = {
   verificationByActivity: ReadonlyMap<string, PiutangVerificationAggregate>;
   verificationLoading?: boolean;
   onOpenPayments: (row: SalesActivity) => void;
+  onOpenVaCollection?: (row: SalesActivity) => void;
 };
 
 export function getPiutangServiceLabel(row: SalesActivity): string {

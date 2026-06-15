@@ -18,6 +18,12 @@ export interface Debt {
   minimum_payment?: number;
   description?: string;
   status: "active" | "paid_off" | "closed";
+  brick_connection_id?: string | null;
+  brick_aggregated_account_id?: string | null;
+  brick_link_status?: "unlinked" | "pending" | "linked" | "error";
+  brick_last_sync_at?: string | null;
+  brick_last_sync_error?: string | null;
+  brick_auto_import?: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;

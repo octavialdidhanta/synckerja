@@ -953,10 +953,37 @@ export const useSalesActivityPayments = () => {
       })
       .eq('id', paymentId);
     if (error) throw error;
+
+    if (status === 'approved') {
+      const { data: incomeRow } = await supabase
+        .from('income_transactions')
+        .select('id')
+        .eq('sales_activity_payment_id', paymentId)
+        .maybeSingle();
+      if (incomeRow?.id) {
+        const { error: confirmErr } = await supabase.rpc('confirm_income_bank_deposit', {
+          p_income_id: incomeRow.id,
+          p_deposit_source: 'manual_verification',
+          p_confirmed_by: by ?? undefined,
+        });
+        if (confirmErr) throw confirmErr;
+      }
+    } else if (status === 'rejected') {
+      const { error: cancelErr } = await supabase.rpc('cancel_income_for_payment_rejection', {
+        p_sales_activity_payment_id: paymentId,
+      });
+      if (cancelErr) throw cancelErr;
+    }
+
     queryClient.invalidateQueries({ queryKey: ['sales-activity-payments'] });
     queryClient.invalidateQueries({ queryKey: ['piutang-payment-verifications'] });
+    queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['bank-account-balances'] });
     if (organizationId) {
       queryClient.invalidateQueries({ queryKey: ['sales-activities', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['income-transactions', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['income-metrics', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-income-data', organizationId] });
     }
   };
 

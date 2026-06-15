@@ -20,6 +20,12 @@ const PiutangPaymentVerificationDrawer = lazy(() =>
   })),
 );
 
+const PiutangVaCollectionDrawer = lazy(() =>
+  import('../components/PiutangVaCollectionDrawer').then((m) => ({
+    default: m.PiutangVaCollectionDrawer,
+  })),
+);
+
 export type IncomePiutangPageContentProps = {
   filterBar?: ReactNode;
   hideSidebar?: boolean;
@@ -28,10 +34,15 @@ export type IncomePiutangPageContentProps = {
   verificationLoading: boolean;
   totalPiutangActivities: number;
   openDrawer: (row: SalesActivity) => void;
+  openVaDrawer?: (row: SalesActivity) => void;
   drawerOpen: boolean;
   mountDrawer: boolean;
   drawerActivity: SalesActivity | null;
   closeDrawer: (open: boolean) => void;
+  vaDrawerOpen?: boolean;
+  mountVaDrawer?: boolean;
+  vaDrawerActivity?: SalesActivity | null;
+  closeVaDrawer?: (open: boolean) => void;
   getPaymentHistory: ReturnType<
     typeof import('@/shared/hooks/organized/sales').useSalesActivityPayments
   >['getPaymentHistory'];
@@ -39,6 +50,7 @@ export type IncomePiutangPageContentProps = {
     typeof import('@/shared/hooks/organized/sales').useSalesActivityPayments
   >['updatePaymentVerification'];
   userId: string | undefined;
+  organizationId: string | null | undefined;
 };
 
 /** Layout selaras `IncomeTransactionPage` — footer tabel di dasar viewport (+ `pb-2` shell). */
@@ -50,13 +62,19 @@ export function IncomePiutangPageContent({
   verificationLoading,
   totalPiutangActivities,
   openDrawer,
+  openVaDrawer,
   drawerOpen,
   mountDrawer,
   drawerActivity,
   closeDrawer,
+  vaDrawerOpen = false,
+  mountVaDrawer = false,
+  vaDrawerActivity = null,
+  closeVaDrawer,
   getPaymentHistory,
   updatePaymentVerification,
   userId,
+  organizationId,
 }: IncomePiutangPageContentProps) {
   return (
     <>
@@ -77,6 +95,7 @@ export function IncomePiutangPageContent({
                   verificationByActivity={verificationAggregateByActivity}
                   verificationLoading={verificationLoading}
                   onOpenPayments={openDrawer}
+                  onOpenVaCollection={openVaDrawer}
                 />
                 <PiutangTableFooter
                   totalActivities={totalPiutangActivities}
@@ -107,11 +126,25 @@ export function IncomePiutangPageContent({
           <PiutangPaymentVerificationDrawer
             open={drawerOpen}
             onOpenChange={closeDrawer}
+            organizationId={organizationId}
             salesActivityId={drawerActivity?.id ?? null}
             clientLabel={String(drawerActivity?.client_name ?? '—')}
             getPaymentHistory={getPaymentHistory}
             updatePaymentVerification={updatePaymentVerification}
             userId={userId}
+          />
+        </Suspense>
+      ) : null}
+
+      {mountVaDrawer && closeVaDrawer ? (
+        <Suspense fallback={null}>
+          <PiutangVaCollectionDrawer
+            open={vaDrawerOpen}
+            onOpenChange={closeVaDrawer}
+            organizationId={organizationId}
+            salesActivityId={vaDrawerActivity?.id ?? null}
+            clientLabel={String(vaDrawerActivity?.client_name ?? '—')}
+            getPaymentHistory={getPaymentHistory}
           />
         </Suspense>
       ) : null}

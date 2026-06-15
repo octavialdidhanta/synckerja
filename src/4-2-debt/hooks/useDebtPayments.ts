@@ -14,6 +14,8 @@ export interface DebtPaymentRecord {
   interest_amount: number | null;
   created_at: string;
   bank_account_name?: string | null;
+  xendit_disbursement_id?: string | null;
+  brick_disbursement_id?: string | null;
 }
 
 export const useDebtPayments = (debtId: string | null) => {
@@ -26,7 +28,7 @@ export const useDebtPayments = (debtId: string | null) => {
       const { data, error } = await supabase
         .from('debt_payments')
         .select(
-          'id, debt_id, payment_amount, payment_date, payment_method, notes, transaction_reference, principal_amount, interest_amount, created_at'
+          'id, debt_id, payment_amount, payment_date, payment_method, notes, transaction_reference, principal_amount, interest_amount, created_at, xendit_disbursement_id, brick_disbursement_id'
         )
         .eq('organization_id', organizationId)
         .eq('debt_id', debtId)
@@ -60,6 +62,7 @@ export const useDebtPayments = (debtId: string | null) => {
         interest_amount: row.interest_amount ?? null,
         created_at: row.created_at,
         bank_account_name: row.payment_method ? (methodNames[row.payment_method] ?? null) : null,
+        xendit_disbursement_id: row.xendit_disbursement_id ?? null,
       }));
       return list;
     },

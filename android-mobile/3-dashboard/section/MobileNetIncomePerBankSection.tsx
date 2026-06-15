@@ -3,6 +3,8 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { formatToRupiah } from "@/shared/utils/formatCurrency";
 import { formatBankInstitutionAccountLine } from "@/4-1-dashboard/utils/formatBankInstitutionAccountLine";
 import { NetBankAccountSwipeRow } from "@/4-1-dashboard/components/NetBankAccountSwipeRow";
+import { GatewayWalletDrawerRow } from "@/4-1-dashboard/components/GatewayWalletDrawerRow";
+import { FINANCIAL_DRAWERS_LIST_SCROLL } from "@/4-1-dashboard/utils/financialDrawersScroll";
 import type { IncomeDashboardModel } from "@/4-1-dashboard/hooks/useIncomeDashboardModel";
 
 type Props = Pick<
@@ -15,6 +17,17 @@ type Props = Pick<
   | "setNetBankOpenSwipeId"
   | "setBankTransferSource"
   | "setBankTransferDialogOpen"
+  | "brickWallet"
+  | "xenditWallet"
+  | "brickEligible"
+  | "xenditEligible"
+  | "isStaleBrick"
+  | "isStaleXendit"
+  | "gatewayPeriodNet"
+  | "syncingBrick"
+  | "syncingXendit"
+  | "syncBrickWallet"
+  | "syncXenditWallet"
 >;
 
 export function MobileNetIncomePerBankSection({
@@ -26,18 +39,29 @@ export function MobileNetIncomePerBankSection({
   setNetBankOpenSwipeId,
   setBankTransferSource,
   setBankTransferDialogOpen,
+  brickWallet,
+  xenditWallet,
+  brickEligible,
+  xenditEligible,
+  isStaleBrick,
+  isStaleXendit,
+  gatewayPeriodNet,
+  syncingBrick,
+  syncingXendit,
+  syncBrickWallet,
+  syncXenditWallet,
 }: Props) {
   const { t } = useAppTranslation();
 
   return (
     <Card className="overflow-hidden border-border">
       <CardHeader className="px-3 pb-2 pt-3">
-        <CardTitle className="text-base font-semibold">Net Income per Bank Account</CardTitle>
+        <CardTitle className="text-base font-semibold">
+          {t("incomes.dashboard.financialDrawers", "Saldo per Laci Keuangan")}
+        </CardTitle>
       </CardHeader>
       <CardContent className="px-3 pb-3 pt-0">
-        <div
-          className={cnScroll()}
-        >
+        <div className={FINANCIAL_DRAWERS_LIST_SCROLL}>
           {selectedBankAccount === "all" && bankAccounts.length > 0 ? (
             <div className="flex flex-col space-y-2">
               {bankAccounts.map((bankAccount) => {
@@ -77,17 +101,16 @@ export function MobileNetIncomePerBankSection({
                           <div className="truncate text-xs leading-snug text-muted-foreground">{bankInstitutionLine}</div>
                         ) : null}
                         <div className="text-xs text-muted-foreground">
-                          Income: {formatToRupiah(income)} | Expense: {formatToRupiah(expense)}
+                          {t("incomes.income", "Income")}: {formatToRupiah(income)} | {t("incomes.expense", "Expense")}:{" "}
+                          {formatToRupiah(expense)}
                         </div>
                       </div>
                       <div className="ml-2 shrink-0 text-right">
-                        <div
-                          className={`text-sm font-semibold ${net >= 0 ? "text-green-700" : "text-red-700"}`}
-                        >
-                          Net: {formatToRupiah(net)}
+                        <div className={`text-sm font-semibold ${net >= 0 ? "text-green-700" : "text-red-700"}`}>
+                          {t("incomes.net", "Net")}: {formatToRupiah(net)}
                         </div>
                         <div className="text-xs font-medium text-foreground">
-                          Balance: {formatToRupiah(currentBalance)}
+                          {t("incomes.balance", "Balance")}: {formatToRupiah(currentBalance)}
                         </div>
                         <div
                           className="mt-0.5 max-w-[11rem] cursor-help text-xs text-muted-foreground"
@@ -104,15 +127,46 @@ export function MobileNetIncomePerBankSection({
                   </NetBankAccountSwipeRow>
                 );
               })}
+              {brickEligible ? (
+                <GatewayWalletDrawerRow
+                  provider="brick"
+                  wallet={brickWallet}
+                  periodNet={gatewayPeriodNet?.brick}
+                  isStale={isStaleBrick}
+                  subtitle={t(
+                    "incomes.gateway.brickPlatformHint",
+                    "Saldo gateway Brick (platform) — untuk disbursement",
+                  )}
+                  onSync={syncBrickWallet}
+                  syncing={syncingBrick}
+                />
+              ) : null}
+              {xenditEligible ? (
+                <GatewayWalletDrawerRow
+                  provider="xendit"
+                  wallet={xenditWallet}
+                  periodNet={gatewayPeriodNet?.xendit}
+                  isStale={isStaleXendit}
+                  subtitle={t("incomes.gateway.xenditSubAccount", "Sub-account tenant")}
+                  settingsHref="/xendit/connect"
+                  onSync={syncXenditWallet}
+                  syncing={syncingXendit}
+                />
+              ) : null}
             </div>
           ) : bankAccounts.length === 0 ? (
             <div className="flex min-h-[100px] items-center justify-center rounded-lg bg-muted/40">
-              <span className="text-sm text-muted-foreground">No bank accounts</span>
+              <span className="text-sm text-muted-foreground">
+                {t("incomes.dashboard.noBankAccountsRegistered", "No bank accounts registered")}
+              </span>
             </div>
           ) : (
             <div className="flex min-h-[100px] items-center justify-center rounded-lg bg-muted/40 px-2">
               <span className="text-center text-sm text-muted-foreground">
-                Select &quot;All Bank Accounts&quot; to see net income per bank account
+                {t(
+                  "incomes.dashboard.selectAllBankAccountsHint",
+                  'Select "All Bank Accounts" to see balances per financial drawer',
+                )}
               </span>
             </div>
           )}
@@ -120,8 +174,4 @@ export function MobileNetIncomePerBankSection({
       </CardContent>
     </Card>
   );
-}
-
-function cnScroll() {
-  return "nested-scroll-touch-chain scrollbar-hide seamless-scroll max-h-[min(420px,50vh)] min-h-0 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 }

@@ -246,7 +246,6 @@ export const ApprovalTable = ({
           <TableCell className={cn('text-xs', cellPx)}>
             <ApprovalActionsDropdown
               requestId={request.id}
-              status={request.status || ''}
               triggerButtonClassName={isMobileCard ? triggerClassMobile : undefined}
             />
           </TableCell>

@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useBankAccounts, type BankAccount } from "@/shared/hooks/finance/useBankAccounts";
-import { useBankAccountBalances } from "@/shared/hooks/finance/useBankAccountBalances";
+import { useBankAccountBalances, useGatewayWithdrawalBankPeriodCredits } from "@/shared/hooks/finance/useBankAccountBalances";
 import { useExpenses } from "@/shared/hooks/finance/useExpenses";
 import { useExpenseMetrics } from "@/shared/hooks/finance/useExpenseMetrics";
+import { useGatewayWalletBalances } from "@/shared/hooks/finance/useGatewayWalletBalances";
+import { useGatewayWalletPeriodNet } from "@/shared/hooks/finance/useGatewayWalletPeriodNet";
 import { useIncomeMetrics } from "./useIncomeMetrics";
 import { useIncomeTransactions } from "./useIncomeTransactions";
 import { useMonthlyIncomeData } from "./useMonthlyIncomeData";
 import { useIncomeMasterData } from "./useIncomeMasterData";
 import type { IncomeTransactionWithRelations } from "../types";
+import { sumBankPeriodIncome, sumDrawerPeriodIncome } from "../utils/incomeDashboardPeriodTotals";
 
 export type IncomeDistributionTabKey = "overview" | "service" | "monthly";
 
@@ -91,6 +94,27 @@ export function useIncomeDashboardModel() {
     isPending: balancesPending,
   } = useBankAccountBalances();
   const { expenses, isLoading: expensesLoading } = useExpenses();
+  const {
+    xendit: xenditWallet,
+    xenditEligible,
+    isStaleXendit,
+    syncingXendit,
+    syncXenditWallet,
+    isLoading: gatewayWalletsLoading,
+    isPending: gatewayWalletsPending,
+  } = useGatewayWalletBalances({ autoSync: false });
+
+  const periodRange = useMemo(() => getDateRangeForPeriod(selectedPeriod), [selectedPeriod]);
+  const { data: gatewayPeriodNet } = useGatewayWalletPeriodNet(
+    periodRange.startDate,
+    periodRange.endDate,
+    selectedBankAccount === "all",
+  );
+  const { data: gatewayWithdrawalBankCredits = {} } = useGatewayWithdrawalBankPeriodCredits(
+    periodRange.startDate,
+    periodRange.endDate,
+    selectedBankAccount === "all",
+  );
 
   const filteredTransactions = useMemo(() => {
     if (!incomeTransactions.length) return [];
@@ -185,12 +209,24 @@ export function useIncomeDashboardModel() {
       }
     });
 
+    for (const [bankAccountId, credit] of Object.entries(gatewayWithdrawalBankCredits)) {
+      if (!netMap[bankAccountId]) {
+        netMap[bankAccountId] = {
+          income: 0,
+          expense: 0,
+          net: 0,
+          balance: 0,
+        };
+      }
+      netMap[bankAccountId].income += credit;
+    }
+
     Object.keys(netMap).forEach((bankAccountId) => {
       netMap[bankAccountId].net = netMap[bankAccountId].income - netMap[bankAccountId].expense;
     });
 
     return netMap;
-  }, [filteredTransactions, filteredExpenses, bankAccountBalances]);
+  }, [filteredTransactions, filteredExpenses, bankAccountBalances, gatewayWithdrawalBankCredits]);
 
   const filteredMetrics = useMemo(() => {
     if (!filteredTransactions.length) {
@@ -198,17 +234,29 @@ export function useIncomeDashboardModel() {
     }
 
     const amounts = filteredTransactions.map((t) => parseFloat(t.amount.toString()));
-    const total = amounts.reduce((sum, amount) => sum + amount, 0);
     const highest = Math.max(...amounts);
     const latest = filteredTransactions[0] ? parseFloat(filteredTransactions[0].amount.toString()) : 0;
 
     return {
-      total,
+      total: amounts.reduce((sum, amount) => sum + amount, 0),
       highest,
       latest,
       count: filteredTransactions.length,
     };
   }, [filteredTransactions]);
+
+  const periodBankIncomeTotal = useMemo(
+    () => sumBankPeriodIncome(bankAccountNet, selectedBankAccount),
+    [bankAccountNet, selectedBankAccount],
+  );
+
+  const periodIncomeTotal = useMemo(
+    () =>
+      sumDrawerPeriodIncome(bankAccountNet, selectedBankAccount, gatewayPeriodNet, {
+        xenditEligible,
+      }),
+    [bankAccountNet, selectedBankAccount, gatewayPeriodNet, xenditEligible],
+  );
 
   const hasTransactionsWithoutType = useMemo(
     () => incomeTransactions.some((t) => !t.income_types?.name),
@@ -243,10 +291,18 @@ export function useIncomeDashboardModel() {
     return best;
   }, [filteredTransactions]);
 
-  const totalCurrentBalanceAllAccounts = useMemo(
+  const bankTotalBalance = useMemo(
     () => bankAccountBalances.reduce((total, b) => total + (b.balance || 0), 0),
     [bankAccountBalances],
   );
+
+  const totalCurrentBalanceAllAccounts = bankTotalBalance;
+
+  const totalGrandBalance = useMemo(() => {
+    let total = bankTotalBalance;
+    if (xenditEligible) total += Number(xenditWallet?.usable_balance ?? 0);
+    return total;
+  }, [bankTotalBalance, xenditEligible, xenditWallet?.usable_balance]);
 
   const growthPercentageFromMetrics = metrics?.growthPercentage ?? 0;
   const totalIncomeMonthToDate = metrics?.currentMonthTotal ?? 0;
@@ -264,7 +320,9 @@ export function useIncomeDashboardModel() {
       bankAccountsPending ||
       balancesLoading ||
       balancesPending ||
-      expensesLoading);
+      expensesLoading ||
+      gatewayWalletsLoading ||
+      gatewayWalletsPending);
   const rawPendingLoad = orgBootstrapPending || dataPending;
 
   return {
@@ -281,13 +339,23 @@ export function useIncomeDashboardModel() {
     setIncomeDistributionTab,
     filteredTransactions,
     filteredMetrics,
+    periodBankIncomeTotal,
+    periodIncomeTotal,
     hasTransactionsWithoutType,
     incomeTypes,
     bankAccounts,
     bankAccountsLoading,
     bankAccountBalances,
     bankAccountNet,
+    bankTotalBalance,
     totalCurrentBalanceAllAccounts,
+    totalGrandBalance,
+    xenditWallet,
+    xenditEligible,
+    isStaleXendit,
+    gatewayPeriodNet,
+    syncingXendit,
+    syncXenditWallet,
     highestTransactionInPeriod,
     latestTransactionInPeriod,
     growthPercentageFromMetrics,

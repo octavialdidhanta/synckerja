@@ -2,35 +2,51 @@
 
 This module contains the Transaction page for Income Management (`/incomes/transaction`) and the **Piutang** sub-module (`/incomes/piutang`).
 
+## Income deposit validation
+
+Income status lifecycle:
+
+| Status | Meaning | Bank balance |
+|--------|---------|--------------|
+| `pending` | Deposit not confirmed (struk uploaded ≠ uang masuk) | No credit |
+| `deposited` | Deposit confirmed (piutang OK or Xendit webhook) | Credited once |
+| `completed` | Deposit confirmed + type/category/bank allocated | No extra credit |
+| `cancelled` | Rejected / voided before deposit | No credit |
+
+- **Manual (livechat / bank transfer + receipt):** conversion creates `pending` income → finance verifies transfer in **Piutang → Verifikasi** → RPC `confirm_income_bank_deposit` → `deposited` + balance credit → **Allocate** → `completed`.
+- **Xendit VA:** **Koleksi VA** (Payment History or Piutang) → client pays → `apply_xendit_va_settlement` → `deposited` + balance on Xendit income bank → **Allocate** → `completed`.
+- VA collection is **not** in the verification drawer (verification = match receipt to bank statement only).
+- Only **Owner/Admin** can confirm deposit (RPC) and allocate.
+
 ## Income allocation (post–lead conversion)
 
-Payments recorded from **paid livechat conversion** create `income_transactions` with `status: pending`, **`bank_account_id`** set to the org’s exclusive **Omnichannel** bank (toggle on **Bank Accounts** tab), and **no** `income_type_id` / `category_id` (table shows **Unknown** for type/category). Bank balance is **not** updated until Owner/Admin completes allocation on `/incomes/transaction` via **Allocate** (`IncomeAllocationDialog`).
+Payments recorded from **paid livechat conversion** create `income_transactions` with `status: pending`, **`bank_account_id`** set to the org’s exclusive **Omnichannel** bank, and **no** `income_type_id` / `category_id`. Bank balance is **not** updated until deposit is confirmed (piutang verification OK) and then allocation completes the row to `completed`.
 
 Legacy or non-livechat conversions without Omnichannel may still have null `bank_account_id` until allocation.
 
-- Required to complete: income type, category (or Other + label), bank account (preset bank is locked in the allocation dialog when already set).
+- Required to complete: deposit confirmation, then income type, category (or Other + label), bank account.
 - **Omnichannel bank:** exactly one active `bank_accounts` row per org with `use_for_omnichannel_income = true`. Paid livechat conversion is blocked if none is configured.
-- Only **Owner** and **Admin** can allocate or edit classification; HR can view the page.
+- Only **Owner** and **Admin** can verify deposit, allocate, or edit classification; HR can view the page.
 - Metrics and dashboard totals count **`completed`** status only.
 
-### Optional legacy SQL (run once in Supabase)
+### QA matrix (deposit + allocation)
 
-```sql
-UPDATE income_transactions
-SET status = 'pending'
-WHERE status = 'completed'
-  AND (bank_account_id IS NULL OR income_type_id IS NULL OR category_id IS NULL);
-```
+1. Conversion with receipt → income `pending`, balance unchanged.
+2. Piutang verifikasi OK (Owner/Admin) → `deposited`, balance +amount on omnichannel bank.
+3. Piutang ditolak → linked income `cancelled` if not yet deposited.
+4. Allocate type/category on `deposited` row → `completed` (no double balance credit).
+5. Xendit VA paid → auto `deposited` + balance on Xendit income bank; piutang auto-OK.
+6. Manual bank transfer with receipt → **Koleksi VA** hidden; use verifikasi only.
 
-### QA matrix (Omnichannel bank + allocation)
+## Brick bank mutations
 
-1. No Omnichannel toggle ON → paid livechat conversion blocked with clear message.
-2. One account ON → conversion succeeds → income `pending` with `bank_account_id` filled.
-3. Bank balance unchanged immediately after conversion.
-4. After allocation (type + category) → `completed` and balance increases by transaction amount.
-5. Move Omnichannel toggle to another account → new conversions use new account; old rows keep prior `bank_account_id`.
-6. All toggles OFF → conversions blocked again.
-7. Manual income create with bank but missing type/category → no balance credit until allocation complete.
+- Link company bank accounts to **Brick** from **Bank Accounts** tab (`/incomes/transaction`).
+- **Refresh mutasi semua rekening** pulls ledger data for all `brick_link_status = linked` accounts (manual v1; rate limit 1/org/2min).
+- Mutations appear in **Mutasi bank** panel; matching suggests pending income + unchecked piutang when amount/date/account align (±1 day, exact amount).
+- Finance **Konfirmasi** on a suggestion → RPC `confirm_bank_mutation_match` → `deposit_source = brick_mutasi`, piutang approved, ERP balance credited (same as manual OK).
+- **Piutang → Verifikasi** shows a green banner when a suggested match exists for that payment.
+- Saldo **ERP vs Brick** shown per linked account for drift visibility.
+- Edge secrets: `BRICK_CLIENT_ID`, `BRICK_CLIENT_SECRET`; dev mock: `BRICK_USE_MOCK=true`. See `supabase/functions/brick-bank-sync/README.md`.
 
 ## Piutang (`piutang/`)
 

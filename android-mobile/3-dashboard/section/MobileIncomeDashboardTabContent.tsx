@@ -64,7 +64,21 @@ export function MobileIncomeDashboardTabContent() {
     bankAccountsLoading,
     bankAccountBalances,
     bankAccountNet,
+    bankTotalBalance,
     totalCurrentBalanceAllAccounts,
+    totalGrandBalance,
+    brickWallet,
+    xenditWallet,
+    brickEligible,
+    xenditEligible,
+    isStaleBrick,
+    isStaleXendit,
+    gatewayPeriodNet,
+    periodIncomeTotal,
+    syncingBrick,
+    syncingXendit,
+    syncBrickWallet,
+    syncXenditWallet,
     highestTransactionInPeriod,
     latestTransactionInPeriod,
     growthPercentageFromMetrics,
@@ -88,6 +102,8 @@ export function MobileIncomeDashboardTabContent() {
       queryClient.invalidateQueries({ queryKey: ["expense-metrics"] }),
       queryClient.invalidateQueries({ queryKey: ["expenses"] }),
       queryClient.invalidateQueries({ queryKey: ["income-types"] }),
+      queryClient.invalidateQueries({ queryKey: ["gateway-wallet-balances"] }),
+      queryClient.invalidateQueries({ queryKey: ["gateway-wallet-period-net"] }),
     ]);
   }, [queryClient]);
 
@@ -129,10 +145,10 @@ export function MobileIncomeDashboardTabContent() {
   }, [rawPendingLoad]);
 
   const displayBalance = useMemo(() => {
-    if (selectedBankAccount === "all") return totalCurrentBalanceAllAccounts;
+    if (selectedBankAccount === "all") return totalGrandBalance;
     const row = bankAccountBalances.find((b) => b.bank_account_id === selectedBankAccount);
     return row?.balance ?? 0;
-  }, [selectedBankAccount, totalCurrentBalanceAllAccounts, bankAccountBalances]);
+  }, [selectedBankAccount, totalGrandBalance, bankAccountBalances]);
 
   const showPageSkeleton = (rawPendingLoad || !minSettleDone) && !isRefreshing;
 
@@ -148,8 +164,18 @@ export function MobileIncomeDashboardTabContent() {
         <MobileIncomeDashboardCarousel
           isLoading={false}
           totalCurrentBalance={displayBalance}
+          bankTotalBalance={bankTotalBalance}
+          brickBalance={brickWallet?.usable_balance ?? null}
+          xenditBalance={xenditWallet?.usable_balance ?? null}
+          brickEligible={brickEligible}
+          xenditEligible={xenditEligible}
+          bankAccountCount={bankAccounts.length}
           yearTotalIncome={yearTotalIncome}
-          totalIncomeMonthToDate={totalIncomeMonthToDate}
+          totalIncomeMonthToDate={
+            selectedPeriod === "This Month" && selectedBankAccount === "all"
+              ? periodIncomeTotal
+              : totalIncomeMonthToDate
+          }
           growthPercentage={growthPercentageFromMetrics}
           highest={filteredMetrics.highest}
           highestRecordedAt={trxDate(highestTransactionInPeriod)}
@@ -188,6 +214,17 @@ export function MobileIncomeDashboardTabContent() {
           setNetBankOpenSwipeId={setNetBankOpenSwipeId}
           setBankTransferSource={setBankTransferSource}
           setBankTransferDialogOpen={setBankTransferDialogOpen}
+          brickWallet={brickWallet}
+          xenditWallet={xenditWallet}
+          brickEligible={brickEligible}
+          xenditEligible={xenditEligible}
+          isStaleBrick={isStaleBrick}
+          isStaleXendit={isStaleXendit}
+          gatewayPeriodNet={gatewayPeriodNet}
+          syncingBrick={syncingBrick}
+          syncingXendit={syncingXendit}
+          syncBrickWallet={syncBrickWallet}
+          syncXenditWallet={syncXenditWallet}
         />
       </div>
 

@@ -34,6 +34,8 @@ export const IncomeTransactionViewDialog = ({
     switch (status) {
       case 'completed':
         return 'default';
+      case 'deposited':
+        return 'default';
       case 'pending':
         return 'secondary';
       case 'cancelled':

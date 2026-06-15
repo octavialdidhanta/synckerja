@@ -7,14 +7,15 @@ import {
 } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
-import { Textarea } from '@/shared/components/ui/textarea';
 import { Separator } from '@/shared/components/ui/separator';
 import { ListChecks, X } from 'lucide-react';
 import { useDailyTask } from '../context/DailyTaskContext';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
-// import { useTranslation } from 'react-i18next';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { TaskStepDescriptionEditor } from '@/8-2-DailyTask/components/TaskStepDescriptionEditor';
+import { finalizeDescriptionForSave } from '@/8-2-DailyTask/lib/taskStepDescription';
 
 export interface ModalAddTaskStepProps {
   open: boolean;
@@ -43,6 +44,7 @@ export const ModalAddTaskStep = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { addTaskStep, updateTaskStep } = useDailyTask();
   const { toast } = useToast();
+  const { organizationId } = useCurrentOrg();
   const isMobile = useIsMobile();
 
   const isEditMode = !!editingStep;
@@ -85,13 +87,14 @@ export const ModalAddTaskStep = ({
     }
 
     setIsSubmitting(true);
+
+    const descriptionToSave = finalizeDescriptionForSave(stepDescription);
     
     try {
       if (isEditMode && editingStep) {
-        // Edit mode: update existing step
         await updateTaskStep(editingStep.id, {
           title: stepTitle.trim(),
-          description: stepDescription.trim() || null,
+          description: descriptionToSave,
         });
 
         toast({
@@ -99,13 +102,7 @@ export const ModalAddTaskStep = ({
           description: 'Step updated successfully',
         });
       } else {
-        // Add mode: create new step
-        await addTaskStep(taskId, stepTitle.trim(), stepDescription.trim() || undefined);
-
-        toast({
-          title: 'Success',
-          description: 'Step added successfully',
-        });
+        await addTaskStep(taskId, stepTitle.trim(), descriptionToSave ?? undefined);
       }
 
       // Reset form
@@ -137,20 +134,20 @@ export const ModalAddTaskStep = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'p-0 flex flex-col gap-0',
+          'flex flex-col gap-0 overflow-hidden p-0',
           isMobile
             ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area'
-            : 'w-[600px] h-[600px] max-w-[90vw] max-h-[90vh]'
+            : 'h-[600px] w-[600px] max-h-[90vh] max-w-[90vw] rounded-lg'
         )}
         hideCloseButton={isMobile}
         fullscreenAnimation={isMobile}
       >
         <DialogHeader
           className={cn(
-            'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left',
+            'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 text-left dark:from-blue-950/20 dark:to-indigo-950/20',
             isMobile
               ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0'
-              : 'px-6 pt-6 pb-4'
+              : 'rounded-t-lg px-6 pb-4 pt-6'
           )}
         >
           <div className={cn('flex items-center gap-3', isMobile ? 'w-full min-w-0 gap-1.5 px-3 py-2' : '')}>
@@ -240,20 +237,23 @@ export const ModalAddTaskStep = ({
                 <label htmlFor="step_description" className="text-sm font-medium text-foreground">
                   Description <span className="text-muted-foreground text-xs font-normal">(optional)</span>
                 </label>
-                <Textarea
-                  id="step_description"
-                  placeholder="Add more details about this step..."
-                  value={stepDescription}
-                  onChange={(e) => setStepDescription(e.target.value)}
-                  disabled={isSubmitting}
-                  className="text-sm min-h-[100px] resize-none"
-                />
+                {organizationId ? (
+                  <TaskStepDescriptionEditor
+                    value={stepDescription}
+                    onChange={setStepDescription}
+                    disabled={isSubmitting}
+                    stepId={editingStep?.id}
+                    organizationId={organizationId}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Select an organization to edit description.</p>
+                )}
               </div>
             </div>
           </form>
         </div>
 
-        <div className={cn('px-4 pt-3 pb-3 flex-shrink-0 border-t bg-muted/30', !isMobile && 'px-6 pt-4 pb-4')}>
+        <div className={cn('flex-shrink-0 border-t bg-muted/30 px-4 pb-3 pt-3', !isMobile && 'rounded-b-lg px-6 pb-4 pt-4')}>
           <div className="flex items-center justify-end gap-2">
             <Button
               type="button"

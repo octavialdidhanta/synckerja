@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { useUpdatePurchaseRequestStatus } from '@/9-request-form/hooks/usePurchaseRequests';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
@@ -21,18 +22,32 @@ import { Separator } from '@/shared/components/ui/separator';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useExpenses } from '@/shared/hooks/finance/useExpenses';
-import { useDebtsForExpense } from '@/shared/hooks/finance/useDebtsForExpense';
-import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
-import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
+import {
+  hasWithdrawalSource,
+  type WithdrawalSourceValue,
+} from '@/shared/lib/finance/withdrawalSourceValue';
 import { openSupabaseSignedFile } from '@/shared/utils/openSupabaseSignedFile';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
+import { PaymentExpenseClassificationCard } from '@/4-2-payment-process/components/PaymentExpenseClassificationCard';
+import {
+  PaymentGatewayVendorBankCard,
+  type GatewayVendorBankFields,
+} from '@/4-2-payment-process/components/PaymentGatewayVendorBankCard';
+import { executeXenditDisbursement, fetchXenditWalletBalance, pollXenditDisbursements } from '@/xendit/lib/xenditApi';
+import { executeBrickDisbursement } from '@/4-1-transaction/lib/brickBankApi';
+import { useXenditOrgSettings } from '@/xendit/hooks/useXenditOrgSettings';
+import { BRICK_SANDBOX_DISBURSE_ACCOUNT } from '@/4-1-transaction/hooks/useBrickLinkedAccounts';
+import { useExpenseTypes } from '@/shared/hooks/finance/useExpenseTypes';
+import { useExpenseCategories } from '@/shared/hooks/finance/useExpenseCategories';
+import { useDebtsForExpense } from '@/shared/hooks/finance/useDebtsForExpense';
+import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
+import { useWithdrawalFromBalanceOptions } from '@/shared/hooks/finance/useWithdrawalFromBalanceOptions';
 
 const SCROLL_HIDE =
   'scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
@@ -64,26 +79,56 @@ export const PaymentTable = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
-  const [processWithdrawalFromBalance, setProcessWithdrawalFromBalance] = useState<string | undefined>(undefined);
-  const [processBankAccountId, setProcessBankAccountId] = useState<string | undefined>(undefined);
+  const [processWithdrawalSource, setProcessWithdrawalSource] = useState<WithdrawalSourceValue>({});
+  const [paymentExpenseTypeId, setPaymentExpenseTypeId] = useState('');
+  const [paymentExpenseCategoryId, setPaymentExpenseCategoryId] = useState('');
+  const [gatewayVendorBank, setGatewayVendorBank] = useState<GatewayVendorBankFields>({
+    bankCode: '',
+    accountNumber: '',
+    accountHolder: '',
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { organizationId } = useCurrentOrg();
+  const queryClient = useQueryClient();
   const { user } = useCurrentUser();
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const updateStatus = useUpdatePurchaseRequestStatus();
   const { createExpense, isCreating: isCreatingExpense } = useExpenses();
-  const { debts: debtsForExpense, isLoading: debtsLoading } = useDebtsForExpense();
-  const { bankAccounts, loading: bankAccountsLoading } = useBankAccounts();
-  const { balances: bankAccountBalances, loading: balancesLoading } = useBankAccountBalances();
+  const { expenseTypes } = useExpenseTypes();
+  const { expenseCategories } = useExpenseCategories(paymentExpenseTypeId);
+  const { debts: debtsForExpense } = useDebtsForExpense();
+  const { balances: bankAccountBalances } = useBankAccountBalances();
+  const { gateways } = useWithdrawalFromBalanceOptions();
+  const { data: xenditSettings } = useXenditOrgSettings(organizationId);
 
-  // Sync withdrawal source from request when modal opens or request changes
+  // Sync payment form from request when modal opens or request changes
   useEffect(() => {
     if (selectedRequest) {
-      setProcessWithdrawalFromBalance(selectedRequest.withdrawal_from_balance);
-      setProcessBankAccountId(selectedRequest.bank_account_id);
+      setProcessWithdrawalSource({
+        debtId: selectedRequest.withdrawal_from_balance,
+        bankAccountId: selectedRequest.bank_account_id,
+        gatewayProvider: selectedRequest.gateway_wallet_provider ?? undefined,
+      });
+      setPaymentExpenseTypeId(selectedRequest.expense_type_id ?? '');
+      setPaymentExpenseCategoryId(selectedRequest.expense_category_id ?? '');
+      setGatewayVendorBank({
+        bankCode: selectedRequest.vendor_bank_code?.trim().toUpperCase() ?? '',
+        accountNumber: selectedRequest.vendor_bank_account_number?.trim() ?? '',
+        accountHolder: selectedRequest.vendor_bank_account_holder?.trim() ?? '',
+      });
     }
-  }, [selectedRequest?.id, selectedRequest?.withdrawal_from_balance, selectedRequest?.bank_account_id]);
+  }, [
+    selectedRequest?.id,
+    selectedRequest?.withdrawal_from_balance,
+    selectedRequest?.bank_account_id,
+    selectedRequest?.gateway_wallet_provider,
+    selectedRequest?.expense_type_id,
+    selectedRequest?.expense_category_id,
+    selectedRequest?.vendor_bank_code,
+    selectedRequest?.vendor_bank_account_number,
+    selectedRequest?.vendor_bank_account_holder,
+  ]);
 
   // Filter only approved requests (include both paid and unpaid for history)
   const paymentRequests = requests.filter(req => req.status === 'approved');
@@ -121,8 +166,13 @@ export const PaymentTable = ({
     setSelectedRequest(request);
     setIsModalOpen(true);
     setInvoiceFile(null);
-    setProcessWithdrawalFromBalance(request.withdrawal_from_balance);
-    setProcessBankAccountId(request.bank_account_id);
+    setProcessWithdrawalSource({
+      debtId: request.withdrawal_from_balance,
+      bankAccountId: request.bank_account_id,
+      gatewayProvider: request.gateway_wallet_provider ?? undefined,
+    });
+    setPaymentExpenseTypeId(request.expense_type_id ?? '');
+    setPaymentExpenseCategoryId(request.expense_category_id ?? '');
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,41 +204,103 @@ export const PaymentTable = ({
     }
   };
 
-  const handleUploadInvoice = async () => {
+  const handleProcessPayment = async () => {
     if (!selectedRequest || !organizationId || !user) {
       return;
     }
 
-    // Need either a new invoice file or an existing invoice path (retry after partial failure)
+    if (!paymentExpenseTypeId) {
+      toast({
+        title: t('payments.expenseTypeRequired', 'Expense type required'),
+        description: t('payments.expenseTypeRequiredHint', 'Select an expense type before processing payment.'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!paymentExpenseCategoryId) {
+      toast({
+        title: t('payments.expenseCategoryRequired', 'Expense category required'),
+        description: t('payments.expenseCategoryRequiredHint', 'Select an expense category before processing payment.'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const hasInvoice = !!invoiceFile || !!selectedRequest.invoice_file_path;
     if (!selectedRequest.paid_at && !hasInvoice) {
       toast({
-        title: "Invoice required",
-        description: "Please select an invoice file to upload.",
-        variant: "destructive",
+        title: t('payments.invoiceRequired', 'Invoice required'),
+        description: t('payments.invoiceRequiredHint', 'Please select an invoice file to upload.'),
+        variant: 'destructive',
       });
       return;
     }
 
-    // Required: must select funding source before Process (for unpaid requests)
-    if (!selectedRequest.paid_at && !processWithdrawalFromBalance && !processBankAccountId) {
+    if (!selectedRequest.paid_at && !hasWithdrawalSource(processWithdrawalSource)) {
       toast({
         title: t('expenses.withdrawalFromBalanceRequired'),
         description: t('expenses.withdrawalRequiredToast'),
-        variant: "destructive",
+        variant: 'destructive',
       });
       return;
     }
 
-    const expenseTypeName = selectedRequest.expense_types?.name ?? '';
-    const expenseCategoryName = selectedRequest.expense_categories?.name ?? '';
+    const expenseTypeName =
+      expenseTypes.find((type) => type.id === paymentExpenseTypeId)?.name ?? '';
+    const expenseCategoryName =
+      expenseCategories.find((category) => category.id === paymentExpenseCategoryId)?.name ?? '';
     if (!expenseTypeName || !expenseCategoryName) {
       toast({
-        title: "Error",
-        description: "Request is missing expense type or category. Please ensure the request was approved with type and category.",
-        variant: "destructive",
+        title: t('payments.classificationInvalid', 'Invalid classification'),
+        description: t('payments.classificationInvalidHint', 'Selected expense type or category is no longer available.'),
+        variant: 'destructive',
       });
       return;
+    }
+
+    const amount = selectedRequest.amount_idr;
+    if (processWithdrawalSource.debtId) {
+      const debt = debtsForExpense.find((d) => d.id === processWithdrawalSource.debtId);
+      const available = debt?.available_limit ?? 0;
+      if (available < amount) {
+        toast({
+          title: t('payments.insufficientBalance', 'Insufficient balance'),
+          description: t('payments.insufficientDebtHint', 'Available limit: Rp {{amount}}', {
+            amount: available.toLocaleString('id-ID'),
+          }),
+          variant: 'destructive',
+        });
+        return;
+      }
+    } else if (processWithdrawalSource.bankAccountId) {
+      const balance = bankAccountBalances.find(
+        (b) => b.bank_account_id === processWithdrawalSource.bankAccountId,
+      );
+      const available = balance?.balance ?? 0;
+      if (available < amount) {
+        toast({
+          title: t('payments.insufficientBalance', 'Insufficient balance'),
+          description: t('payments.insufficientBankHint', 'Available balance: Rp {{amount}}', {
+            amount: available.toLocaleString('id-ID'),
+          }),
+          variant: 'destructive',
+        });
+        return;
+      }
+    } else if (processWithdrawalSource.gatewayProvider) {
+      const gw = gateways.find((g) => g.provider === processWithdrawalSource.gatewayProvider);
+      const available = gw?.usableBalance ?? 0;
+      if (available < amount) {
+        toast({
+          title: t('payments.insufficientBalance', 'Insufficient balance'),
+          description: t('payments.insufficientGatewayHint', 'Available gateway balance: Rp {{amount}}', {
+            amount: available.toLocaleString('id-ID'),
+          }),
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsUploadingInvoice(true);
@@ -196,10 +308,8 @@ export const PaymentTable = ({
       let fileName: string;
 
       if (selectedRequest.invoice_file_path) {
-        // Retry: invoice already saved from previous attempt; reuse path
         fileName = selectedRequest.invoice_file_path;
       } else if (invoiceFile) {
-        // Step 1: Upload invoice first (no DB change yet)
         const timestamp = Date.now();
         fileName = `invoices/${organizationId}/${selectedRequest.id}/${timestamp}-${invoiceFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
@@ -207,7 +317,7 @@ export const PaymentTable = ({
           .from('purchase-documents')
           .upload(fileName, invoiceFile, {
             cacheControl: '31536000',
-            upsert: false
+            upsert: false,
           });
 
         if (uploadError) {
@@ -218,15 +328,144 @@ export const PaymentTable = ({
         return;
       }
 
-      // Step 2: Update request with invoice path and funding source (do NOT mark as paid yet)
       await updateStatus.mutateAsync({
         id: selectedRequest.id,
         status: selectedRequest.status,
         invoiceFilePath: fileName,
-        withdrawalFromBalance: processWithdrawalFromBalance,
-        bankAccountId: processBankAccountId,
+        expenseTypeId: paymentExpenseTypeId,
+        expenseCategoryId: paymentExpenseCategoryId,
+        withdrawalFromBalance: processWithdrawalSource.debtId,
+        bankAccountId: processWithdrawalSource.bankAccountId,
+        gatewayWalletProvider: processWithdrawalSource.gatewayProvider ?? null,
         markAsPaid: false,
       });
+
+      const gatewayProvider = processWithdrawalSource.gatewayProvider;
+      const isGatewayDisbursement =
+        gatewayProvider === 'xendit' || gatewayProvider === 'brick';
+
+      if (isGatewayDisbursement) {
+        const bankCode = gatewayVendorBank.bankCode.trim().toUpperCase();
+        const accountNumber = gatewayVendorBank.accountNumber.trim();
+        const accountHolder = gatewayVendorBank.accountHolder.trim();
+
+        if (!bankCode || !accountNumber || !accountHolder) {
+          toast({
+            title: t('payments.vendorBankRequired', 'Vendor bank account required'),
+            description: t(
+              'payments.vendorBankRequiredHint',
+              'Enter vendor bank code, account number, and account holder for gateway disbursement.',
+            ),
+            variant: 'destructive',
+          });
+          setIsUploadingInvoice(false);
+          return;
+        }
+
+        if (gatewayProvider === 'brick' && selectedRequest.amount_idr > 100_000) {
+          toast({
+            title: t('payments.brickSandboxAmountTooHigh', 'Amount too high for Brick sandbox'),
+            description: t(
+              'payments.brickSandboxAmountTooHighHint',
+              'Brick sandbox supports disbursements up to Rp 100.000. Use a smaller test amount.',
+            ),
+            variant: 'destructive',
+          });
+          setIsUploadingInvoice(false);
+          return;
+        }
+
+        try {
+          if (gatewayProvider === 'xendit') {
+            if (!xenditSettings?.account?.is_enabled) {
+              throw new Error(t('payments.xenditNotEnabled', 'Xendit is not enabled for this organization.'));
+            }
+            const disburseResult = await executeXenditDisbursement(organizationId, {
+              source_type: 'purchase_request',
+              source_id: selectedRequest.id,
+              bank_code: bankCode,
+              account_number: accountNumber,
+              account_holder_name: accountHolder,
+              amount: selectedRequest.amount_idr,
+              description: `Vendor payment ${selectedRequest.request_title ?? selectedRequest.id}`,
+            });
+            let disbursementSettled =
+              disburseResult.rows?.some((row) => String(row.status ?? '') === 'completed') ?? false;
+            if (!disbursementSettled) {
+              try {
+                const pollResult = await pollXenditDisbursements(organizationId);
+                disbursementSettled = (pollResult.disbursePoll?.completed ?? 0) > 0;
+              } catch {
+                /* poll edge action may be unavailable until function deploy */
+              }
+            }
+            if (!disbursementSettled) {
+              const { data: stuckRows } = await supabase
+                .from('xendit_disbursements')
+                .select('id')
+                .eq('organization_id', organizationId)
+                .eq('source_type', 'purchase_request')
+                .eq('source_id', selectedRequest.id)
+                .in('status', ['pending', 'processing']);
+              for (const row of stuckRows ?? []) {
+                await supabase.rpc('reconcile_xendit_disbursement_completed', {
+                  p_disbursement_id: row.id,
+                });
+              }
+            }
+            try {
+              await fetchXenditWalletBalance(organizationId);
+            } catch {
+              /* balance sync is best-effort */
+            }
+          } else {
+            await executeBrickDisbursement(organizationId, {
+              source_type: 'purchase_request',
+              source_id: selectedRequest.id,
+              bank_code: bankCode,
+              account_number: accountNumber,
+              account_holder_name: accountHolder,
+              amount: selectedRequest.amount_idr,
+              description: `Vendor payment ${selectedRequest.request_title ?? selectedRequest.id}`,
+            });
+          }
+        } catch (disburseError) {
+          toast({
+            title: t('payments.gatewayDisburseFailed', 'Gateway disbursement failed'),
+            description:
+              disburseError instanceof Error ? disburseError.message : String(disburseError),
+            variant: 'destructive',
+          });
+          if (onRefresh) onRefresh();
+          setIsUploadingInvoice(false);
+          return;
+        }
+
+        toast({
+          title: t('payments.gatewayDisburseSubmitted', 'Disbursement submitted'),
+          description: t(
+            'payments.gatewayDisburseSubmittedHint',
+            'Payment is processing via the payment gateway. Expense and bank mutation will be recorded after Xendit/Brick confirms the transfer.',
+          ),
+        });
+
+        if (organizationId) {
+          queryClient.invalidateQueries({ queryKey: ['bank-statement-lines', organizationId] });
+          queryClient.invalidateQueries({ queryKey: ['gateway-wallet-balances', organizationId] });
+          queryClient.invalidateQueries({ queryKey: ['purchase-requests', organizationId] });
+        }
+
+        setInvoiceFile(null);
+        setProcessWithdrawalSource({});
+        setPaymentExpenseTypeId('');
+        setPaymentExpenseCategoryId('');
+        setGatewayVendorBank({ bankCode: '', accountNumber: '', accountHolder: '' });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setIsModalOpen(false);
+        if (onRefresh) onRefresh();
+        setIsUploadingInvoice(false);
+        return;
+      }
 
       // Step 3: Avoid double expense – check if expense already exists for this request
       const { data: existingExpense } = await supabase
@@ -247,8 +486,9 @@ export const PaymentTable = ({
           create_date: format(new Date(), 'yyyy-MM-dd'),
           is_recurring: false,
           description: selectedRequest.description ?? undefined,
-          withdrawal_from_balance: processWithdrawalFromBalance,
-          bank_account_id: processBankAccountId,
+          withdrawal_from_balance: processWithdrawalSource.debtId,
+          bank_account_id: processWithdrawalSource.bankAccountId,
+          gateway_wallet_provider: processWithdrawalSource.gatewayProvider,
           purchase_request_id: selectedRequest.id,
         });
 
@@ -329,9 +569,14 @@ export const PaymentTable = ({
         description: "Payment processed. Invoice saved, expense recorded, and balance updated.",
       });
 
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: ['bank-statement-lines', organizationId] });
+      }
+
       setInvoiceFile(null);
-      setProcessWithdrawalFromBalance(undefined);
-      setProcessBankAccountId(undefined);
+      setProcessWithdrawalSource({});
+      setPaymentExpenseTypeId('');
+      setPaymentExpenseCategoryId('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -853,183 +1098,136 @@ export const PaymentTable = ({
                 </CardContent>
               </Card>
 
-              {/* Invoice Upload Section */}
+              {/* Payment process */}
               {!selectedRequest.paid_at && (
                 <>
                   <Separator className="my-4" />
 
-                  {/* Withdrawal From Balance (required before Process) */}
-                  <Card className="border-slate-200">
-                    <CardHeader className="px-4 py-3 pb-2">
-                      <CardTitle className="text-base font-semibold text-slate-900">
-                        {t('expenses.withdrawalFromBalanceRequired')} <span className="text-brand-red">*</span>
-                      </CardTitle>
-                      <p className="text-xs text-slate-500 font-normal mt-1">
-                        {t('expenses.paymentProcessWithdrawalHint')}
-                      </p>
-                    </CardHeader>
-                    <CardContent className="px-4 py-3 space-y-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="process-withdrawal" className="text-sm font-medium">
-                          {t('expenses.fundingSource')} <span className="text-brand-red">*</span>
-                        </Label>
-                        <Select
-                          value={
-                            processWithdrawalFromBalance
-                              ? `debt_${processWithdrawalFromBalance}`
-                              : processBankAccountId
-                                ? `bank_${processBankAccountId}`
-                                : 'none'
-                          }
-                          onValueChange={(value) => {
-                            if (value === 'none') {
-                              setProcessWithdrawalFromBalance(undefined);
-                              setProcessBankAccountId(undefined);
-                            } else if (value.startsWith('debt_')) {
-                              setProcessWithdrawalFromBalance(value.replace('debt_', ''));
-                              setProcessBankAccountId(undefined);
-                            } else if (value.startsWith('bank_')) {
-                              setProcessBankAccountId(value.replace('bank_', ''));
-                              setProcessWithdrawalFromBalance(undefined);
-                            }
-                          }}
-                          disabled={debtsLoading || bankAccountsLoading || balancesLoading}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={(debtsLoading || bankAccountsLoading) ? t('expenses.loading') : t('expenses.selectSourceRequired')}>
-                              {processWithdrawalFromBalance
-                                ? (() => {
-                                    const debt = debtsForExpense.find(d => d.id === processWithdrawalFromBalance);
-                                    if (debt) {
-                                      const availableLimit = debt.available_limit ?? 0;
-                                      return `${debt.debt_name} (Rp ${availableLimit.toLocaleString('id-ID')} available)`;
-                                    }
-                                    return '';
-                                  })()
-                                : processBankAccountId
-                                  ? (() => {
-                                      const bank = bankAccounts.find(b => b.id === processBankAccountId);
-                                      if (bank) {
-                                        const balance = bankAccountBalances.find(b => b.bank_account_id === bank.id);
-                                        const availableBalance = balance?.balance ?? 0;
-                                        return bank.account_number
-                                          ? `${bank.name} - ${bank.account_number} (Rp ${availableBalance.toLocaleString('id-ID')} available)`
-                                          : `${bank.name} (Rp ${availableBalance.toLocaleString('id-ID')} available)`;
-                                      }
-                                      return '';
-                                    })()
-                                  : ''}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">{t('expenses.none')}</SelectItem>
-                            {bankAccounts.length > 0 && (
-                              <>
-                                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">{t('expenses.bankAccounts')}</div>
-                                {bankAccounts.map((bankAccount) => {
-                                  const balance = bankAccountBalances.find(b => b.bank_account_id === bankAccount.id);
-                                  const availableBalance = balance?.balance ?? 0;
-                                  const displayText = bankAccount.account_number
-                                    ? `${bankAccount.name} - ${bankAccount.account_number} (Rp ${availableBalance.toLocaleString('id-ID')} available)`
-                                    : `${bankAccount.name} (Rp ${availableBalance.toLocaleString('id-ID')} available)`;
-                                  return (
-                                    <SelectItem key={`bank_${bankAccount.id}`} value={`bank_${bankAccount.id}`}>
-                                      {displayText}
-                                    </SelectItem>
-                                  );
-                                })}
-                              </>
-                            )}
-                            {debtsForExpense.length > 0 && (
-                              <>
-                                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">{t('expenses.debts')}</div>
-                                {debtsForExpense.map((debt) => {
-                                  const availableLimit = debt.available_limit ?? 0;
-                                  return (
-                                    <SelectItem key={`debt_${debt.id}`} value={`debt_${debt.id}`}>
-                                      {debt.debt_name} (Rp {availableLimit.toLocaleString('id-ID')} available)
-                                    </SelectItem>
-                                  );
-                                })}
-                              </>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="border-slate-200">
-                    <CardHeader className="px-4 py-3 pb-2">
-                      <CardTitle className="text-base font-semibold text-slate-900">
-                        Upload Invoice
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 py-3 space-y-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="invoice-file" className="text-sm font-medium">
-                          Invoice File <span className="text-brand-red">*</span>
-                        </Label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            ref={fileInputRef}
-                            id="invoice-file"
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png,.gif"
-                            onChange={handleFileSelect}
-                            className="flex-1"
-                          />
-                          {invoiceFile && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleRemoveFile}
-                              className="h-8 w-8 p-0"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                        {invoiceFile && (
-                          <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <FileText className="h-4 w-4" />
-                            <span className="flex-1 truncate">{invoiceFile.name}</span>
-                            <span className="text-xs text-slate-500">
-                              {(invoiceFile.size / 1024 / 1024).toFixed(2)} MB
-                            </span>
-                          </div>
-                        )}
-                        <p className="text-xs text-slate-500">
-                          Supported formats: PDF, JPEG, PNG, GIF (Max 10MB)
+                  {selectedRequest.payment_status === 'processing' ? (
+                    <Card className="border-purple-200 bg-purple-50/50">
+                      <CardContent className="px-4 py-4">
+                        <p className="text-sm font-medium text-purple-900">
+                          {t('payments.mode.processingTitle', 'Payment in progress')}
                         </p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={handleUploadInvoice}
-                        disabled={
-                          (!invoiceFile && !selectedRequest?.invoice_file_path) ||
-                          isUploadingInvoice ||
-                          updateStatus.isPending ||
-                          isCreatingExpense ||
-                          (!processWithdrawalFromBalance && !processBankAccountId)
-                        }
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        {isUploadingInvoice || updateStatus.isPending || isCreatingExpense ? (
-                          <>
-                            <Upload className="mr-2 h-4 w-4 animate-pulse" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Upload Invoice & Mark as Paid
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
+                        <p className="mt-1 text-xs text-purple-800">
+                          {t(
+                            'payments.mode.processingHint',
+                            'Disbursement was submitted via payment gateway. Wait for completion or refresh status from bank sync.',
+                          )}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <>
+                      <PaymentExpenseClassificationCard
+                        expenseTypeId={paymentExpenseTypeId}
+                        expenseCategoryId={paymentExpenseCategoryId}
+                        withdrawalSource={processWithdrawalSource}
+                        onExpenseTypeChange={setPaymentExpenseTypeId}
+                        onExpenseCategoryChange={setPaymentExpenseCategoryId}
+                        onWithdrawalSourceChange={setProcessWithdrawalSource}
+                      />
+
+                      {(processWithdrawalSource.gatewayProvider === 'xendit' ||
+                        processWithdrawalSource.gatewayProvider === 'brick') && (
+                        <PaymentGatewayVendorBankCard
+                          provider={processWithdrawalSource.gatewayProvider}
+                          value={gatewayVendorBank}
+                          onChange={setGatewayVendorBank}
+                          xenditBanks={xenditSettings?.vaBanks}
+                        />
+                      )}
+
+                      <Card className="border-slate-200">
+                        <CardHeader className="px-4 py-3 pb-2">
+                          <CardTitle className="text-base font-semibold text-slate-900">
+                            {t('payments.processPaymentTitle', 'Process payment')}
+                          </CardTitle>
+                          <p className="text-xs font-normal text-slate-500 mt-1">
+                            {processWithdrawalSource.gatewayProvider
+                              ? t(
+                                  'payments.processPaymentGatewayHint',
+                                  'Upload invoice, then submit real disbursement via payment gateway. Saldo Xendit/Brick berkurang setelah transfer dikonfirmasi.',
+                                )
+                              : t(
+                                  'payments.processPaymentHint',
+                                  'Upload the invoice, then process payment. Balance will be deducted from the selected funding source.',
+                                )}
+                          </p>
+                        </CardHeader>
+                        <CardContent className="px-4 py-3 space-y-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="invoice-file" className="text-sm font-medium">
+                              {t('payments.mode.invoiceFile', 'Invoice file')}{' '}
+                              <span className="text-brand-red">*</span>
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                ref={fileInputRef}
+                                id="invoice-file"
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png,.gif"
+                                onChange={handleFileSelect}
+                                className="flex-1"
+                              />
+                              {invoiceFile && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={handleRemoveFile}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                            {invoiceFile && (
+                              <div className="flex items-center gap-2 text-sm text-slate-600">
+                                <FileText className="h-4 w-4" />
+                                <span className="flex-1 truncate">{invoiceFile.name}</span>
+                                <span className="text-xs text-slate-500">
+                                  {(invoiceFile.size / 1024 / 1024).toFixed(2)} MB
+                                </span>
+                              </div>
+                            )}
+                            <p className="text-xs text-slate-500">
+                              {t(
+                                'payments.invoiceFormats',
+                                'Supported formats: PDF, JPEG, PNG, GIF (Max 10MB)',
+                              )}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            onClick={handleProcessPayment}
+                            disabled={
+                              !paymentExpenseTypeId ||
+                              !paymentExpenseCategoryId ||
+                              (!invoiceFile && !selectedRequest?.invoice_file_path) ||
+                              isUploadingInvoice ||
+                              updateStatus.isPending ||
+                              isCreatingExpense ||
+                              !hasWithdrawalSource(processWithdrawalSource)
+                            }
+                            className="w-full bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            {isUploadingInvoice || updateStatus.isPending || isCreatingExpense ? (
+                              <>
+                                <Upload className="mr-2 h-4 w-4 animate-pulse" />
+                                {t('payments.processing', 'Processing...')}
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                {t('payments.processPayment', 'Process Payment')}
+                              </>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -1064,6 +1262,9 @@ export const PaymentTable = ({
           if (!open) {
             setSelectedRequest(null);
             setInvoiceFile(null);
+            setProcessWithdrawalSource({});
+            setPaymentExpenseTypeId('');
+            setPaymentExpenseCategoryId('');
             if (fileInputRef.current) fileInputRef.current.value = '';
           }
         }}

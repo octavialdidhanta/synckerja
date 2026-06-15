@@ -1,5 +1,6 @@
 import { DollarSign, Wallet } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { SalesActivity } from '@/shared/hooks/organized/sales';
 import { computePiutangMetrics } from '../shared/piutangMetrics';
 
@@ -9,6 +10,7 @@ type PiutangOverviewPanelProps = {
 
 /** Ringkasan di kolom kanan — ritme visual mengikuti kartu ringkas di `IncomeTransactionOverview`. */
 export function PiutangOverviewPanel({ filteredRows }: PiutangOverviewPanelProps) {
+  const { t } = useAppTranslation();
   const { totalRemaining, totalPaid } = computePiutangMetrics(filteredRows);
 
   return (
@@ -17,7 +19,9 @@ export function PiutangOverviewPanel({ filteredRows }: PiutangOverviewPanelProps
         <div className="rounded-lg bg-brand-blue/10 p-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-brand-blue">Total sisa piutang</p>
+              <p className="text-xs font-medium text-brand-blue">
+                {t('incomes.piutang.summary.totalRemaining', 'Total sisa piutang')}
+              </p>
               <p className="text-lg font-bold text-brand-blue">{formatToRupiah(totalRemaining)}</p>
             </div>
             <DollarSign className="h-5 w-5 text-brand-blue" />
@@ -27,7 +31,9 @@ export function PiutangOverviewPanel({ filteredRows }: PiutangOverviewPanelProps
         <div className="rounded-lg bg-green-50 p-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-green-800">Total terbayar (filter)</p>
+              <p className="text-xs font-medium text-green-800">
+                {t('incomes.piutang.summary.totalPaid', 'Total terbayar (filter)')}
+              </p>
               <p className="text-lg font-bold text-green-900">{formatToRupiah(totalPaid)}</p>
             </div>
             <Wallet className="h-5 w-5 text-green-600" />

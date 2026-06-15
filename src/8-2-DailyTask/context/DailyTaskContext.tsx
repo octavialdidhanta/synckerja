@@ -177,8 +177,8 @@ export interface DailyTaskContextType {
   addTask: (data: Partial<Task>) => Promise<void>;
   updateTask: (id: string, data: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
-  addTaskStep: (taskId: string, title: string, description?: string) => Promise<void>;
-  updateTaskStep: (stepId: string, data: Partial<TaskStep>, options?: { autoReorder?: boolean }) => Promise<void>;
+  addTaskStep: (taskId: string, title: string, description?: string) => Promise<string | undefined>;
+  updateTaskStep: (stepId: string, data: Partial<TaskStep>, options?: { autoReorder?: boolean; skipRefresh?: boolean }) => Promise<void>;
   deleteTaskStep: (stepId: string) => Promise<void>;
   assignTaskStep: (stepId: string, employeeId: string | null, dueDateIso?: string | null) => Promise<void>;
   reorderTaskSteps: (taskId: string, stepIds: string[]) => Promise<void>;
@@ -212,6 +212,9 @@ export interface DailyTaskContextType {
   rejectedReasonsByStepId: Record<string, string>;
   /** Rejection reason by sub-step id (for main table). */
   rejectedReasonsBySubStepId: Record<string, string>;
+  /** Focus from step comment deep link / FCM tap. */
+  pendingStepCommentFocus: { taskId: string; stepId: string } | null;
+  setPendingStepCommentFocus: (v: { taskId: string; stepId: string } | null) => void;
   /** Focus from "Pending your approval" click: show only one task/step; cleared on refetch. */
   pendingApprovalFocus: { taskId: string; stepId?: string; openSubStepModalForStepId?: string } | null;
   setPendingApprovalFocus: (v: { taskId: string; stepId?: string; openSubStepModalForStepId?: string } | null) => void;
@@ -293,6 +296,10 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
     taskId: string;
     stepId?: string;
     openSubStepModalForStepId?: string;
+  } | null>(null);
+  const [pendingStepCommentFocus, setPendingStepCommentFocus] = useState<{
+    taskId: string;
+    stepId: string;
   } | null>(null);
 
   // Centralized fetch functions - only called when Summary tab is mounted (lazy load)
@@ -1519,7 +1526,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
     }
   };
 
-  const addTaskStep = async (taskId: string, title: string, description?: string) => {
+  const addTaskStep = async (taskId: string, title: string, description?: string): Promise<string | undefined> => {
     try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -1536,7 +1543,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
         ? ((existingSteps as any)[0].order as number) + 1 
         : 1;
 
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from('task_steps')
         .insert({
           task_id: taskId,
@@ -1545,9 +1552,13 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
           is_completed: false,
           order: nextOrder,
           created_by: user?.id || null
-        });
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
+
+      const stepId = inserted?.id ? String(inserted.id) : undefined;
 
       // Update has_steps to true (optimistic update - trigger will handle it, but we do it for consistency)
       const { error: updateError } = await supabase
@@ -1581,6 +1592,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       
       clearCache(`tasks_${organizationId}_*`);
       await fetchTasks(true);
+      return stepId;
     } catch (error) {
       console.error('Error adding step:', error);
       toast({
@@ -1588,10 +1600,11 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
         description: 'Failed to add step',
         variant: 'destructive'
       });
+      throw error;
     }
   };
 
-  const updateTaskStep = async (stepId: string, data: Partial<TaskStep>, options?: { autoReorder?: boolean }) => {
+  const updateTaskStep = async (stepId: string, data: Partial<TaskStep>, options?: { autoReorder?: boolean; skipRefresh?: boolean }) => {
     try {
       // Fetch existing to detect status change - with retry
       const { data: before } = await retryableQuery(async () => {
@@ -1822,14 +1835,35 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       // Toast notifications should only appear for explicit user actions
       // If toast is needed, it should be shown at the call site for user-initiated actions
       
-      // Only refresh if we didn't skip it (for mobile auto-reorder)
-      // For mobile with auto-reorder, we skip fetchTasks to avoid reload that confuses users
-      if (!skipRefresh) {
+      // Only refresh if we didn't skip it (for mobile auto-reorder or sub-step modal sync)
+      if (!skipRefresh && !options?.skipRefresh) {
         // Normal update flow - clear cache and refresh
         clearCache(`tasks_${organizationId}_*`);
         await fetchTasks(true);
+      } else if (options?.skipRefresh && taskId) {
+        setTasks((prevTasks) =>
+          prevTasks.map((task) => {
+            if (task.id !== taskId) return task;
+            const updatedSteps = task.steps.map((step) =>
+              step.id === stepId
+                ? {
+                    ...step,
+                    ...updateData,
+                    is_completed: afterCompleted,
+                  }
+                : step,
+            );
+            const progress = calculateProgress(updatedSteps, task.status);
+            return {
+              ...task,
+              steps: updatedSteps,
+              progress_percentage: progress,
+              status: determineStatusFromProgress(progress, task.status) as Task['status'],
+            };
+          }),
+        );
+        clearCache(`tasks_${organizationId}_*`);
       }
-      // If skipRefresh is true, we've already updated local state above, so skip fetchTasks
     } catch (error: any) {
       console.error('Error updating step:', error);
       
@@ -3034,6 +3068,8 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
     rejectedReasonsBySubStepId,
     pendingApprovalFocus,
     setPendingApprovalFocus,
+    pendingStepCommentFocus,
+    setPendingStepCommentFocus,
     highlightFromPendingApproval,
     effectiveFilteredTasks,
     getVisibleStepsEffective,

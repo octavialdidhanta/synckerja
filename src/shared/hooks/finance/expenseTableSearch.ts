@@ -1,4 +1,5 @@
 import type { Expense } from "@/shared/hooks/finance/useExpenses";
+import type { GatewayWalletProvider } from "@/shared/lib/finance/withdrawalSourceValue";
 
 export type ExpenseSearchable = Expense & {
   request_title?: string;
@@ -7,13 +8,28 @@ export type ExpenseSearchable = Expense & {
   withdrawal_from_balance_debt?: { debt_name?: string | null } | null;
 };
 
-/** Label shown in the Withdrawal column (bank account or debt name). */
-export function getExpenseWithdrawalLabel(expense: ExpenseSearchable): string {
-  return (
-    expense.withdrawal_from_balance_bank_account?.name?.trim() ||
-    expense.withdrawal_from_balance_debt?.debt_name?.trim() ||
-    ""
-  );
+const DEFAULT_GATEWAY_LABELS: Record<GatewayWalletProvider, string> = {
+  xendit: "Xendit",
+  brick: "Brick",
+};
+
+/** Label shown in the Withdrawal column (bank, debt, or gateway drawer). */
+export function getExpenseWithdrawalLabel(
+  expense: ExpenseSearchable,
+  options?: { formatGateway?: (provider: GatewayWalletProvider) => string },
+): string {
+  const bank = expense.withdrawal_from_balance_bank_account?.name?.trim();
+  if (bank) return bank;
+
+  const debt = expense.withdrawal_from_balance_debt?.debt_name?.trim();
+  if (debt) return debt;
+
+  const gateway = expense.gateway_wallet_provider;
+  if (gateway === "xendit" || gateway === "brick") {
+    return options?.formatGateway?.(gateway) ?? DEFAULT_GATEWAY_LABELS[gateway];
+  }
+
+  return "";
 }
 
 /**

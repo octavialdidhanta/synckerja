@@ -17,6 +17,12 @@ const LAST_REAL = 5;
 export type MobileIncomeDashboardCarouselProps = {
   isLoading: boolean;
   totalCurrentBalance: number;
+  bankTotalBalance?: number;
+  brickBalance?: number | null;
+  xenditBalance?: number | null;
+  brickEligible?: boolean;
+  xenditEligible?: boolean;
+  bankAccountCount?: number;
   yearTotalIncome: number;
   totalIncomeMonthToDate: number;
   growthPercentage: number;
@@ -31,6 +37,12 @@ export type MobileIncomeDashboardCarouselProps = {
 export function MobileIncomeDashboardCarousel({
   isLoading,
   totalCurrentBalance,
+  bankTotalBalance,
+  brickBalance,
+  xenditBalance,
+  brickEligible,
+  xenditEligible,
+  bankAccountCount,
   yearTotalIncome,
   totalIncomeMonthToDate,
   growthPercentage,
@@ -86,6 +98,16 @@ export function MobileIncomeDashboardCarousel({
 
   const logicalIndex = index === 0 ? 4 : index === 6 ? 0 : index - 1;
 
+  const balanceCardProps = {
+    totalCurrentBalance,
+    bankTotalBalance,
+    brickBalance,
+    xenditBalance,
+    brickEligible,
+    xenditEligible,
+    bankAccountCount,
+  };
+
   if (isLoading) {
     return <MobileIncomeCarouselSkeleton />;
   }
@@ -113,7 +135,7 @@ export function MobileIncomeDashboardCarousel({
           />
         </div>
         <div className="flex-shrink-0 px-0" style={{ width: `${slideWidthPercent}%` }}>
-          <IncomeTotalCurrentBalanceCard totalCurrentBalance={totalCurrentBalance} />
+          <IncomeTotalCurrentBalanceCard {...balanceCardProps} />
         </div>
         <div className="flex-shrink-0 px-0" style={{ width: `${slideWidthPercent}%` }}>
           <IncomeTotalIncomeCard totalIncome={yearTotalIncome} totalIncomeMonthToDate={totalIncomeMonthToDate} />
@@ -136,7 +158,7 @@ export function MobileIncomeDashboardCarousel({
           />
         </div>
         <div className="flex-shrink-0 px-0" style={{ width: `${slideWidthPercent}%` }}>
-          <IncomeTotalCurrentBalanceCard totalCurrentBalance={totalCurrentBalance} />
+          <IncomeTotalCurrentBalanceCard {...balanceCardProps} />
         </div>
       </div>
 

@@ -52,6 +52,7 @@ export interface CreateExpenseData {
   department?: string;
   withdrawal_from_balance?: string; // Debt ID for withdrawal from balance
   bank_account_id?: string; // Bank account ID for withdrawal from balance
+  gateway_wallet_provider?: 'xendit' | 'brick'; // Gateway drawer funding source
   create_date: string;
   is_recurring: boolean;
   recurring_frequency?: string;
@@ -390,6 +391,7 @@ export const useExpenses = () => {
           department: expenseData.department || null,
           withdrawal_from_balance: expenseData.withdrawal_from_balance || null,
           bank_account_id: expenseData.bank_account_id || null,
+          gateway_wallet_provider: expenseData.gateway_wallet_provider || null,
           create_date: expenseData.create_date,
           is_recurring: expenseData.is_recurring,
           recurring_frequency: expenseData.recurring_frequency || null,
@@ -457,6 +459,7 @@ export const useExpenses = () => {
       toast.success('Expense created successfully!');
 
       queryClient.invalidateQueries({ queryKey: ['bank-account-balances', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['gateway-wallet-balances', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['expense-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['income-transactions', organizationId] });
       queryClient.invalidateQueries({ queryKey });
@@ -614,6 +617,7 @@ export const useExpenses = () => {
           department: expenseData.department || null,
           withdrawal_from_balance: expenseData.withdrawal_from_balance || null,
           bank_account_id: expenseData.bank_account_id || null,
+          gateway_wallet_provider: expenseData.gateway_wallet_provider || null,
           create_date: expenseData.create_date,
           is_recurring: expenseData.is_recurring,
           recurring_frequency: expenseData.recurring_frequency || null,

@@ -5,21 +5,30 @@ export const PIUTANG_DEFAULT_VERIFICATION: PiutangVerificationFilterMode = 'all'
 
 export type PiutangFilterOption<T extends string> = {
   value: T;
+  labelKey: string;
   label: string;
 };
 
 export const PIUTANG_STATUS_FILTER_OPTIONS: readonly PiutangFilterOption<PiutangFilterMode>[] = [
-  { value: 'open', label: 'Terbuka (sisa / perlu verifikasi)' },
-  { value: 'settled', label: 'Lunas' },
-  { value: 'all', label: 'Semua' },
+  {
+    value: 'open',
+    labelKey: 'incomes.piutang.filters.statusOpen',
+    label: 'Terbuka (sisa / perlu verifikasi)',
+  },
+  { value: 'settled', labelKey: 'incomes.piutang.filters.statusSettled', label: 'Lunas' },
+  { value: 'all', labelKey: 'incomes.piutang.filters.statusAll', label: 'Semua' },
 ] as const;
 
 export const PIUTANG_VERIFICATION_FILTER_OPTIONS: readonly PiutangFilterOption<PiutangVerificationFilterMode>[] =
   [
-    { value: 'all', label: 'Verifikasi: semua' },
-    { value: 'unchecked', label: 'Belum dicek' },
-    { value: 'approved', label: 'OK' },
-    { value: 'rejected', label: 'Ditolak' },
+    { value: 'all', labelKey: 'incomes.piutang.filters.verificationAll', label: 'Verifikasi: semua' },
+    {
+      value: 'unchecked',
+      labelKey: 'incomes.piutang.filters.verificationUnchecked',
+      label: 'Belum dicek',
+    },
+    { value: 'approved', labelKey: 'incomes.piutang.filters.verificationApproved', label: 'OK' },
+    { value: 'rejected', labelKey: 'incomes.piutang.filters.verificationRejected', label: 'Ditolak' },
   ] as const;
 
 export function getPiutangStatusFilterLabel(value: PiutangFilterMode): string {

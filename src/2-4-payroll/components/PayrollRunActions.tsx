@@ -9,6 +9,8 @@ import {
   type PayrollBankExportRow,
 } from "../lib/payrollBankExport";
 import { MarkPayrollRunPaidDialog } from "../modals/MarkPayrollRunPaidDialog";
+import { PayrollXenditDisburseActions } from "./PayrollXenditDisburseActions";
+import { PayrollBrickDisburseActions } from "./PayrollBrickDisburseActions";
 
 interface PayrollRunActionsProps {
   runId: string | null;
@@ -107,6 +109,16 @@ export function PayrollRunActions({
           <Download className="mr-1 h-4 w-4" />
           Export Bank CSV
         </Button>
+        <PayrollXenditDisburseActions
+          runId={runId}
+          runStatus={runStatus}
+          onActionComplete={onActionComplete}
+        />
+        <PayrollBrickDisburseActions
+          runId={runId}
+          runStatus={runStatus}
+          onActionComplete={onActionComplete}
+        />
         {runStatus === "calculated" && (
           <Button size="sm" variant="default" onClick={() => setMarkPaidOpen(true)}>
             <CheckCircle2 className="mr-1 h-4 w-4" />

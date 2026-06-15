@@ -5,7 +5,7 @@ export type {
   UpdateBankAccountData,
   UseBankAccountsOptions,
 } from './useBankAccounts';
-export { useBankAccountBalances } from './useBankAccountBalances';
+export { useBankAccountBalances, useGatewayWithdrawalBankPeriodCredits } from './useBankAccountBalances';
 export type { BankAccountBalance, BankAccountBalanceHistory } from './useBankAccountBalances';
 export { useCreateBankTransfer } from './useCreateBankTransfer';
 export type { CreateBankTransferParams } from './useCreateBankTransfer';

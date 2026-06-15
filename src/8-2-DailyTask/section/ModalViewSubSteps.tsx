@@ -530,7 +530,7 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
         logger.debug('✅ Sub-steps set to state:', subStepsWithAssignment.length || 0, 'items');
       }
       
-      await syncParentCompletion(subStepsWithAssignment);
+      await syncParentCompletion(subStepsWithAssignment, { notifyParent: false });
 
       // Fetch history counts for these sub-steps (with graceful degradation)
       const ids = (data || []).map((d: any) => d.id);
@@ -574,11 +574,14 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
     }
   };
 
-  const syncParentCompletion = async (steps?: SubStep[]) => {
+  const syncParentCompletion = async (
+    steps?: SubStep[],
+    options?: { notifyParent?: boolean },
+  ) => {
     try {
       const list = steps ?? subSteps;
       const hasAny = (list?.length || 0) > 0;
-      const allCompleted = hasAny && (list ?? []).every(s => s.is_completed);
+      const allCompleted = hasAny && (list ?? []).every((s) => s.is_completed);
       const payload: any = {
         is_completed: allCompleted,
         completed_at: allCompleted ? new Date().toISOString() : null,
@@ -586,11 +589,10 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
       if (allCompleted) {
         payload.updated_at = new Date().toISOString();
       }
-      await supabase
-        .from('task_steps')
-        .update(payload)
-        .eq('id', parentStepId);
-      onParentCompletionChange?.(allCompleted);
+      await supabase.from('task_steps').update(payload).eq('id', parentStepId);
+      if (options?.notifyParent !== false) {
+        onParentCompletionChange?.(allCompleted);
+      }
     } catch (err) {
       // ignore
     }

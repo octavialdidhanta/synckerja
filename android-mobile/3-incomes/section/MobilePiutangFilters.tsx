@@ -18,6 +18,7 @@ import {
   PIUTANG_STATUS_FILTER_OPTIONS,
   PIUTANG_VERIFICATION_FILTER_OPTIONS,
 } from '@/4-1-transaction/piutang/shared/piutangFilterConfig';
+import { translatePiutangFilterOption } from '@/4-1-transaction/piutang/shared/piutangI18n';
 
 type MobilePiutangFiltersProps = {
   search: string;
@@ -118,7 +119,10 @@ export function MobilePiutangFilters({
               <FilterGroup
                 title={t('incomes.piutang.statusFilter', 'Status piutang')}
                 current={status}
-                options={PIUTANG_STATUS_FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                options={PIUTANG_STATUS_FILTER_OPTIONS.map((o) => ({
+                  value: o.value,
+                  label: translatePiutangFilterOption(t, o),
+                }))}
                 onSelect={(v) => onStatusChange(v as PiutangFilterMode)}
               />
               <FilterGroup
@@ -126,7 +130,7 @@ export function MobilePiutangFilters({
                 current={verification}
                 options={PIUTANG_VERIFICATION_FILTER_OPTIONS.map((o) => ({
                   value: o.value,
-                  label: o.label,
+                  label: translatePiutangFilterOption(t, o),
                 }))}
                 onSelect={(v) => onVerificationChange(v as PiutangVerificationFilterMode)}
               />

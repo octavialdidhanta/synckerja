@@ -35,6 +35,7 @@ interface MobileTaskStepProps {
   step: TaskStepEntity;
   index: number;
   taskCreatedBy?: string;
+  taskAssignedTo?: string | null;
   taskTitle?: string;
   autoReorder?: boolean;
   isRevealed: boolean;
@@ -48,6 +49,7 @@ export const MobileTaskStep: React.FC<MobileTaskStepProps> = ({
   step,
   index,
   taskCreatedBy,
+  taskAssignedTo,
   taskTitle = '',
   autoReorder = false,
   isRevealed,
@@ -348,6 +350,7 @@ export const MobileTaskStep: React.FC<MobileTaskStepProps> = ({
           step={step}
           index={index}
           taskCreatedBy={taskCreatedBy}
+          taskAssignedTo={taskAssignedTo}
           taskTitle={taskTitle}
           autoReorder={autoReorder}
           onSubStepModalOpenChange={onSubStepModalOpenChange}

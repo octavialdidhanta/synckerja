@@ -330,6 +330,7 @@ export function usePaymentUpdateModal({
             description: `${getPaymentType().replace('_', ' ')} - ${salesActivity?.activity_type || 'Sales Activity'}: ${trimmedClient}`,
             receipt_url: invoiceUrl || newPayment.receipt_url || undefined,
             sales_activity_payment_id: insertedPayment?.id,
+            status: 'pending',
           });
         } catch (incomeError: unknown) {
           console.error('Error creating income transaction:', incomeError);
@@ -566,6 +567,7 @@ export function usePaymentUpdateModal({
     isLivechatVariant,
     viewOnly,
     clientName,
+    organizationId,
     salesActivityId,
     salesActivity,
     paymentHistory,
@@ -600,6 +602,7 @@ export function usePaymentUpdateModal({
     handleSaveEdit,
     handleDeletePayment,
     getPaymentStatusColor,
+    loadData,
   };
 }
 

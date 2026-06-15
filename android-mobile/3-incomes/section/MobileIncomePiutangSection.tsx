@@ -13,6 +13,12 @@ const PiutangPaymentVerificationDrawer = lazy(() =>
   })),
 );
 
+const PiutangVaCollectionDrawer = lazy(() =>
+  import('@/4-1-transaction/piutang/components/PiutangVaCollectionDrawer').then((m) => ({
+    default: m.PiutangVaCollectionDrawer,
+  })),
+);
+
 export function MobileIncomePiutangSection() {
   const piutang = useIncomePiutangPage();
 
@@ -47,6 +53,7 @@ export function MobileIncomePiutangSection() {
                 verificationByActivity={piutang.verificationAggregateByActivity}
                 verificationLoading={piutang.verificationLoading}
                 onOpenPayments={piutang.openDrawer}
+                onOpenVaCollection={piutang.openVaDrawer}
               />
             </div>
 
@@ -63,11 +70,25 @@ export function MobileIncomePiutangSection() {
           <PiutangPaymentVerificationDrawer
             open={piutang.drawerOpen}
             onOpenChange={piutang.closeDrawer}
+            organizationId={piutang.organizationId}
             salesActivityId={piutang.drawerActivity?.id ?? null}
             clientLabel={String(piutang.drawerActivity?.client_name ?? '—')}
             getPaymentHistory={piutang.getPaymentHistory}
             updatePaymentVerification={piutang.updatePaymentVerification}
             userId={piutang.userId}
+          />
+        </Suspense>
+      ) : null}
+
+      {piutang.mountVaDrawer ? (
+        <Suspense fallback={null}>
+          <PiutangVaCollectionDrawer
+            open={piutang.vaDrawerOpen}
+            onOpenChange={piutang.closeVaDrawer}
+            organizationId={piutang.organizationId}
+            salesActivityId={piutang.vaDrawerActivity?.id ?? null}
+            clientLabel={String(piutang.vaDrawerActivity?.client_name ?? '—')}
+            getPaymentHistory={piutang.getPaymentHistory}
           />
         </Suspense>
       ) : null}

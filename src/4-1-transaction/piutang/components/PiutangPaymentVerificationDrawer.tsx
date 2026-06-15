@@ -18,6 +18,16 @@ import {
 import { useToast } from '@/shared/components/ui/use-toast';
 import { getIncomeReceiptDisplayUrl } from '@/4-1-transaction/utils/incomeReceiptDownload';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
+import {
+  isManualBankTransferPayment,
+  isXenditVaPayment,
+} from '../utils/piutangVaCollection';
+import {
+  useSuggestedMatchesForPayment,
+  useBankMutations,
+} from '@/shared/hooks/finance/useBankMutations';
+import { format } from 'date-fns';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 type VerificationStatus = 'unchecked' | 'approved' | 'rejected';
 
@@ -33,6 +43,7 @@ type PaymentRow = {
 type PiutangPaymentVerificationDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  organizationId: string | null | undefined;
   salesActivityId: string | null;
   clientLabel: string;
   getPaymentHistory: (id: string) => Promise<unknown[]>;
@@ -138,9 +149,59 @@ function PaymentReceiptInlinePreview({ pathOrUrl }: { pathOrUrl: string }) {
   );
 }
 
+function PiutangMutationMatchBanner({
+  paymentId,
+  onConfirmed,
+}: {
+  paymentId: string;
+  onConfirmed?: () => void;
+}) {
+  const { t } = useAppTranslation();
+  const { data: matches = [], isLoading } = useSuggestedMatchesForPayment(paymentId);
+  const { confirmMatch, confirmingMatch } = useBankMutations({
+    bankAccountId: 'all',
+    direction: 'all',
+    matchFilter: 'all',
+  });
+
+  if (isLoading) return null;
+  const match = matches[0];
+  if (!match?.statement_line) return null;
+
+  const line = match.statement_line;
+
+  const handleConfirm = async () => {
+    await confirmMatch(match.id);
+    onConfirmed?.();
+  };
+
+  return (
+    <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-2 text-xs text-green-900">
+      <p className="font-medium">
+        {t('incomes.brick.piutangBannerTitle', 'Mutasi bank cocok')}
+      </p>
+      <p className="mt-1 text-green-800">
+        {formatToRupiah(line.amount)} ·{' '}
+        {format(new Date(line.transaction_date), 'dd/MM/yyyy HH:mm')}
+        {line.description ? ` · ${line.description}` : ''}
+      </p>
+      <Button
+        type="button"
+        size="sm"
+        className="mt-2 h-8"
+        disabled={confirmingMatch}
+        onClick={() => void handleConfirm()}
+      >
+        {t('incomes.brick.confirmDepositFromMutasi', 'Konfirmasi deposit dari mutasi')}
+      </Button>
+    </div>
+  );
+}
+
 export function PiutangPaymentVerificationDrawer({
   open,
   onOpenChange,
+  organizationId,
   salesActivityId,
   clientLabel,
   getPaymentHistory,
@@ -212,6 +273,9 @@ export function PiutangPaymentVerificationDrawer({
             {clientLabel}
             {salesActivityId ? ` · aktivitas ${salesActivityId.slice(0, 8)}…` : ''}
           </SheetDescription>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Cocokkan bukti transfer dengan mutasi rekening. Koleksi via VA: menu &quot;Koleksi VA&quot;.
+          </p>
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto py-4">
@@ -221,7 +285,15 @@ export function PiutangPaymentVerificationDrawer({
             <p className="text-sm text-muted-foreground">Belum ada pembayaran.</p>
           ) : (
             <ul className="space-y-4">
-              {rows.map((p) => (
+              {rows.map((p) => {
+                const xenditAuto = isXenditVaPayment(p.payment_method);
+                const showManualVerify =
+                  isManualBankTransferPayment({
+                    paymentMethod: p.payment_method,
+                    receiptUrl: p.receipt_url,
+                  }) || (!xenditAuto && Boolean(p.receipt_url));
+
+                return (
                 <li key={p.id} className="rounded-lg border border-border bg-card p-3 shadow-sm">
                   <div className="mb-2 flex flex-wrap justify-between gap-2 text-sm">
                     <span className="font-medium tabular-nums">{formatToRupiah(Number(p.payment_amount ?? 0))}</span>
@@ -251,7 +323,11 @@ export function PiutangPaymentVerificationDrawer({
                     </div>
                   ) : null}
 
+                  {xenditAuto ? (
+                    <p className="mt-3 text-xs font-medium text-green-700">Otomatis (Xendit VA)</p>
+                  ) : showManualVerify ? (
                   <div className="mt-3 space-y-2">
+                    <PiutangMutationMatchBanner paymentId={p.id} onConfirmed={() => void load()} />
                     <Label className="text-xs">Verifikasi transfer</Label>
                     <div className="flex flex-wrap items-end gap-2">
                       <Select
@@ -282,8 +358,15 @@ export function PiutangPaymentVerificationDrawer({
                       </Button>
                     </div>
                   </div>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Verifikasi manual hanya untuk transfer bank dengan bukti. Gunakan Koleksi VA
+                      jika klien belum bayar.
+                    </p>
+                  )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>

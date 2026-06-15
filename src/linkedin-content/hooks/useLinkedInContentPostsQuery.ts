@@ -48,8 +48,9 @@ export async function fetchLinkedInContentPosts(args: {
   forceRefresh?: boolean;
 }): Promise<LinkedInContentPostsResponse> {
   const { organizationId, pageId, dateStart, dateEnd, forceRefresh = false } = args;
-  const { data, error } = await supabase.functions.invoke("linkedin-content-metrics", {
+  const { data, error } = await supabase.functions.invoke("linkedin-content-api", {
     body: {
+      action: "getMetrics",
       organization_id: organizationId,
       page_id: pageId,
       date_start: dateStart,

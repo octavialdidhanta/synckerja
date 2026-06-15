@@ -26,7 +26,7 @@ import { IncomeTransactionWithRelations } from '../types';
 import { useBankAccounts, type BankAccount } from '@/shared/hooks/finance/useBankAccounts';
 import { NetBankAccountSwipeRow } from './NetBankAccountSwipeRow';
 import { BankTransferDialog } from './BankTransferDialog';
-import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
+import { useBankAccountBalances, useGatewayWithdrawalBankPeriodCredits } from '@/shared/hooks/finance/useBankAccountBalances';
 import { useExpenses } from '@/shared/hooks/finance/useExpenses';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
@@ -37,6 +37,18 @@ import { IncomeDashboardSkeleton } from '@/4-1-dashboard/skeletons/IncomeDashboa
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useExpenseMetrics } from '@/shared/hooks/finance/useExpenseMetrics';
 import { cn } from '@/shared/lib/utils';
+import { RefreshBankMutationsButton } from '@/4-1-transaction/section/RefreshBankMutationsButton';
+import { XENDIT_CONNECT_PATH } from '@/xendit/lib/xenditPaths';
+import { useCanAllocateIncome } from '@/4-1-dashboard/hooks/useCanAllocateIncome';
+import { useGatewayWalletBalances } from '@/shared/hooks/finance/useGatewayWalletBalances';
+import { useGatewayWalletPeriodNet } from '@/shared/hooks/finance/useGatewayWalletPeriodNet';
+import { useXenditOrgSettings } from '@/xendit/hooks/useXenditOrgSettings';
+import { GatewayWalletDrawerRow } from './GatewayWalletDrawerRow';
+import { sumBankPeriodIncome, sumDrawerPeriodIncome } from '@/4-1-dashboard/utils/incomeDashboardPeriodTotals';
+import {
+  FINANCIAL_DRAWERS_CARD_MAX,
+  FINANCIAL_DRAWERS_LIST_SCROLL,
+} from '@/4-1-dashboard/utils/financialDrawersScroll';
 
 // Helper function to calculate date range based on selected period
 const getDateRangeForPeriod = (period: string): { startDate: Date; endDate: Date } => {
@@ -88,6 +100,7 @@ const formatDateToString = (date: Date): string => {
 
 export function IncomeDashboard() {
   const { t } = useAppTranslation();
+  const { canAllocateIncome } = useCanAllocateIncome();
   const [selectedPeriod, setSelectedPeriod] = useState('This Month');
   const [selectedType, setSelectedType] = useState('All Types');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
@@ -123,6 +136,50 @@ export function IncomeDashboard() {
     getBalanceHistory,
   } = useBankAccountBalances();
   const { expenses, isLoading: expensesLoading } = useExpenses();
+  const {
+    xendit: xenditWallet,
+    xenditEligible,
+    isStaleXendit,
+    syncingXendit,
+    syncXenditWallet,
+  } = useGatewayWalletBalances({ autoSync: false });
+  const { data: xenditSettings } = useXenditOrgSettings(organizationId);
+
+  const xenditSubAccountSubtitle = useMemo(() => {
+    const subId = xenditSettings?.account?.xendit_sub_account_id;
+    if (!subId) {
+      return t('incomes.gateway.xenditSubAccount', 'Sub-account tenant');
+    }
+    const shortId = subId.length > 12 ? `${subId.slice(0, 8)}…${subId.slice(-4)}` : subId;
+    return t(
+      'incomes.gateway.xenditSubAccountCashHint',
+      'Saldo CASH sub-account {{id}} — bukan saldo master di dashboard Xendit',
+      { id: shortId },
+    );
+  }, [xenditSettings?.account?.xendit_sub_account_id, t]);
+
+  const periodRange = useMemo(() => getDateRangeForPeriod(selectedPeriod), [selectedPeriod]);
+  const { data: gatewayPeriodNet } = useGatewayWalletPeriodNet(
+    periodRange.startDate,
+    periodRange.endDate,
+    selectedBankAccount === 'all',
+  );
+  const { data: gatewayWithdrawalBankCredits = {} } = useGatewayWithdrawalBankPeriodCredits(
+    periodRange.startDate,
+    periodRange.endDate,
+    selectedBankAccount === 'all',
+  );
+
+  const bankTotalBalance = useMemo(
+    () => bankAccountBalances.reduce((total, balance) => total + (balance.balance || 0), 0),
+    [bankAccountBalances],
+  );
+
+  const totalGrandBalance = useMemo(() => {
+    let total = bankTotalBalance;
+    if (xenditEligible) total += Number(xenditWallet?.usable_balance ?? 0);
+    return total;
+  }, [bankTotalBalance, xenditEligible, xenditWallet?.usable_balance]);
 
   // Filter transactions based on selected period, type, and bank account
   const filteredTransactions = useMemo(() => {
@@ -229,13 +286,25 @@ export function IncomeDashboard() {
       }
     });
 
+    for (const [bankAccountId, credit] of Object.entries(gatewayWithdrawalBankCredits)) {
+      if (!netMap[bankAccountId]) {
+        netMap[bankAccountId] = {
+          income: 0,
+          expense: 0,
+          net: 0,
+          balance: 0,
+        };
+      }
+      netMap[bankAccountId].income += credit;
+    }
+
     // Calculate net (income - expense) for the selected period
     Object.keys(netMap).forEach(bankAccountId => {
       netMap[bankAccountId].net = netMap[bankAccountId].income - netMap[bankAccountId].expense;
     });
 
     return netMap;
-  }, [filteredTransactions, filteredExpenses, bankAccountBalances]);
+  }, [filteredTransactions, filteredExpenses, bankAccountBalances, gatewayWithdrawalBankCredits]);
 
   // Calculate metrics from filtered transactions
   const filteredMetrics = useMemo(() => {
@@ -260,6 +329,19 @@ export function IncomeDashboard() {
       count: filteredTransactions.length
     };
   }, [filteredTransactions]);
+
+  const periodBankIncomeTotal = useMemo(
+    () => sumBankPeriodIncome(bankAccountNet, selectedBankAccount),
+    [bankAccountNet, selectedBankAccount],
+  );
+
+  const periodIncomeTotal = useMemo(
+    () =>
+      sumDrawerPeriodIncome(bankAccountNet, selectedBankAccount, gatewayPeriodNet, {
+        xenditEligible,
+      }),
+    [bankAccountNet, selectedBankAccount, gatewayPeriodNet, xenditEligible],
+  );
 
   // Check if we have transactions without type for "Other" option
   const hasTransactionsWithoutType = useMemo(() => {
@@ -347,6 +429,8 @@ export function IncomeDashboard() {
                       ))}
                     </SelectContent>
                   </Select>
+
+                  {canAllocateIncome ? <RefreshBankMutationsButton /> : null}
                 </div>
               </div>
 
@@ -383,18 +467,19 @@ export function IncomeDashboard() {
                         </div>
                         <div className="min-w-0 flex-shrink-0 text-left sm:text-right">
                           <div className="truncate text-2xl font-bold text-white sm:text-3xl">
-                            {formatToRupiah(
-                              bankAccountBalances.reduce(
-                                (total, balance) => total + (balance.balance || 0),
-                                0
-                              )
-                            )}
+                            {formatToRupiah(totalGrandBalance)}
                           </div>
                           <div className="mt-1 truncate text-xs text-white/80">
+                            {t('incomes.dashboard.totalBreakdown', 'Bank {{bank}} · Xendit {{xendit}}', {
+                              bank: formatToRupiah(bankTotalBalance),
+                              xendit: xenditEligible ? formatToRupiah(Number(xenditWallet?.usable_balance ?? 0)) : '—',
+                            })}
+                          </div>
+                          <div className="mt-0.5 truncate text-[11px] text-white/70">
                             {bankAccounts.length === 0
                               ? t(
                                   'incomes.dashboard.noBankAccountsRegistered',
-                                  'No bank accounts registered'
+                                  'No bank accounts registered',
                                 )
                               : t('incomes.bankAccountsRegistered', '{{count}} bank account(s) registered', {
                                   count: bankAccounts.length,
@@ -469,15 +554,27 @@ export function IncomeDashboard() {
                   <div className="p-2 bg-brand-blue/10 rounded-lg">
                     <DollarSign className="h-4 w-4 text-brand-blue" />
                   </div>
-                  <span className="text-sm font-medium text-gray-600">Total Income</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t('incomes.dashboard.totalIncome', 'Total Income')}
+                  </span>
                 </div>
                 <div className="text-2xl font-bold text-gray-900 mb-1">
-                  {formatToRupiah(filteredMetrics.total)}
+                  {formatToRupiah(periodIncomeTotal)}
                 </div>
                 <div className="text-xs text-gray-500">
-                  {selectedPeriod === 'This Month' 
+                  {selectedPeriod === 'This Month'
                     ? new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
                     : selectedPeriod}
+                  {selectedBankAccount === 'all' &&
+                  xenditEligible &&
+                  periodIncomeTotal !== periodBankIncomeTotal ? (
+                    <span className="mt-0.5 block text-[11px] text-gray-400">
+                      {t('incomes.dashboard.totalIncomeDrawerHint', 'Bank {{bank}} + laci gateway {{gateway}}', {
+                        bank: formatToRupiah(periodBankIncomeTotal),
+                        gateway: formatToRupiah(periodIncomeTotal - periodBankIncomeTotal),
+                      })}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -728,7 +825,7 @@ export function IncomeDashboard() {
               </div>
 
               {/* Section kiri & kanan saja: Income vs. Expenses (kiri) | Net Income per Bank Account (kanan) */}
-              <div className="mb-2 grid min-h-0 min-w-0 grid-cols-1 gap-2 lg:min-h-[18rem] lg:grid-cols-2 lg:items-stretch">
+              <div className="mb-2 grid min-h-0 min-w-0 grid-cols-1 gap-2 lg:grid-cols-2 lg:items-start">
                 {/* Kiri: Income vs. Expenses */}
                 <div className="flex h-full min-h-0 min-w-0 flex-col">
                   <Suspense fallback={<ChartSectionFallback />}>
@@ -737,12 +834,16 @@ export function IncomeDashboard() {
                 </div>
                 {/* Kanan: Net Income per Bank Account — daftar scroll di dalam kartu supaya tidak meluber */}
                 <div className="flex min-h-0 min-w-0 flex-col">
-                  <Card className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
+                  <Card
+                    className={`flex min-w-0 max-w-full flex-col overflow-hidden ${FINANCIAL_DRAWERS_CARD_MAX}`}
+                  >
                     <CardHeader className="flex-shrink-0 px-3 pb-2 pt-3">
-                      <CardTitle className="text-base font-semibold sm:text-lg">Net Income per Bank Account</CardTitle>
+                      <CardTitle className="text-base font-semibold sm:text-lg">
+                        {t('incomes.dashboard.financialDrawers', 'Saldo per Laci Keuangan')}
+                      </CardTitle>
                     </CardHeader>
                     <CardContent className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden px-3 pb-2 pt-0">
-                      <div className="scrollbar-hide min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <div className={FINANCIAL_DRAWERS_LIST_SCROLL}>
                       {selectedBankAccount === 'all' && bankAccounts.length > 0 ? (
                         <div className="flex flex-col space-y-2 pb-0">
                           {bankAccounts.map(bankAccount => {
@@ -809,6 +910,18 @@ export function IncomeDashboard() {
                               </NetBankAccountSwipeRow>
                             );
                           })}
+                          {xenditEligible ? (
+                            <GatewayWalletDrawerRow
+                              provider="xendit"
+                              wallet={xenditWallet}
+                              periodNet={gatewayPeriodNet?.xendit}
+                              isStale={isStaleXendit}
+                              subtitle={xenditSubAccountSubtitle}
+                              settingsHref={XENDIT_CONNECT_PATH}
+                              onSync={syncXenditWallet}
+                              syncing={syncingXendit}
+                            />
+                          ) : null}
                         </div>
                       ) : bankAccounts.length === 0 ? (
                         <div className="flex min-h-[120px] flex-1 items-center justify-center rounded-lg bg-gray-50">

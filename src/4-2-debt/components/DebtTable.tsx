@@ -7,10 +7,14 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
-import { Search, MoreHorizontal, Eye, Edit, Trash2, CreditCard, Building, Calendar, Plus } from 'lucide-react';
+import { Search, MoreHorizontal, Eye, Edit, Trash2, CreditCard, Building, Calendar, Plus, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { debtDisplayBalance, resolveDebtDisplay } from '../utils/resolveDebtDisplay';
+import {
+  BrickLinkDropdownMenuItems,
+  BrickLinkStatusBadge,
+} from '@/shared/components/finance/BrickLinkTableCell';
 
 interface DebtTableProps {
   debts: Debt[];
@@ -22,6 +26,10 @@ interface DebtTableProps {
   onDelete?: (debtId: string) => void;
   onViewDetails?: (debt: Debt) => void;
   onPaidClick?: (debt: Debt) => void;
+  onLinkBrick?: (debt: Debt) => void;
+  onUnlinkBrick?: (debt: Debt) => void;
+  onSyncBrick?: (debt: Debt) => void;
+  brickBusyId?: string | null;
 }
 
 export const DebtTable = ({ 
@@ -33,6 +41,10 @@ export const DebtTable = ({
   onDelete,
   onViewDetails,
   onPaidClick,
+  onLinkBrick,
+  onUnlinkBrick,
+  onSyncBrick,
+  brickBusyId,
 }: DebtTableProps) => {
   const { t } = useAppTranslation();
   const [searchQuery, setSearchQuery] = useState('');
@@ -187,7 +199,7 @@ export const DebtTable = ({
 
       {/* Horizontal scroll only; vertikal mengikuti scroll halaman (sama pola expense dashboard) */}
       <div className="min-h-0 min-w-0 flex-1 overflow-x-auto">
-        <table className="w-full min-w-[1600px]">
+        <table className="w-full min-w-[1760px]">
           <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 shadow-sm">
             <tr>
               <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-gray-700 whitespace-nowrap text-xs sm:text-sm">{t('debt.table.debtName', 'Debt Name')}</th>
@@ -202,13 +214,14 @@ export const DebtTable = ({
               <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-gray-700 whitespace-nowrap text-xs sm:text-sm">{t('debt.table.dueDate', 'Due Date')}</th>
               <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-gray-700 whitespace-nowrap text-xs sm:text-sm">{t('debt.table.lastPaymentDate', 'Last Payment')}</th>
               <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-gray-700 whitespace-nowrap text-xs sm:text-sm">{t('debt.table.status', 'Status')}</th>
+              <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-gray-700 whitespace-nowrap text-xs sm:text-sm">{t('debt.brick.column', 'Brick')}</th>
               <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-medium text-gray-700 whitespace-nowrap text-xs sm:text-sm">{t('debt.table.actions', 'Actions')}</th>
             </tr>
           </thead>
           <tbody>
             {filteredDebts.length === 0 ? (
               <tr>
-                <td colSpan={13} className="py-8 text-center text-gray-500">
+                <td colSpan={14} className="py-8 text-center text-gray-500">
                   <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-2" />
                   <p className="text-sm text-gray-500 mb-1">{t('debt.table.noData', 'No debt data')}</p>
                   <p className="text-xs text-gray-400">{t('debt.table.addFirst', 'Add your first debt to get started')}</p>
@@ -318,14 +331,37 @@ export const DebtTable = ({
                     <td className="py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
                       {getStatusBadge(debt.status)}
                     </td>
+                    <td className="py-2 sm:py-3 px-2 sm:px-4">
+                      {debt.debt_type === 'Kartu Kredit' ? (
+                        <BrickLinkStatusBadge
+                          status={debt.brick_link_status}
+                          lastSyncAt={debt.brick_last_sync_at}
+                          lastSyncError={debt.brick_last_sync_error}
+                          busy={brickBusyId === debt.id}
+                          i18nPrefix="debt.brick"
+                          t={t}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0">
-                            <MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+                            disabled={brickBusyId === debt.id}
+                          >
+                            {brickBusyId === debt.id ? (
+                              <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                            ) : (
+                              <MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" />
+                            )}
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuContent align="end" className="w-48">
                           {onViewDetails && (
                             <DropdownMenuItem onClick={() => onViewDetails(debt)}>
                               <Eye className="h-4 w-4 mr-2 text-gray-600" />
@@ -338,8 +374,19 @@ export const DebtTable = ({
                               {t('debt.form.editTitle', 'Edit Debt')}
                             </DropdownMenuItem>
                           )}
+                          {debt.debt_type === 'Kartu Kredit' ? (
+                            <BrickLinkDropdownMenuItems
+                              status={debt.brick_link_status}
+                              i18nPrefix="debt.brick"
+                              t={t}
+                              disabled={brickBusyId === debt.id}
+                              onLink={onLinkBrick ? () => onLinkBrick(debt) : undefined}
+                              onSync={onSyncBrick ? () => onSyncBrick(debt) : undefined}
+                              onUnlink={onUnlinkBrick ? () => onUnlinkBrick(debt) : undefined}
+                            />
+                          ) : null}
                           {onDelete && (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-brand-red"
                               onClick={() => onDelete(debt.id)}
                             >

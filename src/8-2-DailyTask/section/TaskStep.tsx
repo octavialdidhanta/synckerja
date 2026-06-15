@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { CheckSquare, Square, Edit, Trash2, GripVertical, Paperclip, Upload, FileText, X, Users, Link, History, Plus, ListChecks, FileEdit } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -11,13 +11,19 @@ import { StepLinks } from './StepLinks';
 import { StepHistoryModal } from './StepHistoryModal';
 import { ModalViewSubSteps } from './ModalViewSubSteps';
 import { ModalAddTaskStep } from './ModalAddTaskStep';
+import { TaskStepDescriptionView } from '@/8-2-DailyTask/components/TaskStepDescriptionView';
+import type { ImageLoupeState } from '@/8-2-DailyTask/components/TaskStepDescriptionImageLoupePanel';
+import { plainTextPreview } from '@/8-2-DailyTask/lib/taskStepDescription';
+import {
+  TaskStepSeeMoreEntry,
+  useTaskStepSeeMoreFocus,
+} from '@/8-2-DailyTask/step-comments/components/TaskStepSeeMoreEntry';
+import { useTaskStepCommentUnread } from '@/8-2-DailyTask/step-comments/hooks/useTaskStepCommentUnread';
 import UpdateHistoryDialog from '@/8-1-meeting-notes/modal/UpdateHistoryDialog';
-import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
 import {
   Dialog,
   DialogContent,
   DialogTitle,
-  DialogTrigger,
 } from '@/shared/components/ui/dialog';
 import {
   AlertDialog,
@@ -85,6 +91,7 @@ interface TaskStepProps {
   step: TaskStepData;
   index: number;
   taskCreatedBy?: string; // Task creator user ID for permission check
+  taskAssignedTo?: string | null; // Task assignee user ID
   taskTitle?: string; // Task title for modal display
   autoReorder?: boolean; // Enable auto-reorder when step completion changes (for mobile)
   /** When provided, swipe-to-reveal actions on mobile (icons in strip, close by swiping right) */
@@ -180,7 +187,7 @@ type TaskStepInnerProps = TaskStepProps & {
 };
 
 const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function TaskStepInner(
-  { step, index, taskCreatedBy, taskTitle = '', autoReorder = false, isRevealed = false, onReveal, onClose, contentOnly = false, onSubStepModalOpenChange, closeSubStepRequested, sortableHandleProps, sortableNodeRef, sortableNodeStyle, sortableHandleAttributes, sortableHandleListeners, sortableIsDragging },
+  { step, index, taskCreatedBy, taskAssignedTo, taskTitle = '', autoReorder = false, isRevealed = false, onReveal, onClose, contentOnly = false, onSubStepModalOpenChange, closeSubStepRequested, sortableHandleProps, sortableNodeRef, sortableNodeStyle, sortableHandleAttributes, sortableHandleListeners, sortableIsDragging },
   ref
 ) {
   const handleAttrs = sortableHandleProps ? sortableHandleProps.attributes : (sortableHandleAttributes ?? {});
@@ -188,12 +195,27 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
   const nodeRef = sortableHandleProps ? undefined : sortableNodeRef;
   const nodeStyle = sortableHandleProps ? undefined : sortableNodeStyle;
 
-  const { updateTaskStep, deleteTaskStep, uploadTaskStepFile, deleteTaskFile, assignTaskStep, rejectedReasonsByStepId, highlightFromPendingApproval, pendingApprovalFocus, setPendingApprovalFocus } = useDailyTask();
+  const { updateTaskStep, deleteTaskStep, uploadTaskStepFile, deleteTaskFile, assignTaskStep, rejectedReasonsByStepId, highlightFromPendingApproval, pendingApprovalFocus, setPendingApprovalFocus, pendingStepCommentFocus, setPendingStepCommentFocus } = useDailyTask();
   const isHighlightedFromPendingApproval = Boolean(highlightFromPendingApproval && pendingApprovalFocus?.stepId === step.id);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showFiles, setShowFiles] = useState(false); // Default collapsed
   const [showLinks, setShowLinks] = useState(false);
-  const [isDescriptionPopoverOpen, setIsDescriptionPopoverOpen] = useState(false);
+  const [descriptionImageLoupe, setDescriptionImageLoupe] = useState<ImageLoupeState | null>(null);
+  const descriptionPopoverRef = useRef<HTMLDivElement>(null);
+  const clearPendingStepCommentFocus = useCallback(() => {
+    setPendingStepCommentFocus(null);
+  }, [setPendingStepCommentFocus]);
+  const {
+    open: isDescriptionPopoverOpen,
+    setOpen: setIsDescriptionPopoverOpen,
+    initialTab: seeMoreInitialTab,
+  } = useTaskStepSeeMoreFocus({
+    stepId: step.id,
+    taskId: step.task_id,
+    pendingFocus: pendingStepCommentFocus,
+    onClearPendingFocus: clearPendingStepCommentFocus,
+  });
+  const { unreadCount: stepCommentUnreadCount } = useTaskStepCommentUnread(step.id);
   const [isUploading, setIsUploading] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -1181,81 +1203,35 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                 <p className="text-gray-700 mt-0.5">{stepRejectReason}</p>
               </div>
             )}
-            {/* Description with see more functionality */}
-            {step.description && step.description.trim() && (
+            {/* Description with see more / discussion */}
+            {(step.description?.trim() || stepCommentUnreadCount > 0) && (
               <div className="mt-1 min-w-0 max-w-full">
-                {isMobileExpandableCard && cardExpanded ? (
-                  <p className="text-xs text-gray-600 break-words whitespace-pre-wrap">
-                    {step.description}
-                  </p>
+                {isMobileExpandableCard && cardExpanded && step.description?.trim() ? (
+                  <TaskStepDescriptionView value={step.description} className="text-xs text-gray-600" />
                 ) : (
                 <div className="flex items-start gap-1">
+                  <TaskStepSeeMoreEntry
+                      stepId={step.id}
+                      stepTitle={step.title}
+                      description={step.description ?? ''}
+                      writeContext={{
+                        taskCreatedBy,
+                        taskAssignedTo: taskAssignedTo ?? null,
+                        stepAssignedTo: step.assigned_to ?? null,
+                      }}
+                      open={isDescriptionPopoverOpen}
+                      onOpenChange={setIsDescriptionPopoverOpen}
+                      initialTab={seeMoreInitialTab}
+                      popoverAnchorRef={descriptionPopoverRef}
+                      descriptionImageLoupe={descriptionImageLoupe}
+                      onImageLoupeChange={setDescriptionImageLoupe}
+                    />
+                  {step.description?.trim() && (
                   <p
-                    className="text-xs text-gray-600 break-words line-clamp-1 overflow-hidden flex-1"
+                    className="text-xs text-gray-600 break-words line-clamp-1 overflow-hidden flex-1 min-w-0"
                   >
-                    {step.description}
+                    {plainTextPreview(step.description, 80)}
                   </p>
-                  {step.description.length > 50 && !isMobileExpandableCard && (
-                    isMobile ? (
-                      <Dialog open={isDescriptionPopoverOpen} onOpenChange={setIsDescriptionPopoverOpen}>
-                        <DialogTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex-shrink-0 cursor-pointer text-xs font-medium text-primary hover:text-primary/90"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setIsDescriptionPopoverOpen(true);
-                            }}
-                          >
-                            See more
-                          </button>
-                        </DialogTrigger>
-                        <DialogContent
-                          className="w-[80vmin] max-w-[calc(100vw-2rem)] aspect-square max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden"
-                          hideCloseButton={false}
-                          aria-describedby={undefined}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <DialogTitle className="sr-only">Description</DialogTitle>
-                          <div className="flex-shrink-0 flex items-center justify-between px-4 pr-12 py-3 border-b border-border">
-                            <h4 className="text-sm font-semibold text-gray-900">Description</h4>
-                          </div>
-                          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll px-4 py-3">
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-                              {step.description}
-                            </p>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    ) : (
-                      <Popover open={isDescriptionPopoverOpen} onOpenChange={setIsDescriptionPopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex-shrink-0 cursor-pointer text-xs font-medium text-primary hover:text-primary/90"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setIsDescriptionPopoverOpen(true);
-                            }}
-                          >
-                            See more
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent 
-                          className="w-80 p-4"
-                          align="center"
-                          side="bottom"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="space-y-2">
-                            <h4 className="text-sm font-semibold text-gray-900">Description</h4>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-                              {step.description}
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    )
                   )}
                 </div>
                 )}
@@ -1699,7 +1675,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
           if (completed) {
             payload.updated_at = new Date().toISOString();
           }
-          await updateTaskStep(step.id, payload, { autoReorder });
+          await updateTaskStep(step.id, payload, { autoReorder, skipRefresh: true });
         } catch (_) {
           // ignore
         }

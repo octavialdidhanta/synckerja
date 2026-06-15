@@ -27,6 +27,9 @@ export function useIncomePiutangPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerActivity, setDrawerActivity] = useState<SalesActivity | null>(null);
   const [mountDrawer, setMountDrawer] = useState(false);
+  const [vaDrawerOpen, setVaDrawerOpen] = useState(false);
+  const [vaDrawerActivity, setVaDrawerActivity] = useState<SalesActivity | null>(null);
+  const [mountVaDrawer, setMountVaDrawer] = useState(false);
 
   const { verificationAggregateByActivity, verificationFilterInfoByActivity, verificationLoading } =
     usePiutangPaymentVerificationByActivity(activities);
@@ -50,9 +53,20 @@ export function useIncomePiutangPage() {
     setDrawerOpen(true);
   }, []);
 
+  const openVaDrawer = useCallback((row: SalesActivity) => {
+    setMountVaDrawer(true);
+    setVaDrawerActivity(row);
+    setVaDrawerOpen(true);
+  }, []);
+
   const closeDrawer = useCallback((open: boolean) => {
     setDrawerOpen(open);
     if (!open) setDrawerActivity(null);
+  }, []);
+
+  const closeVaDrawer = useCallback((open: boolean) => {
+    setVaDrawerOpen(open);
+    if (!open) setVaDrawerActivity(null);
   }, []);
 
   const handleClearFilters = useCallback(() => {
@@ -94,8 +108,14 @@ export function useIncomePiutangPage() {
     drawerActivity,
     mountDrawer,
     closeDrawer,
+    openVaDrawer,
+    vaDrawerOpen,
+    vaDrawerActivity,
+    mountVaDrawer,
+    closeVaDrawer,
     getPaymentHistory,
     updatePaymentVerification,
     userId: user?.id,
+    organizationId,
   };
 }

@@ -1,10 +1,22 @@
 import { Badge } from '@/shared/components/ui/badge';
+import { Button } from '@/shared/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shared/components/ui/dropdown-menu';
 import { cn } from '@/shared/lib/utils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { ClipboardCheck, Landmark, MoreHorizontal } from 'lucide-react';
 import {
   buildPiutangRowViewModel,
   type PiutangActivityTableBaseProps,
 } from '@/4-1-transaction/piutang/shared/piutangRowDisplay';
+import {
+  translatePiutangPaymentStatus,
+  translatePiutangVerificationAggregate,
+} from '@/4-1-transaction/piutang/shared/piutangI18n';
 import { MOBILE_WIDE_FINANCE_TABLE_VIEWPORT_CLASS } from '@/mobile/shared/mobileWideFinanceTableViewport';
 
 const TH =
@@ -15,6 +27,7 @@ export function MobilePiutangActivityTable({
   verificationByActivity,
   verificationLoading,
   onOpenPayments,
+  onOpenVaCollection,
 }: PiutangActivityTableBaseProps) {
   const { t } = useAppTranslation();
 
@@ -48,7 +61,7 @@ export function MobilePiutangActivityTable({
               <th className={cn(TH, 'w-[100px] min-w-[100px]')}>
                 {t('incomes.piutang.table.verification', 'Verifikasi')}
               </th>
-              <th className={cn(TH, 'w-[120px] min-w-[120px]')}>
+              <th className={cn(TH, 'w-[52px] min-w-[52px]')}>
                 {t('incomes.piutang.table.actions', 'Aksi')}
               </th>
             </tr>
@@ -85,7 +98,7 @@ export function MobilePiutangActivityTable({
                       {vm.remainingFormatted}
                     </td>
                     <td className="w-[90px] min-w-[90px] px-3 py-2 text-xs capitalize text-foreground">
-                      {vm.statusLabel}
+                      {translatePiutangPaymentStatus(t, vm.statusLabel)}
                     </td>
                     <td className="w-[100px] min-w-[100px] px-3 py-2 text-xs">
                       {verificationLoading ? (
@@ -94,18 +107,36 @@ export function MobilePiutangActivityTable({
                         <span className="text-muted-foreground">—</span>
                       ) : (
                         <Badge variant={vm.verificationBadgeVariant} className="text-xs font-normal">
-                          {vm.verificationLabel}
+                          {translatePiutangVerificationAggregate(t, vm.verificationAggregate)}
                         </Badge>
                       )}
                     </td>
-                    <td className="w-[120px] min-w-[120px] whitespace-nowrap px-3 py-2 text-left text-xs">
-                      <button
-                        type="button"
-                        onClick={() => onOpenPayments(row)}
-                        className="touch-manipulation rounded-sm px-1 text-xs font-medium text-blue-600 hover:text-blue-800 active:text-blue-900"
-                      >
-                        {t('incomes.piutang.table.paymentDetail', 'Detail pembayaran')}
-                      </button>
+                    <td className="w-[52px] min-w-[52px] whitespace-nowrap px-2 py-2 text-right text-xs">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 touch-manipulation p-0"
+                            aria-label={t('incomes.piutang.table.actions', 'Aksi')}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => onOpenPayments(row)}>
+                            <ClipboardCheck className="mr-2 h-4 w-4 text-gray-600" />
+                            {t('incomes.piutang.table.verify', 'Verifikasi')}
+                          </DropdownMenuItem>
+                          {onOpenVaCollection ? (
+                            <DropdownMenuItem onClick={() => onOpenVaCollection(row)}>
+                              <Landmark className="mr-2 h-4 w-4 text-gray-600" />
+                              {t('incomes.piutang.table.vaCollection', 'Koleksi VA')}
+                            </DropdownMenuItem>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 );

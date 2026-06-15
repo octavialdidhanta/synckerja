@@ -70,6 +70,14 @@ import {
 import { setShareBackGuard } from "@/mobile/4-2-reminder-bills/lib/shareBackGuard";
 import type { ExpenseReceiptAutofillData } from "@/mobile/shared/services/analyzeExpenseReceiptWithAI";
 import { IncomeAllocationOptionalSection } from "@/4-1-dashboard/components/IncomeAllocationOptionalSection";
+import { WithdrawalFromBalanceSelect } from "@/shared/components/finance/WithdrawalFromBalanceSelect";
+import {
+  applyWithdrawalSourceToFormFields,
+  hasWithdrawalFormFields,
+  withdrawalSourceFromFormFields,
+  type WithdrawalSourceValue,
+} from "@/shared/lib/finance/withdrawalSourceValue";
+import { useWithdrawalFromBalanceOptions } from "@/shared/hooks/finance/useWithdrawalFromBalanceOptions";
 import {
   MODAL_BRAND_HEADER_BAR,
   MODAL_BRAND_HEADER_CLOSE_BTN,
@@ -233,6 +241,15 @@ export function AddNewExpenseModal({
   const { bankAccounts, loading: bankAccountsLoading } = useBankAccounts();
   const { balances: bankAccountBalances, loading: balancesLoading, refetch: refetchBalances } =
     useBankAccountBalances();
+  const {
+    gateways,
+    loading: withdrawalOptionsLoading,
+    formatRupiahAvailable,
+    formatGatewaySyncHint,
+    formatSelectedLabel,
+    isStaleXendit,
+    isStaleBrick,
+  } = useWithdrawalFromBalanceOptions();
 
   const [amountDisplay, setAmountDisplay] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => new Date());
@@ -365,6 +382,7 @@ export function AddNewExpenseModal({
       department: "",
       withdrawal_from_balance: undefined,
       bank_account_id: undefined,
+      gateway_wallet_provider: undefined,
       create_date: format(new Date(), "yyyy-MM-dd"),
       is_recurring: false,
       recurring_frequency: "",
@@ -478,6 +496,16 @@ export function AddNewExpenseModal({
         return;
       }
     }
+    if (data.gateway_wallet_provider) {
+      const gw = gateways.find((g) => g.provider === data.gateway_wallet_provider);
+      const availableBalance = gw?.usableBalance ?? 0;
+      if (availableBalance < data.amount) {
+        toast.error(
+          `Insufficient gateway balance. Available: Rp ${availableBalance.toLocaleString("id-ID")}, Required: Rp ${data.amount.toLocaleString("id-ID")}`
+        );
+        return;
+      }
+    }
     if (data.bank_account_id) {
       const balance = bankAccountBalances.find((b) => b.bank_account_id === data.bank_account_id);
       const availableBalance = balance?.balance ?? 0;
@@ -530,6 +558,7 @@ export function AddNewExpenseModal({
           ? data.withdrawal_from_balance
           : undefined,
       bank_account_id: data.bank_account_id ?? undefined,
+      gateway_wallet_provider: data.gateway_wallet_provider ?? undefined,
       recurring_settlement_for_expense_id:
         data.is_recurring && linkedRecurringRaw ? linkedRecurringRaw : undefined,
       transaction_reference:
@@ -722,9 +751,26 @@ export function AddNewExpenseModal({
     onOpenChange(false);
   };
 
-  const hasWithdrawal =
-    (form.watch("withdrawal_from_balance") && form.watch("withdrawal_from_balance") !== "none") ||
-    !!form.watch("bank_account_id");
+  const hasWithdrawal = hasWithdrawalFormFields({
+    withdrawal_from_balance: form.watch("withdrawal_from_balance"),
+    bank_account_id: form.watch("bank_account_id"),
+    gateway_wallet_provider: form.watch("gateway_wallet_provider"),
+  });
+
+  const withdrawalSourceValue = withdrawalSourceFromFormFields({
+    withdrawal_from_balance: form.watch("withdrawal_from_balance"),
+    bank_account_id: form.watch("bank_account_id"),
+    gateway_wallet_provider: form.watch("gateway_wallet_provider"),
+  });
+
+  const applyWithdrawalSource = (source: WithdrawalSourceValue) => {
+    setIncomeAllocIncomeId("");
+    setIncomeAllocAmountStr("");
+    const fields = applyWithdrawalSourceToFormFields(source);
+    form.setValue("withdrawal_from_balance", fields.withdrawal_from_balance, { shouldValidate: true });
+    form.setValue("bank_account_id", fields.bank_account_id, { shouldValidate: true });
+    form.setValue("gateway_wallet_provider", fields.gateway_wallet_provider, { shouldValidate: true });
+  };
 
   const shareSubmitBlocked =
     shareFlowLocked &&
@@ -913,45 +959,29 @@ export function AddNewExpenseModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
-                {t("expenses.withdrawalFromBalance", "Withdrawal From Balance")}{" "}
-                <span className="text-brand-red">*</span>
-              </label>
               {isMobile ? (
                 <>
+                  <label className="block text-sm font-medium mb-2">
+                    {t("expenses.withdrawalFromBalance", "Withdrawal From Balance")}{" "}
+                    <span className="text-brand-red">*</span>
+                  </label>
                   <Button
                     type="button"
                     variant="outline"
                     className="w-full justify-between text-sm font-normal"
-                    disabled={debtsLoading || bankAccountsLoading || balancesLoading}
+                    disabled={withdrawalOptionsLoading}
                     onClick={() => setWithdrawalDrawerOpen(true)}
                   >
                     <span
                       className={cn(
                         "truncate",
-                        !form.watch("withdrawal_from_balance") &&
-                          !form.watch("bank_account_id") &&
-                          "text-muted-foreground"
+                        !hasWithdrawal && "text-muted-foreground"
                       )}
                     >
-                      {debtsLoading || bankAccountsLoading || balancesLoading
+                      {withdrawalOptionsLoading
                         ? t("expenses.loading", "Loading...")
-                        : (() => {
-                            const debtId = form.watch("withdrawal_from_balance");
-                            const bankId = form.watch("bank_account_id");
-                            if (debtId) {
-                              const d = debtsForExpense.find((x) => x.id === debtId);
-                              if (d)
-                                return `${d.debt_name} (Rp ${(d.available_limit ?? 0).toLocaleString("id-ID")} available)`;
-                            }
-                            if (bankId) {
-                              const b = bankAccounts.find((x) => x.id === bankId);
-                              const bal = bankAccountBalances.find((x) => x.bank_account_id === bankId);
-                              if (b)
-                                return `${b.name}${b.account_number ? ` - ${b.account_number}` : ""} (Rp ${(bal?.balance ?? 0).toLocaleString("id-ID")} available)`;
-                            }
-                            return t("expenses.selectSourceRequired", "Select source (required)");
-                          })()}
+                        : formatSelectedLabel(withdrawalSourceValue) ||
+                          t("expenses.selectSourceRequired", "Select source (required)")}
                     </span>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -967,31 +997,46 @@ export function AddNewExpenseModal({
                       </DrawerHeader>
                       <div className="max-h-[60vh] overflow-y-auto px-4 pb-4">
                         <div className="flex flex-col gap-0 rounded-md border bg-card">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIncomeAllocIncomeId("");
-                              setIncomeAllocAmountStr("");
-                              form.setValue("withdrawal_from_balance", undefined);
-                              form.setValue("bank_account_id", undefined);
-                              setWithdrawalDrawerOpen(false);
-                            }}
-                            className={cn(
-                              "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm border-b border-border",
-                              !form.watch("withdrawal_from_balance") &&
-                                !form.watch("bank_account_id")
-                                ? "bg-primary/10 text-primary font-medium"
-                                : "hover:bg-muted/50"
-                            )}
-                          >
-                            <span className="text-muted-foreground">
-                              {t("expenses.withdrawalFilter.none", "None")}
-                            </span>
-                            {!form.watch("withdrawal_from_balance") &&
-                            !form.watch("bank_account_id") ? (
-                              <Check className="h-4 w-4 shrink-0 text-primary" />
-                            ) : null}
-                          </button>
+                          {gateways.length > 0 && (
+                            <>
+                              <div className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/30 border-b border-border">
+                                {t("expenses.paymentGateways", "Payment gateways")}
+                              </div>
+                              {gateways.map((gw) => {
+                                const isSelected = form.watch("gateway_wallet_provider") === gw.provider;
+                                return (
+                                  <button
+                                    key={`gateway_${gw.provider}`}
+                                    type="button"
+                                    onClick={() => {
+                                      applyWithdrawalSource({ gatewayProvider: gw.provider });
+                                      setWithdrawalDrawerOpen(false);
+                                    }}
+                                    className={cn(
+                                      "flex flex-col items-start w-full px-3 py-2.5 text-left text-sm border-b border-border",
+                                      isSelected
+                                        ? "bg-primary/10 text-primary font-medium"
+                                        : "hover:bg-muted/50"
+                                    )}
+                                  >
+                                    <span className="flex w-full items-center justify-between gap-2">
+                                      <span className="truncate">{gw.label}</span>
+                                      {isSelected ? (
+                                        <Check className="h-4 w-4 shrink-0 text-primary" />
+                                      ) : null}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground mt-0.5">
+                                      {formatRupiahAvailable(gw.usableBalance)} ·{" "}
+                                      {formatGatewaySyncHint(
+                                        gw.syncedAt,
+                                        gw.provider === "xendit" ? isStaleXendit : isStaleBrick,
+                                      )}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </>
+                          )}
                           {bankAccounts.length > 0 && (
                             <>
                               <div className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/30 border-b border-border">
@@ -1003,18 +1048,15 @@ export function AddNewExpenseModal({
                                 );
                                 const v = bal?.balance ?? 0;
                                 const text = b.account_number
-                                  ? `${b.name} - ${b.account_number} (Rp ${v.toLocaleString("id-ID")} available)`
-                                  : `${b.name} (Rp ${v.toLocaleString("id-ID")} available)`;
+                                  ? `${b.name} - ${b.account_number} (${formatRupiahAvailable(v)})`
+                                  : `${b.name} (${formatRupiahAvailable(v)})`;
                                 const isSelected = form.watch("bank_account_id") === b.id;
                                 return (
                                   <button
                                     key={`bank_${b.id}`}
                                     type="button"
                                     onClick={() => {
-                                      setIncomeAllocIncomeId("");
-                                      setIncomeAllocAmountStr("");
-                                      form.setValue("bank_account_id", b.id);
-                                      form.setValue("withdrawal_from_balance", undefined);
+                                      applyWithdrawalSource({ bankAccountId: b.id });
                                       setWithdrawalDrawerOpen(false);
                                     }}
                                     className={cn(
@@ -1039,17 +1081,14 @@ export function AddNewExpenseModal({
                                 {t("expenses.debts", "Debts")}
                               </div>
                               {debtsForExpense.map((d) => {
-                                const text = `${d.debt_name} (Rp ${(d.available_limit ?? 0).toLocaleString("id-ID")} available)`;
+                                const text = `${d.debt_name} (${formatRupiahAvailable(d.available_limit ?? 0)})`;
                                 const isSelected = form.watch("withdrawal_from_balance") === d.id;
                                 return (
                                   <button
                                     key={`debt_${d.id}`}
                                     type="button"
                                     onClick={() => {
-                                      setIncomeAllocIncomeId("");
-                                      setIncomeAllocAmountStr("");
-                                      form.setValue("withdrawal_from_balance", d.id);
-                                      form.setValue("bank_account_id", undefined);
+                                      applyWithdrawalSource({ debtId: d.id });
                                       setWithdrawalDrawerOpen(false);
                                     }}
                                     className={cn(
@@ -1074,92 +1113,14 @@ export function AddNewExpenseModal({
                   </Drawer>
                 </>
               ) : (
-                <Select
-                  onValueChange={(value) => {
-                    setIncomeAllocIncomeId("");
-                    setIncomeAllocAmountStr("");
-                    if (value === "none") {
-                      form.setValue("withdrawal_from_balance", undefined);
-                      form.setValue("bank_account_id", undefined);
-                    } else if (value.startsWith("debt_")) {
-                      form.setValue("withdrawal_from_balance", value.replace("debt_", ""));
-                      form.setValue("bank_account_id", undefined);
-                    } else if (value.startsWith("bank_")) {
-                      form.setValue("bank_account_id", value.replace("bank_", ""));
-                      form.setValue("withdrawal_from_balance", undefined);
-                    }
-                  }}
-                  disabled={debtsLoading || bankAccountsLoading || balancesLoading}
-                  value={
-                    form.watch("withdrawal_from_balance")
-                      ? `debt_${form.watch("withdrawal_from_balance")}`
-                      : form.watch("bank_account_id")
-                        ? `bank_${form.watch("bank_account_id")}`
-                        : "none"
-                  }
-                >
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue
-                      placeholder={
-                        debtsLoading || bankAccountsLoading
-                          ? t("expenses.loading", "Loading...")
-                          : t("expenses.selectSourceRequired", "Select source (required)")
-                      }
-                    >
-                      {(() => {
-                        const debtId = form.watch("withdrawal_from_balance");
-                        const bankId = form.watch("bank_account_id");
-                        if (debtId) {
-                          const d = debtsForExpense.find((x) => x.id === debtId);
-                          if (d)
-                            return `${d.debt_name} (Rp ${(d.available_limit ?? 0).toLocaleString("id-ID")} available)`;
-                        }
-                        if (bankId) {
-                          const b = bankAccounts.find((x) => x.id === bankId);
-                          const bal = bankAccountBalances.find((x) => x.bank_account_id === bankId);
-                          if (b)
-                            return `${b.name}${b.account_number ? ` - ${b.account_number}` : ""} (Rp ${(bal?.balance ?? 0).toLocaleString("id-ID")} available)`;
-                        }
-                        return "";
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{t("expenses.withdrawalFilter.none", "None")}</SelectItem>
-                    {bankAccounts.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                          {t("expenses.bankAccounts", "Bank Accounts")}
-                        </div>
-                        {bankAccounts.map((b) => {
-                          const bal = bankAccountBalances.find((x) => x.bank_account_id === b.id);
-                          const v = bal?.balance ?? 0;
-                          const text = b.account_number
-                            ? `${b.name} - ${b.account_number} (Rp ${v.toLocaleString("id-ID")} available)`
-                            : `${b.name} (Rp ${v.toLocaleString("id-ID")} available)`;
-                          return (
-                            <SelectItem key={`bank_${b.id}`} value={`bank_${b.id}`}>
-                              {text}
-                            </SelectItem>
-                          );
-                        })}
-                      </>
-                    )}
-                    {debtsForExpense.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                          {t("expenses.debts", "Debts")}
-                        </div>
-                        {debtsForExpense.map((d) => (
-                          <SelectItem key={`debt_${d.id}`} value={`debt_${d.id}`}>
-                            {d.debt_name} (Rp {(d.available_limit ?? 0).toLocaleString("id-ID")}{" "}
-                            available)
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                <WithdrawalFromBalanceSelect
+                  allowNone={false}
+                  requiredMark
+                  label={t("expenses.withdrawalFromBalance", "Withdrawal From Balance")}
+                  placeholder={t("expenses.selectSourceRequired", "Select source (required)")}
+                  value={withdrawalSourceValue}
+                  onChange={applyWithdrawalSource}
+                />
               )}
               {form.formState.errors.withdrawal_from_balance && (
                 <p className="text-sm text-brand-red mt-1">

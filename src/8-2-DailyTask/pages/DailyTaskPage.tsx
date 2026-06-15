@@ -50,7 +50,7 @@ const DailyTaskContent = () => {
   const queryClient = useQueryClient();
   const { data: currentEmployee } = useCurrentEmployee();
   const { updateContentPlan } = useOptimizedSocialMediaMutations();
-  const { tasks, filteredTasks, isLoading, setFilters, setExpandedTasks, setHighlightedTask, scrollToStep } = useDailyTask();
+  const { tasks, filteredTasks, isLoading, setFilters, setExpandedTasks, setHighlightedTask, scrollToStep, setPendingStepCommentFocus } = useDailyTask();
   const [sidebarTab, setSidebarTab] = useState<'summary' | 'initiative' | 'jobdesc'>('summary');
   const [initiativeStats, setInitiativeStats] = useState<InitiativeStats>({ totalItems: 0, unassignedItems: 0 });
   const [jobDescStats, setJobDescStats] = useState<JobDescTrackerStats>({
@@ -111,6 +111,7 @@ const DailyTaskContent = () => {
     const subStepId = searchParams.get('task_steps_to_steps_id');
     const search = searchParams.get('search');
     const action = searchParams.get('action');
+    const openStepComment = searchParams.get('open_step_comment') === '1';
     if (!taskId && !stepId && !subStepId) return;
 
     appliedNavParamsRef.current = true;
@@ -147,12 +148,20 @@ const DailyTaskContent = () => {
     }
     if (stepId) {
       setTimeout(() => scrollToStep(stepId), 400);
+      if (openStepComment) {
+        const focusTaskId = taskId ?? parentTaskId;
+        if (focusTaskId) {
+          setTimeout(() => {
+            setPendingStepCommentFocus({ taskId: focusTaskId, stepId });
+          }, 500);
+        }
+      }
     }
     if (action === 'scroll' && legacyStepId) {
       setTimeout(() => scrollToStep(legacyStepId), 400);
     }
     setSearchParams({}, { replace: true });
-  }, [isLoading, tasks.length, searchParams, setFilters, setExpandedTasks, setHighlightedTask, scrollToStep, setSearchParams]);
+  }, [isLoading, tasks.length, searchParams, setFilters, setExpandedTasks, setHighlightedTask, scrollToStep, setSearchParams, setPendingStepCommentFocus]);
 
   // Deep link: /tools/daily-task?view=jobdesc (completion notifications)
   useEffect(() => {

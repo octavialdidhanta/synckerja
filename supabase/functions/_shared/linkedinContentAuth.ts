@@ -7,10 +7,9 @@ export const linkedinContentCorsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-/** Legacy scope names used in OAuth URL; map to Community Management API after approval. */
+/** Read-only scopes for organic post insights + page list (Community Management API required). */
 export const LINKEDIN_CONTENT_OAUTH_SCOPES_DEFAULT = [
   "r_organization_social",
-  "w_organization_social",
   "rw_organization_admin",
 ].join(" ");
 
@@ -54,7 +53,7 @@ export function linkedinContentOAuthRedirectUri(): string {
   const explicit = Deno.env.get("LINKEDIN_CONTENT_OAUTH_REDIRECT_URI")?.trim();
   if (explicit) return explicit;
   const supabaseUrl = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
-  return `${supabaseUrl}/functions/v1/linkedin-content-oauth-callback`;
+  return `${supabaseUrl}/functions/v1/linkedin-content-api`;
 }
 
 export function appPublicOrigin(): string {

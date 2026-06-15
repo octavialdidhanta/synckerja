@@ -22,7 +22,7 @@ export interface BankAccountBalanceHistory {
   id: string;
   bank_account_id: string;
   organization_id: string;
-  transaction_type: 'income' | 'expense' | 'manual_adjustment' | 'initial';
+  transaction_type: 'income' | 'expense' | 'manual_adjustment' | 'initial' | 'gateway_withdrawal';
   transaction_id: string | null;
   amount: number;
   balance_before: number;
@@ -164,7 +164,7 @@ export const useBankAccountBalances = () => {
       }
 
       // Debt payments debit `payment_method` via `updateBalance` on `bank_account_balances`.
-      // Displayed balance is this ledger (income − expense ± transfers), not the stored column,
+      // Displayed balance is this ledger (income − expense ± transfers ± gateway withdrawals), not the stored column,
       // so outflows must include `debt_payments` or saldo looks unchanged after Pay Debt.
       const debtPaymentRows: { payment_method: string | null; payment_amount: unknown }[] = [];
       let debtPayFrom = 0;
@@ -192,6 +192,36 @@ export const useBankAccountBalances = () => {
         const amt = parseFloat(String(row.payment_amount ?? 0));
         if (!Number.isFinite(amt) || amt <= 0) continue;
         ledgerByAccount[bid] -= amt;
+      }
+
+      // Gateway withdrawal settlement credits payout bank via balance history, not income_transactions.
+      const gatewayWithdrawalRows: { bank_account_id: string; amount: unknown }[] = [];
+      let gatewayWithdrawalFrom = 0;
+      for (;;) {
+        const { data: chunk, error: gatewayWithdrawalErr } = await supabase
+          .from('bank_account_balance_history')
+          .select('bank_account_id, amount')
+          .eq('organization_id', organizationId)
+          .eq('transaction_type', 'gateway_withdrawal')
+          .in('bank_account_id', ids)
+          .range(gatewayWithdrawalFrom, gatewayWithdrawalFrom + LEDGER_PAGE_SIZE - 1);
+
+        if (gatewayWithdrawalErr) {
+          console.error('Error fetching gateway withdrawal credits for ledger balance:', gatewayWithdrawalErr);
+          throw gatewayWithdrawalErr;
+        }
+        const rows = chunk ?? [];
+        gatewayWithdrawalRows.push(...rows);
+        if (rows.length < LEDGER_PAGE_SIZE) break;
+        gatewayWithdrawalFrom += LEDGER_PAGE_SIZE;
+      }
+
+      for (const row of gatewayWithdrawalRows) {
+        const bid = row.bank_account_id as string;
+        if (!(bid in ledgerByAccount)) continue;
+        const amt = parseFloat(String(row.amount ?? 0));
+        if (!Number.isFinite(amt) || amt <= 0) continue;
+        ledgerByAccount[bid] += amt;
       }
 
       return (bankAccounts || []).map((bankAccount: { id: string; name: string; account_number: string | null; bank_name: string | null }) => {
@@ -371,3 +401,55 @@ export const useBankAccountBalances = () => {
     getBalanceHistory,
   };
 };
+
+/** Period credits to payout bank from completed Xendit gateway withdrawals (not income_transactions). */
+export function useGatewayWithdrawalBankPeriodCredits(
+  startDate: Date,
+  endDate: Date,
+  enabled = true,
+) {
+  const { organizationId } = useCurrentOrg();
+
+  return useQuery({
+    queryKey: [
+      'gateway-withdrawal-bank-period-credits',
+      organizationId,
+      startDate.toISOString(),
+      endDate.toISOString(),
+    ],
+    queryFn: async () => {
+      if (!organizationId) return {} as Record<string, number>;
+
+      const rows: { bank_account_id: string; amount: unknown }[] = [];
+      let from = 0;
+      for (;;) {
+        const { data: chunk, error } = await supabase
+          .from('bank_account_balance_history')
+          .select('bank_account_id, amount')
+          .eq('organization_id', organizationId)
+          .eq('transaction_type', 'gateway_withdrawal')
+          .gte('created_at', startDate.toISOString())
+          .lt('created_at', endDate.toISOString())
+          .range(from, from + LEDGER_PAGE_SIZE - 1);
+
+        if (error) throw error;
+        const part = chunk ?? [];
+        rows.push(...part);
+        if (part.length < LEDGER_PAGE_SIZE) break;
+        from += LEDGER_PAGE_SIZE;
+      }
+
+      const map: Record<string, number> = {};
+      for (const row of rows) {
+        const id = row.bank_account_id;
+        const amt = Number(row.amount ?? 0);
+        if (!id || !Number.isFinite(amt) || amt <= 0) continue;
+        map[id] = (map[id] ?? 0) + amt;
+      }
+      return map;
+    },
+    enabled: Boolean(organizationId) && enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+}

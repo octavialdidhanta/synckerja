@@ -1,6 +1,7 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useDebts } from "@/4-2-debt/hooks";
 import { DebtForm } from "@/4-2-debt/components/DebtForm";
@@ -16,6 +17,9 @@ import { DebtDashboardCarousel } from "@/mobile/2-debt/section/debt/DebtDashboar
 import { DebtTableSection } from "@/mobile/2-debt/section/debt/DebtTableSection";
 import { MobileDebtPaymentHistoryModal } from "@/mobile/2-debt/modal/MobileDebtPaymentHistoryModal";
 import { MobileDebtFullViewportOverlay } from "@/mobile/2-debt/pages/MobileDebtPageSkeleton";
+import { BrickImportSettingsPanel } from "@/4-2-debt/components/BrickImportSettingsPanel";
+import { syncBrickBankMutations } from "@/4-1-transaction/lib/brickBankApi";
+import { useToast } from "@/shared/components/ui/use-toast";
 import { cn } from "@/shared/lib/utils";
 
 const SKELETON_MIN_MS = 200;
@@ -50,6 +54,30 @@ export function DebtTabContent() {
   const [paymentHistoryDebt, setPaymentHistoryDebt] = useState<Debt | null>(null);
   const { user, loading: userLoading } = useCurrentUser();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const brickOAuth = searchParams.get('brick_oauth');
+    if (!brickOAuth || !organizationId) return;
+    const oauthError = searchParams.get('oauth_error');
+    if (brickOAuth === 'success') {
+      toast({
+        title: t('debt.brick.oauthSuccessTitle', 'Kartu kredit terhubung ke Brick'),
+        description: t('debt.brick.oauthSuccessDesc', 'Sinkron transaksi sedang berjalan.'),
+      });
+      void syncBrickBankMutations(organizationId).then(() => refetchDebts()).catch(() => undefined);
+    } else if (brickOAuth === 'error') {
+      toast({
+        title: t('debt.brick.oauthErrorTitle', 'Gagal hubungkan Brick'),
+        description: oauthError ?? t('debt.brick.oauthErrorGeneric', 'OAuth gagal.'),
+        variant: 'destructive',
+      });
+    }
+    searchParams.delete('brick_oauth');
+    searchParams.delete('oauth_error');
+    setSearchParams(searchParams, { replace: true });
+  }, [organizationId, refetchDebts, searchParams, setSearchParams, t, toast]);
 
   const [minSettleDone, setMinSettleDone] = useState(true);
   const skeletonShownAtRef = useRef<number | null>(null);
@@ -243,6 +271,9 @@ export function DebtTabContent() {
             activeDebtCount={activeDebts.length}
             totalInterestYtd={totalInterestYtd}
           />
+        </div>
+        <div className="shrink-0 px-1">
+          <BrickImportSettingsPanel />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <DebtTableSection

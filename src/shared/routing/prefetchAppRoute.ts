@@ -188,6 +188,34 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
       })),
   },
   {
+    prefix: "/xendit/connect",
+    prefetch: () =>
+      import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({
+        default: m.XenditConnectRouteElement,
+      })),
+  },
+  {
+    prefix: "/xendit/balance",
+    prefetch: () =>
+      import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({
+        default: m.XenditBalanceRouteElement,
+      })),
+  },
+  {
+    prefix: "/xendit/history",
+    prefetch: () =>
+      import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({
+        default: m.XenditHistoryRouteElement,
+      })),
+  },
+  {
+    prefix: "/xendit",
+    prefetch: () =>
+      import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({
+        default: m.XenditModuleRouteElement,
+      })),
+  },
+  {
     prefix: "/incomes",
     prefetch: () =>
       import("@/shared/components/mobile/incomesMobileRouteElements").then((m) => ({

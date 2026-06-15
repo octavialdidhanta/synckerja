@@ -30,13 +30,19 @@ export function IncomePiutangPage() {
       verificationLoading={piutang.verificationLoading}
       totalPiutangActivities={piutang.totalPiutangActivities}
       openDrawer={piutang.openDrawer}
+      openVaDrawer={piutang.openVaDrawer}
       drawerOpen={piutang.drawerOpen}
       mountDrawer={piutang.mountDrawer}
       drawerActivity={piutang.drawerActivity}
       closeDrawer={piutang.closeDrawer}
+      vaDrawerOpen={piutang.vaDrawerOpen}
+      mountVaDrawer={piutang.mountVaDrawer}
+      vaDrawerActivity={piutang.vaDrawerActivity}
+      closeVaDrawer={piutang.closeVaDrawer}
       getPaymentHistory={piutang.getPaymentHistory}
       updatePaymentVerification={piutang.updatePaymentVerification}
       userId={piutang.userId}
+      organizationId={piutang.organizationId}
     />
   );
 }

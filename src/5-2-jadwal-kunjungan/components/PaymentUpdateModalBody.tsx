@@ -10,6 +10,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, Upload, TrendingUp, CheckCircle2, FileText, X, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import type { PaymentUpdateModalModel } from '@/5-2-jadwal-kunjungan/hooks/usePaymentUpdateModal';
+import { PiutangXenditVaPanel } from '@/4-1-transaction/piutang/components/PiutangXenditVaPanel';
+import { shouldOfferPiutangVaCollection } from '@/4-1-transaction/piutang/utils/piutangVaCollection';
 
 export type PaymentUpdateModalBodyLayout = 'desktop' | 'mobile';
 
@@ -52,7 +54,17 @@ export function PaymentUpdateModalBody({ layout, model }: PaymentUpdateModalBody
     handleSaveEdit,
     handleDeletePayment,
     getPaymentStatusColor,
+    organizationId,
+    loadData,
   } = model;
+
+  const vaCollectionPayments = progressivePayments.filter((p) =>
+    shouldOfferPiutangVaCollection({
+      transferVerificationStatus: p.transfer_verification_status,
+      paymentMethod: p.payment_method,
+      receiptUrl: p.receipt_url,
+    }),
+  );
 
   return (
     <div className={cn('space-y-4', isDesktop ? 'pr-4' : 'px-4 py-3')}>
@@ -479,6 +491,33 @@ export function PaymentUpdateModalBody({ layout, model }: PaymentUpdateModalBody
               </div>
             )}
           </div>
+
+          {!viewOnly && vaCollectionPayments.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              <h4 className="text-sm font-medium text-slate-800">Koleksi via Virtual Account</h4>
+              {vaCollectionPayments.map((payment) => (
+                <div
+                  key={payment.id}
+                  className="rounded-lg border border-slate-200 bg-slate-50/80 p-3"
+                >
+                  <p className="mb-2 text-xs text-slate-600">
+                    Cicilan #{payment.payment_sequence ?? '—'} ·{' '}
+                    {formatToRupiah(Number(payment.payment_amount ?? 0))}
+                  </p>
+                  <PiutangXenditVaPanel
+                    organizationId={organizationId}
+                    paymentId={payment.id}
+                    paymentAmount={Number(payment.payment_amount ?? 0)}
+                    clientName={model.clientName}
+                    verificationStatus={payment.transfer_verification_status}
+                    paymentMethod={payment.payment_method}
+                    receiptUrl={payment.receipt_url}
+                    onCreated={() => void loadData()}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : null}
     </div>
   );
 }

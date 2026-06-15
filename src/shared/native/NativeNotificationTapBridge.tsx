@@ -92,6 +92,12 @@ export function NativeNotificationTapBridge() {
           return;
         }
 
+        if (notificationType === "daily_task_step_comment") {
+          const path = inferDailyTaskPathFromPayload(payload);
+          if (path) navigate(path, { replace: true });
+          return;
+        }
+
         if (notificationType === "social_media_production_review") {
           const path = inferProductionReviewPathFromPayload(payload);
           if (path) navigate(path, { replace: true });
@@ -126,13 +132,16 @@ export function NativeNotificationTapBridge() {
           nt !== "livechat_assignment" &&
           nt !== "daily_task_assignment" &&
           nt !== "daily_task_completion" &&
+          nt !== "daily_task_step_comment" &&
           nt !== "social_media_production_review"
         )
           return;
         const path =
           nt === "social_media_production_review"
             ? inferProductionReviewPathFromPayload(data)
-            : nt === "daily_task_assignment" || nt === "daily_task_completion"
+            : nt === "daily_task_assignment" ||
+                nt === "daily_task_completion" ||
+                nt === "daily_task_step_comment"
               ? inferDailyTaskPathFromPayload(data)
               : inferLivechatPathFromPayload(data);
         if (path) navigate(path, { replace: true });

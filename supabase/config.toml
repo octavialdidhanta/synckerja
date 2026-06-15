@@ -211,6 +211,10 @@ verify_jwt = false
 [functions.linkedin-content-metrics]
 verify_jwt = false
 
+# Unified API: OAuth callback is GET without JWT; POST actions validate Bearer inside the handler.
+[functions.linkedin-content-api]
+verify_jwt = false
+
 # Cron / service role: apply_attendance_auto_checkout (also scheduled via pg_cron every 15 min).
 [functions.attendance-auto-checkout]
 verify_jwt = false
@@ -229,4 +233,19 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.instagram-subscribe-webhooks]
+verify_jwt = false
+
+[functions.xendit-api]
+verify_jwt = false
+
+# Webhook merged into xendit-api — delete xendit-webhook function in Dashboard to free quota.
+
+# Brick bank link/sync + VA webhook callbacks (no user JWT on webhook path).
+[functions.brick-bank-api]
+verify_jwt = false
+
+[functions.brick-oauth-start]
+verify_jwt = false
+
+[functions.brick-oauth-callback]
 verify_jwt = false

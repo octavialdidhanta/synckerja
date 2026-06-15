@@ -56,9 +56,10 @@ export const IncomeTransactionFilters = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="completed">{t('incomes.deposit.statusCompleted', 'Completed')}</SelectItem>
+            <SelectItem value="deposited">{t('incomes.deposit.statusDeposited', 'Uang masuk')}</SelectItem>
+            <SelectItem value="pending">{t('incomes.deposit.statusPending', 'Menunggu deposit')}</SelectItem>
+            <SelectItem value="cancelled">{t('incomes.deposit.statusCancelled', 'Cancelled')}</SelectItem>
           </SelectContent>
         </Select>
 

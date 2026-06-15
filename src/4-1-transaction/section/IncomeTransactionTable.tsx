@@ -11,7 +11,7 @@ import { IncomeTransactionWithRelations } from '@/4-1-dashboard/types';
 import { useBankAccounts, type BankAccount } from '@/shared/hooks/finance/useBankAccounts';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { getIncomeTransactionIdDisplay } from '@/4-1-dashboard/utils/incomeTransactionDisplayId';
-import { isIncomeAllocationIncomplete } from '@/4-1-dashboard/utils/incomeAllocationStatus';
+import { isIncomeAllocationIncomplete, incomeStatusBadgeVariant } from '@/4-1-dashboard/utils/incomeAllocationStatus';
 import { useCanAllocateIncome } from '@/4-1-dashboard/hooks/useCanAllocateIncome';
 
 const IncomeTransactionTableDialogs = lazy(() =>
@@ -43,16 +43,20 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
     [bankAccounts]
   );
 
-  const getStatusBadgeVariant = (status: string) => {
+  const getStatusBadgeVariant = (status: string) => incomeStatusBadgeVariant(status);
+
+  const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'completed':
-        return 'default';
       case 'pending':
-        return 'secondary';
+        return t('incomes.deposit.statusPending', 'Menunggu deposit');
+      case 'deposited':
+        return t('incomes.deposit.statusDeposited', 'Uang masuk');
+      case 'completed':
+        return t('incomes.deposit.statusCompleted', 'Completed');
       case 'cancelled':
-        return 'destructive';
+        return t('incomes.deposit.statusCancelled', 'Cancelled');
       default:
-        return 'outline';
+        return status;
     }
   };
 
@@ -150,10 +154,18 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
             ) : (
               transactions.map((transaction) => {
                 const needsAllocation = isIncomeAllocationIncomplete(transaction);
+                const canAllocateRow =
+                  transaction.status === 'deposited' && needsAllocation;
                 return (
                 <TableRow
                   key={transaction.id}
-                  className={needsAllocation ? 'hover:bg-amber-50/50 border-l-2 border-l-amber-400' : 'hover:bg-gray-50'}
+                  className={
+                    transaction.status === 'pending'
+                      ? 'hover:bg-amber-50/40 border-l-2 border-l-amber-300'
+                      : needsAllocation
+                        ? 'hover:bg-amber-50/50 border-l-2 border-l-amber-400'
+                        : 'hover:bg-gray-50'
+                  }
                 >
                   <TableCell className="w-[200px] min-w-[200px] px-3 py-2 text-xs">
                     <div className="font-medium break-words leading-snug line-clamp-2">
@@ -281,9 +293,9 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
                   <TableCell className="px-3 py-2 text-xs">
                     <div className="flex flex-col items-start gap-1">
                       <Badge variant={getStatusBadgeVariant(transaction.status)} className="text-xs">
-                        {transaction.status}
+                        {getStatusLabel(transaction.status)}
                       </Badge>
-                      {needsAllocation ? (
+                      {needsAllocation && transaction.status === 'deposited' ? (
                         <Badge variant="outline" className="text-xs border-amber-300 bg-amber-50 text-amber-800">
                           {t('incomes.allocation.badgeNeedsAllocation', 'Needs allocation')}
                         </Badge>
@@ -318,7 +330,7 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
                           <Eye className="mr-2 h-3 w-3" />
                           View Details
                         </DropdownMenuItem>
-                        {canAllocateIncome && needsAllocation ? (
+                        {canAllocateIncome && canAllocateRow ? (
                           <DropdownMenuItem
                             className="text-xs cursor-pointer font-medium text-amber-800"
                             onClick={() => handleAllocate(transaction)}

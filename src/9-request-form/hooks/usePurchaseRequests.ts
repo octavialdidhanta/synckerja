@@ -80,6 +80,10 @@ export interface PurchaseRequest {
   paid_by_name?: string;
   withdrawal_from_balance?: string;
   bank_account_id?: string;
+  gateway_wallet_provider?: 'xendit' | 'brick' | null;
+  vendor_bank_code?: string | null;
+  vendor_bank_account_number?: string | null;
+  vendor_bank_account_holder?: string | null;
   expense_types?: {
     name: string;
     description?: string;
@@ -308,7 +312,8 @@ export const useUpdatePurchaseRequestStatus = () => {
       expenseTypeId,
       expenseCategoryId,
       withdrawalFromBalance,
-      bankAccountId
+      bankAccountId,
+      gatewayWalletProvider,
     }: { 
       id: string; 
       status: PurchaseRequest['status'];
@@ -320,6 +325,7 @@ export const useUpdatePurchaseRequestStatus = () => {
       expenseCategoryId?: string;
       withdrawalFromBalance?: string;
       bankAccountId?: string;
+      gatewayWalletProvider?: 'xendit' | 'brick' | null;
     }) => {
       if (!user) {
         throw new Error('User not authenticated');
@@ -342,6 +348,9 @@ export const useUpdatePurchaseRequestStatus = () => {
       }
       if (bankAccountId !== undefined) {
         updateData.bank_account_id = bankAccountId || null;
+      }
+      if (gatewayWalletProvider !== undefined) {
+        updateData.gateway_wallet_provider = gatewayWalletProvider || null;
       }
 
       // If invoice file path is provided, save it (do not auto-mark as paid; use markAsPaid for that)

@@ -102,7 +102,14 @@ function matchesWithdrawalFilter(expense: ExpenseTableItem, withdrawalFilter: st
     expense.withdrawal_from_balance || (expense as any).withdrawal_from_balance_debt?.id || "";
   const bankIdFromExpense =
     expense.bank_account_id || (expense as any).withdrawal_from_balance_bank_account?.id || "";
-  if (withdrawalFilter === "none") return !debtIdFromExpense && !bankIdFromExpense;
+  const gatewayProvider = (expense as Expense).gateway_wallet_provider;
+  if (withdrawalFilter === "none") {
+    return !debtIdFromExpense && !bankIdFromExpense && !gatewayProvider;
+  }
+  if (withdrawalFilter.startsWith("gateway_")) {
+    const provider = withdrawalFilter.replace("gateway_", "");
+    return gatewayProvider === provider;
+  }
   if (withdrawalFilter.startsWith("debt_")) {
     const debtId = withdrawalFilter.replace("debt_", "");
     return debtIdFromExpense === debtId;

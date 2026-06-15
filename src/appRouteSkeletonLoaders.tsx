@@ -452,3 +452,9 @@ export const DigitalMarketingReportTargetsSettingsPageSkeleton = createDeferredS
     default: m.DigitalMarketingReportTargetsSettingsPageSkeleton,
   })),
 );
+
+export const IncomeXenditPageSkeleton = createDeferredSkeleton(() =>
+  import("@/4-1-transaction/xendit/skeletons/IncomeXenditPageSkeleton").then((m) => ({
+    default: m.IncomeXenditPageSkeleton,
+  })),
+);

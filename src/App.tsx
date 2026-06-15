@@ -74,6 +74,7 @@ import {
   TikTokManageCommentsPageSkeleton,
   DigitalMarketingReportPageSkeleton,
   DigitalMarketingReportTargetsSettingsPageSkeleton,
+  IncomeXenditPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
@@ -312,6 +313,9 @@ const MetaOAuthCallbackRouteElement = lazy(() =>
     default: m.MetaOAuthCallbackPage,
   })),
 );
+const BrickOAuthConnectPage = lazy(() =>
+  import("@/4-1-transaction/pages/BrickOAuthConnectPage"),
+);
 const SupabaseSsoCallbackRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
     default: m.SupabaseSsoCallbackRouteElement,
@@ -414,6 +418,26 @@ const IncomePiutangRouteElement = lazy(() =>
     default: m.IncomePiutangRouteElement,
   })),
 );
+const XenditModuleRouteElement = lazy(() =>
+  import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({
+    default: m.XenditModuleRouteElement,
+  })),
+);
+const XenditConnectRouteElement = lazy(() =>
+  import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({
+    default: m.XenditConnectRouteElement,
+  })),
+);
+const XenditBalanceRouteElement = lazy(() =>
+  import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({
+    default: m.XenditBalanceRouteElement,
+  })),
+);
+const XenditHistoryRouteElement = lazy(() =>
+  import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({
+    default: m.XenditHistoryRouteElement,
+  })),
+);
 
 const HabitTrackerRouteElement = lazy(() =>
   import("@/shared/components/mobile/habitTrackerRouteElement").then((m) => ({ default: m.HabitTrackerRouteElement })),
@@ -495,6 +519,7 @@ function AppRoutes() {
         <Route path="/first-login" element={<FirstLoginRouteElement />} />
         <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
         <Route path="/auth/meta/callback" element={<MetaOAuthCallbackRouteElement />} />
+        <Route path="/finance/brick-oauth/connect" element={<BrickOAuthConnectPage />} />
         <Route path="/auth/sso/callback" element={<SupabaseSsoCallbackRouteElement />} />
         <Route
           path="/operations/instagram-connect"
@@ -641,6 +666,9 @@ function AppRoutes() {
                 <Route path="profile" element={<ProfileRouteElement />} />
                 <Route path="security" element={<SecuritySettings />} />
               </Route>
+              <Route path="/settings/xendit" element={<Navigate to="/xendit/connect" replace />} />
+              <Route path="/incomes/xendit" element={<Navigate to="/xendit/connect" replace />} />
+              <Route path="/incomes/xendit/*" element={<Navigate to="/xendit/connect" replace />} />
               <Route path="/transfer-ownership" element={<TransferOwnershipPage />} />
               <Route path="/okr" element={<Navigate to="/okr/company-objective" replace />} />
               <Route
@@ -863,6 +891,23 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
+              <Route
+                path="/xendit"
+                element={
+                  <PageAccessGuard
+                    pagePath="/xendit"
+                    loadingShell={<IncomeXenditPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <XenditModuleRouteElement />
+                  </PageAccessGuard>
+                }
+              >
+                <Route index element={<Navigate to="connect" replace />} />
+                <Route path="connect" element={<XenditConnectRouteElement />} />
+                <Route path="balance" element={<XenditBalanceRouteElement />} />
+                <Route path="history" element={<XenditHistoryRouteElement />} />
+              </Route>
               <Route path="/incomes/bank-accounts" element={<Navigate to={MOBILE_INCOMES_BANK_ACCOUNT_PATH} replace />} />
               <Route path="/expenses" element={<Navigate to="/expenses/dashboard" replace />} />
               <Route
@@ -2098,6 +2143,7 @@ const App = () => (
                   <Route path="/first-login" element={<FirstLoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
                   <Route path="/auth/meta/callback" element={<MetaOAuthCallbackRouteElement />} />
+                  <Route path="/finance/brick-oauth/connect" element={<BrickOAuthConnectPage />} />
                   <Route path="/auth/sso/callback" element={<SupabaseSsoCallbackRouteElement />} />
                   <Route
                     path="/operations/instagram-connect"
@@ -2264,6 +2310,9 @@ const App = () => (
                           <Route path="profile" element={<ProfileRouteElement />} />
                           <Route path="security" element={<SecuritySettings />} />
                         </Route>
+                        <Route path="/settings/xendit" element={<Navigate to="/xendit/connect" replace />} />
+                        <Route path="/incomes/xendit" element={<Navigate to="/xendit/connect" replace />} />
+                        <Route path="/incomes/xendit/*" element={<Navigate to="/xendit/connect" replace />} />
                         <Route path="/transfer-ownership" element={<TransferOwnershipPage />} />
                         <Route path="/okr" element={<Navigate to="/okr/company-objective" replace />} />
                         <Route
@@ -2501,6 +2550,23 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
+                        <Route
+                          path="/xendit"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/xendit"
+                              loadingShell={<IncomeXenditPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <XenditModuleRouteElement />
+                            </PageAccessGuard>
+                          }
+                        >
+                          <Route index element={<Navigate to="connect" replace />} />
+                          <Route path="connect" element={<XenditConnectRouteElement />} />
+                          <Route path="balance" element={<XenditBalanceRouteElement />} />
+                          <Route path="history" element={<XenditHistoryRouteElement />} />
+                        </Route>
                         <Route
                           path="/incomes/bank-accounts"
                           element={<Navigate to={MOBILE_INCOMES_BANK_ACCOUNT_PATH} replace />}

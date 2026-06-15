@@ -1,5 +1,6 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { FINANCIAL_DRAWERS_LIST_SCROLL } from "@/4-1-dashboard/utils/financialDrawersScroll";
 
 const GRID_MAIN =
   "min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch xl:grid-rows-1 [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]";
@@ -90,9 +91,11 @@ export function IncomeDashboardSkeleton() {
                         <div className="flex min-h-[200px] min-w-0 flex-col rounded-lg border border-gray-200/80 bg-white p-3 shadow-sm">
                           <Skeleton className="mb-1 h-5 w-52" />
                           <Skeleton className="mb-3 h-3 w-full max-w-sm" />
-                          <div className="space-y-2">
+                          <div className={`space-y-2 ${FINANCIAL_DRAWERS_LIST_SCROLL}`}>
                             <Skeleton className="h-16 w-full rounded-md" />
                             <Skeleton className="h-16 w-full rounded-md" />
+                            <Skeleton className="h-16 w-full rounded-md border border-dashed border-slate-300/60 bg-slate-50/50" />
+                            <Skeleton className="h-16 w-full rounded-md border border-dashed border-slate-300/60 bg-slate-50/50" />
                           </div>
                         </div>
                       </div>

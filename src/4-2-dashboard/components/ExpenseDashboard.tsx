@@ -40,7 +40,7 @@ import { ExpenseTypeCrudModal } from './ExpenseTypeCrudModal';
 import { ExpenseCategoryCrudModal } from './ExpenseCategoryCrudModal';
 import { usePurchaseRequests, PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { ExpenseTableFooter } from './ExpenseTableFooter';
-import { filterExpensesBySearch } from '@/shared/hooks/finance/expenseTableSearch';
+import { filterExpensesBySearch, getExpenseWithdrawalLabel } from '@/shared/hooks/finance/expenseTableSearch';
 import { aggregateExpenseTotalsByKey, sortedBreakdownEntries } from '@/shared/hooks/finance/expenseBreakdownBars';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { openSupabaseFinanceReceiptOrInvoice } from '@/shared/utils/openSupabaseSignedFile';
@@ -48,6 +48,13 @@ import { AttendanceDateRangePicker } from '@/shared/calendar/AttendanceDateRange
 import { Link } from 'react-router-dom';
 import { IncomeAllocationOptionalSection } from '@/4-1-dashboard/components/IncomeAllocationOptionalSection';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
+import { WithdrawalFromBalanceSelect } from '@/shared/components/finance/WithdrawalFromBalanceSelect';
+import {
+  applyWithdrawalSourceToFormFields,
+  hasWithdrawalFormFields,
+  withdrawalSourceFromFormFields,
+} from '@/shared/lib/finance/withdrawalSourceValue';
+import { useWithdrawalFromBalanceOptions } from '@/shared/hooks/finance/useWithdrawalFromBalanceOptions';
 import { ExpenseDashboardModuleShell } from '../layout/ExpenseDashboardModuleShell';
 
 async function handleViewInvoice(filePath: string | null | undefined) {
@@ -68,9 +75,15 @@ function matchesWithdrawalFilter(expense: Expense, withdrawalFilter: string): bo
     expense.withdrawal_from_balance || expense.withdrawal_from_balance_debt?.id || '';
   const bankIdFromExpense =
     expense.bank_account_id || expense.withdrawal_from_balance_bank_account?.id || '';
+  const gatewayProvider = expense.gateway_wallet_provider;
 
   if (withdrawalFilter === 'none') {
-    return !debtIdFromExpense && !bankIdFromExpense;
+    return !debtIdFromExpense && !bankIdFromExpense && !gatewayProvider;
+  }
+
+  if (withdrawalFilter.startsWith('gateway_')) {
+    const provider = withdrawalFilter.replace('gateway_', '');
+    return gatewayProvider === provider;
   }
 
   if (withdrawalFilter.startsWith('debt_')) {
@@ -96,15 +109,22 @@ function withdrawalJoinsFromPurchaseRequest(
   banks: { id: string; name: string }[],
 ): Pick<
   Expense,
-  'withdrawal_from_balance' | 'bank_account_id' | 'withdrawal_from_balance_debt' | 'withdrawal_from_balance_bank_account'
+  | 'withdrawal_from_balance'
+  | 'bank_account_id'
+  | 'withdrawal_from_balance_debt'
+  | 'withdrawal_from_balance_bank_account'
+  | 'gateway_wallet_provider'
 > {
   const debtId = pr.withdrawal_from_balance?.trim() || '';
   const bankId = pr.bank_account_id?.trim() || '';
+  const gateway = pr.gateway_wallet_provider;
   const debtMeta = debtId ? debts.find((d) => d.id === debtId) : undefined;
   const bankMeta = bankId ? banks.find((b) => b.id === bankId) : undefined;
   return {
     withdrawal_from_balance: debtId || undefined,
     bank_account_id: bankId || undefined,
+    gateway_wallet_provider:
+      gateway === 'xendit' || gateway === 'brick' ? gateway : undefined,
     withdrawal_from_balance_debt:
       debtId && debtMeta
         ? { id: debtMeta.id, debt_name: debtMeta.debt_name }
@@ -204,6 +224,7 @@ export function ExpenseDashboard() {
     isPending: balancesPending,
     refetch: refetchBalances,
   } = useBankAccountBalances();
+  const { gateways } = useWithdrawalFromBalanceOptions();
 
   const dataPending =
     Boolean(organizationId) &&
@@ -445,6 +466,7 @@ export function ExpenseDashboard() {
       department: '',
       withdrawal_from_balance: undefined,
       bank_account_id: undefined,
+      gateway_wallet_provider: undefined,
       create_date: format(new Date(), 'yyyy-MM-dd'),
       is_recurring: false,
       recurring_frequency: '',
@@ -466,6 +488,7 @@ export function ExpenseDashboard() {
     department: '',
     withdrawal_from_balance: undefined,
     bank_account_id: undefined,
+    gateway_wallet_provider: undefined,
     create_date: format(new Date(), 'yyyy-MM-dd'),
     is_recurring: false,
     recurring_frequency: '',
@@ -488,6 +511,7 @@ export function ExpenseDashboard() {
     setIncomeAllocAmountStr('');
     form.setValue('withdrawal_from_balance', undefined);
     form.setValue('bank_account_id', undefined);
+    form.setValue('gateway_wallet_provider', undefined);
   };
 
   const handleOpenAddExpense = () => {
@@ -513,6 +537,7 @@ export function ExpenseDashboard() {
       department: expense.department || '',
       withdrawal_from_balance: expense.withdrawal_from_balance || undefined,
       bank_account_id: expense.bank_account_id || undefined,
+      gateway_wallet_provider: (expense as Expense & { gateway_wallet_provider?: 'xendit' | 'brick' }).gateway_wallet_provider || undefined,
       create_date: expense.create_date || format(new Date(), 'yyyy-MM-dd'),
       is_recurring: !!expense.is_recurring,
       recurring_frequency: expense.recurring_frequency || '',
@@ -537,6 +562,16 @@ export function ExpenseDashboard() {
       }
     }
     
+    // Validate gateway drawer balance on create.
+    if (!isEditMode && data.gateway_wallet_provider) {
+      const gw = gateways.find((g) => g.provider === data.gateway_wallet_provider);
+      const availableBalance = gw?.usableBalance ?? 0;
+      if (availableBalance < data.amount) {
+        toast.error(`Insufficient gateway balance. Available: Rp ${availableBalance.toLocaleString('id-ID')}, Required: Rp ${data.amount.toLocaleString('id-ID')}`);
+        return;
+      }
+    }
+
     // Validate bank account balance with delta awareness for edit flow.
     if (data.bank_account_id) {
       const balance = bankAccountBalances.find(b => b.bank_account_id === data.bank_account_id);
@@ -587,6 +622,7 @@ export function ExpenseDashboard() {
         ? data.withdrawal_from_balance 
         : undefined,
       bank_account_id: data.bank_account_id || undefined,
+      gateway_wallet_provider: data.gateway_wallet_provider || undefined,
       recurring_settlement_for_expense_id:
         data.is_recurring && linkedRecurringRaw ? linkedRecurringRaw : undefined,
       income_allocation,
@@ -1565,6 +1601,39 @@ export function ExpenseDashboard() {
                         (isPaidPurchaseRequest 
                           ? paidPurchaseRequests.find(pr => pr.id === expense.id)?.request_title 
                           : expense.expense_name);
+                      const linkedPurchaseRequest = expense.purchase_request_id
+                        ? paidPurchaseRequests.find((pr) => pr.id === expense.purchase_request_id)
+                        : isPaidPurchaseRequest
+                          ? paidPurchaseRequests.find((pr) => pr.id === expense.id)
+                          : undefined;
+                      const prWithdrawal = linkedPurchaseRequest
+                        ? withdrawalJoinsFromPurchaseRequest(
+                            linkedPurchaseRequest,
+                            debtsForExpense,
+                            bankAccounts,
+                          )
+                        : null;
+                      const withdrawalLabel =
+                        getExpenseWithdrawalLabel(
+                          {
+                            ...expense,
+                            gateway_wallet_provider:
+                              expense.gateway_wallet_provider ??
+                              prWithdrawal?.gateway_wallet_provider,
+                            withdrawal_from_balance_bank_account:
+                              expense.withdrawal_from_balance_bank_account ??
+                              prWithdrawal?.withdrawal_from_balance_bank_account,
+                            withdrawal_from_balance_debt:
+                              expense.withdrawal_from_balance_debt ??
+                              prWithdrawal?.withdrawal_from_balance_debt,
+                          },
+                          {
+                            formatGateway: (provider) =>
+                              provider === 'xendit'
+                                ? t('expenses.gatewayXendit', 'Xendit')
+                                : t('expenses.gatewayBrick', 'Brick'),
+                          },
+                        ) || '—';
                       return (
                       <tr key={expense.id} className="border-b hover:bg-gray-50">
                         <td className="py-2 sm:py-3 px-2 sm:px-4 max-w-[150px] sm:max-w-[200px] min-w-0">
@@ -1574,14 +1643,8 @@ export function ExpenseDashboard() {
                         </td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium whitespace-nowrap text-xs sm:text-sm">{formatCurrency(expense.amount)}</td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 max-w-[150px] sm:max-w-[200px] min-w-0">
-                          <div className="truncate text-xs sm:text-sm" title={
-                            (expense as any).withdrawal_from_balance_bank_account?.name 
-                              || (expense as any).withdrawal_from_balance_debt?.debt_name 
-                              || '-'
-                          }>
-                            {(expense as any).withdrawal_from_balance_bank_account?.name 
-                              || (expense as any).withdrawal_from_balance_debt?.debt_name 
-                              || '-'}
+                          <div className="truncate text-xs sm:text-sm" title={withdrawalLabel}>
+                            {withdrawalLabel}
                           </div>
                         </td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap text-xs sm:text-sm">{format(new Date(expense.create_date), 'dd MMM yyyy')}</td>
@@ -1748,113 +1811,32 @@ export function ExpenseDashboard() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Withdrawal From Balance <span className="text-brand-red">*</span>
-                </label>
-                <Select 
-                  onValueChange={(value) => {
+                <WithdrawalFromBalanceSelect
+                  allowNone={false}
+                  requiredMark
+                  label="Withdrawal From Balance"
+                  placeholder="Select source (required)"
+                  value={withdrawalSourceFromFormFields({
+                    withdrawal_from_balance: form.watch('withdrawal_from_balance'),
+                    bank_account_id: form.watch('bank_account_id'),
+                    gateway_wallet_provider: form.watch('gateway_wallet_provider'),
+                  })}
+                  onChange={(source) => {
                     setIncomeAllocIncomeId('');
                     setIncomeAllocAmountStr('');
-                    if (value === 'none') {
-                      form.setValue('withdrawal_from_balance', undefined);
-                      form.setValue('bank_account_id', undefined);
-                    } else if (value.startsWith('debt_')) {
-                      // Debt selection
-                      const debtId = value.replace('debt_', '');
-                      form.setValue('withdrawal_from_balance', debtId);
-                      form.setValue('bank_account_id', undefined);
-                    } else if (value.startsWith('bank_')) {
-                      // Bank account selection
-                      const bankId = value.replace('bank_', '');
-                      form.setValue('bank_account_id', bankId);
-                      form.setValue('withdrawal_from_balance', undefined);
-                    }
+                    const fields = applyWithdrawalSourceToFormFields(source);
+                    form.setValue('withdrawal_from_balance', fields.withdrawal_from_balance, { shouldValidate: true });
+                    form.setValue('bank_account_id', fields.bank_account_id, { shouldValidate: true });
+                    form.setValue('gateway_wallet_provider', fields.gateway_wallet_provider, { shouldValidate: true });
                   }}
-                  disabled={debtsLoading || bankAccountsLoading || balancesLoading}
-                  value={
-                    form.watch('withdrawal_from_balance') 
-                      ? `debt_${form.watch('withdrawal_from_balance')}`
-                      : form.watch('bank_account_id')
-                        ? `bank_${form.watch('bank_account_id')}`
-                        : 'none'
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={(debtsLoading || bankAccountsLoading) ? "Loading..." : "Select source (required)"}>
-                      {(() => {
-                        const selectedDebtId = form.watch('withdrawal_from_balance');
-                        const selectedBankId = form.watch('bank_account_id');
-                        
-                        if (selectedDebtId) {
-                          const selectedDebt = debtsForExpense.find(d => d.id === selectedDebtId);
-                          if (selectedDebt) {
-                            // Hook sudah menghitung available_limit dengan benar
-                            const availableLimit = selectedDebt.available_limit ?? 0;
-                            const formattedLimit = `Rp ${availableLimit.toLocaleString('id-ID')}`;
-                            return `${selectedDebt.debt_name} (${formattedLimit} available)`;
-                          }
-                        } else if (selectedBankId) {
-                          const selectedBank = bankAccounts.find(b => b.id === selectedBankId);
-                          if (selectedBank) {
-                            const balance = bankAccountBalances.find(b => b.bank_account_id === selectedBank.id);
-                            const availableBalance = balance?.balance ?? 0;
-                            const formattedBalance = `Rp ${availableBalance.toLocaleString('id-ID')}`;
-                            return selectedBank.account_number
-                              ? `${selectedBank.name} - ${selectedBank.account_number} (${formattedBalance} available)`
-                              : `${selectedBank.name} (${formattedBalance} available)`;
-                          }
-                        }
-                        return '';
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    
-                    {/* Bank Accounts Section */}
-                    {bankAccounts.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">Bank Accounts</div>
-                        {bankAccounts.map(bankAccount => {
-                          // Get or create balance if it doesn't exist
-                          const balance = bankAccountBalances.find(b => b.bank_account_id === bankAccount.id);
-                          // If balance doesn't exist, it will be created automatically when first transaction happens
-                          // For display purposes, show 0 if balance record doesn't exist yet
-                          const availableBalance = balance?.balance ?? 0;
-                          const formattedBalance = `Rp ${availableBalance.toLocaleString('id-ID')}`;
-                          // Format: "Bank Name - Account Number (Balance: Rp X available)"
-                          const displayText = bankAccount.account_number
-                            ? `${bankAccount.name} - ${bankAccount.account_number} (${formattedBalance} available)`
-                            : `${bankAccount.name} (${formattedBalance} available)`;
-                          return (
-                            <SelectItem key={`bank_${bankAccount.id}`} value={`bank_${bankAccount.id}`}>
-                              {displayText}
-                            </SelectItem>
-                          );
-                        })}
-                      </>
-                    )}
-                    
-                    {/* Debts Section */}
-                    {debtsForExpense.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">Debts</div>
-                        {debtsForExpense.map(debt => {
-                          // Hook sudah menghitung available_limit dengan benar (termasuk fallback untuk Pinjaman Online)
-                          const availableLimit = debt.available_limit ?? 0;
-                          const formattedLimit = `Rp ${availableLimit.toLocaleString('id-ID')}`;
-                          return (
-                            <SelectItem key={`debt_${debt.id}`} value={`debt_${debt.id}`}>
-                              {debt.debt_name} ({formattedLimit} available)
-                            </SelectItem>
-                          );
-                        })}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-                {(form.watch('withdrawal_from_balance') || form.watch('bank_account_id')) && (
+                />
+                {(hasWithdrawalFormFields({
+                  withdrawal_from_balance: form.watch('withdrawal_from_balance'),
+                  bank_account_id: form.watch('bank_account_id'),
+                  gateway_wallet_provider: form.watch('gateway_wallet_provider'),
+                })) && (
                   (() => {
+                    const gatewayProvider = form.watch('gateway_wallet_provider');
                     const selectedDebt = form.watch('withdrawal_from_balance') 
                       ? debtsForExpense.find(d => d.id === form.watch('withdrawal_from_balance'))
                       : null;
@@ -1864,16 +1846,22 @@ export function ExpenseDashboard() {
                     const balance = selectedBankAccount 
                       ? bankAccountBalances.find(b => b.bank_account_id === selectedBankAccount.id)
                       : null;
+                    const selectedGateway = gatewayProvider
+                      ? gateways.find((g) => g.provider === gatewayProvider)
+                      : null;
                     
-                    // Hook sudah menghitung available_limit dengan benar (termasuk fallback untuk Pinjaman Online)
-                    const availableAmount = selectedDebt 
-                      ? (selectedDebt.available_limit ?? 0)
-                      : (balance?.balance ?? 0);
+                    const availableAmount = selectedGateway
+                      ? (selectedGateway.usableBalance ?? 0)
+                      : selectedDebt 
+                        ? (selectedDebt.available_limit ?? 0)
+                        : (balance?.balance ?? 0);
                     const expenseAmount = form.watch('amount') || 0;
                     const isInsufficient = availableAmount < expenseAmount;
-                    const sourceName = selectedDebt 
-                      ? selectedDebt.debt_name 
-                      : selectedBankAccount?.name || '';
+                    const sourceName = selectedGateway
+                      ? selectedGateway.label
+                      : selectedDebt 
+                        ? selectedDebt.debt_name 
+                        : selectedBankAccount?.name || '';
                     
                     return (
                       <div className="mt-2">
@@ -1889,6 +1877,9 @@ export function ExpenseDashboard() {
                       </div>
                     );
                   })()
+                )}
+                {form.formState.errors.withdrawal_from_balance && (
+                  <p className="text-sm text-brand-red mt-1">{form.formState.errors.withdrawal_from_balance.message}</p>
                 )}
               </div>
 
@@ -2164,7 +2155,11 @@ export function ExpenseDashboard() {
                 className="bg-gray-900 hover:bg-gray-800 text-white"
                 disabled={
                   isSubmittingExpense ||
-                  (!form.watch('withdrawal_from_balance') && !form.watch('bank_account_id'))
+                  !hasWithdrawalFormFields({
+                    withdrawal_from_balance: form.watch('withdrawal_from_balance'),
+                    bank_account_id: form.watch('bank_account_id'),
+                    gateway_wallet_provider: form.watch('gateway_wallet_provider'),
+                  })
                 }
               >
                 {isSubmittingExpense

@@ -12,6 +12,18 @@ export interface BankAccount {
   organization_id: string;
   is_active: boolean;
   use_for_omnichannel_income: boolean;
+  use_for_gateway_payout: boolean;
+  gateway_payout_bank_code: string | null;
+  gateway_payout_validation_status?: string | null;
+  gateway_payout_validation_error?: string | null;
+  brick_account_id: string | null;
+  brick_connection_id: string | null;
+  brick_aggregated_account_id: string | null;
+  brick_link_mode: string;
+  brick_link_status: 'unlinked' | 'pending' | 'linked' | 'error';
+  brick_last_sync_at: string | null;
+  brick_last_sync_error: string | null;
+  bank_statement_balance: number | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -31,6 +43,8 @@ export interface UpdateBankAccountData {
   account_holder?: string;
   is_active?: boolean;
   use_for_omnichannel_income?: boolean;
+  use_for_gateway_payout?: boolean;
+  gateway_payout_bank_code?: string;
 }
 
 export type UseBankAccountsOptions = {
@@ -129,6 +143,12 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
         }
       }
 
+      if (bankAccountData.use_for_gateway_payout === true) {
+        throw new Error(
+          'Gateway payout must be enabled via Iluma bank validation (Xendit / Bank Accounts).',
+        );
+      }
+
       const { data, error } = await supabase
         .from('bank_accounts')
         .update({
@@ -149,6 +169,7 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['omnichannel-income-bank-account', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['xendit-settings', organizationId] });
       toast({
         title: 'Success',
         description: 'Bank account updated successfully',
