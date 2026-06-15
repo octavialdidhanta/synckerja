@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -103,18 +104,24 @@ type DbWebhookPayload = {
   old_record?: unknown;
 };
 
-type ClaimedRow = {
+type CommentClaimedRow = {
   id: string;
-  organization_id: string;
   recipient_user_id: string;
-  created_at: string;
   event_type: "comment" | "reply" | "mention" | "reaction";
   title: string;
   body_preview: string;
   url: string;
 };
 
-function buildBody(latest: ClaimedRow, total: number): string {
+type AssignmentClaimedRow = {
+  id: string;
+  recipient_user_id: string;
+  event_type: "assign" | "unassign" | "reassign";
+  title: string;
+  url: string;
+};
+
+function buildCommentBody(latest: CommentClaimedRow, total: number): string {
   if (total === 1) {
     const preview = (latest.body_preview || "").trim();
     if (latest.event_type === "reaction") return preview || "New reaction on a step comment";
@@ -123,6 +130,166 @@ function buildBody(latest: ClaimedRow, total: number): string {
     return preview ? `Comment: ${preview}` : "New comment on a task step";
   }
   return `${total} new step comment updates`;
+}
+
+function buildAssignmentPushContent(rows: AssignmentClaimedRow[]): { title: string; body: string } {
+  const latest = rows[0];
+  const total = rows.length;
+  const itemTitle = latest.title || "Item";
+  const eventTypes = new Set(rows.map((row) => row.event_type));
+  const singleEvent = eventTypes.size === 1 ? [...eventTypes][0] : null;
+
+  if (total === 1) {
+    if (latest.event_type === "unassign") {
+      return { title: "Daily Task", body: `Penugasan dicabut: ${itemTitle}` };
+    }
+    if (latest.event_type === "reassign") {
+      return { title: "Daily Task", body: `Ditugaskan ulang: ${itemTitle}` };
+    }
+    return { title: "Daily Task", body: `Ditugaskan: ${itemTitle}` };
+  }
+
+  if (singleEvent === "unassign") {
+    return { title: "Daily Task", body: `${total} penugasan dicabut dari Anda` };
+  }
+  if (singleEvent === "reassign") {
+    return { title: "Daily Task", body: `${total} penugasan diubah` };
+  }
+  if (singleEvent === "assign") {
+    return { title: "Daily Task", body: `${total} penugasan baru ditugaskan ke Anda` };
+  }
+
+  return { title: "Daily Task", body: `${total} pembaruan penugasan Daily Task` };
+}
+
+async function deliverFcmPush(
+  supabase: SupabaseClient,
+  recipientUserId: string,
+  title: string,
+  body: string,
+  dataPayload: Record<string, string>,
+  fcmServiceAccountJson: string,
+  projectId: string,
+  logPrefix: string,
+  claimed: number,
+): Promise<Response> {
+  const { data: fcmRows } = await supabase
+    .from("fcm_tokens")
+    .select("id, token")
+    .eq("user_id", recipientUserId)
+    .eq("context", "general");
+  const tokens = (fcmRows ?? []) as { id: string; token: string }[];
+  if (tokens.length === 0) {
+    console.log(`${logPrefix}: no_tokens`, { recipientUserId, claimed });
+    return new Response(JSON.stringify({ ok: true, skipped: "no_tokens", claimed }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const accessToken = await getFcmAccessToken(fcmServiceAccountJson);
+  let sent = 0;
+  for (const t of tokens) {
+    const res = await sendFcmMessage(accessToken, projectId, t.token, title, body, dataPayload);
+    if (res.ok) {
+      sent++;
+      break;
+    }
+  }
+
+  console.log(`${logPrefix}: done`, { recipientUserId, claimed, sent });
+  return new Response(JSON.stringify({ ok: true, claimed, sent }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function handleAssignmentPush(
+  supabase: SupabaseClient,
+  recipientUserId: string,
+  fcmServiceAccountJson: string,
+  projectId: string,
+): Promise<Response> {
+  const { data: claimed, error: claimErr } = await supabase.rpc(
+    "claim_daily_task_assignment_push_queue",
+    {
+      p_recipient_user_id: recipientUserId,
+      p_window_seconds: 20,
+      p_max: 25,
+    },
+  );
+  if (claimErr) throw claimErr;
+  const rows = (claimed ?? []) as AssignmentClaimedRow[];
+  if (rows.length === 0) {
+    return new Response(JSON.stringify({ ok: true, skipped: "nothing_to_send" }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const latest = rows[0];
+  const { title, body } = buildAssignmentPushContent(rows);
+  return deliverFcmPush(
+    supabase,
+    recipientUserId,
+    title,
+    body,
+    {
+      notificationType: "daily_task_assignment",
+      eventType: latest.event_type,
+      url: latest.url || "/tools/daily-task",
+      badge: String(rows.length),
+    },
+    fcmServiceAccountJson,
+    projectId,
+    "daily-task-comment-send-push:assignment",
+    rows.length,
+  );
+}
+
+async function handleCommentPush(
+  supabase: SupabaseClient,
+  recipientUserId: string,
+  fcmServiceAccountJson: string,
+  projectId: string,
+): Promise<Response> {
+  const { data: claimed, error: claimErr } = await supabase.rpc(
+    "claim_task_step_comment_push_queue",
+    {
+      p_recipient_user_id: recipientUserId,
+      p_window_seconds: 20,
+      p_max: 25,
+    },
+  );
+  if (claimErr) throw claimErr;
+  const rows = (claimed ?? []) as CommentClaimedRow[];
+  if (rows.length === 0) {
+    return new Response(JSON.stringify({ ok: true, skipped: "nothing_to_send" }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const latest = rows[0];
+  const total = rows.length;
+  const title = latest.title ? `Step: ${latest.title}` : "Daily Task";
+  const body = buildCommentBody(latest, total);
+
+  return deliverFcmPush(
+    supabase,
+    recipientUserId,
+    title,
+    body,
+    {
+      notificationType: "daily_task_step_comment",
+      url: latest.url || "/tools/daily-task",
+      badge: String(total),
+    },
+    fcmServiceAccountJson,
+    projectId,
+    "daily-task-comment-send-push:comment",
+    total,
+  );
 }
 
 Deno.serve(async (req: Request) => {
@@ -138,12 +305,19 @@ Deno.serve(async (req: Request) => {
 
   try {
     const payload = (await req.json().catch(() => ({}))) as DbWebhookPayload;
-    if (payload?.type !== "INSERT" || payload?.table !== "task_step_comment_push_queue") {
-      return new Response(JSON.stringify({ ok: true, skipped: "not_queue_insert" }), {
+    const table = payload?.table ?? "";
+    const isCommentQueue =
+      payload?.type === "INSERT" && table === "task_step_comment_push_queue";
+    const isAssignmentQueue =
+      payload?.type === "INSERT" && table === "daily_task_assignment_push_queue";
+
+    if (!isCommentQueue && !isAssignmentQueue) {
+      return new Response(JSON.stringify({ ok: true, skipped: "not_supported_queue_insert" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
     const record = payload.record ?? {};
     const recipientUserId = (record.recipient_user_id as string | undefined) ?? "";
     if (!recipientUserId) {
@@ -171,63 +345,11 @@ Deno.serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const { data: claimed, error: claimErr } = await supabase.rpc(
-      "claim_task_step_comment_push_queue",
-      {
-        p_recipient_user_id: recipientUserId,
-        p_window_seconds: 20,
-        p_max: 25,
-      },
-    );
-    if (claimErr) throw claimErr;
-    const rows = (claimed ?? []) as ClaimedRow[];
-    if (rows.length === 0) {
-      return new Response(JSON.stringify({ ok: true, skipped: "nothing_to_send" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (isAssignmentQueue) {
+      return await handleAssignmentPush(supabase, recipientUserId, fcmServiceAccountJson, projectId);
     }
 
-    const latest = rows[0];
-    const total = rows.length;
-    const title = latest.title ? `Step: ${latest.title}` : "Daily Task";
-    const body = buildBody(latest, total);
-
-    const { data: fcmRows } = await supabase
-      .from("fcm_tokens")
-      .select("id, token")
-      .eq("user_id", recipientUserId)
-      .eq("context", "general");
-    const tokens = (fcmRows ?? []) as { id: string; token: string }[];
-    if (tokens.length === 0) {
-      console.log("daily-task-comment-send-push: no_tokens", { recipientUserId, total });
-      return new Response(JSON.stringify({ ok: true, skipped: "no_tokens", claimed: total }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const accessToken = await getFcmAccessToken(fcmServiceAccountJson);
-    const dataPayload: Record<string, string> = {
-      notificationType: "daily_task_step_comment",
-      url: latest.url || "/tools/daily-task",
-      badge: String(total),
-    };
-
-    let sent = 0;
-    for (const t of tokens) {
-      const res = await sendFcmMessage(accessToken, projectId, t.token, title, body, dataPayload);
-      if (res.ok) {
-        sent++;
-        break;
-      }
-    }
-
-    console.log("daily-task-comment-send-push: done", { recipientUserId, claimed: total, sent });
-    return new Response(JSON.stringify({ ok: true, claimed: total, sent }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return await handleCommentPush(supabase, recipientUserId, fcmServiceAccountJson, projectId);
   } catch (e) {
     console.error("daily-task-comment-send-push error", e);
     return new Response(JSON.stringify({ ok: false, error: String(e) }), {

@@ -1,32 +1,17 @@
-# daily-task-assignment-send-push
+# daily-task-assignment-send-push (deprecated)
 
-Send **summary** push notification (FCM) when Daily Task assignment notifications are enqueued.
+Assignment FCM pushes are merged into **`daily-task-completion-send-push`** to avoid hitting the Supabase edge function limit.
 
-## Trigger
+## Use this instead
 
-Create a **Database Webhook** (recommended type: **Supabase Edge Functions**) on:
+1. Deploy (or redeploy) only:
 
-- Table: `public.daily_task_assignment_push_queue`
-- Events: `INSERT`
-- Edge function: `daily-task-assignment-send-push`
-- Deploy: `supabase functions deploy daily-task-assignment-send-push --no-verify-jwt`
-- Edge function setting: **Verify JWT = OFF**
+```bash
+supabase functions deploy daily-task-completion-send-push --no-verify-jwt
+```
 
-> The DB trigger inserts **one queue row per recipient**; this function batches rows within a short window and sends **one summary** push.
+2. Point the database webhook for `public.daily_task_assignment_push_queue` (INSERT) to **`daily-task-comment-send-push`**, not `daily-task-assignment-send-push`.
 
-## Secrets
+3. Do **not** deploy `daily-task-assignment-send-push` unless you have spare function slots.
 
-Set in Supabase Dashboard → Edge Functions → `daily-task-assignment-send-push` → Secrets:
-
-- `FCM_SERVICE_ACCOUNT_JSON` (required)
-- `FCM_PROJECT_ID` (optional; otherwise taken from service account JSON)
-- `PUBLIC_APP_ORIGIN` (optional; used for notification image, defaults to `https://app.profitloop.id`)
-
-## Payload
-
-FCM `data` includes:
-
-- `notificationType = daily_task_assignment`
-- `url = /tools/daily-task?...` (deep link to latest claimed event)
-- `badge` (optional string count)
-
+See `supabase/functions/daily-task-completion-send-push/README.md` for webhook and secret setup.

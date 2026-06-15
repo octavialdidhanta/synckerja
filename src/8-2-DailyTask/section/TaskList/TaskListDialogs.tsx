@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { CheckSquare, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +17,7 @@ import { EditTaskDialog } from '../EditTaskDialog';
 import { ModalAddTaskStep } from '../ModalAddTaskStep';
 import { AddTemplateModal } from '../AddTemplateModal';
 import type { Task } from '../../types';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 export interface TaskListDialogsProps {
   tasks: Task[];
@@ -33,6 +34,14 @@ export interface TaskListDialogsProps {
   deleteDialog: { isOpen: boolean; taskId: string | null; taskTitle: string };
   handleCancelDelete: () => void;
   handleConfirmDelete: () => void;
+  statusToggleDialog: {
+    isOpen: boolean;
+    taskId: string | null;
+    taskTitle: string;
+    nextStatus: 'completed' | 'pending';
+  };
+  handleCancelStatusToggle: () => void;
+  handleConfirmStatusToggle: () => void;
   blockerModalOpen: boolean;
   setBlockerModalOpen: (v: boolean) => void;
   blockerModalItems: any[];
@@ -54,11 +63,17 @@ export function TaskListDialogs({
   deleteDialog,
   handleCancelDelete,
   handleConfirmDelete,
+  statusToggleDialog,
+  handleCancelStatusToggle,
+  handleConfirmStatusToggle,
   blockerModalOpen,
   setBlockerModalOpen,
   blockerModalItems,
   requestDeadlineExtension,
 }: TaskListDialogsProps) {
+  const { t } = useAppTranslation();
+  const isCompleting = statusToggleDialog.nextStatus === 'completed';
+
   return (
     <>
       <DeadlineExtensionDialog
@@ -141,6 +156,57 @@ export function TaskListDialogs({
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete Task
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={statusToggleDialog.isOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCancelStatusToggle();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckSquare className={`w-5 h-5 ${isCompleting ? 'text-green-600' : 'text-amber-600'}`} />
+              {isCompleting
+                ? t('dailyTask.confirmCompleteTaskTitle', 'Konfirmasi Menyelesaikan Tugas')
+                : t('dailyTask.confirmReopenTaskTitle', 'Konfirmasi Membuka Kembali Tugas')}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div className="text-sm text-gray-600">
+                  {isCompleting
+                    ? t(
+                        'dailyTask.confirmCompleteTaskDesc',
+                        'Apakah Anda yakin ingin menandai tugas ini sebagai selesai?'
+                      )
+                    : t(
+                        'dailyTask.confirmReopenTaskDesc',
+                        'Apakah Anda yakin ingin membuka kembali tugas ini?'
+                      )}
+                </div>
+                {statusToggleDialog.taskTitle && (
+                  <div className="font-semibold text-gray-900 bg-gray-50 p-2 rounded border border-gray-200 text-sm">
+                    &quot;{statusToggleDialog.taskTitle}&quot;
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelStatusToggle}>
+              {t('common.cancel', 'Batal')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmStatusToggle}
+              className={isCompleting ? 'bg-green-600 hover:bg-green-700 focus:ring-green-600' : undefined}
+            >
+              {isCompleting
+                ? t('dailyTask.confirmCompleteAction', 'Ya, Selesaikan')
+                : t('dailyTask.confirmReopenAction', 'Ya, Buka Kembali')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

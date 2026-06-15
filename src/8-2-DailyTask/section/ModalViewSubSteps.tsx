@@ -127,7 +127,6 @@ const MobileSubStepRow: React.FC<MobileSubStepRowProps> = ({
   const [translateX, setTranslateX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [cardExpanded, setCardExpanded] = useState(false);
-  const autoCollapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartRef = useRef<{
     startX: number;
     startY: number;
@@ -160,27 +159,6 @@ const MobileSubStepRow: React.FC<MobileSubStepRowProps> = ({
     el.addEventListener('touchmove', onMove, { passive: false });
     return () => el.removeEventListener('touchmove', onMove);
   }, []);
-
-  // Auto-collapse after 5s when expanded (same as TaskStep mobile)
-  useEffect(() => {
-    if (!cardExpanded) {
-      if (autoCollapseTimerRef.current) {
-        clearTimeout(autoCollapseTimerRef.current);
-        autoCollapseTimerRef.current = null;
-      }
-      return;
-    }
-    autoCollapseTimerRef.current = setTimeout(() => {
-      setCardExpanded(false);
-      autoCollapseTimerRef.current = null;
-    }, 5000);
-    return () => {
-      if (autoCollapseTimerRef.current) {
-        clearTimeout(autoCollapseTimerRef.current);
-        autoCollapseTimerRef.current = null;
-      }
-    };
-  }, [cardExpanded]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const elTarget = e.target;
@@ -846,8 +824,31 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
 
 	const deleteSubStep = async (id: string) => {
 		if (!organizationId) return;
+		const subStep = subSteps.find((s) => s.id === id);
+		if (subStep?.assigned_to) {
+			toast({
+				title: t('dailyTask.cannotDeleteAssignedSubStep'),
+				description: t('dailyTask.cannotDeleteAssignedSubStepDesc'),
+				variant: 'destructive',
+			});
+			return;
+		}
 		if (!window.confirm('Are you sure you want to delete this step?')) return;
 		try {
+			const { count: assignedSubCount, error: assignedSubCheckError } = await supabase
+				.from('task_steps_to_steps_assigned')
+				.select('id', { count: 'exact', head: true })
+				.eq('task_steps_to_steps_id', id);
+
+			if (!assignedSubCheckError && (assignedSubCount ?? 0) > 0) {
+				toast({
+					title: t('dailyTask.cannotDeleteAssignedSubStep'),
+					description: t('dailyTask.cannotDeleteAssignedSubStepDesc'),
+					variant: 'destructive',
+				});
+				return;
+			}
+
 			const { error } = await supabase
 				.from('task_steps_to_steps')
 				.delete()
@@ -861,7 +862,7 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
 			if (editingId === id) cancelEdit();
 		} catch (err) {
 			console.error('Error deleting sub-step:', err);
-			toast({ title: 'Error', description: 'Failed to delete step', variant: 'destructive' });
+			toast({ title: 'Error', description: t('dailyTask.errors.deleteStepFailed'), variant: 'destructive' });
 		}
 	};
 
@@ -1039,35 +1040,40 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
             'flex-shrink-0 border-b bg-gradient-to-r from-primary/10 to-primary/5 text-left',
             isMobile
               ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0'
-              : 'pl-6 pr-14 pt-6 pb-4'
+              : 'pl-4 pr-12 pt-3 pb-2'
           )}
         >
-          <div className={cn('flex items-start gap-3', isMobile ? 'w-full min-w-0 items-center gap-1.5 px-3 py-2' : '')}>
+          <div
+            className={cn(
+              'relative flex items-center gap-2',
+              isMobile ? 'w-full min-w-0 gap-1 px-2 py-1 pr-9' : ''
+            )}
+          >
             <Button
               variant="ghost"
               size={isMobile ? "icon" : "sm"}
               onClick={() => onOpenChange(false)}
               className={cn(
-                'shrink-0 p-0 hover:bg-primary/10',
-                isMobile ? '-ml-0.5 h-9 w-9 rounded-full' : 'h-8 w-8'
+                'shrink-0 self-center p-0 hover:bg-primary/10',
+                isMobile ? '-ml-0.5 h-8 w-8 rounded-full' : 'h-8 w-8'
               )}
               aria-label="Back"
             >
-              <ArrowLeft className={cn('text-primary', isMobile ? 'h-4 w-4 translate-y-px' : 'h-5 w-5')} />
+              <ArrowLeft className={cn('text-primary', isMobile ? 'h-4 w-4' : 'h-4 w-4')} />
             </Button>
             <div className="min-w-0 flex-1">
               <DialogTitle
                 className={cn(
-                  'flex flex-wrap items-center gap-x-2 gap-y-1 leading-tight',
-                  isMobile ? 'm-0 truncate py-0 pr-1 text-base font-semibold' : 'text-lg font-semibold md:text-xl'
+                  'flex flex-wrap items-center gap-x-1.5 gap-y-0 leading-none',
+                  isMobile ? 'm-0 truncate py-0 pr-1 text-sm font-semibold' : 'text-base font-semibold md:text-lg'
                 )}
               >
                 <span className="truncate">Steps</span>
-                <Badge variant="secondary" className="shrink-0">
+                <Badge variant="secondary" className="h-4 shrink-0 px-1.5 py-0 text-[10px] leading-none">
                   {completedCount}/{visibleSubSteps.length}
                 </Badge>
               </DialogTitle>
-              <DialogDescription className={cn('break-words text-left text-muted-foreground', isMobile ? 'mt-0.5 line-clamp-1 text-xs leading-tight' : 'line-clamp-4 text-sm')}>
+              <DialogDescription className={cn('break-words text-left text-muted-foreground', isMobile ? 'mt-0 line-clamp-1 text-[11px] leading-tight' : 'line-clamp-2 text-xs')}>
                 {parentStepTitle}
               </DialogDescription>
             </div>
@@ -1076,7 +1082,7 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
+                className="absolute right-1 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 rounded-full p-0"
                 onClick={() => onOpenChange(false)}
                 aria-label={t('layout.sheetClose', 'Close')}
               >
@@ -1089,7 +1095,7 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
         <div
           className={cn(
             'scrollbar-hide seamless-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-            isMobile ? 'px-2 pt-2 pb-2 space-y-4' : 'px-6 py-6 space-y-4'
+            isMobile ? 'space-y-2 px-2 py-1.5' : 'space-y-3 px-4 py-4'
           )}
           style={
             !isMobile
@@ -1228,9 +1234,9 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
 				</div>
         </div>
 
-        <div className={cn('px-4 pt-3 pb-3 flex-shrink-0 border-t bg-muted/30', isMobile ? '' : 'px-6 pt-4 pb-4')}>
+        <div className={cn('flex-shrink-0 border-t bg-muted/30 px-3 py-1.5', isMobile ? '' : 'px-4 py-2')}>
           <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="w-full md:w-auto">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 w-full md:w-auto">
               Close
             </Button>
           </div>
@@ -1282,22 +1288,29 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {pendingSubStepCurrent !== null && !pendingSubStepCurrent 
-                  ? 'Konfirmasi Menyelesaikan Sub-Step' 
-                  : 'Konfirmasi Membuka Kembali Sub-Step'
-                }
+                {pendingSubStepCurrent !== null && !pendingSubStepCurrent
+                  ? t('dailyTask.confirmCompleteSubStepTitle', 'Konfirmasi Menyelesaikan Sub-Step')
+                  : t('dailyTask.confirmReopenSubStepTitle', 'Konfirmasi Membuka Kembali Sub-Step')}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {pendingSubStepId && pendingSubStepCurrent !== null ? (
                   (() => {
                     const subStep = subSteps.find(s => s.id === pendingSubStepId);
-                    const subStepTitle = subStep?.title || 'Sub-step ini';
+                    const subStepTitle = subStep?.title || t('dailyTask.subStepFallback', 'Sub-step ini');
                     return pendingSubStepCurrent === false
-                      ? `Apakah Anda yakin ingin menandai sub-step "${subStepTitle}" sebagai selesai?`
-                      : `Apakah Anda yakin ingin membuka kembali sub-step "${subStepTitle}"?`;
+                      ? t(
+                          'dailyTask.confirmCompleteSubStepDesc',
+                          'Apakah Anda yakin ingin menandai sub-step "{{title}}" sebagai selesai?',
+                          { title: subStepTitle }
+                        )
+                      : t(
+                          'dailyTask.confirmReopenSubStepDesc',
+                          'Apakah Anda yakin ingin membuka kembali sub-step "{{title}}"?',
+                          { title: subStepTitle }
+                        );
                   })()
                 ) : (
-                  'Apakah Anda yakin?'
+                  t('dailyTask.confirmGeneric', 'Apakah Anda yakin?')
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -1307,13 +1320,12 @@ export const ModalViewSubSteps = ({ open, onOpenChange, parentStepId, parentStep
                 setPendingSubStepId(null);
                 setPendingSubStepCurrent(null);
               }}>
-                Batal
+                {t('common.cancel', 'Batal')}
               </AlertDialogCancel>
               <AlertDialogAction onClick={confirmToggleCompleted}>
-                {pendingSubStepCurrent !== null && !pendingSubStepCurrent 
-                  ? 'Ya, Selesaikan' 
-                  : 'Ya, Buka Kembali'
-                }
+                {pendingSubStepCurrent !== null && !pendingSubStepCurrent
+                  ? t('dailyTask.confirmCompleteAction', 'Ya, Selesaikan')
+                  : t('dailyTask.confirmReopenAction', 'Ya, Buka Kembali')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

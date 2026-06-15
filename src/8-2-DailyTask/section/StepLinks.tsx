@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, ExternalLink, Trash2, Edit, RefreshCw } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
@@ -6,6 +6,8 @@ import { useToast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { AddLinkModal } from './AddLinkModal';
 import { EditLinkModal } from './EditLinkModal';
+import { isSafeDescriptionHref } from '@/8-2-DailyTask/lib/taskStepDescription';
+import { TextWithAutoLinks } from '@/8-2-DailyTask/components/TextWithAutoLinks';
 
 interface StepLink {
   id: string;
@@ -103,6 +105,7 @@ export const StepLinks: React.FC<StepLinksProps> = ({ taskStepId, isExpanded, on
   };
 
   const openLink = (url: string) => {
+    if (!isSafeDescriptionHref(url)) return;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -154,9 +157,22 @@ export const StepLinks: React.FC<StepLinksProps> = ({ taskStepId, isExpanded, on
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900 truncate">
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => {
+                      if (!isSafeDescriptionHref(link.url)) {
+                        event.preventDefault();
+                        return;
+                      }
+                      event.stopPropagation();
+                    }}
+                    className="text-sm font-medium text-primary truncate underline hover:text-primary/90"
+                    title={link.url}
+                  >
                     {link.title}
-                  </span>
+                  </a>
                   {link.is_auto_synced && (
                     <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
                       <RefreshCw className="w-3 h-3 mr-1" />
@@ -175,7 +191,7 @@ export const StepLinks: React.FC<StepLinksProps> = ({ taskStepId, isExpanded, on
                 </div>
                 {link.description && (
                   <div className="text-xs text-gray-500 mt-1 truncate">
-                    {link.description}
+                    <TextWithAutoLinks text={link.description} />
                   </div>
                 )}
                 <div className="text-xs text-gray-400 mt-1">

@@ -26,6 +26,7 @@ import { getGoogleDriveLinkNonEmptyUpdates } from '@/6-1-dashboard/utils/googleD
 import { Dialog, DialogContent } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { DailyTaskModuleShell } from '../layout/DailyTaskModuleShell';
+import { hideScrollbarClassName } from '../lib/hideScrollbar';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import {
   completeStepAndCreateApprovalFromDriveLink,
@@ -257,7 +258,7 @@ const DailyTaskContent = () => {
               </div>
 
               {/* Scrollable Sidebar Content */}
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto bg-gradient-to-b from-brand-blue/[0.04] to-transparent px-4 py-4 [scrollbar-gutter:stable] seamless-scroll nested-scroll-touch-chain">
+              <div className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto bg-gradient-to-b from-brand-blue/[0.04] to-transparent px-4 py-4 ${hideScrollbarClassName}`}>
                 {sidebarTab === 'summary' && (
                   <TaskSummaryCards
                     onOpenPreview={(planId, callbacks) => {

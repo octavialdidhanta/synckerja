@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 import { cn } from '@/shared/lib/utils';
 import {
   looksLikeHtml,
-  sanitizeTaskStepDescriptionHtml,
+  prepareTaskStepDescriptionHtmlForView,
 } from '@/8-2-DailyTask/lib/taskStepDescription';
+import { TextWithAutoLinks } from '@/8-2-DailyTask/components/TextWithAutoLinks';
 import type { ImageLoupeState } from '@/8-2-DailyTask/components/TaskStepDescriptionImageLoupePanel';
 
 type TaskStepDescriptionViewProps = {
@@ -14,7 +15,7 @@ type TaskStepDescriptionViewProps = {
 };
 
 const articleClass =
-  'text-sm text-gray-700 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200';
+  'text-sm text-gray-700 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_a]:text-primary [&_a]:underline [&_a]:break-all [&_a]:hover:text-primary/90';
 
 const loupeArticleClass = `${articleClass} [&_img]:cursor-zoom-in`;
 
@@ -110,19 +111,26 @@ export function TaskStepDescriptionView({
   if (!value?.trim()) return null;
 
   if (looksLikeHtml(value)) {
-    const html = sanitizeTaskStepDescriptionHtml(value);
+    const html = prepareTaskStepDescriptionHtmlForView(value);
     return (
       <div
         ref={containerRef}
         className={cn(enableImageLoupe ? loupeArticleClass : articleClass, className)}
         dangerouslySetInnerHTML={{ __html: html }}
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest('a')) {
+            event.stopPropagation();
+          }
+        }}
       />
     );
   }
 
   return (
-    <p className={cn('whitespace-pre-wrap break-words text-sm text-gray-700', className)}>
-      {value}
-    </p>
+    <TextWithAutoLinks
+      text={value}
+      as="p"
+      className={cn('whitespace-pre-wrap break-words text-sm text-gray-700', className)}
+    />
   );
 }

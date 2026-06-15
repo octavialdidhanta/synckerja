@@ -1,5 +1,9 @@
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Skeleton } from '@/shared/components/ui/skeleton';
+import {
+  XENDIT_MAIN_GRID,
+  XENDIT_TABLE_SECTION,
+} from '@/4-1-transaction/xendit/layout/xenditPageLayout';
 
 type IncomeXenditPageSkeletonProps = {
   variant?: 'connect' | 'balance' | 'history';
@@ -21,6 +25,43 @@ function XenditHeaderSkeleton() {
   );
 }
 
+function XenditCardSkeleton({ variant }: { variant: 'connect' | 'balance' | 'history' }) {
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="shrink-0 border-b border-border p-4 [@media(max-height:900px)]:p-3">
+        <Skeleton className="mb-2 h-5 w-48" />
+        <Skeleton className="h-4 w-72" />
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden p-6 [@media(max-height:900px)]:p-4">
+        {variant === 'connect' ? (
+          <div className="mx-auto max-w-2xl space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+        ) : variant === 'balance' ? (
+          <div className="mx-auto max-w-2xl space-y-5">
+            <Skeleton className="h-28 w-full rounded-lg" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+            <div className="flex justify-end">
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+        ) : (
+          <Skeleton className="h-full min-h-[200px] w-full rounded-lg" />
+        )}
+      </div>
+      <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function IncomeXenditPageSkeleton({ variant = 'connect' }: IncomeXenditPageSkeletonProps) {
   const { t } = useAppTranslation();
   const aria = t('xendit.loadingAria', 'Loading Xendit settings');
@@ -32,42 +73,17 @@ export function IncomeXenditPageSkeleton({ variant = 'connect' }: IncomeXenditPa
     >
       <span className="sr-only">{aria}</span>
       <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <XenditHeaderSkeleton />
-          <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
-            <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-              {variant === 'connect' ? (
-                <div className="space-y-4 p-6">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-24 w-full rounded-lg" />
-                  <Skeleton className="h-9 w-full" />
-                  <Skeleton className="h-9 w-full" />
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-h-full flex-col">
+              <XenditHeaderSkeleton />
+              <div className={XENDIT_MAIN_GRID}>
+                <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+                  <div className={XENDIT_TABLE_SECTION}>
+                    <XenditCardSkeleton variant={variant} />
+                  </div>
                 </div>
-              ) : variant === 'balance' ? (
-                <>
-                  <div className="shrink-0 border-b border-gray-200 p-4">
-                    <Skeleton className="mb-2 h-5 w-48" />
-                    <Skeleton className="h-4 w-72" />
-                  </div>
-                  <div className="space-y-5 p-6">
-                    <Skeleton className="h-28 w-full rounded-lg" />
-                    <Skeleton className="h-24 w-full rounded-lg" />
-                    <div className="flex justify-end">
-                      <Skeleton className="h-9 w-28" />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="shrink-0 border-b border-gray-200 p-4">
-                    <Skeleton className="mb-2 h-5 w-44" />
-                    <Skeleton className="h-4 w-64" />
-                  </div>
-                  <div className="space-y-2 p-6">
-                    <Skeleton className="h-40 w-full rounded-lg" />
-                  </div>
-                </>
-              )}
+              </div>
             </div>
           </div>
         </div>

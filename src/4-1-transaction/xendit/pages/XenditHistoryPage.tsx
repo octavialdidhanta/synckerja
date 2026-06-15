@@ -1,11 +1,14 @@
 import { useTranslation } from "react-i18next";
 import { IncomeXenditPageSkeleton } from "@/4-1-transaction/xendit/skeletons/IncomeXenditPageSkeleton";
+import { XenditContentCard } from "@/4-1-transaction/xendit/components/XenditContentCard";
+import { XenditPanelFooter } from "@/4-1-transaction/xendit/components/XenditPanelFooter";
 import { XenditWithdrawHistoryTable } from "@/4-1-transaction/xendit/components/XenditWithdrawHistoryTable";
 import { XenditSubAccountEmptyState } from "@/4-1-transaction/xendit/components/XenditSubAccountEmptyState";
 import { useXenditFinancePanel } from "@/4-1-transaction/xendit/hooks/useXenditFinancePanel";
-
-const MAIN_INNER_SCROLL =
-  "scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+import {
+  XENDIT_MAIN_GRID,
+  XENDIT_TABLE_SECTION,
+} from "@/4-1-transaction/xendit/layout/xenditPageLayout";
 
 export default function XenditHistoryPage() {
   const { t } = useTranslation();
@@ -16,31 +19,47 @@ export default function XenditHistoryPage() {
   }
 
   return (
-    <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-      <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <div className="shrink-0 border-b border-gray-200 p-4 [@media(max-height:900px)]:p-3">
-            <h2 className="text-base font-semibold text-gray-900">
-              {t("xendit.tabs.history", "Withdrawal history")}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {t(
-                "xendit.history.subtitle",
-                "Riwayat penarikan dana dari sub-account Xendit ke rekening payout.",
-              )}
-            </p>
-          </div>
-
-          <div className={`${MAIN_INNER_SCROLL} p-6`}>
+    <div className={XENDIT_MAIN_GRID}>
+      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+        <div className={XENDIT_TABLE_SECTION}>
+          <XenditContentCard
+            fillBody
+            header={
+              <div className="p-4 [@media(max-height:900px)]:p-3">
+                <h2 className="text-base font-semibold text-foreground">
+                  {t("xendit.tabs.history", "Withdrawal history")}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    "xendit.history.subtitle",
+                    "Riwayat penarikan dana dari sub-account Xendit ke rekening payout.",
+                  )}
+                </p>
+              </div>
+            }
+            footer={
+              !panel.hasSubAccount ? (
+                <XenditPanelFooter
+                  left={t("xendit.finance.footerShowing", "Showing {{count}} withdrawals", {
+                    count: 0,
+                  })}
+                  right={t("xendit.finance.footerCount", "Total: {{count}}", { count: 0 })}
+                />
+              ) : undefined
+            }
+          >
             {panel.hasSubAccount ? (
               <XenditWithdrawHistoryTable
+                layout="page"
                 organizationId={panel.organizationId}
                 enabled={panel.hasSubAccount}
               />
             ) : (
-              <XenditSubAccountEmptyState />
+              <div className="flex flex-1 items-center justify-center p-6">
+                <XenditSubAccountEmptyState />
+              </div>
             )}
-          </div>
+          </XenditContentCard>
         </div>
       </div>
     </div>

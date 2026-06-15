@@ -28,7 +28,8 @@ import {
 } from '../types';
 export type { Task, TaskStep } from '../types';
 
-import { calculateProgress, determineStatusFromProgress, autoReorderTaskSteps, getEffectiveProgressAndCount } from '../utils/taskUtils';
+import { calculateProgress, determineStatusFromProgress, autoReorderTaskSteps, getEffectiveProgressAndCount, isTaskStepAssigned, taskHasAssignedSteps } from '../utils/taskUtils';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { filterRecentStepUpdates } from '../utils/filterUtils';
 import { fetchRecentStepUpdates as fetchRecentStepUpdatesService } from '../services/recentStepUpdateService';
 import {
@@ -284,6 +285,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [highlightedTask, setHighlightedTask] = useState<string | null>(null);
   const { toast } = useToast();
+  const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
   const { user } = useCurrentUser();
   const { data: currentEmployee } = useCurrentEmployee();
@@ -1494,6 +1496,16 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
   };
 
   const deleteTask = async (id: string) => {
+    const taskInState = tasks.find((task) => task.id === id);
+    if (taskInState && taskHasAssignedSteps(taskInState)) {
+      toast({
+        title: t('dailyTask.cannotDeleteAssignedTask'),
+        description: t('dailyTask.cannotDeleteAssignedTaskDesc'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Optimistic update: remove task from local state immediately
     const previousTasks = [...tasks];
     setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
@@ -1520,7 +1532,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       console.error('Error deleting task:', error);
       toast({
         title: 'Error',
-        description: 'Failed to delete task',
+        description: t('dailyTask.errors.deleteTaskFailed'),
         variant: 'destructive'
       });
     }
@@ -2159,6 +2171,52 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
   };
 
   const deleteTaskStep = async (stepId: string) => {
+    const stepInState = tasks.flatMap((task) => task.steps).find((step) => step.id === stepId);
+    if (stepInState && isTaskStepAssigned(stepInState)) {
+      toast({
+        title: t('dailyTask.cannotDeleteAssignedStep'),
+        description: t('dailyTask.cannotDeleteAssignedStepDesc'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const { count: assignedCount, error: assignedCheckError } = await supabase
+      .from('task_steps_assigned')
+      .select('id', { count: 'exact', head: true })
+      .eq('task_step_id', stepId);
+
+    if (!assignedCheckError && (assignedCount ?? 0) > 0) {
+      toast({
+        title: t('dailyTask.cannotDeleteAssignedStep'),
+        description: t('dailyTask.cannotDeleteAssignedStepDesc'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const { data: subSteps } = await supabase
+      .from('task_steps_to_steps')
+      .select('id')
+      .eq('parent_step_id', stepId);
+
+    const subStepIds = (subSteps ?? []).map((row) => row.id);
+    if (subStepIds.length > 0) {
+      const { count: assignedSubCount, error: assignedSubCheckError } = await supabase
+        .from('task_steps_to_steps_assigned')
+        .select('id', { count: 'exact', head: true })
+        .in('task_steps_to_steps_id', subStepIds);
+
+      if (!assignedSubCheckError && (assignedSubCount ?? 0) > 0) {
+        toast({
+          title: t('dailyTask.cannotDeleteAssignedStep'),
+          description: t('dailyTask.cannotDeleteAssignedStepDesc'),
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     // Get task_id and social_media_plan_id before deleting (needed for sync logic)
     const { data: stepData } = await supabase
       .from('task_steps')
@@ -2335,7 +2393,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
         console.error('Error deleting step:', error);
         toast({
           title: 'Error',
-          description: 'Failed to delete step',
+          description: t('dailyTask.errors.deleteStepFailed'),
           variant: 'destructive'
         });
       } else {

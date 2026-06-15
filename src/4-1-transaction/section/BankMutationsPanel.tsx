@@ -28,8 +28,10 @@ import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { formatMutationDateTime, resolveMutationDisplayDate } from '@/shared/utils/formatMutationDateTime';
 import { computeMutationErpBalances } from '@/4-1-transaction/lib/computeMutationErpBalances';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { cn } from '@/shared/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { RefreshBankMutationsButton } from './RefreshBankMutationsButton';
+import { BankMutationsTableFooter } from '@/4-1-bank-mutations/section/BankMutationsTableFooter';
 
 function getGatewayDrawerLabel(
   row: BankStatementLineWithMatch,
@@ -55,7 +57,7 @@ function getExpenseTitle(row: BankStatementLineWithMatch): string {
   return row.expense?.expense_name ?? 'Expense';
 }
 
-export function BankMutationsPanel() {
+export function BankMutationsPanel({ layout = 'embedded' }: { layout?: 'embedded' | 'page' }) {
   const { t } = useAppTranslation();
   const { canAllocateIncome } = useCanAllocateIncome();
   const { bankAccounts } = useBankAccounts({ includeInactive: true });
@@ -104,23 +106,36 @@ export function BankMutationsPanel() {
   );
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 border-t border-gray-200 pt-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h4 className="text-sm font-semibold text-gray-900">
-            {t('incomes.brick.mutationsTitle', 'Mutasi bank')}
-          </h4>
-          <p className="text-xs text-muted-foreground">
-            {t(
-              'incomes.brick.mutationsHintOutgoing',
-              'Data dari Brick dan Payment Process — deposit masuk dan pengeluaran keluar.',
-            )}
-          </p>
+    <div
+      className={cn(
+        layout === 'page'
+          ? 'flex h-full min-h-0 min-w-0 flex-col'
+          : 'flex min-h-0 flex-col gap-3 border-t border-gray-200 pt-3',
+      )}
+    >
+      {layout === 'embedded' ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900">
+              {t('incomes.brick.mutationsTitle', 'Mutasi bank')}
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                'incomes.brick.mutationsHintOutgoing',
+                'Data dari Brick dan Payment Process — deposit masuk dan pengeluaran keluar.',
+              )}
+            </p>
+          </div>
+          {canAllocateIncome ? <RefreshBankMutationsButton /> : null}
         </div>
-        {canAllocateIncome ? <RefreshBankMutationsButton /> : null}
-      </div>
+      ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-2',
+          layout === 'page' && 'flex-shrink-0 border-b border-border px-4 py-3',
+        )}
+      >
         <Select
           value={filters.bankAccountId}
           onValueChange={(v) => setFilters((f) => ({ ...f, bankAccountId: v }))}
@@ -169,31 +184,49 @@ export function BankMutationsPanel() {
             <SelectItem value="unmatched">{t('incomes.brick.matchUnmatched', 'Belum match')}</SelectItem>
           </SelectContent>
         </Select>
+
+        {layout === 'page' && canAllocateIncome ? (
+          <div className="ml-auto">
+            <RefreshBankMutationsButton />
+          </div>
+        ) : null}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+        <div className="flex flex-1 items-center justify-center py-6 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           {t('incomes.brick.loading', 'Memuat mutasi…')}
         </div>
       ) : isError ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-6 text-center text-xs text-destructive">
+        <div className="mx-4 my-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-6 text-center text-xs text-destructive">
           {t('incomes.brick.loadError', 'Gagal memuat mutasi bank.')}
           {error instanceof Error ? ` ${error.message}` : ''}
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden min-h-[200px] max-h-[360px] flex flex-col">
-          <div className="overflow-auto seamless-scroll nested-scroll-touch-chain min-h-0 flex-1">
+        <div
+          className={cn(
+            'flex min-h-0 flex-col',
+            layout === 'page' ? 'h-full min-h-0 flex-1 overflow-hidden' : 'min-h-[200px] max-h-[360px] overflow-hidden rounded-lg border',
+          )}
+        >
+          <div
+            className={cn(
+              'min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain',
+              layout === 'page' && 'h-full max-h-full',
+            )}
+          >
             <Table className="min-w-[880px] table-fixed">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs w-[118px]">{t('incomes.brick.colDate', 'Tanggal')}</TableHead>
-                  <TableHead className="text-xs w-[168px]">{t('incomes.brick.colAccount', 'Rekening')}</TableHead>
-                  <TableHead className="text-xs w-[108px]">{t('incomes.brick.colAmount', 'Jumlah')}</TableHead>
-                  <TableHead className="text-xs">{t('incomes.brick.colDesc', 'Deskripsi')}</TableHead>
-                  <TableHead className="text-xs w-[220px]">{t('incomes.brick.colMatch', 'Saran')}</TableHead>
+              <TableHeader
+                className={cn(layout === 'page' && 'sticky top-0 z-20 bg-gray-50 shadow-sm')}
+              >
+                <TableRow className={cn(layout === 'page' && 'hover:bg-transparent')}>
+                  <TableHead className={cn('text-xs w-[118px]', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colDate', 'Tanggal')}</TableHead>
+                  <TableHead className={cn('text-xs w-[168px]', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colAccount', 'Rekening')}</TableHead>
+                  <TableHead className={cn('text-xs w-[108px]', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colAmount', 'Jumlah')}</TableHead>
+                  <TableHead className={cn('text-xs', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colDesc', 'Deskripsi')}</TableHead>
+                  <TableHead className={cn('text-xs w-[220px]', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colMatch', 'Saran')}</TableHead>
                   {canAllocateIncome ? (
-                    <TableHead className="text-xs w-32">{t('incomes.brick.colAction', 'Aksi')}</TableHead>
+                    <TableHead className={cn('text-xs w-32', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colAction', 'Aksi')}</TableHead>
                   ) : null}
                 </TableRow>
               </TableHeader>
@@ -363,6 +396,9 @@ export function BankMutationsPanel() {
               </TableBody>
             </Table>
           </div>
+          {layout === 'page' ? (
+            <BankMutationsTableFooter filteredCount={lines.length} suggestedCount={suggestedCount} />
+          ) : null}
         </div>
       )}
     </div>

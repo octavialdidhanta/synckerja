@@ -121,7 +121,7 @@ export async function handleBrickAccountLink(
 
     const returnPathRaw = body.return_path != null ? String(body.return_path).trim() : "";
     const returnPath = BRICK_OAUTH_RETURN_PATHS.has(returnPathRaw) ? returnPathRaw : (
-      targetType === "debt" ? "/expenses/debt" : "/incomes/transaction"
+      targetType === "debt" ? "/expenses/debt" : "/incomes/transaction/bank-account"
     );
 
     const stateToken = randomUrlSafe(32);

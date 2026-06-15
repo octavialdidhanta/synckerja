@@ -256,31 +256,10 @@
 
 /* Smooth scrolling - moved to global index.css */
 
-/* Enhanced horizontal scroll for wide tables */
+/* Enhanced horizontal scroll for wide tables — scrollbars hidden via hideScrollbar + wrapper */
 .task-list-table {
   min-width: 1000px; /* Ensure minimum width for horizontal scroll */
   width: 100%;
-  overflow-x: auto;
-  overflow-y: auto;
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+  overflow: visible;
   scroll-behavior: smooth;
-}
-
-.task-list-table::-webkit-scrollbar {
-  display: none !important; /* WebKit browsers */
-  width: 0 !important;
-  height: 0 !important;
-}
-
-.task-list-table::-webkit-scrollbar-track {
-  display: none !important;
-}
-
-.task-list-table::-webkit-scrollbar-thumb {
-  display: none !important;
-}
-
-.task-list-table::-webkit-scrollbar-corner {
-  display: none !important;
 }

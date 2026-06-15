@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { Badge } from "@/shared/components/ui/badge";
 import {
   Table,
@@ -13,10 +14,13 @@ import { formatToRupiah } from "@/shared/utils/formatCurrency";
 import { fetchGatewayWithdrawals } from "@/xendit/lib/xenditApi";
 import type { XenditGatewayWithdrawalRow } from "@/xendit/lib/xenditApi";
 import { useCanAllocateIncome } from "@/4-1-dashboard/hooks/useCanAllocateIncome";
+import { XenditPanelFooter } from "@/4-1-transaction/xendit/components/XenditPanelFooter";
+import { cn } from "@/shared/lib/utils";
 
 type Props = {
   organizationId: string | null | undefined;
   enabled: boolean;
+  layout?: "embedded" | "page";
 };
 
 function statusVariant(status: string): "default" | "secondary" | "destructive" {
@@ -41,9 +45,14 @@ function WithdrawalStatusBadge({ status }: { status: string }) {
   );
 }
 
-export function XenditWithdrawHistoryTable({ organizationId, enabled }: Props) {
+export function XenditWithdrawHistoryTable({
+  organizationId,
+  enabled,
+  layout = "embedded",
+}: Props) {
   const { t } = useTranslation();
   const { canAllocateIncome } = useCanAllocateIncome();
+  const isPage = layout === "page";
 
   const { data: historyData, isLoading } = useQuery({
     queryKey: ["xendit-gateway-withdrawals", organizationId],
@@ -58,79 +67,132 @@ export function XenditWithdrawHistoryTable({ organizationId, enabled }: Props) {
 
   const rows = (historyData ?? []) as XenditGatewayWithdrawalRow[];
 
+  if (isLoading) {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center text-sm text-muted-foreground",
+          isPage ? "flex-1 py-6" : "py-6",
+        )}
+      >
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        {t("common.loading", "Loading…")}
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    if (isPage) {
+      return (
+        <>
+          <div className="flex flex-1 items-center justify-center p-6">
+            <p className="text-center text-sm text-muted-foreground">
+              {t("xendit.finance.historyEmpty", "Belum ada penarikan.")}
+            </p>
+          </div>
+          <XenditPanelFooter
+            left={t("xendit.finance.footerShowing", "Showing {{count}} withdrawals", { count: 0 })}
+            right={t("xendit.finance.footerCount", "Total: {{count}}", { count: 0 })}
+          />
+        </>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-gray-900">
+          {t("xendit.finance.historyTitle", "Riwayat penarikan")}
+        </h3>
+        <p className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-muted-foreground">
+          {t("xendit.finance.historyEmpty", "Belum ada penarikan.")}
+        </p>
+      </div>
+    );
+  }
+
+  const tableContent = (
+    <Table className={cn(isPage && "min-w-[720px] table-fixed")}>
+      <TableHeader className={cn(isPage && "sticky top-0 z-20 bg-gray-50 shadow-sm")}>
+        <TableRow className={cn(isPage && "hover:bg-transparent")}>
+          <TableHead className={cn("text-xs", isPage && "bg-gray-50 w-[140px]")}>
+            {t("xendit.finance.colDate", "Tanggal")}
+          </TableHead>
+          <TableHead className={cn("text-xs", isPage && "bg-gray-50 w-[140px]")}>
+            {t("xendit.finance.colAmount", "Nominal")}
+          </TableHead>
+          <TableHead className={cn("text-xs", isPage && "bg-gray-50")}>
+            {t("xendit.finance.colBank", "Bank tujuan")}
+          </TableHead>
+          <TableHead className={cn("text-xs", isPage && "bg-gray-50 w-[120px]")}>
+            {t("xendit.finance.colStatus", "Status")}
+          </TableHead>
+          {canAllocateIncome ? (
+            <TableHead className={cn("text-xs", isPage && "bg-gray-50 w-[120px]")}>
+              {t("xendit.finance.colInitiator", "Pengaju")}
+            </TableHead>
+          ) : null}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.id}>
+            <TableCell className="text-xs whitespace-nowrap">
+              {new Date(row.created_at).toLocaleString("id-ID")}
+            </TableCell>
+            <TableCell className="text-xs">
+              <p className="font-medium">{formatToRupiah(Number(row.amount))}</p>
+              {row.net_amount != null && row.platform_fee_amount ? (
+                <p className="text-[10px] text-muted-foreground">
+                  {t("xendit.finance.netLine", "Bersih")}: {formatToRupiah(Number(row.net_amount))}
+                </p>
+              ) : null}
+            </TableCell>
+            <TableCell className="max-w-[180px] truncate text-xs">
+              {row.bank_destination ?? "—"}
+            </TableCell>
+            <TableCell>
+              <div className="space-y-1">
+                <WithdrawalStatusBadge status={row.status} />
+                {row.status === "failed" && row.failure_message ? (
+                  <p className="max-w-[200px] text-[10px] text-destructive line-clamp-2">
+                    {row.failure_message}
+                  </p>
+                ) : null}
+              </div>
+            </TableCell>
+            {canAllocateIncome ? (
+              <TableCell className="text-xs text-muted-foreground">
+                {row.initiated_by_name ?? "—"}
+              </TableCell>
+            ) : null}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+
+  if (isPage) {
+    return (
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain">
+          {tableContent}
+        </div>
+        <XenditPanelFooter
+          left={t("xendit.finance.footerShowing", "Showing {{count}} withdrawals", {
+            count: rows.length,
+          })}
+          right={t("xendit.finance.footerCount", "Total: {{count}}", { count: rows.length })}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-gray-900">
         {t("xendit.finance.historyTitle", "Riwayat penarikan")}
       </h3>
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">{t("common.loading", "Loading…")}</p>
-      ) : rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-muted-foreground">
-          {t("xendit.finance.historyEmpty", "Belum ada penarikan.")}
-        </p>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-200">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">
-                  {t("xendit.finance.colDate", "Tanggal")}
-                </TableHead>
-                <TableHead className="text-xs">
-                  {t("xendit.finance.colAmount", "Nominal")}
-                </TableHead>
-                <TableHead className="text-xs">
-                  {t("xendit.finance.colBank", "Bank tujuan")}
-                </TableHead>
-                <TableHead className="text-xs">
-                  {t("xendit.finance.colStatus", "Status")}
-                </TableHead>
-                {canAllocateIncome ? (
-                  <TableHead className="text-xs">
-                    {t("xendit.finance.colInitiator", "Pengaju")}
-                  </TableHead>
-                ) : null}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="text-xs whitespace-nowrap">
-                    {new Date(row.created_at).toLocaleString("id-ID")}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <p className="font-medium">{formatToRupiah(Number(row.amount))}</p>
-                    {row.net_amount != null && row.platform_fee_amount ? (
-                      <p className="text-[10px] text-muted-foreground">
-                        {t("xendit.finance.netLine", "Bersih")}: {formatToRupiah(Number(row.net_amount))}
-                      </p>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="max-w-[180px] truncate text-xs">
-                    {row.bank_destination ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <WithdrawalStatusBadge status={row.status} />
-                      {row.status === "failed" && row.failure_message ? (
-                        <p className="max-w-[200px] text-[10px] text-destructive line-clamp-2">
-                          {row.failure_message}
-                        </p>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  {canAllocateIncome ? (
-                    <TableCell className="text-xs text-muted-foreground">
-                      {row.initiated_by_name ?? "—"}
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <div className="overflow-hidden rounded-lg border border-gray-200">{tableContent}</div>
     </div>
   );
 }

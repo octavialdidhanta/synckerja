@@ -3,6 +3,8 @@ import { brickJson, getBrickPublicAccessToken, type BrickEnv } from "./brickApi.
 
 export const BRICK_OAUTH_RETURN_PATHS = new Set([
   "/incomes/transaction",
+  "/incomes/transaction/bank-account",
+  "/finance/bank-mutations",
   "/expenses/debt",
   "/finance/brick-oauth/callback",
 ]);

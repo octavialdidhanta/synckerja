@@ -56,6 +56,7 @@ import { useDailyTask } from '../../context/DailyTaskContext';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Badge } from '@/shared/components/ui/badge';
 import { getTaskCheckboxRule } from '../../utils/taskCheckboxRules';
+import { hideScrollbarClassName } from '../../lib/hideScrollbar';
 
 export interface TaskListRowProps {
   task: Task;
@@ -219,7 +220,7 @@ export function TaskListRow({
               align="start"
               className="max-w-md flex max-h-[min(280px,45vh)] flex-col overflow-hidden p-0 bg-gray-900 text-white shadow-lg border-gray-700"
             >
-              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 ${hideScrollbarClassName}`}>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{task.title}</p>
                 {task.description && (
                   <p className="text-xs text-gray-300 mt-2 border-t border-gray-700 pt-2 whitespace-pre-wrap break-words">
@@ -580,7 +581,7 @@ export function TaskListRow({
             {task.description && (
               <div className="mb-4 w-full min-w-0">
                 <h4 className="text-xs font-medium text-gray-700 mb-1">Description</h4>
-                <div className="max-h-48 overflow-y-auto seamless-scroll">
+                <div className={`max-h-48 overflow-y-auto ${hideScrollbarClassName}`}>
                   <p
                     className="text-sm text-gray-600 break-words whitespace-pre-wrap overflow-wrap-anywhere"
                     style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}

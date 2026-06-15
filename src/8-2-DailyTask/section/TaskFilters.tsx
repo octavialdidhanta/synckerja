@@ -20,6 +20,7 @@ import { useDailyTask } from '../context/DailyTaskContext';
 import { useActiveEmployeeIds } from '../hooks/useActiveEmployeeIds';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
+import { hideScrollbarClassName } from '../lib/hideScrollbar';
 import { CustomDatePicker } from '@/mobile-app/components/CustomDatePicker';
 import { format, startOfMonth } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -301,7 +302,7 @@ export const TaskFilters = ({ onAddTask, showAddTaskButton = true }: TaskFilters
   return (
     <div className="w-full min-w-0">
       <div className="min-w-0 overflow-hidden">
-        <div className="seamless-scroll nested-scroll-touch-chain flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden">
+        <div className={`flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden ${hideScrollbarClassName}`}>
       {/* Search Input - Hidden when PIC filter is active */}
       {!filters.pic && (
         <div className="relative flex-1 min-w-[120px]">

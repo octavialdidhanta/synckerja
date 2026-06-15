@@ -115,6 +115,57 @@ type ClaimedRow = {
   url: string;
 };
 
+function buildAssignmentPushContent(rows: ClaimedRow[]): { title: string; body: string } {
+  const latest = rows[0];
+  const total = rows.length;
+  const itemTitle = latest.title || "Item";
+  const eventTypes = new Set(rows.map((row) => row.event_type));
+  const singleEvent = eventTypes.size === 1 ? [...eventTypes][0] : null;
+
+  if (total === 1) {
+    if (latest.event_type === "unassign") {
+      return {
+        title: "Daily Task",
+        body: `Penugasan dicabut: ${itemTitle}`,
+      };
+    }
+    if (latest.event_type === "reassign") {
+      return {
+        title: "Daily Task",
+        body: `Ditugaskan ulang: ${itemTitle}`,
+      };
+    }
+    return {
+      title: "Daily Task",
+      body: `Ditugaskan: ${itemTitle}`,
+    };
+  }
+
+  if (singleEvent === "unassign") {
+    return {
+      title: "Daily Task",
+      body: `${total} penugasan dicabut dari Anda`,
+    };
+  }
+  if (singleEvent === "reassign") {
+    return {
+      title: "Daily Task",
+      body: `${total} penugasan diubah`,
+    };
+  }
+  if (singleEvent === "assign") {
+    return {
+      title: "Daily Task",
+      body: `${total} penugasan baru ditugaskan ke Anda`,
+    };
+  }
+
+  return {
+    title: "Daily Task",
+    body: `${total} pembaruan penugasan Daily Task`,
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -181,11 +232,7 @@ Deno.serve(async (req: Request) => {
 
     const latest = rows[0];
     const total = rows.length;
-    const title = "Daily Task";
-    const body =
-      total === 1
-        ? `Ditugaskan: ${latest.title || "Item"}`
-        : `${total} assignment baru ditugaskan ke Anda`;
+    const { title, body } = buildAssignmentPushContent(rows);
 
     const { data: fcmRows } = await supabase
       .from("fcm_tokens")
@@ -204,6 +251,7 @@ Deno.serve(async (req: Request) => {
     const accessToken = await getFcmAccessToken(fcmServiceAccountJson);
     const dataPayload: Record<string, string> = {
       notificationType: "daily_task_assignment",
+      eventType: latest.event_type,
       url: latest.url || "/tools/daily-task",
       badge: String(total),
     };

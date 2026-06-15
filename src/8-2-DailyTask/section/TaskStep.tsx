@@ -106,6 +106,9 @@ interface TaskStepProps {
   closeSubStepRequested?: number;
   /** When provided with contentOnly, parent (e.g. MobileTaskStep) owns the sortable node; only grip drag handle is used. */
   sortableHandleProps?: { attributes: Record<string, unknown>; listeners: Record<string, unknown> };
+  /** Mobile card: controlled description expand (accordion — one step open per task). */
+  mobileDescriptionExpanded?: boolean;
+  onMobileDescriptionExpandedChange?: (expanded: boolean) => void;
 }
 
 export interface TaskStepHandle {
@@ -187,7 +190,7 @@ type TaskStepInnerProps = TaskStepProps & {
 };
 
 const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function TaskStepInner(
-  { step, index, taskCreatedBy, taskAssignedTo, taskTitle = '', autoReorder = false, isRevealed = false, onReveal, onClose, contentOnly = false, onSubStepModalOpenChange, closeSubStepRequested, sortableHandleProps, sortableNodeRef, sortableNodeStyle, sortableHandleAttributes, sortableHandleListeners, sortableIsDragging },
+  { step, index, taskCreatedBy, taskAssignedTo, taskTitle = '', autoReorder = false, isRevealed = false, onReveal, onClose, contentOnly = false, onSubStepModalOpenChange, closeSubStepRequested, sortableHandleProps, sortableNodeRef, sortableNodeStyle, sortableHandleAttributes, sortableHandleListeners, sortableIsDragging, mobileDescriptionExpanded, onMobileDescriptionExpandedChange },
   ref
 ) {
   const handleAttrs = sortableHandleProps ? sortableHandleProps.attributes : (sortableHandleAttributes ?? {});
@@ -223,10 +226,24 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
-  /** Mobile expandable card: collapse = title + description one line each; tap content to expand; auto-collapse after 5s */
+  /** Mobile expandable card: collapse = title + description preview; tap to expand, tap title to close */
   const isMobileExpandableCard = Boolean(contentOnly && isMobile);
-  const [cardExpanded, setCardExpanded] = useState(false);
-  const autoCollapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [localCardExpanded, setLocalCardExpanded] = useState(false);
+  const isDescriptionExpandControlled = onMobileDescriptionExpandedChange != null;
+  const cardExpanded = isDescriptionExpandControlled
+    ? Boolean(mobileDescriptionExpanded)
+    : localCardExpanded;
+  const setCardExpanded = useCallback(
+    (value: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof value === 'function' ? value(cardExpanded) : value;
+      if (isDescriptionExpandControlled) {
+        onMobileDescriptionExpandedChange?.(next);
+      } else {
+        setLocalCardExpanded(next);
+      }
+    },
+    [cardExpanded, isDescriptionExpandControlled, onMobileDescriptionExpandedChange],
+  );
 
   useEffect(() => {
     onSubStepModalOpenChange?.(isViewSubStepsOpen);
@@ -237,27 +254,6 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
       setIsViewSubStepsOpen(false);
     }
   }, [closeSubStepRequested, isViewSubStepsOpen, onSubStepModalOpenChange]);
-
-  /** Auto-collapse mobile expandable card after 5s when expanded */
-  useEffect(() => {
-    if (!isMobileExpandableCard || !cardExpanded) {
-      if (autoCollapseTimerRef.current) {
-        clearTimeout(autoCollapseTimerRef.current);
-        autoCollapseTimerRef.current = null;
-      }
-      return;
-    }
-    autoCollapseTimerRef.current = setTimeout(() => {
-      setCardExpanded(false);
-      autoCollapseTimerRef.current = null;
-    }, 5000);
-    return () => {
-      if (autoCollapseTimerRef.current) {
-        clearTimeout(autoCollapseTimerRef.current);
-        autoCollapseTimerRef.current = null;
-      }
-    };
-  }, [isMobileExpandableCard, cardExpanded]);
 
   // Open sub-step modal when pending approval
   useEffect(() => {
@@ -904,11 +900,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
 
   const handleConfirmDeleteStep = async () => {
     setDeleteStepDialogOpen(false);
-    try {
-      await deleteTaskStep(step.id);
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete step', variant: 'destructive' });
-    }
+    await deleteTaskStep(step.id);
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1124,6 +1116,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
         <>
       {/* Baris: checkbox, grip, title */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
+        {!(isMobileExpandableCard && cardExpanded) && (
         <button
           onClick={handleToggleComplete}
           disabled={stepCheckboxRule.isDisabled}
@@ -1151,7 +1144,9 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
             <Square className="w-4 h-4" />
           )}
         </button>
+        )}
 
+        {!(isMobileExpandableCard && cardExpanded) && (
         <div
           {...handleAttrs}
           {...handleListeners}
@@ -1159,25 +1154,46 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
         >
           <GripVertical className="w-4 h-4 text-gray-300 hover:text-gray-500" />
         </div>
+        )}
 
         <div
           className="flex-1 min-w-0 flex flex-col overflow-hidden"
-          {...(isMobileExpandableCard
+          {...(isMobileExpandableCard && !cardExpanded
             ? {
                 role: 'button' as const,
                 tabIndex: 0,
-                'aria-expanded': cardExpanded,
-                onClick: () => setCardExpanded((prev) => !prev),
+                'aria-expanded': false,
+                onClick: () => setCardExpanded(true),
                 onKeyDown: (e: React.KeyboardEvent) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    setCardExpanded((prev) => !prev);
+                    setCardExpanded(true);
                   }
                 },
               }
-            : {})}
+            : isMobileExpandableCard
+              ? { 'aria-expanded': cardExpanded }
+              : {})}
         >
-            <div className="min-w-0 flex flex-wrap items-center gap-2">
+            <div
+              className="min-w-0 flex flex-wrap items-center gap-2"
+              {...(isMobileExpandableCard && cardExpanded
+                ? {
+                    role: 'button' as const,
+                    tabIndex: 0,
+                    onClick: (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      setCardExpanded(false);
+                    },
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setCardExpanded(false);
+                      }
+                    },
+                  }
+                : {})}
+            >
               <span
                 className={`text-sm min-w-0 block ${
                   isMobileExpandableCard
@@ -1207,7 +1223,13 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
             {(step.description?.trim() || stepCommentUnreadCount > 0) && (
               <div className="mt-1 min-w-0 max-w-full">
                 {isMobileExpandableCard && cardExpanded && step.description?.trim() ? (
-                  <TaskStepDescriptionView value={step.description} className="text-xs text-gray-600" />
+                  <div
+                    className="mt-1"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <TaskStepDescriptionView value={step.description} className="text-xs text-gray-600" />
+                  </div>
                 ) : (
                 <div className="flex items-start gap-1">
                   <TaskStepSeeMoreEntry
@@ -1225,6 +1247,8 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                       popoverAnchorRef={descriptionPopoverRef}
                       descriptionImageLoupe={descriptionImageLoupe}
                       onImageLoupeChange={setDescriptionImageLoupe}
+                      inlineDescriptionExpand={isMobileExpandableCard}
+                      onInlineDescriptionExpand={() => setCardExpanded(true)}
                     />
                   {step.description?.trim() && (
                   <p
@@ -1698,13 +1722,18 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {currentCompletionState ? 'Konfirmasi Membuka Kembali Step' : 'Konfirmasi Menyelesaikan Step'}
+            {currentCompletionState
+              ? t('dailyTask.confirmReopenStepTitle', 'Konfirmasi Membuka Kembali Step')
+              : t('dailyTask.confirmCompleteStepTitle', 'Konfirmasi Menyelesaikan Step')}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {currentCompletionState
-              ? `Apakah Anda yakin ingin membuka kembali step "${step.title}"?`
-              : `Apakah Anda yakin ingin menandai step "${step.title}" sebagai selesai?`
-            }
+              ? t('dailyTask.confirmReopenStepDesc', 'Apakah Anda yakin ingin membuka kembali step "{{title}}"?', {
+                  title: step.title,
+                })
+              : t('dailyTask.confirmCompleteStepDesc', 'Apakah Anda yakin ingin menandai step "{{title}}" sebagai selesai?', {
+                  title: step.title,
+                })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -1713,10 +1742,12 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
             setPendingCompletionState(null);
             setCurrentCompletionState(null);
           }}>
-            Batal
+            {t('common.cancel', 'Batal')}
           </AlertDialogCancel>
           <AlertDialogAction onClick={confirmToggleComplete}>
-            {currentCompletionState ? 'Ya, Buka Kembali' : 'Ya, Selesaikan'}
+            {currentCompletionState
+              ? t('dailyTask.confirmReopenAction', 'Ya, Buka Kembali')
+              : t('dailyTask.confirmCompleteAction', 'Ya, Selesaikan')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

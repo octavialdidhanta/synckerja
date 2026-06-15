@@ -1,5 +1,5 @@
-﻿import { supabase } from '@/shared/lib/supabaseClient';
-import { TaskStep } from '../types/taskTypes';
+import { supabase } from '@/shared/lib/supabaseClient';
+import { Task, TaskStep } from '../types/taskTypes';
 
 /**
  * Calculate progress percentage based on completed steps
@@ -184,3 +184,14 @@ export const autoReorderTaskSteps = async (
   }
 };
 
+export function isTaskStepAssigned(
+  step: Pick<TaskStep, 'assigned_to' | 'sub_steps'>,
+): boolean {
+  if (step.assigned_to) return true;
+  return step.sub_steps?.some((subStep) => Boolean(subStep.assigned_to)) ?? false;
+}
+
+export function taskHasAssignedSteps(task: Pick<Task, 'steps' | 'assigned_to'>): boolean {
+  if (task.assigned_to) return true;
+  return task.steps.some(isTaskStepAssigned);
+}

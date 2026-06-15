@@ -18,10 +18,10 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
 type XenditSettingsPanelProps = {
-  layout?: "sidebar" | "standalone";
+  layout?: "sidebar" | "page" | "standalone";
 };
 
-export function XenditSettingsPanel({ layout = "standalone" }: XenditSettingsPanelProps) {
+export function XenditSettingsPanel({ layout = "page" }: XenditSettingsPanelProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
@@ -223,11 +223,7 @@ export function XenditSettingsPanel({ layout = "standalone" }: XenditSettingsPan
 
   return (
     <>
-      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 [@media(max-height:900px)]:p-3">
-        <div className="mx-auto w-full max-w-2xl">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">{settingsBody}</div>
-        </div>
-      </div>
+      {settingsBody}
       <CreateXenditSubAccountDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}

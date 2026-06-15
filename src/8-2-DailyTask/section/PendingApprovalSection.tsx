@@ -19,6 +19,7 @@ import type { CompletionApprovalRow } from '../services/completionApprovalServic
 import { supabase } from '@/shared/lib/supabaseClient';
 import { usePublicReviewToken } from '@/6-1-dashboard/hook/usePublicReviewToken';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
+import { hideScrollbarClassName } from '../lib/hideScrollbar';
 
 function getDisplayTitle(row: CompletionApprovalRow): string {
   const taskTitle = row.daily_tasks?.title ?? 'Task';
@@ -244,7 +245,7 @@ export const PendingApprovalSection = ({ variant, onOpenPreview }: PendingApprov
         </div>
 
         {/* List of items to approve (seamless vertical scroll; per .cursor/rules/scroll-chaining.mdc: chain on all views including jobdesc) */}
-        <div className="mt-2 max-h-[min(40vh,320px)] overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0">
+        <div className={`mt-2 max-h-[min(40vh,320px)] overflow-y-auto overflow-x-hidden min-h-0 min-w-0 ${hideScrollbarClassName}`}>
           {fetchError ? (
             <p className="text-xs text-red-600 py-2">
               {t('dailyTask.approval.fetchError', 'Failed to load approvals. Please try again.')}

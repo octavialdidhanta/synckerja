@@ -75,6 +75,7 @@ import {
   DigitalMarketingReportPageSkeleton,
   DigitalMarketingReportTargetsSettingsPageSkeleton,
   IncomeXenditPageSkeleton,
+  BankMutationsPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
@@ -416,6 +417,11 @@ const IncomeBankAccountRouteElement = lazy(() =>
 const IncomePiutangRouteElement = lazy(() =>
   import("@/shared/components/mobile/incomesMobileRouteElements").then((m) => ({
     default: m.IncomePiutangRouteElement,
+  })),
+);
+const BankMutationsRouteElement = lazy(() =>
+  import("@/shared/components/mobile/bankMutationsMobileRouteElements").then((m) => ({
+    default: m.BankMutationsRouteElement,
   })),
 );
 const XenditModuleRouteElement = lazy(() =>
@@ -888,6 +894,18 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard pagePath="/incomes/transaction" loadingShell={PAGE_GUARD_LOADING_SHELL}>
                     <IncomePiutangRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/finance/bank-mutations"
+                element={
+                  <PageAccessGuard
+                    pagePath="/finance/bank-mutations"
+                    loadingShell={<BankMutationsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <BankMutationsRouteElement />
                   </PageAccessGuard>
                 }
               />
@@ -2547,6 +2565,18 @@ const App = () => (
                               loadingShell={PAGE_GUARD_LOADING_SHELL}
                             >
                               <IncomePiutangRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/finance/bank-mutations"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/finance/bank-mutations"
+                              loadingShell={<BankMutationsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <BankMutationsRouteElement />
                             </PageAccessGuard>
                           }
                         />

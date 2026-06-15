@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-  DialogTrigger,
 } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { TaskStepDescriptionView } from '@/8-2-DailyTask/components/TaskStepDescriptionView';
@@ -39,6 +38,9 @@ interface TaskStepSeeMoreEntryProps {
   popoverAnchorRef: React.RefObject<HTMLDivElement | null>;
   descriptionImageLoupe: ImageLoupeState | null;
   onImageLoupeChange: (state: ImageLoupeState | null) => void;
+  /** Mobile task card: expand description inline instead of opening a dialog */
+  inlineDescriptionExpand?: boolean;
+  onInlineDescriptionExpand?: () => void;
 }
 
 function UnreadBadge({ count }: { count: number }) {
@@ -71,6 +73,8 @@ export function TaskStepSeeMoreEntry({
   popoverAnchorRef,
   descriptionImageLoupe,
   onImageLoupeChange,
+  inlineDescriptionExpand = false,
+  onInlineDescriptionExpand,
 }: TaskStepSeeMoreEntryProps) {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
@@ -149,14 +153,22 @@ export function TaskStepSeeMoreEntry({
     </Button>
   );
 
+  const useInlineDescription = inlineDescriptionExpand && hasLongDescription;
+
+  const handleTriggerClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (useInlineDescription && onInlineDescriptionExpand) {
+      onInlineDescriptionExpand();
+      return;
+    }
+    onOpenChange(true);
+  };
+
   const triggerButton = (
     <button
       type="button"
       className="inline-flex flex-shrink-0 cursor-pointer items-center text-xs font-medium text-primary hover:text-primary/90"
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpenChange(true);
-      }}
+      onClick={handleTriggerClick}
     >
       {buttonLabel}
       <UnreadBadge count={unreadCount} />
@@ -164,41 +176,55 @@ export function TaskStepSeeMoreEntry({
   );
 
   if (isMobile) {
+    const showDiscussionDialog =
+      open &&
+      (!useInlineDescription ||
+        !hasDescription ||
+        mobileTab === 'discussion' ||
+        discussionOpen ||
+        initialTab === 'discussion');
+
+    if (!showDiscussionDialog) {
+      return triggerButton;
+    }
+
     return (
-      <Dialog
-        open={open}
-        onOpenChange={(next) => {
-          onOpenChange(next);
-          if (!next) onImageLoupeChange(null);
-        }}
-      >
-        <DialogTrigger asChild>{triggerButton}</DialogTrigger>
-        <DialogContent
-          className="flex max-h-[85vh] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0"
-          hideCloseButton={false}
-          aria-describedby={undefined}
-          onClick={(e) => e.stopPropagation()}
+      <>
+        {triggerButton}
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            onOpenChange(next);
+            if (!next) onImageLoupeChange(null);
+          }}
         >
-          <DialogTitle className="sr-only">{stepTitle}</DialogTitle>
-          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 pr-12 py-3">
-            <h4 className="min-w-0 truncate text-sm font-semibold text-gray-900">{stepTitle}</h4>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {mobileTab === 'detail' && hasDescription ? (
-              <div className="scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
-                <TaskStepDescriptionView value={description} />
-              </div>
-            ) : (
-              renderDiscussionPanel(true)
-            )}
-          </div>
-          {hasDescription && (
-            <div className="flex shrink-0 items-center justify-end border-t border-border px-4 py-2">
-              {commentFooterButton}
+          <DialogContent
+            className="flex max-h-[85vh] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0"
+            hideCloseButton={false}
+            aria-describedby={undefined}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DialogTitle className="sr-only">{stepTitle}</DialogTitle>
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 pr-12 py-3">
+              <h4 className="min-w-0 truncate text-sm font-semibold text-gray-900">{stepTitle}</h4>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {mobileTab === 'detail' && hasDescription && !useInlineDescription ? (
+                <div className="scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
+                  <TaskStepDescriptionView value={description} />
+                </div>
+              ) : (
+                renderDiscussionPanel(true)
+              )}
+            </div>
+            {hasDescription && !useInlineDescription && (
+              <div className="flex shrink-0 items-center justify-end border-t border-border px-4 py-2">
+                {commentFooterButton}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 

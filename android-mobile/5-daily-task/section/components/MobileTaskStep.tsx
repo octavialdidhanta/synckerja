@@ -43,6 +43,8 @@ interface MobileTaskStepProps {
   onClose: () => void;
   onSubStepModalOpenChange?: (open: boolean) => void;
   closeSubStepRequested?: number;
+  mobileDescriptionExpanded?: boolean;
+  onMobileDescriptionExpandedChange?: (expanded: boolean) => void;
 }
 
 export const MobileTaskStep: React.FC<MobileTaskStepProps> = ({
@@ -57,6 +59,8 @@ export const MobileTaskStep: React.FC<MobileTaskStepProps> = ({
   onClose,
   onSubStepModalOpenChange,
   closeSubStepRequested,
+  mobileDescriptionExpanded,
+  onMobileDescriptionExpandedChange,
 }) => {
   const {
     setNodeRef,
@@ -104,8 +108,29 @@ export const MobileTaskStep: React.FC<MobileTaskStepProps> = ({
     }
   }, [isRevealed, translateX]);
 
+  /** Close action strip when description expands — swipe disabled while reading. */
+  useEffect(() => {
+    if (!mobileDescriptionExpanded) return;
+    if (translateXRef.current !== 0) {
+      translateXRef.current = 0;
+      setTranslateX(0);
+      const el = slidingRowRef.current;
+      if (el) {
+        el.style.transition = SNAP_TRANSITION;
+        el.style.transform = 'translateX(0px)';
+      }
+    }
+    if (isRevealed) {
+      onClose();
+    }
+  }, [mobileDescriptionExpanded, isRevealed, onClose]);
+
   /** Touch swipe logic aligned with `TaskCard` (task list), with stricter open rules inside modal/scroll. */
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (mobileDescriptionExpanded) {
+      touchStartRef.current = null;
+      return;
+    }
     const elTarget = e.target;
     if (elTarget instanceof Element && elTarget.closest(TOUCH_IGNORE_SWIPE)) {
       touchStartRef.current = null;
@@ -334,7 +359,7 @@ export const MobileTaskStep: React.FC<MobileTaskStepProps> = ({
         className="relative z-[1] min-h-0 w-full min-w-full bg-white"
         style={{
           transform: `translateX(${translateX}px)`,
-          touchAction: 'pan-y',
+          touchAction: mobileDescriptionExpanded ? 'auto' : 'pan-y',
           ...(isDragging
             ? { transition: 'none', willChange: 'transform' as const }
             : { transition: SNAP_TRANSITION }),
@@ -356,6 +381,8 @@ export const MobileTaskStep: React.FC<MobileTaskStepProps> = ({
           onSubStepModalOpenChange={onSubStepModalOpenChange}
           closeSubStepRequested={closeSubStepRequested}
           sortableHandleProps={{ attributes, listeners }}
+          mobileDescriptionExpanded={mobileDescriptionExpanded}
+          onMobileDescriptionExpandedChange={onMobileDescriptionExpandedChange}
         />
       </div>
     </div>

@@ -117,7 +117,7 @@ export const mainNavItems: MainNavItem[] = [
     id: "finance",
     titleKey: "sidebar.finance.title",
     icon: Wallet,
-    activePathPrefixes: ["/incomes", "/expenses", "/xendit"],
+    activePathPrefixes: ["/incomes", "/expenses", "/xendit", "/finance"],
     subItems: [
       {
         titleKey: "sidebar.finance.incomes.title",
@@ -128,6 +128,11 @@ export const mainNavItems: MainNavItem[] = [
         titleKey: "sidebar.finance.expenses.title",
         path: "/expenses/dashboard",
         activePathPrefixes: ["/expenses"],
+      },
+      {
+        titleKey: "sidebar.finance.bankMutations.title",
+        path: "/finance/bank-mutations",
+        activePathPrefixes: ["/finance/bank-mutations"],
       },
       {
         titleKey: "sidebar.finance.xendit.title",

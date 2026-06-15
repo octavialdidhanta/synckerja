@@ -1,5 +1,6 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { hideScrollbarClassName } from "../lib/hideScrollbar";
 
 export function DailyTaskPageSkeleton() {
   const { t } = useAppTranslation();
@@ -71,7 +72,7 @@ export function DailyTaskPageSkeleton() {
                       <Skeleton className="m-1.5 h-8 min-w-0 flex-1 rounded-md sm:m-2" />
                       <Skeleton className="m-1.5 h-8 min-w-0 flex-1 rounded-md sm:m-2" />
                     </div>
-                    <div className="flex min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto seamless-scroll nested-scroll-touch-chain p-4 [scrollbar-gutter:stable]">
+                    <div className={`flex min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 ${hideScrollbarClassName}`}>
                       <Skeleton className="mb-3 h-16 w-full rounded-lg" />
                       <Skeleton className="mb-3 h-16 w-full rounded-lg" />
                       <Skeleton className="mb-3 h-16 w-full rounded-lg" />

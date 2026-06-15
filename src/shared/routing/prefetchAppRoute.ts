@@ -188,6 +188,13 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
       })),
   },
   {
+    prefix: "/finance/bank-mutations",
+    prefetch: () =>
+      import("@/shared/components/mobile/bankMutationsMobileRouteElements").then((m) => ({
+        default: m.BankMutationsRouteElement,
+      })),
+  },
+  {
     prefix: "/xendit/connect",
     prefetch: () =>
       import("@/shared/components/mobile/xenditMobileRouteElements").then((m) => ({

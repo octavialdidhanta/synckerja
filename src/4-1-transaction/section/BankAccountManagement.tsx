@@ -16,8 +16,6 @@ import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Plus, Edit, Trash2, Loader2, Link2, Unlink } from 'lucide-react';
 import { useBrickOAuthReturn } from '@/4-1-transaction/hooks/useBrickOAuthReturn';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { BankMutationsPanel } from './BankMutationsPanel';
-import { RefreshBankMutationsButton } from './RefreshBankMutationsButton';
 import { BrickLinkStatusBadge } from '@/shared/components/finance/BrickLinkTableCell';
 import { validateGatewayPayoutBank } from '@/xendit/lib/xenditApi';
 import { mapBankNameToXenditCode } from '@/xendit/lib/bankCodes';
@@ -190,7 +188,6 @@ export const BankAccountManagement: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canAllocateIncome ? <RefreshBankMutationsButton /> : null}
           {!isEditing ? (
             <Button variant="outline" size="sm" onClick={handleAdd}>
               <Plus className="h-4 w-4 mr-1" />
@@ -502,7 +499,6 @@ export const BankAccountManagement: React.FC = () => {
         </div>
       )}
 
-      <BankMutationsPanel />
     </div>
   );
 };

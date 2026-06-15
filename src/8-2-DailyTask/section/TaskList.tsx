@@ -22,6 +22,7 @@ import { useIndividualObjectives } from '@/1-home/components/HomeOKRDashboard/mo
 import { getEffectiveProgressAndCount } from '../utils/taskUtils';
 import { getTaskCheckboxRule } from '../utils/taskCheckboxRules';
 import './TaskList.css';
+import { hideScrollbarClassName } from '../lib/hideScrollbar';
 
 export const TaskList = () => {
   const { t } = useAppTranslation();
@@ -102,6 +103,12 @@ export const TaskList = () => {
     taskId: string | null;
     taskTitle: string;
   }>({ isOpen: false, taskId: null, taskTitle: '' });
+  const [statusToggleDialog, setStatusToggleDialog] = useState<{
+    isOpen: boolean;
+    taskId: string | null;
+    taskTitle: string;
+    nextStatus: 'completed' | 'pending';
+  }>({ isOpen: false, taskId: null, taskTitle: '', nextStatus: 'pending' });
   const taskRefs = useRef<{ [key: string]: HTMLTableRowElement | null }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -157,12 +164,11 @@ export const TaskList = () => {
     if (!checkboxRule.taskHasSteps) {
       const newStatus = task.status === 'completed' ? 'pending' : 'completed';
       if (newStatus !== task.status) {
-        toast({
-          title: newStatus === 'completed' ? 'Task Completed' : 'Task Reopened',
-          description: `"${task.title}" has been ${newStatus === 'completed' ? 'marked as completed' : 'reopened'}`,
-        });
-        updateTask(task.id, { status: newStatus }).catch(() => {
-          toast({ title: 'Error', description: 'Failed to update task status', variant: 'destructive' });
+        setStatusToggleDialog({
+          isOpen: true,
+          taskId: task.id,
+          taskTitle: task.title,
+          nextStatus: newStatus,
         });
       }
       return;
@@ -225,16 +231,41 @@ export const TaskList = () => {
 
   const handleConfirmDelete = async () => {
     if (!deleteDialog.taskId) return;
-    try {
-      await deleteTask(deleteDialog.taskId);
-      setDeleteDialog({ isOpen: false, taskId: null, taskTitle: '' });
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete task', variant: 'destructive' });
-    }
+    await deleteTask(deleteDialog.taskId);
+    setDeleteDialog({ isOpen: false, taskId: null, taskTitle: '' });
   };
 
   const handleCancelDelete = () => {
     setDeleteDialog({ isOpen: false, taskId: null, taskTitle: '' });
+  };
+
+  const handleCancelStatusToggle = () => {
+    setStatusToggleDialog({ isOpen: false, taskId: null, taskTitle: '', nextStatus: 'pending' });
+  };
+
+  const handleConfirmStatusToggle = async () => {
+    if (!statusToggleDialog.taskId) return;
+    const { taskId, taskTitle, nextStatus } = statusToggleDialog;
+    setStatusToggleDialog({ isOpen: false, taskId: null, taskTitle: '', nextStatus: 'pending' });
+    toast({
+      title:
+        nextStatus === 'completed'
+          ? t('dailyTask.taskCompleted', 'Task Completed')
+          : t('dailyTask.taskReopened', 'Task Reopened'),
+      description:
+        nextStatus === 'completed'
+          ? t('dailyTask.taskCompletedDesc', '"{{title}}" has been marked as completed', { title: taskTitle })
+          : t('dailyTask.taskReopenedDesc', '"{{title}}" has been reopened', { title: taskTitle }),
+    });
+    try {
+      await updateTask(taskId, { status: nextStatus });
+    } catch {
+      toast({
+        title: t('common.error', 'Error'),
+        description: t('dailyTask.errors.updateTaskStatusFailed', 'Failed to update task status'),
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleToggleReminder = async (task: Task) => {
@@ -287,7 +318,7 @@ export const TaskList = () => {
         <div className="h-full flex flex-col min-h-0">
           <div
             ref={scrollContainerRef}
-            className="flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-auto seamless-scroll nested-scroll-touch-chain"
+            className={`flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-auto ${hideScrollbarClassName}`}
           >
             <table className="w-full caption-bottom text-sm task-list-table">
               <TaskListTableHeader />
@@ -386,6 +417,9 @@ export const TaskList = () => {
             deleteDialog={deleteDialog}
             handleCancelDelete={handleCancelDelete}
             handleConfirmDelete={handleConfirmDelete}
+            statusToggleDialog={statusToggleDialog}
+            handleCancelStatusToggle={handleCancelStatusToggle}
+            handleConfirmStatusToggle={handleConfirmStatusToggle}
             blockerModalOpen={blockerModalOpen}
             setBlockerModalOpen={setBlockerModalOpen}
             blockerModalItems={blockerModalItems}

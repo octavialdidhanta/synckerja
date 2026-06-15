@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckSquare, Clock, Edit, Plus, RotateCcw, Calendar, FilterX } from 'lucide-react';
 import { useDailyTask } from '../context/DailyTaskContext';
+import { hideScrollbarClassName } from '../lib/hideScrollbar';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
@@ -236,7 +237,7 @@ const RecentUpdateSteps = () => {
         )}
       </div>
       
-      <div className="space-y-3 max-h-64 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+      <div className={`space-y-3 max-h-64 min-h-0 overflow-y-auto overflow-x-hidden ${hideScrollbarClassName}`}>
         {displayUpdates.map((update) => {
           const isClicked = clickedUpdateId === update.id;
           return (

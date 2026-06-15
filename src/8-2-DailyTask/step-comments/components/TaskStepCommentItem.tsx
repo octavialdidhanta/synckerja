@@ -10,6 +10,7 @@ import {
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { formatDateTime } from '@/shared/utils/dateFormatter';
 import { splitCommentBodySegments } from '../lib/commentMentionUtils';
+import { TextWithAutoLinks } from '@/8-2-DailyTask/components/TextWithAutoLinks';
 import { TaskStepCommentComposer } from './TaskStepCommentComposer';
 import { TaskStepCommentReactions } from './TaskStepCommentReactions';
 import type { MentionableEmployee, TaskStepComment, TaskStepCommentReactionEmoji } from '../types';
@@ -39,7 +40,7 @@ function CommentBody({ body }: { body: string }) {
             @{seg.value}
           </span>
         ) : (
-          <span key={i}>{seg.value}</span>
+          <TextWithAutoLinks key={i} text={seg.value} />
         ),
       )}
     </p>

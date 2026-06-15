@@ -458,3 +458,9 @@ export const IncomeXenditPageSkeleton = createDeferredSkeleton(() =>
     default: m.IncomeXenditPageSkeleton,
   })),
 );
+
+export const BankMutationsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/4-1-bank-mutations/skeletons/BankMutationsPageSkeleton").then((m) => ({
+    default: m.BankMutationsPageSkeleton,
+  })),
+);

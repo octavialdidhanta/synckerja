@@ -56,6 +56,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
   const [revealedStepId, setRevealedStepId] = useState<string | null>(null);
+  const [expandedDescriptionStepId, setExpandedDescriptionStepId] = useState<string | null>(null);
   const userIsCreator = isTaskCreator(task, userId);
   const { progress: effectiveProgress, completedCount: effectiveCompleted, totalCount: effectiveTotal } = getEffectiveProgressAndCount(visibleSteps);
   const displayProgress = visibleSteps.length === 0 ? progress : effectiveProgress;
@@ -69,6 +70,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   useEffect(() => {
     openSubStepModalCountRef.current = openSubStepModalCount;
   }, [openSubStepModalCount]);
+
+  useEffect(() => {
+    setExpandedDescriptionStepId(null);
+  }, [task.id]);
 
   const handleSubStepModalOpenChange = useCallback((open: boolean) => {
     setOpenSubStepModalCount((c) => (open ? c + 1 : Math.max(0, c - 1)));
@@ -437,6 +442,17 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         onClose={() => setRevealedStepId(null)}
                         onSubStepModalOpenChange={handleSubStepModalOpenChange}
                         closeSubStepRequested={closeSubStepRequested}
+                        mobileDescriptionExpanded={expandedDescriptionStepId === step.id}
+                        onMobileDescriptionExpandedChange={(expanded) => {
+                          if (expanded) {
+                            setExpandedDescriptionStepId(step.id);
+                            setRevealedStepId(null);
+                          } else {
+                            setExpandedDescriptionStepId((current) =>
+                              current === step.id ? null : current,
+                            );
+                          }
+                        }}
                       />
                     ))
                 )}

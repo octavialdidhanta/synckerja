@@ -2,14 +2,18 @@ import { useTranslation } from "react-i18next";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { IncomeXenditPageSkeleton } from "@/4-1-transaction/xendit/skeletons/IncomeXenditPageSkeleton";
+import { XenditContentCard } from "@/4-1-transaction/xendit/components/XenditContentCard";
+import { XenditPanelFooter } from "@/4-1-transaction/xendit/components/XenditPanelFooter";
 import { XenditFinanceBalanceCard } from "@/4-1-transaction/xendit/components/XenditFinanceBalanceCard";
 import { XenditPayoutBankCard } from "@/4-1-transaction/xendit/components/XenditPayoutBankCard";
 import { XenditWithdrawDialog } from "@/4-1-transaction/xendit/components/XenditWithdrawDialog";
 import { XenditSubAccountEmptyState } from "@/4-1-transaction/xendit/components/XenditSubAccountEmptyState";
 import { useXenditFinancePanel } from "@/4-1-transaction/xendit/hooks/useXenditFinancePanel";
-
-const MAIN_INNER_SCROLL =
-  "scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+import {
+  XENDIT_MAIN_GRID,
+  XENDIT_TABLE_SECTION,
+} from "@/4-1-transaction/xendit/layout/xenditPageLayout";
+import { formatToRupiah } from "@/shared/utils/formatCurrency";
 
 export default function XenditBalancePage() {
   const { t } = useTranslation();
@@ -20,42 +24,64 @@ export default function XenditBalancePage() {
   }
 
   return (
-    <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-      <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <div className="shrink-0 space-y-3 border-b border-gray-200 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-gray-900">
-                  {t("xendit.finance.title", "Saldo & Penarikan")}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {t(
-                    "xendit.finance.subtitle",
-                    "Saldo CASH sub-account Xendit dan penarikan ke rekening payout.",
-                  )}
-                </p>
+    <div className={XENDIT_MAIN_GRID}>
+      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+        <div className={XENDIT_TABLE_SECTION}>
+          <XenditContentCard
+            header={
+              <div className="space-y-3 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-base font-semibold text-foreground">
+                      {t("xendit.finance.title", "Saldo & Penarikan")}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {t(
+                        "xendit.finance.subtitle",
+                        "Saldo CASH sub-account Xendit dan penarikan ke rekening payout.",
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      aria-label={t("common.refresh", "Refresh")}
+                      disabled={panel.refreshing}
+                      onClick={() => void panel.handleRefresh()}
+                    >
+                      {panel.refreshing ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  aria-label={t("common.refresh", "Refresh")}
-                  disabled={panel.refreshing}
-                  onClick={() => void panel.handleRefresh()}
-                >
-                  {panel.refreshing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
+            }
+            footer={
+              panel.hasSubAccount ? (
+                <XenditPanelFooter
+                  left={t("xendit.finance.footerAvailable", "Available (CASH): {{amount}}", {
+                    amount: formatToRupiah(panel.usableBalance),
+                  })}
+                  right={t("xendit.finance.footerTotal", "Total: {{amount}}", {
+                    amount: formatToRupiah(panel.totalBalance),
+                  })}
+                />
+              ) : (
+                <XenditPanelFooter
+                  left={t(
+                    "xendit.connect.footerEnabled",
+                    "Xendit active · Sub-account not created",
                   )}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className={`${MAIN_INNER_SCROLL} p-6`}>
+                />
+              )
+            }
+            bodyClassName="p-6 [@media(max-height:900px)]:p-4"
+          >
             {panel.hasSubAccount ? (
               <div className="mx-auto w-full max-w-2xl space-y-5">
                 <XenditFinanceBalanceCard
@@ -132,7 +158,7 @@ export default function XenditBalancePage() {
             ) : (
               <XenditSubAccountEmptyState />
             )}
-          </div>
+          </XenditContentCard>
         </div>
       </div>
     </div>

@@ -75,7 +75,7 @@ export async function linkBankAccountBrick(organizationId: string, bankAccountId
     organizationId,
     targetType: 'bank_account',
     targetId: bankAccountId,
-    returnPath: '/incomes/transaction',
+    returnPath: '/incomes/transaction/bank-account',
   });
 }
 
@@ -84,7 +84,7 @@ export async function startBrickBankOAuth(organizationId: string, bankAccountId:
     organizationId,
     targetType: 'bank_account',
     targetId: bankAccountId,
-    returnPath: '/incomes/transaction',
+    returnPath: '/incomes/transaction/bank-account',
   });
 }
 

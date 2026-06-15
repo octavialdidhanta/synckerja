@@ -9,7 +9,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/shared/components/ui/accordion";
-import { Search, Building2, Users, Check, Target, ChevronDown, ArrowLeft } from "lucide-react";
+import { Search, Building2, Users, Check, Target, ChevronDown, ArrowLeft, X } from "lucide-react";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useCompanyObjectives } from "@/shared/hooks/useCompanyObjectives";
 import { useDepartmentObjectives } from "@/1-home/components/HomeOKRDashboard/modal/useDepartmentObjectives";
@@ -314,37 +314,58 @@ export const ObjectiveHierarchyDialog: React.FC<ObjectiveHierarchyDialogProps> =
         )}
       >
         {isMobile ? (
-          <DialogHeader className="safe-area-top flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
-            <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+          <DialogHeader className="safe-area-top flex flex-shrink-0 flex-col gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <div className="relative flex w-full min-w-0 items-center gap-1 px-2 py-1 pr-9">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => onOpenChange(false)}
-                className="-ml-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0 hover:bg-gray-100"
-                aria-label="Close"
+                className="-ml-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full p-0 hover:bg-gray-100/80"
+                aria-label="Back"
               >
-                <ArrowLeft className="block h-4 w-4 shrink-0 translate-y-px" />
+                <ArrowLeft className="h-4 w-4 shrink-0 text-primary" />
               </Button>
-              <DialogTitle className="m-0 flex min-h-0 min-w-0 flex-1 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
+              <DialogTitle className="m-0 min-w-0 flex-1 truncate py-0 pr-1 text-sm font-semibold leading-none">
                 Select Individual Objective
               </DialogTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onOpenChange(false)}
+                className="absolute right-1 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 rounded-full p-0 hover:bg-gray-100/80"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="px-2 pb-1.5">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="Search objectives..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 w-full border-white/60 bg-white/90 pl-8 pr-2 text-sm shadow-sm"
+                />
+              </div>
             </div>
             <DialogDescription className="sr-only">
               Search and select an individual objective to link to this task.
             </DialogDescription>
           </DialogHeader>
         ) : (
-          <DialogHeader className="flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 pb-0 pt-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
-            <DialogTitle className="flex items-center gap-2 text-lg font-semibold md:text-xl">
+          <DialogHeader className="flex-shrink-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 pb-2 pt-3 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onOpenChange(false)}
-                className="h-8 w-8 p-0 hover:bg-gray-100 flex-shrink-0"
+                className="h-8 w-8 shrink-0 p-0 hover:bg-gray-100"
                 aria-label="Close"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <span>Select Individual Objective</span>
             </DialogTitle>
@@ -354,19 +375,21 @@ export const ObjectiveHierarchyDialog: React.FC<ObjectiveHierarchyDialogProps> =
           </DialogHeader>
         )}
 
-        <div className="px-4 md:px-0 flex-shrink-0 pt-3 pb-3 shadow-[0_2px_6px_rgba(0,0,0,0.06)] bg-card z-10 relative">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10 pointer-events-none" />
-            <Input
-              placeholder="Search objectives..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-3 text-sm md:text-base w-full"
-            />
+        {!isMobile ? (
+          <div className="relative z-10 flex-shrink-0 border-b bg-card py-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                placeholder="Search objectives..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 w-full pl-10 pr-3 text-sm"
+              />
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll px-4 md:px-0">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll px-3 md:px-0">
           {needsOrg ? (
             <div className="space-y-3 py-4">
               <Skeleton className="h-5 w-48" />
@@ -634,9 +657,9 @@ export const ObjectiveHierarchyDialog: React.FC<ObjectiveHierarchyDialogProps> =
           )}
         </div>
 
-        <div className="flex-shrink-0 border-t bg-muted/30 mt-auto z-10 relative md:border-t-0 md:shadow-[0_-2px_6px_rgba(0,0,0,0.06)] md:bg-card">
-          <div className="px-4 pt-3 pb-3 md:p-0 flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="w-full md:w-auto">
+        <div className="relative z-10 mt-auto flex-shrink-0 border-t bg-muted/30">
+          <div className="flex items-center justify-end gap-2 px-3 py-1.5 md:px-0 md:py-2">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-8 w-full md:w-auto">
               Cancel
             </Button>
           </div>
