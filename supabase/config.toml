@@ -249,3 +249,9 @@ verify_jwt = false
 
 [functions.brick-oauth-callback]
 verify_jwt = false
+
+[functions.omnichannel-public-api]
+verify_jwt = false
+
+[functions.omnichannel-api-manage]
+verify_jwt = false

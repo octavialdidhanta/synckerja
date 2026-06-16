@@ -1,0 +1,340 @@
+openapi: 3.1.0
+info:
+  title: Synckerja Omnichannel Public API
+  version: 1.2.0
+  description: |
+    API integrasi untuk website eksternal — traffic analytics, leads, dan invoice trigger.
+    Single source of truth untuk tab Docs di Synckerja Office (`/omnichannel/settings/api-integration?tab=docs`).
+    Markdown dihasilkan otomatis saat `npm run dev` / `npm run build` (lihat `scripts/sync-omnichannel-api-docs.mjs`).
+servers:
+  - url: https://{project_ref}.supabase.co/functions/v1/omnichannel-public-api
+    variables:
+      project_ref:
+        default: YOUR_PROJECT_REF
+security:
+  - BearerAuth: []
+paths:
+  /api/v1/traffic-logs:
+    post:
+      summary: Catat kunjungan halaman (page load)
+      tags: [Analytics]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrafficLogRequest'
+      responses:
+        '201':
+          description: Traffic tercatat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficLogSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/page-views/heartbeat:
+    post:
+      summary: Perbarui waktu aktif dan scroll page view
+      tags: [Analytics]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageViewHeartbeatRequest'
+      responses:
+        '200':
+          description: Heartbeat diterima
+  /api/v1/click-events:
+    post:
+      summary: Catat klik elemen dengan data-syn-track
+      tags: [Analytics]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClickEventRequest'
+      responses:
+        '201':
+          description: Click event tercatat
+  /api/v1/wa-link-clicks:
+    post:
+      summary: Catat klik link WhatsApp
+      tags: [Analytics]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaLinkClickRequest'
+      responses:
+        '201':
+          description: WA click tercatat
+  /api/v1/leads:
+    post:
+      summary: Kirim data formulir prospek
+      tags: [Leads]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadRequest'
+      responses:
+        '201':
+          description: Lead tersimpan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadSuccess'
+  /api/v1/orders/invoice-trigger:
+    post:
+      summary: Simpan invoice dan picu nota WhatsApp
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceTriggerRequest'
+      responses:
+        '201':
+          description: Invoice tersimpan; lead di-convert jika cocok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceTriggerSuccess'
+        '409':
+          description: Nomor invoice duplikat
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Token format sk_omni_... dari Synckerja Office settings
+  responses:
+    Unauthorized:
+      description: Token tidak valid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Validasi gagal
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          nullable: true
+    TrafficLogRequest:
+      type: object
+      required: [session_id, visitor_id, page_url]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        visitor_id:
+          type: string
+          format: uuid
+        page_url:
+          type: string
+        utm_source:
+          type: string
+          nullable: true
+        utm_medium:
+          type: string
+          nullable: true
+        utm_campaign:
+          type: string
+          nullable: true
+        utm_term:
+          type: string
+          nullable: true
+        utm_content:
+          type: string
+          nullable: true
+        gclid:
+          type: string
+          nullable: true
+        fbclid:
+          type: string
+          nullable: true
+        referrer:
+          type: string
+          nullable: true
+    TrafficLogSuccess:
+      type: object
+      properties:
+        success:
+          type: boolean
+        session_id:
+          type: string
+        page_view_id:
+          type: string
+        visitor_id:
+          type: string
+        web_id:
+          type: string
+    PageViewHeartbeatRequest:
+      type: object
+      required: [page_view_id, active_ms, scroll_max_pct]
+      properties:
+        page_view_id:
+          type: string
+          format: uuid
+        active_ms:
+          type: integer
+        scroll_max_pct:
+          type: integer
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+    ClickEventRequest:
+      type: object
+      required: [session_id, visitor_id, path, track_key]
+      properties:
+        session_id:
+          type: string
+        visitor_id:
+          type: string
+        path:
+          type: string
+        track_key:
+          type: string
+        element_type:
+          type: string
+        element_label:
+          type: string
+        target_url:
+          type: string
+        is_internal:
+          type: boolean
+    WaLinkClickRequest:
+      type: object
+      required: [session_id, visitor_id]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        visitor_id:
+          type: string
+          format: uuid
+        path:
+          type: string
+          description: Halaman saat klik (SDK mengirim pathname; default "/")
+        target_phone:
+          type: string
+          nullable: true
+        target_url:
+          type: string
+          nullable: true
+          description: URL wa.me / api.whatsapp.com
+    LeadRequest:
+      type: object
+      required: [name]
+      additionalProperties: true
+      description: |
+        Field inti disimpan ke kolom CRM. Field lain (mis. consent, event_date)
+        otomatis masuk lead_submissions.form_data (jsonb).
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        phone_number:
+          type: string
+        email:
+          type: string
+        notes:
+          type: string
+        status:
+          type: string
+          enum: [new, contacted, deal, lost]
+      example:
+        name: John Doe
+        email: john.doe@example.com
+        phone_number: "+6281234567890"
+        consent: true
+        event_date: "2026-06-09"
+        event_time: "14:30"
+        event_address: Jl. Contoh No. 10, Jakarta
+    LeadSuccess:
+      type: object
+      properties:
+        success:
+          type: boolean
+        lead_id:
+          type: string
+        ticket_id:
+          type: string
+        session_id:
+          type: string
+          nullable: true
+        attribution:
+          type: object
+          nullable: true
+          description: |
+            UTM + gclid/fbclid (string) dari analytics_sessions bila session_id dikirim.
+    InvoiceTriggerRequest:
+      type: object
+      required: [invoice_number, amount, items, phone_number, email]
+      properties:
+        invoice_number:
+          type: string
+        amount:
+          type: number
+        items:
+          type: array
+          items:
+            type: object
+        phone_number:
+          type: string
+        email:
+          type: string
+        customer_name:
+          type: string
+    InvoiceTriggerSuccess:
+      type: object
+      properties:
+        success:
+          type: boolean
+        invoice_id:
+          type: string
+        invoice_number:
+          type: string
+        lead_id:
+          type: string
+          nullable: true
+        lead_matched:
+          type: boolean
+        lead_converted:
+          type: boolean
+        sales_activity_id:
+          type: string
+          nullable: true
+          description: Lead Conversion di /operations/sales/activities
+        whatsapp_status:
+          type: string
+          enum: [pending, sent, failed]
+        whatsapp_message_id:
+          type: string
+          nullable: true

@@ -16,6 +16,7 @@ import { SlaManagementSection } from "@/5-3-dashboard/omnichannel-settings/compo
 import { CustomerSurveySettingsShell } from "@/features/customer-survey/settings/CustomerSurveySettingsShell";
 import { CustomerSurveyTargetSettingsShell } from "@/features/customer-survey/settings/CustomerSurveyTargetSettingsShell";
 import { OfflineConversionSettingsShell } from "@/meta-ads/settings/OfflineConversionSettingsShell";
+import { ApiIntegrationSection } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiIntegrationSection";
 import { cn } from "@/shared/lib/utils";
 import {
   OMNICHANNEL_SETTINGS_CARD_HEADER_BASE,
@@ -85,6 +86,7 @@ export function OmnichannelSettingsWorkspace() {
               {activeSection === "survey" ? <CustomerSurveySettingsShell /> : null}
               {activeSection === "target" ? <CustomerSurveyTargetSettingsShell /> : null}
               {activeSection === "offline-conversion" ? <OfflineConversionSettingsShell /> : null}
+              {activeSection === "api-integration" ? <ApiIntegrationSection /> : null}
             </div>
           </ModuleShellContentGate>
         </div>

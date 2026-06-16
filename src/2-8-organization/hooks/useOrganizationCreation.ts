@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { ensureOrganizationOwnerEmployee } from '@/shared/lib/ensureOrganizationOwnerEmployee';
 import type { OrganizationFormData } from '@/2-8-organization/components/create-organization/types';
 import { validateFormData } from '@/2-8-organization/components/create-organization/validation';
 
@@ -90,6 +91,18 @@ export function useOrganizationCreation() {
           .eq('user_id', user.id);
         if (profileError) throw profileError;
 
+        setProgress('Menyiapkan data karyawan owner…');
+        const ownerName =
+          (user.user_metadata?.full_name as string | undefined)?.trim() ||
+          user.email?.split('@')[0] ||
+          'Owner';
+        await ensureOrganizationOwnerEmployee({
+          organizationId,
+          userId: user.id,
+          fullName: ownerName,
+          email: user.email ?? null,
+        });
+
         try {
           sessionStorage.setItem('newOrganizationId', organizationId);
         } catch {
@@ -98,6 +111,7 @@ export function useOrganizationCreation() {
 
         await queryClient.invalidateQueries({ queryKey: USER_ORGS_QUERY_KEY });
         await queryClient.invalidateQueries({ queryKey: ['profile'] });
+        await queryClient.invalidateQueries({ queryKey: ['employees-optimized'] });
 
         setProgress(null);
         return true;

@@ -1612,9 +1612,10 @@ function trimGclid(v: unknown): string | null {
 }
 
 function trimFbclid(v: unknown): string | null {
-  if (v == null) return null;
+  if (v == null || v === true || v === false) return null;
   const s = String(v).trim();
-  return s === '' ? null : s;
+  if (s === '' || s === 'true' || s === 'false') return null;
+  return s;
 }
 
 /** Flatten `attribution` json for UI; virtual WA/IG rows have no marketing attribution. */

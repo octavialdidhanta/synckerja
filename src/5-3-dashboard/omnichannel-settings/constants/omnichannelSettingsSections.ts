@@ -1,12 +1,13 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardList, Megaphone, Target, Timer, Users } from "lucide-react";
+import { ClipboardList, Code2, Megaphone, Target, Timer, Users } from "lucide-react";
 
 export type OmnichannelSettingsSectionId =
   | "user-management"
   | "sla"
   | "survey"
   | "target"
-  | "offline-conversion";
+  | "offline-conversion"
+  | "api-integration";
 
 export type OmnichannelSettingsSectionMeta = {
   id: OmnichannelSettingsSectionId;
@@ -59,11 +60,20 @@ export const OMNICHANNEL_SETTINGS_SECTIONS: OmnichannelSettingsSectionMeta[] = [
     descriptionKey: "omnichannel.settings.offlineConversion.sidebarDescription",
     status: "active",
   },
+  {
+    id: "api-integration",
+    urlSlug: "api-integration",
+    icon: Code2,
+    titleKey: "omnichannel.settings.apiIntegration.sidebarTitle",
+    descriptionKey: "omnichannel.settings.apiIntegration.sidebarDescription",
+    status: "active",
+  },
 ];
 
 const URL_SLUG_TO_SECTION_ID = new Map<string, OmnichannelSettingsSectionId>([
   ...OMNICHANNEL_SETTINGS_SECTIONS.map((s) => [s.urlSlug, s.id] as const),
   ["google-ads", "offline-conversion"],
+  ["api-integration/docs", "api-integration"],
 ]);
 
 export const OMNICHANNEL_SETTINGS_DEFAULT_SECTION_ID: OmnichannelSettingsSectionId =

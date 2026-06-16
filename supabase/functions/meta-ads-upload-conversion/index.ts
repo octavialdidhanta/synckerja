@@ -81,18 +81,22 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: userRes, error: userErr } = await admin.auth.getUser(token);
-  if (userErr || !userRes?.user) return json({ error: "Invalid token" }, 401);
+  const isInternalService = token === serviceRoleKey;
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("active_organization_id")
-    .eq("user_id", userRes.user.id)
-    .maybeSingle();
+  if (!isInternalService) {
+    const { data: userRes, error: userErr } = await admin.auth.getUser(token);
+    if (userErr || !userRes?.user) return json({ error: "Invalid token" }, 401);
 
-  const activeOrg = profile?.active_organization_id != null ? String(profile.active_organization_id) : "";
-  if (!activeOrg || activeOrg !== organizationId) {
-    return json({ error: "Forbidden" }, 403);
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("active_organization_id")
+      .eq("user_id", userRes.user.id)
+      .maybeSingle();
+
+    const activeOrg = profile?.active_organization_id != null ? String(profile.active_organization_id) : "";
+    if (!activeOrg || activeOrg !== organizationId) {
+      return json({ error: "Forbidden" }, 403);
+    }
   }
 
   const { data: existingLog } = await admin

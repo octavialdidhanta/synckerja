@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -34,6 +35,29 @@ function maskEmailForDisplay(email: string | null | undefined): string {
   return local[0] + '*'.repeat(local.length - 2) + local[local.length - 1] + domain;
 }
 
+function humanizeFormDataKey(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatFormDataValue(value: unknown, yesLabel: string, noLabel: string): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? yesLabel : noLabel;
+  if (Array.isArray(value)) return value.map((v) => String(v)).join(', ');
+  return String(value);
+}
+
+function normalizeFormDataRecord(
+  raw: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const keys = Object.keys(raw);
+  if (keys.length === 0) return null;
+  return raw;
+}
+
 interface ClientProfile {
   submissionId?: string;
   lead_id: string;
@@ -67,10 +91,12 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
   initialPhoneNumber = '',
   onSave
 }) => {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [canEditSubmission, setCanEditSubmission] = useState(false);
+  const [formData, setFormData] = useState<Record<string, unknown> | null>(null);
   const { toast } = useToast();
 
   const [profile, setProfile] = useState<ClientProfile>({
@@ -98,6 +124,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
   const loadClientProfile = async () => {
     setLoading(true);
     setCanEditSubmission(false);
+    setFormData(null);
     try {
       if (isEmail) {
         setProfile({
@@ -158,6 +185,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
       const submission = await fetchLeadSubmissionForProfile(leadId, organizationId);
       if (submission) {
         setCanEditSubmission(true);
+        setFormData(normalizeFormDataRecord(submission.form_data));
         setProfile({
           submissionId: submission.id,
           lead_id: leadId,
@@ -172,6 +200,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
         });
       } else {
         const fallback = await fetchLeadDisplayFallback(leadId, organizationId);
+        setFormData(null);
         setProfile({
           lead_id: leadId,
           name: fallback?.client?.trim() || clientName,
@@ -307,6 +336,14 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
   const sectionLabelClass = "text-xs font-medium uppercase tracking-wider text-muted-foreground";
   const fieldIconClass = "h-4 w-4 shrink-0 text-muted-foreground";
 
+  const formDataEntries = useMemo(() => {
+    if (!formData) return [];
+    return Object.entries(formData).sort(([a], [b]) => a.localeCompare(b));
+  }, [formData]);
+
+  const yesLabel = t('common.yes', { defaultValue: 'Ya' });
+  const noLabel = t('common.no', { defaultValue: 'Tidak' });
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
@@ -438,6 +475,29 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
                 </div>
               </div>
             </section>
+
+            {formDataEntries.length > 0 ? (
+              <section className={spaceBetween}>
+                <h3 className={sectionLabelClass}>
+                  {t('omnichannel.leads.clientProfile.formDataTitle')}
+                </h3>
+                <div className={`rounded-xl border border-border bg-white divide-y divide-border`}>
+                  {formDataEntries.map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                    >
+                      <span className="text-xs font-medium text-muted-foreground sm:max-w-[40%]">
+                        {humanizeFormDataKey(key)}
+                      </span>
+                      <span className="text-sm text-foreground break-words sm:max-w-[58%] sm:text-right">
+                        {formatFormDataValue(value, yesLabel, noLabel)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         )}
 

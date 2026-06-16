@@ -11,6 +11,8 @@ import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAc
 import { computePresetRange, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
 import { useTranslation } from "react-i18next";
 import { ConnectWebIdDialog } from "../components/ConnectWebIdDialog";
+import { TrafficWebIdSelect } from "../components/TrafficWebIdSelect";
+import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -100,9 +102,6 @@ type TrafficDashboardPayload = {
   }>;
 };
 
-/** Sentinel `<select>` value: opens Connect dialog, not a real web_id. */
-const CONNECT_WEB_ID_SELECT_VALUE = "__connect_web_id__";
-
 function formatDurationMsCompact(ms: number) {
   const safe = Number(ms ?? 0);
   if (!Number.isFinite(safe) || safe <= 0) return "—";
@@ -177,8 +176,9 @@ export default function TrafficPage() {
   const { toast } = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [cancellingWebId, setCancellingWebId] = useState<string | null>(null);
-  const [cancelConfirmWebId, setCancelConfirmWebId] = useState<string | null>(null);
+  const [disconnectingWebId, setDisconnectingWebId] = useState<string | null>(null);
+  const [disconnectConfirmWebId, setDisconnectConfirmWebId] = useState<string | null>(null);
+  const { data: userRole } = useCurrentUserRole();
   type TrafficClickDetails =
     | { kind: "path"; path: string }
     | { kind: "source"; key: "utm" | "paid_click_ids" | "referral" | "direct"; label: string };
@@ -244,28 +244,21 @@ export default function TrafficPage() {
       .filter((id) => id.trim() !== "");
   }, [webAccessQuery.data]);
 
-  const webIdSelectValue = useMemo(() => {
-    if (webIdsQuery.isLoading) return "";
-    if (accessibleWebIds.length === 0) return CONNECT_WEB_ID_SELECT_VALUE;
+  const selectedWebId = useMemo(() => {
+    if (webIdsQuery.isLoading || accessibleWebIds.length === 0) return "";
     const trimmed = webId.trim();
     if (trimmed && accessibleWebIds.includes(trimmed)) return trimmed;
     return accessibleWebIds[0];
   }, [webIdsQuery.isLoading, accessibleWebIds, webId]);
 
-  function handleWebIdSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const v = e.target.value;
-    if (v === CONNECT_WEB_ID_SELECT_VALUE) {
-      setConnectOpen(true);
-      return;
-    }
-    setWebId(v);
-  }
+  const canManageWebId = userRole === "owner" || userRole === "admin";
 
-  function openConnectDialogFromEmptySelect(e: React.SyntheticEvent<HTMLSelectElement>) {
-    if (webIdsQuery.isLoading || accessibleWebIds.length > 0) return;
-    e.preventDefault();
-    setConnectOpen(true);
-  }
+  const disconnectConfirmIsPending = useMemo(() => {
+    if (!disconnectConfirmWebId) return false;
+    return (webAccessQuery.data ?? []).some(
+      (row) => row.web_id === disconnectConfirmWebId && row.is_approved === false,
+    );
+  }, [disconnectConfirmWebId, webAccessQuery.data]);
 
   void organizationId;
 
@@ -454,33 +447,36 @@ export default function TrafficPage() {
     }
   }
 
-  async function handleCancelWebAccessRequest(webIdToCancel: string) {
+  async function handleDisconnectWebAccess(webIdToDisconnect: string) {
     if (!organizationId) return;
-    setCancellingWebId(webIdToCancel);
+    setDisconnectingWebId(webIdToDisconnect);
     try {
       const { error } = await supabase
         .from("analytics_web_access")
         .delete()
         .eq("organization_id", organizationId)
-        .eq("web_id", webIdToCancel)
-        .eq("is_approved", false);
+        .eq("web_id", webIdToDisconnect);
       if (error) throw error;
 
+      if (webId.trim() === webIdToDisconnect) {
+        setWebId("");
+      }
+
       toast({
-        title: "Request cancelled",
-        description: `Request web_id "${webIdToCancel}" sudah dihapus.`,
+        title: "web_id disconnected",
+        description: `Koneksi web_id "${webIdToDisconnect}" sudah dihapus dari organisasi ini.`,
       });
       void webAccessQuery.refetch();
       void webIdsQuery.refetch();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal menghapus request web_id.";
+      const message = err instanceof Error ? err.message : "Gagal menghapus koneksi web_id.";
       toast({
-        title: "Cancel failed",
+        title: "Disconnect failed",
         description: message,
         variant: "destructive",
       });
     } finally {
-      setCancellingWebId(null);
+      setDisconnectingWebId(null);
     }
   }
 
@@ -504,34 +500,16 @@ export default function TrafficPage() {
                         <h2 className="text-base font-semibold text-gray-900">Traffic overview</h2>
                       </div>
                       <div className="flex items-center gap-2">
-                        <select
-                          aria-label="web_id"
-                          className="h-8 min-w-[10rem] max-w-[14rem] rounded-md border border-input bg-background px-2 text-xs text-foreground"
-                          value={webIdSelectValue}
-                          onChange={handleWebIdSelectChange}
-                          onMouseDown={openConnectDialogFromEmptySelect}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              openConnectDialogFromEmptySelect(e);
-                            }
-                          }}
-                          disabled={webIdsQuery.isLoading}
-                        >
-                          {webIdsQuery.isLoading ? (
-                            <option value="">Memuat…</option>
-                          ) : accessibleWebIds.length === 0 ? (
-                            <option value={CONNECT_WEB_ID_SELECT_VALUE}>Connect web_id</option>
-                          ) : (
-                            <>
-                              {accessibleWebIds.map((id) => (
-                                <option key={id} value={id}>
-                                  {id}
-                                </option>
-                              ))}
-                              <option value={CONNECT_WEB_ID_SELECT_VALUE}>Connect web_id</option>
-                            </>
-                          )}
-                        </select>
+                        <TrafficWebIdSelect
+                          value={selectedWebId}
+                          options={accessibleWebIds}
+                          loading={webIdsQuery.isLoading}
+                          canDisconnect={canManageWebId}
+                          disconnectingWebId={disconnectingWebId}
+                          onValueChange={setWebId}
+                          onConnectClick={() => setConnectOpen(true)}
+                          onDisconnectClick={setDisconnectConfirmWebId}
+                        />
                         {filtersHydrated ? (
                           <GoogleAdsDateRangePicker
                             value={dateSelection}
@@ -585,16 +563,18 @@ export default function TrafficPage() {
                                     className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-white/70 px-2 py-1"
                                   >
                                     <code className="text-amber-950">{pendingWebId}</code>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-6 border-amber-300 px-2 text-xs text-amber-950 hover:bg-amber-100"
-                                      onClick={() => setCancelConfirmWebId(pendingWebId)}
-                                      disabled={cancellingWebId === pendingWebId}
-                                    >
-                                      {cancellingWebId === pendingWebId ? "Cancelling..." : "Cancel"}
-                                    </Button>
+                                    {canManageWebId ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-6 border-amber-300 px-2 text-xs text-amber-950 hover:bg-amber-100"
+                                        onClick={() => setDisconnectConfirmWebId(pendingWebId)}
+                                        disabled={disconnectingWebId === pendingWebId}
+                                      >
+                                        {disconnectingWebId === pendingWebId ? "Menghapus..." : "Hapus"}
+                                      </Button>
+                                    ) : null}
                                   </span>
                                 ))}
                               </span>
@@ -1036,35 +1016,51 @@ export default function TrafficPage() {
       />
 
       <AlertDialog
-        open={cancelConfirmWebId != null}
+        open={disconnectConfirmWebId != null}
         onOpenChange={(open) => {
-          if (!open && cancellingWebId == null) setCancelConfirmWebId(null);
+          if (!open && disconnectingWebId == null) setDisconnectConfirmWebId(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel request web_id?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {disconnectConfirmIsPending ? "Hapus request web_id?" : "Disconnect web_id?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Request untuk web_id{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">{cancelConfirmWebId ?? ""}</code>{" "}
-              akan dihapus dari <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">analytics_web_access</code>.
-              Data traffic untuk web_id ini tetap tidak bisa diambil sampai request baru dibuat dan di-approved.
+              Koneksi web_id{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">{disconnectConfirmWebId ?? ""}</code>{" "}
+              akan dihapus dari{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">analytics_web_access</code>{" "}
+              untuk organisasi ini.
+              {disconnectConfirmIsPending ? (
+                <>
+                  {" "}
+                  Request belum approved; data traffic tetap tidak bisa diambil sampai request baru dibuat dan
+                  di-approved.
+                </>
+              ) : (
+                <>
+                  {" "}
+                  Data trafik mentah di database tidak ikut terhapus, tetapi dashboard tidak lagi menampilkan properti
+                  ini sampai Anda connect ulang.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancellingWebId != null}>Back</AlertDialogCancel>
+            <AlertDialogCancel disabled={disconnectingWebId != null}>Batal</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={cancellingWebId != null || cancelConfirmWebId == null}
+              disabled={disconnectingWebId != null || disconnectConfirmWebId == null}
               onClick={(e) => {
                 e.preventDefault();
-                if (!cancelConfirmWebId) return;
-                void handleCancelWebAccessRequest(cancelConfirmWebId).then(() => {
-                  setCancelConfirmWebId(null);
+                if (!disconnectConfirmWebId) return;
+                void handleDisconnectWebAccess(disconnectConfirmWebId).then(() => {
+                  setDisconnectConfirmWebId(null);
                 });
               }}
             >
-              {cancellingWebId != null ? "Deleting..." : "Delete request"}
+              {disconnectingWebId != null ? "Menghapus..." : "Hapus koneksi"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

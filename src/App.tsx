@@ -1082,6 +1082,10 @@ function AppRoutes() {
                 element={<Navigate to={OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO} replace />}
               />
               <Route
+                path="/omnichannel/settings/api-integration/docs"
+                element={<Navigate to="/omnichannel/settings/api-integration?tab=docs" replace />}
+              />
+              <Route
                 path="/omnichannel/settings/:section"
                 element={
                   <PageAccessGuard
@@ -2763,6 +2767,10 @@ const App = () => (
                         <Route
                           path="/omnichannel/settings"
                           element={<Navigate to={OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO} replace />}
+                        />
+                        <Route
+                          path="/omnichannel/settings/api-integration/docs"
+                          element={<Navigate to="/omnichannel/settings/api-integration?tab=docs" replace />}
                         />
                         <Route
                           path="/omnichannel/settings/:section"

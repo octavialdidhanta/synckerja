@@ -1,0 +1,144 @@
+[
+  {
+    "subject": "Anton",
+    "steps": {
+      "traffic": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "session_id": "0ef30983-bdc4-45ba-917b-b3ed3aeaa2c7",
+          "page_view_id": "397a36cf-8489-4a0a-a91e-1e23fb7b5426",
+          "visitor_id": "4f235371-cd2a-4ab2-b37f-f9b394d208b4",
+          "web_id": "vialdi-wedding"
+        }
+      },
+      "heartbeat": {
+        "status": 200,
+        "json": {
+          "success": true,
+          "page_view_id": "397a36cf-8489-4a0a-a91e-1e23fb7b5426"
+        }
+      },
+      "click": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "click_event_id": "df591abf-e7a7-448c-ad03-2029f59c2701"
+        }
+      },
+      "waClick": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "wa_click_id": "0846a792-6412-4caa-9c30-67599804edc5"
+        }
+      },
+      "lead": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "lead_id": "0518c8f2-8e7b-4510-9bcc-1a24fddf042a",
+          "ticket_id": "LEAD-20260616-9247",
+          "session_id": "0ef30983-bdc4-45ba-917b-b3ed3aeaa2c7",
+          "attribution": {
+            "session_id": "0ef30983-bdc4-45ba-917b-b3ed3aeaa2c7",
+            "web_id": "vialdi-wedding",
+            "utm_source": "google",
+            "utm_medium": "cpc",
+            "utm_campaign": "wedding-q2",
+            "utm_content": "hero-cta",
+            "utm_term": "anton",
+            "landing_url": "https://vialdi.id/konsultasi?utm_source=google&utm_medium=cpc&utm_campaign=wedding-q2&utm_content=hero-cta&utm_term=anton&gclid=E2E-SYN-ANTON-gclid-20260616&fbclid=E2E-SYN-ANTON-fbclid-20260616",
+            "gclid": "E2E-SYN-ANTON-gclid-20260616",
+            "fbclid": "E2E-SYN-ANTON-fbclid-20260616"
+          }
+        }
+      },
+      "invoice": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "invoice_id": "e1df0a8d-1d70-49d8-b6ed-61f2b54b53a0",
+          "invoice_number": "INV-E2E-SYN-ANTON-20260616",
+          "lead_id": "0518c8f2-8e7b-4510-9bcc-1a24fddf042a",
+          "lead_matched": true,
+          "lead_converted": true,
+          "sales_activity_id": "1242c2d5-5fb6-422d-b72a-0d793a1c5555",
+          "whatsapp_status": "failed",
+          "whatsapp_message_id": null
+        }
+      }
+    }
+  },
+  {
+    "subject": "Toni",
+    "steps": {
+      "traffic": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "session_id": "83486d65-c03a-486b-a381-4f29eea9d3d5",
+          "page_view_id": "a171fa88-4046-4e18-b624-65e3a9be50c4",
+          "visitor_id": "b65132c8-f42c-48b1-ade0-76b2495619ce",
+          "web_id": "vialdi-wedding"
+        }
+      },
+      "heartbeat": {
+        "status": 200,
+        "json": {
+          "success": true,
+          "page_view_id": "a171fa88-4046-4e18-b624-65e3a9be50c4"
+        }
+      },
+      "click": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "click_event_id": "8ff01d23-5f1c-4e94-989d-df2fb91e35b3"
+        }
+      },
+      "waClick": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "wa_click_id": "18ba9f3f-55b2-49d9-b638-d313d9b672d4"
+        }
+      },
+      "lead": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "lead_id": "e3e3a545-4055-4f3e-9658-ea9298424b13",
+          "ticket_id": "LEAD-20260616-7982",
+          "session_id": "83486d65-c03a-486b-a381-4f29eea9d3d5",
+          "attribution": {
+            "session_id": "83486d65-c03a-486b-a381-4f29eea9d3d5",
+            "web_id": "vialdi-wedding",
+            "utm_source": "google",
+            "utm_medium": "cpc",
+            "utm_campaign": "wedding-q2",
+            "utm_content": "hero-cta",
+            "utm_term": "toni",
+            "landing_url": "https://vialdi.id/konsultasi?utm_source=google&utm_medium=cpc&utm_campaign=wedding-q2&utm_content=hero-cta&utm_term=toni&gclid=E2E-SYN-TONI-gclid-20260616&fbclid=E2E-SYN-TONI-fbclid-20260616",
+            "gclid": "E2E-SYN-TONI-gclid-20260616",
+            "fbclid": "E2E-SYN-TONI-fbclid-20260616"
+          }
+        }
+      },
+      "invoice": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "invoice_id": "7e6bfa6d-4bae-4f1a-8501-e16d3b2ff95f",
+          "invoice_number": "INV-E2E-SYN-TONI-20260616",
+          "lead_id": "e3e3a545-4055-4f3e-9658-ea9298424b13",
+          "lead_matched": true,
+          "lead_converted": true,
+          "sales_activity_id": "72e05997-eb75-4986-8f38-38bfd57495b3",
+          "whatsapp_status": "failed",
+          "whatsapp_message_id": null
+        }
+      }
+    }
+  }
+]

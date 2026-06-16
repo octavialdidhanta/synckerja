@@ -7,6 +7,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { ensureOrganizationOwnerEmployee } from "@/shared/lib/ensureOrganizationOwnerEmployee";
 import { toast } from "@/shared/hooks/use-toast";
 
 export interface OrganizationFormProps {
@@ -171,36 +172,12 @@ export default function OrganizationForm({
         throw new Error(t("onboarding.org.error"));
       }
 
-      const { data: existingEmployee } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("user_id", userId)
-        .limit(1)
-        .maybeSingle();
-
-      if (!existingEmployee) {
-        const { error: emErr } = await supabase.from("employees").insert({
-          user_id: userId,
-          organization_id: orgId,
-          full_name: fullName,
-          email: user.email ?? null,
-        });
-
-        if (emErr) {
-          console.error(emErr);
-          throw new Error(t("onboarding.org.error"));
-        }
-      } else {
-        const { error: linkErr } = await supabase
-          .from("employees")
-          .update({ organization_id: orgId })
-          .eq("id", existingEmployee.id)
-          .is("organization_id", null);
-
-        if (linkErr) {
-          console.warn("employees organization_id:", linkErr);
-        }
-      }
+      await ensureOrganizationOwnerEmployee({
+        organizationId: orgId,
+        userId,
+        fullName,
+        email: user.email ?? null,
+      });
 
       const { error: profileActiveErr } = await supabase
         .from("profiles")

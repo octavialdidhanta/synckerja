@@ -50,8 +50,30 @@ export function parseFbclidFromAttribution(attribution: unknown): string | null 
   } else {
     return null;
   }
-  const fbclid = obj.fbclid ?? obj.FBCLID;
-  return fbclid != null ? String(fbclid).trim() || null : null;
+  const raw = obj.fbclid ?? obj.FBCLID;
+  if (raw === true || raw === false) {
+    return parseFbclidFromLandingUrl(
+      obj.landing_url != null ? String(obj.landing_url) : null,
+    );
+  }
+  if (raw != null) {
+    const s = String(raw).trim();
+    if (s && s !== "true" && s !== "false") return s;
+  }
+  return parseFbclidFromLandingUrl(
+    obj.landing_url != null ? String(obj.landing_url) : null,
+  );
+}
+
+function parseFbclidFromLandingUrl(landingUrl: string | null): string | null {
+  if (!landingUrl?.trim()) return null;
+  try {
+    const v = new URL(landingUrl).searchParams.get("fbclid");
+    return v?.trim() || null;
+  } catch {
+    const m = landingUrl.match(/[?&]fbclid=([^&]+)/i);
+    return m?.[1] ? decodeURIComponent(m[1].trim()) || null : null;
+  }
 }
 
 export function mergeFbclid(column: string | null, attribution: unknown): string | null {

@@ -91,8 +91,26 @@ export function parseFbclidFromAttribution(attribution: unknown): string | null 
   } else {
     return null;
   }
-  const fbclid = obj.fbclid ?? obj.FBCLID;
-  return fbclid != null ? String(fbclid).trim() || null : null;
+  const raw = obj.fbclid ?? obj.FBCLID;
+  if (raw === true || raw === false) {
+    return parseFbclidFromLandingUrl(readString(obj, 'landing_url'));
+  }
+  if (raw != null) {
+    const s = String(raw).trim();
+    if (s && s !== 'true' && s !== 'false') return s;
+  }
+  return parseFbclidFromLandingUrl(readString(obj, 'landing_url'));
+}
+
+function parseFbclidFromLandingUrl(landingUrl: string | null): string | null {
+  if (!landingUrl) return null;
+  try {
+    const v = new URL(landingUrl).searchParams.get('fbclid');
+    return v?.trim() || null;
+  } catch {
+    const m = landingUrl.match(/[?&]fbclid=([^&]+)/i);
+    return m?.[1] ? decodeURIComponent(m[1].trim()) || null : null;
+  }
 }
 
 export function parseGclidFromAttribution(attribution: unknown): string | null {

@@ -5,6 +5,7 @@ import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 import { componentTagger } from "lovable-tagger";
 import { deferAppCssPlugin } from "./vite/deferAppCssPlugin";
+import { omnichannelApiDocsPlugin } from "./vite/omnichannelApiDocsPlugin";
 
 /** Must run before default resolve: legacy `@/features/share/*` meant `src/shared/*` (not `src/features/share/*`). */
 function legacyFeaturesShareResolve(): Plugin {
@@ -62,6 +63,7 @@ export default defineConfig(({ mode }) => {
     },
   },
   plugins: [
+    omnichannelApiDocsPlugin(),
     legacyFeaturesShareResolve(),
     react(),
     deferAppCssPlugin(),

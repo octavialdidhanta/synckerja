@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { Tables } from '@supabase/types';
-import { getOptimizedCurrentOrganizationId } from './useOptimizedCurrentOrg';
 import { devLog } from '@/2-1-employees/MyInfo/PersonalInformation/utils/devLogger';
 import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
 import { batchNameLookupByIds } from './batchEmployeeLookups';
@@ -18,12 +18,15 @@ export type Employee = Tables<'employees'> & {
 };
 
 export const useEmployees = () => {
-  return useQuery({
-    queryKey: ['employees-optimized'],
-    queryFn: async () => {
-      devLog.log('Fetching employees with optimized queries...');
+  const { organizationId } = useCurrentOrg();
 
-      const { organizationId } = await getOptimizedCurrentOrganizationId();
+  return useQuery({
+    queryKey: ['employees-optimized', organizationId],
+    enabled: Boolean(organizationId),
+    queryFn: async () => {
+      if (!organizationId) return [];
+
+      devLog.log('Fetching employees with optimized queries...');
       devLog.log('Current organization ID:', organizationId);
 
       const { data: employees, error } = await supabase

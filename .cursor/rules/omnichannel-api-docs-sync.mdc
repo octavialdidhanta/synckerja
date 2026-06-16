@@ -1,0 +1,29 @@
+---
+description: Sinkronkan dokumentasi Omnichannel Public API (tab Docs) setelah mengubah edge API atau OpenAPI.
+globs:
+  - supabase/functions/omnichannel-public-api/**
+  - supabase/functions/omnichannel-api-manage/**
+  - supabase/functions/_shared/omnichannelPublicApi/**
+  - scripts/generate-omnichannel-api-docs.mjs
+---
+
+# Omnichannel API Docs — selalu sinkron
+
+Tab **Docs** di `/omnichannel/settings/api-integration?tab=docs` membaca `API_ACCESSIBILITY_DOCS.md` (di-generate dari `openapi.yaml`).
+
+## Setelah mengubah API
+
+1. Update **`supabase/functions/omnichannel-public-api/openapi.yaml`** (versi, schema, endpoint) bila kontrak berubah.
+2. Jalankan **`npm run generate:omnichannel-api-docs`** (atau biarkan `npm run dev` / `prebuild` yang men-sync otomatis).
+3. Jika menambah **kode HTTP baru** di handler, update juga i18n + `ApiIntegrationHttpCodesPanel.tsx` (tidak di-generate dari OpenAPI).
+
+## Otomatisasi yang sudah ada
+
+- `npm run dev` — Vite plugin regenerate + full reload jika sumber API lebih baru.
+- `npm run build` — `prebuild` menjalankan `sync:omnichannel-api-docs`.
+- `npm run supabase:functions:deploy:omnichannel-api` — sync docs sebelum deploy.
+- `npm run verify:omnichannel-api-docs` — CI guard (gagal jika markdown belum commit).
+
+## Sumber yang memicu regenerate
+
+`openapi.yaml`, generator script, `omnichannel-public-api` handlers, `omnichannel-api-manage`, `_shared/omnichannelPublicApi`.
