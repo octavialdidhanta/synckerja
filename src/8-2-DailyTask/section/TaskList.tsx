@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { CheckSquare } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow } from '@/shared/components/ui/table';
 import { TooltipProvider } from '@/shared/components/ui/tooltip';
@@ -21,6 +21,8 @@ import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { useIndividualObjectives } from '@/1-home/components/HomeOKRDashboard/modal/useIndividualObjectives';
 import { getEffectiveProgressAndCount } from '../utils/taskUtils';
 import { getTaskCheckboxRule } from '../utils/taskCheckboxRules';
+import { sortTasksByTitle, type TaskTitleSortDirection } from '../utils/taskListSort';
+import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import './TaskList.css';
 import { hideScrollbarClassName } from '../lib/hideScrollbar';
 
@@ -111,6 +113,28 @@ export const TaskList = () => {
   }>({ isOpen: false, taskId: null, taskTitle: '', nextStatus: 'pending' });
   const taskRefs = useRef<{ [key: string]: HTMLTableRowElement | null }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [titleSort, setTitleSort] = useState<TaskTitleSortDirection | null>(null);
+
+  /**
+   * Title sort is desktop-only. While a task checklist is expanded or after task-level checkbox
+   * changes, keep status/due-date default order from `useTaskFilters` (no conflict with step sort).
+   */
+  const displayTasks = useMemo(() => {
+    const base = effectiveFilteredTasks;
+    const applyTitleSort = !isMobile && titleSort !== null && expandedTasks.size === 0;
+    if (!applyTitleSort) return base;
+    return sortTasksByTitle(base, titleSort);
+  }, [effectiveFilteredTasks, titleSort, expandedTasks.size, isMobile]);
+
+  const handleTitleSortToggle = useCallback(() => {
+    if (isMobile) return;
+    setTitleSort((prev) => {
+      if (prev === null) return 'asc';
+      if (prev === 'asc') return 'desc';
+      return null;
+    });
+  }, [isMobile]);
 
   useEffect(() => {
     if (highlightedTask && taskRefs.current[highlightedTask] && scrollContainerRef.current) {
@@ -141,7 +165,7 @@ export const TaskList = () => {
       setExpandedTasks(new Set());
     } else {
       setExpandedTasks(new Set([taskId]));
-      const ids = effectiveFilteredTasks.map((t) => t.id);
+      const ids = displayTasks.map((t) => t.id);
       const idx = ids.indexOf(taskId);
       const toFetch: string[] = [taskId];
       for (let i = 1; i <= 4 && idx + i < ids.length; i++) {
@@ -257,6 +281,7 @@ export const TaskList = () => {
           ? t('dailyTask.taskCompletedDesc', '"{{title}}" has been marked as completed', { title: taskTitle })
           : t('dailyTask.taskReopenedDesc', '"{{title}}" has been reopened', { title: taskTitle }),
     });
+    setTitleSort(null);
     try {
       await updateTask(taskId, { status: nextStatus });
     } catch {
@@ -321,9 +346,14 @@ export const TaskList = () => {
             className={`flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-auto ${hideScrollbarClassName}`}
           >
             <table className="w-full caption-bottom text-sm task-list-table">
-              <TaskListTableHeader />
+              <TaskListTableHeader
+                enableTitleSort={!isMobile}
+                titleSort={titleSort}
+                onTitleSortToggle={handleTitleSortToggle}
+                titleSortAriaLabel={t('dailyTask.sort.taskTitle', 'Sort by task title')}
+              />
               <TableBody>
-                {effectiveFilteredTasks.length === 0 ? (
+                {displayTasks.length === 0 ? (
                   <TableRow className="w-full">
                     <TableCell
                       colSpan={14}
@@ -362,7 +392,7 @@ export const TaskList = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  effectiveFilteredTasks.map((task) => (
+                  displayTasks.map((task) => (
                     <TaskListRow
                       key={task.id}
                       task={task}
