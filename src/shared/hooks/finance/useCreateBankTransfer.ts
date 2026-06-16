@@ -189,6 +189,7 @@ export function useCreateBankTransfer() {
           queryClient.refetchQueries({ queryKey: ['income-transactions', organizationId] }),
           queryClient.refetchQueries({ queryKey: [...EXPENSES_QUERY_KEY, organizationId] }),
           queryClient.refetchQueries({ queryKey: ['bank-account-balances', organizationId] }),
+          queryClient.refetchQueries({ queryKey: ['income-transaction-summary', organizationId] }),
           queryClient.refetchQueries({ queryKey: ['income-metrics', organizationId] }),
           queryClient.refetchQueries({ queryKey: ['monthly-income-data', organizationId] }),
           queryClient.refetchQueries({ queryKey: ['expense-metrics', organizationId] }),

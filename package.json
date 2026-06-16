@@ -55,6 +55,9 @@
     "supabase:functions:deploy:send-instagram-message": "npx supabase functions deploy send-instagram-message",
     "supabase:functions:deploy:instagram-webhook": "npx supabase functions deploy instagram-webhook --no-verify-jwt",
     "supabase:functions:deploy:google-sso-public-config": "npx supabase functions deploy google-sso-public-config",
+    "supabase:functions:deploy:google-drive-file-media": "npx supabase functions deploy google-drive-file-media --no-verify-jwt",
+    "supabase:functions:deploy:google-drive-file-thumbnail": "npx supabase functions deploy google-drive-file-thumbnail --no-verify-jwt",
+    "supabase:functions:deploy:google-drive-review-preview": "npx supabase functions deploy google-drive-file-media google-drive-file-thumbnail --no-verify-jwt",
     "supabase:db:push:livechat-lead-statuses": "npx supabase db push"
   },
   "dependencies": {

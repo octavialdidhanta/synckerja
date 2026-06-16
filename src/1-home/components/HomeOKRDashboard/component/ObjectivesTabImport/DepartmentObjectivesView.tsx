@@ -10,10 +10,8 @@ import { useReportOkrTabStatus } from '@/1-home/context/HomeOkrTabsLoadContext';
 import { useReportOkrPageDetail } from '@/1-OKR/context/OkrPageDetailLoadContext';
 import { useFilteredObjectives } from './useFilteredObjectives';
 import { useDepartments } from './CompanyObjectivesDetailViewImport/useDepartments';
-import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { CreateIndividualObjectiveModal } from './DepartmentObjectivesViewImport/CreateIndividualObjectiveModal';
-import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
-import { getEmployeeStatus } from '@/2-1-employees/utils/employeeUtils';
+import { useOkrActiveEmployees } from '../../hooks/useOkrActiveEmployees';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/shared/components/ui/accordion';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
 import { WeeklyCheckinForm } from './DepartmentObjectivesViewImport/WeeklyCheckinDialog';
@@ -94,14 +92,7 @@ export const DepartmentObjectivesView = ({
     isLoading: loadingDepartments,
     error: departmentsError,
   } = useDepartments(organizationId);
-  const { data: employees = [], isPending: employeesPending } = useEmployees();
-
-  const activeEmployees = useMemo(() => {
-    return employees.filter(emp => {
-      const status = getEmployeeStatus(emp);
-      return status?.toLowerCase() !== 'terminated';
-    });
-  }, [employees]);
+  const { data: activeEmployees = [], isPending: employeesPending } = useOkrActiveEmployees(organizationId);
 
   // Get individual objectives ONLY for the specific department objectives
   // This prevents data sharing and improves performance
@@ -109,9 +100,6 @@ export const DepartmentObjectivesView = ({
     data: individualObjectives = [],
     isPending: individualObjectivesPending,
   } = useIndividualObjectives(organizationId, finalCycleIds);
-  const {
-    user: currentUser
-  } = useCurrentUser();
 
   const deleteObjective = useDeleteDepartmentObjective();
 

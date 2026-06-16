@@ -1,10 +1,10 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { Tables } from '@supabase/types';
 import { getOptimizedCurrentOrganizationId } from './useOptimizedCurrentOrg';
 import { devLog } from '@/2-1-employees/MyInfo/PersonalInformation/utils/devLogger';
 import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
+import { batchNameLookupByIds } from './batchEmployeeLookups';
 
 export type Employee = Tables<'employees'> & {
   department_name?: string;
@@ -26,7 +26,6 @@ export const useEmployees = () => {
       const { organizationId } = await getOptimizedCurrentOrganizationId();
       devLog.log('Current organization ID:', organizationId);
 
-      // First get employees without JOINs to avoid relation errors
       const { data: employees, error } = await supabase
         .from('employees')
         .select('*')
@@ -38,17 +37,40 @@ export const useEmployees = () => {
         throw error;
       }
 
-      // Get organization data once for ownership check
-      const { data: organization } = await supabase
-        .from('organizations')
-        .select('user_id')
-        .eq('id', organizationId)
-        .single();
+      const empList = employees ?? [];
 
-      const { data: orgRoleRows } = await supabase
-        .from('user_roles')
-        .select('user_id, role')
-        .eq('organization_id', organizationId);
+      const [
+        { data: organization },
+        { data: orgRoleRows },
+        departmentNames,
+        jobPositionNames,
+        jobLevelNames,
+        branchNames,
+        employeeStatusNames,
+      ] = await Promise.all([
+        supabase.from('organizations').select('user_id').eq('id', organizationId).single(),
+        supabase.from('user_roles').select('user_id, role').eq('organization_id', organizationId),
+        batchNameLookupByIds(
+          'departments',
+          empList.map((emp) => emp.department_id),
+        ),
+        batchNameLookupByIds(
+          'job_positions',
+          empList.map((emp) => emp.job_position_id),
+        ),
+        batchNameLookupByIds(
+          'job_levels',
+          empList.map((emp) => emp.job_level_id),
+        ),
+        batchNameLookupByIds(
+          'branches',
+          empList.map((emp) => emp.branch_id),
+        ),
+        batchNameLookupByIds(
+          'employee_statuses',
+          empList.map((emp) => emp.employee_status_id),
+        ),
+      ]);
 
       const rolesByUser = new Map<string, { role: string }[]>();
       for (const row of orgRoleRows ?? []) {
@@ -58,39 +80,28 @@ export const useEmployees = () => {
         rolesByUser.set(row.user_id, list);
       }
 
-      // Get related data separately for each employee
-      const enrichedEmployees = await Promise.all(
-        (employees || []).map(async (emp) => {
-          const isOwner = emp.user_id && organization && emp.user_id === organization.user_id;
-          const orgRoles = emp.user_id ? rolesByUser.get(emp.user_id) : undefined;
-          const organization_role = orgRoles?.length
-            ? pickHighestUserRoleFromRows(orgRoles)
-            : null;
-          
-          // Get related data separately to avoid JOIN issues
-          const [departmentData, jobPositionData, jobLevelData, branchData, employeeStatusData] = await Promise.all([
-            emp.department_id ? supabase.from('departments').select('name').eq('id', emp.department_id).maybeSingle() : Promise.resolve({ data: null }),
-            emp.job_position_id ? supabase.from('job_positions').select('name').eq('id', emp.job_position_id).maybeSingle() : Promise.resolve({ data: null }),
-            emp.job_level_id ? supabase.from('job_levels').select('name').eq('id', emp.job_level_id).maybeSingle() : Promise.resolve({ data: null }),
-            emp.branch_id ? supabase.from('branches').select('name').eq('id', emp.branch_id).maybeSingle() : Promise.resolve({ data: null }),
-            emp.employee_status_id ? supabase.from('employee_statuses').select('name').eq('id', emp.employee_status_id).maybeSingle() : Promise.resolve({ data: null })
-          ]);
-          
-          devLog.log(`Employee ${emp.full_name}: department_id=${emp.department_id}, department_name=${departmentData.data?.name}`);
-          
-          return {
-            ...emp,
-            is_organization_owner: isOwner,
-            organization_role,
-            // Use consistent naming and proper fallbacks
-            department_name: departmentData.data?.name || null,
-            job_position_name: jobPositionData.data?.name || null,
-            job_level_name: jobLevelData.data?.name || null,
-            branch_name: branchData.data?.name || null,
-            employee_status_name: employeeStatusData.data?.name || emp.status || null,
-          };
-        })
-      );
+      const enrichedEmployees = empList.map((emp) => {
+        const isOwner = emp.user_id && organization && emp.user_id === organization.user_id;
+        const orgRoles = emp.user_id ? rolesByUser.get(emp.user_id) : undefined;
+        const organization_role = orgRoles?.length ? pickHighestUserRoleFromRows(orgRoles) : null;
+
+        return {
+          ...emp,
+          is_organization_owner: isOwner,
+          organization_role,
+          department_name: emp.department_id
+            ? departmentNames.get(emp.department_id) ?? null
+            : null,
+          job_position_name: emp.job_position_id
+            ? jobPositionNames.get(emp.job_position_id) ?? null
+            : null,
+          job_level_name: emp.job_level_id ? jobLevelNames.get(emp.job_level_id) ?? null : null,
+          branch_name: emp.branch_id ? branchNames.get(emp.branch_id) ?? null : null,
+          employee_status_name: emp.employee_status_id
+            ? employeeStatusNames.get(emp.employee_status_id) ?? emp.status ?? null
+            : emp.status ?? null,
+        };
+      });
 
       const userIds = [
         ...new Set(

@@ -2,7 +2,7 @@ import DOMPurify from 'dompurify';
 
 const URL_REGEX = /(https?:\/\/[^\s<>"'{}|\\^`[\]]+)/gi;
 
-const ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'img', 'div', 'span', 'a'];
+const ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'img', 'div', 'span', 'a', 'h1', 'h2', 'h3'];
 const ALLOWED_ATTR = ['src', 'alt', 'class', 'loading', 'href', 'target', 'rel'];
 
 export type TextUrlSegment = { type: 'text' | 'url'; value: string };

@@ -6,6 +6,7 @@ import { EmployeeAttendanceTab } from "@/2-3-employee-attendance";
 import { AttendanceSettings } from "@/2-3-settings";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { useModulePageOverlaySkeleton } from "@/shared/auth/page-access/useModulePageOverlaySkeleton";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -32,21 +33,18 @@ function AttendancePageContent() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
 
   const activeTab = attendanceTabFromPathname(location.pathname);
-  const [isLoading, setIsLoading] = useState(true);
   const [settingsSkeletonVisible, setSettingsSkeletonVisible] = useState(true);
-
-  useEffect(() => {
-    setIsLoading(false);
-  }, [location.pathname]);
 
   /** Navigation is performed inside `HeaderAndTab` via `navigate()`; tab state is URL-derived. */
   const handleTabChange = useCallback((_tab: string) => {}, []);
 
   const isSettingsRoute = location.pathname === "/attendance/settings";
-  const recordsRoute = location.pathname === "/attendance/attendance";
-  /** Records tab: wait for org context + section ref-counts; avoids one frame without overlay before table/sidebar report load. */
-  const rawLoading =
-    isLoading || hasPendingLoad || (recordsRoute && orgBootstrapPending);
+  const dataPending = hasPendingLoad || orgBootstrapPending;
+  const { showFullPageSkeleton, accessReady } = useModulePageOverlaySkeleton(
+    dataPending,
+    location.pathname,
+  );
+  const rawLoading = !accessReady || showFullPageSkeleton;
 
   useEffect(() => {
     if (!isSettingsRoute) {
@@ -66,13 +64,9 @@ function AttendancePageContent() {
     return () => window.clearTimeout(timer);
   }, [isSettingsRoute, rawLoading]);
 
-  /** Debounce clearing overlay on records route so query `isPending` / ref-counts settling in adjacent ticks do not flash content. */
-  const recordsShellReady = useDebouncedReady(!rawLoading, 220);
-  const showShellSkeleton = isSettingsRoute
-    ? settingsSkeletonVisible
-    : recordsRoute
-      ? !recordsShellReady
-      : rawLoading;
+  /** Debounce clearing overlay so query / ref-counts settling in adjacent ticks do not flash content. */
+  const shellReady = useDebouncedReady(!rawLoading, 220);
+  const showShellSkeleton = isSettingsRoute ? settingsSkeletonVisible : !shellReady;
   const skeletonVariant = getAttendanceSkeletonVariant(location.pathname);
   const loadingAria = t("layout.attendanceModule.loadingAria", "Loading attendance");
 

@@ -2,8 +2,8 @@
 import React from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { ExternalLink } from 'lucide-react';
-import { useSocialMediaLinks } from '../../../hook/useSocialMediaLinks';
 import { cn } from '@/shared/lib/utils';
+import type { SocialMediaLink } from '@/shared/types/social-media-links';
 
 interface GoogleDriveLinkCellProps {
   googleDriveLink: string | null;
@@ -63,7 +63,7 @@ export const GoogleDriveLinkCell: React.FC<GoogleDriveLinkCellProps> = ({
 };
 
 interface PostLinkCellProps {
-  planId: string;
+  planLinks: SocialMediaLink[];
   isDisabled: boolean;
   onSocialLinksClick: () => void;
   isSelected?: boolean;
@@ -71,26 +71,25 @@ interface PostLinkCellProps {
 }
 
 export const PostLinkCell: React.FC<PostLinkCellProps> = ({
-  planId,
+  planLinks,
   isDisabled,
   onSocialLinksClick,
   isSelected = false,
   productionApproved = false
 }) => {
-  const { links } = useSocialMediaLinks(planId);
+  const links = planLinks;
 
   const getPostLinksDisplayText = (): string => {
     if (!links || links.length === 0) return 'Click to add social media links...';
-    
+
     if (links.length === 1) {
       const link = links[0];
       return `${link.platform} link added`;
     }
-    
+
     return `${links.length} social media links added`;
   };
 
-  // Determine if done is false (no links exist)
   const isDone = links && links.length > 0;
 
   const getTextColorClass = (): string => {

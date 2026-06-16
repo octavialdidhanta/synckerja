@@ -7,12 +7,18 @@ import { useToast } from '@/shared/components/ui/use-toast';
 import { whyImportantFromRow } from '@/1-home/components/HomeOKRDashboard/lib/objectiveDb';
 import { filterValidCycleIds, isValidUUID } from '@/shared/lib/uuidValidation';
 
+export type ObjectivesQueryOptions = {
+  enabled?: boolean;
+};
+
 export const useObjectives = (
   organizationId?: string,
   cycleId?: string,
   level?: string,
   cycleIds?: string[],
+  options?: ObjectivesQueryOptions,
 ) => {
+  const queryEnabled = options?.enabled ?? true;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -386,7 +392,7 @@ export const useObjectives = (
       // console.log('✅ Objectives loaded:', data.length);
       return data as Objective[];
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && queryEnabled,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: false,
   });

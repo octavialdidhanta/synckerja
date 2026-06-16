@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
+import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { Button } from "@/shared/components/ui/button";
 import { Skeleton } from "@/shared/components/ui/skeleton";
@@ -29,19 +29,16 @@ export function HrManagementRoleGuard({
   deniedNavigateTo = "/employees",
   showPendingSkeleton = true,
 }: HrManagementRoleGuardProps) {
-  const { data: role, isPending } = useCurrentUserRole();
+  const { userRole, centralProfileHydrated, loading: centralLoading } = useCentralizedUserData();
   const { t } = useAppTranslation();
   const navigate = useNavigate();
 
+  const isPending = !centralProfileHydrated || centralLoading;
+  const role = userRole;
+
   if (isPending) {
     if (!showPendingSkeleton) {
-      return (
-        <div
-          className="flex min-h-0 min-w-0 flex-1 flex-col bg-gray-100"
-          aria-busy
-          aria-label={t("employees.page.loadingAria", "Loading")}
-        />
-      );
+      return <>{children}</>;
     }
     return (
       <div

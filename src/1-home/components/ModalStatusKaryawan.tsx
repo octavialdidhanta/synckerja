@@ -4,7 +4,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Send, Loader2, Edit3 } from 'lucide-react';
-import { useEmployeeStatus, EmployeeStatus } from './useEmployeeStatus';
+import { EmployeeStatus } from './useEmployeeStatus';
 
 interface ModalStatusKaryawanProps {
   isOpen: boolean;
@@ -12,6 +12,19 @@ interface ModalStatusKaryawanProps {
   onStatusCreated?: () => void;
   onStatusUpdated?: () => void;
   editingStatus?: EmployeeStatus | null;
+  createStatus: (statusData: {
+    status_text: string;
+    location: string;
+    status_type: 'work' | 'meeting' | 'break' | 'call' | 'wfh';
+  }) => Promise<boolean>;
+  updateStatus: (
+    statusId: string,
+    statusData: {
+      status_text: string;
+      location: string;
+      status_type: 'work' | 'meeting' | 'break' | 'call' | 'wfh';
+    },
+  ) => Promise<boolean>;
 }
 
 export const ModalStatusKaryawan = ({ 
@@ -19,14 +32,14 @@ export const ModalStatusKaryawan = ({
   onClose, 
   onStatusCreated, 
   onStatusUpdated, 
-  editingStatus 
+  editingStatus,
+  createStatus,
+  updateStatus,
 }: ModalStatusKaryawanProps) => {
   const [newStatus, setNewStatus] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  
-  const { createStatus, updateStatus } = useEmployeeStatus();
   const isEditMode = !!editingStatus;
 
   const locations = [

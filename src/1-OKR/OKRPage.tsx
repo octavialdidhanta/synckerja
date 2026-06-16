@@ -1,9 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import {
-  AttendanceStatusProvider,
-} from "@/1-home/components/HomeOKRDashboard/component/AttendanceStatusProvider";
 import type { YearQuarterSelection } from "@/1-home/components/HomeOKRDashboard/component/FiturTimePeriod";
 import {
   filterCyclesByYearQuarter,
@@ -374,13 +371,11 @@ function OKRPageContent() {
 
 export function OKRPage() {
   return (
-    <AttendanceStatusProvider>
-      <OkrPageDetailLoadProvider>
-        <OKRSectionVisibilityProvider>
-          <OKRPageContent />
-        </OKRSectionVisibilityProvider>
-      </OkrPageDetailLoadProvider>
-    </AttendanceStatusProvider>
+    <OkrPageDetailLoadProvider>
+      <OKRSectionVisibilityProvider>
+        <OKRPageContent />
+      </OKRSectionVisibilityProvider>
+    </OkrPageDetailLoadProvider>
   );
 }
 

@@ -1,12 +1,13 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useCanAllocateIncome } from "@/4-1-dashboard/hooks/useCanAllocateIncome";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useGatewayWalletBalances } from "@/shared/hooks/finance/useGatewayWalletBalances";
 import { useXenditOrgSettings } from "@/xendit/hooks/useXenditOrgSettings";
-import { fetchGatewayWithdrawals, validateGatewayPayoutBank } from "@/xendit/lib/xenditApi";
+import { useXenditGatewayWithdrawals } from "@/4-1-transaction/xendit/hooks/useXenditGatewayWithdrawals";
+import { validateGatewayPayoutBank } from "@/xendit/lib/xenditApi";
 import { mapBankNameToXenditCode } from "@/xendit/lib/bankCodes";
 
 function payoutBlockMessage(
@@ -60,16 +61,7 @@ export function useXenditFinancePanel() {
 
   const hasSubAccount = Boolean(data?.account?.xendit_sub_account_id);
 
-  const { data: historyData } = useQuery({
-    queryKey: ["xendit-gateway-withdrawals", organizationId],
-    queryFn: async () => {
-      if (!organizationId) return [];
-      const res = await fetchGatewayWithdrawals(organizationId, 20);
-      return res.withdrawals ?? [];
-    },
-    enabled: Boolean(organizationId && hasSubAccount),
-    staleTime: 15_000,
-  });
+  const { data: historyData } = useXenditGatewayWithdrawals(organizationId, hasSubAccount);
 
   const handleRefresh = useCallback(async () => {
     await refetch();

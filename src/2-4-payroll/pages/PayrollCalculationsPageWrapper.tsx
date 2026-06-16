@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { useModulePageOverlaySkeleton } from "@/shared/auth/page-access/useModulePageOverlaySkeleton";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -17,6 +19,10 @@ import { HeaderAndTab } from "./HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { PayrollRouteSkeleton } from "../components/PayrollRouteSkeleton";
 import { PayrollRunActions } from "../components/PayrollRunActions";
+import { formatPayrollDataError } from "../lib/payrollQueryErrors";
+import { payrollCalculationsQueryKey } from "../hooks/payrollCalculationsQueryKey";
+import { usePayrollPeriodsOverview } from "../hooks/usePayrollPeriodsOverview";
+import { useDefaultTaxConfiguration } from "../hooks/useDefaultTaxConfiguration";
 
 /** Columns + joins required by list, filters, metrics, detail, and delete. */
 const PAYROLL_CALCULATIONS_LIST_SELECT = `
@@ -86,8 +92,9 @@ function isTaxItem(item: PayrollItemRow) {
 
 export default function PayrollCalculationsPage() {
   const { t } = useAppTranslation();
-  const { organization, loading: userDataLoading } = useCentralizedUserData();
-  const { loading: orgProfileLoading } = useCurrentOrg();
+  const location = useLocation();
+  const { organization } = useCentralizedUserData();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   const organizationId = organization?.id ?? null;
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,7 +112,7 @@ export default function PayrollCalculationsPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["payroll-calculations", organizationId, selectedPayrollRunId],
+    queryKey: payrollCalculationsQueryKey(organizationId, selectedPayrollRunId),
     queryFn: async () => {
       if (!organizationId) return [];
 
@@ -233,9 +240,19 @@ export default function PayrollCalculationsPage() {
     }
   };
 
+  const { isPending: periodsPending } = usePayrollPeriodsOverview(organizationId);
+  const { isPending: taxConfigPending } = useDefaultTaxConfiguration(organizationId);
+
   const listInitialPending =
     !!organizationId && isLoading && calculations.length === 0 && !selectedEmployee;
-  const rawLoading = userDataLoading || orgProfileLoading || listInitialPending;
+  const sidebarInitialPending =
+    !selectedEmployee && !!organizationId && (periodsPending || taxConfigPending);
+  const dataPending = orgBootstrapPending || listInitialPending || sidebarInitialPending;
+  const { showFullPageSkeleton, accessReady } = useModulePageOverlaySkeleton(
+    dataPending,
+    location.pathname,
+  );
+  const rawLoading = !accessReady || showFullPageSkeleton;
   const showContentReady = useDebouncedReady(!rawLoading, 220);
   const showShellSkeleton = !showContentReady;
   const loadingAria = t("payroll.page.loadingAria", "Loading payroll");

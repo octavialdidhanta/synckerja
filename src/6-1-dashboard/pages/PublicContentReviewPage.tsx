@@ -33,6 +33,8 @@ import {
   extractGoogleDriveFileId,
   getEmbedUrl,
   getDirectVideoUrl,
+  getFolderEmbedUrl,
+  getYouTubeEmbedUrl,
   isFolderLink,
   isFileLink,
   isYouTubeLink,
@@ -124,12 +126,14 @@ function getCommentAccent(commentId: string): (typeof COMMENT_ACCENT_COLORS)[num
  */
 function ReviewFitVideo({
   src,
+  poster,
   fallbackPortrait,
   useMobileHtml5Video,
   videoRef,
   onError,
 }: {
   src: string;
+  poster?: string;
   fallbackPortrait: boolean;
   useMobileHtml5Video: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -149,6 +153,7 @@ function ReviewFitVideo({
       ref={videoRef}
       key={src}
       src={src}
+      poster={poster}
       className="block h-auto w-full max-w-none touch-pan-y bg-neutral-950"
       style={{
         width: '100%',
@@ -158,7 +163,7 @@ function ReviewFitVideo({
       }}
       controls
       playsInline
-      preload="metadata"
+      preload={poster ? 'none' : 'metadata'}
       controlsList="nodownload nofullscreen noremoteplayback"
       disablePictureInPicture={useMobileHtml5Video}
       onLoadedMetadata={(e) => {
@@ -169,6 +174,33 @@ function ReviewFitVideo({
       }}
       onError={onError}
     />
+  );
+}
+
+function ReviewDriveEmbedIframe({
+  src,
+  title,
+  style,
+}: {
+  src: string;
+  title: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      className="relative w-full max-w-full shrink-0 overflow-hidden touch-pan-y bg-neutral-950"
+      style={style}
+    >
+      <iframe
+        src={src}
+        className="absolute inset-0 h-full w-full border-0 touch-pan-y"
+        style={{ touchAction: 'pan-y' }}
+        title={title}
+        allow="autoplay; fullscreen"
+        referrerPolicy="strict-origin-when-cross-origin"
+        loading="lazy"
+      />
+    </div>
   );
 }
 
@@ -230,6 +262,10 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const [videoUseIframe, setVideoUseIframe] = useState(false);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
   const [googleStreamUrl, setGoogleStreamUrl] = useState<string | null>(null);
+  const [publicReviewStreamUrl, setPublicReviewStreamUrl] = useState<string | null>(null);
+  /** True after HEAD probe confirms guest stream endpoint returns 2xx. */
+  const [publicReviewStreamOk, setPublicReviewStreamOk] = useState(false);
+  const [drivePreviewPosterUrl, setDrivePreviewPosterUrl] = useState<string | null>(null);
   const [videoStreamReady, setVideoStreamReady] = useState(false);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [carouselPreviewIndex, setCarouselPreviewIndex] = useState(0);
@@ -389,17 +425,153 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     }
   }, [token, isLoggedIn, profileDisplayName]);
 
+  /** Preconnect Supabase functions origin for faster stream/thumbnail on public review. */
+  useEffect(() => {
+    if (!token?.trim() || typeof document === 'undefined') return;
+    let origin: string;
+    try {
+      origin = new URL(SUPABASE_URL).origin;
+    } catch {
+      return;
+    }
+    const specs: Array<{ rel: string; href: string; crossOrigin?: string }> = [
+      { rel: 'dns-prefetch', href: origin },
+      { rel: 'preconnect', href: origin, crossOrigin: 'anonymous' },
+    ];
+    const nodes: HTMLLinkElement[] = [];
+    for (const spec of specs) {
+      const el = document.createElement('link');
+      el.rel = spec.rel;
+      el.href = spec.href;
+      if (spec.crossOrigin) el.crossOrigin = spec.crossOrigin;
+      document.head.appendChild(el);
+      nodes.push(el);
+    }
+    return () => {
+      for (const el of nodes) el.remove();
+    };
+  }, [token]);
+
   // Reset video state when link changes
   useEffect(() => {
     setVideoUseIframe(false);
     setVideoLoadFailed(false);
     setGoogleStreamUrl(null);
+    setPublicReviewStreamUrl(null);
+    setPublicReviewStreamOk(false);
+    setDrivePreviewPosterUrl(null);
     setVideoStreamReady(false);
   }, [content?.google_drive_link, content?.link_url]);
 
   const reviewMediaLink = content?.google_drive_link ?? content?.link_url ?? '';
   const driveFileId =
-    reviewMediaLink && isFileLink(reviewMediaLink) ? extractGoogleDriveFileId(reviewMediaLink) : null;
+    reviewMediaLink && !isFolderLink(reviewMediaLink)
+      ? extractGoogleDriveFileId(reviewMediaLink)
+      : null;
+
+  /** Guest stream via review token — probe with HEAD first; skeleton until result (avoids loading iframe then canceling). */
+  useEffect(() => {
+    if (isLoggedIn || !token || !driveFileId) {
+      setPublicReviewStreamUrl(null);
+      setPublicReviewStreamOk(false);
+      if (!isLoggedIn) setVideoStreamReady(true);
+      return;
+    }
+    const media = new URL(`${SUPABASE_URL}/functions/v1/google-drive-file-media`);
+    media.searchParams.set('review_token', token);
+    media.searchParams.set('file_id', driveFileId);
+    const probeUrl = media.toString();
+    setPublicReviewStreamUrl(probeUrl);
+    setPublicReviewStreamOk(false);
+    setVideoStreamReady(false);
+
+    const cacheKey = `review_stream_ok:${token}:${driveFileId}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached === '1' || cached === '0') {
+        setPublicReviewStreamOk(cached === '1');
+        setVideoStreamReady(true);
+        return;
+      }
+    } catch {
+      /* ignore quota / private mode */
+    }
+
+    let cancelled = false;
+    void fetch(probeUrl, { method: 'HEAD' })
+      .then((res) => {
+        if (cancelled) return;
+        const ok = res.ok;
+        setPublicReviewStreamOk(ok);
+        try {
+          sessionStorage.setItem(cacheKey, ok ? '1' : '0');
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPublicReviewStreamOk(false);
+          try {
+            sessionStorage.setItem(cacheKey, '0');
+          } catch {
+            /* ignore */
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setVideoStreamReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, token, driveFileId]);
+
+  /** Poster/thumbnail for video — loads in parallel with stream probe (guest + logged-in). */
+  useEffect(() => {
+    if (!driveFileId) {
+      setDrivePreviewPosterUrl(null);
+      return;
+    }
+    let cancelled = false;
+
+    const applyPoster = (accessToken: string | undefined, reviewToken: string | undefined) => {
+      if (cancelled) return;
+      const thumb = new URL(`${SUPABASE_URL}/functions/v1/google-drive-file-thumbnail`);
+      thumb.searchParams.set('file_id', driveFileId);
+      if (accessToken) thumb.searchParams.set('supabase_token', accessToken);
+      else if (reviewToken) thumb.searchParams.set('review_token', reviewToken);
+      else {
+        setDrivePreviewPosterUrl(null);
+        return;
+      }
+      setDrivePreviewPosterUrl(thumb.toString());
+    };
+
+    if (isLoggedIn) {
+      void supabase.auth.getSession().then(({ data: { session } }) => {
+        applyPoster(session?.access_token, undefined);
+      });
+      const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+        applyPoster(session?.access_token, undefined);
+      });
+      return () => {
+        cancelled = true;
+        sub.subscription.unsubscribe();
+      };
+    }
+
+    if (token) {
+      applyPoster(undefined, token);
+    } else {
+      setDrivePreviewPosterUrl(null);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, token, driveFileId]);
 
   /** Authenticated stream (private Drive) — same edge proxy as dashboard preview. */
   useEffect(() => {
@@ -766,10 +938,14 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
 
   const link = content?.google_drive_link ?? content?.link_url ?? '';
   const embedUrl = getEmbedUrl(link);
+  const folderEmbedUrl = isFolderLink(link) ? getFolderEmbedUrl(link) : '';
+  const youtubeEmbedUrl = isYouTubeLink(link) ? getYouTubeEmbedUrl(link) : '';
   const directVideoUrl = isFileLink(link) ? getDirectVideoUrl(link) : '';
-  const effectiveVideoUrl = googleStreamUrl || directVideoUrl;
-  /** Mobile: HTML5 video + native controls; skip Drive iframe (toolbar overlays the frame). */
-  const useMobileHtml5Video = isMobileViewport;
+  const publicReviewStreamActive = publicReviewStreamOk && publicReviewStreamUrl;
+  const hasProxiedStream = Boolean(googleStreamUrl || publicReviewStreamActive);
+  const effectiveVideoUrl = googleStreamUrl || publicReviewStreamActive || directVideoUrl;
+  /** Mobile HTML5 only when proxied stream is confirmed working (not merely constructed). */
+  const useMobileHtml5Video = isMobileViewport && hasProxiedStream;
 
   useEffect(() => {
     setCarouselPreviewIndex(0);
@@ -1148,6 +1324,15 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                     return <div className="text-center text-gray-500 text-sm">{t('publicReview.preview.noLink', 'No link')}</div>;
                   }
                   if (isFolderLink(link)) {
+                    if (!isLoggedIn && folderEmbedUrl) {
+                      return (
+                        <ReviewDriveEmbedIframe
+                          src={folderEmbedUrl}
+                          title={t('publicReview.preview.folderTitle', 'Folder preview')}
+                          style={{ width: '100%', minHeight: 280, aspectRatio: 4 / 3 }}
+                        />
+                      );
+                    }
                     return (
                   <div className="w-full min-h-[200px] rounded-lg overflow-hidden touch-pan-y">
                     <GoogleDriveFolderCarousel folderUrl={link} />
@@ -1155,6 +1340,15 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                     );
                   }
                   if (isYouTubeLink(link)) {
+                    if (youtubeEmbedUrl) {
+                      return (
+                        <ReviewDriveEmbedIframe
+                          src={youtubeEmbedUrl}
+                          title={t('publicReview.preview.youtubeTitle', 'YouTube preview')}
+                          style={videoPlaceholderStyle}
+                        />
+                      );
+                    }
                     return (
                 <div className="text-center">
                     <p className="text-sm text-gray-700 mb-4">{t('publicReview.preview.youtubeUnavailable', 'YouTube preview is not available here.')}</p>
@@ -1168,26 +1362,49 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                   if (isFileLink(link) && embedUrl) {
                     return (
                   (() => {
+                    const guestStreamProbing = !isLoggedIn && Boolean(driveFileId) && !videoStreamReady;
+                    const preferIframeForGuest =
+                      !isLoggedIn && videoStreamReady && !publicReviewStreamOk;
                     const useIframe =
-                      !useMobileHtml5Video && (videoUseIframe || !effectiveVideoUrl);
-                    if (useIframe) {
+                      !useMobileHtml5Video &&
+                      (videoUseIframe ||
+                        videoLoadFailed ||
+                        !effectiveVideoUrl ||
+                        preferIframeForGuest ||
+                        (isMobileViewport && !hasProxiedStream));
+                    if (guestStreamProbing) {
                       return (
                         <div
-                          className="relative w-full max-w-full shrink-0 overflow-hidden touch-pan-y"
+                          className="relative flex min-h-[200px] w-full max-w-full items-center justify-center overflow-hidden bg-neutral-950 text-sm text-gray-400"
                           style={videoPlaceholderStyle}
+                          aria-busy
                         >
-                          <iframe
-                            src={embedUrl}
-                            className="absolute inset-0 h-full w-full border-0 touch-pan-y"
-                            style={{ touchAction: 'pan-y' }}
-                            title="Preview"
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                            loading="lazy"
-                          />
+                          {drivePreviewPosterUrl ? (
+                            <img
+                              src={drivePreviewPosterUrl}
+                              alt=""
+                              className="absolute inset-0 h-full w-full object-contain"
+                              decoding="async"
+                              fetchPriority="high"
+                            />
+                          ) : null}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                            <Loader2 className="h-6 w-6 animate-spin text-white/90" aria-hidden />
+                          </div>
+                          <span className="sr-only">{t('publicReview.loading', 'Loading...')}</span>
                         </div>
                       );
                     }
-                    if (useMobileHtml5Video && isLoggedIn && driveFileId && !videoStreamReady) {
+                    if (useIframe) {
+                      return (
+                        <ReviewDriveEmbedIframe
+                          src={embedUrl}
+                          title={t('publicReview.preview.driveTitle', 'Preview')}
+                          style={videoPlaceholderStyle}
+                        />
+                      );
+                    }
+                    if (useMobileHtml5Video && driveFileId && !videoStreamReady) {
                       return (
                         <div
                           className="flex min-h-[200px] w-full max-w-full items-center justify-center text-sm text-gray-400"
@@ -1199,6 +1416,15 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                       );
                     }
                     if (useMobileHtml5Video && (videoLoadFailed || !effectiveVideoUrl)) {
+                      if (embedUrl) {
+                        return (
+                          <ReviewDriveEmbedIframe
+                            src={embedUrl}
+                            title={t('publicReview.preview.driveTitle', 'Preview')}
+                            style={videoPlaceholderStyle}
+                          />
+                        );
+                      }
                       return (
                         <div className="text-center px-4 py-6">
                           <p className="text-sm text-gray-700 mb-4">
@@ -1214,6 +1440,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                     return (
                       <ReviewFitVideo
                         src={effectiveVideoUrl}
+                        poster={drivePreviewPosterUrl ?? undefined}
                         fallbackPortrait={videoFallbackPortrait}
                         useMobileHtml5Video={useMobileHtml5Video}
                         videoRef={videoRef}
@@ -1224,6 +1451,15 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                       />
                     );
                   })()
+                    );
+                  }
+                  if (embedUrl && extractGoogleDriveFileId(link)) {
+                    return (
+                      <ReviewDriveEmbedIframe
+                        src={embedUrl}
+                        title={t('publicReview.preview.driveTitle', 'Preview')}
+                        style={videoPlaceholderStyle}
+                      />
                     );
                   }
                   return (

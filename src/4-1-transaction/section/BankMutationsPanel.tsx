@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -28,6 +28,11 @@ import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { formatMutationDateTime, resolveMutationDisplayDate } from '@/shared/utils/formatMutationDateTime';
 import { computeMutationErpBalances } from '@/4-1-transaction/lib/computeMutationErpBalances';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
+import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
+import { BANK_MUTATIONS_BASE_PATH } from '@/4-1-bank-mutations/lib/bankMutationsPaths';
 import { cn } from '@/shared/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { RefreshBankMutationsButton } from './RefreshBankMutationsButton';
@@ -57,11 +62,27 @@ function getExpenseTitle(row: BankStatementLineWithMatch): string {
   return row.expense?.expense_name ?? 'Expense';
 }
 
-export function BankMutationsPanel({ layout = 'embedded' }: { layout?: 'embedded' | 'page' }) {
+export function BankMutationsPanel({
+  layout = 'embedded',
+  onLoadingOverlayChange,
+}: {
+  layout?: 'embedded' | 'page';
+  onLoadingOverlayChange?: (showOverlay: boolean) => void;
+}) {
   const { t } = useAppTranslation();
+  const { organizationId } = useCurrentOrg();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   const { canAllocateIncome } = useCanAllocateIncome();
-  const { bankAccounts } = useBankAccounts({ includeInactive: true });
-  const { balances } = useBankAccountBalances();
+  const {
+    bankAccounts,
+    loading: bankAccountsLoading,
+    isPending: bankAccountsPending,
+  } = useBankAccounts({ includeInactive: true });
+  const {
+    balances,
+    loading: balancesLoading,
+    isPending: balancesPending,
+  } = useBankAccountBalances();
 
   const [filters, setFilters] = useState<BankMutationsFilter>({
     bankAccountId: 'all',
@@ -81,6 +102,26 @@ export function BankMutationsPanel({ layout = 'embedded' }: { layout?: 'embedded
     rejectMatch,
     rejectingMatch,
   } = useBankMutations(filters);
+
+  const dataPending =
+    Boolean(organizationId) &&
+    (bankAccountsLoading ||
+      bankAccountsPending ||
+      balancesLoading ||
+      balancesPending ||
+      loading);
+  const rawPendingLoad = orgBootstrapPending || dataPending;
+  const { showFullPageSkeleton, accessReady } = useModulePageOverlaySkeleton(
+    rawPendingLoad,
+    BANK_MUTATIONS_BASE_PATH,
+  );
+  const showContent = useDebouncedReady(accessReady && !showFullPageSkeleton, 220);
+
+  useEffect(() => {
+    if (layout === 'page') {
+      onLoadingOverlayChange?.(!showContent);
+    }
+  }, [layout, onLoadingOverlayChange, showContent]);
 
   const erpBalanceByAccount = useMemo(() => {
     const map = new Map<string, number>();
@@ -192,7 +233,7 @@ export function BankMutationsPanel({ layout = 'embedded' }: { layout?: 'embedded
         ) : null}
       </div>
 
-      {loading ? (
+      {loading && layout !== 'page' ? (
         <div className="flex flex-1 items-center justify-center py-6 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           {t('incomes.brick.loading', 'Memuat mutasi…')}

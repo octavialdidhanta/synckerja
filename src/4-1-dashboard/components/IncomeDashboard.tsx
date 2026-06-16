@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
@@ -33,8 +34,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
-import { IncomeDashboardSkeleton } from '@/4-1-dashboard/skeletons/IncomeDashboardSkeleton';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { useExpenseMetrics } from '@/shared/hooks/finance/useExpenseMetrics';
 import { cn } from '@/shared/lib/utils';
 import { RefreshBankMutationsButton } from '@/4-1-transaction/section/RefreshBankMutationsButton';
@@ -98,8 +99,13 @@ const formatDateToString = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-export function IncomeDashboard() {
+export function IncomeDashboard({
+  onLoadingOverlayChange,
+}: {
+  onLoadingOverlayChange?: (showOverlay: boolean) => void;
+}) {
   const { t } = useAppTranslation();
+  const location = useLocation();
   const { canAllocateIncome } = useCanAllocateIncome();
   const [selectedPeriod, setSelectedPeriod] = useState('This Month');
   const [selectedType, setSelectedType] = useState('All Types');
@@ -135,15 +141,17 @@ export function IncomeDashboard() {
     isPending: balancesPending,
     getBalanceHistory,
   } = useBankAccountBalances();
-  const { expenses, isLoading: expensesLoading } = useExpenses();
+  const { expenses, isLoading: expensesLoading, isPending: expensesPending } = useExpenses();
   const {
     xendit: xenditWallet,
     xenditEligible,
     isStaleXendit,
     syncingXendit,
     syncXenditWallet,
+    isLoading: gatewayWalletsLoading,
+    isPending: gatewayWalletsPending,
   } = useGatewayWalletBalances({ autoSync: false });
-  const { data: xenditSettings } = useXenditOrgSettings(organizationId);
+  const { data: xenditSettings, isLoading: xenditSettingsLoading } = useXenditOrgSettings(organizationId);
 
   const xenditSubAccountSubtitle = useMemo(() => {
     const subId = xenditSettings?.account?.xendit_sub_account_id;
@@ -159,12 +167,20 @@ export function IncomeDashboard() {
   }, [xenditSettings?.account?.xendit_sub_account_id, t]);
 
   const periodRange = useMemo(() => getDateRangeForPeriod(selectedPeriod), [selectedPeriod]);
-  const { data: gatewayPeriodNet } = useGatewayWalletPeriodNet(
+  const {
+    data: gatewayPeriodNet,
+    isLoading: gatewayPeriodNetLoading,
+    isPending: gatewayPeriodNetPending,
+  } = useGatewayWalletPeriodNet(
     periodRange.startDate,
     periodRange.endDate,
     selectedBankAccount === 'all',
   );
-  const { data: gatewayWithdrawalBankCredits = {} } = useGatewayWithdrawalBankPeriodCredits(
+  const {
+    data: gatewayWithdrawalBankCredits = {},
+    isLoading: gatewayWithdrawalCreditsLoading,
+    isPending: gatewayWithdrawalCreditsPending,
+  } = useGatewayWithdrawalBankPeriodCredits(
     periodRange.startDate,
     periodRange.endDate,
     selectedBankAccount === 'all',
@@ -360,17 +376,30 @@ export function IncomeDashboard() {
       bankAccountsPending ||
       balancesLoading ||
       balancesPending ||
-      expensesLoading);
+      expensesLoading ||
+      expensesPending ||
+      gatewayWalletsLoading ||
+      gatewayWalletsPending ||
+      xenditSettingsLoading ||
+      gatewayPeriodNetLoading ||
+      gatewayPeriodNetPending ||
+      gatewayWithdrawalCreditsLoading ||
+      gatewayWithdrawalCreditsPending);
   const rawPendingLoad = orgBootstrapPending || dataPending;
-  const showContent = useDebouncedReady(!rawPendingLoad);
+  const { showFullPageSkeleton, accessReady } = useModulePageOverlaySkeleton(
+    rawPendingLoad,
+    location.pathname,
+  );
+  const showContent = useDebouncedReady(accessReady && !showFullPageSkeleton, 220);
+
+  useEffect(() => {
+    onLoadingOverlayChange?.(!showContent);
+  }, [showContent, onLoadingOverlayChange]);
 
   return (
     <>
       <div
-        className={cn(
-          'flex min-h-full min-w-0 flex-col bg-muted/40',
-          !showContent && 'invisible pointer-events-none select-none',
-        )}
+        className={cn('flex min-h-full min-w-0 flex-col bg-muted/40')}
         aria-hidden={!showContent}
       >
         <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch xl:grid-rows-1 [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]">
@@ -959,16 +988,7 @@ export function IncomeDashboard() {
             </div>
           </div>
       </div>
-      {!showContent ? (
-        <div
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-auto bg-gray-100"
-          aria-busy
-        >
-          <IncomeDashboardSkeleton />
-        </div>
-      ) : null}
 
-      {/* Balance History Modal */}
       <Dialog open={isBalanceHistoryOpen} onOpenChange={setIsBalanceHistoryOpen}>
         <DialogContent className="w-[95vw] sm:w-[600px] max-w-[600px] max-h-[80vh] p-0 overflow-hidden flex flex-col min-w-0">
           <DialogHeader className="flex-shrink-0 p-4 pb-2 border-b">

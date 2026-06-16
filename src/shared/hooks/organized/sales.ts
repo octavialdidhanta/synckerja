@@ -420,6 +420,7 @@ async function createConvertedSalesActivity(
   queryClient.invalidateQueries({ queryKey: ['piutang-payment-verifications'] });
   queryClient.invalidateQueries({ queryKey: ['income-transactions', args.orgId] });
   queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
+  queryClient.invalidateQueries({ queryKey: ['income-transaction-summary', args.orgId] });
   queryClient.invalidateQueries({ queryKey: ['income-metrics', args.orgId] });
   queryClient.invalidateQueries({ queryKey: ['monthly-income-data', args.orgId] });
   queryClient.invalidateQueries({
@@ -982,6 +983,7 @@ export const useSalesActivityPayments = () => {
     if (organizationId) {
       queryClient.invalidateQueries({ queryKey: ['sales-activities', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['income-transactions', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['income-transaction-summary', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['income-metrics', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['monthly-income-data', organizationId] });
     }
@@ -1401,6 +1403,7 @@ export const useIncomeTransactions = () => {
 
       queryClient.invalidateQueries({ queryKey: ['income-transactions', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['income-transaction-summary', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['income-metrics', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['monthly-income-data', organizationId] });
       return data;

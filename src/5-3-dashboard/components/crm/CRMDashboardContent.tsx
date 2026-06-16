@@ -1,13 +1,16 @@
 import React from 'react';
-import { useLeads } from '@/shared/hooks/organized/sales';
 import { LeadsInsights } from "@/5-3-dashboard/components/leads/metrics/LeadsInsights";
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Users, Clock, Target, CheckCircle } from 'lucide-react';
+import type { NewLead } from '@/shared/types/leads';
+
+type CRMDashboardContentProps = {
+  leads: NewLead[];
+};
 
 /** CRM dashboard metrics: org-wide leads (same scope as `CrmConversationSummaryPanel`; RLS-bound). */
-export const CRMDashboardContent = () => {
-  const { leads } = useLeads({ scope: 'all' });
+export const CRMDashboardContent = ({ leads }: CRMDashboardContentProps) => {
 
   const totalLeads = leads.length;
   const convertedLeads = leads.filter(lead => lead.lead_status?.name === 'Converted').length;

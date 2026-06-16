@@ -328,6 +328,7 @@ export const useIncomeTransactions = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['income-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['income-transaction-summary'] });
       queryClient.invalidateQueries({ queryKey: ['income-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-income-data'] });
       queryClient.invalidateQueries({ queryKey: ['sales-activities'] });
@@ -562,6 +563,7 @@ export const useIncomeTransactions = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['income-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['income-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['income-transaction-summary'] });
       queryClient.invalidateQueries({ queryKey: ['income-metrics'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-income-data'] });
       queryClient.invalidateQueries({ queryKey: ['bank-account-balances'] });

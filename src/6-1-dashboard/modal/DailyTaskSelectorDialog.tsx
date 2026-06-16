@@ -13,6 +13,7 @@ import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDa
 import { AssignSocialMediaPlanModal } from './AssignSocialMediaPlanModal';
 import { toast } from 'sonner';
 import { CreateTaskDialog } from '@/8-2-DailyTask/section/CreateTaskDialog';
+import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { id as idLocale } from 'date-fns/locale';
 import { devLog } from '@/shared/lib/logger';
 
@@ -518,19 +519,21 @@ const DailyTaskSelectorDialog: React.FC<DailyTaskSelectorDialogProps> = ({
       )}
     </Dialog>
     
-    {/* Create Task dialog with prefilled title (fallback) - uses DailyTaskProvider from dashboard */}
-    <CreateTaskDialog
-      open={isCreateTaskOpen}
-      onOpenChange={(open) => {
-        setIsCreateTaskOpen(open);
-        if (!open) {
-          // refresh list after closing create dialog
-          fetchDailyTasks();
-        }
-      }}
-      defaultTitle={prefillTitle}
-      defaultPlanDate={dueDate ? new Date(dueDate as string) : null}
-    />
+    {isCreateTaskOpen && (
+      <DailyTaskProvider>
+        <CreateTaskDialog
+          open={isCreateTaskOpen}
+          onOpenChange={(open) => {
+            setIsCreateTaskOpen(open);
+            if (!open) {
+              fetchDailyTasks();
+            }
+          }}
+          defaultTitle={prefillTitle}
+          defaultPlanDate={dueDate ? new Date(dueDate as string) : null}
+        />
+      </DailyTaskProvider>
+    )}
     </>
   );
 };

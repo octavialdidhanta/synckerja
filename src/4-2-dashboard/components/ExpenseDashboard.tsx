@@ -28,10 +28,7 @@ import {
   useExpenseTypes,
   useExpenseCategories,
   type Expense,
-  useDebtsForExpense,
 } from '@/shared/hooks/finance';
-import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
-import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { addExpenseSchema, AddExpenseFormData, RECURRING_FREQUENCIES } from './AddExpenseForm';
 import { useDepartmentsCrud } from '@/shared/hooks/crudMaster/useDepartmentsCrud';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
@@ -48,6 +45,7 @@ import { AttendanceDateRangePicker } from '@/shared/calendar/AttendanceDateRange
 import { Link } from 'react-router-dom';
 import { IncomeAllocationOptionalSection } from '@/4-1-dashboard/components/IncomeAllocationOptionalSection';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
+import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { WithdrawalFromBalanceSelect } from '@/shared/components/finance/WithdrawalFromBalanceSelect';
 import {
   applyWithdrawalSourceToFormFields,
@@ -204,27 +202,19 @@ export function ExpenseDashboard() {
     isLoading: isLoadingPurchaseRequests,
     isPending: isPendingPurchaseRequests,
   } = usePurchaseRequests();
-  // Fetch all expense categories (without filter) for fallback lookup
   const {
     expenseCategories: allExpenseCategories,
     isLoading: allExpenseCategoriesLoading,
+    isPending: allExpenseCategoriesPending,
   } = useExpenseCategories();
-  // Fetch debts for withdrawal from balance dropdown
-  const { debts: debtsForExpense, isLoading: debtsLoading } = useDebtsForExpense();
-  // Fetch bank accounts for withdrawal from balance dropdown
   const {
+    loading: withdrawalOptionsLoading,
+    debtsForExpense,
     bankAccounts,
-    loading: bankAccountsLoading,
-    isPending: bankAccountsPending,
-    refetch: refetchBankAccounts,
-  } = useBankAccounts();
-  const {
-    balances: bankAccountBalances,
-    loading: balancesLoading,
-    isPending: balancesPending,
-    refetch: refetchBalances,
-  } = useBankAccountBalances();
-  const { gateways } = useWithdrawalFromBalanceOptions();
+    bankAccountBalances,
+    gateways,
+    refetchBalances,
+  } = useWithdrawalFromBalanceOptions({ autoSync: false });
 
   const dataPending =
     Boolean(organizationId) &&
@@ -236,14 +226,15 @@ export function ExpenseDashboard() {
       departmentsPending ||
       isPendingPurchaseRequests ||
       isLoadingPurchaseRequests ||
-      debtsLoading ||
-      bankAccountsLoading ||
-      bankAccountsPending ||
-      balancesLoading ||
-      balancesPending ||
-      allExpenseCategoriesLoading);
+      withdrawalOptionsLoading ||
+      allExpenseCategoriesLoading ||
+      allExpenseCategoriesPending);
   const rawPendingLoad = orgBootstrapPending || dataPending;
-  const showContent = useDebouncedReady(!rawPendingLoad);
+  const { showFullPageSkeleton, accessReady } = useModulePageOverlaySkeleton(
+    rawPendingLoad,
+    location.pathname,
+  );
+  const showContent = useDebouncedReady(accessReady && !showFullPageSkeleton, 220);
 
   // Filter purchase requests that are paid/berhasil
   const paidPurchaseRequests = purchaseRequests.filter(req => 
@@ -1084,7 +1075,7 @@ export function ExpenseDashboard() {
             </div>
             <div className="text-left sm:text-right min-w-0 flex-shrink-0">
               <div className="text-2xl sm:text-3xl font-bold text-white truncate">
-                {balancesLoading ? (t('expenses.loading', 'Loading...')) : formatCurrency(
+                {withdrawalOptionsLoading ? (t('expenses.loading', 'Loading...')) : formatCurrency(
                   bankAccountBalances.reduce((total, b) => total + (b.balance ?? 0), 0)
                 )}
               </div>
@@ -1478,9 +1469,9 @@ export function ExpenseDashboard() {
                 </PopoverContent>
               </Popover>
 
-              <Select value={withdrawalFilter} onValueChange={setWithdrawalFilter} disabled={debtsLoading || bankAccountsLoading}>
+              <Select value={withdrawalFilter} onValueChange={setWithdrawalFilter} disabled={withdrawalOptionsLoading}>
                 <SelectTrigger className="w-full sm:w-40 md:w-44 min-w-0">
-                  <SelectValue placeholder={debtsLoading || bankAccountsLoading ? t('expenses.withdrawalFilter.loading', 'Loading...') : t('expenses.withdrawalFilter.allWithdrawal', 'Withdrawal From Balance')} />
+                  <SelectValue placeholder={withdrawalOptionsLoading ? t('expenses.withdrawalFilter.loading', 'Loading...') : t('expenses.withdrawalFilter.allWithdrawal', 'Withdrawal From Balance')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all-withdrawal">{t('expenses.withdrawalFilter.allWithdrawal', 'All')}</SelectItem>

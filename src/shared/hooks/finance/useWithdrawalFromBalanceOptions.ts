@@ -14,22 +14,41 @@ export type WithdrawalGatewayOption = {
   eligible: boolean;
 };
 
-export function useWithdrawalFromBalanceOptions() {
+export function useWithdrawalFromBalanceOptions(options?: { autoSync?: boolean }) {
+  const autoSync = options?.autoSync !== false;
   const { t } = useAppTranslation();
-  const { debts: debtsForExpense, isLoading: debtsLoading } = useDebtsForExpense();
-  const { bankAccounts, loading: bankAccountsLoading } = useBankAccounts();
-  const { balances: bankAccountBalances, loading: balancesLoading } = useBankAccountBalances();
+  const { debts: debtsForExpense, isLoading: debtsLoading, refetch: refetchDebts } = useDebtsForExpense();
+  const {
+    bankAccounts,
+    loading: bankAccountsLoading,
+    isPending: bankAccountsPending,
+    refetch: refetchBankAccounts,
+  } = useBankAccounts();
+  const {
+    balances: bankAccountBalances,
+    loading: balancesLoading,
+    isPending: balancesPending,
+    refetch: refetchBalances,
+  } = useBankAccountBalances();
   const {
     brick,
     xendit,
     brickEligible,
     xenditEligible,
     isLoading: gatewayLoading,
+    isPending: gatewayPending,
     isStaleXendit,
     isStaleBrick,
-  } = useGatewayWalletBalances({ autoSync: true });
+  } = useGatewayWalletBalances({ autoSync });
 
-  const loading = debtsLoading || bankAccountsLoading || balancesLoading || gatewayLoading;
+  const loading =
+    debtsLoading ||
+    bankAccountsLoading ||
+    balancesLoading ||
+    gatewayLoading ||
+    bankAccountsPending ||
+    balancesPending ||
+    gatewayPending;
 
   const gateways = useMemo((): WithdrawalGatewayOption[] => {
     const rows: WithdrawalGatewayOption[] = [];
@@ -113,6 +132,9 @@ export function useWithdrawalFromBalanceOptions() {
     gateways,
     isStaleXendit,
     isStaleBrick,
+    refetchDebts,
+    refetchBankAccounts,
+    refetchBalances,
     formatRupiahAvailable,
     formatGatewaySyncHint,
     formatSelectedLabel,

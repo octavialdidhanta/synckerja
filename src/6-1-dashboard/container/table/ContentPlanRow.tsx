@@ -25,28 +25,20 @@ import GoogleDriveLinkDialog from '../../modal/GoogleDriveLinkDialog';
 import SocialMediaLinksDialog from '../../modal/SocialMediaLinksDialog';
 import type { DigitalMarketingEmployee } from '../../hook/useDigitalMarketingEmployees';
 import type { CreativeEmployee } from '../../hook/useCreativeEmployees';
+import type { ApprovalAccess } from '../../hook/useBatchApprovalAccess';
+import type { SocialMediaLink } from '@/shared/types/social-media-links';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { useSocialMediaLinks } from '@/6-1-dashboard/hook/useSocialMediaLinks';
-import type { User as AuthUser } from '@supabase/supabase-js';
-import { getAuthUserCoalesced, supabase } from '@/shared/lib/supabaseClient';
+import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog, logger } from '@/shared/lib/logger';
 import { cn } from '@/shared/lib/utils';
 import { CreateTaskDialog } from '@/8-2-DailyTask/section/CreateTaskDialog';
+import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 
-// Simple in-memory cache for approval/revision checks to avoid repeated DB queries
-const approvalCheckCache = new Map<string, { result: boolean; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
-
-interface ApprovalAccess {
-  approved: boolean;
-  prodApproved: boolean;
-  loading: boolean;
-}
-
 interface ContentPlanRowProps {
   plan: ContentPlan;
+  planLinks?: SocialMediaLink[];
   contentTypes: ContentType[];
   services: Service[];
   subServices: SubService[];
@@ -76,6 +68,7 @@ interface ContentPlanRowProps {
 }
 export const ContentPlanRow = memo<ContentPlanRowProps>(({
   plan,
+  planLinks = [],
   contentTypes,
   services,
   subServices,
@@ -122,9 +115,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   const {
     toast
   } = useToast();
-  const {
-    links
-  } = useSocialMediaLinks(plan.id);
+  const links = planLinks;
 
   // Helpers for Branding Plan auto-create when approved toggled ON
   const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -218,229 +209,25 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
       devLog.error('recheckOrRollbackAfterCreateClose error:', e);
     }
   };
-  // Use batch-checked approval access from parent if available, otherwise fallback to individual checks
   React.useEffect(() => {
-    const checkApprovalVisibility = async () => {
-      try {
-        let statusAccess: boolean;
-        let prodApprovalAccess: boolean;
+    if (!approvalAccess || approvalAccess.loading) return;
 
-        if (approvalAccess && !approvalAccess.loading) {
-          // Use batch-checked approval access from parent (optimized)
-          statusAccess = approvalAccess.approved;
-          prodApprovalAccess = approvalAccess.prodApproved;
-        } else {
-          // Fallback to individual checks if approvalAccess not provided or still loading
-          statusAccess = await checkAnyUserHasApprovalAccess('approved');
-          prodApprovalAccess = await checkAnyUserHasApprovalAccess('prod_approved');
-        }
-
-        setShowApprovalOptions({
-          status: statusAccess,
-          production_status: prodApprovalAccess
-        });
-        setCanApproveProduction(prodApprovalAccess);
-
-        const authUser = await getAuthUserCoalesced();
-        const revisionAccess = await checkRevisionAccess(authUser);
-        setRevisionConfigActive(revisionAccess);
-
-        const productionRevisionAccess = await checkProductionRevisionAccess(authUser);
-        setProductionRevisionConfigActive(productionRevisionAccess);
-        
-        setConfigLoaded(true);
-      } catch (error) {
-        devLog.error('Error checking approval visibility:', error);
-        // On error, keep refresh icons hidden
-        setRevisionConfigActive(false);
-        setProductionRevisionConfigActive(false);
-        setConfigLoaded(true);
-      }
-    };
-    checkApprovalVisibility();
+    setShowApprovalOptions({
+      status: approvalAccess.approved,
+      production_status: approvalAccess.prodApproved,
+    });
+    setCanApproveProduction(approvalAccess.prodApproved);
+    setRevisionConfigActive(approvalAccess.revision);
+    setProductionRevisionConfigActive(approvalAccess.productionRevision);
+    setConfigLoaded(true);
   }, [approvalAccess]);
 
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner';
 
-  // Fast approval access using batched result from parent (no awaits for instant UX)
   const checkApprovalAccess = (columnType: string): boolean => {
     if (columnType === 'approved') return !!approvalAccess?.approved;
     if (columnType === 'prod_approved') return !!approvalAccess?.prodApproved;
     return false;
-  };
-
-  // Function to check if CURRENT user has approval access for a column type
-  const checkAnyUserHasApprovalAccess = async (columnType: string) => {
-    // This function should check if the CURRENT user has access, not if ANY user has access
-    return await checkApprovalAccess(columnType);
-  };
-
-  // Function to check if current user has revision access based on roles and exceptions (with caching)
-  const checkRevisionAccess = async (user: AuthUser | null) => {
-    try {
-      if (!user) return false;
-
-      // Get user's active organization
-      const {
-        data: profile,
-        error: profileError
-      } = await supabase.from('profiles').select('active_organization_id').eq('user_id', user.id).single();
-      if (profileError || !profile?.active_organization_id) {
-        devLog.error('Error fetching user profile:', profileError);
-        return false;
-      }
-
-      // Check cache first
-      const cacheKey = `revision_${user.id}_${profile.active_organization_id}`;
-      const cached = approvalCheckCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-        // Cache hit - return without logging
-        return cached.result;
-      }
-
-      // Get user's role in the organization
-      const {
-        data: userRole,
-        error: roleError
-      } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('organization_id', profile.active_organization_id).single();
-      if (roleError || !userRole) {
-        devLog.error('Error fetching user role:', roleError);
-        return false;
-      }
-
-      // Get user's employee record to check exceptions
-      const {
-        data: employee,
-        error: employeeError
-      } = await supabase.from('employees').select('id').eq('user_id', user.id).eq('organization_id', profile.active_organization_id).single();
-      if (employeeError || !employee) {
-        devLog.error('Error fetching employee:', employeeError);
-        return false;
-      }
-
-      // First check if ANY revision configuration exists (regardless of is_active)
-      const {
-        data: anyConfig,
-        error: anyConfigError
-      } = await supabase.from('approval_access_configurations').select('is_active').eq('organization_id', profile.active_organization_id).eq('column_type', 'revision').maybeSingle();
-
-      // If any configuration exists but is inactive, hide refresh icon
-      if (anyConfig && !anyConfig.is_active) {
-        const result = false;
-        approvalCheckCache.set(cacheKey, { result, timestamp: Date.now() });
-        return result;
-      }
-
-      // Get revision configuration for the organization (only active ones)
-      const {
-        data: config,
-        error: configError
-      } = await supabase.from('approval_access_configurations').select('*').eq('organization_id', profile.active_organization_id).eq('column_type', 'revision').eq('is_active', true).maybeSingle();
-      if (configError || !config) {
-        const result = userRole.role === 'owner' || userRole.role === 'admin';
-        approvalCheckCache.set(cacheKey, { result, timestamp: Date.now() });
-        return result;
-      }
-
-      // Check if user's role is in the allowed roles
-      const hasRoleAccess = config.allowed_roles?.includes(userRole.role);
-
-      // Check if user is in the exceptions list
-      const isException = config.exceptions?.includes(employee.id);
-      const result = hasRoleAccess || isException;
-      
-      // Cache the result
-      approvalCheckCache.set(cacheKey, { result, timestamp: Date.now() });
-      
-      return result;
-    } catch (error) {
-      devLog.error('Error checking revision access:', error);
-      return false;
-    }
-  };
-
-  // Function to check if current user has production revision access based on roles and exceptions (with caching)
-  const checkProductionRevisionAccess = async (user: AuthUser | null) => {
-    try {
-      if (!user) return false;
-
-      // Get user's active organization
-      const {
-        data: profile,
-        error: profileError
-      } = await supabase.from('profiles').select('active_organization_id').eq('user_id', user.id).single();
-      if (profileError || !profile?.active_organization_id) {
-        devLog.error('Error fetching user profile:', profileError);
-        return false;
-      }
-
-      // Check cache first
-      const cacheKey = `production_revision_${user.id}_${profile.active_organization_id}`;
-      const cached = approvalCheckCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-        // Cache hit - return without logging
-        return cached.result;
-      }
-
-      // Get user's role in the organization
-      const {
-        data: userRole,
-        error: roleError
-      } = await supabase.from('user_roles').select('role').eq('user_id', user.id).eq('organization_id', profile.active_organization_id).single();
-      if (roleError || !userRole) {
-        devLog.error('Error fetching user role:', roleError);
-        return false;
-      }
-
-      // Get user's employee record to check exceptions
-      const {
-        data: employee,
-        error: employeeError
-      } = await supabase.from('employees').select('id').eq('user_id', user.id).eq('organization_id', profile.active_organization_id).single();
-      if (employeeError || !employee) {
-        devLog.error('Error fetching employee:', employeeError);
-        return false;
-      }
-
-      // First check if ANY production revision configuration exists (regardless of is_active)
-      const {
-        data: anyConfig,
-        error: anyConfigError
-      } = await supabase.from('approval_access_configurations').select('is_active').eq('organization_id', profile.active_organization_id).eq('column_type', 'production_revision').maybeSingle();
-
-      // If any configuration exists but is inactive, hide refresh icon
-      if (anyConfig && !anyConfig.is_active) {
-        const result = false;
-        approvalCheckCache.set(cacheKey, { result, timestamp: Date.now() });
-        return result;
-      }
-
-      // Get production revision configuration for the organization (only active ones)
-      const {
-        data: config,
-        error: configError
-      } = await supabase.from('approval_access_configurations').select('*').eq('organization_id', profile.active_organization_id).eq('column_type', 'production_revision').eq('is_active', true).maybeSingle();
-      if (configError || !config) {
-        const result = userRole.role === 'owner' || userRole.role === 'admin';
-        approvalCheckCache.set(cacheKey, { result, timestamp: Date.now() });
-        return result;
-      }
-
-      // Check if user's role is in the allowed roles
-      const hasRoleAccess = config.allowed_roles?.includes(userRole.role);
-
-      // Check if user is in the exceptions list
-      const isException = config.exceptions?.includes(employee.id);
-      const result = hasRoleAccess || isException;
-      
-      // Cache the result
-      approvalCheckCache.set(cacheKey, { result, timestamp: Date.now() });
-      
-      return result;
-    } catch (error) {
-      devLog.error('Error checking production revision access:', error);
-      return false;
-    }
   };
 
   // Remove job position filtering for PIC (column 3) - use all digital employees
@@ -631,7 +418,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
     
     try {
       // Double-check access (async but should be fast due to caching)
-      const hasApprovalAccess = await checkApprovalAccess('prod_approved');
+      const hasApprovalAccess = checkApprovalAccess('prod_approved');
       if (!hasApprovalAccess) {
         toast({
           variant: "destructive",
@@ -1166,7 +953,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         minWidth: '280px',
         maxWidth: '280px'
       }} className="px-2 py-1 border-r border-gray-200 border-b border-gray-200">
-          <PostLinkCell planId={plan.id} isDisabled={isPostLinkDisabled} onSocialLinksClick={() => {
+          <PostLinkCell planLinks={links} isDisabled={isPostLinkDisabled} onSocialLinksClick={() => {
           if (!plan.production_approved) return; // Don't open if production not approved
           setIsSocialLinksDialogOpen(true);
         }} isSelected={isSelected} productionApproved={plan.production_approved || false} />
@@ -1292,21 +1079,22 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
       {/* Social Media Links Dialog */}
       <SocialMediaLinksDialog isOpen={isSocialLinksDialogOpen} onClose={() => setIsSocialLinksDialogOpen(false)} socialMediaPlanId={plan.id} planTitle={plan.title} />
 
-      {/* Auto-create Branding Plan task when approved toggled ON and not exists - uses DailyTaskProvider from dashboard */}
-      <CreateTaskDialog
-        open={isCreateTaskOpen}
-        onOpenChange={(open) => {
-          setIsCreateTaskOpen(open);
-          if (!open) {
-            // Immediate visual rollback to reflect cancellation
-            setApprovedInstant(false);
-            // After dialog closed, recheck existence; rollback toggle if task still not found
-            void recheckOrRollbackAfterCreateClose();
-          }
-        }}
-        defaultTitle={createPrefillTitle}
-        defaultPlanDate={plan.post_date ? new Date(plan.post_date) : null}
-      />
+      {isCreateTaskOpen && (
+        <DailyTaskProvider>
+          <CreateTaskDialog
+            open={isCreateTaskOpen}
+            onOpenChange={(open) => {
+              setIsCreateTaskOpen(open);
+              if (!open) {
+                setApprovedInstant(false);
+                void recheckOrRollbackAfterCreateClose();
+              }
+            }}
+            defaultTitle={createPrefillTitle}
+            defaultPlanDate={plan.post_date ? new Date(plan.post_date) : null}
+          />
+        </DailyTaskProvider>
+      )}
     </>;
 });
 ContentPlanRow.displayName = 'ContentPlanRow';

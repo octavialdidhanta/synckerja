@@ -90,6 +90,10 @@ export const useRealtimeSocialMedia = () => {
             queryKey: ['approval-access-configurations', organizationId],
             refetchType: 'none'
           });
+          queryClient.invalidateQueries({
+            queryKey: ['batch-approval-access'],
+            refetchType: 'active',
+          });
           queryClient.invalidateQueries({ 
             queryKey: ['social-media-plans', organizationId],
             refetchType: 'none'

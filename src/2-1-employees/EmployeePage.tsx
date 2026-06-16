@@ -8,7 +8,6 @@ import {
 } from './section';
 import { EmployeeSidebarFooter } from './section/EmployeeSidebarFooter';
 import { useEmployees } from './hooks/useEmployees';
-import { useCurrentUser } from './hooks/useCurrentUser';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useNavigate } from 'react-router-dom';
@@ -34,8 +33,7 @@ export const EmployeePage = () => {
   
   const { orgBootstrapPending } = useOrgBootstrapPending();
   const { data: employees = [], isPending: employeesPending, refetch } = useEmployees();
-  const { user } = useCurrentUser();
-  const { userRole } = useCentralizedUserData();
+  const { userData, userRole } = useCentralizedUserData();
   const navigate = useNavigate();
 
   const showFullPageSkeleton = orgBootstrapPending || employeesPending;
@@ -129,7 +127,7 @@ export const EmployeePage = () => {
                           <EmployeeTable
                             employees={filteredEmployees}
                             allEmployees={employees}
-                            currentUserEmail={user?.email}
+                            currentUserEmail={userData?.email}
                             userRole={userRole ?? undefined}
                             onRefresh={handleRefresh}
                             onViewEmployee={handleViewEmployee}

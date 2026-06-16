@@ -8,12 +8,8 @@ import { ContentPlanRow } from './table/ContentPlanRow';
 import { LoadingDots } from '@/shared/components/LoadingDots';
 import type { DigitalMarketingEmployee } from '../hook/useDigitalMarketingEmployees';
 import type { CreativeEmployee } from '../hook/useCreativeEmployees';
-
-interface ApprovalAccess {
-  approved: boolean;
-  prodApproved: boolean;
-  loading: boolean;
-}
+import type { ApprovalAccess } from '../hook/useBatchApprovalAccess';
+import type { SocialMediaLink } from '@/shared/types/social-media-links';
 
 interface ContentPlanTableProps {
   contentPlans: ContentPlan[];
@@ -21,6 +17,7 @@ interface ContentPlanTableProps {
   services: Service[];
   subServices: SubService[];
   contentPillars: ContentPillar[];
+  linksByPlanId?: Record<string, SocialMediaLink[]>;
   digitalEmployees?: DigitalMarketingEmployee[];
   creativeEmployees?: CreativeEmployee[];
   currentUserRole?: string | null;
@@ -49,6 +46,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
   services,
   subServices,
   contentPillars,
+  linksByPlanId = {},
   digitalEmployees = [],
   creativeEmployees = [],
   currentUserRole = null,
@@ -266,6 +264,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
             <ContentPlanRow
               key={plan.id}
               plan={plan}
+              planLinks={linksByPlanId[plan.id] ?? []}
               contentTypes={contentTypes}
               services={services}
               subServices={subServices}

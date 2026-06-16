@@ -9,6 +9,7 @@ import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDa
 import { toast } from "sonner";
 import { isEmployeeEligibleForPayroll } from "@/2-1-employees/utils/employeeUtils";
 import { cn } from "@/shared/lib/utils";
+import { payrollCalculationsQueryKey } from "../../hooks/payrollCalculationsQueryKey";
 
 interface PayrollRun {
   id: string;
@@ -236,7 +237,17 @@ export function PayrollRunsOverview({
       const readyToProcessEmployees = Math.max(0, realtimeEligibleEmployees - snapshot.issues.length);
 
       const processedCountByRun = new Map<string, number>();
-      if (runIds.length > 0) {
+      const cachedCalculations = queryClient.getQueryData<Array<{ payroll_run_id?: string }>>(
+        payrollCalculationsQueryKey(organizationId, null),
+      );
+
+      if (cachedCalculations?.length) {
+        cachedCalculations.forEach((row) => {
+          const rid = row.payroll_run_id;
+          if (!rid) return;
+          processedCountByRun.set(rid, (processedCountByRun.get(rid) || 0) + 1);
+        });
+      } else if (runIds.length > 0) {
         const { data: calculationsRows, error: calculationsError } = await supabase
           .from("employee_payroll_calculations")
           .select("payroll_run_id")

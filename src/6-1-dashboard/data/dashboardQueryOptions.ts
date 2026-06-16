@@ -2,6 +2,7 @@ import type { QueryKey } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
 import type { DigitalMarketingEmployee } from '../hook/useDigitalMarketingEmployees';
+import type { SocialMediaLink } from '@/shared/types/social-media-links';
 
 const CONTENT_PLANS_SELECT = `
   id,
@@ -104,7 +105,7 @@ export function getMasterDataQueryOptions(organizationId: string | undefined) {
           : Promise.resolve({ data: [], error: null }),
         supabase
           .from('content_pillars')
-          .select('id, name, is_active, organization_id, is_default')
+          .select('id, name, is_active, organization_id, is_default, funnel_stage, description, category')
           .or(organizationId ? `is_default.eq.true,organization_id.eq.${organizationId}` : 'is_default.eq.true')
           .eq('is_active', true)
           .order('is_default', { ascending: false })
@@ -142,6 +143,35 @@ interface RawEmployeeRow {
   employee_status_id?: string | null;
   pending_removal?: boolean | null;
   employee_statuses?: { name?: string } | null;
+}
+
+export function getAllSocialMediaLinksQueryOptions(organizationId: string | undefined) {
+  return {
+    queryKey: ['all-social-media-links', organizationId] as QueryKey,
+    queryFn: async (): Promise<SocialMediaLink[]> => {
+      if (!organizationId) return [];
+      const { data, error } = await supabase.from('social_media_links').select('*');
+      if (error) throw error;
+      return (data || []) as SocialMediaLink[];
+    },
+    enabled: !!organizationId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  };
+}
+
+export function buildLinksByPlanId(links: SocialMediaLink[]): Record<string, SocialMediaLink[]> {
+  const map: Record<string, SocialMediaLink[]> = {};
+  for (const link of links) {
+    const planId = link.social_media_plan_id;
+    if (!map[planId]) map[planId] = [];
+    map[planId].push(link);
+  }
+  return map;
 }
 
 export function getDailyTasksRemindersQueryOptions(organizationId: string | undefined) {

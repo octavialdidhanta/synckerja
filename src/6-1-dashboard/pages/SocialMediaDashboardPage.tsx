@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useDeferredValue } from "react";
+import React, { useState, useCallback, useEffect, useRef, useDeferredValue, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { PageAccessContentGate } from '@/shared/components/PageAccessContentGate';
 import { Tabs, TabsContent } from "@/shared/components/ui/tabs";
@@ -20,7 +20,7 @@ import { TableFooter } from '../container/TableFooter';
 import { SidebarContainer } from '../container/RightSection/SidebarContainer';
 import { DashboardDataPreloader } from '../container/DashboardDataPreloader';
 import { SocialMediaDashboardSkeleton } from '../skeletons/SocialMediaDashboardSkeleton';
-import { getDailyTasksRemindersQueryOptions } from '../data/dashboardQueryOptions';
+import { getDailyTasksRemindersQueryOptions, getAllSocialMediaLinksQueryOptions, buildLinksByPlanId } from '../data/dashboardQueryOptions';
 import { useSocialMediaDashboardSkeletonGate } from '../hook/useSocialMediaDashboardSkeletonGate';
 import { useEmployeeTargets } from '../hook/useEmployeeTargets';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
@@ -40,17 +40,13 @@ import { useSocialMediaData, useSocialMediaMutations } from "../hook/useOptimize
 import { useContentPlannerEmployees } from "../hook/useContentPlannerEmployees";
 import { useCreativeProductionEmployees } from "../hook/useCreativeProductionEmployees";
 import { useOptimizedFiltering } from "../hook/useOptimizedFiltering";
-import { useUserData } from "@/shared/auth/hooks/useUserData";
 import { setBriefModalOpenPlanId } from "../hook/briefModalOpenRef";
+import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useDigitalMarketingEmployees } from "../hook/useDigitalMarketingEmployees";
-import { useCreativeEmployees } from "../hook/useCreativeEmployees";
-import { useCurrentUserRole } from "../hook/useCurrentUserRole";
-import { useCurrentEmployee } from "@/shared/hooks/useCurrentEmployee";
 import { useBatchApprovalAccess } from "../hook/useBatchApprovalAccess";
 import { useSyncPicProduction } from "../hook/useSyncPicProduction";
 import { useApprovalTaskStepCreation } from "../hook/useApprovalTaskStepCreation";
 import DailyTaskSelectorDialog from "../modal/DailyTaskSelectorDialog";
-import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
 
 const SocialMediaContent = () => {
   const { tab } = useParams<{ tab?: string }>();
@@ -86,14 +82,16 @@ const SocialMediaContent = () => {
   // Other data hooks
   const { contentPlanners } = useContentPlannerEmployees();
   const { creativeProductionMembers } = useCreativeProductionEmployees();
-  const { profile } = useUserData();
-  const { data: currentEmployee, isPending: currentEmployeePending } = useCurrentEmployee();
+  const {
+    userRole: currentUserRole,
+    employee: currentEmployee,
+    loading: centralizedUserLoading,
+  } = useCentralizedUserData();
+  const currentEmployeeId = currentEmployee?.id;
   const {
     data: digitalEmployees = [],
     isPending: digitalEmployeesPending,
   } = useDigitalMarketingEmployees();
-  const { data: creativeEmployees = [], isPending: creativeEmployeesPending } = useCreativeEmployees();
-  const { data: currentUserRole, isPending: currentUserRolePending } = useCurrentUserRole();
   const { isLoading: employeeTargetsLoading } = useEmployeeTargets();
 
   // Sync PIC Production hook
@@ -135,30 +133,15 @@ const SocialMediaContent = () => {
     }
   });
 
-  // Fetch all social media links for Content Post metrics (same logic as ContentPostTab)
-  // Disabled polling - rely on realtime updates instead of refetchInterval
-  const { data: allSocialMediaLinks = [], isPending: socialLinksPending } = useQuery({
-    queryKey: ['all-social-media-links', organizationId],
-    enabled: !!organizationId,
-    queryFn: async () => {
-      if (!organizationId) return [];
-      const { data, error } = await supabase
-        .from('social_media_links')
-        .select('*');
-      
-      if (error) {
-        devLog.error('Error fetching social media links:', error);
-        return [];
-      }
-      
-      return data || [];
-    },
-    staleTime: 30 * 1000, // 30 seconds - data is fresh for 30s
-    gcTime: 5 * 60 * 1000, // 5 minutes - keep cached data
-    refetchInterval: false, // Disabled - realtime updates handle changes, no need for polling
-    refetchOnMount: false, // Don't refetch on mount if data is fresh
-    refetchOnWindowFocus: false, // Don't refetch on focus - realtime handles updates
-  });
+  // Fetch all social media links once for metrics + table rows (no per-row queries)
+  const { data: allSocialMediaLinks = [], isPending: socialLinksPending } = useQuery(
+    getAllSocialMediaLinksQueryOptions(organizationId),
+  );
+
+  const linksByPlanId = useMemo(
+    () => buildLinksByPlanId(allSocialMediaLinks),
+    [allSocialMediaLinks],
+  );
 
   const { isPending: remindersPending } = useQuery(
     getDailyTasksRemindersQueryOptions(organizationId),
@@ -170,9 +153,7 @@ const SocialMediaContent = () => {
     (hasOrg &&
       (loading ||
         digitalEmployeesPending ||
-        creativeEmployeesPending ||
-        currentUserRolePending ||
-        currentEmployeePending ||
+        centralizedUserLoading ||
         employeeTargetsLoading ||
         socialLinksPending ||
         remindersPending ||
@@ -329,7 +310,7 @@ const SocialMediaContent = () => {
   // Use ref to prevent multiple syncs
   const hasSyncedRef = useRef(false);
   useEffect(() => {
-    if (!organizationId || loading || hasSyncedRef.current) return;
+    if (!organizationId || loading || showDashboardSkeleton || hasSyncedRef.current) return;
     
     // Mark as synced to prevent multiple calls
     hasSyncedRef.current = true;
@@ -347,7 +328,7 @@ const SocialMediaContent = () => {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [organizationId, loading, syncAllExistingPlans]);
+  }, [organizationId, loading, showDashboardSkeleton, syncAllExistingPlans]);
 
   const handleTabChange = (newTab: string) => {
     setActiveMainTab(newTab);
@@ -933,13 +914,13 @@ const SocialMediaContent = () => {
 
       if (field === 'google_drive_link' && linkStr.length > 0) {
         const plan = contentPlans.find((p) => p.id === id);
-        const patch = getGoogleDriveLinkNonEmptyUpdates(plan, linkStr, currentEmployee?.id);
+        const patch = getGoogleDriveLinkNonEmptyUpdates(plan, linkStr, currentEmployeeId);
         if (Object.keys(patch).length === 0) {
           return;
         }
         const needsPicToast =
           patch.production_status === 'Need Review' &&
-          !currentEmployee?.id &&
+          !currentEmployeeId &&
           plan?.pic_production_source !== 'task_steps_assigned';
         updateContentPlan(id, patch);
         if (needsPicToast) {
@@ -1047,7 +1028,7 @@ const SocialMediaContent = () => {
       devLog.error('Error in handleFieldChange:', error);
       toast.error('Error updating field');
     }
-  }, [updateContentPlan, currentEmployee?.id, contentPlans, syncPicProduction, requestApproval]);
+  }, [updateContentPlan, currentEmployeeId, contentPlans, syncPicProduction, requestApproval]);
 
   const handleCarouselFirstUploadSuccess = useCallback(
     (planId: string) => {
@@ -1056,7 +1037,7 @@ const SocialMediaContent = () => {
         devLog.debug('Carousel first upload: PIC Production already set from task_steps_assigned', { planId });
         return;
       }
-      const employeeId = currentEmployee?.id;
+      const employeeId = currentEmployeeId;
       if (!employeeId) {
         devLog.debug('Carousel first upload: cannot auto-assign PIC Production (employee not found)');
         return;
@@ -1070,7 +1051,7 @@ const SocialMediaContent = () => {
         production_completion_date: completionDate,
       });
     },
-    [contentPlans, currentEmployee?.id, updateContentPlan]
+    [contentPlans, currentEmployeeId, updateContentPlan]
   );
 
   const handleCarouselAllRemoved = useCallback(
@@ -1098,42 +1079,17 @@ const SocialMediaContent = () => {
       toast.error("Organization not found");
       return;
     }
-    if (!profile?.id) {
-      toast.error("Current employee not found");
+    if (!currentEmployeeId) {
+      toast.error("Current employee not found in organization");
       return;
     }
-    
-    // Validate that the current user exists in employees table
-    let validEmployeeId = profile.id;
-    try {
-      const { data: employeeData, error: employeeError } = await supabase
-        .from('employees')
-        .select('id, user_id')
-        .eq('user_id', profile.user_id)
-        .eq('organization_id', organizationId)
-        .single();
-      
-      if (employeeError || !employeeData) {
-        devLog.error('Employee validation error:', employeeError);
-        toast.error("Current employee not found in organization");
-        return;
-      }
-      
-      // Use the employee ID from the employees table, not the profile ID
-      validEmployeeId = (employeeData as any)?.id || profile.id;
-      devLog.debug('Valid employee found', { profileId: profile.id, employeeId: validEmployeeId });
-    } catch (validationError) {
-      devLog.error('Error validating employee:', validationError);
-      toast.error("Error validating employee data");
-      return;
-    }
-    
+
     try {
       const newContentData = {
         organization_id: organizationId,
         post_date: new Date().toISOString().split('T')[0],
         content_type_id: null,
-        pic_id: validEmployeeId,
+        pic_id: currentEmployeeId,
         service_id: null,
         sub_service_id: null,
         title: null,
@@ -1162,7 +1118,7 @@ const SocialMediaContent = () => {
       devLog.error("Error adding new row:", error);
       toast.error("Error menambahkan baris baru: " + (error as Error).message);
     }
-  }, [organizationId, profile?.id, addContentPlan]);
+  }, [organizationId, currentEmployeeId, addContentPlan]);
 
   const handleMasterDataChange = useCallback(async () => {
     try {
@@ -1307,7 +1263,6 @@ const SocialMediaContent = () => {
   }, [briefDialog.isOpen, briefDialog.id]);
 
   return (
-      <DailyTaskProvider>
         <SocialMediaErrorBoundary>
           <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
           {dataError && (
@@ -1414,14 +1369,16 @@ const SocialMediaContent = () => {
                                   className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 max-h-[calc(100vh-320px)] flex-1 overflow-y-auto overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                                 >
                                   <SocialMediaErrorBoundary>
+                                    {!showDashboardSkeleton ? (
                                     <ContentPlanTable
                                       contentPlans={Array.isArray(filteredContentPlans) ? filteredContentPlans : []}
                                       contentTypes={Array.isArray(contentTypes) ? contentTypes : []}
                                       services={Array.isArray(services) ? services : []}
                                       subServices={Array.isArray(subServices) ? subServices : []}
                                       contentPillars={Array.isArray(contentPillars) ? contentPillars : []}
+                                      linksByPlanId={linksByPlanId}
                                       digitalEmployees={digitalEmployees}
-                                      creativeEmployees={creativeEmployees}
+                                      creativeEmployees={digitalEmployees}
                                       currentUserRole={currentUserRole ?? null}
                                       onSelectItem={handleSelectItem}
                                       selectedItems={selectedItems}
@@ -1440,10 +1397,14 @@ const SocialMediaContent = () => {
                                       onCarouselAllRemoved={handleCarouselAllRemoved}
                                       onProductionResubmitForReview={handleProductionResubmitForReview}
                                     />
+                                    ) : (
+                                      <div className="flex min-h-[200px] items-center justify-center py-8" aria-hidden />
+                                    )}
                                   </SocialMediaErrorBoundary>
                                 </div>
 
                                 <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+                                  {!showDashboardSkeleton ? (
                                   <TableFooter
                                     onContentTypeDataChange={handleMasterDataChange}
                                     onServiceDataChange={handleMasterDataChange}
@@ -1451,6 +1412,9 @@ const SocialMediaContent = () => {
                                     onSocialMediaNameDataChange={() => {}}
                                     services={Array.isArray(services) ? services : []}
                                   />
+                                  ) : (
+                                    <div className="h-8" aria-hidden />
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1564,7 +1528,6 @@ const SocialMediaContent = () => {
           )}
         </div>
         </SocialMediaErrorBoundary>
-      </DailyTaskProvider>
   );
 }
 

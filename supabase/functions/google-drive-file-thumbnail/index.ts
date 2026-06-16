@@ -3,13 +3,18 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   DRIVE_GRANT_REQUIRED_HEADER,
-  getValidGoogleDriveAccessToken,
   mapGoogleDriveApiFailure,
 } from "../_shared/googleDriveAccess.ts";
+import {
+  cacheControlForReviewResource,
+  parseSupabaseJwtFromRequest,
+  resolveDriveAccessFromJwt,
+  resolveDriveAccessFromReviewToken,
+} from "../_shared/googleDriveReviewAccess.ts";
 
 /**
- * Returns the Drive file thumbnail image bytes using the user's Google OAuth token.
- * Used for <img src> / video poster because private files often block drive.google.com/thumbnail in the browser.
+ * Returns Drive file thumbnail bytes using stored Google OAuth.
+ * Auth: Supabase JWT / supabase_token OR public review_token + file_id.
  */
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -18,17 +23,8 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-function parseSupabaseJwt(req: Request, url: URL): string | null {
-  const authHeader = req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const t = authHeader.replace(/^Bearer\s+/i, "").trim();
-    if (t) return t;
-  }
-  const q = url.searchParams.get("supabase_token")?.trim();
-  return q || null;
-}
+const LOG_PREFIX = "google-drive-file-thumbnail";
 
-/** Match client `upscaleGoogleDriveThumbnailUrl` — request largest still Google allows. */
 function upscaleGoogleDriveThumbnailUrl(url: string): string {
   if (!url?.trim()) return url;
   if (url.includes("googleusercontent.com") && /=s\d+/.test(url)) {
@@ -69,13 +65,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    const jwt = parseSupabaseJwt(req, url);
-    if (!jwt) {
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
-      });
-    }
+    const jwt = parseSupabaseJwtFromRequest(req, url);
+    const reviewToken = url.searchParams.get("review_token")?.trim() ?? "";
 
     const fileIdRaw = url.searchParams.get("file_id")?.trim() ?? "";
     if (!fileIdRaw || !/^[a-zA-Z0-9-_]+$/.test(fileIdRaw)) {
@@ -88,7 +79,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!serviceRoleKey) {
-      console.error("google-drive-file-thumbnail: SUPABASE_SERVICE_ROLE_KEY missing");
+      console.error(`${LOG_PREFIX}: SUPABASE_SERVICE_ROLE_KEY missing`);
       return new Response("Server configuration error", {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
@@ -96,25 +87,39 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(jwt);
-    if (userError || !user) {
-      return new Response("Invalid or expired session", {
+
+    let accessToken: string;
+    if (jwt) {
+      const resolved = await resolveDriveAccessFromJwt(supabaseAdmin, jwt, LOG_PREFIX);
+      if (!resolved.ok) {
+        return new Response(resolved.message, {
+          status: resolved.status,
+          headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+      accessToken = resolved.accessToken;
+    } else if (reviewToken) {
+      const resolved = await resolveDriveAccessFromReviewToken(
+        supabaseAdmin,
+        reviewToken,
+        fileIdRaw,
+        LOG_PREFIX,
+      );
+      if (!resolved.ok) {
+        return new Response(resolved.message, {
+          status: resolved.status,
+          headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+      accessToken = resolved.accessToken;
+    } else {
+      return new Response("Unauthorized", {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
       });
     }
 
-    const { accessToken, error: tokenErr } = await getValidGoogleDriveAccessToken(
-      supabaseAdmin,
-      user.id,
-      "google-drive-file-thumbnail",
-    );
-    if (!accessToken) {
-      return new Response(tokenErr ?? "No Google access", {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
-      });
-    }
+    const cacheControl = cacheControlForReviewResource(reviewToken, "thumbnail");
 
     const fields = encodeURIComponent("thumbnailLink");
     const metaRes = await fetch(
@@ -124,7 +129,7 @@ Deno.serve(async (req: Request) => {
 
     const meta = (await metaRes.json()) as Record<string, unknown>;
     if (!metaRes.ok) {
-      console.error("google-drive-file-thumbnail: Drive meta", JSON.stringify(meta).slice(0, 200));
+      console.error(`${LOG_PREFIX}: Drive meta`, JSON.stringify(meta).slice(0, 200));
       const mapped = mapGoogleDriveApiFailure(metaRes.status, meta, fileIdRaw);
       if (mapped.body.code === "DRIVE_GRANT_REQUIRED") {
         const out = new Headers(corsHeaders);
@@ -148,7 +153,7 @@ Deno.serve(async (req: Request) => {
           const out = new Headers(corsHeaders);
           const ct = imgRes.headers.get("content-type");
           if (ct) out.set("Content-Type", ct);
-          out.set("Cache-Control", "private, max-age=300");
+          out.set("Cache-Control", cacheControl);
           return new Response(imgRes.body, { status: 200, headers: out });
         }
       }
@@ -156,11 +161,11 @@ Deno.serve(async (req: Request) => {
 
     const out = new Headers(corsHeaders);
     out.set("Content-Type", "image/svg+xml; charset=utf-8");
-    out.set("Cache-Control", "private, max-age=60");
+    out.set("Cache-Control", reviewToken ? cacheControl : "private, max-age=60");
     return new Response(placeholderSvg, { status: 200, headers: out });
   } catch (e) {
     const err = e as Error;
-    console.error("google-drive-file-thumbnail:", err.message);
+    console.error(`${LOG_PREFIX}:`, err.message);
     return new Response("Internal server error", {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },

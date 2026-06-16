@@ -32,10 +32,10 @@ export const ContentTypeManager: React.FC<ContentTypeManagerProps> = ({ onDataCh
     setContentTypes(data as ContentType[]);
   }, [fetchData]);
 
-  // Load data only once on mount
   useEffect(() => {
-    loadContentTypes();
-  }, [loadContentTypes]);
+    if (!isOpen) return;
+    void loadContentTypes();
+  }, [isOpen, loadContentTypes]);
 
   const handleAdd = useCallback(() => {
     setModalData({

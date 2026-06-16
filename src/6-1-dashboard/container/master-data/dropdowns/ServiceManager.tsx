@@ -37,8 +37,9 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
   }, [fetchData]);
 
   useEffect(() => {
+    if (!isOpen) return;
     void loadServices();
-  }, [loadServices]);
+  }, [isOpen, loadServices]);
 
   const handleAdd = useCallback(() => {
     setDraftName('');

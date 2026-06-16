@@ -42,8 +42,9 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
   }, [fetchData]);
 
   useEffect(() => {
+    if (!isOpen) return;
     void loadSubServices();
-  }, [loadSubServices]);
+  }, [isOpen, loadSubServices]);
 
   const handleAdd = useCallback(() => {
     setDraftName('');

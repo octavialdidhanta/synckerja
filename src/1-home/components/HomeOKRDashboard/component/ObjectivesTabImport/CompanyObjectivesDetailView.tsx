@@ -28,7 +28,6 @@ import { useDeleteCompanyObjective } from '../../hooks/useDeleteCompanyObjective
 import { useDepartmentObjectives } from '../../modal/useDepartmentObjectives';
 import { useIndividualObjectives } from '../../modal/useIndividualObjectives';
 import { useDepartments } from './CompanyObjectivesDetailViewImport/useDepartments';
-import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentOrg } from '../../hooks/useCurrentOrg';
 import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { YearQuarterSelection } from '../FiturTimePeriod';
@@ -204,10 +203,20 @@ export const CompanyObjectivesDetailView = ({
   const shouldUseFilteredObjectives = filteredCycleIds && filteredCycleIds.length > 0;
   
   // For single cycle, use existing hook with 'company' level
-  const singleObjectivesQuery = useObjectives(organizationId, shouldUseFilteredObjectives ? undefined : cycleId || undefined, 'company');
-  
-  // For multiple cycles, use filtered hook with proper cycle IDs array
-  const filteredObjectivesQuery = useFilteredObjectives(organizationId, shouldUseFilteredObjectives ? filteredCycleIds : undefined, 'company');
+  const singleObjectivesQuery = useObjectives(
+    organizationId,
+    shouldUseFilteredObjectives ? undefined : cycleId || undefined,
+    'company',
+    undefined,
+    { enabled: !shouldUseFilteredObjectives },
+  );
+
+  const filteredObjectivesQuery = useFilteredObjectives(
+    organizationId,
+    shouldUseFilteredObjectives ? filteredCycleIds : undefined,
+    'company',
+    { enabled: !!shouldUseFilteredObjectives },
+  );
 
   // Choose the appropriate query result
   const {
@@ -223,9 +232,6 @@ export const CompanyObjectivesDetailView = ({
     isLoading: loadingDepartments,
     error: departmentsQueryError,
   } = useDepartments(loadRelatedObjectives ? organizationId : undefined);
-  const {
-    user: currentUser
-  } = useCurrentUser();
 
   // Use the actual delete hook
   const deleteCompanyObjective = useDeleteCompanyObjective();

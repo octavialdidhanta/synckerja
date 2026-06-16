@@ -72,6 +72,16 @@ export function TaskStepDescriptionEditor({
     lastSyncedValue.current = next;
   }, [value]);
 
+  const runFormatBlock = useCallback(
+    (tag: 'p' | 'h1' | 'h2' | 'h3') => {
+      if (disabled) return;
+      editorRef.current?.focus();
+      document.execCommand('formatBlock', false, tag);
+      emitChange();
+    },
+    [disabled, emitChange],
+  );
+
   const runCommand = useCallback(
     (command: string) => {
       if (disabled) return;
@@ -174,6 +184,42 @@ export function TaskStepDescriptionEditor({
             type="button"
             variant="ghost"
             size="sm"
+            className="h-7 min-w-7 px-1.5 text-[10px] font-bold"
+            disabled={disabled}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => runFormatBlock('h1')}
+            title={t('dailyTask.stepDescription.heading1', 'Heading 1')}
+          >
+            H1
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 min-w-7 px-1.5 text-[10px] font-bold"
+            disabled={disabled}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => runFormatBlock('h2')}
+            title={t('dailyTask.stepDescription.heading2', 'Heading 2')}
+          >
+            H2
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 min-w-7 px-1.5 text-[10px] font-bold"
+            disabled={disabled}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => runFormatBlock('h3')}
+            title={t('dailyTask.stepDescription.heading3', 'Heading 3')}
+          >
+            H3
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
             className="h-7 w-7 p-0"
             disabled={disabled}
             onMouseDown={(e) => e.preventDefault()}
@@ -215,6 +261,9 @@ export function TaskStepDescriptionEditor({
               'scrollbar-hide seamless-scroll nested-scroll-touch-chain max-h-[280px] w-full overflow-y-auto overflow-x-hidden p-3 text-sm outline-none',
               '[&_ol]:list-decimal [&_ul]:list-disc [&_ol]:pl-6 [&_ul]:pl-6',
               '[&_p]:mb-2 [&_p:last-child]:mb-0',
+              '[&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:leading-snug',
+              '[&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:leading-snug',
+              '[&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:leading-snug',
               '[&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-border',
               disabled && 'cursor-not-allowed opacity-60',
             )}

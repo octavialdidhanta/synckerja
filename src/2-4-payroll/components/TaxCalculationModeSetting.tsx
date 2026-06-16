@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -10,40 +11,35 @@ import {
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { toast } from "sonner";
+import {
+  defaultTaxConfigurationQueryKey,
+  useDefaultTaxConfiguration,
+} from "../hooks/useDefaultTaxConfiguration";
 
 export function TaxCalculationModeSetting() {
   const { organization } = useCentralizedUserData();
   const organizationId = organization?.id ?? null;
-  const [mode, setMode] = useState<"annualized" | "ter">("annualized");
-  const [taxConfigId, setTaxConfigId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data: taxConfig } = useDefaultTaxConfiguration(organizationId);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!organizationId) return;
-    void (async () => {
-      const { data } = await supabase
-        .from("tax_configurations")
-        .select("id, calculation_mode")
-        .eq("organization_id", organizationId)
-        .eq("is_default", true)
-        .maybeSingle();
-      if (data?.id) {
-        setTaxConfigId(data.id);
-        setMode((data.calculation_mode as "annualized" | "ter") ?? "annualized");
-      }
-    })();
-  }, [organizationId]);
+  const mode = taxConfig?.calculation_mode ?? "annualized";
 
   const handleChange = async (value: "annualized" | "ter") => {
-    if (!taxConfigId) return;
+    if (!taxConfig?.id) return;
     setLoading(true);
     try {
       const { error } = await supabase
         .from("tax_configurations")
         .update({ calculation_mode: value })
-        .eq("id", taxConfigId);
+        .eq("id", taxConfig.id);
       if (error) throw error;
-      setMode(value);
+
+      queryClient.setQueryData(defaultTaxConfigurationQueryKey(organizationId), {
+        ...taxConfig,
+        calculation_mode: value,
+      });
+
       toast.success(value === "ter" ? "Mode pajak: TER (PP 58/2023)" : "Mode pajak: Annualized");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal update mode pajak");
@@ -52,7 +48,7 @@ export function TaxCalculationModeSetting() {
     }
   };
 
-  if (!organizationId || !taxConfigId) return null;
+  if (!organizationId || !taxConfig?.id) return null;
 
   return (
     <div className="border-border space-y-1 border-t px-4 py-3">

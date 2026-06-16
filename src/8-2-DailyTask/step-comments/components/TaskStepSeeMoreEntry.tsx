@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { MessageSquare, X } from 'lucide-react';
+import { FileText, MessageSquare, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogTitle,
 } from '@/shared/components/ui/dialog';
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetTitle,
+} from '@/shared/components/ui/sheet';
 import { Button } from '@/shared/components/ui/button';
 import { TaskStepDescriptionView } from '@/8-2-DailyTask/components/TaskStepDescriptionView';
 import type { ImageLoupeState } from '@/8-2-DailyTask/components/TaskStepDescriptionImageLoupePanel';
@@ -14,18 +19,14 @@ import { plainTextPreview } from '@/8-2-DailyTask/lib/taskStepDescription';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { TaskStepCommentPanel } from './TaskStepCommentPanel';
-import { COMMENT_FLOAT_WIDTH } from './TaskStepCommentFloating';
 import { useTaskStepCommentUnread } from '../hooks/useTaskStepCommentUnread';
 import type { StepCommentWriteContext } from '../types';
 
 type SeeMoreTab = 'detail' | 'discussion';
 
-/** Desktop description shell — fixed size (matches original See more popover). */
-const DESKTOP_DESC_WIDTH = '36rem';
-const DESKTOP_SHELL_HEIGHT = 'min(520px,70vh)';
-const DESKTOP_CONTENT_MAX_H = 'min(480px,65vh)';
-const DESKTOP_SHELL_LEFT = 'pl-14 sm:pl-20 md:pl-24';
-const DESKTOP_COMMENT_WIDTH = `${COMMENT_FLOAT_WIDTH}px`;
+/** Match CreateDailyTemplateModal sheet sizing (full height, sm:max-w-xl). */
+const SEE_MORE_SHEET_CLASS =
+  'z-[51] flex h-full w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl';
 
 interface TaskStepSeeMoreEntryProps {
   stepId: string;
@@ -116,41 +117,48 @@ export function TaskStepSeeMoreEntry({
     if (isMobile) setMobileTab('detail');
   };
 
-  const toggleDiscussion = () => {
-    if (discussionOpen || mobileTab === 'discussion') {
-      closeDiscussion();
-    } else {
-      openDiscussion();
-    }
-  };
-
   if (!showEntry) return null;
 
-  const renderDiscussionPanel = (withHeader: boolean) => (
+  const renderDiscussionPanel = () => (
     <TaskStepCommentPanel
       taskStepId={stepId}
       writeContext={writeContext}
       isActive={open && (discussionOpen || mobileTab === 'discussion' || !hasDescription)}
       className="min-h-0 h-full flex-1"
-      showHeader={withHeader}
+      showHeader={false}
     />
   );
 
   const commentFooterButton = (
-    <Button
-      type="button"
-      variant={discussionOpen || mobileTab === 'discussion' ? 'secondary' : 'outline'}
-      size="sm"
-      className="h-8 gap-1.5 text-xs"
-      onClick={(e) => {
-        e.stopPropagation();
-        toggleDiscussion();
-      }}
-    >
-      <MessageSquare className="h-3.5 w-3.5" />
-      {t('dailyTask.stepComments.footerComment', 'Comment')}
-      <UnreadBadge count={unreadCount} />
-    </Button>
+    <div className="flex w-full gap-2 sm:w-auto sm:justify-end">
+      <Button
+        type="button"
+        variant={!discussionOpen && mobileTab !== 'discussion' ? 'secondary' : 'outline'}
+        size="sm"
+        className="h-8 flex-1 gap-1.5 text-xs sm:flex-none"
+        onClick={(e) => {
+          e.stopPropagation();
+          closeDiscussion();
+        }}
+      >
+        <FileText className="h-3.5 w-3.5" />
+        {t('dailyTask.stepComments.tabDetail', 'Detail')}
+      </Button>
+      <Button
+        type="button"
+        variant={discussionOpen || mobileTab === 'discussion' ? 'secondary' : 'outline'}
+        size="sm"
+        className="h-8 flex-1 gap-1.5 text-xs sm:flex-none"
+        onClick={(e) => {
+          e.stopPropagation();
+          openDiscussion();
+        }}
+      >
+        <MessageSquare className="h-3.5 w-3.5" />
+        {t('dailyTask.stepComments.footerComment', 'Comment')}
+        <UnreadBadge count={unreadCount} />
+      </Button>
+    </div>
   );
 
   const useInlineDescription = inlineDescriptionExpand && hasLongDescription;
@@ -214,11 +222,11 @@ export function TaskStepSeeMoreEntry({
                   <TaskStepDescriptionView value={description} />
                 </div>
               ) : (
-                renderDiscussionPanel(true)
+                renderDiscussionPanel()
               )}
             </div>
             {hasDescription && !useInlineDescription && (
-              <div className="flex shrink-0 items-center justify-end border-t border-border px-4 py-2">
+              <div className="flex shrink-0 items-center border-t border-border px-4 py-2">
                 {commentFooterButton}
               </div>
             )}
@@ -228,116 +236,66 @@ export function TaskStepSeeMoreEntry({
     );
   }
 
+  const showDescriptionBody = hasDescription && !discussionOpen;
+
   return (
     <>
       {triggerButton}
-      {open &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/55 animate-in fade-in-0 duration-200"
-            aria-label="Close description"
-            onClick={(e) => {
-              e.stopPropagation();
-              closeAll(onOpenChange, onImageLoupeChange, setDiscussionOpen);
-            }}
-          />,
-          document.body,
-        )}
-      {open &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <div
-            className={`pointer-events-none fixed inset-0 z-50 flex items-center justify-start py-4 pr-4 ${DESKTOP_SHELL_LEFT}`}
-          >
-            <div
-              className="pointer-events-auto flex items-stretch gap-3"
-              onClick={(e) => e.stopPropagation()}
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) {
+            closeAll(onOpenChange, onImageLoupeChange, setDiscussionOpen);
+            return;
+          }
+          onOpenChange(true);
+        }}
+      >
+        <SheetContent
+          side="left"
+          className={`${SEE_MORE_SHEET_CLASS} [&>button.absolute]:hidden`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4">
+            <SheetTitle className="min-w-0 flex-1 text-left text-lg font-semibold leading-snug">
+              {stepTitle}
+            </SheetTitle>
+            <SheetClose
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-70 ring-offset-background transition-opacity hover:bg-muted hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
-              <div
-                ref={popoverAnchorRef}
-                className="flex shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-xl"
-                style={{
-                  width: DESKTOP_DESC_WIDTH,
-                  maxWidth: 'calc(100vw - 2rem)',
-                  height: DESKTOP_SHELL_HEIGHT,
-                  maxHeight: DESKTOP_SHELL_HEIGHT,
-                }}
-              >
-                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
-                  <h4 className="min-w-0 flex-1 truncate pr-2 text-sm font-semibold text-gray-900">
-                    {stepTitle}
-                  </h4>
-                  <button
-                    type="button"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
-                    aria-label="Close description"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeAll(onOpenChange, onImageLoupeChange, setDiscussionOpen);
-                    }}
-                  >
-                    <X className="h-4 w-4" aria-hidden />
-                  </button>
-                </div>
-                {hasDescription ? (
-                  <>
-                    <div
-                      className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                      style={{ maxHeight: DESKTOP_CONTENT_MAX_H }}
-                    >
-                      <TaskStepDescriptionView
-                        value={description}
-                        enableImageLoupe={!discussionOpen}
-                        onImageLoupeChange={onImageLoupeChange}
-                      />
-                    </div>
-                    <div className="flex shrink-0 items-center justify-end border-t border-border px-4 py-2">
-                      {commentFooterButton}
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex min-h-[min(320px,50vh)] flex-col">{renderDiscussionPanel(true)}</div>
-                )}
-              </div>
+              <X className="h-4 w-4" aria-hidden />
+              <span className="sr-only">{t('layout.sheetClose', 'Close')}</span>
+            </SheetClose>
+          </div>
 
-              {discussionOpen && hasDescription && (
-                <div
-                  className="flex shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-xl"
-                  style={{
-                    width: DESKTOP_COMMENT_WIDTH,
-                    maxWidth: DESKTOP_COMMENT_WIDTH,
-                    height: DESKTOP_SHELL_HEIGHT,
-                    maxHeight: DESKTOP_SHELL_HEIGHT,
-                  }}
-                >
-                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-                    <h5 className="min-w-0 truncate text-xs font-semibold text-gray-900">
-                      {t('dailyTask.stepComments.title', 'Discussion')}
-                    </h5>
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                      aria-label="Close discussion"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        closeDiscussion();
-                      }}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    {renderDiscussionPanel(false)}
-                  </div>
-                </div>
-              )}
+          <div
+            ref={popoverAnchorRef}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            {showDescriptionBody ? (
+              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <TaskStepDescriptionView
+                  value={description}
+                  enableImageLoupe
+                  onImageLoupeChange={onImageLoupeChange}
+                />
+              </div>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 py-2">
+                {renderDiscussionPanel()}
+              </div>
+            )}
+          </div>
+
+          {hasDescription && (
+            <div className="flex shrink-0 border-t bg-background px-6 py-4">
+              {commentFooterButton}
             </div>
-          </div>,
-          document.body,
-        )}
-      {!discussionOpen && open && (
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {showDescriptionBody && open && (
         <TaskStepDescriptionImageLoupeFloating
           anchorRef={popoverAnchorRef}
           state={descriptionImageLoupe}

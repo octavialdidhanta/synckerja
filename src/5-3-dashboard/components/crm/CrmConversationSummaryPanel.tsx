@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import { ChevronDown } from 'lucide-react';
-import { useLeads } from '@/shared/hooks/organized/sales';
 import { isResolvedStatus } from '@/5-3-whatsapp/constants/leadStatus';
+import type { NewLead } from '@/shared/types/leads';
 import { Button } from '@/shared/components/ui/button';
 import {
   DropdownMenu,
@@ -48,12 +48,14 @@ function metricCardClass() {
 
 /**
  * Sidebar metrics for `/omnichannel/crm` — mirrors “Conversation summary” style (filters + three KPI cards).
- * Uses `useLeads({ scope: 'all' })` so counts match the main CRM dashboard: all leads in the active org allowed by RLS,
- * not the default per-user `mine` scope.
+ * Receives org-wide leads from `CRMDashboardPage` (single `useLeads` + one realtime channel).
  */
-export function CrmConversationSummaryPanel() {
+type CrmConversationSummaryPanelProps = {
+  leads: NewLead[];
+};
+
+export function CrmConversationSummaryPanel({ leads }: CrmConversationSummaryPanelProps) {
   const navigate = useNavigate();
-  const { leads } = useLeads({ scope: 'all' });
   const [period, setPeriod] = useState<ConversationSummaryPeriodKey>('7');
   const [channel, setChannel] = useState<ConversationSummaryChannelKey>('all');
 

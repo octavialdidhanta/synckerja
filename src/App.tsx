@@ -265,7 +265,7 @@ const TermsOfServicePage = lazy(() => import("@/policy").then((m) => ({ default:
 const AccountDeletionPage = lazy(() => import("@/policy").then((m) => ({ default: m.AccountDeletionPage })));
 
 const EmployeePage = lazy(() => import("@/2-1-employees/EmployeePage"));
-const ReprimandManagementPage = lazy(() => import("@/2-1-reprimand").then((m) => ({ default: m.ReprimandManagementPage })));
+import { ReprimandRouteElement } from "@/2-1-reprimand/ReprimandRouteElement";
 const AddEmployeePage = lazy(() => import("@/2-1-employees/add-employee/AddEmployeePage"));
 const EmployeePersonalInfo = lazy(() => import("@/2-1-employees/MyInfo/PersonalInformation/pages/EmployeePersonalInfo"));
 const EmployeeAddressInfo = lazy(() => import("@/2-1-employees/MyInfo/AddressInformation/pages/EmployeeAddressInfo"));
@@ -294,8 +294,8 @@ const RecruitmentJobOpeningsPage = lazy(() =>
   import("@/2-2-recruitment-dashboard").then((m) => ({ default: m.JobOpeningsPage })),
 );
 
-const AttendancePage = lazy(() => import("@/2-3-attendance/AttendancePage").then((m) => ({ default: m.AttendancePage })));
-const PayrollCalculationsPage = lazy(() => import("@/2-4-payroll/pages/PayrollCalculationsPageWrapper"));
+import { AttendanceRouteElement } from "@/2-3-attendance/AttendanceRouteElement";
+import { PayrollCalculationsRouteElement } from "@/2-4-payroll/pages/PayrollCalculationsRouteElement";
 const MyPayslipsPage = lazy(() => import("@/2-4-payroll/pages/MyPayslipsPage"));
 const CompanyCompanyAssetsPage = lazy(() => import("@/2-8-company-assets/pages/CompanyCompanyAssetsPage"));
 const CompanyFilesPage = lazy(() => import("@/2-8-files/pages/CompanyFilesPage"));
@@ -400,6 +400,9 @@ const ExpensesReminderBillsRouteElement = lazy(() =>
     default: m.ExpensesReminderBillsRouteElement,
   })),
 );
+
+import { IncomeDashboardRouteLoadingShell } from "@/shared/components/mobile/IncomeDashboardRouteLoadingShell";
+import { ExpenseDashboardRouteLoadingShell } from "@/shared/components/mobile/ExpenseDashboardRouteLoadingShell";
 
 const IncomeDashboardRouteElement = lazy(() =>
   import("@/shared/components/mobile/incomesMobileRouteElements").then((m) => ({ default: m.IncomeDashboardRouteElement })),
@@ -702,17 +705,7 @@ function AppRoutes() {
               />
               <Route
                 path="/employees/reprimand"
-                element={
-                  <PageAccessGuard
-                    pagePath="/employees/reprimand"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
-                    loadingShellWrapperClassName="bg-gray-100"
-                  >
-                    <HrManagementRoleGuard showPendingSkeleton={false}>
-                      <ReprimandManagementPage />
-                    </HrManagementRoleGuard>
-                  </PageAccessGuard>
-                }
+                element={<ReprimandRouteElement />}
               />
               <Route path="/my-info/personal" element={<EmployeePersonalInfo />} />
               <Route path="/my-info/address" element={<EmployeeAddressInfo />} />
@@ -725,30 +718,9 @@ function AppRoutes() {
               <Route path="/my-info/leave-permit" element={<EmployeeLeavePermit />} />
               <Route path="/my-info/documents" element={<EmployeeDocuments />} />
               <Route path="/my-info/payroll" element={<EmployeePayroll />} />
-              <Route
-                path="/attendance"
-                element={
-                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                    <AttendancePage />
-                  </PageAccessGuard>
-                }
-              />
-              <Route
-                path="/attendance/attendance"
-                element={
-                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                    <AttendancePage />
-                  </PageAccessGuard>
-                }
-              />
-              <Route
-                path="/attendance/settings"
-                element={
-                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                    <AttendancePage />
-                  </PageAccessGuard>
-                }
-              />
+              <Route path="/attendance" element={<AttendanceRouteElement />} />
+              <Route path="/attendance/attendance" element={<AttendanceRouteElement />} />
+              <Route path="/attendance/settings" element={<AttendanceRouteElement />} />
               <Route
                 path="/access-permissions"
                 element={
@@ -819,14 +791,7 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
-              <Route
-                path="/payroll/calculations"
-                element={
-                  <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                    <PayrollCalculationsPage />
-                  </PageAccessGuard>
-                }
-              />
+              <Route path="/payroll/calculations" element={<PayrollCalculationsRouteElement />} />
               <Route
                 path="/company/dashboard"
                 element={
@@ -868,7 +833,11 @@ function AppRoutes() {
               <Route
                 path="/incomes/dashboard"
                 element={
-                  <PageAccessGuard pagePath="/incomes/dashboard" loadingShell={PAGE_GUARD_LOADING_SHELL}>
+                  <PageAccessGuard
+                    pagePath="/incomes/dashboard"
+                    loadingShell={<IncomeDashboardRouteLoadingShell />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
                     <IncomeDashboardRouteElement />
                   </PageAccessGuard>
                 }
@@ -931,7 +900,11 @@ function AppRoutes() {
               <Route
                 path="/expenses/dashboard"
                 element={
-                  <PageAccessGuard pagePath="/expenses/dashboard" loadingShell={PAGE_GUARD_LOADING_SHELL}>
+                  <PageAccessGuard
+                    pagePath="/expenses/dashboard"
+                    loadingShell={<ExpenseDashboardRouteLoadingShell />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
                     <ExpensesDashboardRouteElement />
                   </PageAccessGuard>
                 }
@@ -1180,7 +1153,7 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/crm"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                    loadingShell={<ConsultantCrmDashboardPageSkeleton />}
                     loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                   >
                     <ConsultantCrmDashboardSuspense>
@@ -2358,17 +2331,7 @@ const App = () => (
                         />
                         <Route
                           path="/employees/reprimand"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/employees/reprimand"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
-                              loadingShellWrapperClassName="bg-gray-100"
-                            >
-                              <HrManagementRoleGuard showPendingSkeleton={false}>
-                                <ReprimandManagementPage />
-                              </HrManagementRoleGuard>
-                            </PageAccessGuard>
-                          }
+                          element={<ReprimandRouteElement />}
                         />
                         <Route path="/my-info/personal" element={<EmployeePersonalInfo />} />
                         <Route path="/my-info/address" element={<EmployeeAddressInfo />} />
@@ -2381,30 +2344,9 @@ const App = () => (
                         <Route path="/my-info/leave-permit" element={<EmployeeLeavePermit />} />
                         <Route path="/my-info/documents" element={<EmployeeDocuments />} />
                         <Route path="/my-info/payroll" element={<EmployeePayroll />} />
-                        <Route
-                          path="/attendance"
-                          element={
-                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                              <AttendancePage />
-                            </PageAccessGuard>
-                          }
-                        />
-                        <Route
-                          path="/attendance/attendance"
-                          element={
-                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                              <AttendancePage />
-                            </PageAccessGuard>
-                          }
-                        />
-                        <Route
-                          path="/attendance/settings"
-                          element={
-                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                              <AttendancePage />
-                            </PageAccessGuard>
-                          }
-                        />
+                        <Route path="/attendance" element={<AttendanceRouteElement />} />
+                        <Route path="/attendance/attendance" element={<AttendanceRouteElement />} />
+                        <Route path="/attendance/settings" element={<AttendanceRouteElement />} />
                         <Route
                           path="/access-permissions"
                           element={
@@ -2475,14 +2417,7 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
-                        <Route
-                          path="/payroll/calculations"
-                          element={
-                            <PageAccessGuard loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                              <PayrollCalculationsPage />
-                            </PageAccessGuard>
-                          }
-                        />
+                        <Route path="/payroll/calculations" element={<PayrollCalculationsRouteElement />} />
                         <Route
                           path="/company/dashboard"
                           element={
@@ -2529,7 +2464,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/incomes/dashboard"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShell={<IncomeDashboardRouteLoadingShell />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <IncomeDashboardRouteElement />
                             </PageAccessGuard>
@@ -2610,7 +2546,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/expenses/dashboard"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShell={<ExpenseDashboardRouteLoadingShell />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <ExpensesDashboardRouteElement />
                             </PageAccessGuard>
@@ -2911,7 +2848,7 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/crm"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShell={<ConsultantCrmDashboardPageSkeleton />}
                               loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
                             >
                               <ConsultantCrmDashboardSuspense>

@@ -16,9 +16,7 @@ const SCROLL_MAIN =
 
 /**
  * Shared outer shell untuk `/expenses/dashboard`.
- * - Satu scroll container
- * - HeaderAndTab ikut terscroll dan tetap terlihat saat data loading
- * - Skeleton overlay hanya di area konten (`variant="embedded"`)
+ * Full-page skeleton overlay sampai data siap — header + grid tidak pop-in terpisah.
  */
 export function ExpenseDashboardModuleShell({
   children,
@@ -28,7 +26,13 @@ export function ExpenseDashboardModuleShell({
 }: ExpenseDashboardModuleShellProps) {
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+      <div
+        className={cn(
+          'flex min-h-0 flex-1 flex-col px-4 pb-2',
+          !showContent && 'pointer-events-none invisible',
+        )}
+        aria-hidden={!showContent}
+      >
         <div className="flex h-full min-h-0 flex-col">
           <div className={cn(SCROLL_MAIN, 'min-w-0 flex flex-col')}>
             <div className="flex w-full min-h-0 flex-1 flex-col bg-muted/40">
@@ -36,25 +40,8 @@ export function ExpenseDashboardModuleShell({
                 <HeaderAndTab activeTab={activeTab} onTabChange={onTabChange} />
               </div>
 
-              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-                <div
-                  className={cn(
-                    'flex min-h-0 min-w-0 flex-1 flex-col',
-                    !showContent && 'pointer-events-none invisible select-none',
-                  )}
-                  aria-hidden={!showContent}
-                >
-                  <ModuleShellContentGate>{children}</ModuleShellContentGate>
-                </div>
-
-                {!showContent ? (
-                  <div
-                    className="scrollbar-hide seamless-scroll nested-scroll-touch-chain absolute inset-0 z-20 min-h-0 overflow-y-auto overflow-x-hidden bg-muted/40 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                    aria-busy
-                  >
-                    <ExpenseDashboardSkeleton variant="embedded" />
-                  </div>
-                ) : null}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <ModuleShellContentGate>{children}</ModuleShellContentGate>
               </div>
 
               <div
@@ -65,6 +52,15 @@ export function ExpenseDashboardModuleShell({
           </div>
         </div>
       </div>
+
+      {!showContent ? (
+        <div
+          className="absolute inset-0 z-20 flex flex-col overflow-hidden bg-gray-100"
+          aria-busy="true"
+        >
+          <ExpenseDashboardSkeleton variant="full" />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/shared/components/ui/badge";
 import {
@@ -11,16 +10,18 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { formatToRupiah } from "@/shared/utils/formatCurrency";
-import { fetchGatewayWithdrawals } from "@/xendit/lib/xenditApi";
 import type { XenditGatewayWithdrawalRow } from "@/xendit/lib/xenditApi";
 import { useCanAllocateIncome } from "@/4-1-dashboard/hooks/useCanAllocateIncome";
+import { useXenditGatewayWithdrawals } from "@/4-1-transaction/xendit/hooks/useXenditGatewayWithdrawals";
 import { XenditPanelFooter } from "@/4-1-transaction/xendit/components/XenditPanelFooter";
 import { cn } from "@/shared/lib/utils";
 
 type Props = {
   organizationId: string | null | undefined;
-  enabled: boolean;
+  enabled?: boolean;
   layout?: "embedded" | "page";
+  /** When provided (page route), parent owns the query — avoids duplicate hooks. */
+  rows?: XenditGatewayWithdrawalRow[];
 };
 
 function statusVariant(status: string): "default" | "secondary" | "destructive" {
@@ -47,27 +48,22 @@ function WithdrawalStatusBadge({ status }: { status: string }) {
 
 export function XenditWithdrawHistoryTable({
   organizationId,
-  enabled,
+  enabled = true,
   layout = "embedded",
+  rows: rowsProp,
 }: Props) {
   const { t } = useTranslation();
   const { canAllocateIncome } = useCanAllocateIncome();
   const isPage = layout === "page";
 
-  const { data: historyData, isLoading } = useQuery({
-    queryKey: ["xendit-gateway-withdrawals", organizationId],
-    queryFn: async () => {
-      if (!organizationId) return [];
-      const res = await fetchGatewayWithdrawals(organizationId, 20);
-      return res.withdrawals ?? [];
-    },
-    enabled: Boolean(organizationId && enabled),
-    staleTime: 15_000,
-  });
+  const { data: historyData, isLoading } = useXenditGatewayWithdrawals(
+    organizationId,
+    enabled && rowsProp == null,
+  );
 
-  const rows = (historyData ?? []) as XenditGatewayWithdrawalRow[];
+  const rows = (rowsProp ?? historyData ?? []) as XenditGatewayWithdrawalRow[];
 
-  if (isLoading) {
+  if (isLoading && rowsProp == null && layout !== "page") {
     return (
       <div
         className={cn(

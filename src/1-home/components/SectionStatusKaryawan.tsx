@@ -28,7 +28,7 @@ export const SectionStatusKaryawan = ({ statusCreatedTrigger }: SectionStatusKar
   const [deleteStatusId, setDeleteStatusId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
-  const { statuses, loading, error: statusLoadError, refetch, deleteStatus, updateStatus } = useEmployeeStatus();
+  const { statuses, loading, error: statusLoadError, refetch, deleteStatus, updateStatus, createStatus } = useEmployeeStatus();
   const { data: currentEmployee } = useCurrentEmployee();
 
   useReportHomeSectionStatus('status', loading, statusLoadError);
@@ -270,6 +270,8 @@ export const SectionStatusKaryawan = ({ statusCreatedTrigger }: SectionStatusKar
         onStatusCreated={handleStatusCreated}
         onStatusUpdated={handleStatusUpdated}
         editingStatus={editingStatus}
+        createStatus={createStatus}
+        updateStatus={updateStatus}
       />
 
       {/* Delete Confirmation Dialog */}

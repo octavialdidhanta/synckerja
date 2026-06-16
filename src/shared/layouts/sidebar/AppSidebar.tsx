@@ -82,7 +82,7 @@ function SubSidebarPanel({ items, titleKey }: SubSidebarPanelProps) {
       className="h-full w-64 overflow-hidden bg-card font-sans antialiased"
       style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
     >
-      <div className="box-border flex h-full w-64 flex-col border-r-2 border-slate-300 bg-card shadow-sm dark:border-slate-600">
+      <div className="box-border flex h-full w-64 flex-col border-r border-slate-200 bg-card dark:border-slate-700/60">
         <div className="box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 bg-muted/40 px-4 py-2 dark:border-slate-600">
           <h3 className="truncate text-sm font-semibold leading-none text-foreground">{resolvedTitle}</h3>
         </div>

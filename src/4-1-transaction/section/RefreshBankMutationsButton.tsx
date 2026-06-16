@@ -19,11 +19,7 @@ export function RefreshBankMutationsButton({
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
   const { canAllocateIncome } = useCanAllocateIncome();
-  const { syncMutations, syncing, syncCooldownSec } = useBankMutations({
-    bankAccountId: 'all',
-    direction: 'all',
-    matchFilter: 'all',
-  });
+  const { syncMutations, syncing, syncCooldownSec } = useBankMutations();
 
   if (!organizationId || !canAllocateIncome) return null;
 

@@ -62,6 +62,19 @@ function XenditCardSkeleton({ variant }: { variant: 'connect' | 'balance' | 'his
   );
 }
 
+/** Tab content skeleton (no header) — for in-tab overlay on `/xendit/history`. */
+export function XenditHistoryTabContentSkeleton() {
+  return (
+    <div className={XENDIT_MAIN_GRID}>
+      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+        <div className={XENDIT_TABLE_SECTION}>
+          <XenditCardSkeleton variant="history" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function IncomeXenditPageSkeleton({ variant = 'connect' }: IncomeXenditPageSkeletonProps) {
   const { t } = useAppTranslation();
   const aria = t('xendit.loadingAria', 'Loading Xendit settings');

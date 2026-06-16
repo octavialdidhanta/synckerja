@@ -3,16 +3,22 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   DRIVE_GRANT_REQUIRED_HEADER,
-  getValidGoogleDriveAccessToken,
   mapGoogleDriveApiFailure,
 } from "../_shared/googleDriveAccess.ts";
+import {
+  cacheControlForReviewResource,
+  parseSupabaseJwtFromRequest,
+  resolveDriveAccessFromJwt,
+  resolveDriveAccessFromReviewToken,
+} from "../_shared/googleDriveReviewAccess.ts";
 
 /**
  * Streams Drive file bytes (alt=media) with the user's stored Google OAuth token.
  * Supports Range for HTML5 video seeking.
  *
- * `<video src>` cannot send Authorization headers cross-origin, so the client may pass
- * the Supabase JWT as query `supabase_token` (treat like a secret; avoid sharing URLs).
+ * Auth (one of):
+ * - Supabase JWT via Authorization header or query `supabase_token` (dashboard / logged-in preview)
+ * - Public review link via query `review_token` + `file_id` (/review/{token} guest preview)
  */
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -22,15 +28,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-function parseSupabaseJwt(req: Request, url: URL): string | null {
-  const authHeader = req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const t = authHeader.replace(/^Bearer\s+/i, "").trim();
-    if (t) return t;
-  }
-  const q = url.searchParams.get("supabase_token")?.trim();
-  return q || null;
-}
+const LOG_PREFIX = "google-drive-file-media";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -49,10 +47,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    const jwt = parseSupabaseJwt(req, url);
-    if (!jwt) {
-      return textError("Unauthorized", 401);
-    }
+    const jwt = parseSupabaseJwtFromRequest(req, url);
+    const reviewToken = url.searchParams.get("review_token")?.trim() ?? "";
 
     const fileIdRaw = url.searchParams.get("file_id")?.trim() ?? "";
     if (!fileIdRaw || !/^[a-zA-Z0-9-_]+$/.test(fileIdRaw)) {
@@ -62,23 +58,36 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!serviceRoleKey) {
-      console.error("google-drive-file-media: SUPABASE_SERVICE_ROLE_KEY missing");
+      console.error(`${LOG_PREFIX}: SUPABASE_SERVICE_ROLE_KEY missing`);
       return textError("Server configuration error", 500);
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(jwt);
-    if (userError || !user) {
-      return textError("Invalid or expired session", 401);
+
+    let accessToken: string;
+    if (jwt) {
+      const resolved = await resolveDriveAccessFromJwt(supabaseAdmin, jwt, LOG_PREFIX);
+      if (!resolved.ok) return textError(resolved.message, resolved.status);
+      accessToken = resolved.accessToken;
+    } else if (reviewToken) {
+      const resolved = await resolveDriveAccessFromReviewToken(
+        supabaseAdmin,
+        reviewToken,
+        fileIdRaw,
+        LOG_PREFIX,
+      );
+      if (!resolved.ok) return textError(resolved.message, resolved.status);
+      accessToken = resolved.accessToken;
+    } else {
+      return textError("Unauthorized", 401);
     }
 
-    const { accessToken, error: tokenErr } = await getValidGoogleDriveAccessToken(
-      supabaseAdmin,
-      user.id,
-      "google-drive-file-media",
-    );
-    if (!accessToken) {
-      return textError(tokenErr ?? "No Google access", 400);
+    const reviewCache = cacheControlForReviewResource(reviewToken, req.method === "HEAD" ? "probe" : "media");
+
+    if (req.method === "HEAD") {
+      const out = new Headers(corsHeaders);
+      out.set("Cache-Control", reviewCache);
+      return new Response(null, { status: 200, headers: out });
     }
 
     const driveUrl =
@@ -98,6 +107,7 @@ Deno.serve(async (req: Request) => {
     });
 
     const out = new Headers(corsHeaders);
+    out.set("Cache-Control", reviewToken ? reviewCache : "private, max-age=300");
 
     if (!driveRes.ok) {
       try {
@@ -135,7 +145,7 @@ Deno.serve(async (req: Request) => {
     });
   } catch (e) {
     const err = e as Error;
-    console.error("google-drive-file-media:", err.message);
+    console.error(`${LOG_PREFIX}:`, err.message);
     return textError("Internal server error", 500);
   }
 });

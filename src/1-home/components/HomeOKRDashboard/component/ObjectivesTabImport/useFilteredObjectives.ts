@@ -5,14 +5,20 @@ import { Objective } from '@/types/okr';
 import { useMemo } from 'react';
 import { filterValidCycleIds } from '@/shared/lib/uuidValidation';
 
+export type FilteredObjectivesQueryOptions = {
+  enabled?: boolean;
+};
+
 /**
  * Hook for fetching objectives with multiple cycle filtering support
  */
 export const useFilteredObjectives = (
   organizationId?: string, 
   cycleIds?: string[], 
-  level?: 'company' | 'department' | 'individual'
+  level?: 'company' | 'department' | 'individual',
+  options?: FilteredObjectivesQueryOptions,
 ) => {
+  const queryEnabled = options?.enabled ?? true;
   const { data: objectives = [], isLoading, error, refetch } = useQuery({
     queryKey: ['filtered-objectives', organizationId, cycleIds, level],
     queryFn: async () => {
@@ -122,7 +128,7 @@ export const useFilteredObjectives = (
       
       return filteredData;
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && queryEnabled,
   });
 
   return {

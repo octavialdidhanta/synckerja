@@ -6,14 +6,15 @@ import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useEmployeeLeaveBalance } from '@/2-1-employees/MyInfo/LeavePermit/hooks/useEmployeeLeaveBalance';
 import { EmployeeProfilePhoto } from '@/shared/components/EmployeeProfilePhoto';
 import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
-import { useUserData } from '@/shared/auth/hooks/useUserData';
-import { useProfile } from '@/shared/hooks/useProfile';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { useTeamAvailability } from './useTeamAvailability';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from 'date-fns';
 import { useReportHomeSectionStatus } from '@/1-home/context/HomePageLoadContext';
 import { isBootstrapPending } from '@/shared/lib/loadingBootstrap';
+import { useQueryClient } from '@tanstack/react-query';
+import { PROFILE_QUERY_KEY } from '@/shared/hooks/useProfile';
 
 const SectionQuickMenu = lazy(() =>
   import('./HomeOKRDashboard/component/SectionQuickMenu').then((m) => ({
@@ -45,19 +46,19 @@ function QuickMenuPlaceholder() {
 
 export const SectionProfile = () => {
   const { t, dateFnsLocale } = useAppTranslation();
+  const queryClient = useQueryClient();
   const {
     data: employeeData,
     isLoading,
     error: employeeError,
-    refetch: refetchEmployee
+    refetch: refetchEmployee,
   } = useCurrentEmployee();
   const {
     data: leaveBalance,
     isLoading: leaveBalanceLoading,
     error: leaveBalanceError,
   } = useEmployeeLeaveBalance();
-  const { profile, userRole, loading: userDataLoading, refreshUserData } = useUserData();
-  const { data: profileRow, refetch: refetchProfile, isLoading: profileQueryLoading } = useProfile();
+  const { userData, userRole, loading: userDataLoading, forceRefreshUserData, employee: centralizedEmployee } = useCentralizedUserData();
   const { syncAvatarAcrossApp } = useAvatarSync();
   const {
     data: teamAvailability,
@@ -66,14 +67,12 @@ export const SectionProfile = () => {
   } = useTeamAvailability();
 
   const hasEmployee = employeeData != null;
-  const hasProfileContent = profile != null || profileRow != null;
+  const hasProfileContent = userData != null || hasEmployee;
   const hasLeaveBalance = leaveBalance != null;
   const hasTeamAvailability = teamAvailability != null;
-
   const profileSectionLoading =
     isBootstrapPending(isLoading, hasEmployee) ||
     (userDataLoading && !hasProfileContent) ||
-    isBootstrapPending(profileQueryLoading, hasProfileContent) ||
     isBootstrapPending(leaveBalanceLoading, hasLeaveBalance) ||
     isBootstrapPending(isTeamLoading, hasTeamAvailability);
   const profileSectionError =
@@ -117,19 +116,14 @@ export const SectionProfile = () => {
 
   // Use real data if available, prioritizing profile data like header components
   const currentUser = {
-    name: isLoading ? "Loading..." : (profile?.full_name || employeeData?.full_name || defaultData.name),
+    name: isLoading ? "Loading..." : (userData?.full_name || employeeData?.full_name || defaultData.name),
     position: getRoleDisplayText(userRole),
     division: isLoading ? "Loading..." : (employeeData?.departments?.name || defaultData.division),
     workStatus: defaultData.workStatus,
     remainingLeave: leaveBalance?.remainingLeave ?? employeeData?.leave_balance ?? defaultData.remainingLeave,
     totalLeave: leaveBalance?.totalAnnualLeave ?? 12,
     perfectAttendance: defaultData.perfectAttendance,
-    // Same query as header (`useProfile` → user_profile_details + employees)
-    photoUrl:
-      profileRow?.profile_photo_url ||
-      profile?.profile_photo_url ||
-      employeeData?.profile_photo_url ||
-      null,
+    photoUrl: employeeData?.profile_photo_url || centralizedEmployee?.profile_photo_url || null,
   };
 
   // Removed excessive debug logging for performance
@@ -141,7 +135,11 @@ export const SectionProfile = () => {
       const result = await syncAvatarAcrossApp(photoUrl);
       toast.dismiss(loadingToast);
       if (result?.success) {
-        await Promise.all([refetchEmployee(), refreshUserData(), refetchProfile()]);
+        await Promise.all([
+          refetchEmployee(),
+          forceRefreshUserData(),
+          queryClient.invalidateQueries({ queryKey: [PROFILE_QUERY_KEY] }),
+        ]);
         toast.success(t('profile.photoUpdatedSuccess', 'Profile photo updated successfully across the app! ðŸŽ‰'));
       } else {
         toast.error(t('profile.failedToSyncPhoto', 'Failed to sync photo across the app'));

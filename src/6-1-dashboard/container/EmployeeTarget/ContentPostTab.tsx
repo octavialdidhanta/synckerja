@@ -11,7 +11,8 @@ import { ContentManager } from '../../types/social-media';
 import { useOptimizedSocialMedia } from '../../hook/useOptimizedSocialMediaState';
 import { useEmployeeTargets } from '../../hook/useEmployeeTargets';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/shared/lib/supabaseClient';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { getAllSocialMediaLinksQueryOptions } from '../../data/dashboardQueryOptions';
 import { ProgressBar } from '@/shared/components/ProgressBar';
 import EditTargetDialog from '../../modal/EditTargetDialog';
 import {
@@ -41,29 +42,11 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
 
   const { contentPlans } = useOptimizedSocialMedia();
   const { targets } = useEmployeeTargets();
+  const { organizationId } = useCurrentOrg();
 
-  // Fetch all social media links to ensure we have the latest data
-  // Disabled polling - rely on realtime updates instead of refetchInterval
-  const { data: allSocialMediaLinks = [] } = useQuery({
-    queryKey: ['all-social-media-links'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('social_media_links')
-        .select('*');
-      
-      if (error) {
-        console.error('Error fetching social media links:', error);
-        return [];
-      }
-      
-      return data || [];
-    },
-    staleTime: 30 * 1000, // 30 seconds - data is fresh for 30s
-    gcTime: 5 * 60 * 1000, // 5 minutes - keep cached data
-    refetchInterval: false, // Disabled - realtime updates handle changes, no need for polling
-    refetchOnWindowFocus: false, // Disabled to prevent reload when switching windows (realtime handles updates)
-    refetchOnMount: false, // Don't refetch on mount if data is fresh
-  });
+  const { data: allSocialMediaLinks = [] } = useQuery(
+    getAllSocialMediaLinksQueryOptions(organizationId),
+  );
 
   // Auto-revert functionality for daily date
   useEffect(() => {

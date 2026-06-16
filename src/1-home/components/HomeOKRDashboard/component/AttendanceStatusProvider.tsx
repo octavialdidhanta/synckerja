@@ -1,7 +1,8 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { useCurrentOrg } from '../hooks/useCurrentOrg';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 
 interface AttendanceStatusContextType {
   hasCheckedIn: boolean;
@@ -33,8 +34,9 @@ export const AttendanceStatusProvider = ({ children }: AttendanceStatusProviderP
   const [todayRecord, setTodayRecord] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { organizationId } = useCurrentOrg();
+  const { employee } = useCentralizedUserData();
 
-  const refreshStatus = async () => {
+  const refreshStatus = useCallback(async () => {
     if (!organizationId) {
       if (import.meta.env?.DEV) {
         console.log('⚠️ No organization ID, skipping status refresh');
@@ -43,53 +45,21 @@ export const AttendanceStatusProvider = ({ children }: AttendanceStatusProviderP
       return;
     }
 
+    const employeeId = employee?.id;
+    if (!employeeId) {
+      setTodayRecord(null);
+      setHasCheckedIn(false);
+      setHasCheckedOut(false);
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        if (import.meta.env?.DEV) {
-          console.log('⚠️ No authenticated user');
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      // Get employee record
-      const { data: employee, error: employeeError } = await supabase
-        .from('employees')
-        .select('id, full_name')
-        .eq('user_id', user.id)
-        .eq('organization_id', organizationId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (employeeError) {
-        if (import.meta.env?.DEV) {
-          console.warn('⚠️ Failed to fetch employee for attendance status:', employeeError);
-        }
-        setIsLoading(false);
-        return;
-      }
-      if (!employee) {
-        // Normal for some users/orgs (e.g. owner without employee row yet).
-        // Keep state stable and do not treat as an error.
-        setTodayRecord(null);
-        setHasCheckedIn(false);
-        setHasCheckedOut(false);
-        setIsLoading(false);
-        return;
-      }
-
-      if (import.meta.env?.DEV) {
-        console.log('👤 Employee found:', employee);
-      }
-
-      // Get today's attendance record with penalties - simplified query to avoid 406 errors
       const today = new Date().toISOString().split('T')[0];
       const { data: record, error: recordError } = await supabase
         .from('attendance_records')
         .select('*')
-        .eq('employee_id', employee.id)
+        .eq('employee_id', employeeId)
         .eq('organization_id', organizationId)
         .eq('attendance_date', today)
         .maybeSingle();
@@ -100,31 +70,14 @@ export const AttendanceStatusProvider = ({ children }: AttendanceStatusProviderP
         }
       }
 
-      if (import.meta.env?.DEV) {
-        console.log('📋 Today\'s record with penalties:', record);
-      }
-
       if (record) {
         setTodayRecord(record);
         setHasCheckedIn(!!(record.check_in_at || record.check_in_time));
         setHasCheckedOut(!!(record.check_out_at || record.check_out_time));
-        if (import.meta.env?.DEV) {
-          console.log('✅ Status updated:', {
-            checkIn: !!record.check_in_time,
-            checkOut: !!record.check_out_time,
-            isLate: record.is_late,
-            lateMinutes: record.late_minutes,
-            status: record.status,
-            penaltiesCount: 0
-          });
-        }
       } else {
         setTodayRecord(null);
         setHasCheckedIn(false);
         setHasCheckedOut(false);
-        if (import.meta.env?.DEV) {
-          console.log('📝 No attendance record for today');
-        }
       }
     } catch (error) {
       if (import.meta.env?.DEV) {
@@ -133,16 +86,15 @@ export const AttendanceStatusProvider = ({ children }: AttendanceStatusProviderP
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [organizationId, employee?.id]);
 
   useEffect(() => {
-    // Only refresh if organizationId is available
-    if (organizationId) {
-      refreshStatus();
-    } else {
+    if (organizationId && employee?.id) {
+      void refreshStatus();
+    } else if (!organizationId) {
       setIsLoading(false);
     }
-  }, [organizationId]);
+  }, [organizationId, employee?.id, refreshStatus]);
 
   const contextValue = {
     hasCheckedIn,

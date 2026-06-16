@@ -1,8 +1,8 @@
 export function getEmbedUrl(url: string): string {
   if (!url) return '';
-  if (url.includes('drive.google.com/file/d/')) {
-    const fileId = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/)?.[1];
-    if (fileId) return `https://drive.google.com/file/d/${fileId}/preview`;
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId && url.toLowerCase().includes('drive.google.com')) {
+    return `https://drive.google.com/file/d/${fileId}/preview`;
   }
   if (url.includes('youtube.com') || url.includes('youtu.be')) return '';
   return url;
@@ -11,10 +11,31 @@ export function getEmbedUrl(url: string): string {
 /** Direct stream URL for HTML5 video (one-click play). Uses usercontent endpoint to avoid virus-scan redirect; fallback to iframe on error. */
 export function getDirectVideoUrl(url: string): string {
   if (!url) return '';
-  if (url.includes('drive.google.com/file/d/')) {
-    const fileId = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/)?.[1];
-    if (fileId) return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId) {
+    return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
   }
+  return '';
+}
+
+/** Google Drive folder grid embed (works for guests when folder is shared with link). */
+export function getFolderEmbedUrl(url: string): string {
+  const folderId = extractGoogleDriveFolderId(url);
+  if (!folderId) return '';
+  return `https://drive.google.com/embeddedfolderview?id=${encodeURIComponent(folderId)}#grid`;
+}
+
+/** YouTube embed URL for in-page preview. */
+export function getYouTubeEmbedUrl(url: string): string {
+  if (!url?.trim()) return '';
+  const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+  const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+  if (embedMatch) return `https://www.youtube.com/embed/${embedMatch[1]}`;
+  const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/);
+  if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`;
   return '';
 }
 
@@ -23,7 +44,9 @@ export function isFolderLink(url: string): boolean {
 }
 
 export function isFileLink(url: string): boolean {
-  return url.includes('drive.google.com/file/d/');
+  if (!url?.trim()) return false;
+  if (isFolderLink(url)) return false;
+  return extractGoogleDriveFileId(url) !== null;
 }
 
 export function isYouTubeLink(url: string): boolean {

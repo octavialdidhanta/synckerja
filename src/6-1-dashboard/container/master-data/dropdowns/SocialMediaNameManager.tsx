@@ -35,6 +35,9 @@ interface SocialMediaNameManagerProps {
 
 export const SocialMediaNameManager: React.FC<SocialMediaNameManagerProps> = ({ onDataChange }) => {
   const { organizationId } = useCurrentOrg();
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { 
     socialMediaNames, 
     isLoading, 
@@ -44,11 +47,8 @@ export const SocialMediaNameManager: React.FC<SocialMediaNameManagerProps> = ({ 
     isCreating,
     isUpdating,
     isDeleting 
-  } = useSocialMediaNames(organizationId);
+  } = useSocialMediaNames(organizationId, { enabled: isOpen || isDialogOpen });
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingName, setEditingName] = useState<SocialMediaName | null>(null);
   const [formData, setFormData] = useState({
     name: '',

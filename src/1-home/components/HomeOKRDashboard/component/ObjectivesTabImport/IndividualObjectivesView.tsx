@@ -6,8 +6,7 @@ import { Building, Plus, Target, ChevronRight, ChevronDown, User, MoreHorizontal
 import { useReportOkrTabStatus } from '@/1-home/context/HomeOkrTabsLoadContext';
 import { useReportOkrPageDetail } from '@/1-OKR/context/OkrPageDetailLoadContext';
 import { Progress } from '@/shared/components/ui/progress';
-import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
-import { getEmployeeStatus } from '@/2-1-employees/utils/employeeUtils';
+import { useOkrEmployeeDirectory } from '../../hooks/useOkrActiveEmployees';
 import { useIndividualObjectives, useDeleteIndividualObjective } from '../../modal/useIndividualObjectives';
 import { useObjectives } from './useObjectives';
 import { useDepartmentObjectives } from '../../modal/useDepartmentObjectives';
@@ -72,10 +71,10 @@ export const IndividualObjectivesView = ({
   });
 
   const {
-    data: employees = [],
+    data: activeEmployees = [],
     isLoading: loadingEmployees,
     error: employeesError,
-  } = useEmployees();
+  } = useOkrEmployeeDirectory(organizationId);
   const { toast } = useToast();
   const { data: linkedInsightIoIds = new Set<string>() } = useInsightLinkedIndividualObjectiveIds();
   const { data: insightMetricsByObjective = new Map() } = useInsightTargetMetricsByObjectiveId();
@@ -84,14 +83,6 @@ export const IndividualObjectivesView = ({
   const { t } = useAppTranslation();
   useSyncInsightTargetOkrProgress(true);
   useSyncDmReportTargetOkrProgress(true);
-
-  // Filter out terminated employees
-  const activeEmployees = useMemo(() => {
-    return employees.filter(employee => {
-      const status = getEmployeeStatus(employee);
-      return status.toLowerCase() !== 'terminated';
-    });
-  }, [employees]);
 
   // Get individual objectives with key results from useObjectives hook
   const finalCycleIds = cycleIds && cycleIds.length > 0 ? cycleIds : cycleId ? [cycleId] : undefined;
@@ -256,18 +247,6 @@ export const IndividualObjectivesView = ({
     });
     return grouped;
   }, [individualObjectives]);
-
-  const employeesByDepartment = useMemo(() => {
-    const grouped = new Map<string, any[]>();
-    employees.forEach(emp => {
-      const deptId = emp.department_id || 'no-department';
-      if (!grouped.has(deptId)) {
-        grouped.set(deptId, []);
-      }
-      grouped.get(deptId)!.push(emp);
-    });
-    return grouped;
-  }, [employees]);
 
   // Memoize objectives by employee and status
   const objectivesByEmployeeAndStatus = useMemo(() => {

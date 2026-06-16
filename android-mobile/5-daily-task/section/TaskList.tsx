@@ -28,6 +28,7 @@ import { useTaskBlockers } from './hooks/useTaskBlockers';
 import { TaskCard } from './components/TaskCard';
 import { EmptyState } from './components/EmptyState';
 import { DeleteTaskDialog } from './components/DeleteTaskDialog';
+import { TaskStatusToggleDialog } from './components/TaskStatusToggleDialog';
 import { TaskDetailModal } from './components/TaskDetailModal';
 
 // Utils
@@ -119,6 +120,12 @@ export const TaskList = () => {
     taskId: string | null;
     taskTitle: string;
   }>({ isOpen: false, taskId: null, taskTitle: '' });
+  const [statusToggleDialog, setStatusToggleDialog] = useState<{
+    isOpen: boolean;
+    taskId: string | null;
+    taskTitle: string;
+    nextStatus: 'completed' | 'pending';
+  }>({ isOpen: false, taskId: null, taskTitle: '', nextStatus: 'pending' });
   const [isCreateTaskDialogOpen, setIsCreateTaskDialogOpen] = useState(false);
   const [revealedTaskId, setRevealedTaskId] = useState<string | null>(null);
 
@@ -155,18 +162,11 @@ export const TaskList = () => {
       if (!checkboxRule.taskHasSteps) {
         const newStatus = task.status === 'completed' ? 'pending' : 'completed';
         if (newStatus !== task.status) {
-          toast({
-            title: newStatus === 'completed' ? t('dailyTask.taskCompleted', 'Task Completed') : t('dailyTask.taskReopened', 'Task Reopened'),
-            description: `"${task.title}" has been ${newStatus === 'completed' ? 'marked as completed' : 'reopened'}`,
-          });
-          // Optimistic update: langsung update tanpa menunggu (updateTask sudah melakukan optimistic update di context)
-          updateTask(task.id, { status: newStatus }).catch((err) => {
-            logger.error('Error updating task status:', err);
-            toast({
-              title: 'Error',
-              description: 'Failed to update task status',
-              variant: 'destructive',
-            });
+          setStatusToggleDialog({
+            isOpen: true,
+            taskId: task.id,
+            taskTitle: task.title,
+            nextStatus: newStatus,
           });
         }
         return;
@@ -188,8 +188,40 @@ export const TaskList = () => {
         variant: 'destructive',
       });
     },
-    [getVisibleSteps, toast, updateTask, t]
+    [getVisibleSteps, toast, t]
   );
+
+  const handleCancelStatusToggle = useCallback(() => {
+    setStatusToggleDialog({ isOpen: false, taskId: null, taskTitle: '', nextStatus: 'pending' });
+  }, []);
+
+  const handleConfirmStatusToggle = useCallback(async () => {
+    if (!statusToggleDialog.taskId) return;
+    const { taskId, taskTitle, nextStatus } = statusToggleDialog;
+    setStatusToggleDialog({ isOpen: false, taskId: null, taskTitle: '', nextStatus: 'pending' });
+    toast({
+      title:
+        nextStatus === 'completed'
+          ? t('dailyTask.taskCompleted', 'Task Completed')
+          : t('dailyTask.taskReopened', 'Task Reopened'),
+      description:
+        nextStatus === 'completed'
+          ? t('dailyTask.taskCompletedDesc', '"{{title}}" has been marked as completed', {
+              title: taskTitle,
+            })
+          : t('dailyTask.taskReopenedDesc', '"{{title}}" has been reopened', { title: taskTitle }),
+    });
+    try {
+      await updateTask(taskId, { status: nextStatus });
+    } catch (err) {
+      logger.error('Error updating task status:', err);
+      toast({
+        title: t('common.error', 'Error'),
+        description: t('dailyTask.errors.updateTaskStatusFailed', 'Failed to update task status'),
+        variant: 'destructive',
+      });
+    }
+  }, [statusToggleDialog, toast, t, updateTask]);
 
   const handlePriorityChange = useCallback(
     async (taskId: string, newPriority: Task['priority']) => {
@@ -417,6 +449,14 @@ export const TaskList = () => {
             taskTitle={deleteDialog.taskTitle}
             onConfirm={handleConfirmDelete}
             onCancel={handleCancelDelete}
+          />
+
+          <TaskStatusToggleDialog
+            isOpen={statusToggleDialog.isOpen}
+            taskTitle={statusToggleDialog.taskTitle}
+            nextStatus={statusToggleDialog.nextStatus}
+            onConfirm={handleConfirmStatusToggle}
+            onCancel={handleCancelStatusToggle}
           />
 
           <BlockerDetailsModal

@@ -6,8 +6,9 @@ import { SocialMediaName, CreateSocialMediaNameData, UpdateSocialMediaNameData }
 
 const SOCIAL_MEDIA_NAMES_QUERY_KEY = 'socialMediaNames';
 
-export const useSocialMediaNames = (organizationId?: string) => {
+export const useSocialMediaNames = (organizationId?: string, options?: { enabled?: boolean }) => {
   const queryClient = useQueryClient();
+  const queryEnabled = !!organizationId && (options?.enabled ?? true);
 
   // Fetch social media names for organization
   const { data: socialMediaNames = [], isLoading, error } = useQuery({
@@ -26,7 +27,7 @@ export const useSocialMediaNames = (organizationId?: string) => {
       if (error) throw error;
       return data as SocialMediaName[];
     },
-    enabled: !!organizationId,
+    enabled: queryEnabled,
     staleTime: 5 * 60 * 1000, // 5 minutes - social media names don't change often
     gcTime: 10 * 60 * 1000, // 10 minutes cache time
     refetchOnWindowFocus: false, // Disabled to prevent reload when switching windows

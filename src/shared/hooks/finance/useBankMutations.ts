@@ -21,7 +21,7 @@ export type BankMutationsFilter = {
   matchFilter: 'all' | 'suggested' | 'unmatched';
 };
 
-export const useBankMutations = (filters: BankMutationsFilter) => {
+export const useBankMutations = (filters?: BankMutationsFilter) => {
   const { organizationId } = useCurrentOrg();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -36,18 +36,22 @@ export const useBankMutations = (filters: BankMutationsFilter) => {
     return () => window.clearInterval(timer);
   }, [syncCooldownSec]);
 
-  const queryKey = [
-    'bank-statement-lines',
-    organizationId,
-    filters.bankAccountId,
-    filters.direction,
-    filters.matchFilter,
-  ];
+  const fetchLines = filters != null;
+
+  const queryKey = fetchLines
+    ? [
+        'bank-statement-lines',
+        organizationId,
+        filters.bankAccountId,
+        filters.direction,
+        filters.matchFilter,
+      ]
+    : ['bank-statement-lines', organizationId, '__sync-only__'];
 
   const { data: lines = [], isLoading, isPending, isError, error, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
-      if (!organizationId) return [];
+      if (!organizationId || !filters) return [];
 
       let q = supabase
         .from('bank_statement_lines')
@@ -139,7 +143,7 @@ export const useBankMutations = (filters: BankMutationsFilter) => {
 
       return rows;
     },
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId && fetchLines),
   });
 
   const invalidateAll = () => {
@@ -338,11 +342,11 @@ export const useBankMutations = (filters: BankMutationsFilter) => {
   });
 
   return {
-    lines,
-    loading: isPending,
-    isError,
-    error,
-    isPending,
+    lines: fetchLines ? lines : [],
+    loading: fetchLines ? isPending : false,
+    isError: fetchLines ? isError : false,
+    error: fetchLines ? error : null,
+    isPending: fetchLines ? isPending : false,
     refetch,
     syncMutations: syncMutation.mutateAsync,
     syncing: syncMutation.isPending,

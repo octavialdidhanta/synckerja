@@ -51,14 +51,17 @@ export const ContentPillarManager: React.FC<ContentPillarManagerProps> = React.m
     setContentPillars(data as ContentPillar[]);
   }, [fetchData]);
 
-  // Load data only once on mount
+  // Load when dropdown opens (not on page mount)
   useEffect(() => {
-    loadContentPillars();
-  }, []); // Empty deps - only run on mount
+    if (!isOpen && !modalData.open) return;
+    hasLoadedRef.current = false;
+    void loadContentPillars();
+  }, [isOpen, modalData.open, loadContentPillars]);
 
   const invalidateQueries = useCallback(() => {
     // Invalidate related queries to trigger auto-refresh
     queryClient.invalidateQueries({ queryKey: ['contentPillarData'] });
+    queryClient.invalidateQueries({ queryKey: ['social-media-master'] });
     queryClient.invalidateQueries({ queryKey: ['contentPillars'] });
     queryClient.invalidateQueries({ queryKey: ['masterData'] });
   }, [queryClient]);

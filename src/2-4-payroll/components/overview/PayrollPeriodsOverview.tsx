@@ -1,40 +1,13 @@
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/shared/lib/supabaseClient";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
-
-interface PayrollPeriod {
-  id: string;
-  period_name: string;
-  start_date: string;
-  end_date: string;
-  status: string;
-  created_at: string;
-}
+import { usePayrollPeriodsOverview } from "../../hooks/usePayrollPeriodsOverview";
 
 export function PayrollPeriodsOverview() {
   const { organization } = useCentralizedUserData();
   const organizationId = organization?.id ?? null;
-
-  const { data: periods, isLoading } = useQuery({
-    queryKey: ["payroll-periods-overview", organizationId],
-    queryFn: async () => {
-      if (!organizationId) return [];
-
-      const { data, error } = await supabase
-        .from("payroll_periods")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      return data as PayrollPeriod[];
-    },
-    enabled: !!organizationId,
-  });
+  const { data: periods, isLoading } = usePayrollPeriodsOverview(organizationId);
 
   const getStatusColor = (status: string) => {
     switch (status) {

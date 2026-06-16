@@ -3,9 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Clock, Settings, CheckCircle } from 'lucide-react';
-import { useCurrentUserEmployee } from './SectionGreetingsImport/useCurrentUserEmployee';
 import { useAttendanceStatus } from './AttendanceStatusProvider';
-import { useUnifiedProfile } from '@/shared/hooks/useUnifiedProfile';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from "date-fns";
@@ -18,10 +17,8 @@ interface SectionGreetingsProps {
 
 export const SectionGreetings = ({ currentTime, greeting }: SectionGreetingsProps) => {
   const { t, dateFnsLocale } = useAppTranslation();
-  const { data: employeeData, isLoading } = useCurrentUserEmployee();
+  const { userData, employee } = useCentralizedUserData();
   const { hasCheckedIn, hasCheckedOut, todayRecord } = useAttendanceStatus();
-  const { data: unifiedData } = useUnifiedProfile();
-  const profile = unifiedData?.profile;
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const formatTime = (date: Date) => {
@@ -55,8 +52,7 @@ export const SectionGreetings = ({ currentTime, greeting }: SectionGreetingsProp
     });
   };
 
-  // Use profile name from header data source, same as header components
-  const displayName = profile?.full_name || employeeData?.profile_name || employeeData?.full_name || 'User';
+  const displayName = userData?.full_name || employee?.full_name || 'User';
 
   // Auto-slide between welcome and working status
   useEffect(() => {

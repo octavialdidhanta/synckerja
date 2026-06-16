@@ -15,7 +15,7 @@ type TaskStepDescriptionViewProps = {
 };
 
 const articleClass =
-  'text-sm text-gray-700 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_a]:text-primary [&_a]:underline [&_a]:break-all [&_a]:hover:text-primary/90';
+  'text-sm text-gray-700 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:leading-snug [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:leading-snug [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:leading-snug [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_a]:text-primary [&_a]:underline [&_a]:break-all [&_a]:hover:text-primary/90';
 
 const loupeArticleClass = `${articleClass} [&_img]:cursor-zoom-in`;
 

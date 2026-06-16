@@ -8,6 +8,9 @@ import { endOfDay } from "date-fns";
 import { SocialMediaPerformanceHeaderAndTab } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { useModulePageOverlaySkeleton } from "@/shared/auth/page-access/useModulePageOverlaySkeleton";
+import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
+import { cn } from "@/shared/lib/utils";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { parseYmdLocal, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
@@ -38,8 +41,6 @@ import { tiktokAdsAllTimeDateRange } from "@/tiktok-ads/lib/clampTikTokAdsDateRa
 const SOCIAL_MEDIA_PERFORMANCE_PATH = "/digital-marketing/social-media-performance";
 
 export default function TikTokContentPerformancePage() {
-  const { orgBootstrapPending } = useOrgBootstrapPending();
-  if (orgBootstrapPending) return <TikTokContentPerformancePageSkeleton />;
   return (
     <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
       <TikTokContentPerformancePageContent />
@@ -52,16 +53,17 @@ function TikTokContentPerformancePageContent() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+  const { orgBootstrapPending } = useOrgBootstrapPending();
   const isSettingsView = location.pathname === TIKTOK_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH;
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
-  const { data: reportingEnabled = false, isPending: reportingPending } =
+  const { data: reportingEnabled = false, isLoading: reportingLoading } =
     useTikTokContentReportingEnabled(organizationId);
-  const { data: settings, isPending: settingsPending } = useTikTokContentSettings(organizationId, {
-    enabled: Boolean(organizationId) && !gatePending,
+  const { data: settings, isLoading: settingsLoading } = useTikTokContentSettings(organizationId, {
+    enabled: Boolean(organizationId),
   });
 
   const { dateSelection, setDateSelection } = useDigitalMarketingPaidAdsFilters();
-  const [openId, setOpenId] = useState("");
+  const [openIdOverride, setOpenIdOverride] = useState<string | null>(null);
 
   useEffect(() => {
     if (dateSelection.preset !== "all_time") return;
@@ -94,12 +96,15 @@ function TikTokContentPerformancePageContent() {
     [settings?.accounts],
   );
 
-  useEffect(() => {
-    if (!openId && activeAccounts.length > 0) {
-      const def = activeAccounts.find((a) => a.is_default) ?? activeAccounts[0];
-      setOpenId(def.open_id);
-    }
-  }, [activeAccounts, openId]);
+  const defaultOpenId = useMemo(() => {
+    if (activeAccounts.length === 0) return "";
+    return (activeAccounts.find((a) => a.is_default) ?? activeAccounts[0]).open_id;
+  }, [activeAccounts]);
+
+  const openId =
+    openIdOverride && activeAccounts.some((a) => a.open_id === openIdOverride)
+      ? openIdOverride
+      : defaultOpenId;
 
   const videosQuery = useTikTokContentVideosQuery({
     organizationId,
@@ -151,18 +156,39 @@ function TikTokContentPerformancePageContent() {
   const metricsLoading =
     videosQuery.isLoading || (videosQuery.isFetching && !videosQuery.data);
 
-  const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
+  const showMetricsView =
+    canManage &&
+    !isSettingsView &&
+    reportingEnabled &&
+    Boolean(openId) &&
+    activeAccounts.some((a) => a.open_id === openId);
 
-  if (rawPageLoadPending) {
-    return <TikTokContentPerformancePageSkeleton />;
-  }
+  const dataPending =
+    orgBootstrapPending ||
+    gatePending ||
+    (canManage && reportingLoading) ||
+    (canManage && settingsLoading) ||
+    (showMetricsView && videosQuery.isLoading);
+
+  const { showFullPageSkeleton, accessReady } = useModulePageOverlaySkeleton(
+    dataPending,
+    SOCIAL_MEDIA_PERFORMANCE_PATH,
+  );
+  const showContent = useDebouncedReady(accessReady && !showFullPageSkeleton, 150);
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "flex h-full min-h-0 w-full min-w-0 flex-1 flex-col",
+          !showContent && "pointer-events-none invisible",
+        )}
+        aria-hidden={!showContent}
+      >
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="mb-1 min-w-0 shrink-0">
                 <SocialMediaPerformanceHeaderAndTab />
               </div>
@@ -198,7 +224,7 @@ function TikTokContentPerformancePageContent() {
                         accounts={activeAccounts}
                         openId={openId}
                         onOpenIdChange={(next) => {
-                          setOpenId(next);
+                          setOpenIdOverride(next);
                           if (isSettingsView) {
                             navigate(TIKTOK_CONTENT_DIGITAL_MARKETING_BASE_PATH);
                           }
@@ -233,7 +259,7 @@ function TikTokContentPerformancePageContent() {
                                     )}
                                   </AlertDescription>
                                 </Alert>
-                              ) : !reportingPending && !reportingEnabled ? (
+                              ) : !reportingLoading && !reportingEnabled ? (
                                 <Alert>
                                   <AlertTitle>
                                     {t(
@@ -317,6 +343,16 @@ function TikTokContentPerformancePageContent() {
           </div>
         </div>
       </div>
+      </div>
+
+      {!showContent ? (
+        <div
+          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-gray-100"
+          aria-busy="true"
+        >
+          <TikTokContentPerformancePageSkeleton />
+        </div>
+      ) : null}
     </div>
   );
 }

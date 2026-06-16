@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { HeaderAndTab } from "@/2-1-employees/section/HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
-import { useCurrentOrg } from "@/1-home/components/HomeOKRDashboard/hooks/useCurrentOrg";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { useModulePageOverlaySkeleton } from "@/shared/auth/page-access/useModulePageOverlaySkeleton";
+import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { cn } from "@/shared/lib/utils";
 import { useEmployees } from "../hooks/useEmployees";
 import { useReprimands } from "../hooks/useReprimands";
@@ -28,7 +30,7 @@ interface ReprimandFilters {
 export const ReprimandManagementPage = () => {
   const [activeTab, setActiveTab] = useState("reprimand");
   const { t } = useAppTranslation();
-  const { loading: orgLoading } = useCurrentOrg();
+  const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
 
   const {
     employees,
@@ -223,10 +225,17 @@ export const ReprimandManagementPage = () => {
   );
 
   const hasError = employeesError || reprimandsError;
-  const dataPending = employeesPending || reprimandsPending;
-  const showFullPageSkeleton = orgLoading || dataPending;
+  const dataPending =
+    Boolean(organizationId) && (employeesPending || reprimandsPending);
+  const rawPendingLoad = orgBootstrapPending || dataPending;
+  const { showFullPageSkeleton, accessReady } = useModulePageOverlaySkeleton(
+    rawPendingLoad,
+    "/employees/reprimand",
+  );
+  const showPageOverlay = !accessReady || showFullPageSkeleton;
+  const showContent = useDebouncedReady(!showPageOverlay, 220);
 
-  if (hasError && !orgLoading && !dataPending) {
+  if (hasError && !rawPendingLoad && accessReady) {
     return (
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/40 font-sans">
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-8">
@@ -260,8 +269,9 @@ export const ReprimandManagementPage = () => {
       <div
         className={cn(
           "flex min-h-0 min-w-0 w-full flex-1",
-          showFullPageSkeleton && "pointer-events-none invisible",
+          !showContent && "pointer-events-none invisible",
         )}
+        aria-hidden={!showContent}
       >
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col bg-muted/40 px-4 pb-2">
           <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
@@ -319,7 +329,7 @@ export const ReprimandManagementPage = () => {
         </div>
       </div>
 
-      {showFullPageSkeleton ? (
+      {!showContent ? (
         <div className="absolute inset-0 z-10 overflow-hidden">
           <ReprimandManagementPageSkeleton />
         </div>

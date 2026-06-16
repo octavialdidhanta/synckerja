@@ -139,7 +139,7 @@ export const ModalAddTaskStep = ({
             ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area'
             : 'h-[600px] w-[600px] max-h-[90vh] max-w-[90vw] rounded-lg'
         )}
-        hideCloseButton={isMobile}
+        hideCloseButton
         fullscreenAnimation={isMobile}
       >
         <DialogHeader
@@ -147,38 +147,41 @@ export const ModalAddTaskStep = ({
             'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 text-left dark:from-blue-950/20 dark:to-indigo-950/20',
             isMobile
               ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0'
-              : 'rounded-t-lg px-6 pb-4 pt-6'
+              : 'rounded-t-lg px-4 py-2.5',
           )}
         >
-          <div className={cn('flex items-center gap-3', isMobile ? 'w-full min-w-0 gap-1.5 px-3 py-2' : '')}>
-            <div className={cn('flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 flex-shrink-0', isMobile ? 'h-9 w-9 rounded-md' : 'w-10 h-10 rounded-lg')}>
-              <ListChecks className={cn('text-blue-600 dark:text-blue-400', isMobile ? 'h-4 w-4' : 'h-5 w-5')} />
+          <div
+            className={cn(
+              'flex w-full min-w-0 items-center gap-2',
+              isMobile ? 'gap-1.5 px-3 py-1.5' : 'pr-1',
+            )}
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/30">
+              <ListChecks className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="min-w-0 flex-1">
-              <DialogTitle className={cn(isMobile ? 'm-0 truncate py-0 pr-1 text-base font-semibold leading-tight' : 'text-lg font-semibold md:text-xl')}>
+              <DialogTitle className="m-0 truncate text-base font-semibold leading-tight">
                 {isEditMode ? 'Edit Step' : 'Add New Step'}
               </DialogTitle>
             </div>
-            {isMobile ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="inline-flex h-9 w-9 shrink-0 rounded-full p-0"
-                onClick={handleCancel}
-                disabled={isSubmitting}
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="inline-flex h-8 w-8 shrink-0 rounded-md p-0"
+              onClick={handleCancel}
+              disabled={isSubmitting}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </DialogHeader>
 
         <div
           className={cn(
             'scrollbar-hide seamless-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-            isMobile ? 'px-6 pt-4 pb-6' : 'px-6 py-6'
+            isMobile ? 'px-4 pt-3 pb-5' : 'px-6 py-4'
           )}
           style={
             !isMobile
@@ -253,7 +256,7 @@ export const ModalAddTaskStep = ({
           </form>
         </div>
 
-        <div className={cn('flex-shrink-0 border-t bg-muted/30 px-4 pb-3 pt-3', !isMobile && 'rounded-b-lg px-6 pb-4 pt-4')}>
+        <div className={cn('flex-shrink-0 border-t bg-muted/30 px-4 py-2.5', !isMobile && 'rounded-b-lg')}>
           <div className="flex items-center justify-end gap-2">
             <Button
               type="button"
