@@ -2,11 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { parseEdgeFunctionError } from "@/tiktok-ads/lib/parseEdgeFunctionError";
 import { supabase } from "@/shared/lib/supabaseClient";
 
+export type YouTubeContentVideoPrivacyStatus = "public" | "unlisted" | "private";
+
 export type YouTubeContentVideoRow = {
   video_id: string;
   title: string;
   share_url: string | null;
   cover_image_url: string | null;
+  privacy_status?: YouTubeContentVideoPrivacyStatus | null;
   duration: number | null;
   view_count: number;
   like_count: number;
@@ -50,8 +53,18 @@ export async function fetchYouTubeContentVideos(args: {
   dateStart: string;
   dateEnd: string;
   forceRefresh?: boolean;
+  allVideos?: boolean;
+  filterByPublishDate?: boolean;
 }): Promise<YouTubeContentVideosResponse> {
-  const { organizationId, channelId, dateStart, dateEnd, forceRefresh = false } = args;
+  const {
+    organizationId,
+    channelId,
+    dateStart,
+    dateEnd,
+    forceRefresh = false,
+    allVideos = false,
+    filterByPublishDate = false,
+  } = args;
   const { data, error } = await supabase.functions.invoke("youtube-content-metrics", {
     body: {
       organization_id: organizationId,
@@ -59,6 +72,8 @@ export async function fetchYouTubeContentVideos(args: {
       date_start: dateStart,
       date_end: dateEnd,
       force_refresh: forceRefresh,
+      all_videos: allVideos,
+      filter_by_publish_date: filterByPublishDate,
     },
   });
   if (error) throw await parseEdgeFunctionError(error, data);
@@ -73,10 +88,28 @@ export function useYouTubeContentVideosQuery(args: {
   dateStart: string;
   dateEnd: string;
   enabled?: boolean;
+  allVideos?: boolean;
+  filterByPublishDate?: boolean;
 }) {
-  const { organizationId, channelId, dateStart, dateEnd, enabled = true } = args;
+  const {
+    organizationId,
+    channelId,
+    dateStart,
+    dateEnd,
+    enabled = true,
+    allVideos = false,
+    filterByPublishDate = false,
+  } = args;
   return useQuery({
-    queryKey: ["youtube-content-videos", organizationId, channelId, dateStart, dateEnd],
+    queryKey: [
+      "youtube-content-videos",
+      organizationId,
+      channelId,
+      dateStart,
+      dateEnd,
+      allVideos,
+      filterByPublishDate,
+    ],
     queryFn: async () => {
       if (!organizationId || !channelId) return null;
       return fetchYouTubeContentVideos({
@@ -84,6 +117,8 @@ export function useYouTubeContentVideosQuery(args: {
         channelId,
         dateStart,
         dateEnd,
+        allVideos,
+        filterByPublishDate,
       });
     },
     enabled: Boolean(organizationId && channelId && enabled),

@@ -266,6 +266,7 @@
     },
     "userMenu": {
       "notificationsAria": "Notifikasi",
+      "help": "Bantuan",
       "transferOwnership": "Alihkan kepemilikan"
     },
     "a11y": {

@@ -28,6 +28,7 @@ export type CreateTokenPayload = {
   label?: string;
   allowed_origins?: string[];
   expires_in_days?: number;
+  token_type: "sdk" | "server";
 };
 
 function FieldLabel({
@@ -65,8 +66,22 @@ export function ApiTokenCreateDialog({
   const { t } = useTranslation();
   const [webId, setWebId] = useState("");
   const [label, setLabel] = useState("");
+  const [tokenType, setTokenType] = useState<"sdk" | "server">("sdk");
   const [origins, setOrigins] = useState("");
   const [expiryDays, setExpiryDays] = useState<string>("none");
+
+  const parsedOrigins = useMemo(
+    () =>
+      origins
+        .split(/[\n,]/)
+        .map((o) => o.trim())
+        .filter(Boolean),
+    [origins],
+  );
+
+  const canSubmit =
+    Boolean(webId.trim()) &&
+    (tokenType === "server" || parsedOrigins.length > 0);
 
   const activeWebIdCount = useMemo(
     () => countActiveTokensForWebId(existingTokens, webId),
@@ -91,6 +106,7 @@ export function ApiTokenCreateDialog({
     if (!open) {
       setWebId("");
       setLabel("");
+      setTokenType("sdk");
       setOrigins("");
       setExpiryDays("none");
     }
@@ -100,15 +116,13 @@ export function ApiTokenCreateDialog({
     const normalized = webId.trim().toLowerCase();
     if (!normalized) return;
 
-    const allowed_origins = origins
-      .split(/[\n,]/)
-      .map((o) => o.trim())
-      .filter(Boolean);
+    const allowed_origins = parsedOrigins;
 
     await onSubmit({
       web_id: normalized,
       label: label.trim() || undefined,
-      allowed_origins: allowed_origins.length > 0 ? allowed_origins : undefined,
+      token_type: tokenType,
+      allowed_origins: tokenType === "sdk" ? allowed_origins : undefined,
       expires_in_days: expiryDays === "none" ? undefined : Number(expiryDays),
     });
   }
@@ -124,6 +138,33 @@ export function ApiTokenCreateDialog({
         </DialogHeader>
 
         <div className="space-y-3 py-1">
+          <div className="space-y-1.5">
+            <FieldLabel info={t("omnichannel.settings.apiIntegration.tokenTypeFieldHint")}>
+              {t("omnichannel.settings.apiIntegration.tokenTypeField")}
+            </FieldLabel>
+            <Select
+              value={tokenType}
+              onValueChange={(v) => setTokenType(v as "sdk" | "server")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sdk">
+                  {t("omnichannel.settings.apiIntegration.tokenTypeSdk")}
+                </SelectItem>
+                <SelectItem value="server">
+                  {t("omnichannel.settings.apiIntegration.tokenTypeServer")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {tokenType === "sdk"
+                ? t("omnichannel.settings.apiIntegration.tokenTypeSdkHint")
+                : t("omnichannel.settings.apiIntegration.tokenTypeServerHint")}
+            </p>
+          </div>
+
           <div className="space-y-1.5">
             <div className="flex items-center gap-1">
               <FieldLabel
@@ -154,12 +195,13 @@ export function ApiTokenCreateDialog({
             <Input id="api-label" value={label} onChange={(e) => setLabel(e.target.value)} />
           </div>
 
+          {tokenType === "sdk" ? (
           <div className="space-y-1.5">
             <FieldLabel
               htmlFor="api-origins"
               info={t("omnichannel.settings.apiIntegration.originsHint")}
             >
-              {t("omnichannel.settings.apiIntegration.originsFieldShort")}
+              {t("omnichannel.settings.apiIntegration.originsFieldShort")} *
             </FieldLabel>
             <Input
               id="api-origins"
@@ -168,6 +210,7 @@ export function ApiTokenCreateDialog({
               placeholder="https://toko-anda.com"
             />
           </div>
+          ) : null}
 
           <div className="space-y-1.5">
             <Label>{t("omnichannel.settings.apiIntegration.expiryField")}</Label>
@@ -189,7 +232,7 @@ export function ApiTokenCreateDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button disabled={loading || !webId.trim()} onClick={() => void handleSubmit()}>
+          <Button disabled={loading || !canSubmit} onClick={() => void handleSubmit()}>
             {t("omnichannel.settings.apiIntegration.createToken")}
           </Button>
         </DialogFooter>

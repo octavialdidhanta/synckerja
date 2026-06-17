@@ -1,0 +1,144 @@
+[
+  {
+    "subject": "Richard Simbolon",
+    "steps": {
+      "traffic": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "session_id": "a39203ec-43d2-4e82-bb5b-892c606f586b",
+          "page_view_id": "e0d4e28d-1f55-45ce-93cd-e603a0693102",
+          "visitor_id": "5e014bfa-ca6e-47c4-afdf-a818b3894153",
+          "web_id": "vialdi-wedding"
+        }
+      },
+      "heartbeat": {
+        "status": 200,
+        "json": {
+          "success": true,
+          "page_view_id": "e0d4e28d-1f55-45ce-93cd-e603a0693102"
+        }
+      },
+      "click": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "click_event_id": "19e108a9-e223-46e2-b221-9e7d1599f79b"
+        }
+      },
+      "waClick": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "wa_click_id": "29e291a5-9999-4cff-8785-daa26945bc17"
+        }
+      },
+      "lead": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "lead_id": "3cbf20ab-103e-4a62-8e65-dc8a9be3ed94",
+          "ticket_id": "LEAD-20260617-1573",
+          "session_id": "a39203ec-43d2-4e82-bb5b-892c606f586b",
+          "attribution": {
+            "session_id": "a39203ec-43d2-4e82-bb5b-892c606f586b",
+            "web_id": "vialdi-wedding",
+            "utm_source": "google",
+            "utm_medium": "cpc",
+            "utm_campaign": "wedding-q2",
+            "utm_content": "hero-cta",
+            "utm_term": "richard",
+            "landing_url": "https://vialdi.id/konsultasi?utm_source=google&utm_medium=cpc&utm_campaign=wedding-q2&utm_content=hero-cta&utm_term=richard&gclid=E2E-SYN-RICHARD-gclid-20260616&fbclid=E2E-SYN-RICHARD-fbclid-20260616",
+            "gclid": "E2E-SYN-RICHARD-gclid-20260616",
+            "fbclid": "E2E-SYN-RICHARD-fbclid-20260616"
+          }
+        }
+      },
+      "invoice": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "invoice_id": "6715b485-8a31-430c-b680-d9214ae63e3b",
+          "invoice_number": "INV-E2E-RICHARD-20260616",
+          "lead_id": "3cbf20ab-103e-4a62-8e65-dc8a9be3ed94",
+          "lead_matched": true,
+          "lead_converted": true,
+          "sales_activity_id": "a72ea66a-8385-48ca-9748-2822782bed47",
+          "whatsapp_status": "failed",
+          "whatsapp_message_id": null
+        }
+      }
+    }
+  },
+  {
+    "subject": "Dedi Corbuzier",
+    "steps": {
+      "traffic": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "session_id": "6aa25a8b-939b-4490-a8f3-54f8de97b368",
+          "page_view_id": "4e2e0e6c-6e90-49f6-9f15-1e467f93b6d6",
+          "visitor_id": "0ce752d4-52e6-4e2c-baef-39ddefed6915",
+          "web_id": "vialdi-wedding"
+        }
+      },
+      "heartbeat": {
+        "status": 200,
+        "json": {
+          "success": true,
+          "page_view_id": "4e2e0e6c-6e90-49f6-9f15-1e467f93b6d6"
+        }
+      },
+      "click": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "click_event_id": "f0f3ed46-fdd0-46d9-87be-9df7d839b281"
+        }
+      },
+      "waClick": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "wa_click_id": "235db74c-a4f4-42f2-b352-346e2aad6e51"
+        }
+      },
+      "lead": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "lead_id": "f2580a2d-2a9b-461c-90df-fb90fbcaa261",
+          "ticket_id": "LEAD-20260617-3264",
+          "session_id": "6aa25a8b-939b-4490-a8f3-54f8de97b368",
+          "attribution": {
+            "session_id": "6aa25a8b-939b-4490-a8f3-54f8de97b368",
+            "web_id": "vialdi-wedding",
+            "utm_source": "google",
+            "utm_medium": "cpc",
+            "utm_campaign": "wedding-q2",
+            "utm_content": "hero-cta",
+            "utm_term": "dedi",
+            "landing_url": "https://vialdi.id/konsultasi?utm_source=google&utm_medium=cpc&utm_campaign=wedding-q2&utm_content=hero-cta&utm_term=dedi&gclid=E2E-SYN-DEDI-gclid-20260616&fbclid=E2E-SYN-DEDI-fbclid-20260616",
+            "gclid": "E2E-SYN-DEDI-gclid-20260616",
+            "fbclid": "E2E-SYN-DEDI-fbclid-20260616"
+          }
+        }
+      },
+      "invoice": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "invoice_id": "67b82eb3-2764-40bb-9928-8fc1413f8a00",
+          "invoice_number": "INV-E2E-DEDI-20260616",
+          "lead_id": "f2580a2d-2a9b-461c-90df-fb90fbcaa261",
+          "lead_matched": true,
+          "lead_converted": true,
+          "sales_activity_id": "8962ebd4-f4fa-4f0d-b76b-26eb788e5ee9",
+          "whatsapp_status": "failed",
+          "whatsapp_message_id": null
+        }
+      }
+    }
+  }
+]

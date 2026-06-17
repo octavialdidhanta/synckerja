@@ -12,6 +12,8 @@ type YouTubeContentSummaryBarProps = {
   targetProgress?: InsightTargetProgress[];
   isLoading?: boolean;
   targetsLoading?: boolean;
+  /** When true, views are lifetime totals (all-time video list), not period metrics. */
+  viewsAreLifetime?: boolean;
 };
 
 function formatCount(n: number): string {
@@ -42,6 +44,7 @@ export function YouTubeContentSummaryBar({
   targetProgress = [],
   isLoading = false,
   targetsLoading = false,
+  viewsAreLifetime = false,
 }: YouTubeContentSummaryBarProps) {
   const { t } = useTranslation();
   const progressByMetric = new Map(targetProgress.map((item) => [item.metric, item]));
@@ -74,7 +77,9 @@ export function YouTubeContentSummaryBar({
     {
       key: "views",
       metric: "views",
-      label: t("digitalMarketing.youtubeContent.summaryViews", "Views"),
+      label: viewsAreLifetime
+        ? t("digitalMarketing.youtubeContent.summaryViewsLifetime", "Views (lifetime)")
+        : t("digitalMarketing.youtubeContent.summaryViews", "Views"),
       value: formatCount(summary?.total_views ?? 0),
     },
     {

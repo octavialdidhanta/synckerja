@@ -7,10 +7,22 @@ export const youtubeContentCorsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
+export const YOUTUBE_CONTENT_COMMENTS_OAUTH_SCOPE =
+  "https://www.googleapis.com/auth/youtube.force-ssl";
+
 export const YOUTUBE_CONTENT_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
+  YOUTUBE_CONTENT_COMMENTS_OAUTH_SCOPE,
   "https://www.googleapis.com/auth/yt-analytics.readonly",
 ].join(" ");
+
+export function hasYouTubeCommentsOAuthScope(scopes: string[]): boolean {
+  return scopes.some(
+    (s) =>
+      s.includes("youtube.force-ssl")
+      || s === "https://www.googleapis.com/auth/youtube",
+  );
+}
 
 export function youtubeContentJson(body: object, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -60,6 +72,7 @@ export function appPublicOrigin(): string {
 
 export const YOUTUBE_CONTENT_OAUTH_RETURN_PATHS = new Set([
   "/digital-marketing/social-media-performance/youtube/settings",
+  "/digital-marketing/social-media-performance/manage-comments/youtube/settings",
 ]);
 
 export async function getUserFromBearer(

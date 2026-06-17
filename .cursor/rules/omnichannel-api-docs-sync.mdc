@@ -15,7 +15,8 @@ Tab **Docs** di `/omnichannel/settings/api-integration?tab=docs` membaca `API_AC
 
 1. Update **`supabase/functions/omnichannel-public-api/openapi.yaml`** (versi, schema, endpoint) bila kontrak berubah.
 2. Jalankan **`npm run generate:omnichannel-api-docs`** (atau biarkan `npm run dev` / `prebuild` yang men-sync otomatis).
-3. Jika menambah **kode HTTP baru** di handler, update juga i18n + `ApiIntegrationHttpCodesPanel.tsx` (tidak di-generate dari OpenAPI).
+3. Jika mengubah **`token_type` / scope**, update `auth.ts`, `omnichannel-api-manage`, UI create token, dan kebijakan token di generator.
+4. Jika menambah **kode HTTP baru** di handler, update juga i18n + `ApiIntegrationHttpCodesPanel.tsx` (tidak di-generate dari OpenAPI).
 
 ## Otomatisasi yang sudah ada
 

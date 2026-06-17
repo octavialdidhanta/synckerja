@@ -1,7 +1,11 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { authenticateOmnichannelApiToken } from "../_shared/omnichannelPublicApi/auth.ts";
+import {
+  authenticateOmnichannelApiToken,
+  assertInvoiceNotFromBrowser,
+  assertPathAllowedForTokenType,
+} from "../_shared/omnichannelPublicApi/auth.ts";
 import { apiError } from "../_shared/omnichannelPublicApi/response.ts";
 import { buildCorsHeaders } from "../_shared/omnichannelPublicApi/response.ts";
 import {
@@ -53,6 +57,14 @@ Deno.serve(async (req) => {
   }
 
   const path = normalizePath(new URL(req.url).pathname);
+
+  const scopeErr = assertPathAllowedForTokenType(path, ctx.tokenType, corsHeaders);
+  if (scopeErr) return scopeErr;
+
+  if (path === "/api/v1/orders/invoice-trigger") {
+    const browserErr = assertInvoiceNotFromBrowser(req, corsHeaders);
+    if (browserErr) return browserErr;
+  }
 
   switch (path) {
     case "/api/v1/traffic-logs":

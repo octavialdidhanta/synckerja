@@ -1,0 +1,8 @@
+{
+  "invoice_number": "INV-SCOPE-A-TEST-001",
+  "amount": 1000,
+  "items": [{ "name": "Test", "qty": 1, "price": 1000 }],
+  "phone_number": "+6281000000001",
+  "email": "scope.test@example.com",
+  "customer_name": "Scope Test"
+}

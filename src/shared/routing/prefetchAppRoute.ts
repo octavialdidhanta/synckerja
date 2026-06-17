@@ -29,6 +29,10 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-0-social-media-manage-comments/pages/TikTokManageCommentsPage"),
   },
   {
+    prefix: "/digital-marketing/social-media-performance/manage-comments/youtube",
+    prefetch: () => import("@/6-0-social-media-manage-comments/pages/YouTubeManageCommentsPage"),
+  },
+  {
     prefix: "/digital-marketing/social-media-performance/manage-comments",
     prefetch: () => import("@/6-0-social-media-manage-comments/pages/ManageCommentsHubPage"),
   },

@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 
+export type OmnichannelApiTokenType = "sdk" | "server" | "legacy_full";
+
 export type OmnichannelApiTokenRow = {
   id: string;
   label: string | null;
   web_id: string;
   token_prefix: string;
+  token_type: OmnichannelApiTokenType;
   allowed_origins: string[];
   whatsapp_invoice_template_name: string | null;
   is_active: boolean;
@@ -70,6 +73,7 @@ export function useCreateOmnichannelApiToken(organizationId: string | null | und
       label?: string;
       allowed_origins?: string[];
       expires_in_days?: number;
+      token_type?: "sdk" | "server";
       whatsapp_invoice_template_name?: string;
     }) => invokeManage({ action: "createToken", organizationId, ...payload }),
     onSuccess: () => {
@@ -158,4 +162,11 @@ export function countActiveTokensForWebId(
 ): number {
   const normalized = webId.trim().toLowerCase();
   return tokens.filter((t) => t.web_id === normalized && isOmnichannelTokenCurrentlyActive(t)).length;
+}
+
+export function normalizeOmnichannelTokenType(
+  value: string | null | undefined,
+): OmnichannelApiTokenType {
+  if (value === "sdk" || value === "server" || value === "legacy_full") return value;
+  return "legacy_full";
 }

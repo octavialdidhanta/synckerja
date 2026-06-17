@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { YouTubeContentVideoRow } from "@/youtube-content/hooks/useYouTubeContentVideosQuery";
 import { cn } from "@/shared/lib/utils";
@@ -20,6 +20,19 @@ function formatCount(n: number): string {
 function formatPercent(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `${n.toFixed(2)}%`;
+}
+
+function privacyLabel(
+  status: YouTubeContentVideoRow["privacy_status"],
+  t: (key: string, fallback: string) => string,
+): string | null {
+  if (status === "private") {
+    return t("digitalMarketing.youtubeContent.privacy.private", "Private");
+  }
+  if (status === "unlisted") {
+    return t("digitalMarketing.youtubeContent.privacy.unlisted", "Unlisted");
+  }
+  return null;
 }
 
 function formatDate(iso: string | null): string {
@@ -231,6 +244,7 @@ export function YouTubeContentVideosTable({ rows }: YouTubeContentVideosTablePro
         <tbody>
           {sortedRows.map((row) => {
             const title = row.title || row.video_id;
+            const privacy = privacyLabel(row.privacy_status, t);
             return (
               <tr key={row.video_id} className="border-b border-gray-100 hover:bg-gray-50/50">
                 <td className="max-w-[220px] overflow-hidden px-3 py-2">
@@ -243,8 +257,14 @@ export function YouTubeContentVideosTable({ rows }: YouTubeContentVideosTablePro
                       />
                     ) : null}
                     <div className="min-w-0 flex-1 overflow-hidden">
-                      <p className="truncate font-medium text-gray-900" title={title}>
-                        {title}
+                      <p className="flex min-w-0 items-center gap-1 truncate font-medium text-gray-900" title={title}>
+                        {privacy ? (
+                          <Lock
+                            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            aria-label={privacy}
+                          />
+                        ) : null}
+                        <span className="truncate">{title}</span>
                       </p>
                     </div>
                   </div>

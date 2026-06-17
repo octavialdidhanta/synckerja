@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { formatPostListSnippet } from "@/6-0-social-media-manage-comments/lib/formatPostEngagementStats";
@@ -12,6 +13,7 @@ type ManageCommentsPostListItemRowProps = {
   selected: boolean;
   isNew?: boolean;
   onSelect: () => void;
+  platformBadge?: ReactNode;
 };
 
 function formatPostDate(postedAt: string | null): string {
@@ -21,11 +23,18 @@ function formatPostDate(postedAt: string | null): string {
   return format(d, "dd/MM/yyyy");
 }
 
+const defaultPlatformBadge = (
+  <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black ring-2 ring-white">
+    <TikTokTabIcon className="h-2.5 w-2.5 text-white" />
+  </span>
+);
+
 export function ManageCommentsPostListItemRow({
   post,
   selected,
   isNew,
   onSelect,
+  platformBadge = defaultPlatformBadge,
 }: ManageCommentsPostListItemRowProps) {
   const { t, i18n } = useTranslation();
   const snippetLabel = formatPostListSnippet(post.commentCount, t, i18n.language);
@@ -59,9 +68,7 @@ export function ManageCommentsPostListItemRow({
             {initials || <User className="h-5 w-5" />}
           </AvatarFallback>
         </Avatar>
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black ring-2 ring-white">
-          <TikTokTabIcon className="h-2.5 w-2.5 text-white" />
-        </span>
+        {platformBadge}
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex items-start justify-between gap-2">

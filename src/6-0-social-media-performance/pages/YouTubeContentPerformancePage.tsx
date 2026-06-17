@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -32,7 +32,19 @@ import { YouTubeContentVideosTable } from "@/6-0-social-media-performance/compon
 import { TikTokAdsDateRangePicker } from "@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker";
 import { buildTikTokAdsCalendarYearPresetYears } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
 import { toTikTokAdsMetricsDateRangePayload } from "@/tiktok-ads/lib/toTikTokAdsMetricsDateRangePayload";
+import {
+  fetchYouTubeChannelAnalytics,
+  useYouTubeChannelAnalyticsQuery,
+} from "@/youtube-content/hooks/useYouTubeChannelAnalyticsQuery";
+import { YouTubePerformancePanelTabs } from "@/6-0-social-media-performance/components/youtube-analytics/YouTubePerformancePanelTabs";
+import { YouTubeChannelAnalyticsPanel } from "@/6-0-social-media-performance/components/youtube-analytics/YouTubeChannelAnalyticsPanel";
+import {
+  parseYouTubePerformancePanel,
+  YOUTUBE_PERFORMANCE_PANEL_PARAM,
+  type YouTubePerformancePanel,
+} from "@/6-0-social-media-performance/constants/youtubePerformancePanel";
 import { tiktokAdsAllTimeDateRange } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
+import { resolveYouTubeChannelAnalyticsDateRange } from "@/youtube-content/lib/youtubeAnalyticsDateRange";
 
 const SOCIAL_MEDIA_PERFORMANCE_PATH = "/digital-marketing/social-media-performance";
 
@@ -51,6 +63,11 @@ function YouTubeContentPerformancePageContent() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const panel = useMemo(
+    () => parseYouTubePerformancePanel(searchParams.get(YOUTUBE_PERFORMANCE_PANEL_PARAM)),
+    [searchParams],
+  );
   const isSettingsView = location.pathname === YOUTUBE_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH;
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
   const { data: reportingEnabled = false, isPending: reportingPending } =
@@ -87,6 +104,14 @@ function YouTubeContentPerformancePageContent() {
   );
   const dateStart = dateRange.start;
   const dateEnd = dateRange.end;
+  const analyticsDateRange = useMemo(
+    () => resolveYouTubeChannelAnalyticsDateRange(dateSelection.preset, dateRange),
+    [dateSelection.preset, dateRange],
+  );
+  const analyticsDateStart = analyticsDateRange.start;
+  const analyticsDateEnd = analyticsDateRange.end;
+  /** All-time loads the full uploads playlist; other presets filter by video publish date (like TikTok). */
+  const isAllTimeVideosRange = dateSelection.preset === "all_time";
 
   const activeAccounts = useMemo(
     () => (settings?.accounts ?? []).filter((a) => a.is_active),
@@ -100,38 +125,108 @@ function YouTubeContentPerformancePageContent() {
     }
   }, [activeAccounts, channelId]);
 
+  const metricsEnabled =
+    reportingEnabled &&
+    Boolean(channelId) &&
+    activeAccounts.some((a) => a.channel_id === channelId) &&
+    !isSettingsView &&
+    canManage;
+
   const videosQuery = useYouTubeContentVideosQuery({
     organizationId,
     channelId,
     dateStart,
     dateEnd,
-    enabled:
-      reportingEnabled &&
-      Boolean(channelId) &&
-      activeAccounts.some((a) => a.channel_id === channelId) &&
-      !isSettingsView &&
-      canManage,
+    allVideos: isAllTimeVideosRange,
+    filterByPublishDate: false,
+    enabled: metricsEnabled && panel === "videos",
   });
+
+  const analyticsQuery = useYouTubeChannelAnalyticsQuery({
+    organizationId,
+    channelId,
+    dateStart: analyticsDateStart,
+    dateEnd: analyticsDateEnd,
+    enabled: metricsEnabled && panel === "channel-analytics",
+  });
+
+  const handlePanelChange = useCallback(
+    (next: YouTubePerformancePanel) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (next === "videos") {
+            params.delete(YOUTUBE_PERFORMANCE_PANEL_PARAM);
+          } else {
+            params.set(YOUTUBE_PERFORMANCE_PANEL_PARAM, next);
+          }
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const handleRefresh = useCallback(async () => {
     if (!organizationId || !channelId) return;
     try {
+      if (panel === "channel-analytics") {
+        const fresh = await fetchYouTubeChannelAnalytics({
+          organizationId,
+          channelId,
+          dateStart: analyticsDateStart,
+          dateEnd: analyticsDateEnd,
+          forceRefresh: true,
+        });
+        queryClient.setQueryData(
+          ["youtube-channel-analytics", organizationId, channelId, analyticsDateStart, analyticsDateEnd],
+          fresh,
+        );
+        return;
+      }
       const fresh = await fetchYouTubeContentVideos({
         organizationId,
         channelId,
         dateStart,
         dateEnd,
+        allVideos: isAllTimeVideosRange,
+        filterByPublishDate: false,
         forceRefresh: true,
       });
       queryClient.setQueryData(
-        ["youtube-content-videos", organizationId, channelId, dateStart, dateEnd],
+        [
+          "youtube-content-videos",
+          organizationId,
+          channelId,
+          dateStart,
+          dateEnd,
+          isAllTimeVideosRange,
+          false,
+        ],
         fresh,
       );
     } catch (e) {
       toast.error((e as Error).message);
-      await videosQuery.refetch();
+      if (panel === "channel-analytics") {
+        await analyticsQuery.refetch();
+      } else {
+        await videosQuery.refetch();
+      }
     }
-  }, [organizationId, channelId, dateStart, dateEnd, queryClient, videosQuery]);
+  }, [
+    organizationId,
+    channelId,
+    dateStart,
+    dateEnd,
+    analyticsDateStart,
+    analyticsDateEnd,
+    isAllTimeVideosRange,
+    queryClient,
+    panel,
+    analyticsQuery,
+    videosQuery,
+  ]);
 
   const selectedAccountLabel = useMemo(() => {
     const fromQuery = videosQuery.data?.account_label?.trim();
@@ -144,11 +239,16 @@ function YouTubeContentPerformancePageContent() {
     channelId,
     summary: videosQuery.data?.summary,
     accountLabel: selectedAccountLabel,
-    enabled: reportingEnabled && Boolean(channelId) && !isSettingsView && canManage,
+    enabled: metricsEnabled && panel === "videos",
   });
 
   const metricsLoading =
-    videosQuery.isLoading || (videosQuery.isFetching && !videosQuery.data);
+    panel === "channel-analytics"
+      ? analyticsQuery.isLoading || (analyticsQuery.isFetching && !analyticsQuery.data)
+      : videosQuery.isLoading || (videosQuery.isFetching && !videosQuery.data);
+
+  const isRefreshing =
+    panel === "channel-analytics" ? analyticsQuery.isFetching : videosQuery.isFetching;
 
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
 
@@ -255,56 +355,75 @@ function YouTubeContentPerformancePageContent() {
                                 </Alert>
                               ) : null}
 
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="outline"
-                                  aria-label={t("digitalMarketing.youtubeContent.refresh", "Refresh")}
-                                  disabled={!reportingEnabled || !channelId || videosQuery.isFetching}
-                                  onClick={() => void handleRefresh()}
-                                >
-                                  {videosQuery.isFetching ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <TikTokAdsDateRangePicker
-                                  value={dateSelection}
-                                  onChange={setDateSelection}
-                                  calendarYearPresetYears={calendarYearPresetYears}
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <YouTubePerformancePanelTabs
+                                  panel={panel}
+                                  onPanelChange={handlePanelChange}
                                 />
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="outline"
+                                    aria-label={t("digitalMarketing.youtubeContent.refresh", "Refresh")}
+                                    disabled={!reportingEnabled || !channelId || isRefreshing}
+                                    onClick={() => void handleRefresh()}
+                                  >
+                                    {isRefreshing ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <RefreshCw className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                  <TikTokAdsDateRangePicker
+                                    value={dateSelection}
+                                    onChange={setDateSelection}
+                                    calendarYearPresetYears={calendarYearPresetYears}
+                                  />
+                                </div>
                               </div>
                             </div>
 
-                            <YouTubeContentSummaryBar
-                              summary={videosQuery.data?.summary}
-                              targetProgress={progressList}
-                              isLoading={metricsLoading}
-                              targetsLoading={targetsLoading}
-                            />
+                            {panel === "videos" ? (
+                              <>
+                                <YouTubeContentSummaryBar
+                                  summary={videosQuery.data?.summary}
+                                  targetProgress={progressList}
+                                  isLoading={metricsLoading}
+                                  targetsLoading={targetsLoading}
+                                  viewsAreLifetime={isAllTimeVideosRange}
+                                />
 
-                            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                              {videosQuery.isError ? (
-                                <div className="p-4">
-                                  <Alert variant="destructive">
-                                    <AlertTitle>
-                                      {t("digitalMarketing.youtubeContent.error", "Failed to load videos")}
-                                    </AlertTitle>
-                                    <AlertDescription>
-                                      {(videosQuery.error as Error)?.message ??
-                                        t(
-                                          "digitalMarketing.youtubeContent.errorGeneric",
-                                          "An error occurred while loading YouTube videos.",
-                                        )}
-                                    </AlertDescription>
-                                  </Alert>
+                                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                                  {videosQuery.isError ? (
+                                    <div className="p-4">
+                                      <Alert variant="destructive">
+                                        <AlertTitle>
+                                          {t("digitalMarketing.youtubeContent.error", "Failed to load videos")}
+                                        </AlertTitle>
+                                        <AlertDescription>
+                                          {(videosQuery.error as Error)?.message ??
+                                            t(
+                                              "digitalMarketing.youtubeContent.errorGeneric",
+                                              "An error occurred while loading YouTube videos.",
+                                            )}
+                                        </AlertDescription>
+                                      </Alert>
+                                    </div>
+                                  ) : (
+                                    <YouTubeContentVideosTable rows={videosQuery.data?.rows ?? []} />
+                                  )}
                                 </div>
-                              ) : (
-                                <YouTubeContentVideosTable rows={videosQuery.data?.rows ?? []} />
-                              )}
-                            </div>
+                              </>
+                            ) : (
+                              <YouTubeChannelAnalyticsPanel
+                                data={analyticsQuery.data ?? undefined}
+                                isLoading={metricsLoading}
+                                isError={analyticsQuery.isError}
+                                error={(analyticsQuery.error as Error) ?? null}
+                                isAllTimeRange={dateSelection.preset === "all_time"}
+                              />
+                            )}
                           </>
                         )}
                       </div>

@@ -531,3 +531,33 @@ body.google-picker-host-open .picker-dialog-bg {
 body.google-picker-host-open [aria-label="Dialog backdrop"] {
   pointer-events: none !important;
 }
+
+/* Public /review mobile HTML5 — suppress native player chrome (Android Chrome overlay). */
+video.review-fit-video-mobile {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+video.review-fit-video-mobile::-webkit-media-controls {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+video.review-fit-video-mobile::-webkit-media-controls-enclosure,
+video.review-fit-video-mobile::-webkit-media-controls-panel,
+video.review-fit-video-mobile::-webkit-media-controls-overlay-play-button,
+video.review-fit-video-mobile::-webkit-media-controls-play-button,
+video.review-fit-video-mobile::-webkit-media-controls-start-playback-button,
+video.review-fit-video-mobile::-webkit-media-controls-timeline,
+video.review-fit-video-mobile::-webkit-media-controls-timeline-container,
+video.review-fit-video-mobile::-webkit-media-controls-current-time-display,
+video.review-fit-video-mobile::-webkit-media-controls-time-remaining-display,
+video.review-fit-video-mobile::-webkit-media-controls-mute-button,
+video.review-fit-video-mobile::-webkit-media-controls-volume-slider,
+video.review-fit-video-mobile::-webkit-media-controls-fullscreen-button,
+video.review-fit-video-mobile::-webkit-media-controls-toggle-closed-captions-button {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

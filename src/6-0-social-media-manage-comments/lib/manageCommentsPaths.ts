@@ -6,3 +6,9 @@ export const SOCIAL_MEDIA_MANAGE_COMMENTS_TIKTOK_PATH =
 
 export const SOCIAL_MEDIA_MANAGE_COMMENTS_TIKTOK_SETTINGS_PATH =
   "/digital-marketing/social-media-performance/manage-comments/tiktok/settings";
+
+export const SOCIAL_MEDIA_MANAGE_COMMENTS_YOUTUBE_PATH =
+  "/digital-marketing/social-media-performance/manage-comments/youtube";
+
+export const SOCIAL_MEDIA_MANAGE_COMMENTS_YOUTUBE_SETTINGS_PATH =
+  "/digital-marketing/social-media-performance/manage-comments/youtube/settings";

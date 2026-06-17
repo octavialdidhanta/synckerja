@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, ChevronDown, Crown, LogOut, Settings, ShieldCheck, UserRound, Users } from "lucide-react";
+import { Briefcase, ChevronDown, Crown, LifeBuoy, LogOut, Settings, ShieldCheck, UserRound, Users } from "lucide-react";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { formatOrganizationRole } from "@/shared/lib/formatOrganizationRole";
 import { Button } from "@/shared/components/ui/button";
@@ -136,6 +136,12 @@ export function UserProfileDropdown() {
             <Link to="/settings" className="flex items-center gap-3">
               <Settings className="h-4 w-4 text-muted-foreground" />
               {t("layout.header.settings")}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className="cursor-pointer rounded-lg px-3 py-2.5 text-sm focus:bg-brand-blue/10 focus:text-brand-blue">
+            <Link to="/help" className="flex items-center gap-3">
+              <LifeBuoy className="h-4 w-4 text-muted-foreground" />
+              {t("layout.userMenu.help", "Help")}
             </Link>
           </DropdownMenuItem>
           {isOwner && (

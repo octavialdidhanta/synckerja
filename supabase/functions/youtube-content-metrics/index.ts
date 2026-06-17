@@ -10,9 +10,11 @@ import {
 } from "../_shared/youtubeContentAuth.ts";
 import {
   buildYouTubeWatchUrl,
+  fetchAllYouTubeVideos,
   fetchAllYouTubeVideosInRange,
   fetchChannelSubscriberCount,
   resolveUploadsPlaylistId,
+  type YouTubeVideoRow,
 } from "../_shared/youtubeContentApi.ts";
 import { resolveOrgYouTubeContentForMetrics } from "../_shared/youtubeContentOrgResolver.ts";
 import {
@@ -25,7 +27,9 @@ import {
 } from "../_shared/youtubeContentPlanMatcher.ts";
 
 const CACHE_TTL_MINUTES = 15;
-const METRICS_CACHE_KEY = "video-list-v2";
+const METRICS_CACHE_KEY = "video-list-v3";
+const ALL_VIDEOS_CACHE_KEY = "video-list-all-owner-v2";
+const INBOX_CACHE_KEY = "video-list-inbox-v2";
 const MAX_LOOKBACK_DAYS = 365;
 
 function formatDateYmd(d: Date): string {
@@ -47,6 +51,19 @@ function parseYmd(ymd: string): Date | null {
   if (!m) return null;
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function filterVideosByPublishDate(
+  videos: YouTubeVideoRow[],
+  dateStartYmd: string,
+  dateEndYmd: string,
+): YouTubeVideoRow[] {
+  const startMs = new Date(`${dateStartYmd}T00:00:00.000Z`).getTime();
+  const endMs = new Date(`${dateEndYmd}T23:59:59.999Z`).getTime();
+  return videos.filter((video) => {
+    const pubMs = video.published_at ? new Date(video.published_at).getTime() : NaN;
+    return Number.isFinite(pubMs) && pubMs >= startMs && pubMs <= endMs;
+  });
 }
 
 function clampDateRange(startYmd: string, endYmd: string, now = new Date()) {
@@ -94,13 +111,33 @@ Deno.serve(async (req: Request) => {
     const orgForbidden = await requireActiveOrg(admin, userRes.userId, organizationId);
     if (orgForbidden) return orgForbidden;
 
+    const inboxMode = body.inbox_mode === true;
+    const allVideosMode = body.all_videos === true;
+    const filterByPublishDate = body.filter_by_publish_date === true;
+    const now = new Date();
     const dr = defaultDateRange();
     const rawStart = String(body.date_start ?? dr.start).trim();
     const rawEnd = String(body.date_end ?? dr.end).trim();
-    const { start: dateStart, end: dateEnd } = clampDateRange(rawStart, rawEnd);
+    const clamped = clampDateRange(rawStart, rawEnd, now);
+    const inboxCacheStart = formatDateYmd(
+      (() => {
+        const min = new Date(now);
+        min.setDate(min.getDate() - MAX_LOOKBACK_DAYS);
+        return min;
+      })(),
+    );
+    const inboxCacheEnd = formatDateYmd(now);
+    const analyticsDateStart = clamped.start;
+    const analyticsDateEnd = clamped.end;
+    const dateStart = inboxMode ? inboxCacheStart : analyticsDateStart;
+    const dateEnd = inboxMode ? inboxCacheEnd : analyticsDateEnd;
+    const metricsCacheKey = inboxMode
+      ? INBOX_CACHE_KEY
+      : allVideosMode
+      ? ALL_VIDEOS_CACHE_KEY
+      : METRICS_CACHE_KEY;
     const channelIdParam = body.channel_id != null ? String(body.channel_id).trim() : null;
     const forceRefresh = body.force_refresh === true;
-    const now = new Date();
 
     const resolved = await resolveOrgYouTubeContentForMetrics(admin, organizationId, channelIdParam);
     if (!resolved) {
@@ -118,7 +155,7 @@ Deno.serve(async (req: Request) => {
         .eq("channel_id", channelId)
         .eq("date_start", dateStart)
         .eq("date_end", dateEnd)
-        .eq("metrics_key", METRICS_CACHE_KEY)
+        .eq("metrics_key", metricsCacheKey)
         .eq("page_token", "")
         .gt("expires_at", now.toISOString())
         .maybeSingle();
@@ -135,13 +172,30 @@ Deno.serve(async (req: Request) => {
         return youtubeContentJson({ error: "Could not resolve uploads playlist for channel" }, 400);
       }
       const [fetchedVideos, fetchedSubscribers] = await Promise.all([
-        fetchAllYouTubeVideosInRange(
-          accessToken,
-          channelId,
-          uploadsPlaylistId,
-          dateStart,
-          dateEnd,
-        ),
+        (async () => {
+          if (inboxMode || allVideosMode) {
+            const metricsStart = inboxMode ? inboxCacheStart : analyticsDateStart;
+            const metricsEnd = inboxMode ? inboxCacheEnd : analyticsDateEnd;
+            let videos = await fetchAllYouTubeVideos(
+              accessToken,
+              channelId,
+              uploadsPlaylistId,
+              metricsStart,
+              metricsEnd,
+            );
+            if (filterByPublishDate) {
+              videos = filterVideosByPublishDate(videos, analyticsDateStart, analyticsDateEnd);
+            }
+            return videos;
+          }
+          return fetchAllYouTubeVideosInRange(
+            accessToken,
+            channelId,
+            uploadsPlaylistId,
+            dateStart,
+            dateEnd,
+          );
+        })(),
         fetchChannelSubscriberCount(accessToken, channelId),
       ]);
       videos = fetchedVideos;
@@ -172,6 +226,7 @@ Deno.serve(async (req: Request) => {
         title: video.title ?? "",
         share_url: videoId ? buildYouTubeWatchUrl(videoId) : null,
         cover_image_url: video.thumbnail_url ?? null,
+        privacy_status: video.privacy_status ?? null,
         duration: null,
         view_count: video.view_count ?? 0,
         like_count: video.like_count ?? 0,
@@ -216,6 +271,8 @@ Deno.serve(async (req: Request) => {
       date_start: dateStart,
       date_end: dateEnd,
       fetched_at: now.toISOString(),
+      inbox_mode: inboxMode,
+      all_videos: allVideosMode,
     };
 
     const expiresAt = new Date(now.getTime() + CACHE_TTL_MINUTES * 60_000).toISOString();
@@ -224,7 +281,7 @@ Deno.serve(async (req: Request) => {
       channel_id: channelId,
       date_start: dateStart,
       date_end: dateEnd,
-      metrics_key: METRICS_CACHE_KEY,
+      metrics_key: metricsCacheKey,
       page_token: "",
       response_json: payload,
       fetched_at: now.toISOString(),

@@ -12,7 +12,10 @@ import { TikTokTabIcon } from "@/6-0-traffic/container/TikTokTabIcon";
 
 import { cn } from "@/shared/lib/utils";
 
-import { SOCIAL_MEDIA_MANAGE_COMMENTS_TIKTOK_PATH } from "@/6-0-social-media-manage-comments/lib/manageCommentsPaths";
+import {
+  SOCIAL_MEDIA_MANAGE_COMMENTS_TIKTOK_PATH,
+  SOCIAL_MEDIA_MANAGE_COMMENTS_YOUTUBE_PATH,
+} from "@/6-0-social-media-manage-comments/lib/manageCommentsPaths";
 
 
 
@@ -90,7 +93,9 @@ const platforms: Array<{
 
     icon: Youtube,
 
-    enabled: false,
+    enabled: true,
+
+    path: SOCIAL_MEDIA_MANAGE_COMMENTS_YOUTUBE_PATH,
 
   },
 

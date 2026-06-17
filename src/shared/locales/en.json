@@ -266,6 +266,7 @@
     },
     "userMenu": {
       "notificationsAria": "Notifications",
+      "help": "Help",
       "transferOwnership": "Transfer ownership"
     },
     "a11y": {

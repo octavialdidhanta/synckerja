@@ -199,6 +199,9 @@ verify_jwt = false
 [functions.youtube-content-metrics]
 verify_jwt = false
 
+[functions.youtube-content-comments]
+verify_jwt = false
+
 [functions.linkedin-content-oauth-start]
 verify_jwt = false
 

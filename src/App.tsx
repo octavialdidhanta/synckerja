@@ -72,6 +72,7 @@ import {
   SocialMediaInsightTargetsSettingsPageSkeleton,
   ManageCommentsHubPageSkeleton,
   TikTokManageCommentsPageSkeleton,
+  YouTubeManageCommentsPageSkeleton,
   DigitalMarketingReportPageSkeleton,
   DigitalMarketingReportTargetsSettingsPageSkeleton,
   IncomeXenditPageSkeleton,
@@ -193,6 +194,9 @@ const ManageCommentsHubPage = lazy(
 const TikTokManageCommentsPage = lazy(
   () => import("@/6-0-social-media-manage-comments/pages/TikTokManageCommentsPage"),
 );
+const YouTubeManageCommentsPage = lazy(
+  () => import("@/6-0-social-media-manage-comments/pages/YouTubeManageCommentsPage"),
+);
 const DigitalMarketingReportPage = lazy(
   () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
 );
@@ -258,6 +262,7 @@ const SettingsPage = lazy(() => import("@/1-home").then((m) => ({ default: m.Set
 const TransferOwnershipPage = lazy(() =>
   import("@/1-home").then((m) => ({ default: m.TransferOwnershipPage })),
 );
+const HelpPage = lazy(() => import("@/help").then((m) => ({ default: m.HelpPage })));
 const SecuritySettings = lazy(() => import("@/1-home/settings").then((m) => ({ default: m.SecuritySettings })));
 
 const PrivacyPolicyPage = lazy(() => import("@/policy").then((m) => ({ default: m.PrivacyPolicyPage })));
@@ -679,6 +684,7 @@ function AppRoutes() {
               <Route path="/incomes/xendit" element={<Navigate to="/xendit/connect" replace />} />
               <Route path="/incomes/xendit/*" element={<Navigate to="/xendit/connect" replace />} />
               <Route path="/transfer-ownership" element={<TransferOwnershipPage />} />
+              <Route path="/help" element={<HelpPage />} />
               <Route path="/okr" element={<Navigate to="/okr/company-objective" replace />} />
               <Route
                 path="/okr/*"
@@ -1961,6 +1967,20 @@ function TikTokManageCommentsPageRouteElement() {
   );
 }
 
+function YouTubeManageCommentsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <YouTubeManageCommentsPageSkeleton />
+        </div>
+      }
+    >
+      <YouTubeManageCommentsPage />
+    </Suspense>
+  );
+}
+
 function DigitalMarketingReportPageRouteElement() {
   return (
     <Suspense
@@ -2309,6 +2329,7 @@ const App = () => (
                         <Route path="/incomes/xendit" element={<Navigate to="/xendit/connect" replace />} />
                         <Route path="/incomes/xendit/*" element={<Navigate to="/xendit/connect" replace />} />
                         <Route path="/transfer-ownership" element={<TransferOwnershipPage />} />
+              <Route path="/help" element={<HelpPage />} />
                         <Route path="/okr" element={<Navigate to="/okr/company-objective" replace />} />
                         <Route
                           path="/okr/*"
@@ -3364,6 +3385,30 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <TikTokManageCommentsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/manage-comments/youtube/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<YouTubeManageCommentsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <YouTubeManageCommentsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/manage-comments/youtube"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<YouTubeManageCommentsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <YouTubeManageCommentsPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

@@ -10,12 +10,14 @@ type ManageCommentsThreadHeaderProps = {
   post: ManageCommentsPostListItem;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  openOnPlatform?: "tiktok" | "youtube";
 };
 
 export function ManageCommentsThreadHeader({
   post,
   onRefresh,
   isRefreshing,
+  openOnPlatform = "tiktok",
 }: ManageCommentsThreadHeaderProps) {
   const { t, i18n } = useTranslation();
   const initials = post.accountLabel.slice(0, 2).toUpperCase();
@@ -47,7 +49,9 @@ export function ManageCommentsThreadHeader({
           <Button variant="outline" size="sm" asChild className="h-8 text-xs">
             <a href={post.shareUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-1 h-3.5 w-3.5" />
-              {t("digitalMarketing.manageComments.openOnTikTok", "Open on TikTok")}
+              {openOnPlatform === "youtube"
+                ? t("digitalMarketing.manageComments.openOnYouTube", "Open on YouTube")
+                : t("digitalMarketing.manageComments.openOnTikTok", "Open on TikTok")}
             </a>
           </Button>
         ) : null}

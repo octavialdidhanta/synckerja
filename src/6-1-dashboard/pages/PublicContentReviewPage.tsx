@@ -23,6 +23,7 @@ import {
   User,
   Loader2,
   Download,
+  Play,
 } from 'lucide-react';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import { format } from 'date-fns';
@@ -121,8 +122,7 @@ function getCommentAccent(commentId: string): (typeof COMMENT_ACCENT_COLORS)[num
 }
 
 /**
- * Full width of card, intrinsic aspect (no crop). Avoid max-height on the same box as aspect-ratio —
- * that shrinks width and leaves white gutters while native controls still span the wide box.
+ * Full width of card, intrinsic aspect (no crop). Mobile HTML5: hide native controls overlay only.
  */
 function ReviewFitVideo({
   src,
@@ -135,37 +135,76 @@ function ReviewFitVideo({
   src: string;
   poster?: string;
   fallbackPortrait: boolean;
+  /** When true: hide native player chrome (mobile web). */
   useMobileHtml5Video: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   onError: () => void;
 }) {
   const [intrinsicAspect, setIntrinsicAspect] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     setIntrinsicAspect(null);
+    setIsPlaying(false);
   }, [src]);
+
+  useEffect(() => {
+    if (!useMobileHtml5Video) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const sync = () => setIsPlaying(!video.paused && !video.ended);
+    sync();
+    video.addEventListener('play', sync);
+    video.addEventListener('pause', sync);
+    video.addEventListener('ended', sync);
+    video.addEventListener('timeupdate', sync);
+    return () => {
+      video.removeEventListener('play', sync);
+      video.removeEventListener('pause', sync);
+      video.removeEventListener('ended', sync);
+      video.removeEventListener('timeupdate', sync);
+    };
+  }, [src, useMobileHtml5Video, videoRef]);
 
   const fallbackAspect = fallbackPortrait ? 9 / 16 : 16 / 9;
   const aspectRatio = intrinsicAspect ?? fallbackAspect;
 
-  return (
+  const togglePlayback = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) void video.play().catch(() => {});
+    else video.pause();
+  };
+
+  const videoElement = (
     <video
       ref={videoRef}
       key={src}
       src={src}
       poster={poster}
-      className="block h-auto w-full max-w-none touch-pan-y bg-neutral-950"
+      className={cn(
+        'block h-auto w-full max-w-none touch-pan-y bg-neutral-950',
+        useMobileHtml5Video && 'review-fit-video-mobile',
+      )}
       style={{
         width: '100%',
         aspectRatio,
         height: 'auto',
         touchAction: 'pan-y',
       }}
-      controls
+      controls={useMobileHtml5Video ? false : true}
       playsInline
       preload={poster ? 'none' : 'metadata'}
-      controlsList="nodownload nofullscreen noremoteplayback"
+      controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
       disablePictureInPicture={useMobileHtml5Video}
+      disableRemotePlayback={useMobileHtml5Video}
+      onClick={useMobileHtml5Video ? togglePlayback : undefined}
+      onPlay={(e) => {
+        setIsPlaying(true);
+        if (useMobileHtml5Video) e.currentTarget.blur();
+      }}
+      onPause={() => setIsPlaying(false)}
+      onEnded={() => setIsPlaying(false)}
       onLoadedMetadata={(e) => {
         const v = e.currentTarget;
         if (v.videoWidth > 0 && v.videoHeight > 0) {
@@ -174,6 +213,24 @@ function ReviewFitVideo({
       }}
       onError={onError}
     />
+  );
+
+  if (!useMobileHtml5Video) return videoElement;
+
+  return (
+    <div className="relative w-full">
+      {videoElement}
+      {!isPlaying ? (
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          aria-hidden
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/45 shadow-sm">
+            <Play className="ml-0.5 h-6 w-6 fill-white text-white" />
+          </span>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -261,6 +318,8 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const [actionLoading, setActionLoading] = useState(false);
   const [videoUseIframe, setVideoUseIframe] = useState(false);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
+  const [mobileIframeFallback, setMobileIframeFallback] = useState(false);
+  const [activeMobileStreamUrl, setActiveMobileStreamUrl] = useState('');
   const [googleStreamUrl, setGoogleStreamUrl] = useState<string | null>(null);
   const [publicReviewStreamUrl, setPublicReviewStreamUrl] = useState<string | null>(null);
   /** True after HEAD probe confirms guest stream endpoint returns 2xx. */
@@ -283,11 +342,18 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   /** Touch start position for carousel swipe on mobile */
   const carouselTouchStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  const isMobileViewport = useIsMobile();
+  const isMobileBrowser = isMobileViewport && !showBackToHome;
+  const useFlexScrollLayout = showBackToHome || isMobileBrowser;
+  const commentFooterOutsideScroll = useFlexScrollLayout;
+
   /** Header fixed when keyboard is open OR user is in "Write a comment" input */
   const headerFixed = showBackToHome && (keyboardOpen || commentInputFocused);
+  const mobileBrowserKeyboardLayout = isMobileBrowser && (keyboardOpen || commentInputFocused);
+  const shrinkToVisibleViewport = showBackToHome ? headerFixed : mobileBrowserKeyboardLayout;
 
   useEffect(() => {
-    if (!showBackToHome || typeof window === 'undefined' || !window.visualViewport) return;
+    if (!useFlexScrollLayout || typeof window === 'undefined' || !window.visualViewport) return;
     const vv = window.visualViewport;
     const check = () => {
       setKeyboardOpen(vv.height < window.innerHeight * 0.8);
@@ -301,7 +367,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
       vv.removeEventListener('resize', check);
       vv.removeEventListener('scroll', check);
     };
-  }, [showBackToHome]);
+  }, [useFlexScrollLayout]);
 
   /** Selalu cek akses agar Guest tidak lihat tombol Approve/Request Revision; tombol hanya untuk user login dengan role Owner/Admin (atau sesuai approval_access_configurations) */
   const { canShowApprovalButtons } = useProdApprovalAccess(true);
@@ -309,9 +375,6 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const { data: profileData } = useUnifiedProfile();
   const isLoggedIn = !!user;
   const profileDisplayName = profileData?.fullName?.trim() ?? '';
-  /** Mobile browser (bukan native): agar section write a comment dekat dengan pita navigasi, kurangi kedalaman scroll & tambah safe area bawah */
-  const isMobileViewport = useIsMobile();
-  const isMobileBrowser = isMobileViewport && !showBackToHome;
 
   const loadContent = useCallback(async () => {
     if (!token) return;
@@ -456,6 +519,8 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   useEffect(() => {
     setVideoUseIframe(false);
     setVideoLoadFailed(false);
+    setMobileIframeFallback(false);
+    setActiveMobileStreamUrl('');
     setGoogleStreamUrl(null);
     setPublicReviewStreamUrl(null);
     setPublicReviewStreamOk(false);
@@ -471,7 +536,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
 
   /** Guest stream via review token — probe with HEAD first; skeleton until result (avoids loading iframe then canceling). */
   useEffect(() => {
-    if (isLoggedIn || !token || !driveFileId) {
+    if (!token || !driveFileId) {
       setPublicReviewStreamUrl(null);
       setPublicReviewStreamOk(false);
       if (!isLoggedIn) setVideoStreamReady(true);
@@ -482,6 +547,12 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     media.searchParams.set('file_id', driveFileId);
     const probeUrl = media.toString();
     setPublicReviewStreamUrl(probeUrl);
+
+    if (isLoggedIn) {
+      setPublicReviewStreamOk(true);
+      return;
+    }
+
     setPublicReviewStreamOk(false);
     setVideoStreamReady(false);
 
@@ -944,8 +1015,19 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const publicReviewStreamActive = publicReviewStreamOk && publicReviewStreamUrl;
   const hasProxiedStream = Boolean(googleStreamUrl || publicReviewStreamActive);
   const effectiveVideoUrl = googleStreamUrl || publicReviewStreamActive || directVideoUrl;
-  /** Mobile HTML5 only when proxied stream is confirmed working (not merely constructed). */
-  const useMobileHtml5Video = isMobileViewport && hasProxiedStream;
+  /**
+   * Mobile: prefer edge proxy (hide overlay). Logged-in also gets review_token URL on /review/:token.
+   * Fallback to Drive iframe only if HTML5 proxy fails.
+   */
+  const mobileProxyStreamUrl = googleStreamUrl || publicReviewStreamUrl || '';
+  const useMobileProxyPlayer = isMobileViewport && isFileLink(link) && Boolean(driveFileId);
+  const useMobileHtml5Video = isMobileViewport && Boolean(mobileProxyStreamUrl) && !mobileIframeFallback;
+
+  useEffect(() => {
+    setActiveMobileStreamUrl(googleStreamUrl || publicReviewStreamUrl || '');
+    setVideoLoadFailed(false);
+    setMobileIframeFallback(false);
+  }, [googleStreamUrl, publicReviewStreamUrl]);
 
   useEffect(() => {
     setCarouselPreviewIndex(0);
@@ -1003,31 +1085,35 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     <div
       className={cn(
         'min-h-screen h-screen max-h-screen bg-gray-50 flex flex-col min-w-0',
-        showBackToHome ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden overscroll-behavior-y-contain',
+        useFlexScrollLayout
+          ? 'overflow-hidden'
+          : 'overflow-y-auto overflow-x-hidden overscroll-behavior-y-contain',
       )}
       style={
-        showBackToHome
-          ? headerFixed
+        shrinkToVisibleViewport
+          ? {
+              ...scrollContainerStyle,
+              position: 'fixed',
+              left: 0,
+              right: 0,
+              top: viewportOffsetTop,
+              height: viewportHeight,
+              minHeight: viewportHeight,
+              maxHeight: viewportHeight,
+            }
+          : useFlexScrollLayout
             ? {
-                ...scrollContainerStyle,
-                position: 'fixed',
-                left: 0,
-                right: 0,
-                top: viewportOffsetTop,
-                height: viewportHeight,
-                minHeight: viewportHeight,
-                maxHeight: viewportHeight,
-              }
-            : {
                 ...scrollContainerStyle,
                 minHeight: '100dvh',
                 height: '100dvh',
                 maxHeight: '100dvh',
-                // Avoid pulling content under the fixed header when Android reports large top insets (emulator/WebView).
-                // For small insets, keep legacy behavior to align the root without adding extra top space.
-                marginTop: safeArea.top > 24 ? 0 : safeArea.top > 0 ? -safeArea.top : 0,
+                ...(showBackToHome
+                  ? {
+                      marginTop: safeArea.top > 24 ? 0 : safeArea.top > 0 ? -safeArea.top : 0,
+                    }
+                  : {}),
               }
-          : scrollContainerStyle
+            : scrollContainerStyle
       }
     >
       <Dialog open={showCommenterPopup} onOpenChange={setShowCommenterPopup}>
@@ -1112,26 +1198,25 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
         </header>
         </>
       )}
-      <div
-        className={cn(showBackToHome && 'flex-1 min-h-0 flex flex-col min-w-0')}
-        style={!showBackToHome ? { flex: 1, minHeight: 0 } : undefined}
-      >
+      <div className={cn(useFlexScrollLayout && 'flex-1 min-h-0 flex flex-col min-w-0')}>
       <div
         className={cn(
           'max-w-2xl w-full mx-auto sm:p-4 flex flex-col gap-2 min-w-0 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]',
-          showBackToHome
+          useFlexScrollLayout
             ? 'flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll'
             : 'flex-1 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]',
         )}
         style={
-          showBackToHome
+          useFlexScrollLayout
             ? {
-                paddingTop: headerFixed ? viewportOffsetTop + safeArea.top + 68 : safeArea.top + 68,
+                paddingTop: showBackToHome
+                  ? headerFixed
+                    ? viewportOffsetTop + safeArea.top + 68
+                    : safeArea.top + 68
+                  : '1rem',
                 paddingBottom: '0.25rem',
               }
-            : isMobileBrowser
-              ? { paddingBottom: '0.5rem' }
-              : { paddingBottom: `calc(5.5rem + ${safeArea.bottom}px)` }
+            : { paddingBottom: `calc(5.5rem + ${safeArea.bottom}px)` }
         }
       >
         {/* Preview with header (title + metadata). Video: portrait (Reel) = 9/16, landscape = 16/9. Section responsive: min-height on video wrapper so content is not cut off. */}
@@ -1362,6 +1447,93 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                   if (isFileLink(link) && embedUrl) {
                     return (
                   (() => {
+                    if (useMobileProxyPlayer) {
+                      const waitingStream =
+                        !mobileProxyStreamUrl &&
+                        ((isLoggedIn && !videoStreamReady) || (!isLoggedIn && !videoStreamReady));
+                      if (waitingStream) {
+                        return (
+                          <div
+                            className="relative flex min-h-[200px] w-full max-w-full items-center justify-center overflow-hidden bg-neutral-950 text-sm text-gray-400"
+                            style={videoPlaceholderStyle}
+                            aria-busy
+                          >
+                            {drivePreviewPosterUrl ? (
+                              <img
+                                src={drivePreviewPosterUrl}
+                                alt=""
+                                className="absolute inset-0 h-full w-full object-contain"
+                                decoding="async"
+                                fetchPriority="high"
+                              />
+                            ) : null}
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                              <Loader2 className="h-6 w-6 animate-spin text-white/90" aria-hidden />
+                            </div>
+                            <span className="sr-only">{t('publicReview.loading', 'Loading...')}</span>
+                          </div>
+                        );
+                      }
+                      if (mobileIframeFallback || videoLoadFailed || !mobileProxyStreamUrl) {
+                        if (embedUrl) {
+                          return (
+                            <ReviewDriveEmbedIframe
+                              src={embedUrl}
+                              title={t('publicReview.preview.driveTitle', 'Preview')}
+                              style={videoPlaceholderStyle}
+                            />
+                          );
+                        }
+                        return (
+                          <div
+                            className="relative flex min-h-[200px] w-full max-w-full items-center justify-center overflow-hidden bg-neutral-950"
+                            style={videoPlaceholderStyle}
+                          >
+                            {drivePreviewPosterUrl ? (
+                              <img
+                                src={drivePreviewPosterUrl}
+                                alt=""
+                                className="absolute inset-0 h-full w-full object-contain"
+                                decoding="async"
+                              />
+                            ) : null}
+                            <div className="relative z-10 px-4 py-6 text-center">
+                              <p className="text-sm text-white/90 mb-4">
+                                {t('publicReview.preview.unavailable', 'Preview not available')}
+                              </p>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => window.open(link, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                {t('publicReview.preview.openLink', 'Open link')}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <ReviewFitVideo
+                          src={activeMobileStreamUrl || mobileProxyStreamUrl}
+                          poster={drivePreviewPosterUrl ?? undefined}
+                          fallbackPortrait={videoFallbackPortrait}
+                          useMobileHtml5Video
+                          videoRef={videoRef}
+                          onError={() => {
+                            if (
+                              publicReviewStreamUrl &&
+                              activeMobileStreamUrl !== publicReviewStreamUrl
+                            ) {
+                              setActiveMobileStreamUrl(publicReviewStreamUrl);
+                              return;
+                            }
+                            setMobileIframeFallback(true);
+                          }}
+                        />
+                      );
+                    }
+
                     const guestStreamProbing = !isLoggedIn && Boolean(driveFileId) && !videoStreamReady;
                     const preferIframeForGuest =
                       !isLoggedIn && videoStreamReady && !publicReviewStreamOk;
@@ -1371,7 +1543,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                         videoLoadFailed ||
                         !effectiveVideoUrl ||
                         preferIframeForGuest ||
-                        (isMobileViewport && !hasProxiedStream));
+                        !hasProxiedStream);
                     if (guestStreamProbing) {
                       return (
                         <div
@@ -1416,7 +1588,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                       );
                     }
                     if (useMobileHtml5Video && (videoLoadFailed || !effectiveVideoUrl)) {
-                      if (embedUrl) {
+                      if (embedUrl && !isMobileViewport) {
                         return (
                           <ReviewDriveEmbedIframe
                             src={embedUrl}
@@ -1574,11 +1746,8 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
               })
             )}
           </div>
-          {!showBackToHome && (
-            <div
-              className="p-3 sm:p-4 border-t border-gray-200 flex-shrink-0 space-y-3 bg-white"
-              style={isMobileBrowser && safeArea.bottom > 0 ? { paddingBottom: `max(0.75rem, ${safeArea.bottom}px)` } : undefined}
-            >
+          {!commentFooterOutsideScroll && (
+            <div className="p-3 sm:p-4 border-t border-gray-200 flex-shrink-0 space-y-3 bg-white">
               <div className="relative">
                 <Textarea
                   ref={commentTextareaRef}
@@ -1629,7 +1798,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
             </div>
           )}
         </div>
-      {showBackToHome && (
+      {commentFooterOutsideScroll && (
         <div
           className="flex-shrink-0 w-full max-w-2xl mx-auto bg-gray-50 border-t border-gray-200 px-3 sm:p-4 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]"
           style={{
@@ -1647,6 +1816,11 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                 onFocus={() => {
                   setCommentInputFocused(true);
                   setKeyboardOpen(true);
+                  if (typeof window !== 'undefined' && window.visualViewport) {
+                    const vv = window.visualViewport;
+                    setViewportOffsetTop(vv.offsetTop);
+                    setViewportHeight(vv.height);
+                  }
                   requestAnimationFrame(() => {
                     commentTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                   });

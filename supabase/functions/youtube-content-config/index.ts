@@ -6,6 +6,7 @@ import { decryptYouTubeContentToken } from "../_shared/youtubeContentConfigCrypt
 import type { YouTubeChannelRow } from "../_shared/youtubeContentApi.ts";
 import {
   getUserFromBearer,
+  hasYouTubeCommentsOAuthScope,
   isYouTubeContentPlatformConfigured,
   requireActiveOrg,
   requireOrgAdmin,
@@ -13,6 +14,8 @@ import {
   youtubeContentCorsHeaders,
   youtubeContentJson,
 } from "../_shared/youtubeContentAuth.ts";
+import { fetchGoogleTokenScopes } from "../_shared/youtubeContentApi.ts";
+import { getYouTubeContentAccessToken } from "../_shared/youtubeContentOrgResolver.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -59,6 +62,27 @@ Deno.serve(async (req: Request) => {
       .eq("organization_id", organizationId)
       .order("sort_order", { ascending: true });
 
+    const accountsWithCommentScopes = await Promise.all(
+      (accounts ?? []).map(async (account) => {
+        if (!account.is_active) {
+          return { ...account, comments_scopes_granted: false };
+        }
+        const accessToken = await getYouTubeContentAccessToken(
+          admin,
+          organizationId,
+          String(account.channel_id),
+        );
+        if (!accessToken) {
+          return { ...account, comments_scopes_granted: false };
+        }
+        const scopes = await fetchGoogleTokenScopes(accessToken).catch(() => []);
+        return {
+          ...account,
+          comments_scopes_granted: hasYouTubeCommentsOAuthScope(scopes),
+        };
+      }),
+    );
+
     const { data: tokenRows } = await admin
       .from("organization_youtube_content_connection_tokens")
       .select("channel_id")
@@ -67,7 +91,7 @@ Deno.serve(async (req: Request) => {
     return youtubeContentJson({
       connection: connection ?? null,
       oauthConnected: (tokenRows ?? []).length > 0,
-      accounts: accounts ?? [],
+      accounts: accountsWithCommentScopes,
       serverConfigured: isYouTubeContentPlatformConfigured(),
     }, 200);
   }

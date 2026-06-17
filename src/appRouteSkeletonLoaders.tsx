@@ -441,6 +441,14 @@ export const TikTokManageCommentsPageSkeleton = createDeferredSkeleton(() =>
   ),
 );
 
+export const YouTubeManageCommentsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-manage-comments/skeletons/YouTubeManageCommentsPageSkeleton").then(
+    (m) => ({
+      default: m.YouTubeManageCommentsPageSkeleton,
+    }),
+  ),
+);
+
 export const DigitalMarketingReportPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-report/skeletons/DigitalMarketingReportPageSkeleton").then((m) => ({
     default: m.DigitalMarketingReportPageSkeleton,

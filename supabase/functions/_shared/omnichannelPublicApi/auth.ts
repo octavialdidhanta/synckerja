@@ -2,13 +2,100 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { apiError } from "./response.ts";
 import { buildCorsHeaders } from "./response.ts";
 
+export type OmnichannelApiTokenType = "sdk" | "server" | "legacy_full";
+
 export type OmnichannelApiTokenContext = {
   tokenId: string;
   organizationId: string;
   webId: string;
   allowedOrigins: string[];
   whatsappInvoiceTemplateName: string | null;
+  tokenType: OmnichannelApiTokenType;
 };
+
+const SDK_PATHS = new Set([
+  "/api/v1/traffic-logs",
+  "/api/v1/page-views/heartbeat",
+  "/api/v1/click-events",
+  "/api/v1/wa-link-clicks",
+  "/api/v1/leads",
+]);
+
+const SERVER_PATHS = new Set(["/api/v1/orders/invoice-trigger"]);
+
+const BROWSER_SEC_FETCH_SITES = new Set(["same-origin", "same-site", "cross-site"]);
+
+/** Opsi A — invoice-trigger tidak boleh dipanggil dari browser (Origin / Sec-Fetch-Site). */
+export function assertInvoiceNotFromBrowser(
+  req: Request,
+  corsHeaders: Record<string, string>,
+): Response | null {
+  const origin = req.headers.get("Origin")?.trim();
+  if (origin) {
+    return apiError(
+      "invoice-trigger tidak boleh dipanggil dari browser. Gunakan token Server di backend (Edge Function / server).",
+      "BROWSER_REQUEST_REJECTED",
+      403,
+      corsHeaders,
+    );
+  }
+
+  const secFetchSite = req.headers.get("Sec-Fetch-Site")?.trim().toLowerCase();
+  if (secFetchSite && BROWSER_SEC_FETCH_SITES.has(secFetchSite)) {
+    return apiError(
+      "invoice-trigger tidak boleh dipanggil dari browser. Gunakan token Server di backend (Edge Function / server).",
+      "BROWSER_REQUEST_REJECTED",
+      403,
+      corsHeaders,
+    );
+  }
+
+  return null;
+}
+
+export function assertPathAllowedForTokenType(
+  path: string,
+  tokenType: OmnichannelApiTokenType,
+  corsHeaders: Record<string, string>,
+): Response | null {
+  if (tokenType === "legacy_full") return null;
+
+  if (tokenType === "sdk") {
+    if (SDK_PATHS.has(path)) return null;
+    if (path === "/api/v1/orders/invoice-trigger") {
+      return apiError(
+        "Token tipe SDK tidak boleh memanggil invoice-trigger. Gunakan token Server di backend.",
+        "FORBIDDEN",
+        403,
+        corsHeaders,
+      );
+    }
+    return apiError(
+      "Token tipe SDK tidak diizinkan untuk endpoint ini.",
+      "FORBIDDEN",
+      403,
+      corsHeaders,
+    );
+  }
+
+  if (tokenType === "server") {
+    if (SERVER_PATHS.has(path)) return null;
+    return apiError(
+      "Token tipe Server hanya untuk invoice-trigger.",
+      "FORBIDDEN",
+      403,
+      corsHeaders,
+    );
+  }
+
+  return null;
+}
+
+function normalizeTokenType(value: unknown): OmnichannelApiTokenType {
+  const t = String(value ?? "legacy_full").trim();
+  if (t === "sdk" || t === "server" || t === "legacy_full") return t;
+  return "legacy_full";
+}
 
 const RATE_LIMIT_PER_MINUTE = 100;
 const MS_PER_DAY = 86_400_000;
@@ -66,7 +153,7 @@ export async function authenticateOmnichannelApiToken(
   const { data: row, error } = await admin
     .from("organization_omnichannel_api_tokens")
     .select(
-      "id, organization_id, web_id, allowed_origins, whatsapp_invoice_template_name, is_active, expires_at",
+      "id, organization_id, web_id, allowed_origins, whatsapp_invoice_template_name, is_active, expires_at, token_type",
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -109,6 +196,7 @@ export async function authenticateOmnichannelApiToken(
       webId: row.web_id,
       allowedOrigins,
       whatsappInvoiceTemplateName: row.whatsapp_invoice_template_name ?? null,
+      tokenType: normalizeTokenType(row.token_type),
     },
     corsHeaders,
   };

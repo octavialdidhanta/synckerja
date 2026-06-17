@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
@@ -16,6 +17,7 @@ type ManageCommentsPostListProps = {
   activeFilter?: ManageCommentsPostFilter;
   hasSearch?: boolean;
   onClearFilters?: () => void;
+  platformBadge?: ReactNode;
 };
 
 export function ManageCommentsPostList({
@@ -29,6 +31,7 @@ export function ManageCommentsPostList({
   activeFilter = "all",
   hasSearch = false,
   onClearFilters,
+  platformBadge,
 }: ManageCommentsPostListProps) {
   const { t } = useTranslation();
 
@@ -79,6 +82,7 @@ export function ManageCommentsPostList({
           selected={selectedId === post.id}
           isNew={highlightedPostIds?.has(post.id)}
           onSelect={() => onSelect(post)}
+          platformBadge={platformBadge}
         />
       ))}
     </div>

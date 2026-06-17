@@ -12,6 +12,7 @@ export type YouTubeContentAccountRow = {
   is_default: boolean;
   sort_order: number;
   is_active: boolean;
+  comments_scopes_granted?: boolean;
 };
 
 export type YouTubePendingChannel = {

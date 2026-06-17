@@ -1,0 +1,187 @@
+{
+  "e2e": [
+    {
+      "subject": "Rudi Kedong",
+      "steps": {
+        "traffic": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "session_id": "5e63242b-7ce8-43b3-a2e5-187c3fe614c8",
+            "page_view_id": "a27b98cf-3062-447f-bfa6-0c0d16a3e880",
+            "visitor_id": "7b03c8fa-62dd-4115-a49f-5e1b4e07cc6b",
+            "web_id": "vialdi-wedding"
+          }
+        },
+        "heartbeat": {
+          "status": 200,
+          "json": {
+            "success": true,
+            "page_view_id": "a27b98cf-3062-447f-bfa6-0c0d16a3e880"
+          }
+        },
+        "click": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "click_event_id": "4760a0cb-f7d2-4b21-91b9-85c4fe73abf0"
+          }
+        },
+        "waClick": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "wa_click_id": "c33c13e0-3bb9-4594-98c1-281866863448"
+          }
+        },
+        "lead": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "lead_id": "807428bd-7a18-46cc-81b6-42f7a0f3aea6",
+            "ticket_id": "LEAD-20260617-8706",
+            "session_id": "5e63242b-7ce8-43b3-a2e5-187c3fe614c8",
+            "attribution": {
+              "session_id": "5e63242b-7ce8-43b3-a2e5-187c3fe614c8",
+              "web_id": "vialdi-wedding",
+              "utm_source": "google",
+              "utm_medium": "cpc",
+              "utm_campaign": "wedding-q2",
+              "utm_content": "hero-cta",
+              "utm_term": "rudi",
+              "landing_url": "https://vialdi.id/konsultasi?utm_source=google&utm_medium=cpc&utm_campaign=wedding-q2&utm_content=hero-cta&utm_term=rudi&gclid=E2E-SYN-RUDI-gclid-20260617&fbclid=E2E-SYN-RUDI-fbclid-20260617",
+              "gclid": "E2E-SYN-RUDI-gclid-20260617",
+              "fbclid": "E2E-SYN-RUDI-fbclid-20260617"
+            }
+          }
+        },
+        "invoice": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "invoice_id": "c0d2eead-3d79-41f8-8ce6-7017b78b2ee3",
+            "invoice_number": "INV-E2E-RUDI-20260617",
+            "lead_id": "807428bd-7a18-46cc-81b6-42f7a0f3aea6",
+            "lead_matched": true,
+            "lead_converted": true,
+            "sales_activity_id": "3e7287d1-8715-47fe-8c1f-0b5298a1c6c5",
+            "whatsapp_status": "failed",
+            "whatsapp_message_id": null
+          }
+        }
+      }
+    },
+    {
+      "subject": "Maya Estianti",
+      "steps": {
+        "traffic": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "session_id": "9c9d692c-33ab-4553-8a79-7b8c33ff24be",
+            "page_view_id": "fd477fc3-d77f-4d02-8a4e-2ec07a4b25e5",
+            "visitor_id": "4ddd4b69-7f4c-434a-92cf-813378c6d192",
+            "web_id": "vialdi-wedding"
+          }
+        },
+        "heartbeat": {
+          "status": 200,
+          "json": {
+            "success": true,
+            "page_view_id": "fd477fc3-d77f-4d02-8a4e-2ec07a4b25e5"
+          }
+        },
+        "click": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "click_event_id": "4eba174c-e0af-48e9-8e36-9b2026677738"
+          }
+        },
+        "waClick": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "wa_click_id": "39116109-3e54-45d6-aa98-48a5f6c73da2"
+          }
+        },
+        "lead": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "lead_id": "98084a7e-3db3-4b76-86bf-1c1d24c83c9b",
+            "ticket_id": "LEAD-20260617-7963",
+            "session_id": "9c9d692c-33ab-4553-8a79-7b8c33ff24be",
+            "attribution": {
+              "session_id": "9c9d692c-33ab-4553-8a79-7b8c33ff24be",
+              "web_id": "vialdi-wedding",
+              "utm_source": "google",
+              "utm_medium": "cpc",
+              "utm_campaign": "wedding-q2",
+              "utm_content": "hero-cta",
+              "utm_term": "maya",
+              "landing_url": "https://vialdi.id/konsultasi?utm_source=google&utm_medium=cpc&utm_campaign=wedding-q2&utm_content=hero-cta&utm_term=maya&gclid=E2E-SYN-MAYA-gclid-20260617&fbclid=E2E-SYN-MAYA-fbclid-20260617",
+              "gclid": "E2E-SYN-MAYA-gclid-20260617",
+              "fbclid": "E2E-SYN-MAYA-fbclid-20260617"
+            }
+          }
+        },
+        "invoice": {
+          "status": 201,
+          "json": {
+            "success": true,
+            "invoice_id": "9f76a797-45e1-43a0-b172-5ff1f856097e",
+            "invoice_number": "INV-E2E-MAYA-20260617",
+            "lead_id": "98084a7e-3db3-4b76-86bf-1c1d24c83c9b",
+            "lead_matched": true,
+            "lead_converted": true,
+            "sales_activity_id": "9bd3ace0-6c52-44cc-9d91-da9db453bc40",
+            "whatsapp_status": "failed",
+            "whatsapp_message_id": null
+          }
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "test": "Opsi B: SDK token → invoice-trigger",
+      "result": {
+        "status": 403,
+        "json": {
+          "success": false,
+          "error": "Token tipe SDK tidak boleh memanggil invoice-trigger. Gunakan token Server di backend.",
+          "code": "FORBIDDEN"
+        }
+      }
+    },
+    {
+      "test": "Opsi A: Server token + Origin browser → invoice-trigger",
+      "result": {
+        "status": 403,
+        "json": {
+          "success": false,
+          "error": "invoice-trigger tidak boleh dipanggil dari browser. Gunakan token Server di backend (Edge Function / server).",
+          "code": "BROWSER_REQUEST_REJECTED"
+        }
+      }
+    },
+    {
+      "test": "Opsi B+A OK: Server token tanpa Origin → invoice-trigger",
+      "result": {
+        "status": 201,
+        "json": {
+          "success": true,
+          "invoice_id": "1789b925-43db-49cb-8ef6-e605e3765803",
+          "invoice_number": "INV-E2E-SECURITY-PROBE-001",
+          "lead_id": "98084a7e-3db3-4b76-86bf-1c1d24c83c9b",
+          "lead_matched": true,
+          "lead_converted": true,
+          "sales_activity_id": "4a69671b-7ee3-4c7f-8fd0-50828df60805",
+          "whatsapp_status": "failed",
+          "whatsapp_message_id": null
+        }
+      }
+    }
+  ]
+}

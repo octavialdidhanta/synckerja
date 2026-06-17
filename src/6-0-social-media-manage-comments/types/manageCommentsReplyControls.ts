@@ -4,7 +4,15 @@ export type ManageCommentsReplyControls = {
   replyToCommentId: string | null;
   onReply: (commentId: string, mentionLabel?: string) => void;
   onCancelReply: () => void;
-  onSubmitReply: (parentCommentId: string, text: string, mentionLabel: string) => Promise<void>;
+  onSubmitReply: (
+    parentCommentId: string,
+    text: string,
+    mentionLabel: string,
+    replyContext?: {
+      threadId?: string | null;
+      targetParentCommentId?: string | null;
+    },
+  ) => Promise<void>;
   accountLabel: string;
   accountAvatarUrl?: string | null;
   isSubmittingReply: boolean;

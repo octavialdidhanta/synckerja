@@ -3,6 +3,7 @@
 export type ApiErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
+  | "BROWSER_REQUEST_REJECTED"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
   | "CONFLICT"

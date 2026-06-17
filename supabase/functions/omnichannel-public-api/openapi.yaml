@@ -1,9 +1,11 @@
 openapi: 3.1.0
 info:
   title: Synckerja Omnichannel Public API
-  version: 1.2.0
+  version: 1.4.0
   description: |
     API integrasi untuk website eksternal — traffic analytics, leads, dan invoice trigger.
+    Token tipe `sdk` (analytics + leads) dan `server` (invoice-trigger saja).
+    Invoice-trigger ditolak dari browser (header `Origin` atau `Sec-Fetch-Site`) — kode `BROWSER_REQUEST_REJECTED`.
     Single source of truth untuk tab Docs di Synckerja Office (`/omnichannel/settings/api-integration?tab=docs`).
     Markdown dihasilkan otomatis saat `npm run dev` / `npm run build` (lihat `scripts/sync-omnichannel-api-docs.mjs`).
 servers:
@@ -108,6 +110,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InvoiceTriggerSuccess'
+        '403':
+          description: |
+            Token dicabut/kedaluwarsa, scope tidak cocok (Opsi B), atau request dari browser (Opsi A).
+            Kode `BROWSER_REQUEST_REJECTED` jika header Origin atau Sec-Fetch-Site browser terdeteksi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                scopeForbidden:
+                  summary: Scope token salah
+                  value:
+                    success: false
+                    error: Token tipe SDK tidak boleh memanggil invoice-trigger. Gunakan token Server di backend.
+                    code: FORBIDDEN
+                browserRejected:
+                  summary: Dipanggil dari browser
+                  value:
+                    success: false
+                    error: invoice-trigger tidak boleh dipanggil dari browser. Gunakan token Server di backend (Edge Function / server).
+                    code: BROWSER_REQUEST_REJECTED
         '409':
           description: Nomor invoice duplikat
 components:
@@ -115,7 +138,9 @@ components:
     BearerAuth:
       type: http
       scheme: bearer
-      description: Token format sk_omni_... dari Synckerja Office settings
+      description: |
+        Token sk_omni_... dari Synckerja Office. Tipe sdk = analytics + leads;
+        server = invoice-trigger saja; legacy_full = semua endpoint (token lama).
   responses:
     Unauthorized:
       description: Token tidak valid
@@ -140,6 +165,9 @@ components:
           type: string
         code:
           type: string
+          description: |
+            UNAUTHORIZED, FORBIDDEN, BROWSER_REQUEST_REJECTED, VALIDATION_ERROR, NOT_FOUND,
+            CONFLICT, RATE_LIMITED, INTERNAL_ERROR
         details:
           nullable: true
     TrafficLogRequest:

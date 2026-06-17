@@ -304,7 +304,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               : 'h-[600px] max-h-[90vh] w-[620px] max-w-[90vw]'
           )}
           overlayClassName={isMobile ? 'z-30' : undefined}
-          hideCloseButton={isMobile || !dismissible}
+          hideCloseButton
           fullscreenAnimation={isMobile}
           onInteractOutside={(e) => {
             if (!dismissible) e.preventDefault();
@@ -314,11 +314,11 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           }}
         >
           {isMobile ? (
-            <DialogHeader className="safe-area-top relative z-10 flex flex-shrink-0 flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
-              <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
-                <DialogTitle className="m-0 flex min-h-0 min-w-0 flex-1 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
-                  {t('dailyTask.createTask.title', 'Create New Task')}
-                </DialogTitle>
+            <DialogHeader className="safe-area-top relative z-10 flex flex-shrink-0 flex-row flex-nowrap items-center gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-2 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+              <DialogTitle className="m-0 flex min-h-0 min-w-0 flex-1 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
+                {t('dailyTask.createTask.title', 'Create New Task')}
+              </DialogTitle>
+              {dismissible ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -330,13 +330,26 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 >
                   <X className="h-4 w-4" />
                 </Button>
-              </div>
+              ) : null}
             </DialogHeader>
           ) : (
-            <DialogHeader className="relative z-10 flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-4 pb-3 pt-4 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
-              <DialogTitle className="text-lg font-semibold">
+            <DialogHeader className="relative z-10 flex flex-shrink-0 flex-row flex-nowrap items-center gap-2 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 text-left dark:from-blue-950/20 dark:to-indigo-950/20">
+              <DialogTitle className="m-0 flex min-w-0 flex-1 items-center text-lg font-semibold leading-tight">
                 {t('dailyTask.createTask.title', 'Create New Task')}
               </DialogTitle>
+              {dismissible ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="inline-flex h-9 w-9 shrink-0 rounded-md p-0"
+                  onClick={handleClose}
+                  disabled={isSubmitting}
+                  aria-label={t('layout.sheetClose', 'Close')}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : null}
             </DialogHeader>
           )}
 

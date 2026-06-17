@@ -32,7 +32,7 @@ export function TikTokOptimisticReplyBubble({
             <p className="text-sm text-gray-800">
               <span className="font-semibold">{reply.accountLabel}</span>{" "}
               <span className="font-semibold text-primary underline">
-                @{reply.mentionLabel}
+                @{reply.mentionLabel.replace(/^@+/, "")}
               </span>{" "}
               {reply.text}
             </p>

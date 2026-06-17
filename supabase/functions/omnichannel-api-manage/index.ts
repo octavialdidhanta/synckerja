@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
     const { data, error } = await admin
       .from("organization_omnichannel_api_tokens")
       .select(
-        "id, label, web_id, token_prefix, allowed_origins, whatsapp_invoice_template_name, is_active, expires_at, last_used_at, revoked_at, created_at",
+        "id, label, web_id, token_prefix, token_type, allowed_origins, whatsapp_invoice_template_name, is_active, expires_at, last_used_at, revoked_at, created_at",
       )
       .eq("organization_id", organizationId)
       .order("is_active", { ascending: false })
@@ -179,9 +179,31 @@ Deno.serve(async (req) => {
     }
 
     const label = body.label != null ? String(body.label).trim() : null;
+    const rawTokenType = String(body.token_type ?? "sdk").trim();
+    if (rawTokenType === "legacy_full") {
+      return json({
+        success: false,
+        error: "token_type legacy_full tidak dapat dibuat dari UI.",
+      }, 422);
+    }
+    if (rawTokenType !== "sdk" && rawTokenType !== "server") {
+      return json({
+        success: false,
+        error: "token_type harus sdk atau server.",
+      }, 422);
+    }
+    const tokenType = rawTokenType as "sdk" | "server";
+
     const allowedOrigins = Array.isArray(body.allowed_origins)
       ? (body.allowed_origins as unknown[]).map((o) => String(o).trim()).filter(Boolean)
       : [];
+
+    if (tokenType === "sdk" && allowedOrigins.length === 0) {
+      return json({
+        success: false,
+        error: "allowed_origins wajib diisi untuk token tipe SDK.",
+      }, 422);
+    }
 
     let expiresAt: string | null = null;
     if (body.expires_at) {
@@ -242,6 +264,7 @@ Deno.serve(async (req) => {
         label,
         web_id: webId,
         allowed_origins: allowedOrigins,
+        token_type: tokenType,
         whatsapp_invoice_template_name:
           body.whatsapp_invoice_template_name != null
             ? String(body.whatsapp_invoice_template_name).trim() || null
@@ -249,7 +272,7 @@ Deno.serve(async (req) => {
         expires_at: expiresAt,
         created_by: userRes.user.id,
       })
-      .select("id, web_id, token_prefix, label, allowed_origins, expires_at, created_at")
+      .select("id, web_id, token_prefix, token_type, label, allowed_origins, expires_at, created_at")
       .single();
 
     if (error) return json({ success: false, error: error.message }, 500);

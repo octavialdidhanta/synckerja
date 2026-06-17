@@ -191,10 +191,12 @@ Integrasikan website eksternal untuk **traffic**, **leads**, dan **invoice + not
 
 1. [Mulai cepat](#mulai-cepat)
 2. [Autentikasi](#autentikasi)
-3. [Kebijakan token](#kebijakan-token)
-4. [JavaScript SDK](#javascript-sdk)
-5. [Referensi API](#referensi-api)
-6. [Kode HTTP & checklist](#kode-http--checklist)
+3. [Keamanan dua lapis (scope + browser)](#keamanan-dua-lapis-scope--browser)
+4. [Kebijakan token](#kebijakan-token)
+5. [Integrasi Supabase (developer eksternal)](#integrasi-supabase-developer-eksternal)
+6. [JavaScript SDK](#javascript-sdk)
+7. [Referensi API](#referensi-api)
+8. [Kode HTTP & checklist](#kode-http--checklist)
 
 ---
 
@@ -202,12 +204,13 @@ Integrasikan website eksternal untuk **traffic**, **leads**, dan **invoice + not
 
 | # | Langkah |
 |---|---------|
-| 1 | Buat token di tab **Tokens & SDK** — simpan \`sk_omni_...\` dan \`web_id\` |
-| 2 | Di **Organization settings** (tab Tokens & SDK): isi **allowed origins** + **template WhatsApp invoice** |
-| 3 | Pasang SDK (konfigurasi + skrip) sebelum \`</body>\` |
+| 1a | Buat token **SDK** — pasang di \`SynckerjaConfig\` di website; isi **allowed origins** |
+| 1b | Buat token **Server** — simpan di backend secrets (Supabase Edge Function, dll.) |
+| 2 | Di **Organization settings**: **template WhatsApp invoice** + offline conversion |
+| 3 | Pasang SDK (konfigurasi + skrip) sebelum \`</body>\` — **hanya token SDK** |
 | 4 | Tambah \`data-syn-track\` pada CTA, \`data-syn-wa-track\` pada link WA |
 | 5 | Form → \`SynckerjaTrackLead({ ...semuaFieldForm })\` — field tambahan masuk \`form_data\` |
-| 6 | Invoice → \`POST /api/v1/orders/invoice-trigger\` dari **backend** |
+| 6 | Invoice → \`POST /api/v1/orders/invoice-trigger\` dengan **token Server** dari backend |
 
 \`\`\`text
 Page load → traffic-logs │ 15s / tutup tab → heartbeat │ Klik CTA → click-events
@@ -238,6 +241,24 @@ Content-Type: application/json
 
 ---
 
+## Keamanan dua lapis (scope + browser)
+
+| Lapisan | Apa yang dilindungi | Cara penegakan |
+|---------|---------------------|----------------|
+| **Scope token (Opsi B)** | Token SDK tidak bisa \`invoice-trigger\`; token Server tidak bisa traffic/leads | Kolom \`token_type\` + cek endpoint |
+| **Blok browser (Opsi A)** | \`invoice-trigger\` tidak bisa dipanggil dari JavaScript browser | Tolak jika header \`Origin\` ada, atau \`Sec-Fetch-Site\` = \`same-origin\` / \`same-site\` / \`cross-site\` |
+
+\`\`\`text
+Website (browser)  → token SDK  → traffic, leads, analytics saja
+Backend / Edge Fn  → token Server → invoice-trigger saja (tanpa header browser)
+\`\`\`
+
+Token \`legacy_full\` (lama) masih boleh semua endpoint dari **server**, tetapi **tetap ditolak** dari browser pada \`invoice-trigger\` (Opsi A). Cabut token legacy setelah migrasi ke pasangan SDK + Server.
+
+**Jangan forward** header \`Origin\` / \`Sec-Fetch-Site\` dari client ke Synckerja di proxy backend — bisa memicu \`403 BROWSER_REQUEST_REJECTED\` palsu.
+
+---
+
 ## Kebijakan token
 
 | Kebijakan | Detail |
@@ -247,11 +268,61 @@ Content-Type: application/json
 | **Revoke** | Soft revoke — \`is_active\` menjadi \`false\`, request API ditolak **403**. Baris tetap di database untuk audit (\`revoked_at\`, prefix, \`last_used_at\`). |
 | **Plaintext** | Hanya ditampilkan **sekali** saat create — tidak disimpan di server (hanya hash + prefix). |
 | **Batas abuse** | Maks. **50 token aktif** per organisasi (token kedaluwarsa tidak dihitung). |
+| **Tipe token** | \`sdk\` = analytics + leads; \`server\` = invoice-trigger saja; \`legacy_full\` = token lama (semua endpoint dari server) sampai diganti |
+| **Dua token per website** | Disarankan: 1× SDK (browser) + 1× Server (backend) per \`web_id\` |
+| **Invoice dari browser** | Ditolak **403** \`BROWSER_REQUEST_REJECTED\` jika \`Origin\` atau \`Sec-Fetch-Site\` browser terdeteksi — meskipun token \`server\` / \`legacy_full\` |
 | **Template WA invoice** | Atur di **Organization settings** — dipakai semua token aktif organisasi. |
 
 ---
 
+## Integrasi Supabase (developer eksternal)
+
+Website developer boleh memakai **Supabase project sendiri** — data tetap masuk Synckerja via HTTP, bukan ke database developer.
+
+| Secret / config | Lokasi | Isi |
+|-----------------|--------|-----|
+| Token **SDK** | \`SynckerjaConfig\` di frontend | \`sk_omni_...\` tipe SDK |
+| Token **Server** | \`supabase secrets\` project developer | \`SYNCKERJA_OMNI_API_TOKEN\` |
+| Base URL | secrets atau hardcode | \`SYNCKERJA_OMNI_API_BASE\` = URL di tab Tokens & SDK |
+
+\`web_id\` **bukan** secret — terikat di baris token saat create; tidak perlu env terpisah.
+
+\`\`\`bash
+supabase secrets set SYNCKERJA_OMNI_API_TOKEN=sk_omni_...
+supabase secrets set SYNCKERJA_OMNI_API_BASE=https://YOUR_PROJECT.supabase.co/functions/v1/omnichannel-public-api
+\`\`\`
+
+\`\`\`typescript
+// BENAR — Edge Function developer (server), tanpa header Origin browser
+await fetch(\`\${Deno.env.get("SYNCKERJA_OMNI_API_BASE")}/api/v1/orders/invoice-trigger\`, {
+  method: "POST",
+  headers: {
+    Authorization: \`Bearer \${Deno.env.get("SYNCKERJA_OMNI_API_TOKEN")}\`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ invoice_number: "INV-001", amount: 1500000, items: [...], phone_number: "+628...", email: "..." }),
+});
+\`\`\`
+
+\`\`\`javascript
+// SALAH — fetch dari halaman website (akan 403 BROWSER_REQUEST_REJECTED)
+fetch('https://.../omnichannel-public-api/api/v1/orders/invoice-trigger', {
+  method: 'POST',
+  headers: {
+    Authorization: 'Bearer sk_omni_...',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ invoice_number: 'INV-001', amount: 1500000, items: [...], phone_number: '+628...', email: '...' }),
+});
+\`\`\`
+
+**Arsitektur disarankan:** Website → pembayaran sukses → **Edge Function / server developer** → Synckerja \`invoice-trigger\`.
+
+---
+
 ## JavaScript SDK
+
+**Hanya token tipe SDK** — jangan pasang token Server di browser.
 
 Dua blok \`<script>\` — tanpa npm.
 
@@ -306,7 +377,7 @@ window.SynckerjaTrackLead(nama, hp, email, catatan);
 
 Field reserved (tidak masuk \`form_data\`): \`name\`, \`phone_number\`, \`email\`, \`notes\`, \`session_id\`, \`status\`.
 
-> Invoice: panggil \`/orders/invoice-trigger\` **hanya dari server** — jangan dari browser.
+> Invoice: panggil \`/orders/invoice-trigger\` **hanya dari server** — API menolak request browser (\`403 BROWSER_REQUEST_REJECTED\`).
 
 ---
 
@@ -376,7 +447,7 @@ Wajib: \`name\`. Minimal salah satu \`phone_number\` atau \`email\`. Opsional: \
 ### Orders
 
 #### POST /api/v1/orders/invoice-trigger
-Wajib: \`invoice_number\`, \`amount\`, \`items\`, \`phone_number\`, \`email\`. Opsional: \`customer_name\`. **Server-side only.**
+Wajib: \`invoice_number\`, \`amount\`, \`items\`, \`phone_number\`, \`email\`. Opsional: \`customer_name\`. **Wajib token tipe \`server\`** (atau \`legacy_full\` dari server). **Ditegakkan API:** panggilan dari browser ditolak (\`403\`, kode \`BROWSER_REQUEST_REJECTED\`).
 
 \`\`\`json
 {
@@ -398,6 +469,15 @@ Wajib: \`invoice_number\`, \`amount\`, \`items\`, \`phone_number\`, \`email\`. O
   "lead_converted": true,
   "sales_activity_id": "...",
   "whatsapp_status": "sent"
+}
+\`\`\`
+
+\`\`\`json
+// Response 403 — dipanggil dari browser (Origin / Sec-Fetch-Site)
+{
+  "success": false,
+  "error": "invoice-trigger tidak boleh dipanggil dari browser. Gunakan token Server di backend (Edge Function / server).",
+  "code": "BROWSER_REQUEST_REJECTED"
 }
 \`\`\`
 

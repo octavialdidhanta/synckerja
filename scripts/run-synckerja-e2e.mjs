@@ -12,9 +12,10 @@ fs.mkdirSync(tmpDir, { recursive: true });
 
 const BASE =
   "https://wqdzqqshoifwyrltzgvx.supabase.co/functions/v1/omnichannel-public-api";
-const TOKEN = process.env.OMNICHANNEL_E2E_TOKEN ?? "";
-if (!TOKEN) {
-  console.error("Set OMNICHANNEL_E2E_TOKEN env var");
+const SDK_TOKEN = process.env.OMNICHANNEL_E2E_SDK_TOKEN ?? process.env.OMNICHANNEL_E2E_TOKEN ?? "";
+const SERVER_TOKEN = process.env.OMNICHANNEL_E2E_SERVER_TOKEN ?? process.env.OMNICHANNEL_E2E_TOKEN ?? "";
+if (!SDK_TOKEN || !SERVER_TOKEN) {
+  console.error("Set OMNICHANNEL_E2E_SDK_TOKEN and OMNICHANNEL_E2E_SERVER_TOKEN (or OMNICHANNEL_E2E_TOKEN for both)");
   process.exit(1);
 }
 
@@ -47,11 +48,11 @@ const subjects = [
   },
 ];
 
-async function post(endpoint, body) {
+async function post(endpoint, body, token) {
   const res = await fetch(`${BASE}${endpoint}`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${TOKEN}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -83,7 +84,7 @@ for (const s of subjects) {
     gclid: s.gclid,
     fbclid: s.fbclid,
     referrer: "https://www.google.com/",
-  });
+  }, SDK_TOKEN);
   row.steps.traffic = traffic;
 
   const pageViewId = traffic.json?.page_view_id;
@@ -92,7 +93,7 @@ for (const s of subjects) {
       page_view_id: pageViewId,
       active_ms: 28500,
       scroll_max_pct: 68,
-    });
+    }, SDK_TOKEN);
   }
 
   row.steps.click = await post("/api/v1/click-events", {
@@ -102,7 +103,7 @@ for (const s of subjects) {
     track_key: `form-submit-${s.key}`,
     element_type: "BUTTON",
     element_label: `Daftar ${s.name}`,
-  });
+  }, SDK_TOKEN);
 
   row.steps.waClick = await post("/api/v1/wa-link-clicks", {
     session_id: s.sessionId,
@@ -110,7 +111,7 @@ for (const s of subjects) {
     path: "/konsultasi",
     target_url: "https://wa.me/6281281714855",
     target_phone: "6281281714855",
-  });
+  }, SDK_TOKEN);
 
   row.steps.lead = await post("/api/v1/leads", {
     session_id: s.sessionId,
@@ -125,7 +126,7 @@ for (const s of subjects) {
     package_label: s.package,
     guest_count: 150,
     budget_range: "20-30jt",
-  });
+  }, SDK_TOKEN);
 
   row.steps.invoice = await post("/api/v1/orders/invoice-trigger", {
     invoice_number: s.invoiceNumber,
@@ -134,7 +135,7 @@ for (const s of subjects) {
     phone_number: s.phone,
     email: s.email,
     customer_name: s.name,
-  });
+  }, SERVER_TOKEN);
 
   report.push(row);
 }
