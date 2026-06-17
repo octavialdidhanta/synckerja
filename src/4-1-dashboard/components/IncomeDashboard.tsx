@@ -50,6 +50,10 @@ import {
   FINANCIAL_DRAWERS_CARD_MAX,
   FINANCIAL_DRAWERS_LIST_SCROLL,
 } from '@/4-1-dashboard/utils/financialDrawersScroll';
+import {
+  INCOME_DASHBOARD_MAIN_GRID,
+  INCOME_DASHBOARD_RECENT_COLUMN,
+} from '@/4-1-dashboard/layout/incomeDashboardLayout';
 
 // Helper function to calculate date range based on selected period
 const getDateRangeForPeriod = (period: string): { startDate: Date; endDate: Date } => {
@@ -399,13 +403,13 @@ export function IncomeDashboard({
   return (
     <>
       <div
-        className={cn('flex min-h-full min-w-0 flex-col bg-muted/40')}
+        className={cn('flex w-full min-w-0 flex-col')}
         aria-hidden={!showContent}
       >
-        <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch xl:grid-rows-1 [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]">
-            <div className="col-span-12 flex min-h-0 min-w-0 flex-col self-stretch overflow-x-hidden xl:col-span-9">
-              <div className="flex h-full min-h-0 min-w-0 flex-col">
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white p-2 xl:min-h-0">
+        <div className={INCOME_DASHBOARD_MAIN_GRID}>
+            <div className="col-span-12 flex min-w-0 flex-col xl:col-span-9">
+              <div className="flex min-w-0 flex-col">
+                  <div className="flex min-w-0 flex-col overflow-x-hidden rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white p-2">
               {/* Compact Header Controls */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                 <h2 className="text-lg font-bold text-gray-800">Income Analytics</h2>
@@ -856,7 +860,7 @@ export function IncomeDashboard({
               {/* Section kiri & kanan saja: Income vs. Expenses (kiri) | Net Income per Bank Account (kanan) */}
               <div className="mb-2 grid min-h-0 min-w-0 grid-cols-1 gap-2 lg:grid-cols-2 lg:items-start">
                 {/* Kiri: Income vs. Expenses */}
-                <div className="flex h-full min-h-0 min-w-0 flex-col">
+                <div className="flex min-w-0 flex-col">
                   <Suspense fallback={<ChartSectionFallback />}>
                     <IncomeVsExpensesChart />
                   </Suspense>
@@ -971,9 +975,9 @@ export function IncomeDashboard({
               </div>
             </div>
 
-            <div className="col-span-12 flex min-h-0 min-w-0 flex-col self-stretch overflow-hidden xl:col-span-3">
-              <div className="flex h-full min-h-0 min-w-0 flex-col">
-                <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <div className={INCOME_DASHBOARD_RECENT_COLUMN}>
+              <div className="flex min-h-0 min-w-0 flex-col">
+                <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
                   <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
                     <h3 className="text-sm font-semibold text-foreground">Recent Income</h3>
                     <p className="mt-1 text-xs text-muted-foreground">Latest transactions and overview</p>

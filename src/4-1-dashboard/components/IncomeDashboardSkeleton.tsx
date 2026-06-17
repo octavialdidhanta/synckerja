@@ -1,9 +1,12 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { FINANCIAL_DRAWERS_LIST_SCROLL } from "@/4-1-dashboard/utils/financialDrawersScroll";
+import {
+  INCOME_DASHBOARD_MAIN_GRID,
+  INCOME_DASHBOARD_RECENT_COLUMN,
+} from "@/4-1-dashboard/layout/incomeDashboardLayout";
 
-const GRID_MAIN =
-  "min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch xl:grid-rows-1 [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]";
+const GRID_MAIN = INCOME_DASHBOARD_MAIN_GRID;
 
 /**
  * Mirrors `IncomeDashboard` — seamless scroll (header ikut scroll), `AppShell`-safe `h-full` root.
@@ -35,9 +38,9 @@ export function IncomeDashboardSkeleton() {
               </div>
 
               <div className={`grid ${GRID_MAIN}`}>
-                <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-9">
-                  <div className="flex h-full min-w-0 flex-col">
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white p-2 xl:min-h-0">
+                <div className="col-span-12 flex min-w-0 flex-col xl:col-span-9">
+                  <div className="flex min-w-0 flex-col">
+                    <div className="flex min-w-0 flex-col rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white p-2">
                       {/* "Income Analytics" row + three selects */}
                       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <Skeleton className="h-7 w-40" />
@@ -104,9 +107,9 @@ export function IncomeDashboardSkeleton() {
                 </div>
 
                 {/* Recent Income sidebar */}
-                <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-3">
-                  <div className="flex h-full min-w-0 flex-col">
-                    <div className="flex h-full min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                <div className={INCOME_DASHBOARD_RECENT_COLUMN}>
+                  <div className="flex min-h-0 min-w-0 flex-col">
+                    <div className="flex min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
                       <div className="shrink-0 border-b border-border px-4 py-1.5">
                         <Skeleton className="mb-1 h-4 w-32" />
                         <Skeleton className="h-3 w-48" />
@@ -122,6 +125,10 @@ export function IncomeDashboardSkeleton() {
                   </div>
                 </div>
               </div>
+              <div
+                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                aria-hidden
+              />
             </div>
           </div>
         </div>
