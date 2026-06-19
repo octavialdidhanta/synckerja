@@ -20,6 +20,7 @@ import { META_BUSINESS_OAUTH_SCOPES, hasThreadsScopes } from '@/meta-platform/co
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
 import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
 import { useThreadsOAuthConnect } from '@/meta-platform/hooks/useThreadsOAuthConnect';
+import { hasThreadsOAuthConfig } from '@/meta-platform/constants/threadsAppEnv';
 
 const META_OAUTH_SCOPE = META_BUSINESS_OAUTH_SCOPES;
 const META_OAUTH_VERSION = META_GRAPH_VERSION;
@@ -512,21 +513,29 @@ export function InstagramConnectPage() {
                                 </Button>
                               )}
                               {needsThreadsOAuth && (
-                                <Button
-                                  type="button"
-                                  onClick={() => void startThreadsOAuth()}
-                                  disabled={threadsOauthLoading || oauthLoading}
-                                  className="w-full bg-black hover:bg-neutral-800 text-white"
-                                >
-                                  {threadsOauthLoading ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <AtSign className="w-4 h-4 mr-2" />
-                                  )}
-                                  {threadsOauthLoading
-                                    ? t('instagramConnect.threadsOAuthConnecting', 'Authorizing Threads…')
-                                    : t('instagramConnect.connectThreads', 'Connect Threads (sandbox)')}
-                                </Button>
+                                <div className="space-y-2">
+                                  <Button
+                                    type="button"
+                                    onClick={() => void startThreadsOAuth()}
+                                    disabled={threadsOauthLoading || oauthLoading || !hasThreadsOAuthConfig()}
+                                    className="w-full bg-black hover:bg-neutral-800 text-white"
+                                  >
+                                    {threadsOauthLoading ? (
+                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <AtSign className="w-4 h-4 mr-2" />
+                                    )}
+                                    {threadsOauthLoading
+                                      ? t('instagramConnect.threadsOAuthConnecting', 'Authorizing Threads…')
+                                      : t('instagramConnect.connectThreads', 'Connect Threads (sandbox)')}
+                                  </Button>
+                                  <p className="text-xs text-slate-600">
+                                    {t(
+                                      'instagramConnect.threadsAppIdHint',
+                                      'Use Threads App ID (not the top App ID) from Meta → App settings → Basic. Local dev: open https://localhost:8080 and whitelist https://localhost:8080/auth/threads/callback in Meta.',
+                                    )}
+                                  </p>
+                                </div>
                               )}
                             </div>
                           )}

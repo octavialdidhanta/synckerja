@@ -17,6 +17,8 @@ interface ImportMetaEnv {
   readonly VITE_META_OAUTH_CONFIG_ID?: string;
   /** Meta Threads API app ID (separate app from VITE_META_APP_ID). */
   readonly VITE_THREADS_APP_ID?: string;
+  /** Optional override when Meta whitelist differs from window.location.origin (must match opener origin for popup). */
+  readonly VITE_THREADS_OAUTH_REDIRECT_URI?: string;
 }
 
 declare module "*.json" {

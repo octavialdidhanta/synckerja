@@ -451,7 +451,6 @@ export const enTranslations: TranslationDictionary = {
     "Account Comment API uses business-api.tiktok.com authorization. Disconnect and Connect again in Manage Comment settings.",
   "digitalMarketing.manageComments.like": "Like",
   "digitalMarketing.manageComments.likeSuccess": "Comment liked",
-  "digitalMarketing.manageComments.reply": "Reply",
   "digitalMarketing.manageComments.hide": "Hide",
   "digitalMarketing.manageComments.hideSuccess": "Comment hidden",
   "digitalMarketing.manageComments.hideHint":
@@ -1993,6 +1992,8 @@ export const enTranslations: TranslationDictionary = {
   "instagramConnect.oauthExchangeFailed": "Failed to save token.",
   "instagramConnect.oauthNotConfigured": "VITE_META_APP_ID not set.",
   "instagramConnect.threadsOAuthNotConfigured": "VITE_THREADS_APP_ID not set. Use the Threads API app ID from Meta Developer.",
+  "instagramConnect.threadsOAuthHttpsRequired": "Threads OAuth requires HTTPS. Use https://localhost:8080 (restart dev server) or https://office.synckerja.com, and match the redirect URL in Meta.",
+  "instagramConnect.threadsAppIdHint": "Use Threads App ID (not the top App ID) from Meta → App settings → Basic. Local: https://localhost:8080 + whitelist https://localhost:8080/auth/threads/callback.",
   "instagramConnect.configIdNotSet": "Set VITE_META_OAUTH_CONFIG_ID to your Business Login Configuration ID (e.g. from Meta Developer → Business login → Configurations).",
   "instagramConnect.popupBlocked": "Popup blocked. Allow popups for this site.",
   "instagramConnect.notAuthenticated": "Please sign in again.",

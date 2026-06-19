@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { THREADS_OAUTH_SCOPES } from '@/meta-platform/constants/metaOAuthScopes';
-import { getThreadsAppId, hasThreadsOAuthConfig } from '@/meta-platform/constants/threadsAppEnv';
+import { getThreadsAppId, getThreadsOAuthRedirectUri, hasThreadsOAuthConfig, isThreadsRedirectHttps } from '@/meta-platform/constants/threadsAppEnv';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 
 const OAUTH_POPUP_POLL_MS = 500;
@@ -27,10 +27,8 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
   const oauthPopupPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const oauthPopupStartedAtRef = useRef(0);
 
-  const threadsAppId = getThreadsAppId();
   const hasOAuth = hasThreadsOAuthConfig();
-  const redirectUri =
-    typeof window !== 'undefined' ? `${window.location.origin}/auth/threads/callback` : '';
+  const redirectUri = getThreadsOAuthRedirectUri();
 
   const clearThreadsOAuthPopupFlag = useCallback(() => {
     sessionStorage.removeItem('threadsOAuthPopupOpen');
@@ -112,6 +110,17 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
           'instagramConnect.threadsOAuthNotConfigured',
           'VITE_THREADS_APP_ID not set. Use the Threads API app ID from Meta Developer.',
         ),
+      );
+      setOauthLoading(false);
+      return;
+    }
+    if (!isThreadsRedirectHttps()) {
+      toast.error(
+        t(
+          'instagramConnect.threadsOAuthHttpsRequired',
+          'Threads OAuth requires HTTPS redirect. Open https://localhost:8080 (after dev server restart) and whitelist that URL in Meta, or test from https://office.synckerja.com.',
+        ),
+        { duration: 14000 },
       );
       setOauthLoading(false);
       return;
