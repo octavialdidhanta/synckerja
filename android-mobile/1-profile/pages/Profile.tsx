@@ -4,7 +4,7 @@ import { AppSidebar } from "@/mobile-app/components/AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/mobile-app/components/ui/sidebar";
 import { Card } from "@/mobile-app/components/ui/card";
 import { Button } from "@/mobile-app/components/ui/button";
-import { User, LogOut, ChevronDown, ChevronRight, Building2, Check, Loader2, KeyRound, RefreshCw, Phone, Users, GraduationCap, DollarSign, FolderOpen, Briefcase, AlertTriangle } from "lucide-react";
+import { User, LogOut, ChevronDown, ChevronRight, Building2, Check, Loader2, RefreshCw, Phone, Users, GraduationCap, DollarSign, FolderOpen, Briefcase, AlertTriangle, Settings } from "lucide-react";
 import { ProfileSkeleton } from "./ProfileSkeleton";
 import { useProfile } from "@/mobile-app/hooks/useProfile";
 import { useVisualViewport } from "@/shared/hooks/useVisualViewport";
@@ -31,7 +31,6 @@ import {
   DrawerTrigger,
   DrawerClose,
 } from "@/mobile-app/components/ui/drawer";
-import { ChangePasswordModal } from "@/mobile/1-profile/components/ChangePasswordModal";
 import { MyInfoDetailModal } from "@/mobile/1-profile/components/MyInfoDetailModal";
 import { EmergencyContactDetailModal } from "@/mobile/1-profile/components/EmergencyContactDetailModal";
 import { FamilyInfoDetailModal } from "@/mobile/1-profile/components/FamilyInfoDetailModal";
@@ -60,7 +59,6 @@ const Profile = () => {
   const {
     toast
   } = useToast();
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [myInfoOpen, setMyInfoOpen] = useState(false);
   const [emergencyContactOpen, setEmergencyContactOpen] = useState(false);
   const [familyInfoOpen, setFamilyInfoOpen] = useState(false);
@@ -616,18 +614,17 @@ const Profile = () => {
                           </DrawerContent>
                         </Drawer>
                         <Button
-                          variant="outline"
+                          variant="default"
                           className="w-full justify-start gap-3 h-11"
-                          onClick={() => setChangePasswordOpen(true)}
+                          onClick={() => navigate("/settings")}
                         >
-                          <KeyRound className="h-4 w-4 text-muted-foreground" />
-                          {t("profile.changePassword", "Ubah Password")}
+                          <Settings className="h-4 w-4" />
+                          {t("settings.openFullSettings", "Buka Pengaturan")}
                         </Button>
                       </div>
                     </Card>
                   </div>
 
-                  <ChangePasswordModal open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
                   <MyInfoDetailModal open={myInfoOpen} onOpenChange={setMyInfoOpen} profile={profile} />
                   <EmergencyContactDetailModal
                     open={emergencyContactOpen}

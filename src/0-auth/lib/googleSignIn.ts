@@ -1,6 +1,7 @@
 import { Browser } from "@capacitor/browser";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { routeAfterLogin, safeInternalRedirectPath } from "@/0-auth/lib/postLoginRouting";
+import { safeInternalRedirectPath } from "@/0-auth/lib/postLoginRouting";
+import { resolvePostAuthRouting } from "@/shared/auth/mfa/resolvePostAuthRouting";
 import { completeGoogleSsoLogin } from "@/0-auth/lib/completeGoogleSsoLogin";
 import { signInWithNativeGoogle } from "@/0-auth/lib/nativeGoogleSso";
 import { getSsoRedirectUrl, isNativeCapacitorAuth } from "@/0-auth/lib/ssoRedirectUrl";
@@ -165,7 +166,7 @@ async function startNativeGoogleSignIn(options: StartGoogleSignInOptions): Promi
   clearStashedSsoRedirectTo();
   clearStashedSsoOAuthMode();
 
-  await routeAfterLogin(options.navigate, redirectTo);
+  await resolvePostAuthRouting(options.navigate, redirectTo);
   return { error: null, completedInApp: true };
 }
 

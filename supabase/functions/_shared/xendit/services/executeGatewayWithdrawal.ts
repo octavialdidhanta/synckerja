@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { XenditEnvConfig } from "../xenditEnv.ts";
 import { readMinDisbursementAmount, readWithdrawalPlatformFee } from "../xenditEnv.ts";
-import { resolveOrgSubAccount } from "./createSubAccount.ts";
+import { resolvePrimarySubAccount } from "./resolveSubAccount.ts";
 import { fetchXenditWalletBalance, syncOrgXenditWalletBalance } from "./getBalance.ts";
 import { disburseSingle, mapBankNameToCode } from "./executeDisbursement.ts";
 import { assertGatewayPayoutValidated } from "./validateGatewayPayoutBank.ts";
@@ -57,14 +57,14 @@ export async function executeGatewayWithdrawal(
     );
   }
 
-  const { data: acct } = await admin
-    .from("organization_xendit_accounts")
+  const { data: settings } = await admin
+    .from("organization_xendit_settings")
     .select("is_enabled")
     .eq("organization_id", organizationId)
     .maybeSingle();
-  if (!acct?.is_enabled) throw new Error("Xendit not enabled for this organization");
+  if (!settings?.is_enabled) throw new Error("Xendit not enabled for this organization");
 
-  const { subAccountId } = await resolveOrgSubAccount(admin, env, organizationId);
+  const { subAccountId } = await resolvePrimarySubAccount(admin, env, organizationId);
 
   const { data: processing } = await admin
     .from("xendit_gateway_withdrawals")
@@ -165,7 +165,14 @@ export async function executeGatewayWithdrawal(
       .eq("id", withdrawalId);
 
     if (disburseStatus === "completed") {
-      await finalizeGatewayWithdrawal(admin, env, disburseId, organizationId);
+      const { data: settledRow } = await admin
+        .from("xendit_gateway_withdrawals")
+        .select("settled_at")
+        .eq("id", withdrawalId)
+        .maybeSingle();
+      if (!settledRow?.settled_at) {
+        await finalizeGatewayWithdrawal(admin, env, disburseId, organizationId);
+      }
     } else if (disburseStatus === "failed") {
       throw new Error(String(disburseRow.failure_message ?? "Xendit disbursement failed"));
     }
@@ -213,13 +220,15 @@ export async function listGatewayWithdrawals(
   admin: SupabaseClient,
   organizationId: string,
   limit = 10,
+  subAccountId?: string | null,
 ): Promise<Record<string, unknown>[]> {
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 50);
-  const { data, error } = await admin
+  let query = admin
     .from("xendit_gateway_withdrawals")
     .select(
       `
       id,
+      sub_account_id,
       amount,
       platform_fee_amount,
       net_amount,
@@ -244,9 +253,36 @@ export async function listGatewayWithdrawals(
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(safeLimit);
+
+  const filterId = subAccountId?.trim();
+  if (filterId) {
+    query = query.eq("sub_account_id", filterId);
+  }
+
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []) as Record<string, unknown>[];
+
+  const subAccountIds = [...new Set(
+    rows.map((r) => r.sub_account_id).filter((id): id is string => typeof id === "string" && id.length > 0),
+  )];
+
+  const labelByXenditId = new Map<string, { email: string; business_name: string }>();
+  if (subAccountIds.length > 0) {
+    const { data: subRows } = await admin
+      .from("xendit_sub_accounts")
+      .select("xendit_sub_account_id, email, business_name")
+      .eq("organization_id", organizationId)
+      .in("xendit_sub_account_id", subAccountIds);
+    for (const sa of subRows ?? []) {
+      labelByXenditId.set(String(sa.xendit_sub_account_id), {
+        email: String(sa.email ?? ""),
+        business_name: String(sa.business_name ?? ""),
+      });
+    }
+  }
+
   const userIds = [...new Set(
     rows.map((r) => r.initiated_by).filter((id): id is string => typeof id === "string" && id.length > 0),
   )];
@@ -267,10 +303,18 @@ export async function listGatewayWithdrawals(
     const bankAccount = row.bank_account as Record<string, unknown> | null;
     const snapshot = row.bank_snapshot as Record<string, unknown> | null;
     const initiatedBy = row.initiated_by != null ? String(row.initiated_by) : null;
+    const xenditSubId = row.sub_account_id != null ? String(row.sub_account_id) : "";
+    const subMeta = xenditSubId ? labelByXenditId.get(xenditSubId) : undefined;
+    const subLabel = subMeta
+      ? (subMeta.business_name || subMeta.email || xenditSubId)
+      : (xenditSubId || null);
     return {
       ...row,
       bank_destination: formatBankDestination(snapshot, bankAccount),
       initiated_by_name: initiatedBy ? (nameByUserId.get(initiatedBy) ?? null) : null,
+      sub_account_email: subMeta?.email ?? null,
+      sub_account_business_name: subMeta?.business_name ?? null,
+      sub_account_label: subLabel,
     };
   });
 }

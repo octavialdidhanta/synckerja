@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useLocation, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/shared/lib/supabaseClient";
@@ -19,6 +19,13 @@ import { HeaderAndTab } from "./HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { PayrollRouteSkeleton } from "../components/PayrollRouteSkeleton";
 import { PayrollRunActions } from "../components/PayrollRunActions";
+import { PayrollEscrowStatusBanner } from "../escrow/components/PayrollEscrowStatusBanner";
+import { PayrollExpenseStatusBanner } from "../expense/components/PayrollExpenseStatusBanner";
+import { PayrollEscrowHistoryPanel } from "../escrow/components/PayrollEscrowHistoryPanel";
+import {
+  payrollEscrowAmountsQueryKey,
+  payrollEscrowTransferQueryKey,
+} from "../escrow/hooks/usePayrollEscrowTransferStatus";
 import { formatPayrollDataError } from "../lib/payrollQueryErrors";
 import { payrollCalculationsQueryKey } from "../hooks/payrollCalculationsQueryKey";
 import { usePayrollPeriodsOverview } from "../hooks/usePayrollPeriodsOverview";
@@ -93,9 +100,11 @@ function isTaxItem(item: PayrollItemRow) {
 export default function PayrollCalculationsPage() {
   const { t } = useAppTranslation();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { organization } = useCentralizedUserData();
   const { orgBootstrapPending } = useOrgBootstrapPending();
   const organizationId = organization?.id ?? null;
+  const queryClient = useQueryClient();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -104,6 +113,16 @@ export default function PayrollCalculationsPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<Record<string, unknown> | null>(null);
   const [runBlockedMessage, setRunBlockedMessage] = useState<string | null>(null);
   const [deletingCalculationId, setDeletingCalculationId] = useState<string | null>(null);
+  const [disbursePanelOpen, setDisbursePanelOpen] = useState(false);
+
+  useEffect(() => {
+    setDisbursePanelOpen(false);
+  }, [selectedPayrollRunId]);
+
+  useEffect(() => {
+    const runFromUrl = searchParams.get("run")?.trim();
+    if (runFromUrl) setSelectedPayrollRunId(runFromUrl);
+  }, [searchParams]);
 
   const {
     data: calculations = [],
@@ -168,13 +187,38 @@ export default function PayrollCalculationsPage() {
     };
   }, [calculations, selectedPayrollRunId]);
 
-  const taxAmounts = filteredCalculations.reduce(
-    (acc: Record<string, number>, calc: { id: string; total_tax_deductions?: number | null }) => {
-      acc[calc.id] = calc.total_tax_deductions || 0;
-      return acc;
-    },
-    {},
-  );
+  const runPaymentState = useMemo(() => {
+    if (!selectedPayrollRunId) {
+      return { hasActiveDisbursement: false, failedCount: 0, processingCount: 0 };
+    }
+    const runCalcs = calculations.filter(
+      (c) => (c as { payroll_run_id?: string }).payroll_run_id === selectedPayrollRunId,
+    );
+    let processingCount = 0;
+    let failedCount = 0;
+    for (const calc of runCalcs) {
+      const ps = (calc.payment_status as string) || "pending";
+      if (ps === "processing") processingCount += 1;
+      if (ps === "failed") failedCount += 1;
+    }
+    return {
+      hasActiveDisbursement: processingCount > 0,
+      failedCount,
+      processingCount,
+    };
+  }, [calculations, selectedPayrollRunId]);
+
+  const handleRunActionComplete = () => {
+    void refetch();
+    if (selectedPayrollRunId) {
+      void queryClient.invalidateQueries({
+        queryKey: payrollEscrowTransferQueryKey(selectedPayrollRunId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: payrollEscrowAmountsQueryKey(selectedPayrollRunId),
+      });
+    }
+  };
 
   const { data: payrollItems = [] } = useQuery<PayrollItemRow[]>({
     queryKey: ["payroll-items", selectedEmployee?.id],
@@ -304,17 +348,59 @@ export default function PayrollCalculationsPage() {
                         <PayrollMetricsCards
                           calculations={filteredCalculations}
                           selectedPayrollRunId={selectedPayrollRunId}
+                          disburseMode={
+                            disbursePanelOpen && selectedPayrollRunId && organizationId
+                              ? { organizationId, runId: selectedPayrollRunId }
+                              : null
+                          }
                         />
                       </div>
 
-                      <div className="mb-2 shrink-0">
+                      <div
+                        className={cn(
+                          "mb-2 shrink-0",
+                          disbursePanelOpen && "min-h-0 flex flex-1 flex-col",
+                        )}
+                      >
                         <PayrollRunActions
                           runId={selectedPayrollRunId}
                           runName={selectedRunMeta.name}
                           runStatus={selectedRunMeta.status}
-                          onActionComplete={() => void refetch()}
+                          hasActiveDisbursement={runPaymentState.hasActiveDisbursement}
+                          onActionComplete={handleRunActionComplete}
+                          onDisbursePanelOpenChange={setDisbursePanelOpen}
                         />
                       </div>
+
+                      <PayrollEscrowStatusBanner
+                        runId={selectedPayrollRunId}
+                        runStatus={selectedRunMeta.status}
+                      />
+
+                      <PayrollExpenseStatusBanner
+                        runId={selectedPayrollRunId}
+                        runStatus={selectedRunMeta.status}
+                      />
+
+                      {runPaymentState.hasActiveDisbursement && (
+                        <div className="mb-2 shrink-0 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+                          {t(
+                            "payroll.xendit.disbursingBanner",
+                            "Disburse Xendit sedang berjalan ({{count}} karyawan). Mark as Paid dinonaktifkan sampai selesai.",
+                            { count: runPaymentState.processingCount },
+                          )}
+                        </div>
+                      )}
+
+                      {!runPaymentState.hasActiveDisbursement && runPaymentState.failedCount > 0 && (
+                        <div className="mb-2 shrink-0 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                          {t(
+                            "payroll.xendit.failedBanner",
+                            "{{count}} disburse gagal. Gunakan tombol Retry pada baris yang gagal.",
+                            { count: runPaymentState.failedCount },
+                          )}
+                        </div>
+                      )}
 
                       {runBlockedMessage && (
                         <div className="mb-2 shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/30">
@@ -327,20 +413,31 @@ export default function PayrollCalculationsPage() {
                         </div>
                       )}
 
-                      <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
-                        <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-                          <PayrollCalculationsTable
-                            calculations={filteredCalculations}
-                            totalUnfiltered={calculations.length}
-                            taxAmounts={taxAmounts}
-                            isLoading={isLoading}
-                            onEmployeeSelect={setSelectedEmployee}
-                            onRefresh={() => refetch()}
-                            onDeleteCalculation={handleDeleteCalculation}
-                            deletingCalculationId={deletingCalculationId}
+                      {!disbursePanelOpen && selectedPayrollRunId ? (
+                        <div className="mb-2 shrink-0">
+                          <PayrollEscrowHistoryPanel
+                            runId={selectedPayrollRunId}
+                            runStatus={selectedRunMeta.status}
                           />
                         </div>
-                      </div>
+                      ) : null}
+
+                      {!disbursePanelOpen && (
+                        <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
+                          <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                            <PayrollCalculationsTable
+                              calculations={filteredCalculations}
+                              totalUnfiltered={calculations.length}
+                              isLoading={isLoading}
+                              onEmployeeSelect={setSelectedEmployee}
+                              onRefresh={() => refetch()}
+                              onDeleteCalculation={handleDeleteCalculation}
+                              deletingCalculationId={deletingCalculationId}
+                              onRetryComplete={() => void refetch()}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="col-span-full flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-3">

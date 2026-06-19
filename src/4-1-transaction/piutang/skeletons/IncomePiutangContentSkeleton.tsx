@@ -1,14 +1,16 @@
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import {
-  INCOME_TX_MAIN_GRID,
+  INCOME_PIUTANG_MAIN_COLUMN,
+  INCOME_PIUTANG_MAIN_GRID,
+  INCOME_PIUTANG_SIDEBAR_COLUMN,
   INCOME_TX_TABLE_SECTION,
 } from '@/4-1-transaction/layout/incomeTransactionLayout';
 
-/** Grid konten — mirror `IncomePiutangPage` / `IncomeTransactionPage` (tanpa HeaderAndTab). */
+/** Grid konten — mirror `IncomePiutangPage` (tanpa HeaderAndTab). */
 export function IncomePiutangContentSkeleton() {
   return (
-    <div className={INCOME_TX_MAIN_GRID} aria-hidden>
-      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden xl:col-span-9">
+    <div className={INCOME_PIUTANG_MAIN_GRID} aria-hidden>
+      <div className={INCOME_PIUTANG_MAIN_COLUMN}>
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           <div className="mb-2 flex-shrink-0">
             <div className="rounded-md border border-border bg-card p-2">
@@ -33,7 +35,7 @@ export function IncomePiutangContentSkeleton() {
                   ))}
                 </div>
               </div>
-              <div className="flex-shrink-0 border-t border-border bg-card px-4 py-0.5">
+              <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
                 <Skeleton className="h-3 w-full max-w-md" />
               </div>
             </div>
@@ -41,20 +43,22 @@ export function IncomePiutangContentSkeleton() {
         </div>
       </div>
 
-      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-3">
+      <div className={INCOME_PIUTANG_SIDEBAR_COLUMN}>
         <div className="flex h-full min-h-0 min-w-0 flex-col">
-          <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+          <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card shadow-sm">
             <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
               <Skeleton className="mb-1 h-4 w-36" />
               <Skeleton className="mt-1 h-3 w-48" />
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden p-4">
-              <div className="space-y-3">
-                <Skeleton className="h-20 w-full rounded-lg" />
-                <Skeleton className="h-20 w-full rounded-lg" />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="h-full min-h-0 overflow-hidden p-4">
+                <div className="space-y-3">
+                  <Skeleton className="h-20 w-full rounded-lg" />
+                  <Skeleton className="h-20 w-full rounded-lg" />
+                </div>
               </div>
             </div>
-            <div className="flex-shrink-0 border-t border-border bg-card px-4 py-2">
+            <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
               <Skeleton className="h-3 w-full max-w-[200px]" />
             </div>
           </div>

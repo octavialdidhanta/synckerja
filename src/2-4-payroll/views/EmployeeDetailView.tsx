@@ -63,7 +63,11 @@ export function EmployeeDetailView({
     taxData.reduce((s, i) => s + (Number(i.calculated_amount) || 0), 0);
   const takeHomePay =
     Number(selectedEmployee.take_home_pay ?? selectedEmployee.net_pay) ||
-    storedGross - storedDeductions - storedPenalties - storedTax;
+    storedGross - storedDeductions - storedPenalties;
+
+  /** Total potongan = bruto − THP (selaras DB; sudah termasuk PPh21, BPJS, dll.) */
+  const totalPotonganDisplay =
+    storedGross > 0 && takeHomePay >= 0 ? storedGross - takeHomePay : storedDeductions + storedPenalties;
 
   const bpjsFromItems = deductionData.filter(isBpjsItem);
   const bpjsKesehatanMonthly =
@@ -291,9 +295,23 @@ export function EmployeeDetailView({
             <CardContent className="p-4">
               <div className="text-muted-foreground mb-1 text-sm font-medium">Potongan</div>
               <div className="text-destructive text-lg font-bold">
-                {formatCurrency(storedDeductions + totalPenaltiesDisplay)}
+                {formatCurrency(totalPotonganDisplay)}
               </div>
               <div className="mt-2 space-y-1">
+                {taxData.length > 0
+                  ? taxData.map((item, index) => (
+                      <div key={`tax-${index}`} className="text-muted-foreground flex justify-between text-xs">
+                        <span>{lineLabel(item)}</span>
+                        <span>{formatCurrency(Number(item.calculated_amount) || 0)}</span>
+                      </div>
+                    ))
+                  : monthlyTaxDisplay > 0 && (
+                      <div className="text-muted-foreground flex justify-between text-xs">
+                        <span>PPh 21</span>
+                        <span>{formatCurrency(monthlyTaxDisplay)}</span>
+                      </div>
+                    )}
+
                 {bpjsKesehatanMonthly > 0 && (
                   <div className="text-muted-foreground flex justify-between text-xs">
                     <span>BPJS Kesehatan</span>
@@ -338,7 +356,7 @@ export function EmployeeDetailView({
               <div className="text-muted-foreground mb-1 text-sm font-medium">Take-Home Pay</div>
               <div className="text-primary text-xl font-bold">{formatCurrency(takeHomePay)}</div>
               <div className="text-muted-foreground mt-1 text-xs">
-                Bruto {formatCurrency(storedGross)} − Pajak {formatCurrency(storedTax)}
+                Bruto {formatCurrency(storedGross)} − Potongan {formatCurrency(totalPotonganDisplay)}
               </div>
             </CardContent>
           </Card>

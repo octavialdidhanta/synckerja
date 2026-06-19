@@ -3,16 +3,15 @@ import { IncomeTransactionSidebarFooter } from './IncomeTransactionSidebarFooter
 
 type Props = {
   transactions: Parameters<typeof IncomeTransactionOverview>[0]['transactions'];
-  totalAmount: number;
-  selectedType: string;
+  filteredCount: number;
+  totalTransactions: number;
 };
 
 export function IncomeTransactionSidebarColumn({
   transactions,
-  totalAmount,
-  selectedType,
+  filteredCount,
+  totalTransactions,
 }: Props) {
-  const count = transactions?.length ?? 0;
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
@@ -32,9 +31,8 @@ export function IncomeTransactionSidebarColumn({
         </div>
 
         <IncomeTransactionSidebarFooter
-          totalTransactions={count}
-          totalAmount={totalAmount}
-          selectedType={selectedType}
+          filteredTransactions={filteredCount}
+          totalTransactions={totalTransactions}
         />
       </div>
     </div>

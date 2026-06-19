@@ -133,8 +133,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(session?.user ?? null);
         setError(null);
         
-        // Set loading to false after state update
-        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        // Set loading to false after sign-in/out; initial session gate is `getInitialSession` finally.
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
           setLoading(false);
         }
       }

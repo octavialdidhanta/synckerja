@@ -1,53 +1,120 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { Send } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
-import { useXenditOrgSettings } from "@/xendit/hooks/useXenditOrgSettings";
-import { executeXenditDisbursement } from "@/xendit/lib/xenditApi";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/shared/components/ui/tooltip";
+import { cn } from "@/shared/lib/utils";
+import { mfaSecuritySettingsPath } from "@/shared/auth/mfa/mfaSettingsPaths";
+import { usePayrollXenditDisburse } from "../hooks/usePayrollXenditDisburse";
+import { PayrollXenditDisbursePanel } from "./PayrollXenditDisbursePanel";
 
-type Props = {
+type Flow = ReturnType<typeof usePayrollXenditDisburse>;
+
+type SharedProps = {
   runId: string | null;
   runStatus?: string;
+  hasActiveDisbursement?: boolean;
   onActionComplete?: () => void;
+  panelOpen: boolean;
+  onPanelOpenChange: (open: boolean) => void;
 };
 
-export function PayrollXenditDisburseActions({ runId, runStatus, onActionComplete }: Props) {
+export function usePayrollXenditDisburseFlow(props: SharedProps) {
+  return usePayrollXenditDisburse(props);
+}
+
+export function PayrollXenditDisburseButton({ flow }: { flow: Flow }) {
   const { t } = useTranslation();
-  const { organizationId } = useCurrentOrg();
-  const { data: settings } = useXenditOrgSettings(organizationId);
-  const [loading, setLoading] = useState(false);
+  const { panelOpen, togglePanel, loading, canDisburse, disabledReason, mfaBlocked, hasActiveDisbursement } =
+    flow;
 
-  if (!runId || runStatus !== "calculated") return null;
-  if (!settings?.account?.is_enabled) return null;
+  const button = (
+    <Button
+      type="button"
+      size="sm"
+      variant={panelOpen ? "default" : "outline"}
+      className={cn("shrink-0", panelOpen && "shadow-sm")}
+      aria-expanded={panelOpen}
+      onClick={togglePanel}
+      disabled={loading || (!canDisburse && !panelOpen)}
+    >
+      <Send className="mr-1.5 h-4 w-4" />
+      {loading
+        ? t("xendit.processing", "Memproses…")
+        : hasActiveDisbursement
+          ? t("payroll.xendit.disbursing", "Disbursing…")
+          : t("xendit.disbursePayroll", "Disburse via Xendit")}
+    </Button>
+  );
 
-  const handleDisburse = async () => {
-    if (!organizationId) return;
-    setLoading(true);
-    try {
-      const res = await executeXenditDisbursement(organizationId, {
-        source_type: "payroll_run",
-        payroll_run_id: runId,
-      });
-      toast.success(
-        t("xendit.payrollDisburseStarted", "Disbursement started: {{ok}} ok, {{fail}} failed", {
-          ok: res.processed,
-          fail: res.failed,
-        }),
-      );
-      onActionComplete?.();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!canDisburse && disabledReason) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex shrink-0">{button}</span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs text-xs">
+            {mfaBlocked ? (
+              <span>
+                {disabledReason}{" "}
+                <Link to={mfaSecuritySettingsPath()} className="underline">
+                  {t("payroll.xendit.mfaEnrollLink", "Buka Pengaturan Keamanan")}
+                </Link>
+              </span>
+            ) : (
+              disabledReason
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return button;
+}
+
+export function PayrollXenditDisbursePanelSection({ flow }: { flow: Flow }) {
+  const { panelOpen, closePanel, runId, loading, handleDisburse, cashBalance } = flow;
+
+  if (!panelOpen || !runId) return null;
 
   return (
-    <Button size="sm" variant="outline" onClick={handleDisburse} disabled={loading}>
-      <Send className="mr-1 h-4 w-4" />
-      {loading ? t("xendit.processing", "Processing…") : t("xendit.disbursePayroll", "Disburse via Xendit")}
-    </Button>
+    <PayrollXenditDisbursePanel
+      active={panelOpen}
+      onCancel={closePanel}
+      runId={runId}
+      xenditUsableBalance={cashBalance.balance}
+      aggregateBalance={cashBalance.aggregateBalance}
+      selectableCount={cashBalance.selectableCount}
+      balanceSyncing={cashBalance.isSyncing}
+      balanceSyncedAt={cashBalance.syncedAt}
+      balanceSyncError={cashBalance.syncError}
+      confirming={loading}
+      fillHeight
+      onConfirm={handleDisburse}
+    />
+  );
+}
+
+/** @deprecated Use PayrollXenditDisburseButton + PayrollXenditDisbursePanelSection in PayrollRunActions */
+export function PayrollXenditDisburseActions({
+  panelOpen,
+  onPanelOpenChange,
+  ...props
+}: SharedProps) {
+  const flow = usePayrollXenditDisburse({ ...props, panelOpen, onPanelOpenChange });
+  if (!flow.visible) return null;
+
+  return (
+    <>
+      <PayrollXenditDisburseButton flow={flow} />
+      <PayrollXenditDisbursePanelSection flow={flow} />
+    </>
   );
 }

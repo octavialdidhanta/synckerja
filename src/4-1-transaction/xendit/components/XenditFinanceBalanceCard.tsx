@@ -47,7 +47,7 @@ export function XenditFinanceBalanceCard({
         <p className="mt-2 text-xs text-muted-foreground">
           {t(
             "xendit.finance.balanceHint",
-            "Saldo CASH live sub-account xenPlatform (bukan akun master).",
+            "Saldo CASH live akun xenPlatform (bukan akun master).",
           )}
         </p>
       )}

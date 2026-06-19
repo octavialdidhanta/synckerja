@@ -13,34 +13,29 @@ This module contains all components related to Expenses Management (`/expenses/*
 │   ├── ApprovalsPage.tsx              # Approval requests page
 │   ├── PaymentProcessPage.tsx         # Payment processing page
 │   ├── ReminderBillsPage.tsx          # Bills reminder page
-│   ├── PayrollExpensePage.tsx         # Payroll expenses page
 │   └── ApprovalRequestsPage.tsx       # Approval requests management
 │
 ├── Tables/
 │   ├── ApprovalRequestsTable.tsx
 │   ├── PaymentRequestsTable.tsx
 │   ├── ReminderBillsTable.tsx
-│   └── PayrollExpenseTable.tsx
 │
 ├── Metrics Cards/
 │   ├── ApprovalMetricsCards.tsx
 │   ├── ApprovalRequestsMetricsCards.tsx
 │   ├── PaymentMetricsCards.tsx
 │   ├── ReminderBillsMetricsCards.tsx
-│   └── PayrollExpenseMetricsCards.tsx
 │
 ├── Filters/
 │   ├── ApprovalFilters.tsx
 │   ├── ApprovalRequestsFilters.tsx
 │   ├── PaymentFilters.tsx
 │   ├── ReminderBillsFilters.tsx
-│   └── PayrollExpenseFilters.tsx
 │
 ├── Overviews/
 │   ├── RecentApprovalsOverview.tsx
 │   ├── RecentPaymentsOverview.tsx
 │   ├── ReminderBillsOverview.tsx
-│   └── PayrollExpenseOverview.tsx
 │
 ├── Modals & Dialogs/
 │   ├── PurchaseRequestDetailsModal.tsx
@@ -120,17 +115,13 @@ Recurring bills and payment reminders.
 - Bill payment tracking
 - Auto-reminder notifications
 
-### PayrollExpensePage
-Payroll-related expenses page.
+### Payroll THP expenses (via dashboard)
 
-**Route:** `/expenses/payroll`
+Payroll THP is auto-posted to **Expense Dashboard** (`/expenses/dashboard`) when enabled in Payroll sidebar settings — not a separate route.
 
 **Features:**
-- Payroll expense breakdown
-- Salary payments
-- Tax deductions
-- Benefits and allowances
-- Monthly payroll summary
+- One expense per paid payroll run (Xendit disburse)
+- Payroll filter chip and read-only rows linked to payroll run
 
 ## Hooks
 

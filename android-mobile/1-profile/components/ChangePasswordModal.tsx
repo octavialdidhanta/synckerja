@@ -8,6 +8,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { useMfaStepUp } from '@/shared/auth/mfa';
 import { cn } from '@/shared/lib/utils';
 
 type TranslateFn = ReturnType<typeof useAppTranslation>['t'];
@@ -80,6 +81,7 @@ export const ChangePasswordModal = ({ open, onOpenChange }: ChangePasswordModalP
   }>({});
   const { t } = useAppTranslation();
   const { toast } = useToast();
+  const { ensureAal2 } = useMfaStepUp();
 
   const validatePasswords = () => {
     const newErrors: typeof errors = {};
@@ -120,9 +122,24 @@ export const ChangePasswordModal = ({ open, onOpenChange }: ChangePasswordModalP
     setErrors({});
 
     try {
+      if (!(await ensureAal2())) {
+        setErrors({ general: t('settings.security.twoFactor.stepUpCancelled', '2FA verification was cancelled') });
+        return;
+      }
+
       const { data: user } = await supabase.auth.getUser();
       if (!user.user?.email) {
         throw new Error(t('settings.security.error.unableVerify', 'Unable to verify current user'));
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.user.email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        setErrors({ current: t('settings.security.validation.currentIncorrect', 'Current password is incorrect') });
+        return;
       }
 
       const { error } = await supabase.auth.updateUser({

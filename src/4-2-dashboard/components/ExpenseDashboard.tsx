@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Card, CardContent } from '@/shared/components/ui/card';
@@ -100,6 +100,20 @@ function matchesWithdrawalFilter(expense: Expense, withdrawalFilter: string): bo
   return true;
 }
 
+function matchesPayrollFilter(
+  expense: Expense,
+  payrollOnly: boolean,
+  payrollRunId: string | null,
+): boolean {
+  if (payrollRunId) {
+    return expense.payroll_run_id === payrollRunId;
+  }
+  if (payrollOnly) {
+    return Boolean(expense.payroll_run_id);
+  }
+  return true;
+}
+
 /** Paid purchase requests merged into the expense table must carry the same withdrawal fields as real expenses or debt/bank filters hide every PR row. */
 function withdrawalJoinsFromPurchaseRequest(
   pr: PurchaseRequest,
@@ -154,7 +168,10 @@ export function ExpenseDashboard() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all-categories');
   const [categoryFilterOpen, setCategoryFilterOpen] = useState(false);
   const [withdrawalFilter, setWithdrawalFilter] = useState<string>('all-withdrawal');
+  const [payrollOnlyFilter, setPayrollOnlyFilter] = useState(false);
+  const [payrollRunFilter, setPayrollRunFilter] = useState<string | null>(null);
   const { t } = useAppTranslation();
+  const [searchParams] = useSearchParams();
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -169,8 +186,18 @@ export function ExpenseDashboard() {
     setCategoryFilter('all-categories');
     setCategoryFilterOpen(false);
     setWithdrawalFilter('all-withdrawal');
+    setPayrollOnlyFilter(false);
+    setPayrollRunFilter(null);
     setSearchQuery('');
   };
+
+  useEffect(() => {
+    const runFromUrl = searchParams.get('payrollRun')?.trim();
+    if (runFromUrl) {
+      setPayrollRunFilter(runFromUrl);
+      setPayrollOnlyFilter(true);
+    }
+  }, [searchParams]);
 
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const location = useLocation();
@@ -511,6 +538,10 @@ export function ExpenseDashboard() {
   };
 
   const handleOpenEditExpense = (expense: Expense) => {
+    if (expense.payroll_run_id) {
+      toast.error(t('expenses.payrollExpenseReadonly', 'Payroll THP expenses cannot be edited.'));
+      return;
+    }
     const selectedTypeId = expenseTypes.find((type) => type.name === expense.expense_type)?.id || '';
     setEditingExpense(expense);
     setSelectedExpenseTypeId(selectedTypeId);
@@ -655,6 +686,11 @@ export function ExpenseDashboard() {
   };
 
   const handleDeleteClick = (expenseId: string) => {
+    const expense = expenses.find((e) => e.id === expenseId);
+    if (expense?.payroll_run_id) {
+      toast.error(t('expenses.payrollExpenseReadonly', 'Payroll THP expenses cannot be deleted.'));
+      return;
+    }
     setExpenseToDelete(expenseId);
     setIsDeleteDialogOpen(true);
   };
@@ -835,6 +871,9 @@ export function ExpenseDashboard() {
 
     // Apply withdrawal filter (debt/bank/none), including legacy fallback mapping.
     filtered = filtered.filter(expense => matchesWithdrawalFilter(expense, withdrawalFilter));
+    filtered = filtered.filter(expense =>
+      matchesPayrollFilter(expense, payrollOnlyFilter, payrollRunFilter),
+    );
 
     return filtered;
   }, [
@@ -845,6 +884,8 @@ export function ExpenseDashboard() {
     departmentFilter,
     categoryFilter,
     withdrawalFilter,
+    payrollOnlyFilter,
+    payrollRunFilter,
     debtsForExpense,
     bankAccounts,
   ]);
@@ -963,6 +1004,9 @@ export function ExpenseDashboard() {
     }
     // Apply withdrawal filter so all sections respond consistently.
     filtered = filtered.filter(expense => matchesWithdrawalFilter(expense, withdrawalFilter));
+    filtered = filtered.filter(expense =>
+      matchesPayrollFilter(expense, payrollOnlyFilter, payrollRunFilter),
+    );
     // Sengaja TIDAK menerapkan categoryFilter agar tab Expense Category selalu menampilkan breakdown semua kategori
     return filtered;
   }, [
@@ -972,6 +1016,8 @@ export function ExpenseDashboard() {
     expenseTypeFilter,
     departmentFilter,
     withdrawalFilter,
+    payrollOnlyFilter,
+    payrollRunFilter,
     debtsForExpense,
     bankAccounts,
   ]);
@@ -1469,6 +1515,20 @@ export function ExpenseDashboard() {
                 </PopoverContent>
               </Popover>
 
+              <Button
+                type="button"
+                variant={payrollOnlyFilter ? 'default' : 'outline'}
+                size="sm"
+                className="h-9 shrink-0 text-xs"
+                onClick={() => {
+                  const next = !payrollOnlyFilter;
+                  setPayrollOnlyFilter(next);
+                  if (!next) setPayrollRunFilter(null);
+                }}
+              >
+                {t('expenses.filter.payroll', 'Payroll')}
+              </Button>
+
               <Select value={withdrawalFilter} onValueChange={setWithdrawalFilter} disabled={withdrawalOptionsLoading}>
                 <SelectTrigger className="w-full sm:w-40 md:w-44 min-w-0">
                   <SelectValue placeholder={withdrawalOptionsLoading ? t('expenses.withdrawalFilter.loading', 'Loading...') : t('expenses.withdrawalFilter.allWithdrawal', 'Withdrawal From Balance')} />
@@ -1625,11 +1685,29 @@ export function ExpenseDashboard() {
                                 : t('expenses.gatewayBrick', 'Brick'),
                           },
                         ) || '—';
+                      const isPayrollExpense = Boolean(expense.payroll_run_id);
                       return (
                       <tr key={expense.id} className="border-b hover:bg-gray-50">
                         <td className="py-2 sm:py-3 px-2 sm:px-4 max-w-[150px] sm:max-w-[200px] min-w-0">
-                          <div className="truncate text-xs sm:text-sm" title={requestTitle || expense.expense_name || '-'}>
-                            {requestTitle || expense.expense_name || '-'}
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            {isPayrollExpense ? (
+                              <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
+                                {t('expenses.filter.payroll', 'Payroll')}
+                              </Badge>
+                            ) : null}
+                            {isPayrollExpense && expense.payroll_run_id ? (
+                              <Link
+                                to={`/payroll/calculations?run=${expense.payroll_run_id}`}
+                                className="text-primary truncate text-xs hover:underline sm:text-sm"
+                                title={requestTitle || expense.expense_name || '-'}
+                              >
+                                {requestTitle || expense.expense_name || '-'}
+                              </Link>
+                            ) : (
+                              <div className="truncate text-xs sm:text-sm" title={requestTitle || expense.expense_name || '-'}>
+                                {requestTitle || expense.expense_name || '-'}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium whitespace-nowrap text-xs sm:text-sm">{formatCurrency(expense.amount)}</td>
@@ -1710,13 +1788,13 @@ export function ExpenseDashboard() {
                                 <Eye className="h-4 w-4 mr-2 text-gray-600" />
                                 Details
                               </DropdownMenuItem>
-                              {!isPaidPurchaseRequest && (
+                              {!isPaidPurchaseRequest && !isPayrollExpense && (
                                 <DropdownMenuItem onClick={() => handleOpenEditExpense(expense)}>
                                   <Pencil className="h-4 w-4 mr-2 text-gray-600" />
                                   Edit
                                 </DropdownMenuItem>
                               )}
-                              {!isPaidPurchaseRequest && (
+                              {!isPaidPurchaseRequest && !isPayrollExpense && (
                                 <DropdownMenuItem 
                                   className="text-brand-red"
                                   onClick={() => handleDeleteClick(expense.id)}

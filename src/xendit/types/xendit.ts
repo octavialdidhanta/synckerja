@@ -1,3 +1,5 @@
+import type { EntitySubtype, XenditBusinessAddress } from "@/xendit/lib/xenditKycEntityConfig";
+
 export type XenditOrgAccount = {
   organization_id: string;
   xendit_sub_account_id: string | null;
@@ -60,4 +62,98 @@ export type XenditDisbursementRow = {
   status: string;
   amount: number;
   failure_message: string | null;
+};
+
+export type DocumentUploadStatus = "pending" | "completed" | "failed" | "not_required";
+
+export type XenditSubAccountRow = {
+  id: string;
+  organization_id: string;
+  xendit_sub_account_id: string | null;
+  business_name: string;
+  email: string;
+  account_type: "OWNED" | "MANAGED";
+  status: string;
+  kyc_status: string | null;
+  document_upload_status: DocumentUploadStatus;
+  document_upload_error: string | null;
+  is_primary: boolean;
+  linked_bank_account_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type XenditSubAccountWallet = {
+  id: string;
+  organization_id: string;
+  sub_account_row_id: string;
+  xendit_sub_account_id: string;
+  usable_balance: number;
+  pending_balance: number;
+  total_balance: number;
+  currency: string;
+  synced_at: string | null;
+  sync_error: string | null;
+  email?: string;
+  business_name?: string;
+  is_primary?: boolean;
+  status?: string;
+};
+
+export type XenditWalletAggregate = {
+  usableBalance: number;
+  pendingBalance: number;
+  totalBalance: number;
+  syncedAt: string | null;
+};
+
+export type OrganizationKycDocument = {
+  id: string;
+  organization_id: string;
+  business_type: "individual" | "company";
+  entity_subtype: EntitySubtype | null;
+  legal_name: string;
+  identity_number: string | null;
+  npwp: string | null;
+  nib: string | null;
+  director_npwp: string | null;
+  ktp_storage_path: string | null;
+  nib_storage_path: string | null;
+  npwp_storage_path: string | null;
+  director_npwp_storage_path: string | null;
+  akta_storage_path: string | null;
+  sk_menkeh_storage_path: string | null;
+  entity_extra_documents: Record<string, string> | null;
+  /** @deprecated Use nib_storage_path / npwp_storage_path */
+  legal_doc_storage_path: string | null;
+  service_agreement_storage_path: string | null;
+  business_address: XenditBusinessAddress | null;
+  business_website: string | null;
+  proof_of_business_storage_path: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  created_at: string;
+  updated_at: string;
+};
+
+export type RequestSubAccountResponse = {
+  ok: boolean;
+  require_kyc: boolean;
+  can_create: boolean;
+  is_internal: boolean;
+  account_type: "OWNED" | "MANAGED";
+  kyc_status: string | null;
+  message?: string;
+};
+
+export type XenditSettingsResponse = {
+  serverConfigured: boolean;
+  isSandbox: boolean;
+  keyKind: "development" | "production" | "public" | "unknown";
+  publicKey: string | null;
+  account: XenditOrgAccount | null;
+  primarySubAccount: XenditSubAccountRow | null;
+  subAccounts: XenditSubAccountRow[];
+  kyc: OrganizationKycDocument | null;
+  isInternalOrg: boolean;
+  platformConfig: { flat_fee_amount: number; split_rule_id: string | null } | null;
 };

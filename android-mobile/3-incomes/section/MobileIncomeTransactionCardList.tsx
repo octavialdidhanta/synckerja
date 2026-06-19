@@ -57,7 +57,7 @@ export function MobileIncomeTransactionCardList({ transactions, isLoading, onRef
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-medium text-foreground">
-                        {transaction.description || t("incomes.transaction", "Transaction")}
+                        {transaction.description || t("incomes.transactionLabel", "Transaction")}
                       </p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground" title={title}>
                         ID {display}

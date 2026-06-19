@@ -147,7 +147,7 @@ export function MobileIncomeTransactionTable({
                 >
                   <td className="w-[200px] min-w-[200px] max-w-[200px] px-2 py-2 text-xs">
                     <div className="line-clamp-2 break-words font-medium leading-snug">
-                      {transaction.description || t("incomes.transaction", "Transaction")}
+                      {transaction.description || t("incomes.transactionLabel", "Transaction")}
                     </div>
                   </td>
                   <td className="w-[120px] min-w-[120px] max-w-[120px] px-3 py-2 text-xs font-medium">

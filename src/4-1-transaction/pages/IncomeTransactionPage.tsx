@@ -1,11 +1,13 @@
 import { lazy, Suspense, useState, useCallback, useMemo } from 'react';
 import { Alert, AlertDescription } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
-import { IncomeTransactionFilters } from '../section/IncomeTransactionFilters';
+import {
+  IncomeTransactionFilters,
+  type IncomeTransactionFilters as IncomeTransactionFiltersType,
+} from '../section/IncomeTransactionFilters';
 import { IncomeTransactionMetricsCards } from '../section/IncomeTransactionMetricsCards';
 import { IncomeTransactionTable } from '../section/IncomeTransactionTable';
 import { IncomeTransactionTableFooter } from '../section/IncomeTransactionTableFooter';
-import type { IncomeTransactionFiltersType } from '../section/IncomeTransactionFilters';
 import { useIncomeTransactions } from '@/4-1-dashboard/hooks';
 import { filterTransactions } from '../utils/transactionUtils';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
@@ -88,10 +90,6 @@ export function IncomeTransactionPage() {
     });
   }, []);
 
-  const totalAmount = useMemo(() => {
-    return filteredTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-  }, [filteredTransactions]);
-
   if (!showContent) {
     return <IncomeTransactionContentSkeleton />;
   }
@@ -150,7 +148,6 @@ export function IncomeTransactionPage() {
               <IncomeTransactionTableFooter
                 totalTransactions={incomeTransactions.length}
                 filteredTransactions={filteredTransactions.length}
-                totalAmount={totalAmount}
                 selectedType={filters.type}
               />
             </div>
@@ -167,8 +164,8 @@ export function IncomeTransactionPage() {
           <Suspense fallback={<IncomeTransactionSidebarSkeleton />}>
             <IncomeTransactionSidebarColumn
               transactions={filteredTransactions}
-              totalAmount={totalAmount}
-              selectedType={filters.type}
+              filteredCount={filteredTransactions.length}
+              totalTransactions={incomeTransactions.length}
             />
           </Suspense>
         </DeferredMount>

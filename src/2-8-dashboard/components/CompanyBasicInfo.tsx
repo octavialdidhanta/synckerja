@@ -5,7 +5,7 @@ import { Badge } from '@/shared/components/ui/badge';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { MapPin, Phone, Globe, Mail, Calendar, Users, Hash, Briefcase } from 'lucide-react';
+import { MapPin, Phone, Globe, Mail, Calendar, Users, Hash, Briefcase, Building2 } from 'lucide-react';
 import { useCompanyProfile } from '../hooks';
 
 interface CompanyData {
@@ -59,6 +59,12 @@ export const CompanyBasicInfo = ({
   const displayData = realCompanyData || formData || companyData;
   
   const infoItems = [
+    {
+      icon: Building2,
+      label: 'Company Name',
+      field: 'company_name',
+      value: isEditMode ? formData.company_name : (displayData.company_name || companyData.company_name),
+    },
     { icon: MapPin, label: 'Address', field: 'address', value: isEditMode ? formData.address : (displayData.address || companyData.address) },
     { icon: Phone, label: 'Phone', field: 'phone_number', value: isEditMode ? formData.phone_number : (displayData.phone_number || companyData.phone_number) },
     { icon: Globe, label: 'Website', field: 'website', value: isEditMode ? formData.website : (displayData.website || companyData.website) },

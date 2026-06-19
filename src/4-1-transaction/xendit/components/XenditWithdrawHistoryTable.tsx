@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/shared/components/ui/badge";
 import {
@@ -15,11 +14,16 @@ import { useCanAllocateIncome } from "@/4-1-dashboard/hooks/useCanAllocateIncome
 import { useXenditGatewayWithdrawals } from "@/4-1-transaction/xendit/hooks/useXenditGatewayWithdrawals";
 import { XenditPanelFooter } from "@/4-1-transaction/xendit/components/XenditPanelFooter";
 import { cn } from "@/shared/lib/utils";
+import { XenditSubAccountLabel } from "@/xendit/components/XenditSubAccountLabel";
+import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 type Props = {
   organizationId: string | null | undefined;
   enabled?: boolean;
   layout?: "embedded" | "page";
+  maxRows?: number;
+  hideTitle?: boolean;
+  emptyMessage?: string;
   /** When provided (page route), parent owns the query — avoids duplicate hooks. */
   rows?: XenditGatewayWithdrawalRow[];
 };
@@ -31,7 +35,7 @@ function statusVariant(status: string): "default" | "secondary" | "destructive" 
 }
 
 function useWithdrawalStatusLabel(status: string): string {
-  const { t } = useTranslation();
+  const { t } = useAppTranslation();
   if (status === "completed") return t("xendit.finance.statusSuccess", "BERHASIL");
   if (status === "failed") return t("xendit.finance.statusFailed", "GAGAL");
   return t("xendit.finance.statusProcessing", "PROSES");
@@ -50,18 +54,25 @@ export function XenditWithdrawHistoryTable({
   organizationId,
   enabled = true,
   layout = "embedded",
+  maxRows,
+  hideTitle = false,
+  emptyMessage,
   rows: rowsProp,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, dateLocale } = useAppTranslation();
   const { canAllocateIncome } = useCanAllocateIncome();
   const isPage = layout === "page";
 
   const { data: historyData, isLoading } = useXenditGatewayWithdrawals(
     organizationId,
     enabled && rowsProp == null,
+    { limit: maxRows ?? 20 },
   );
 
-  const rows = (rowsProp ?? historyData ?? []) as XenditGatewayWithdrawalRow[];
+  const allRows = (rowsProp ?? historyData ?? []) as XenditGatewayWithdrawalRow[];
+  const rows =
+    maxRows != null && maxRows > 0 ? allRows.slice(0, maxRows) : allRows;
+  const emptyText = emptyMessage ?? t("xendit.finance.historyEmpty", "Belum ada penarikan.");
 
   if (isLoading && rowsProp == null && layout !== "page") {
     return (
@@ -72,22 +83,20 @@ export function XenditWithdrawHistoryTable({
         )}
       >
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        {t("common.loading", "Loading…")}
+        {t("common.loading", "Memuat…")}
       </div>
     );
   }
 
-  if (rows.length === 0) {
+  if (allRows.length === 0) {
     if (isPage) {
       return (
         <>
           <div className="flex flex-1 items-center justify-center p-6">
-            <p className="text-center text-sm text-muted-foreground">
-              {t("xendit.finance.historyEmpty", "Belum ada penarikan.")}
-            </p>
+            <p className="text-center text-sm text-muted-foreground">{emptyText}</p>
           </div>
           <XenditPanelFooter
-            left={t("xendit.finance.footerShowing", "Showing {{count}} withdrawals", { count: 0 })}
+            left={t("xendit.finance.footerShowing", "Menampilkan {{count}} penarikan", { count: 0 })}
             right={t("xendit.finance.footerCount", "Total: {{count}}", { count: 0 })}
           />
         </>
@@ -96,18 +105,20 @@ export function XenditWithdrawHistoryTable({
 
     return (
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900">
-          {t("xendit.finance.historyTitle", "Riwayat penarikan")}
-        </h3>
+        {!hideTitle ? (
+          <h3 className="text-sm font-semibold text-gray-900">
+            {t("xendit.finance.historyTitle", "Riwayat penarikan")}
+          </h3>
+        ) : null}
         <p className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-muted-foreground">
-          {t("xendit.finance.historyEmpty", "Belum ada penarikan.")}
+          {emptyText}
         </p>
       </div>
     );
   }
 
   const tableContent = (
-    <Table className={cn(isPage && "min-w-[720px] table-fixed")}>
+    <Table className={cn(isPage && "min-w-[880px] table-fixed")}>
       <TableHeader className={cn(isPage && "sticky top-0 z-20 bg-gray-50 shadow-sm")}>
         <TableRow className={cn(isPage && "hover:bg-transparent")}>
           <TableHead className={cn("text-xs", isPage && "bg-gray-50 w-[140px]")}>
@@ -115,6 +126,9 @@ export function XenditWithdrawHistoryTable({
           </TableHead>
           <TableHead className={cn("text-xs", isPage && "bg-gray-50 w-[140px]")}>
             {t("xendit.finance.colAmount", "Nominal")}
+          </TableHead>
+          <TableHead className={cn("text-xs", isPage && "bg-gray-50 w-[160px]")}>
+            {t("xendit.history.colSubAccount", "Akun")}
           </TableHead>
           <TableHead className={cn("text-xs", isPage && "bg-gray-50")}>
             {t("xendit.finance.colBank", "Bank tujuan")}
@@ -133,7 +147,7 @@ export function XenditWithdrawHistoryTable({
         {rows.map((row) => (
           <TableRow key={row.id}>
             <TableCell className="text-xs whitespace-nowrap">
-              {new Date(row.created_at).toLocaleString("id-ID")}
+              {new Date(row.created_at).toLocaleString(dateLocale)}
             </TableCell>
             <TableCell className="text-xs">
               <p className="font-medium">{formatToRupiah(Number(row.amount))}</p>
@@ -142,6 +156,9 @@ export function XenditWithdrawHistoryTable({
                   {t("xendit.finance.netLine", "Bersih")}: {formatToRupiah(Number(row.net_amount))}
                 </p>
               ) : null}
+            </TableCell>
+            <TableCell className="text-xs">
+              <XenditSubAccountLabel label={row.sub_account_label} compact />
             </TableCell>
             <TableCell className="max-w-[180px] truncate text-xs">
               {row.bank_destination ?? "—"}
@@ -174,7 +191,7 @@ export function XenditWithdrawHistoryTable({
           {tableContent}
         </div>
         <XenditPanelFooter
-          left={t("xendit.finance.footerShowing", "Showing {{count}} withdrawals", {
+          left={t("xendit.finance.footerShowing", "Menampilkan {{count}} penarikan", {
             count: rows.length,
           })}
           right={t("xendit.finance.footerCount", "Total: {{count}}", { count: rows.length })}
@@ -185,9 +202,11 @@ export function XenditWithdrawHistoryTable({
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-gray-900">
-        {t("xendit.finance.historyTitle", "Riwayat penarikan")}
-      </h3>
+      {!hideTitle ? (
+        <h3 className="text-sm font-semibold text-gray-900">
+          {t("xendit.finance.historyTitle", "Riwayat penarikan")}
+        </h3>
+      ) : null}
       <div className="overflow-hidden rounded-lg border border-gray-200">{tableContent}</div>
     </div>
   );

@@ -5,13 +5,13 @@ export function BankMutationsPageHeader() {
 
   return (
     <div className="px-1 py-3">
-      <h1 className="mb-0.5 text-xl font-bold text-foreground">
-        {t('finance.bankMutations.pageTitle', 'Mutasi Rekening')}
+      <h1 className="mb-1 text-xl font-bold tracking-tight text-foreground">
+        {t('finance.bankMutations.pageTitle', 'Riwayat Rekening')}
       </h1>
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
         {t(
           'finance.bankMutations.pageSubtitle',
-          'Mutasi masuk dan keluar dari Brick serta Payment Process — cocokkan dengan income dan expense.',
+          'Pantau uang masuk dan keluar di rekening bank, lalu cocokkan dengan pendapatan atau pengeluaran.',
         )}
       </p>
     </div>

@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Skeleton } from '@/shared/components/ui/skeleton';
+import { PayrollPaidHomeBanner } from '@/1-home/components/PayrollPaidHomeBanner';
 
 const SectionGreetings = lazy(() =>
   import('./component/SectionGreetings').then((m) => ({ default: m.SectionGreetings })),
@@ -172,6 +173,8 @@ const HomeOKRDashboardContent = () => {
           <SectionGreetings currentTime={currentTime} greeting={getGreeting()} />
         </div>
       </Suspense>
+
+      <PayrollPaidHomeBanner />
 
       <Card className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border border-border">
         <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-6 pt-0">

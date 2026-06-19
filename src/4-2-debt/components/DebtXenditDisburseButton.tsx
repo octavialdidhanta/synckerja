@@ -20,7 +20,7 @@ import {
 } from "@/shared/components/ui/select";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useXenditOrgSettings } from "@/xendit/hooks/useXenditOrgSettings";
-import { executeXenditDisbursement } from "@/xendit/lib/xenditApi";
+import { useSecureXenditActions } from "@/xendit/hooks/useSecureXenditActions";
 
 type Props = {
   debtPaymentId: string;
@@ -33,6 +33,7 @@ export function DebtXenditDisburseButton({ debtPaymentId, amount, description, o
   const { t } = useTranslation();
   const { organizationId } = useCurrentOrg();
   const { data: settings } = useXenditOrgSettings(organizationId);
+  const { secureDisbursement } = useSecureXenditActions();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bankCode, setBankCode] = useState("BCA");
@@ -45,7 +46,7 @@ export function DebtXenditDisburseButton({ debtPaymentId, amount, description, o
     if (!organizationId) return;
     setLoading(true);
     try {
-      await executeXenditDisbursement(organizationId, {
+      await secureDisbursement(organizationId, {
         source_type: "debt_payment",
         source_id: debtPaymentId,
         bank_code: bankCode,

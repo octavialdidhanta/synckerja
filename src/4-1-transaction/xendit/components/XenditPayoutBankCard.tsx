@@ -18,7 +18,7 @@ function useValidationLabel(status: GatewayPayoutValidationStatus | undefined): 
   const { t } = useTranslation();
   switch (status) {
     case "match":
-      return t("xendit.payoutValidation.badgeMatch", "Rekening tervalidasi");
+      return t("xendit.payoutValidation.badgeMatch", "Terverifikasi");
     case "pending":
       return t("xendit.payoutValidation.badgePending", "Memvalidasi…");
     case "stale":
@@ -40,31 +40,74 @@ type Props = {
   payoutBank: XenditGatewayPayoutBank | null | undefined;
   onRevalidate?: () => void;
   revalidating?: boolean;
+  compact?: boolean;
 };
 
-export function XenditPayoutBankCard({ payoutBank, onRevalidate, revalidating }: Props) {
+export function XenditPayoutBankCard({
+  payoutBank,
+  onRevalidate,
+  revalidating,
+  compact = false,
+}: Props) {
   const { t } = useTranslation();
   const status = payoutBank?.gateway_payout_validation_status;
   const label = useValidationLabel(status);
 
   if (!payoutBank?.account_number) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4">
+      <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 px-4 py-3">
         <p className="text-sm font-medium text-amber-900">
           {t("xendit.finance.noPayoutBankTitle", "Rekening tujuan belum diatur")}
         </p>
-        <p className="mt-1 text-xs text-amber-800">
-          {t(
-            "xendit.finance.noPayoutBankHint",
-            "Buat sub-account dengan rekening bank atau aktifkan Gateway payout di Bank Accounts.",
-          )}
-        </p>
+        {!compact ? (
+          <p className="mt-1 text-xs text-amber-800/90">
+            {t(
+              "xendit.finance.noPayoutBankHint",
+              "Daftarkan bisnis dengan rekening bank atau aktifkan Gateway payout di Bank Accounts.",
+            )}
+          </p>
+        ) : null}
       </div>
     );
   }
 
   const bankLabel =
     payoutBank.gateway_payout_bank_code?.trim() || payoutBank.bank_name?.trim() || "—";
+  const holder = payoutBank.account_holder?.trim();
+  const detail = [bankLabel, payoutBank.account_number, holder ? `a.n. ${holder}` : null]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (compact) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="min-w-0 truncate text-muted-foreground">
+            <span className="text-foreground">{t("xendit.finance.payoutBankLabel", "Tujuan")}:</span>{" "}
+            {detail}
+          </p>
+          <Badge variant={badgeVariant(status)} className="shrink-0 text-[10px]">
+            {label}
+          </Badge>
+        </div>
+        {status !== "match" && onRevalidate ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+            disabled={revalidating}
+            onClick={onRevalidate}
+          >
+            {revalidating
+              ? t("xendit.payoutValidation.revalidating", "Memvalidasi rekening…")
+              : t("xendit.payoutValidation.revalidate", "Validasi rekening")}
+          </button>
+        ) : null}
+        {payoutBank.gateway_payout_validation_error && status !== "match" ? (
+          <p className="text-xs text-destructive">{payoutBank.gateway_payout_validation_error}</p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -78,9 +121,7 @@ export function XenditPayoutBankCard({ payoutBank, onRevalidate, revalidating }:
       </div>
       <p className="mt-2 text-base font-semibold text-gray-900">{bankLabel}</p>
       <p className="mt-0.5 font-mono text-sm text-gray-700">{payoutBank.account_number}</p>
-      {payoutBank.account_holder ? (
-        <p className="mt-0.5 text-sm text-muted-foreground">a.n. {payoutBank.account_holder}</p>
-      ) : null}
+      {holder ? <p className="mt-0.5 text-sm text-muted-foreground">a.n. {holder}</p> : null}
       {payoutBank.gateway_payout_validated_holder &&
       payoutBank.gateway_payout_validated_holder !== payoutBank.account_holder ? (
         <p className="mt-1 text-xs text-muted-foreground">

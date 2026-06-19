@@ -4,7 +4,8 @@ export type XenditExternalKind =
   | "purchase_request"
   | "debt_payment"
   | "payroll_run"
-  | "gateway_withdrawal";
+  | "gateway_withdrawal"
+  | "payroll_escrow";
 
 const VALID_KINDS: XenditExternalKind[] = [
   "sap",
@@ -13,6 +14,7 @@ const VALID_KINDS: XenditExternalKind[] = [
   "debt_payment",
   "payroll_run",
   "gateway_withdrawal",
+  "payroll_escrow",
 ];
 
 export function encodeXenditExternalId(

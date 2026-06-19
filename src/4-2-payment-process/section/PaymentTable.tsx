@@ -39,7 +39,8 @@ import {
   PaymentGatewayVendorBankCard,
   type GatewayVendorBankFields,
 } from '@/4-2-payment-process/components/PaymentGatewayVendorBankCard';
-import { executeXenditDisbursement, fetchXenditWalletBalance, pollXenditDisbursements } from '@/xendit/lib/xenditApi';
+import { useSecureXenditActions } from '@/xendit/hooks/useSecureXenditActions';
+import { fetchXenditWalletBalance, pollXenditDisbursements } from '@/xendit/lib/xenditApi';
 import { executeBrickDisbursement } from '@/4-1-transaction/lib/brickBankApi';
 import { useXenditOrgSettings } from '@/xendit/hooks/useXenditOrgSettings';
 import { BRICK_SANDBOX_DISBURSE_ACCOUNT } from '@/4-1-transaction/hooks/useBrickLinkedAccounts';
@@ -89,6 +90,7 @@ export const PaymentTable = ({
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { organizationId } = useCurrentOrg();
+  const { secureDisbursement } = useSecureXenditActions();
   const queryClient = useQueryClient();
   const { user } = useCurrentUser();
   const { t } = useAppTranslation();
@@ -380,7 +382,7 @@ export const PaymentTable = ({
             if (!xenditSettings?.account?.is_enabled) {
               throw new Error(t('payments.xenditNotEnabled', 'Xendit is not enabled for this organization.'));
             }
-            const disburseResult = await executeXenditDisbursement(organizationId, {
+            const disburseResult = await secureDisbursement(organizationId, {
               source_type: 'purchase_request',
               source_id: selectedRequest.id,
               bank_code: bankCode,

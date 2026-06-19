@@ -45,6 +45,7 @@ export function WithdrawalFromBalanceSelect({
     formatRupiahAvailable,
     formatGatewaySyncHint,
     formatSelectedLabel,
+    xenditAggregateHint,
   } = useWithdrawalFromBalanceOptions();
 
   const normalized = normalizeWithdrawalSourceValue(value);
@@ -182,6 +183,9 @@ export function WithdrawalFromBalanceSelect({
           ) : null}
         </SelectContent>
       </Select>
+      {normalized.gatewayProvider === 'xendit' && xenditAggregateHint ? (
+        <p className="text-[11px] text-muted-foreground">{xenditAggregateHint}</p>
+      ) : null}
     </div>
   );
 }

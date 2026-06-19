@@ -43,22 +43,81 @@ async function fetchXenditDisbursementStatus(
   throw new Error("Missing xendit_disbursement_id and external_id");
 }
 
+/** Payroll calcs left in processing after Xendit already completed (legacy batch overwrite bug). */
+async function reconcileStuckPayrollDisbursements(
+  admin: SupabaseClient,
+  env: XenditEnvConfig,
+  organizationId: string,
+): Promise<number> {
+  const { data: terminalRows, error } = await admin
+    .from("xendit_disbursements")
+    .select("id, external_id, xendit_disbursement_id, status, source_id, failure_code, failure_message")
+    .eq("organization_id", organizationId)
+    .eq("source_type", "payroll_calculation")
+    .in("status", ["completed", "failed"]);
+
+  if (error) {
+    console.error("reconcileStuckPayrollDisbursements:", error.message);
+    return 0;
+  }
+
+  let reconciled = 0;
+
+  for (const row of terminalRows ?? []) {
+    const sourceId = String(row.source_id ?? "");
+    if (!sourceId) continue;
+
+    const { data: calc } = await admin
+      .from("employee_payroll_calculations")
+      .select("id, payment_status")
+      .eq("id", sourceId)
+      .eq("payment_status", "processing")
+      .maybeSingle();
+
+    if (!calc) continue;
+
+    const xenditStatus = String(row.status ?? "");
+    await handleDisbursementWebhook(admin, env, {
+      external_id: String(row.external_id ?? ""),
+      status: xenditStatus === "completed" ? "COMPLETED" : "FAILED",
+      id: row.xendit_disbursement_id,
+      failure_code: row.failure_code,
+      failure_reason: row.failure_message,
+    });
+    reconciled += 1;
+  }
+
+  return reconciled;
+}
+
 export async function pollPendingXenditDisbursements(
   admin: SupabaseClient,
   env: XenditEnvConfig,
   organizationId: string,
-): Promise<{ polled: number; completed: number; errors: string[] }> {
-  const { data: account } = await admin
-    .from("organization_xendit_accounts")
-    .select("xendit_sub_account_id, is_enabled")
+): Promise<{ polled: number; completed: number; reconciled: number; errors: string[] }> {
+  const { data: settings } = await admin
+    .from("organization_xendit_settings")
+    .select("is_enabled")
     .eq("organization_id", organizationId)
     .maybeSingle();
 
-  if (!account?.is_enabled || !account.xendit_sub_account_id) {
-    return { polled: 0, completed: 0, errors: [] };
+  const { data: account } = await admin
+    .from("xendit_sub_accounts")
+    .select("xendit_sub_account_id")
+    .eq("organization_id", organizationId)
+    .eq("is_primary", true)
+    .maybeSingle();
+
+  if (!settings?.is_enabled || !account?.xendit_sub_account_id) {
+    return { polled: 0, completed: 0, reconciled: 0, errors: [] };
   }
 
-  const subAccountId = String(account.xendit_sub_account_id);
+  let reconciled = 0;
+  try {
+    reconciled = await reconcileStuckPayrollDisbursements(admin, env, organizationId);
+  } catch (e) {
+    console.error("reconcileStuckPayrollDisbursements:", e);
+  }
 
   const { data: pending, error } = await admin
     .from("xendit_disbursements")
@@ -67,17 +126,20 @@ export async function pollPendingXenditDisbursements(
     .in("status", ["pending", "processing"]);
 
   if (error) {
-    return { polled: 0, completed: 0, errors: [error.message] };
+    return { polled: 0, completed: 0, reconciled, errors: [error.message] };
   }
 
   let polled = 0;
   let completed = 0;
   const errors: string[] = [];
 
+  const primarySubAccountId = String(account.xendit_sub_account_id);
+
   for (const row of pending ?? []) {
+    const rowSubAccountId = String(row.sub_account_id ?? "").trim() || primarySubAccountId;
     try {
       polled += 1;
-      const apiRes = await fetchXenditDisbursementStatus(env, subAccountId, row as Record<string, unknown>);
+      const apiRes = await fetchXenditDisbursementStatus(env, rowSubAccountId, row as Record<string, unknown>);
       const status = String(apiRes.status ?? "").toUpperCase();
       const isTerminal = status === "COMPLETED" || status === "SUCCEEDED" || status === "FAILED";
 
@@ -105,5 +167,5 @@ export async function pollPendingXenditDisbursements(
     }
   }
 
-  return { polled, completed, errors };
+  return { polled, completed, reconciled, errors };
 }

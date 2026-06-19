@@ -14,6 +14,7 @@ export type HomeSectionId =
   | "motivation"
   | "profile"
   | "okr"
+  | "payrollBanner"
   | "activity"
   | "status";
 
@@ -41,6 +42,7 @@ function createInitialSections(): Record<HomeSectionId, HomeSectionStatus> {
     motivation: { loading: true, error: null },
     profile: { loading: true, error: null },
     okr: { loading: true, error: null },
+    payrollBanner: { loading: false, error: null },
     // Default `true` agar full-page skeleton tidak menghilang sebelum section
     // sempat melaporkan status loading pertamanya.
     activity: { loading: true, error: null },

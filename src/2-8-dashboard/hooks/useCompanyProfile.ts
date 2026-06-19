@@ -1,7 +1,8 @@
-﻿
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { useToast } from '@/shared/components/ui/use-toast';
 
 export const useCompanyProfile = () => {
@@ -34,6 +35,7 @@ export const useUpdateCompany = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
+  const { refreshUserData } = useCentralizedUserData();
 
   return useMutation({
     mutationFn: async (updates: any) => {
@@ -41,9 +43,14 @@ export const useUpdateCompany = () => {
         throw new Error('Organization ID not found');
       }
 
+      const companyName = String(updates.company_name ?? '').trim();
+      if (!companyName) {
+        throw new Error('Company name is required');
+      }
+
       const { data, error } = await supabase
         .from('organizations')
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .update({ ...updates, company_name: companyName, updated_at: new Date().toISOString() })
         .eq('id', organizationId)
         .select()
         .single();
@@ -55,8 +62,9 @@ export const useUpdateCompany = () => {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['company-profile'] });
+      await refreshUserData();
       toast({
         title: 'Success',
         description: 'Company profile updated successfully',

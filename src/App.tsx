@@ -25,6 +25,7 @@ import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
+import { AppRoutesSuspenseFallback } from "@/shared/components/AppRoutesSuspenseFallback";
 import { StandardRouteLoadingShell } from "@/shared/components/StandardRouteLoadingShell";
 import {
   AccessPermissionsPageSkeleton,
@@ -94,6 +95,9 @@ import { SubscriptionExpiryGuard } from "@/10-subscription/shared/SubscriptionEx
 import { SubscriptionRoleGuard } from "@/10-subscription/shared/SubscriptionRoleGuard";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 import { AuthProvider } from "@/shared/auth/contexts/AuthContext";
+import { MfaStepUpProvider } from "@/shared/auth/mfa";
+import { RequireMfaSession } from "@/shared/auth/mfa/RequireMfaSession";
+import { MfaRequiredGuard } from "@/shared/auth/mfa/MfaRequiredGuard";
 import { LanguageProvider } from "@/shared/i18n/LanguageProvider";
 import { CentralizedUserDataProvider } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { CentralizedUserDataPathSync } from "@/shared/auth/contexts/CentralizedUserDataPathSync";
@@ -258,12 +262,30 @@ const WhatsAppCampaignPage = lazy(() =>
 // Keep initial bundle small: lazy-load large desktop modules/pages.
 import { OkrRouteElement } from "@/1-OKR/OkrRouteElement";
 import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
-const SettingsPage = lazy(() => import("@/1-home").then((m) => ({ default: m.SettingsPage })));
+const SettingsRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({
+    default: m.SettingsRouteElement,
+  })),
+);
+const SettingsIndexRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({
+    default: m.SettingsIndexRouteElement,
+  })),
+);
+const SettingsProfileRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({
+    default: m.SettingsProfileRouteElement,
+  })),
+);
+const SecuritySettingsRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({
+    default: m.SecuritySettingsRouteElement,
+  })),
+);
 const TransferOwnershipPage = lazy(() =>
   import("@/1-home").then((m) => ({ default: m.TransferOwnershipPage })),
 );
 const HelpPage = lazy(() => import("@/help").then((m) => ({ default: m.HelpPage })));
-const SecuritySettings = lazy(() => import("@/1-home/settings").then((m) => ({ default: m.SecuritySettings })));
 
 const PrivacyPolicyPage = lazy(() => import("@/policy").then((m) => ({ default: m.PrivacyPolicyPage })));
 const TermsOfServicePage = lazy(() => import("@/policy").then((m) => ({ default: m.TermsOfServicePage })));
@@ -308,6 +330,11 @@ const CompanyOrganizationPage = lazy(() => import("@/2-8-organization/pages/Comp
 
 const LoginRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.LoginRouteElement })),
+);
+const MfaVerifyRouteElement = lazy(() =>
+  import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
+    default: m.MfaVerifyRouteElement,
+  })),
 );
 const GoogleOAuthCallbackRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
@@ -367,9 +394,6 @@ const EmployeeWelcomeRouteElement = lazy(() =>
 
 const HomeRouteElement = lazy(() =>
   import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({ default: m.HomeRouteElement })),
-);
-const ProfileRouteElement = lazy(() =>
-  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({ default: m.ProfileRouteElement })),
 );
 const ScheduleRouteElement = lazy(() =>
   import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({ default: m.ScheduleRouteElement })),
@@ -530,6 +554,7 @@ function AppRoutes() {
     <Suspense fallback={fallback}>
       <Routes>
         <Route path="/login" element={<LoginRouteElement />} />
+        <Route path="/login/mfa" element={<MfaVerifyRouteElement />} />
         <Route path="/first-login" element={<FirstLoginRouteElement />} />
         <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
         <Route path="/auth/meta/callback" element={<MetaOAuthCallbackRouteElement />} />
@@ -605,6 +630,7 @@ function AppRoutes() {
         />
 
         <Route element={<RequireAuth />}>
+          <Route element={<RequireMfaSession />}>
           <Route element={<SubscriptionExpiryGuard />}>
             <Route element={<AdaptiveAppLayout />}>
               <Route
@@ -675,10 +701,10 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
-              <Route path="/settings" element={<SettingsPage />}>
-                <Route index element={<ProfileRouteElement />} />
-                <Route path="profile" element={<ProfileRouteElement />} />
-                <Route path="security" element={<SecuritySettings />} />
+              <Route path="/settings" element={<SettingsRouteElement />}>
+                <Route index element={<SettingsIndexRouteElement />} />
+                <Route path="profile" element={<SettingsProfileRouteElement />} />
+                <Route path="security" element={<SecuritySettingsRouteElement />} />
               </Route>
               <Route path="/settings/xendit" element={<Navigate to="/xendit/connect" replace />} />
               <Route path="/incomes/xendit" element={<Navigate to="/xendit/connect" replace />} />
@@ -892,7 +918,9 @@ function AppRoutes() {
                     loadingShell={<IncomeXenditPageSkeleton />}
                     loadingShellWrapperClassName="bg-gray-100"
                   >
-                    <XenditModuleRouteElement />
+                    <MfaRequiredGuard>
+                      <XenditModuleRouteElement />
+                    </MfaRequiredGuard>
                   </PageAccessGuard>
                 }
               >
@@ -1345,6 +1373,7 @@ function AppRoutes() {
             <Route path="/create-organization" element={<CreateOrganizationRouteElement />} />
             <Route path="/create-plan" element={<CreatePlanRouteElement />} />
             <Route path="/employee-welcome" element={<EmployeeWelcomeRouteElement />} />
+          </Route>
           </Route>
         </Route>
 
@@ -2122,6 +2151,7 @@ const App = () => (
         <AuthProvider>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CentralizedUserDataProvider>
+            <MfaStepUpProvider>
             <PermissionConfigurationProvider>
               <CurrentOrgProvider>
               <NativeBootstrapSplashGate />
@@ -2136,25 +2166,10 @@ const App = () => (
                 <CentralizedUserDataPathSync />
                 <DeferredNativeAppServices />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <Suspense
-                    fallback={
-                      typeof window !== "undefined" && window.location.pathname === "/" ? (
-                        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-                          <HomePageRouteLoadingShell />
-                          <span className="sr-only">Loading</span>
-                        </div>
-                      ) : (
-                        <div
-                          className="flex min-h-[40vh] flex-1 items-center justify-center bg-gray-50"
-                          aria-busy
-                        >
-                          <span className="sr-only">Loading</span>
-                        </div>
-                      )
-                    }
-                  >
+                  <Suspense fallback={<AppRoutesSuspenseFallback />}>
                     <Routes>
                   <Route path="/login" element={<LoginRouteElement />} />
+                  <Route path="/login/mfa" element={<MfaVerifyRouteElement />} />
                   <Route path="/first-login" element={<FirstLoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
                   <Route path="/auth/meta/callback" element={<MetaOAuthCallbackRouteElement />} />
@@ -2250,6 +2265,7 @@ const App = () => (
                   />
 
                   <Route element={<RequireAuth />}>
+                    <Route element={<RequireMfaSession />}>
                     <Route element={<SubscriptionExpiryGuard />}>
                       <Route element={<AdaptiveAppLayout />}>
                         <Route
@@ -2320,10 +2336,10 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
-                        <Route path="/settings" element={<SettingsPage />}>
-                          <Route index element={<ProfileRouteElement />} />
-                          <Route path="profile" element={<ProfileRouteElement />} />
-                          <Route path="security" element={<SecuritySettings />} />
+                        <Route path="/settings" element={<SettingsRouteElement />}>
+                          <Route index element={<SettingsIndexRouteElement />} />
+                          <Route path="profile" element={<SettingsProfileRouteElement />} />
+                          <Route path="security" element={<SecuritySettingsRouteElement />} />
                         </Route>
                         <Route path="/settings/xendit" element={<Navigate to="/xendit/connect" replace />} />
                         <Route path="/incomes/xendit" element={<Navigate to="/xendit/connect" replace />} />
@@ -2549,7 +2565,9 @@ const App = () => (
                               loadingShell={<IncomeXenditPageSkeleton />}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
-                              <XenditModuleRouteElement />
+                              <MfaRequiredGuard>
+                                <XenditModuleRouteElement />
+                              </MfaRequiredGuard>
                             </PageAccessGuard>
                           }
                         >
@@ -3651,6 +3669,7 @@ const App = () => (
                       <Route path="/create-plan" element={<CreatePlanRouteElement />} />
                       <Route path="/employee-welcome" element={<EmployeeWelcomeRouteElement />} />
                     </Route>
+                    </Route>
                   </Route>
 
                   <Route path="*" element={<NotFound />} />
@@ -3661,6 +3680,7 @@ const App = () => (
               </BrowserRouter>
               </CurrentOrgProvider>
             </PermissionConfigurationProvider>
+            </MfaStepUpProvider>
           </CentralizedUserDataProvider>
           </div>
         </AuthProvider>

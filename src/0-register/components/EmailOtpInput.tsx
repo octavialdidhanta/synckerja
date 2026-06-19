@@ -10,6 +10,8 @@ type EmailOtpInputProps = {
   onComplete: (code: string) => void | Promise<void>;
   legend: string;
   inputClassName?: string;
+  onInputFocus?: () => void;
+  onInputBlur?: () => void;
 };
 
 export function EmailOtpInput({
@@ -18,6 +20,8 @@ export function EmailOtpInput({
   onComplete,
   legend,
   inputClassName,
+  onInputFocus,
+  onInputBlur,
 }: EmailOtpInputProps) {
   const [digits, setDigits] = useState<string[]>(() => Array(LENGTH).fill(""));
   const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
@@ -117,6 +121,8 @@ export function EmailOtpInput({
             aria-label={`${legend} ${i + 1} / ${LENGTH}`}
             onChange={(e) => setDigitAt(i, e.target.value)}
             onKeyDown={(e) => onKeyDown(i, e)}
+            onFocus={onInputFocus}
+            onBlur={onInputBlur}
             onPaste={i === 0 ? onPaste : undefined}
             className={cn(
               "h-12 w-10 rounded-lg border-2 border-slate-200 bg-white text-center text-lg font-semibold text-slate-900 shadow-sm transition-colors",

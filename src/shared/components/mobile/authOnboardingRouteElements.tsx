@@ -16,6 +16,7 @@ function AuthSurfaceSuspense({ children }: { children: ReactNode }) {
 }
 
 const DesktopLoginPage = lazy(() => import("@/0-auth").then((m) => ({ default: m.LoginPage })));
+const DesktopMfaVerifyPage = lazy(() => import("@/0-auth").then((m) => ({ default: m.MfaVerifyPage })));
 const DesktopGoogleOAuthCallbackPage = lazy(() =>
   import("@/0-auth").then((m) => ({ default: m.GoogleOAuthCallbackPage })),
 );
@@ -53,6 +54,9 @@ const DesktopEmployeeWelcomePage = lazy(() =>
 const AndroidMobileLoginPage = lazy(() =>
   import("@/mobile/0-auth").then((m) => ({ default: m.MobileLoginPage })),
 );
+const AndroidMobileMfaVerifyPage = lazy(() =>
+  import("@/mobile/0-auth").then((m) => ({ default: m.MobileMfaVerifyPage })),
+);
 const AndroidMobileGoogleOAuthCallbackPage = lazy(() =>
   import("@/mobile/0-auth").then((m) => ({ default: m.MobileGoogleOAuthCallbackPage })),
 );
@@ -89,6 +93,9 @@ const AndroidMobileTermsAndConditionsPage = lazy(() =>
   import("@/mobile/0-onboarding").then((m) => ({ default: m.MobileTermsAndConditionsPage })),
 );
 
+const IosMobileMfaVerifyPage = lazy(() =>
+  import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileMfaVerifyPage })),
+);
 const IosMobileLoginPage = lazy(() => import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileLoginPage })));
 const IosMobileGoogleOAuthCallbackPage = lazy(() =>
   import("@/ios-mobile/0-auth").then((m) => ({ default: m.MobileGoogleOAuthCallbackPage })),
@@ -131,6 +138,21 @@ export function LoginRouteElement() {
   return (
     <AuthSurfaceSuspense>
       {isDesktop ? <DesktopLoginPage /> : isIosNative ? <IosMobileLoginPage /> : <AndroidMobileLoginPage />}
+    </AuthSurfaceSuspense>
+  );
+}
+
+export function MfaVerifyRouteElement() {
+  const { isDesktop, isIosNative } = useAuthSurface();
+  return (
+    <AuthSurfaceSuspense>
+      {isDesktop ? (
+        <DesktopMfaVerifyPage />
+      ) : isIosNative ? (
+        <IosMobileMfaVerifyPage />
+      ) : (
+        <AndroidMobileMfaVerifyPage />
+      )}
     </AuthSurfaceSuspense>
   );
 }

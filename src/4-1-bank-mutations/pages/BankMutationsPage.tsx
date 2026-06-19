@@ -8,7 +8,7 @@ import {
 } from '@/4-1-bank-mutations/layout/bankMutationsLayout';
 
 type BankMutationsPageProps = {
-  onLoadingOverlayChange?: (showOverlay: boolean) => void;
+  onLoadingOverlayChange?: (showContent: boolean) => void;
 };
 
 export function BankMutationsPage({ onLoadingOverlayChange }: BankMutationsPageProps) {
@@ -22,13 +22,10 @@ export function BankMutationsPage({ onLoadingOverlayChange }: BankMutationsPageP
 
   return (
     <div className={BANK_MUTATIONS_MAIN_GRID}>
-      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+      <div className="col-span-12 flex min-w-0 flex-col self-stretch">
         <div className={BANK_MUTATIONS_TABLE_SECTION}>
-          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-            <BankMutationsPanel
-              layout="page"
-              onLoadingOverlayChange={onLoadingOverlayChange}
-            />
+          <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <BankMutationsPanel layout="page" onLoadingOverlayChange={onLoadingOverlayChange} />
           </div>
         </div>
       </div>

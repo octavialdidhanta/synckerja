@@ -19,10 +19,23 @@ const IncomeDashboardMonthlyTrendChart = lazy(() =>
   })),
 );
 
+import {
+  FINANCIAL_DRAWERS_EMPTY_STATE,
+  FINANCIAL_DRAWERS_LIST_SCROLL,
+  INCOME_DRAWERS_PAIR_CARD,
+  INCOME_DRAWERS_PAIR_CARD_H,
+  INCOME_DRAWERS_PAIR_COLUMN,
+  INCOME_DRAWERS_PAIR_GRID,
+} from '@/4-1-dashboard/utils/financialDrawersScroll';
+
 const ChartSectionFallback = () => (
-  <div className="min-h-[240px] w-full animate-pulse rounded-lg bg-muted/60" aria-hidden />
+  <div
+    className={`${INCOME_DRAWERS_PAIR_CARD_H} w-full animate-pulse rounded-lg bg-muted/60`}
+    aria-hidden
+  />
 );
 import { RecentIncomeOverview } from './RecentIncomeOverview';
+import { RecentIncomeSidebarFooter } from './RecentIncomeSidebarFooter';
 import { IncomeTransactionWithRelations } from '../types';
 import { useBankAccounts, type BankAccount } from '@/shared/hooks/finance/useBankAccounts';
 import { NetBankAccountSwipeRow } from './NetBankAccountSwipeRow';
@@ -37,22 +50,27 @@ import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { useExpenseMetrics } from '@/shared/hooks/finance/useExpenseMetrics';
-import { cn } from '@/shared/lib/utils';
 import { RefreshBankMutationsButton } from '@/4-1-transaction/section/RefreshBankMutationsButton';
 import { XENDIT_CONNECT_PATH } from '@/xendit/lib/xenditPaths';
 import { useCanAllocateIncome } from '@/4-1-dashboard/hooks/useCanAllocateIncome';
 import { useGatewayWalletBalances } from '@/shared/hooks/finance/useGatewayWalletBalances';
 import { useGatewayWalletPeriodNet } from '@/shared/hooks/finance/useGatewayWalletPeriodNet';
 import { useXenditOrgSettings } from '@/xendit/hooks/useXenditOrgSettings';
+import { countSelectableSubAccounts } from '@/xendit/lib/xenditSubAccountUtils';
 import { GatewayWalletDrawerRow } from './GatewayWalletDrawerRow';
-import { sumBankPeriodIncome, sumDrawerPeriodIncome } from '@/4-1-dashboard/utils/incomeDashboardPeriodTotals';
+import { buildBankAccountPeriodNet } from '@/4-1-dashboard/utils/buildBankAccountPeriodNet';
 import {
-  FINANCIAL_DRAWERS_CARD_MAX,
-  FINANCIAL_DRAWERS_LIST_SCROLL,
-} from '@/4-1-dashboard/utils/financialDrawersScroll';
+  sumBankGatewayTransferIn,
+  sumBankPeriodIncome,
+  sumDrawerPeriodIncome,
+} from '@/4-1-dashboard/utils/incomeDashboardPeriodTotals';
 import {
+  INCOME_DASHBOARD_MAIN_COLUMN,
   INCOME_DASHBOARD_MAIN_GRID,
   INCOME_DASHBOARD_RECENT_COLUMN,
+  INCOME_DASHBOARD_RECENT_PANEL,
+  INCOME_DASHBOARD_RECENT_PANEL_BODY,
+  INCOME_DASHBOARD_RECENT_PANEL_SCROLL,
 } from '@/4-1-dashboard/layout/incomeDashboardLayout';
 
 // Helper function to calculate date range based on selected period
@@ -158,17 +176,25 @@ export function IncomeDashboard({
   const { data: xenditSettings, isLoading: xenditSettingsLoading } = useXenditOrgSettings(organizationId);
 
   const xenditSubAccountSubtitle = useMemo(() => {
+    const count = countSelectableSubAccounts(xenditSettings?.subAccounts);
+    if (count > 1) {
+      return t(
+        'incomes.gateway.xenditAggregateSubtitle',
+        'Total saldo {{count}} akun Xendit (gabungan)',
+        { count },
+      );
+    }
     const subId = xenditSettings?.account?.xendit_sub_account_id;
     if (!subId) {
-      return t('incomes.gateway.xenditSubAccount', 'Sub-account tenant');
+      return t('incomes.gateway.xenditSubAccount', 'Akun tenant');
     }
     const shortId = subId.length > 12 ? `${subId.slice(0, 8)}…${subId.slice(-4)}` : subId;
     return t(
       'incomes.gateway.xenditSubAccountCashHint',
-      'Saldo CASH sub-account {{id}} — bukan saldo master di dashboard Xendit',
+      'Saldo CASH akun {{id}} — bukan saldo master di dashboard Xendit',
       { id: shortId },
     );
-  }, [xenditSettings?.account?.xendit_sub_account_id, t]);
+  }, [xenditSettings?.account?.xendit_sub_account_id, xenditSettings?.subAccounts, t]);
 
   const periodRange = useMemo(() => getDateRangeForPeriod(selectedPeriod), [selectedPeriod]);
   const {
@@ -261,70 +287,16 @@ export function IncomeDashboard({
     });
   }, [expenses, selectedPeriod, selectedBankAccount]);
 
-  // Calculate net (income - expense) per bank account
-  const bankAccountNet = useMemo(() => {
-    const netMap: Record<string, { income: number; expense: number; net: number; balance: number }> = {};
-    
-    // Initialize with balances
-    bankAccountBalances.forEach(balance => {
-      netMap[balance.bank_account_id] = {
-        income: 0,
-        expense: 0,
-        net: 0,
-        balance: balance.balance,
-      };
-    });
-
-    // Calculate income per bank account (only from filtered transactions)
-    filteredTransactions.forEach(transaction => {
-      if (transaction.bank_account_id) {
-        if (!netMap[transaction.bank_account_id]) {
-          netMap[transaction.bank_account_id] = {
-            income: 0,
-            expense: 0,
-            net: 0,
-            balance: 0,
-          };
-        }
-        netMap[transaction.bank_account_id].income += parseFloat(transaction.amount.toString());
-      }
-    });
-
-    // Calculate expense per bank account (only from filtered expenses with bank_account_id)
-    filteredExpenses.forEach(expense => {
-      const bankAccountId = (expense as any).bank_account_id;
-      if (bankAccountId) {
-        if (!netMap[bankAccountId]) {
-          netMap[bankAccountId] = {
-            income: 0,
-            expense: 0,
-            net: 0,
-            balance: 0,
-          };
-        }
-        netMap[bankAccountId].expense += expense.amount;
-      }
-    });
-
-    for (const [bankAccountId, credit] of Object.entries(gatewayWithdrawalBankCredits)) {
-      if (!netMap[bankAccountId]) {
-        netMap[bankAccountId] = {
-          income: 0,
-          expense: 0,
-          net: 0,
-          balance: 0,
-        };
-      }
-      netMap[bankAccountId].income += credit;
-    }
-
-    // Calculate net (income - expense) for the selected period
-    Object.keys(netMap).forEach(bankAccountId => {
-      netMap[bankAccountId].net = netMap[bankAccountId].income - netMap[bankAccountId].expense;
-    });
-
-    return netMap;
-  }, [filteredTransactions, filteredExpenses, bankAccountBalances, gatewayWithdrawalBankCredits]);
+  const bankAccountNet = useMemo(
+    () =>
+      buildBankAccountPeriodNet({
+        bankAccountBalances,
+        filteredTransactions,
+        filteredExpenses,
+        gatewayWithdrawalBankCredits,
+      }),
+    [filteredTransactions, filteredExpenses, bankAccountBalances, gatewayWithdrawalBankCredits],
+  );
 
   // Calculate metrics from filtered transactions
   const filteredMetrics = useMemo(() => {
@@ -352,6 +324,11 @@ export function IncomeDashboard({
 
   const periodBankIncomeTotal = useMemo(
     () => sumBankPeriodIncome(bankAccountNet, selectedBankAccount),
+    [bankAccountNet, selectedBankAccount],
+  );
+
+  const periodGatewayTransferTotal = useMemo(
+    () => sumBankGatewayTransferIn(bankAccountNet, selectedBankAccount),
     [bankAccountNet, selectedBankAccount],
   );
 
@@ -402,12 +379,8 @@ export function IncomeDashboard({
 
   return (
     <>
-      <div
-        className={cn('flex w-full min-w-0 flex-col')}
-        aria-hidden={!showContent}
-      >
-        <div className={INCOME_DASHBOARD_MAIN_GRID}>
-            <div className="col-span-12 flex min-w-0 flex-col xl:col-span-9">
+      <div className={INCOME_DASHBOARD_MAIN_GRID} aria-hidden={!showContent}>
+            <div className={INCOME_DASHBOARD_MAIN_COLUMN}>
               <div className="flex min-w-0 flex-col">
                   <div className="flex min-w-0 flex-col overflow-x-hidden rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white p-2">
               {/* Compact Header Controls */}
@@ -503,11 +476,25 @@ export function IncomeDashboard({
                             {formatToRupiah(totalGrandBalance)}
                           </div>
                           <div className="mt-1 truncate text-xs text-white/80">
-                            {t('incomes.dashboard.totalBreakdown', 'Bank {{bank}} · Xendit {{xendit}}', {
-                              bank: formatToRupiah(bankTotalBalance),
-                              xendit: xenditEligible ? formatToRupiah(Number(xenditWallet?.usable_balance ?? 0)) : '—',
-                            })}
+                            {t(
+                              'incomes.dashboard.totalBreakdownBankXendit',
+                              'Rekening bank {{bank}} · Laci Xendit {{xendit}}',
+                              {
+                                bank: formatToRupiah(bankTotalBalance),
+                                xendit: xenditEligible
+                                  ? formatToRupiah(Number(xenditWallet?.usable_balance ?? 0))
+                                  : '—',
+                              },
+                            )}
                           </div>
+                          {xenditEligible ? (
+                            <div className="mt-0.5 text-[11px] leading-snug text-white/70">
+                              {t(
+                                'incomes.dashboard.totalLiquidityHint',
+                                'Termasuk laci Xendit. Penarikan ke rekening bank memindahkan saldo, bukan menambah total (kecuali biaya platform).',
+                              )}
+                            </div>
+                          ) : null}
                           <div className="mt-0.5 truncate text-[11px] text-white/70">
                             {bankAccounts.length === 0
                               ? t(
@@ -606,6 +593,15 @@ export function IncomeDashboard({
                         bank: formatToRupiah(periodBankIncomeTotal),
                         gateway: formatToRupiah(periodIncomeTotal - periodBankIncomeTotal),
                       })}
+                    </span>
+                  ) : null}
+                  {periodGatewayTransferTotal > 0 ? (
+                    <span className="mt-0.5 block text-[11px] text-gray-400">
+                      {t(
+                        'incomes.dashboard.excludedGatewayTransferHint',
+                        'Tidak termasuk transfer penarikan Xendit: {{amount}}',
+                        { amount: formatToRupiah(periodGatewayTransferTotal) },
+                      )}
                     </span>
                   ) : null}
                 </div>
@@ -858,24 +854,22 @@ export function IncomeDashboard({
               </div>
 
               {/* Section kiri & kanan saja: Income vs. Expenses (kiri) | Net Income per Bank Account (kanan) */}
-              <div className="mb-2 grid min-h-0 min-w-0 grid-cols-1 gap-2 lg:grid-cols-2 lg:items-start">
+              <div className={INCOME_DRAWERS_PAIR_GRID}>
                 {/* Kiri: Income vs. Expenses */}
-                <div className="flex min-w-0 flex-col">
+                <div className={INCOME_DRAWERS_PAIR_COLUMN}>
                   <Suspense fallback={<ChartSectionFallback />}>
                     <IncomeVsExpensesChart />
                   </Suspense>
                 </div>
                 {/* Kanan: Net Income per Bank Account — daftar scroll di dalam kartu supaya tidak meluber */}
-                <div className="flex min-h-0 min-w-0 flex-col">
-                  <Card
-                    className={`flex min-w-0 max-w-full flex-col overflow-hidden ${FINANCIAL_DRAWERS_CARD_MAX}`}
-                  >
-                    <CardHeader className="flex-shrink-0 px-3 pb-2 pt-3">
+                <div className={INCOME_DRAWERS_PAIR_COLUMN}>
+                  <Card className={INCOME_DRAWERS_PAIR_CARD}>
+                    <CardHeader className="flex-shrink-0 px-3 pb-1 pt-2">
                       <CardTitle className="text-base font-semibold sm:text-lg">
                         {t('incomes.dashboard.financialDrawers', 'Saldo per Laci Keuangan')}
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden px-3 pb-2 pt-0">
+                    <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-0.5 pt-0">
                       <div className={FINANCIAL_DRAWERS_LIST_SCROLL}>
                       {selectedBankAccount === 'all' && bankAccounts.length > 0 ? (
                         <div className="flex flex-col space-y-2 pb-0">
@@ -885,9 +879,10 @@ export function IncomeDashboard({
                             
                             if (!netData && !balance) return null;
                             
-                            const income = netData?.income || 0;
+                            const income = netData?.operatingIncome || 0;
+                            const gatewayTransferIn = netData?.gatewayTransferIn || 0;
                             const expense = netData?.expense || 0;
-                            const net = income - expense;
+                            const net = netData?.net ?? income + gatewayTransferIn - expense;
                             const currentBalance = balance?.balance || 0;
                             const estimatedPeriodOpening = currentBalance - net;
                             const otherAccounts = bankAccounts.filter((a) => a.id !== bankAccount.id);
@@ -918,8 +913,15 @@ export function IncomeDashboard({
                                       <div className="text-xs leading-snug text-gray-700 truncate">{bankInstitutionLine}</div>
                                     ) : null}
                                     <div className="text-xs text-gray-700">
-                                      Income: {formatToRupiah(income)} | Expense: {formatToRupiah(expense)}
+                                      {t('incomes.drawer.operatingIncome', 'Pendapatan')}: {formatToRupiah(income)} |{' '}
+                                      {t('incomes.expense', 'Expense')}: {formatToRupiah(expense)}
                                     </div>
+                                    {gatewayTransferIn > 0 ? (
+                                      <div className="text-xs text-blue-700">
+                                        {t('incomes.drawer.gatewayTransferIn', 'Transfer dari Xendit')}:{' '}
+                                        {formatToRupiah(gatewayTransferIn)}
+                                      </div>
+                                    ) : null}
                                   </div>
                                   <div className="text-right flex-shrink-0 ml-2">
                                     <div className={`text-sm font-semibold ${net >= 0 ? 'text-green-800' : 'text-red-800'}`}>
@@ -950,6 +952,7 @@ export function IncomeDashboard({
                               periodNet={gatewayPeriodNet?.xendit}
                               isStale={isStaleXendit}
                               subtitle={xenditSubAccountSubtitle}
+                              subAccountCount={countSelectableSubAccounts(xenditSettings?.subAccounts)}
                               settingsHref={XENDIT_CONNECT_PATH}
                               onSync={syncXenditWallet}
                               syncing={syncingXendit}
@@ -957,12 +960,14 @@ export function IncomeDashboard({
                           ) : null}
                         </div>
                       ) : bankAccounts.length === 0 ? (
-                        <div className="flex min-h-[120px] flex-1 items-center justify-center rounded-lg bg-gray-50">
+                        <div className={FINANCIAL_DRAWERS_EMPTY_STATE}>
                           <span className="text-sm text-gray-500">No bank accounts</span>
                         </div>
                       ) : (
-                        <div className="flex min-h-[120px] flex-1 items-center justify-center rounded-lg bg-gray-50">
-                          <span className="px-2 text-center text-sm text-gray-500">Select &quot;All Banks&quot; to see net income per bank account</span>
+                        <div className={FINANCIAL_DRAWERS_EMPTY_STATE}>
+                          <span className="px-2 text-center text-sm text-gray-500">
+                            Select &quot;All Banks&quot; to see net income per bank account
+                          </span>
                         </div>
                       )}
                       </div>
@@ -976,21 +981,24 @@ export function IncomeDashboard({
             </div>
 
             <div className={INCOME_DASHBOARD_RECENT_COLUMN}>
-              <div className="flex min-h-0 min-w-0 flex-col">
-                <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+              <div className="flex h-full min-h-0 min-w-0 flex-col">
+                <div className={INCOME_DASHBOARD_RECENT_PANEL}>
                   <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
                     <h3 className="text-sm font-semibold text-foreground">Recent Income</h3>
                     <p className="mt-1 text-xs text-muted-foreground">Latest transactions and overview</p>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-hidden">
-                    <div className="scrollbar-hide h-full min-h-0 overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className={INCOME_DASHBOARD_RECENT_PANEL_BODY}>
+                    <div className={INCOME_DASHBOARD_RECENT_PANEL_SCROLL}>
                       <RecentIncomeOverview />
                     </div>
                   </div>
+                  <RecentIncomeSidebarFooter
+                    recentCount={Math.min(5, incomeTransactions.length)}
+                    totalTransactions={incomeTransactions.length}
+                  />
                 </div>
               </div>
             </div>
-          </div>
       </div>
 
       <Dialog open={isBalanceHistoryOpen} onOpenChange={setIsBalanceHistoryOpen}>

@@ -47,6 +47,8 @@ function AdaptiveAppLayoutContent() {
     pathname === "/subscription/management";
   /** Gallery share → validate receipt: halaman punya header mobile sendiri (bukan `AppHeader` desktop). */
   const isMobileShareReceiptValidationPath = pathname === SHARE_RECEIPT_VALIDATION_PATH;
+  /** Security settings mobile (`android-mobile/1-settings`) membawa shell sendiri seperti `/profile`. */
+  const isMobileSettingsPath = pathname === "/settings" || pathname.startsWith("/settings/");
 
   if (
     !isDesktop &&
@@ -55,7 +57,8 @@ function AdaptiveAppLayoutContent() {
       isMobileIncomesPath ||
       isMobileHabitsTrackerPath ||
       isMobileWebTrafficPath ||
-      isMobileShareReceiptValidationPath)
+      isMobileShareReceiptValidationPath ||
+      isMobileSettingsPath)
   ) {
     return <Outlet />;
   }

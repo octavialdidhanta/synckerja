@@ -1,23 +1,33 @@
-import type { GatewayPeriodNet } from './useGatewayWalletPeriodNet';
+import type { GatewayPeriodNet } from '@/shared/hooks/finance/useGatewayWalletPeriodNet';
+import type { BankAccountPeriodNetMap } from './buildBankAccountPeriodNet';
 
-type BankAccountNetMap = Record<string, { income: number; expense: number; net: number; balance: number }>;
-
-/** Same income sum as bank rows in "Saldo per Laci Keuangan". */
+/** Operating income only (excludes Xendit gateway withdrawal transfers). */
 export function sumBankPeriodIncome(
-  bankAccountNet: BankAccountNetMap,
+  bankAccountNet: BankAccountPeriodNetMap,
   selectedBankAccount: string,
 ): number {
   if (selectedBankAccount !== 'all') {
-    return bankAccountNet[selectedBankAccount]?.income ?? 0;
+    return bankAccountNet[selectedBankAccount]?.operatingIncome ?? 0;
   }
-  return Object.values(bankAccountNet).reduce((sum, row) => sum + row.income, 0);
+  return Object.values(bankAccountNet).reduce((sum, row) => sum + row.operatingIncome, 0);
+}
+
+export function sumBankGatewayTransferIn(
+  bankAccountNet: BankAccountPeriodNetMap,
+  selectedBankAccount: string,
+): number {
+  if (selectedBankAccount !== 'all') {
+    return bankAccountNet[selectedBankAccount]?.gatewayTransferIn ?? 0;
+  }
+  return Object.values(bankAccountNet).reduce((sum, row) => sum + row.gatewayTransferIn, 0);
 }
 
 /**
  * Total period income across bank + Xendit gateway drawer (Brick excluded from dashboard UI).
+ * Gateway withdrawal bank credits are excluded — they are internal transfers, not revenue.
  */
 export function sumDrawerPeriodIncome(
-  bankAccountNet: BankAccountNetMap,
+  bankAccountNet: BankAccountPeriodNetMap,
   selectedBankAccount: string,
   gatewayPeriodNet: { brick?: GatewayPeriodNet; xendit?: GatewayPeriodNet } | null | undefined,
   options: { xenditEligible?: boolean } = {},

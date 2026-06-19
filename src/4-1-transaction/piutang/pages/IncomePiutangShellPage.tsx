@@ -1,10 +1,10 @@
-import { IncomeTransactionModuleShell } from '../../layout/IncomeTransactionModuleShell';
+import { IncomePiutangModuleShell } from '../layout/IncomePiutangModuleShell';
 import { IncomePiutangPage } from './IncomePiutangPage';
 
 export default function IncomePiutangShellPage() {
   return (
-    <IncomeTransactionModuleShell>
+    <IncomePiutangModuleShell>
       <IncomePiutangPage />
-    </IncomeTransactionModuleShell>
+    </IncomePiutangModuleShell>
   );
 }

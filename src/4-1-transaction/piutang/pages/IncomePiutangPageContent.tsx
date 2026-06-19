@@ -1,7 +1,9 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import type { SalesActivity } from '@/shared/hooks/organized/sales';
 import {
-  INCOME_TX_MAIN_GRID,
+  INCOME_PIUTANG_MAIN_COLUMN,
+  INCOME_PIUTANG_MAIN_GRID,
+  INCOME_PIUTANG_SIDEBAR_COLUMN,
   INCOME_TX_TABLE_SECTION,
 } from '@/4-1-transaction/layout/incomeTransactionLayout';
 import { IncomeTransactionSidebarSkeleton } from '@/4-1-transaction/skeletons/IncomeTransactionSidebarSkeleton';
@@ -78,43 +80,46 @@ export function IncomePiutangPageContent({
 }: IncomePiutangPageContentProps) {
   return (
     <>
-      <div className={INCOME_TX_MAIN_GRID}>
-        <div
-          className={
-            hideSidebar
-              ? 'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden'
-              : 'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden xl:col-span-9'
-          }
-        >
-          <div className="flex h-full min-h-0 min-w-0 flex-col">
-            {filterBar ? <div className="mb-2 flex-shrink-0">{filterBar}</div> : null}
-            <div className={INCOME_TX_TABLE_SECTION}>
-              <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-                <PiutangActivityTable
-                  rows={filteredRows}
-                  verificationByActivity={verificationAggregateByActivity}
-                  verificationLoading={verificationLoading}
-                  onOpenPayments={openDrawer}
-                  onOpenVaCollection={openVaDrawer}
-                />
-                <PiutangTableFooter
-                  totalActivities={totalPiutangActivities}
-                  filteredRows={filteredRows}
-                />
+      <div className={INCOME_PIUTANG_MAIN_GRID}>
+          <div
+            className={
+              hideSidebar
+                ? `${INCOME_PIUTANG_MAIN_COLUMN} xl:col-span-12`
+                : INCOME_PIUTANG_MAIN_COLUMN
+            }
+          >
+            <div className="flex h-full min-h-0 min-w-0 flex-col">
+              {filterBar ? <div className="mb-2 flex-shrink-0">{filterBar}</div> : null}
+              <div className={INCOME_TX_TABLE_SECTION}>
+                <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                  <PiutangActivityTable
+                    rows={filteredRows}
+                    verificationByActivity={verificationAggregateByActivity}
+                    verificationLoading={verificationLoading}
+                    onOpenPayments={openDrawer}
+                    onOpenVaCollection={openVaDrawer}
+                  />
+                  <PiutangTableFooter
+                    totalActivities={totalPiutangActivities}
+                    filteredRows={filteredRows}
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
         {!hideSidebar ? (
-          <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-3">
+          <div className={INCOME_PIUTANG_SIDEBAR_COLUMN}>
             <DeferredMount
               fallback={<IncomeTransactionSidebarSkeleton />}
               idleTimeoutMs={900}
               delayMs={80}
             >
               <Suspense fallback={<IncomeTransactionSidebarSkeleton />}>
-                <PiutangSidebarColumn filteredRows={filteredRows} />
+                <PiutangSidebarColumn
+                  filteredRows={filteredRows}
+                  totalActivities={totalPiutangActivities}
+                />
               </Suspense>
             </DeferredMount>
           </div>

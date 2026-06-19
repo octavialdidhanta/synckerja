@@ -42,6 +42,9 @@ export interface Expense {
   transaction_reference?: string | null;
   /** Hidden from /expenses/reminder-bills only; does not soft-delete or reverse debt. */
   exclude_from_reminder_bills?: boolean;
+  /** When expense was auto-posted from payroll THP disburse. */
+  payroll_run_id?: string | null;
+  gateway_wallet_provider?: 'xendit' | 'brick' | null;
 }
 
 export interface CreateExpenseData {
@@ -709,6 +712,19 @@ export const useExpenses = () => {
     }
 
     try {
+      const { data: row, error: fetchError } = await supabase
+        .from('expenses')
+        .select('id, payroll_run_id')
+        .eq('id', id)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (row?.payroll_run_id) {
+        toast.error(t('expenses.payrollExpenseReadonly', 'Payroll THP expenses cannot be deleted.'));
+        return false;
+      }
+
       const { error } = await supabase
         .from('expenses')
         .update({ status: 'deleted' })

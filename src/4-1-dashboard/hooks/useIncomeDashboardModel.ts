@@ -11,7 +11,12 @@ import { useIncomeTransactions } from "./useIncomeTransactions";
 import { useMonthlyIncomeData } from "./useMonthlyIncomeData";
 import { useIncomeMasterData } from "./useIncomeMasterData";
 import type { IncomeTransactionWithRelations } from "../types";
-import { sumBankPeriodIncome, sumDrawerPeriodIncome } from "../utils/incomeDashboardPeriodTotals";
+import { buildBankAccountPeriodNet } from "../utils/buildBankAccountPeriodNet";
+import {
+  sumBankGatewayTransferIn,
+  sumBankPeriodIncome,
+  sumDrawerPeriodIncome,
+} from "../utils/incomeDashboardPeriodTotals";
 
 export type IncomeDistributionTabKey = "overview" | "service" | "monthly";
 
@@ -168,65 +173,16 @@ export function useIncomeDashboardModel() {
     });
   }, [expenses, selectedPeriod, selectedBankAccount]);
 
-  const bankAccountNet = useMemo(() => {
-    const netMap: Record<string, { income: number; expense: number; net: number; balance: number }> = {};
-
-    bankAccountBalances.forEach((balance) => {
-      netMap[balance.bank_account_id] = {
-        income: 0,
-        expense: 0,
-        net: 0,
-        balance: balance.balance,
-      };
-    });
-
-    filteredTransactions.forEach((transaction) => {
-      if (transaction.bank_account_id) {
-        if (!netMap[transaction.bank_account_id]) {
-          netMap[transaction.bank_account_id] = {
-            income: 0,
-            expense: 0,
-            net: 0,
-            balance: 0,
-          };
-        }
-        netMap[transaction.bank_account_id].income += parseFloat(transaction.amount.toString());
-      }
-    });
-
-    filteredExpenses.forEach((expense) => {
-      const bankAccountId = (expense as { bank_account_id?: string }).bank_account_id;
-      if (bankAccountId) {
-        if (!netMap[bankAccountId]) {
-          netMap[bankAccountId] = {
-            income: 0,
-            expense: 0,
-            net: 0,
-            balance: 0,
-          };
-        }
-        netMap[bankAccountId].expense += expense.amount;
-      }
-    });
-
-    for (const [bankAccountId, credit] of Object.entries(gatewayWithdrawalBankCredits)) {
-      if (!netMap[bankAccountId]) {
-        netMap[bankAccountId] = {
-          income: 0,
-          expense: 0,
-          net: 0,
-          balance: 0,
-        };
-      }
-      netMap[bankAccountId].income += credit;
-    }
-
-    Object.keys(netMap).forEach((bankAccountId) => {
-      netMap[bankAccountId].net = netMap[bankAccountId].income - netMap[bankAccountId].expense;
-    });
-
-    return netMap;
-  }, [filteredTransactions, filteredExpenses, bankAccountBalances, gatewayWithdrawalBankCredits]);
+  const bankAccountNet = useMemo(
+    () =>
+      buildBankAccountPeriodNet({
+        bankAccountBalances,
+        filteredTransactions,
+        filteredExpenses,
+        gatewayWithdrawalBankCredits,
+      }),
+    [filteredTransactions, filteredExpenses, bankAccountBalances, gatewayWithdrawalBankCredits],
+  );
 
   const filteredMetrics = useMemo(() => {
     if (!filteredTransactions.length) {
@@ -247,6 +203,11 @@ export function useIncomeDashboardModel() {
 
   const periodBankIncomeTotal = useMemo(
     () => sumBankPeriodIncome(bankAccountNet, selectedBankAccount),
+    [bankAccountNet, selectedBankAccount],
+  );
+
+  const periodGatewayTransferTotal = useMemo(
+    () => sumBankGatewayTransferIn(bankAccountNet, selectedBankAccount),
     [bankAccountNet, selectedBankAccount],
   );
 
@@ -340,6 +301,7 @@ export function useIncomeDashboardModel() {
     filteredTransactions,
     filteredMetrics,
     periodBankIncomeTotal,
+    periodGatewayTransferTotal,
     periodIncomeTotal,
     hasTransactionsWithoutType,
     incomeTypes,

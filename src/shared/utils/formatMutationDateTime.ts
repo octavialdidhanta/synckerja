@@ -1,9 +1,12 @@
 /** Format bank mutation timestamp in WIB (Asia/Jakarta). */
-export function formatMutationDateTime(iso: string | null | undefined): string {
+export function formatMutationDateTime(
+  iso: string | null | undefined,
+  locale = 'id-ID',
+): string {
   if (!iso) return '—';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('id-ID', {
+  return date.toLocaleString(locale, {
     timeZone: 'Asia/Jakarta',
     day: '2-digit',
     month: '2-digit',

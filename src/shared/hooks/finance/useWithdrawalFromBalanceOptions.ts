@@ -4,6 +4,13 @@ import { useBankAccounts } from '@/shared/hooks/finance/useBankAccounts';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
 import { useGatewayWalletBalances } from '@/shared/hooks/finance/useGatewayWalletBalances';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import {
+  usePrimarySubAccountWallet,
+  useXenditSubAccountWallets,
+} from '@/xendit/hooks/useXenditSubAccountWallets';
+import { countSelectableSubAccounts } from '@/xendit/lib/xenditSubAccountUtils';
+import { useXenditOrgSettings } from '@/xendit/hooks/useXenditOrgSettings';
 import type { GatewayWalletProvider, WithdrawalSourceValue } from '@/shared/lib/finance/withdrawalSourceValue';
 
 export type WithdrawalGatewayOption = {
@@ -17,6 +24,8 @@ export type WithdrawalGatewayOption = {
 export function useWithdrawalFromBalanceOptions(options?: { autoSync?: boolean }) {
   const autoSync = options?.autoSync !== false;
   const { t } = useAppTranslation();
+  const { organizationId } = useCurrentOrg();
+  const { data: xenditSettings } = useXenditOrgSettings(organizationId);
   const { debts: debtsForExpense, isLoading: debtsLoading, refetch: refetchDebts } = useDebtsForExpense();
   const {
     bankAccounts,
@@ -41,6 +50,17 @@ export function useWithdrawalFromBalanceOptions(options?: { autoSync?: boolean }
     isStaleBrick,
   } = useGatewayWalletBalances({ autoSync });
 
+  const { data: xenditWalletBundle } = useXenditSubAccountWallets(organizationId, {
+    enabled: xenditEligible,
+    syncOnMount: false,
+  });
+  const primaryXenditWallet = usePrimarySubAccountWallet(xenditWalletBundle?.wallets);
+  const xenditSubAccountCount = countSelectableSubAccounts(xenditSettings?.subAccounts);
+  const xenditAggregateBalance = Number(xendit?.usable_balance ?? 0);
+  const xenditPrimaryBalance = Number(
+    primaryXenditWallet?.usable_balance ?? xendit?.usable_balance ?? 0,
+  );
+
   const loading =
     debtsLoading ||
     bankAccountsLoading ||
@@ -53,12 +73,11 @@ export function useWithdrawalFromBalanceOptions(options?: { autoSync?: boolean }
   const gateways = useMemo((): WithdrawalGatewayOption[] => {
     const rows: WithdrawalGatewayOption[] = [];
     if (xenditEligible) {
-      const balance = Number(xendit?.usable_balance ?? 0);
       rows.push({
         provider: 'xendit',
         label: t('expenses.gatewayXendit', 'Xendit'),
-        usableBalance: balance,
-        syncedAt: xendit?.synced_at ?? null,
+        usableBalance: xenditPrimaryBalance,
+        syncedAt: primaryXenditWallet?.synced_at ?? xendit?.synced_at ?? null,
         eligible: true,
       });
     }
@@ -73,7 +92,15 @@ export function useWithdrawalFromBalanceOptions(options?: { autoSync?: boolean }
       });
     }
     return rows;
-  }, [brick, brickEligible, t, xendit, xenditEligible]);
+  }, [brick, brickEligible, primaryXenditWallet?.synced_at, t, xendit, xenditEligible, xenditPrimaryBalance]);
+
+  const xenditAggregateHint =
+    xenditEligible && xenditSubAccountCount > 1
+      ? t('expenses.xenditAggregateHint', 'Total saldo Xendit organisasi: Rp {{amount}} ({{count}} akun). Pembayaran menggunakan akun utama.', {
+          amount: xenditAggregateBalance.toLocaleString('id-ID'),
+          count: xenditSubAccountCount,
+        })
+      : null;
 
   const formatRupiahAvailable = (amount: number) =>
     t('expenses.availableBalance', 'Rp {{amount}} available', {
@@ -138,5 +165,8 @@ export function useWithdrawalFromBalanceOptions(options?: { autoSync?: boolean }
     formatRupiahAvailable,
     formatGatewaySyncHint,
     formatSelectedLabel,
+    xenditAggregateHint,
+    xenditSubAccountCount,
+    xenditAggregateBalance,
   };
 }

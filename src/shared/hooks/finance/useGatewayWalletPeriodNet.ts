@@ -6,12 +6,18 @@ export type GatewayPeriodNet = {
   income: number;
   expense: number;
   net: number;
+  operatingExpense?: number;
+  gatewayWithdrawalOut?: number;
 };
 
 function inRange(iso: string | null | undefined, start: Date, end: Date): boolean {
   if (!iso) return false;
   const t = new Date(iso).getTime();
   return t >= start.getTime() && t < end.getTime();
+}
+
+function emptyPeriodNet(): GatewayPeriodNet {
+  return { income: 0, expense: 0, net: 0, operatingExpense: 0, gatewayWithdrawalOut: 0 };
 }
 
 export function useGatewayWalletPeriodNet(startDate: Date, endDate: Date, enabled: boolean) {
@@ -21,7 +27,7 @@ export function useGatewayWalletPeriodNet(startDate: Date, endDate: Date, enable
     queryKey: ['gateway-wallet-period-net', organizationId, startDate.toISOString(), endDate.toISOString()],
     queryFn: async () => {
       if (!organizationId) {
-        return { brick: { income: 0, expense: 0, net: 0 }, xendit: { income: 0, expense: 0, net: 0 } };
+        return { brick: emptyPeriodNet(), xendit: emptyPeriodNet() };
       }
 
       const [brickVaRes, brickDisbRes, xenditVaRes, xenditDisbRes, settledIncomeRes] = await Promise.all([
@@ -42,7 +48,7 @@ export function useGatewayWalletPeriodNet(startDate: Date, endDate: Date, enable
           .eq('status', 'paid'),
         supabase
           .from('xendit_disbursements')
-          .select('amount, completed_at')
+          .select('amount, completed_at, source_type')
           .eq('organization_id', organizationId)
           .eq('status', 'completed'),
         supabase
@@ -82,13 +88,27 @@ export function useGatewayWalletPeriodNet(startDate: Date, endDate: Date, enable
             inRange(r.paid_at, startDate, endDate) && !settledSapIds.has(r.sales_activity_payment_id),
         )
         .reduce((sum, r) => sum + Number(r.expected_amount ?? 0), 0);
-      const xenditExpense = (xenditDisbRes.data ?? [])
-        .filter((r) => inRange(r.completed_at, startDate, endDate))
+
+      const xenditDisbInRange = (xenditDisbRes.data ?? []).filter((r) =>
+        inRange(r.completed_at, startDate, endDate),
+      );
+      const xenditGatewayWithdrawalOut = xenditDisbInRange
+        .filter((r) => r.source_type === 'gateway_withdrawal')
         .reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
+      const xenditOperatingExpense = xenditDisbInRange
+        .filter((r) => r.source_type !== 'gateway_withdrawal')
+        .reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
+      const xenditExpense = xenditGatewayWithdrawalOut + xenditOperatingExpense;
 
       return {
         brick: { income: brickIncome, expense: brickExpense, net: brickIncome - brickExpense },
-        xendit: { income: xenditIncome, expense: xenditExpense, net: xenditIncome - xenditExpense },
+        xendit: {
+          income: xenditIncome,
+          expense: xenditExpense,
+          net: xenditIncome - xenditExpense,
+          operatingExpense: xenditOperatingExpense,
+          gatewayWithdrawalOut: xenditGatewayWithdrawalOut,
+        },
       };
     },
     enabled: Boolean(organizationId) && enabled,

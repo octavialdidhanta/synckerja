@@ -1,34 +1,60 @@
+import { useState } from "react";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
-import { Eye, Trash2, AlertTriangle, Calculator, RefreshCw, Loader2 } from "lucide-react";
+import { Eye, Trash2, Calculator, RefreshCw, Loader2 } from "lucide-react";
 import { PayrollCalculationsTableFooter } from "./PayrollCalculationsTableFooter";
+import { PayrollXenditRetryButton } from "../components/PayrollXenditRetryButton";
+import { PayrollDeductionBreakdownDialog } from "../components/PayrollDeductionBreakdownDialog";
+import { PayrollAllowanceBreakdownDialog } from "../components/PayrollAllowanceBreakdownDialog";
 
 interface PayrollCalculationsTableProps {
   calculations: Record<string, unknown>[];
   /** Total rows before client-side filters (for footer). */
   totalUnfiltered?: number;
-  taxAmounts: Record<string, number>;
   isLoading: boolean;
   onEmployeeSelect: (employee: Record<string, unknown>) => void;
   onRefresh?: () => void;
   onDeleteCalculation?: (calculation: Record<string, unknown>) => void;
   deletingCalculationId?: string | null;
+  onRetryComplete?: () => void;
 }
 
 export function PayrollCalculationsTable({
   calculations,
   totalUnfiltered,
-  taxAmounts,
   isLoading,
   onEmployeeSelect,
   onRefresh,
   onDeleteCalculation,
   deletingCalculationId,
+  onRetryComplete,
 }: PayrollCalculationsTableProps) {
   const totalAll = totalUnfiltered ?? calculations.length;
 
   const paidCalculations = calculations.filter((calc) => calc.payment_status === "paid").length;
+
+  const [deductionDialogCalc, setDeductionDialogCalc] = useState<Record<string, unknown> | null>(
+    null,
+  );
+  const [allowanceDialogCalc, setAllowanceDialogCalc] = useState<Record<string, unknown> | null>(
+    null,
+  );
+
+  const getCalcDialogMeta = (calc: Record<string, unknown> | null) => {
+    if (!calc) {
+      return { employeeName: undefined, periodLabel: undefined, calculationId: null };
+    }
+    const info = calc.employee_payroll_info as { employees?: { full_name?: string } } | undefined;
+    const runs = calc.payroll_runs as
+      | { payroll_periods?: { period_name?: string }; run_name?: string }
+      | undefined;
+    return {
+      calculationId: String(calc.id),
+      employeeName: info?.employees?.full_name,
+      periodLabel: runs?.payroll_periods?.period_name || runs?.run_name,
+    };
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -67,19 +93,6 @@ export function PayrollCalculationsTable({
     }).format(amount || 0);
   };
 
-  const formatCurrencyWithWarning = (amount: number, hasWarning: boolean) => {
-    const formattedAmount = formatCurrency(amount);
-    if (hasWarning && amount === 0) {
-      return (
-        <div className="flex items-center gap-1" title="No components configured">
-          <span>{formattedAmount}</span>
-          <AlertTriangle className="text-amber-500 h-4 w-4" />
-        </div>
-      );
-    }
-    return formattedAmount;
-  };
-
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="scrollbar-hide min-h-0 min-w-0 flex-1 overflow-x-auto">
@@ -101,14 +114,11 @@ export function PayrollCalculationsTable({
               <TableHead className="text-foreground bg-muted/50 min-w-[110px] px-3 text-xs font-medium whitespace-nowrap">
                 Allowances
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[110px] px-3 text-xs font-medium whitespace-nowrap">
-                Deductions
-              </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[90px] px-3 text-xs font-medium whitespace-nowrap">
-                Tax
-              </TableHead>
               <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
                 Gross Pay
+              </TableHead>
+              <TableHead className="text-foreground bg-muted/50 min-w-[110px] px-3 text-xs font-medium whitespace-nowrap">
+                Deductions
               </TableHead>
               <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
                 Net Pay
@@ -127,13 +137,13 @@ export function PayrollCalculationsTable({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-muted-foreground py-12 text-center text-sm">
+                <TableCell colSpan={11} className="text-muted-foreground py-12 text-center text-sm">
                   Loading payroll calculations...
                 </TableCell>
               </TableRow>
             ) : !calculations || calculations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-muted-foreground py-8 text-center text-sm">
+                <TableCell colSpan={11} className="text-muted-foreground py-8 text-center text-sm">
                   <div className="flex flex-col items-center space-y-2">
                     <Calculator className="text-muted-foreground/50 h-8 w-8" />
                     <div>No payroll calculations found</div>
@@ -166,8 +176,16 @@ export function PayrollCalculationsTable({
                   | {
                       run_name?: string;
                       payroll_periods?: { period_name?: string };
+                      status?: string;
                     }
                   | undefined;
+                const snapshot = calc.payout_snapshot as
+                  | { bank_name?: string; account_number?: string; account_holder?: string }
+                  | null
+                  | undefined;
+                const paymentStatus = (calc.payment_status as string) || "pending";
+                const allowanceTotal = Number(calc.total_allowances) || 0;
+                const deductionTotal = Number(calc.total_deductions) || 0;
                 return (
                   <TableRow key={id} className="hover:bg-muted/30 h-12 transition-colors">
                     <TableCell className="min-w-[180px] px-3">
@@ -199,16 +217,37 @@ export function PayrollCalculationsTable({
                       {formatCurrency(Number(calc.basic_salary) || 0)}
                     </TableCell>
                     <TableCell className="min-w-[110px] px-3 text-sm">
-                      {formatCurrency(Number(calc.total_allowances) || 0)}
-                    </TableCell>
-                    <TableCell className="min-w-[110px] px-3 text-sm">
-                      {formatCurrency(Number(calc.total_deductions) || 0)}
-                    </TableCell>
-                    <TableCell className="min-w-[90px] px-3 text-sm">
-                      {formatCurrencyWithWarning((taxAmounts[id] ?? Number(calc.total_tax_deductions)) || 0, false)}
+                      {allowanceTotal > 0 ? (
+                        <button
+                          type="button"
+                          className="cursor-pointer font-medium tabular-nums text-emerald-600 underline decoration-dotted decoration-emerald-600/70 underline-offset-[3px] transition-colors hover:decoration-solid hover:text-emerald-700 dark:text-emerald-400 dark:decoration-emerald-400/70 dark:hover:text-emerald-300"
+                          title="Lihat rincian tunjangan"
+                          onClick={() => setAllowanceDialogCalc(calc)}
+                        >
+                          {formatCurrency(allowanceTotal)}
+                          <span className="sr-only">Lihat rincian tunjangan</span>
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground tabular-nums">{formatCurrency(0)}</span>
+                      )}
                     </TableCell>
                     <TableCell className="min-w-[120px] px-3 text-sm font-medium">
                       {formatCurrency(Number(calc.gross_pay) || 0)}
+                    </TableCell>
+                    <TableCell className="min-w-[110px] px-3 text-sm">
+                      {deductionTotal > 0 ? (
+                        <button
+                          type="button"
+                          className="text-destructive cursor-pointer font-medium tabular-nums underline decoration-dotted decoration-destructive/70 underline-offset-[3px] transition-colors hover:decoration-solid hover:text-destructive/90"
+                          title="Lihat rincian potongan"
+                          onClick={() => setDeductionDialogCalc(calc)}
+                        >
+                          {formatCurrency(deductionTotal)}
+                          <span className="sr-only">Lihat rincian potongan</span>
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground tabular-nums">{formatCurrency(0)}</span>
+                      )}
                     </TableCell>
                     <TableCell className="min-w-[120px] px-3 text-sm font-medium">
                       <span className="text-emerald-600 dark:text-emerald-400">
@@ -236,6 +275,16 @@ export function PayrollCalculationsTable({
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+                        {paymentStatus === "failed" && runs?.status === "calculated" && (
+                          <PayrollXenditRetryButton
+                            calculationId={id}
+                            employeeName={info?.employees?.full_name ?? "Employee"}
+                            bankName={snapshot?.bank_name}
+                            accountNumber={snapshot?.account_number}
+                            takeHomePay={Number(calc.take_home_pay ?? calc.net_pay) || 0}
+                            onComplete={onRetryComplete}
+                          />
+                        )}
                         {onDeleteCalculation && (
                           <Button
                             variant="ghost"
@@ -266,6 +315,36 @@ export function PayrollCalculationsTable({
         totalCalculations={totalAll}
         filteredCalculations={calculations.length}
         paidCalculations={paidCalculations}
+      />
+
+      <PayrollAllowanceBreakdownDialog
+        open={allowanceDialogCalc != null}
+        onOpenChange={(next) => {
+          if (!next) setAllowanceDialogCalc(null);
+        }}
+        {...getCalcDialogMeta(allowanceDialogCalc)}
+        totalAllowances={
+          allowanceDialogCalc ? Number(allowanceDialogCalc.total_allowances) || 0 : 0
+        }
+      />
+
+      <PayrollDeductionBreakdownDialog
+        open={deductionDialogCalc != null}
+        onOpenChange={(next) => {
+          if (!next) setDeductionDialogCalc(null);
+        }}
+        {...getCalcDialogMeta(deductionDialogCalc)}
+        grossPay={deductionDialogCalc ? Number(deductionDialogCalc.gross_pay) || 0 : 0}
+        takeHomePay={
+          deductionDialogCalc
+            ? Number(deductionDialogCalc.take_home_pay ?? deductionDialogCalc.net_pay) || 0
+            : 0
+        }
+        totalDeductions={deductionDialogCalc ? Number(deductionDialogCalc.total_deductions) || 0 : 0}
+        totalTaxDeductions={
+          deductionDialogCalc ? Number(deductionDialogCalc.total_tax_deductions) || 0 : 0
+        }
+        totalPenalties={deductionDialogCalc ? Number(deductionDialogCalc.total_penalties) || 0 : 0}
       />
     </div>
   );

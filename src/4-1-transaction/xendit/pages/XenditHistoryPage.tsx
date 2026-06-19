@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
@@ -16,20 +17,23 @@ import {
 import { XenditHistoryTabContentSkeleton } from "@/4-1-transaction/xendit/skeletons/IncomeXenditPageSkeleton";
 import { useXenditOrgSettings } from "@/xendit/hooks/useXenditOrgSettings";
 import { XENDIT_BASE_PATH } from "@/xendit/lib/xenditPaths";
+import { XenditSubAccountSelect } from "@/xendit/components/XenditSubAccountSelect";
+import { countSelectableSubAccounts } from "@/xendit/lib/xenditSubAccountUtils";
 
 export default function XenditHistoryPage() {
   const { t } = useTranslation();
   const { organizationId } = useCurrentOrg();
   const { orgBootstrapPending } = useOrgBootstrapPending();
+  const [subAccountFilter, setSubAccountFilter] = useState<string | null>(null);
 
   const { data: settings, isLoading: settingsLoading } = useXenditOrgSettings(organizationId);
 
-  const hasSubAccount = Boolean(settings?.account?.xendit_sub_account_id);
+  const hasSubAccount = countSelectableSubAccounts(settings?.subAccounts) > 0;
 
-  // Fetch in parallel with settings — do not wait for hasSubAccount (avoids xendit-api waterfall).
   const { data: historyRows, isLoading: historyLoading } = useXenditGatewayWithdrawals(
     organizationId,
-    Boolean(organizationId),
+    Boolean(organizationId && hasSubAccount),
+    { subAccountId: subAccountFilter },
   );
 
   const dataPending =
@@ -55,16 +59,26 @@ export default function XenditHistoryPage() {
               <XenditContentCard
                 fillBody
                 header={
-                  <div className="p-4 [@media(max-height:900px)]:p-3">
-                    <h2 className="text-base font-semibold text-foreground">
-                      {t("xendit.tabs.history", "Withdrawal history")}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      {t(
-                        "xendit.history.subtitle",
-                        "Riwayat penarikan dana dari sub-account Xendit ke rekening payout.",
-                      )}
-                    </p>
+                  <div className="space-y-3 p-4 [@media(max-height:900px)]:p-3">
+                    <div>
+                      <h2 className="text-base font-semibold text-foreground">
+                        {t("xendit.tabs.history", "Withdrawal history")}
+                      </h2>
+                      <p className="text-sm text-muted-foreground">
+                        {t(
+                          "xendit.history.subtitle",
+                          "Riwayat penarikan dana dari akun Xendit ke rekening payout.",
+                        )}
+                      </p>
+                    </div>
+                    {hasSubAccount ? (
+                      <XenditSubAccountSelect
+                        subAccounts={settings?.subAccounts}
+                        value={subAccountFilter}
+                        onChange={setSubAccountFilter}
+                        includeAll
+                      />
+                    ) : null}
                   </div>
                 }
                 footer={

@@ -33,7 +33,7 @@ export function XenditConnectPageWrapper({
                 <p className="text-sm text-muted-foreground">
                   {t(
                     'xendit.connect.subtitle',
-                    'Enable xenPlatform, verify API keys, and create your sub-account.',
+                    'Enable xenPlatform, verify API keys, and create your akun.',
                   )}
                 </p>
               </div>

@@ -5,9 +5,10 @@ import { PiutangSidebarFooter } from './PiutangSidebarFooter';
 
 type Props = {
   filteredRows: SalesActivity[];
+  totalActivities: number;
 };
 
-export function PiutangSidebarColumn({ filteredRows }: Props) {
+export function PiutangSidebarColumn({ filteredRows, totalActivities }: Props) {
   const { t } = useAppTranslation();
 
   return (
@@ -32,7 +33,7 @@ export function PiutangSidebarColumn({ filteredRows }: Props) {
           </div>
         </div>
 
-        <PiutangSidebarFooter filteredRows={filteredRows} />
+        <PiutangSidebarFooter filteredRows={filteredRows} totalActivities={totalActivities} />
       </div>
     </div>
   );

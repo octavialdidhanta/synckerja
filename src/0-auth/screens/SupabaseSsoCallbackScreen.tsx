@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import { routeAfterLogin } from "@/0-auth/lib/postLoginRouting";
+import { resolvePostAuthRouting } from "@/shared/auth/mfa/resolvePostAuthRouting";
 import { completeGoogleSsoLogin } from "@/0-auth/lib/completeGoogleSsoLogin";
 import { resolveSsoOAuthSession, waitForExistingAuthSession } from "@/0-auth/lib/resolveSsoOAuthSession";
 import {
@@ -77,7 +77,7 @@ export function SupabaseSsoCallbackScreen() {
           clearStashedSsoOAuthMode();
 
           setPhase("done");
-          await routeAfterLogin(navigate, redirectTo);
+          await resolvePostAuthRouting(navigate, redirectTo);
         };
 
         await withTimeout(

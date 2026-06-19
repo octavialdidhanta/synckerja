@@ -46,6 +46,7 @@ type PreflightIssue = {
   employeeName: string;
   employeeId: string;
   missing: string[];
+  severity: "block" | "warning";
 };
 
 export function PayrollRunsOverview({
@@ -60,9 +61,10 @@ export function PayrollRunsOverview({
 
   const buildPayrollEligibilitySnapshot = async (): Promise<{
     eligibleEmployees: Array<{ id: string; full_name: string | null; employee_id: string | null }>;
-    issues: PreflightIssue[];
+    blockingIssues: PreflightIssue[];
+    warningIssues: PreflightIssue[];
   }> => {
-    if (!organizationId) return { eligibleEmployees: [], issues: [] };
+    if (!organizationId) return { eligibleEmployees: [], blockingIssues: [], warningIssues: [] };
 
     const { data: employees, error: employeesError } = await supabase
       .from("employees")
@@ -95,58 +97,83 @@ export function PayrollRunsOverview({
 
     const eligibleEmployees = normalizedEmployees.filter((emp) => isEmployeeEligibleForPayroll(emp));
 
-    if (eligibleEmployees.length === 0) return { eligibleEmployees: [], issues: [] };
+    if (eligibleEmployees.length === 0) return { eligibleEmployees: [], blockingIssues: [], warningIssues: [] };
 
     const eligibleIds = eligibleEmployees.map((emp) => emp.id);
     const { data: payrollInfo, error: payrollInfoError } = await supabase
       .from("employee_payroll_info")
-      .select("employee_id, basic_salary, ptkp_status, tax_configuration_id")
+      .select(
+        "employee_id, basic_salary, ptkp_status, tax_configuration_id, bank_name, bank_account_number, bank_account_holder",
+      )
       .in("employee_id", eligibleIds);
 
     if (payrollInfoError) throw payrollInfoError;
 
     const payrollInfoByEmployeeId = new Map((payrollInfo || []).map((info) => [info.employee_id, info]));
 
-    const issues: PreflightIssue[] = [];
+    const blockingIssues: PreflightIssue[] = [];
+    const warningIssues: PreflightIssue[] = [];
     for (const employee of eligibleEmployees) {
       const info = payrollInfoByEmployeeId.get(employee.id);
-      const missing: string[] = [];
+      const blockingMissing: string[] = [];
+      const warningMissing: string[] = [];
 
       if (!info) {
-        missing.push("Payroll info");
+        blockingMissing.push("Payroll info");
       } else {
-        if (!info.basic_salary || info.basic_salary <= 0) missing.push("Basic salary");
-        if (!info.ptkp_status) missing.push("PTKP status");
-        if (!info.tax_configuration_id) missing.push("Tax configuration");
+        if (!info.basic_salary || info.basic_salary <= 0) blockingMissing.push("Basic salary");
+        if (!info.ptkp_status) blockingMissing.push("PTKP status");
+        if (!info.tax_configuration_id) blockingMissing.push("Tax configuration");
+        if (!info.bank_account_number?.trim()) warningMissing.push("Bank account number");
+        if (!info.bank_account_holder?.trim()) warningMissing.push("Account holder");
+        if (!info.bank_name?.trim()) warningMissing.push("Bank name");
       }
 
-      if (missing.length > 0) {
-        issues.push({
+      if (blockingMissing.length > 0) {
+        blockingIssues.push({
           employeeName: employee.full_name || "Unknown Employee",
           employeeId: employee.employee_id || "-",
-          missing,
+          missing: blockingMissing,
+          severity: "block",
+        });
+      } else if (warningMissing.length > 0) {
+        warningIssues.push({
+          employeeName: employee.full_name || "Unknown Employee",
+          employeeId: employee.employee_id || "-",
+          missing: warningMissing,
+          severity: "warning",
         });
       }
     }
 
-    return { eligibleEmployees, issues };
+    return { eligibleEmployees, blockingIssues, warningIssues };
   };
 
-  const runPayrollPreflight = async (): Promise<{ ok: boolean; issues: PreflightIssue[] }> => {
+  const runPayrollPreflight = async (): Promise<{
+    ok: boolean;
+    blockingIssues: PreflightIssue[];
+    warningIssues: PreflightIssue[];
+  }> => {
     const snapshot = await buildPayrollEligibilitySnapshot();
     if (snapshot.eligibleEmployees.length === 0) {
       return {
         ok: false,
-        issues: [
+        blockingIssues: [
           {
             employeeName: "No eligible employees",
             employeeId: "-",
             missing: ["Employee status must be active or probation"],
+            severity: "block",
           },
         ],
+        warningIssues: [],
       };
     }
-    return { ok: snapshot.issues.length === 0, issues: snapshot.issues };
+    return {
+      ok: snapshot.blockingIssues.length === 0,
+      blockingIssues: snapshot.blockingIssues,
+      warningIssues: snapshot.warningIssues,
+    };
   };
 
   const handleProcessPayroll = async (runId: string, event: MouseEvent) => {
@@ -158,26 +185,46 @@ export function PayrollRunsOverview({
 
       const preflight = await runPayrollPreflight();
       if (!preflight.ok) {
-        const detailLines = preflight.issues
+        const detailLines = preflight.blockingIssues
           .slice(0, 8)
           .map((issue) => `${issue.employeeName} (${issue.employeeId}): ${issue.missing.join(", ")}`);
-        const hasMore = preflight.issues.length > 8;
+        const hasMore = preflight.blockingIssues.length > 8;
         const detailMessage = [
           "Run payroll diblokir: lengkapi payroll info dulu.",
           ...detailLines,
-          hasMore ? `...dan ${preflight.issues.length - 8} employee lainnya` : "",
+          hasMore ? `...dan ${preflight.blockingIssues.length - 8} employee lainnya` : "",
         ]
           .filter(Boolean)
           .join("\n");
 
         onRunBlocked?.(detailMessage);
-        toast.error(`Run payroll diblokir. ${preflight.issues.length} employee masih belum lengkap.`, {
+        toast.error(`Run payroll diblokir. ${preflight.blockingIssues.length} employee masih belum lengkap.`, {
           id: "payroll-process",
         });
         return;
       }
 
-      onRunBlocked?.(null);
+      if (preflight.warningIssues.length > 0) {
+        const warnLines = preflight.warningIssues
+          .slice(0, 6)
+          .map((issue) => `${issue.employeeName} (${issue.employeeId}): ${issue.missing.join(", ")}`);
+        const warnMessage = [
+          "Peringatan: rekening bank belum lengkap — disburse Xendit akan memblokir baris invalid.",
+          ...warnLines,
+          preflight.warningIssues.length > 6
+            ? `...dan ${preflight.warningIssues.length - 6} employee lainnya`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+        onRunBlocked?.(warnMessage);
+        toast.warning(
+          `${preflight.warningIssues.length} karyawan tanpa rekening lengkap. Proses tetap dilanjutkan.`,
+          { id: "payroll-process-warn" },
+        );
+      } else {
+        onRunBlocked?.(null);
+      }
 
       const { data: processResult, error: processError } = await supabase.rpc("process_payroll_run", {
         p_run_id: runId,
@@ -234,7 +281,10 @@ export function PayrollRunsOverview({
 
       const snapshot = await buildPayrollEligibilitySnapshot();
       const realtimeEligibleEmployees = snapshot.eligibleEmployees.length;
-      const readyToProcessEmployees = Math.max(0, realtimeEligibleEmployees - snapshot.issues.length);
+      const readyToProcessEmployees = Math.max(
+        0,
+        realtimeEligibleEmployees - snapshot.blockingIssues.length,
+      );
 
       const processedCountByRun = new Map<string, number>();
       const cachedCalculations = queryClient.getQueryData<Array<{ payroll_run_id?: string }>>(

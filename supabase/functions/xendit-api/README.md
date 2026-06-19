@@ -27,6 +27,9 @@ supabase functions deploy xendit-api --no-verify-jwt
 | `XENDIT_PLATFORM_FLAT_FEE` | No | Override flat fee (default `2500` IDR) |
 | `XENDIT_MIN_DISBURSEMENT_AMOUNT` | No | Minimum gateway withdrawal / disburse amount (default `10000` IDR) |
 | `XENDIT_WEBHOOK_SKIP_VERIFY` | No | `true` for local dev only |
+| `XENDIT_INTERNAL_ORG_IDS` | No | Comma-separated org UUIDs that skip JIT KYC and use `OWNED` sub-accounts (Synckerja internal) |
+
+Apply migration `20260817120000_xendit_jit_kyc_multi_subaccount.sql` before using multi sub-account + KYC flows.
 
 ## Request shape
 
@@ -45,9 +48,15 @@ Include `Authorization: Bearer <supabase_jwt>`.
 
 | Action | Role | Description |
 |--------|------|-------------|
-| `getSettings` | member | Sub-account status, platform fee, VA bank list |
-| `enableXendit` | admin | Opt-in flag per org |
-| `createTenantSubAccount` | admin | Lazy OWNED sub-account (`for-user-id`) |
+| `getSettings` | member | Sub-account list, primary sub-account, KYC row, platform fee |
+| `enableXendit` | admin | Opt-in flag per org (`organization_xendit_settings`) |
+| `requestSubAccount` | admin | JIT gate: `{ require_kyc, can_create, account_type }` |
+| `submitKycAndCreate` | admin | Save KYC + create MANAGED sub-account + upload docs to Xendit (incl. service agreement) |
+| `createTenantSubAccount` | admin | Create sub-account (OWNED internal / MANAGED external); MANAGED auto-uploads org KYC docs |
+| `updateKycAndRetryDocuments` | admin | Update org KYC row + retry document upload for a sub-account row |
+| `retrySubAccountDocuments` | admin | Retry failed Xendit document upload (requires complete org KYC including service agreement) |
+| `setPrimarySubAccount` | admin | Set default sub-account for VA / payroll / withdrawal |
+| `listSubAccounts` | member | List + reconcile all sub-accounts for org |
 | `createTenantInvoiceVA` | admin | Closed VA for `sales_activity_payments` (piutang) |
 | `listVaBanks` | member | Supported sandbox VA banks |
 | `executeTenantDisbursement` | admin | Payroll run batch, vendor PR, or debt payment |

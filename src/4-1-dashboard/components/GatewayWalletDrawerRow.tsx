@@ -5,6 +5,7 @@ import { RefreshCw } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
+import { formatGatewaySyncedAtLabel } from '@/shared/utils/formatGatewaySyncedAt';
 import type { GatewayPeriodNet } from '@/shared/hooks/finance/useGatewayWalletPeriodNet';
 import type { GatewayWalletRow } from '@/shared/hooks/finance/useGatewayWalletBalances';
 
@@ -14,21 +15,11 @@ type Props = {
   periodNet?: GatewayPeriodNet;
   isStale?: boolean;
   subtitle?: string;
+  subAccountCount?: number;
   settingsHref?: string;
   onSync?: () => void;
   syncing?: boolean;
 };
-
-function formatSyncedAt(iso: string | null | undefined, t: ReturnType<typeof useAppTranslation>['t']): string {
-  if (!iso) return t('incomes.gateway.neverSynced', 'Belum pernah disinkronkan');
-  const date = new Date(iso);
-  const diffMin = Math.floor((Date.now() - date.getTime()) / 60_000);
-  if (diffMin < 1) return t('incomes.gateway.syncedJustNow', 'Baru disinkronkan');
-  if (diffMin < 60) return t('incomes.gateway.syncedMinutesAgo', '{{count}} menit lalu', { count: diffMin });
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return t('incomes.gateway.syncedHoursAgo', '{{count}} jam lalu', { count: diffHr });
-  return date.toLocaleString('id-ID');
-}
 
 export function GatewayWalletDrawerRow({
   provider,
@@ -36,6 +27,7 @@ export function GatewayWalletDrawerRow({
   periodNet,
   isStale,
   subtitle,
+  subAccountCount = 0,
   settingsHref,
   onSync,
   syncing,
@@ -44,6 +36,10 @@ export function GatewayWalletDrawerRow({
   const label = provider === 'brick' ? 'Brick' : 'Xendit';
   const income = periodNet?.income ?? 0;
   const expense = periodNet?.expense ?? 0;
+  const operatingExpense =
+    provider === 'xendit' ? (periodNet?.operatingExpense ?? expense) : expense;
+  const gatewayWithdrawalOut =
+    provider === 'xendit' ? (periodNet?.gatewayWithdrawalOut ?? 0) : 0;
   const net = periodNet?.net ?? 0;
   const balance = Number(wallet?.usable_balance ?? 0);
   const pending = Number(wallet?.pending_balance ?? 0);
@@ -71,15 +67,30 @@ export function GatewayWalletDrawerRow({
           {subtitle ? (
             <p className="mt-0.5 truncate text-xs text-gray-600">{subtitle}</p>
           ) : null}
+          {provider === 'xendit' && subAccountCount > 1 ? (
+            <p className="mt-0.5 text-[11px] text-gray-500">
+              {t('incomes.gateway.xenditMultiSubAccount', 'Total {{count}} akun aktif', {
+                count: subAccountCount,
+              })}
+            </p>
+          ) : null}
           <div className="text-xs text-gray-700">
-            {t('incomes.income', 'Income')}: {formatToRupiah(income)} | {t('incomes.expense', 'Expense')}:{' '}
-            {formatToRupiah(expense)}
+            {t('incomes.income', 'Income')}: {formatToRupiah(income)} |{' '}
+            {provider === 'xendit'
+              ? t('incomes.drawer.operatingExpense', 'Pengeluaran operasional')
+              : t('incomes.expense', 'Expense')}
+            : {formatToRupiah(operatingExpense)}
           </div>
+          {provider === 'xendit' && gatewayWithdrawalOut > 0 ? (
+            <div className="text-xs text-blue-700">
+              {t('incomes.gateway.withdrawalOut', 'Penarikan ke bank')}: {formatToRupiah(gatewayWithdrawalOut)}
+            </div>
+          ) : null}
           {wallet?.sync_error ? (
             <p className="mt-1 text-xs text-red-600">{wallet.sync_error}</p>
           ) : (
             <p className="mt-0.5 text-[11px] text-gray-500">
-              {t('incomes.gateway.lastSync', 'Sync')}: {formatSyncedAt(wallet?.synced_at, t)}
+              {formatGatewaySyncedAtLabel(wallet?.synced_at, t)}
             </p>
           )}
           <div className="mt-1 flex flex-wrap items-center gap-2">

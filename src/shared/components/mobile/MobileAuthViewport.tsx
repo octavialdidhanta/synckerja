@@ -53,7 +53,9 @@ export function MobileAuthViewport({
               ? "items-stretch overflow-y-auto"
               : "items-center overflow-y-hidden",
             keyboardOpen
-              ? "justify-start"
+              ? isFormLayout
+                ? "justify-start"
+                : "justify-center"
               : isFormLayout
                 ? "justify-center"
                 : "justify-center",

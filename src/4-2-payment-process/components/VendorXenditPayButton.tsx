@@ -20,7 +20,7 @@ import {
 } from "@/shared/components/ui/select";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useXenditOrgSettings } from "@/xendit/hooks/useXenditOrgSettings";
-import { executeXenditDisbursement } from "@/xendit/lib/xenditApi";
+import { useSecureXenditActions } from "@/xendit/hooks/useSecureXenditActions";
 import type { PurchaseRequest } from "@/9-request-form/hooks/usePurchaseRequests";
 
 type Props = {
@@ -32,6 +32,7 @@ export function VendorXenditPayButton({ request, onSuccess }: Props) {
   const { t } = useTranslation();
   const { organizationId } = useCurrentOrg();
   const { data: settings } = useXenditOrgSettings(organizationId);
+  const { secureDisbursement } = useSecureXenditActions();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bankCode, setBankCode] = useState(request.vendor_bank_code ?? "BCA");
@@ -44,7 +45,7 @@ export function VendorXenditPayButton({ request, onSuccess }: Props) {
     if (!organizationId) return;
     setLoading(true);
     try {
-      await executeXenditDisbursement(organizationId, {
+      await secureDisbursement(organizationId, {
         source_type: "purchase_request",
         source_id: request.id,
         bank_code: bankCode,

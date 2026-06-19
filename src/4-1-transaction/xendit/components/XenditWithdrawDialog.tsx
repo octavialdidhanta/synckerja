@@ -15,7 +15,7 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { formatToRupiah } from "@/shared/utils/formatCurrency";
-import { executeXenditGatewayWithdrawal } from "@/xendit/lib/xenditApi";
+import { useSecureXenditActions } from "@/xendit/hooks/useSecureXenditActions";
 import type { XenditGatewayPayoutBank } from "@/xendit/types/xendit";
 
 const MIN_NET_WITHDRAWAL = 10_000;
@@ -46,6 +46,7 @@ export function XenditWithdrawDialog({
 }: Props) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { secureGatewayWithdrawal } = useSecureXenditActions();
   const [amountInput, setAmountInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -87,7 +88,7 @@ export function XenditWithdrawDialog({
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await executeXenditGatewayWithdrawal(organizationId, gross);
+      await secureGatewayWithdrawal(organizationId, gross);
       toast.success(
         t(
           "xendit.finance.withdrawSubmitted",
@@ -116,7 +117,7 @@ export function XenditWithdrawDialog({
           <DialogDescription>
             {t(
               "xendit.finance.withdrawModalDesc",
-              "Dana dikirim dari saldo CASH sub-account ke rekening payout. Biaya platform Synckerja dipotong dari nominal yang Anda masukkan.",
+              "Dana dikirim dari saldo CASH akun ke rekening payout. Biaya platform Synckerja dipotong dari nominal yang Anda masukkan.",
             )}
           </DialogDescription>
         </DialogHeader>

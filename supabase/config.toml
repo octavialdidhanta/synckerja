@@ -10,6 +10,11 @@ enabled = true
 [auth.email]
 enable_confirmations = false
 
+# TOTP MFA for Owner/Admin step-up (Synckerja /settings/security).
+# Hosted: Dashboard → Authentication → MFA → enable TOTP.
+[auth.mfa]
+max_enrolled_factors = 10
+
 # Edge gateway validates JWT before your function runs. If JWT verification stays ON in the
 # hosted project, you get POST 401 with execution_id null and no function logs.
 #
@@ -20,6 +25,12 @@ enable_confirmations = false
 #
 # Deploy: `supabase functions deploy <name> --no-verify-jwt` (or MCP deploy with verify_jwt: false)
 [functions.send-confirmation-email]
+verify_jwt = false
+
+[functions.send-payroll-paid-email]
+verify_jwt = false
+
+[functions.notify-payroll-paid-batch]
 verify_jwt = false
 
 # Midtrans server-to-server notification has no user JWT

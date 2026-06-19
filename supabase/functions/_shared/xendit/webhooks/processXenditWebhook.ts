@@ -9,7 +9,7 @@ import {
 } from "./verifyWebhook.ts";
 import { handleVaPaidWebhook } from "./handleVaPaid.ts";
 import { handleDisbursementWebhook } from "./handleDisbursement.ts";
-import { handleSplitPaymentWebhook } from "./handleSplitPayment.ts";
+import { handleAccountWebhook, isAccountWebhookEvent } from "./handleAccountWebhook.ts";
 
 export function isXenditWebhookRequest(req: Request): boolean {
   const token = req.headers.get("x-callback-token") ?? req.headers.get("X-CALLBACK-TOKEN") ?? "";
@@ -65,6 +65,9 @@ export async function processXenditWebhook(
     }
     if (eventType.startsWith("disbursement") || payload.disbursement_id) {
       await handleDisbursementWebhook(admin, env, payload);
+    }
+    if (isAccountWebhookEvent(eventType, payload)) {
+      await handleAccountWebhook(admin, payload, env);
     }
 
     const logId = inserted?.id ?? existing?.id;

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { xenditRequest } from "../xenditClient.ts";
 import { encodeXenditExternalId } from "../xenditExternalId.ts";
 import type { XenditEnvConfig } from "../xenditEnv.ts";
-import { resolveOrgSubAccount } from "./createSubAccount.ts";
+import { resolvePrimarySubAccount } from "./resolveSubAccount.ts";
 import { requirePlatformSplitRule } from "./createSplitRule.ts";
 
 type CreateVaResponse = {
@@ -28,14 +28,14 @@ export async function createTenantInvoiceVA(
   const bankCode = input.bank_code.trim().toUpperCase();
   if (!sapId || !bankCode) throw new Error("Missing sales_activity_payment_id or bank_code");
 
-  const { data: acct } = await admin
-    .from("organization_xendit_accounts")
-    .select("*")
+  const { data: settings } = await admin
+    .from("organization_xendit_settings")
+    .select("is_enabled")
     .eq("organization_id", organizationId)
     .maybeSingle();
-  if (!acct?.is_enabled) throw new Error("Xendit not enabled for this organization");
+  if (!settings?.is_enabled) throw new Error("Xendit not enabled for this organization");
 
-  const { subAccountId } = await resolveOrgSubAccount(admin, env, organizationId);
+  const { subAccountId } = await resolvePrimarySubAccount(admin, env, organizationId);
 
   const { data: sap, error: sapErr } = await admin
     .from("sales_activity_payments")

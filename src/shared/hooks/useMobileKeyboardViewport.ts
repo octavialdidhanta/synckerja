@@ -46,7 +46,7 @@ export function useMobileKeyboardViewport(options: UseMobileKeyboardViewportOpti
 
     const el = document.activeElement;
     if (el instanceof HTMLElement && panel.contains(el)) {
-      el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      el.scrollIntoView({ block: "center", inline: "nearest" });
     }
   }, [submitAnchorRef]);
 

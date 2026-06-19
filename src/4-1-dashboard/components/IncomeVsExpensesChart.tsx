@@ -4,6 +4,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useIncomeMetrics } from '../hooks';
 import { useExpenseMetrics } from '@/shared/hooks/finance/useExpenseMetrics';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
+import {
+  INCOME_DRAWERS_PAIR_BODY,
+  INCOME_DRAWERS_PAIR_BODY_INNER,
+  INCOME_DRAWERS_PAIR_CARD,
+} from '@/4-1-dashboard/utils/financialDrawersScroll';
 
 export const IncomeVsExpensesChart = () => {
   const { data: incomeMetrics, isLoading: incomeLoading } = useIncomeMetrics();
@@ -32,15 +37,15 @@ export const IncomeVsExpensesChart = () => {
   const isLoading = incomeLoading || expenseLoading;
   const hasData = chartData.some((item) => item.income > 0 || item.expenses > 0);
 
-  const chartAreaClass = 'relative w-full min-h-[13rem] flex-1';
+  const chartAreaClass = `relative w-full ${INCOME_DRAWERS_PAIR_BODY_INNER}`;
 
   return (
-    <Card className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
-      <CardContent className="flex h-full min-h-0 flex-1 flex-col overflow-hidden p-0 px-3 pb-0.5 pt-2">
+    <Card className={INCOME_DRAWERS_PAIR_CARD}>
+      <CardContent className="flex h-full min-h-0 flex-col overflow-hidden p-0 px-3 pb-0.5 pt-2">
         <h3 className="mb-1 flex-shrink-0 text-base font-semibold text-gray-800 sm:text-lg">
           Income vs. Expenses
         </h3>
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className={INCOME_DRAWERS_PAIR_BODY}>
           {isLoading ? (
             <div className={`${chartAreaClass} rounded bg-muted/40`} aria-hidden />
           ) : !hasData ? (

@@ -48,8 +48,64 @@ Manual verification after deploy or formula changes.
 ## Disbursement
 
 - [ ] Export Bank CSV — kolom lengkap, row count = calculations
-- [ ] Mark as Paid — payment_status paid, run status paid
-- [ ] Audit log: calculated, export_bank, marked_paid
+- [ ] **Disburse via Xendit** — preview batch (nama, bank, THP), saldo CASH vs total, **OTP 2FA inline** di dialog setelah confirm
+- [ ] Owner/admin tanpa MFA enrolled → tombol Disburse disabled; HR tidak melihat tombol
+- [ ] Brick disburse **tidak** tampil di payroll calculations
+- [ ] Saldo CASH < total THP pending → tombol confirm disabled
+- [ ] Calc `processing` → Mark as Paid terkunci; banner disbursing
+- [ ] Webhook/poll selesai → calc `paid`; semua paid → run `paid` otomatis
+- [ ] Calc `failed` → Retry per baris; run tetap `calculated` jika ada gagal
+- [ ] Preflight process: rekening kosong → warning (boleh process); disburse gate di preview
+- [ ] Mark as Paid manual — payment_status paid, run status paid (saat tidak ada processing)
+- [ ] Audit log: calculated, export_bank, marked_paid, xendit_disburse_batch, **payslip_notified**
+
+## Payroll statutory escrow (Xendit)
+
+Apply migration `20260826120000_payroll_xendit_escrow.sql`.
+
+- [ ] Default OFF — tenant tanpa settings tidak terpengaruh
+- [ ] Payroll sidebar: toggle escrow + picker sub-account (non-primary, active)
+- [ ] Save settings → Owner/Admin + MFA; `organization_payroll_escrow_settings` updated
+- [ ] Escrow ON → **Mark as Paid** hidden; copy hint di settings
+- [ ] Disburse preview: saldo **CASH Operasional (Utama)** vs THP (bukan aggregate escrow)
+- [ ] Subtext reserved escrow muncul jika saldo escrow > 0
+- [ ] All calcs paid → run `paid` → auto transfer PPh21 + BPJS ke escrow sub-account
+- [ ] `payroll_xendit_escrow_transfers` satu row per run; `completed` on success
+- [ ] Jumlah escrow ≈ sum PPh/BPJS dari `payroll_items` (bukan total potongan termasuk pinjaman)
+- [ ] Insufficient primary CASH setelah THP → transfer `failed`, run tetap `paid`, banner + retry
+- [ ] Retry transfer → MFA → `completed` setelah top-up
+- [ ] Idempotency: webhook/finalize duplikat tidak double transfer
+- [ ] Audit: `payroll_escrow_transfer`, `_failed`, `_skipped`
+- [ ] History panel + banner di Payroll Calculations untuk run terpilih
+- [ ] Tenant B escrow OFF → zero side effects
+
+See `docs/payroll-escrow-runbook.md`.
+
+## Payroll THP → Expense Dashboard (Xendit)
+
+Apply migration `20260827120000_payroll_thp_expense.sql`.
+
+- [ ] Default OFF — tenant tanpa settings tidak terpengaruh
+- [ ] Payroll sidebar: toggle **Post THP ke Expense** + save (Owner/Admin + MFA)
+- [ ] Org punya tipe **Fixed Expenses** + kategori **Gaji Karyawan Tetap**
+- [ ] Disburse run via Xendit → all paid → expense muncul di `/expenses/dashboard`
+- [ ] Amount ≈ SUM THP paid calcs; department Finance; withdrawal = Xendit
+- [ ] Filter chip **Payroll** + badge pada baris; link ke `/payroll/calculations?run={id}`
+- [ ] Edit/delete diblok untuk baris payroll (UI + DB trigger)
+- [ ] Idempotency: finalize/webhook duplikat tidak double expense
+- [ ] Settings OFF → zero side effects
+- [ ] Missing category → audit `payroll_expense_post_failed`, banner merah, run tetap paid
+- [ ] Gateway wallet tidak double-debit (skip trigger saat disburse completed)
+
+See `docs/payroll-thp-expense-runbook.md`.
+
+## Payroll paid notifications
+
+- [ ] Webhook calc `paid` → email Resend (jika ada email) + audit `payslip_notified`
+- [ ] Home banner emerald di bawah greeting 24 jam; dismissable; tanpa nominal THP di banner
+- [ ] Mark as Paid manual → `notify-payroll-paid-batch` → notifikasi sama per karyawan paid
+- [ ] Karyawan tanpa email → banner in-app tetap muncul (jika punya user_id)
+- [ ] Webhook duplikat → tidak double email (idempotency audit)
 
 ## Payslip
 

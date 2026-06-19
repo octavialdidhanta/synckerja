@@ -3,15 +3,24 @@ import { Navigate } from "react-router-dom";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import { AbsensiPageSkeleton } from "@/mobile/1-home/pages/AbsensiPageSkeleton";
+import { MobileSecuritySettingsSkeleton } from "@/mobile/1-settings/skeletons/MobileSecuritySettingsSkeleton";
 
 const MobileAbsensi = lazy(() => import("@/mobile/1-home/pages/Absensi"));
 const MobileSchedule = lazy(() => import("@/mobile/1-schedule/pages/Schedule"));
 const MobileClientVisit = lazy(() => import("@/mobile/1-client-visit/pages/ClientVisit"));
 const MobileAttendanceReports = lazy(() => import("@/mobile/1-reports/pages/Reports"));
 const MobileProfileParity = lazy(() => import("@/mobile/1-profile/pages/Profile"));
+const MobileSettingsShell = lazy(() => import("@/mobile/1-settings/pages/MobileSettingsShell"));
+const MobileSecuritySettingsContent = lazy(() =>
+  import("@/mobile/1-settings/components/MobileSecuritySettingsContent"),
+);
 const DesktopModernHomePage = lazy(() => import("@/1-home/pages/ModernHomePage"));
+const DesktopSettingsPage = lazy(() => import("@/1-home").then((m) => ({ default: m.SettingsPage })));
 const DesktopProfileSettings = lazy(() =>
   import("@/1-home/settings").then((m) => ({ default: m.ProfileSettings })),
+);
+const DesktopSecuritySettings = lazy(() =>
+  import("@/1-home/settings").then((m) => ({ default: m.SecuritySettings })),
 );
 
 function MobileParitySuspense({ children }: { children: ReactNode }) {
@@ -23,6 +32,14 @@ function MobileParitySuspense({ children }: { children: ReactNode }) {
         </div>
       }
     >
+      {children}
+    </Suspense>
+  );
+}
+
+function MobileSettingsSuspense({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<MobileSecuritySettingsSkeleton />}>
       {children}
     </Suspense>
   );
@@ -82,18 +99,63 @@ export function MobileAttendanceReportsRouteElement() {
 }
 
 export function ProfileRouteElement() {
+  return (
+    <MobileParitySuspense>
+      <DesktopProfileSettings />
+    </MobileParitySuspense>
+  );
+}
+
+export function SettingsIndexRouteElement() {
   const { isDesktop } = useAuthSurface();
-  if (isDesktop) {
+  if (!isDesktop) return <Navigate to="security" replace />;
+  return (
+    <MobileParitySuspense>
+      <DesktopProfileSettings />
+    </MobileParitySuspense>
+  );
+}
+
+/** Desktop `/settings/profile`; mobile redirects to HR profile tab. */
+export function SettingsProfileRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  if (!isDesktop) return <Navigate to="/profile" replace />;
+  return (
+    <MobileParitySuspense>
+      <DesktopProfileSettings />
+    </MobileParitySuspense>
+  );
+}
+
+export function SecuritySettingsRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  if (!isDesktop) {
     return (
-      <MobileParitySuspense>
-        <DesktopProfileSettings />
-      </MobileParitySuspense>
+      <MobileSettingsSuspense>
+        <MobileSecuritySettingsContent />
+      </MobileSettingsSuspense>
     );
   }
   return (
     <MobileParitySuspense>
-      <MobileProfileParity />
+      <DesktopSecuritySettings />
     </MobileParitySuspense>
+  );
+}
+
+export function SettingsRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  if (isDesktop) {
+    return (
+      <MobileParitySuspense>
+        <DesktopSettingsPage />
+      </MobileParitySuspense>
+    );
+  }
+  return (
+    <MobileSettingsSuspense>
+      <MobileSettingsShell />
+    </MobileSettingsSuspense>
   );
 }
 

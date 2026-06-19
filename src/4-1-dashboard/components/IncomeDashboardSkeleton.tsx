@@ -1,15 +1,26 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { FINANCIAL_DRAWERS_LIST_SCROLL } from "@/4-1-dashboard/utils/financialDrawersScroll";
 import {
+  FINANCIAL_DRAWERS_LIST_SCROLL,
+  INCOME_DRAWERS_PAIR_CARD_H,
+  INCOME_DRAWERS_PAIR_GRID,
+} from "@/4-1-dashboard/utils/financialDrawersScroll";
+import {
+  INCOME_DASHBOARD_MAIN_COLUMN,
   INCOME_DASHBOARD_MAIN_GRID,
   INCOME_DASHBOARD_RECENT_COLUMN,
+  INCOME_DASHBOARD_RECENT_PANEL,
+  INCOME_DASHBOARD_RECENT_PANEL_BODY,
+  INCOME_DASHBOARD_RECENT_PANEL_SCROLL,
 } from "@/4-1-dashboard/layout/incomeDashboardLayout";
 
 const GRID_MAIN = INCOME_DASHBOARD_MAIN_GRID;
 
+const MAIN_SCROLL =
+  'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+
 /**
- * Mirrors `IncomeDashboard` — seamless scroll (header ikut scroll), `AppShell`-safe `h-full` root.
+ * Mirrors `IncomeDashboard` + `IncomesModuleShell` — page scroll, tanpa spacer bawah ekstra.
  */
 export function IncomeDashboardSkeleton() {
   const { t } = useAppTranslation();
@@ -21,12 +32,11 @@ export function IncomeDashboardSkeleton() {
       aria-label={aria}
     >
       <span className="sr-only">{aria}</span>
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
-        <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
-              {/* HeaderAndTab: title + subtitle + two nav tabs */}
-              <div className="mb-1 shrink-0 px-1 py-3">
+      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
+        <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
+          <div className={MAIN_SCROLL}>
+            <div className="flex min-h-full flex-col">
+              <div className="mb-1 flex-shrink-0 px-1 py-3">
                 <div className="mb-3 space-y-1.5">
                   <Skeleton className="h-7 w-56 max-w-[90vw]" />
                   <Skeleton className="h-3 w-full max-w-xl" />
@@ -37,11 +47,10 @@ export function IncomeDashboardSkeleton() {
                 </div>
               </div>
 
-              <div className={`grid ${GRID_MAIN}`}>
-                <div className="col-span-12 flex min-w-0 flex-col xl:col-span-9">
+              <div className={GRID_MAIN}>
+                <div className={INCOME_DASHBOARD_MAIN_COLUMN}>
                   <div className="flex min-w-0 flex-col">
                     <div className="flex min-w-0 flex-col rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white p-2">
-                      {/* "Income Analytics" row + three selects */}
                       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <Skeleton className="h-7 w-40" />
                         <div className="flex flex-wrap gap-2">
@@ -51,10 +60,8 @@ export function IncomeDashboardSkeleton() {
                         </div>
                       </div>
 
-                      {/* Total balance card (blue) */}
                       <Skeleton className="mb-2 h-[4.75rem] w-full shrink-0 rounded-lg bg-brand-blue/25" />
 
-                      {/* Four metric cards */}
                       <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                         {Array.from({ length: 4 }).map((_, i) => (
                           <div
@@ -68,7 +75,6 @@ export function IncomeDashboardSkeleton() {
                         ))}
                       </div>
 
-                      {/* Income distribution + monthly trend (two columns) */}
                       <div className="mb-2 grid grid-cols-1 gap-2 lg:grid-cols-2">
                         <div className="flex min-h-[240px] min-w-0 flex-col rounded-lg border border-gray-200/80 bg-white p-3 shadow-sm">
                           <div className="mb-3 flex justify-between gap-2">
@@ -88,17 +94,18 @@ export function IncomeDashboardSkeleton() {
                         </div>
                       </div>
 
-                      {/* Income vs expenses + net per bank */}
-                      <div className="mb-2 grid grid-cols-1 gap-2 lg:grid-cols-2">
-                        <Skeleton className="min-h-[200px] w-full rounded-lg border border-gray-200/80 bg-white shadow-sm" />
-                        <div className="flex min-h-[200px] min-w-0 flex-col rounded-lg border border-gray-200/80 bg-white p-3 shadow-sm">
+                      <div className={INCOME_DRAWERS_PAIR_GRID}>
+                        <Skeleton
+                          className={`${INCOME_DRAWERS_PAIR_CARD_H} w-full rounded-lg border border-gray-200/80 bg-white shadow-sm`}
+                        />
+                        <div
+                          className={`${INCOME_DRAWERS_PAIR_CARD_H} flex min-w-0 flex-col rounded-lg border border-gray-200/80 bg-white p-3 shadow-sm`}
+                        >
                           <Skeleton className="mb-1 h-5 w-52" />
-                          <Skeleton className="mb-3 h-3 w-full max-w-sm" />
                           <div className={`space-y-2 ${FINANCIAL_DRAWERS_LIST_SCROLL}`}>
-                            <Skeleton className="h-16 w-full rounded-md" />
-                            <Skeleton className="h-16 w-full rounded-md" />
-                            <Skeleton className="h-16 w-full rounded-md border border-dashed border-slate-300/60 bg-slate-50/50" />
-                            <Skeleton className="h-16 w-full rounded-md border border-dashed border-slate-300/60 bg-slate-50/50" />
+                            <Skeleton className="h-[5.5rem] w-full rounded-md" />
+                            <Skeleton className="h-[5.5rem] w-full rounded-md" />
+                            <Skeleton className="h-[5.5rem] w-full rounded-md border border-dashed border-slate-300/60 bg-slate-50/50" />
                           </div>
                         </div>
                       </div>
@@ -106,29 +113,29 @@ export function IncomeDashboardSkeleton() {
                   </div>
                 </div>
 
-                {/* Recent Income sidebar */}
                 <div className={INCOME_DASHBOARD_RECENT_COLUMN}>
-                  <div className="flex min-h-0 min-w-0 flex-col">
-                    <div className="flex min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                  <div className="flex h-full min-h-0 min-w-0 flex-col">
+                    <div className={INCOME_DASHBOARD_RECENT_PANEL}>
                       <div className="shrink-0 border-b border-border px-4 py-1.5">
                         <Skeleton className="mb-1 h-4 w-32" />
                         <Skeleton className="h-3 w-48" />
                       </div>
-                      <div className="min-h-0 flex-1">
-                        <div className="h-full min-h-0 space-y-2 p-4">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Skeleton key={i} className="h-14 w-full rounded-md" />
-                          ))}
+                      <div className={INCOME_DASHBOARD_RECENT_PANEL_BODY}>
+                        <div className={INCOME_DASHBOARD_RECENT_PANEL_SCROLL}>
+                          <div className="space-y-2">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Skeleton key={i} className="h-14 w-full rounded-md" />
+                            ))}
+                          </div>
                         </div>
+                      </div>
+                      <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
+                        <Skeleton className="h-3 w-full max-w-[200px]" />
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div
-                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
             </div>
           </div>
         </div>

@@ -1,20 +1,14 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { xenditRequestProbe } from "../xenditClient.ts";
 import type { XenditEnvConfig } from "../xenditEnv.ts";
+import { mapXenditAccountStatus } from "./createSubAccount.ts";
 
 type XenditAccountResponse = {
   id?: string;
   user_id?: string;
   status?: string;
+  kyc_status?: string;
 };
-
-function mapXenditAccountStatus(status: string | undefined): string {
-  const apiStatus = String(status ?? "").trim().toUpperCase();
-  if (apiStatus === "LIVE" || apiStatus === "REGISTERED" || apiStatus === "ACTIVE") return "active";
-  if (apiStatus === "SUSPENDED") return "suspended";
-  if (apiStatus === "FAILED") return "failed";
-  return "pending";
-}
 
 function isXenditAccountNotFound(status: number, body: unknown): boolean {
   if (status === 404) return true;
@@ -25,8 +19,8 @@ function isXenditAccountNotFound(status: number, body: unknown): boolean {
   return code.includes("NOT_FOUND") || code === "DATA_NOT_FOUND" || message.includes("not found");
 }
 
-/** Sync local organization_xendit_accounts with Xendit xenPlatform (detect dashboard deletions). */
-export async function reconcileOrgXenditSubAccount(
+/** Sync a single xendit_sub_accounts row with Xendit xenPlatform API. */
+export async function reconcileXenditSubAccountRow(
   admin: SupabaseClient,
   env: XenditEnvConfig,
   organizationId: string,
@@ -34,8 +28,9 @@ export async function reconcileOrgXenditSubAccount(
 ): Promise<Record<string, unknown> | null> {
   if (!accountRow) return null;
 
+  const rowId = String(accountRow.id ?? "").trim();
   const subId = String(accountRow.xendit_sub_account_id ?? "").trim();
-  if (!subId) return accountRow;
+  if (!subId || !rowId) return accountRow;
 
   const probe = await xenditRequestProbe(env.secretKey, {
     method: "GET",
@@ -45,13 +40,24 @@ export async function reconcileOrgXenditSubAccount(
   if (probe.ok) {
     const body = probe.body as XenditAccountResponse;
     const mappedStatus = mapXenditAccountStatus(body.status);
+    const kycStatus = body.kyc_status ? String(body.kyc_status) : null;
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    let changed = false;
+
     if (mappedStatus !== String(accountRow.status ?? "")) {
+      updates.status = mappedStatus;
+      changed = true;
+    }
+    if (kycStatus && kycStatus !== String(accountRow.kyc_status ?? "")) {
+      updates.kyc_status = kycStatus;
+      changed = true;
+    }
+
+    if (changed) {
       const { data: updated, error } = await admin
-        .from("organization_xendit_accounts")
-        .update({
-          status: mappedStatus,
-          updated_at: new Date().toISOString(),
-        })
+        .from("xendit_sub_accounts")
+        .update(updates)
+        .eq("id", rowId)
         .eq("organization_id", organizationId)
         .select("*")
         .single();
@@ -61,7 +67,6 @@ export async function reconcileOrgXenditSubAccount(
   }
 
   if (!isXenditAccountNotFound(probe.status, probe.body)) {
-    // Transient / permission errors: keep cached row; do not wipe on API blips.
     return accountRow;
   }
 
@@ -71,10 +76,10 @@ export async function reconcileOrgXenditSubAccount(
       : {};
 
   const { data: cleared, error } = await admin
-    .from("organization_xendit_accounts")
+    .from("xendit_sub_accounts")
     .update({
       xendit_sub_account_id: null,
-      status: "pending",
+      status: "failed",
       metadata: {
         ...prevMeta,
         sub_account_removed_at: new Date().toISOString(),
@@ -83,10 +88,58 @@ export async function reconcileOrgXenditSubAccount(
       },
       updated_at: new Date().toISOString(),
     })
+    .eq("id", rowId)
     .eq("organization_id", organizationId)
     .select("*")
     .single();
 
   if (error) throw new Error(error.message);
   return (cleared ?? accountRow) as Record<string, unknown>;
+}
+
+/** @deprecated Use reconcileXenditSubAccountRow */
+export async function reconcileOrgXenditSubAccount(
+  admin: SupabaseClient,
+  env: XenditEnvConfig,
+  organizationId: string,
+  accountRow: Record<string, unknown> | null,
+): Promise<Record<string, unknown> | null> {
+  if (!accountRow) return null;
+  const rowId = String(accountRow.id ?? "").trim();
+  if (rowId) {
+    return reconcileXenditSubAccountRow(admin, env, organizationId, accountRow);
+  }
+  const subId = String(accountRow.xendit_sub_account_id ?? "").trim();
+  if (!subId) return accountRow;
+  const { data } = await admin
+    .from("xendit_sub_accounts")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq("xendit_sub_account_id", subId)
+    .maybeSingle();
+  if (!data) return accountRow;
+  return reconcileXenditSubAccountRow(admin, env, organizationId, data as Record<string, unknown>);
+}
+
+export async function reconcileOrgSubAccounts(
+  admin: SupabaseClient,
+  env: XenditEnvConfig,
+  organizationId: string,
+): Promise<Record<string, unknown>[]> {
+  const { data, error } = await admin
+    .from("xendit_sub_accounts")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .order("is_primary", { ascending: false })
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const reconciled: Record<string, unknown>[] = [];
+  for (const row of rows) {
+    reconciled.push(
+      (await reconcileXenditSubAccountRow(admin, env, organizationId, row)) ?? row,
+    );
+  }
+  return reconciled;
 }

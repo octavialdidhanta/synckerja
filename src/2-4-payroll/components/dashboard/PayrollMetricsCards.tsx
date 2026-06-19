@@ -1,13 +1,56 @@
-import { TrendingUp, DollarSign, Calculator, AlertTriangle } from "lucide-react";
+import type { ReactNode } from "react";
+import {
+  TrendingUp,
+  DollarSign,
+  Calculator,
+  AlertTriangle,
+  Wallet,
+  Loader2,
+  CheckCircle2,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { formatToRupiah } from "@/shared/utils/formatCurrency";
+import { formatGatewaySyncedAtLabel } from "@/shared/utils/formatGatewaySyncedAt";
+import { cn } from "@/shared/lib/utils";
+import { usePayrollDisbursePreview } from "../../hooks/usePayrollDisbursePreview";
+import { usePayrollXenditCashBalance } from "../../hooks/usePayrollXenditCashBalance";
+import {
+  deltaBadgeClassName,
+  formatDeltaPercent,
+  formatDeltaSign,
+} from "../PayrollDisburseSummaryStrip";
+
+type DisburseMode = {
+  organizationId: string;
+  runId: string;
+};
 
 interface PayrollMetricsCardsProps {
   calculations: Record<string, unknown>[];
   selectedPayrollRunId?: string | null;
+  disburseMode?: DisburseMode | null;
 }
 
-export function PayrollMetricsCards({ calculations, selectedPayrollRunId }: PayrollMetricsCardsProps) {
+type MetricCard = {
+  title: string;
+  value: string | number;
+  icon: typeof Calculator;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  subtitle?: ReactNode;
+};
+
+export function PayrollMetricsCards({
+  calculations,
+  selectedPayrollRunId,
+  disburseMode = null,
+}: PayrollMetricsCardsProps) {
+  const { t } = useTranslation();
+  const disburseActive = Boolean(disburseMode?.runId && disburseMode?.organizationId);
+
   const { data: selectedPayrollRun } = useQuery({
     queryKey: ["payroll-run-details", selectedPayrollRunId],
     queryFn: async () => {
@@ -27,6 +70,15 @@ export function PayrollMetricsCards({ calculations, selectedPayrollRunId }: Payr
     enabled: !!selectedPayrollRunId,
   });
 
+  const { data: preview, isLoading: previewLoading } = usePayrollDisbursePreview(
+    disburseMode?.runId ?? null,
+    disburseActive,
+  );
+  const comparison = preview?.period_comparison;
+  const summary = preview?.summary;
+
+  const cashBalance = usePayrollXenditCashBalance(disburseMode?.organizationId, disburseActive);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -36,37 +88,140 @@ export function PayrollMetricsCards({ calculations, selectedPayrollRunId }: Payr
     }).format(amount || 0);
   };
 
-  const metrics = selectedPayrollRun
+  const inSelectedRun = t("payroll.calculations.metrics.inSelectedRun", "Pada run terpilih");
+  const allCalculations = t("payroll.calculations.metrics.allCalculations", "Semua kalkulasi");
+
+  const netPayComparisonSubtitle =
+    disburseActive && selectedPayrollRun ? (
+      <div className="leading-snug">
+        {previewLoading ? (
+          <div className="text-muted-foreground flex items-center gap-1 text-[11px]">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t("payroll.xendit.loadingPreview", "Memuat preview…")}
+          </div>
+        ) : comparison?.available ? (
+          <>
+            <div className="flex flex-wrap items-center gap-1 text-[11px]">
+              <span className="text-muted-foreground truncate">{comparison.previous_period_name}</span>
+              {comparison.delta_percent != null && (
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 rounded px-1 py-px text-[10px] font-semibold tabular-nums",
+                    deltaBadgeClassName(comparison.severity),
+                  )}
+                >
+                  {formatDeltaSign(comparison.delta_percent)}
+                  {formatDeltaPercent(comparison.delta_percent)}%
+                </span>
+              )}
+            </div>
+            <div className="text-muted-foreground mt-px truncate text-[11px] tabular-nums">
+              {t("payroll.xendit.previousPeriodThpShort", "THP periode lalu {{amount}}", {
+                amount: formatToRupiah(comparison.previous_total_thp ?? 0),
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="text-muted-foreground line-clamp-2 text-[11px]">
+            {t(
+              "payroll.xendit.thpNoPreviousPeriod",
+              "Belum ada data payroll periode sebelumnya untuk perbandingan.",
+            )}
+          </div>
+        )}
+      </div>
+    ) : undefined;
+
+  const insufficientBalance =
+    disburseActive &&
+    summary &&
+    !cashBalance.isSyncing &&
+    cashBalance.balance < (summary.total_thp_pending ?? 0);
+
+  const xenditBalanceSubtitle =
+    disburseActive &&
+    (cashBalance.isSyncing ? (
+      <div className="text-muted-foreground flex items-center gap-1 text-[11px] leading-snug">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        {t("payroll.xendit.balanceSyncing", "Memuat saldo CASH terbaru…")}
+      </div>
+    ) : cashBalance.syncError ? (
+      <div className="text-destructive line-clamp-2 text-[11px] leading-snug">
+        {t(
+          "payroll.xendit.balanceSyncError",
+          "Gagal memuat saldo. Coba refresh atau buka halaman Xendit Balance.",
+        )}
+      </div>
+    ) : (
+      <div className="leading-snug">
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-x-1 gap-y-px text-[11px] font-medium",
+            insufficientBalance ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+          )}
+        >
+          {insufficientBalance ? (
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+          ) : (
+            <CheckCircle2 className="h-3 w-3 shrink-0" />
+          )}
+          <span>
+            {insufficientBalance
+              ? t("payroll.xendit.balanceInsufficientShort", "Saldo CASH tidak mencukupi")
+              : t("payroll.xendit.balanceSufficient", "Saldo CASH mencukupi")}
+          </span>
+          <span className="text-muted-foreground font-normal">
+            · {formatGatewaySyncedAtLabel(cashBalance.syncedAt, t)}
+          </span>
+        </div>
+        {cashBalance.selectableCount > 1 && (
+          <div className="text-muted-foreground mt-px truncate text-[11px]">
+            {t("payroll.xendit.aggregateBalanceHint", "Total semua akun: {{total}}", {
+              total: formatToRupiah(cashBalance.aggregateBalance),
+            })}
+          </div>
+        )}
+        {cashBalance.escrowEnabled && cashBalance.reservedCash > 0 && (
+          <div className="text-muted-foreground mt-px truncate text-[11px]">
+            {t("payroll.escrow.reservedCashHint", "Reserved escrow: {{amount}}", {
+              amount: formatToRupiah(cashBalance.reservedCash),
+            })}
+          </div>
+        )}
+      </div>
+    ));
+
+  const metrics: MetricCard[] = selectedPayrollRun
     ? [
         {
-          title: "Total Employees",
+          title: t("payroll.calculations.metrics.totalEmployees", "Total Karyawan"),
           value: selectedPayrollRun.total_employees || 0,
           icon: Calculator,
           color: "text-primary",
           bgColor: "bg-primary/10",
           borderColor: "border-primary/20",
-          subtitle: "In selected run",
+          subtitle: disburseActive ? undefined : inSelectedRun,
         },
         {
-          title: "Total Gross Pay",
+          title: t("payroll.calculations.metrics.totalGrossPay", "Total Gaji Kotor"),
           value: formatCurrency(Number(selectedPayrollRun.total_gross_pay) || 0),
           icon: TrendingUp,
           color: "text-emerald-600 dark:text-emerald-400",
           bgColor: "bg-emerald-500/10",
           borderColor: "border-emerald-500/20",
-          subtitle: "In selected run",
+          subtitle: disburseActive ? undefined : inSelectedRun,
         },
         {
-          title: "Total Net Pay",
+          title: t("payroll.calculations.metrics.totalNetPay", "Total Gaji Bersih"),
           value: formatCurrency(Number(selectedPayrollRun.total_net_pay) || 0),
           icon: DollarSign,
           color: "text-teal-600 dark:text-teal-400",
           bgColor: "bg-teal-500/10",
           borderColor: "border-teal-500/20",
-          subtitle: "In selected run",
+          subtitle: netPayComparisonSubtitle ?? (disburseActive ? undefined : inSelectedRun),
         },
         {
-          title: "Total Deductions",
+          title: t("payroll.calculations.metrics.totalDeductions", "Total Potongan"),
           value: formatCurrency(
             (Number(selectedPayrollRun.total_deductions) || 0) +
               (Number(selectedPayrollRun.total_penalties) || 0),
@@ -75,21 +230,36 @@ export function PayrollMetricsCards({ calculations, selectedPayrollRunId }: Payr
           color: "text-destructive",
           bgColor: "bg-destructive/10",
           borderColor: "border-destructive/20",
-          subtitle: "In selected run",
+          subtitle: disburseActive ? undefined : inSelectedRun,
         },
+        ...(disburseActive
+          ? [
+              {
+                title: cashBalance.escrowEnabled
+                  ? t("payroll.escrow.operationalCashTitle", "CASH Operasional (Utama)")
+                  : t("payroll.xendit.balanceCash", "Saldo CASH Xendit"),
+                value: cashBalance.isSyncing ? "…" : formatToRupiah(cashBalance.operationalCash),
+                icon: Wallet,
+                color: insufficientBalance ? "text-destructive" : "text-violet-600 dark:text-violet-400",
+                bgColor: insufficientBalance ? "bg-destructive/10" : "bg-violet-500/10",
+                borderColor: insufficientBalance ? "border-destructive/20" : "border-violet-500/20",
+                subtitle: xenditBalanceSubtitle,
+              } satisfies MetricCard,
+            ]
+          : []),
       ]
     : [
         {
-          title: "Total Calculations",
+          title: t("payroll.calculations.metrics.totalCalculations", "Total Kalkulasi"),
           value: calculations?.length || 0,
           icon: Calculator,
           color: "text-primary",
           bgColor: "bg-primary/10",
           borderColor: "border-primary/20",
-          subtitle: "All calculations",
+          subtitle: allCalculations,
         },
         {
-          title: "Total Gross Pay",
+          title: t("payroll.calculations.metrics.totalGrossPay", "Total Gaji Kotor"),
           value: formatCurrency(
             calculations?.reduce((sum, calc) => sum + (Number(calc.gross_pay) || 0), 0) || 0,
           ),
@@ -97,10 +267,10 @@ export function PayrollMetricsCards({ calculations, selectedPayrollRunId }: Payr
           color: "text-emerald-600 dark:text-emerald-400",
           bgColor: "bg-emerald-500/10",
           borderColor: "border-emerald-500/20",
-          subtitle: "All calculations",
+          subtitle: allCalculations,
         },
         {
-          title: "Total Net Pay",
+          title: t("payroll.calculations.metrics.totalNetPay", "Total Gaji Bersih"),
           value: formatCurrency(
             calculations?.reduce((sum, calc) => sum + (Number(calc.net_pay) || 0), 0) || 0,
           ),
@@ -108,10 +278,10 @@ export function PayrollMetricsCards({ calculations, selectedPayrollRunId }: Payr
           color: "text-teal-600 dark:text-teal-400",
           bgColor: "bg-teal-500/10",
           borderColor: "border-teal-500/20",
-          subtitle: "All calculations",
+          subtitle: allCalculations,
         },
         {
-          title: "Total Deductions",
+          title: t("payroll.calculations.metrics.totalDeductions", "Total Potongan"),
           value: formatCurrency(
             calculations?.reduce(
               (sum, calc) =>
@@ -123,28 +293,47 @@ export function PayrollMetricsCards({ calculations, selectedPayrollRunId }: Payr
           color: "text-destructive",
           bgColor: "bg-destructive/10",
           borderColor: "border-destructive/20",
-          subtitle: "All calculations",
+          subtitle: allCalculations,
         },
       ];
 
   return (
-    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-1 sm:grid-cols-2",
+        disburseActive ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4",
+      )}
+    >
       {metrics.map((metric, index) => {
         const Icon = metric.icon;
         return (
           <div
             key={index}
-            className={`${metric.bgColor} ${metric.borderColor} rounded-md border p-4`}
+            className={cn(
+              "rounded-md border px-2.5 py-2",
+              metric.bgColor,
+              metric.borderColor,
+            )}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-foreground text-sm font-medium">{metric.title}</h3>
-              <Icon className={`h-5 w-5 ${metric.color}`} />
+            <div className="flex items-center justify-between gap-1">
+              <h3 className="text-foreground truncate text-xs font-medium leading-none">
+                {metric.title}
+              </h3>
+              <Icon className={cn("h-3.5 w-3.5 shrink-0", metric.color)} />
             </div>
 
-            <div className="space-y-1">
-              <div className="text-foreground truncate text-2xl font-bold">{metric.value}</div>
-              <div className="text-muted-foreground text-xs">{metric.subtitle}</div>
+            <div className="text-foreground mt-1 truncate text-2xl font-bold leading-tight tabular-nums">
+              {metric.value}
             </div>
+            {metric.subtitle ? (
+              typeof metric.subtitle === "string" ? (
+                <div className="text-muted-foreground mt-0.5 text-[11px] leading-snug">
+                  {metric.subtitle}
+                </div>
+              ) : (
+                <div className="mt-0.5">{metric.subtitle}</div>
+              )
+            ) : null}
           </div>
         );
       })}

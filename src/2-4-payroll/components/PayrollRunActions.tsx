@@ -1,32 +1,66 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, CheckCircle2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "sonner";
+import { cn } from "@/shared/lib/utils";
 import {
   buildPayrollBankCsv,
   downloadPayrollBankCsv,
   type PayrollBankExportRow,
 } from "../lib/payrollBankExport";
 import { MarkPayrollRunPaidDialog } from "../modals/MarkPayrollRunPaidDialog";
-import { PayrollXenditDisburseActions } from "./PayrollXenditDisburseActions";
-import { PayrollBrickDisburseActions } from "./PayrollBrickDisburseActions";
+import { usePayrollEscrowSettings } from "../escrow/hooks/usePayrollEscrowSettings";
+import {
+  PayrollXenditDisburseButton,
+  PayrollXenditDisbursePanelSection,
+  usePayrollXenditDisburseFlow,
+} from "./PayrollXenditDisburseActions";
+import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 
 interface PayrollRunActionsProps {
   runId: string | null;
   runName?: string;
   runStatus?: string;
+  hasActiveDisbursement?: boolean;
   onActionComplete?: () => void;
+  onDisbursePanelOpenChange?: (open: boolean) => void;
 }
 
 export function PayrollRunActions({
   runId,
   runName,
   runStatus,
+  hasActiveDisbursement = false,
   onActionComplete,
+  onDisbursePanelOpenChange,
 }: PayrollRunActionsProps) {
+  const { organization } = useCentralizedUserData();
+  const { data: escrowSettings } = usePayrollEscrowSettings(organization?.id);
   const [exporting, setExporting] = useState(false);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
+  const [disbursePanelOpen, setDisbursePanelOpen] = useState(false);
+
+  const handleDisbursePanelOpenChange = (open: boolean) => {
+    setDisbursePanelOpen(open);
+    onDisbursePanelOpenChange?.(open);
+  };
+
+  const disburseFlow = usePayrollXenditDisburseFlow({
+    runId,
+    runStatus,
+    hasActiveDisbursement,
+    onActionComplete,
+    panelOpen: disbursePanelOpen,
+    onPanelOpenChange: handleDisbursePanelOpenChange,
+  });
+
+  const panelExpanded = disbursePanelOpen;
+
+  useEffect(() => {
+    setDisbursePanelOpen(false);
+    onDisbursePanelOpenChange?.(false);
+  }, [runId, onDisbursePanelOpenChange]);
 
   const handleExportCsv = async () => {
     if (!runId) {
@@ -97,35 +131,52 @@ export function PayrollRunActions({
 
   if (!runId) return null;
 
+  const showMarkAsPaid =
+    runStatus === "calculated" &&
+    !hasActiveDisbursement &&
+    !panelExpanded &&
+    !escrowSettings?.is_enabled;
+
   return (
     <>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={exporting}
-          onClick={() => void handleExportCsv()}
-        >
-          <Download className="mr-1 h-4 w-4" />
-          Export Bank CSV
-        </Button>
-        <PayrollXenditDisburseActions
-          runId={runId}
-          runStatus={runStatus}
-          onActionComplete={onActionComplete}
-        />
-        <PayrollBrickDisburseActions
-          runId={runId}
-          runStatus={runStatus}
-          onActionComplete={onActionComplete}
-        />
-        {runStatus === "calculated" && (
-          <Button size="sm" variant="default" onClick={() => setMarkPaidOpen(true)}>
-            <CheckCircle2 className="mr-1 h-4 w-4" />
-            Mark as Paid
-          </Button>
+      <div
+        className={cn(
+          "flex min-h-0 w-full flex-col gap-2",
+          panelExpanded && "min-h-0 flex-1",
         )}
+      >
+        <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-md border border-border bg-card px-3 py-2 shadow-sm">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            disabled={exporting}
+            onClick={() => void handleExportCsv()}
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            Export Bank CSV
+          </Button>
+
+          {disburseFlow.visible ? <PayrollXenditDisburseButton flow={disburseFlow} /> : null}
+
+          {showMarkAsPaid ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="shrink-0"
+              onClick={() => setMarkPaidOpen(true)}
+            >
+              <CheckCircle2 className="mr-1.5 h-4 w-4" />
+              Mark as Paid
+            </Button>
+          ) : null}
+        </div>
+
+        {disburseFlow.visible ? <PayrollXenditDisbursePanelSection flow={disburseFlow} /> : null}
       </div>
+
       <MarkPayrollRunPaidDialog
         runId={runId}
         runName={runName}

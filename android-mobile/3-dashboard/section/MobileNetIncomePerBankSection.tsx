@@ -147,7 +147,7 @@ export function MobileNetIncomePerBankSection({
                   wallet={xenditWallet}
                   periodNet={gatewayPeriodNet?.xendit}
                   isStale={isStaleXendit}
-                  subtitle={t("incomes.gateway.xenditSubAccount", "Sub-account tenant")}
+                  subtitle={t("incomes.gateway.xenditSubAccount", "Akun tenant")}
                   settingsHref="/xendit/connect"
                   onSync={syncXenditWallet}
                   syncing={syncingXendit}

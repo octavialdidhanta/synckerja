@@ -6,10 +6,16 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 /**
  * Turn `"sidebar.home.title"` → nested `{ sidebar: { home: { title: "..." } } }` for i18next.
+ * Deeper keys are applied first so a short scalar key (e.g. `incomes.transaction`) cannot
+ * overwrite an existing namespace (e.g. `foo.bar.baz.*`).
  */
 export function flatTranslationRecordToNested(flat: Record<string, string>): Record<string, unknown> {
   const root: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(flat)) {
+  const entries = Object.entries(flat).sort(
+    ([a], [b]) => b.split(".").filter(Boolean).length - a.split(".").filter(Boolean).length,
+  );
+
+  for (const [key, value] of entries) {
     const parts = key.split(".").filter(Boolean);
     if (parts.length === 0) continue;
     let cur: Record<string, unknown> = root;
@@ -21,7 +27,12 @@ export function flatTranslationRecordToNested(flat: Record<string, string>): Rec
       }
       cur = cur[p] as Record<string, unknown>;
     }
-    cur[parts[parts.length - 1]] = value;
+    const leaf = parts[parts.length - 1];
+    const existing = cur[leaf];
+    if (isPlainObject(existing)) {
+      continue;
+    }
+    cur[leaf] = value;
   }
   return root;
 }

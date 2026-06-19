@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -23,17 +22,27 @@ import {
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useBankAccounts } from "@/shared/hooks/finance/useBankAccounts";
 import { createXenditSubAccount } from "@/xendit/lib/xenditApi";
+import { useXenditOrgSettings } from "@/xendit/hooks/useXenditOrgSettings";
+import {
+  getSubAccountEmailErrorMessage,
+  isSubAccountEmailTaken,
+} from "@/xendit/lib/subAccountEmailUtils";
 import {
   isValidEmailAddress,
   mapBankNameToXenditCode,
   XENDIT_DISBURSEMENT_BANKS,
 } from "@/xendit/lib/bankCodes";
-import type { XenditOrgAccount } from "@/xendit/types/xendit";
+import {
+  FormFieldLabel,
+  FormInfoHint,
+} from "@/shared/components/FormInfoHint";
 
 type CreateXenditSubAccountDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  account: XenditOrgAccount | null | undefined;
+  accountType: "OWNED" | "MANAGED";
+  defaultBusinessName?: string;
+  defaultEmail?: string;
 };
 
 const NONE_BANK = "__none__";
@@ -41,11 +50,14 @@ const NONE_BANK = "__none__";
 export function CreateXenditSubAccountDialog({
   open,
   onOpenChange,
-  account,
+  accountType,
+  defaultBusinessName = "",
+  defaultEmail = "",
 }: CreateXenditSubAccountDialogProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
+  const { data: xenditSettings } = useXenditOrgSettings(organizationId);
   const { bankAccounts = [], loading: banksLoading } = useBankAccounts();
 
   const [businessName, setBusinessName] = useState("");
@@ -63,15 +75,13 @@ export function CreateXenditSubAccountDialog({
 
   useEffect(() => {
     if (!open) return;
-    const seedEmail =
-      account?.email && isValidEmailAddress(account.email) ? account.email : "";
-    setBusinessName(account?.business_name?.trim() ?? "");
-    setEmail(seedEmail);
+    setBusinessName(defaultBusinessName);
+    setEmail(defaultEmail && isValidEmailAddress(defaultEmail) ? defaultEmail : "");
     setLinkedBankAccountId(NONE_BANK);
     setBankCode("");
     setAccountNumber("");
     setAccountHolder("");
-  }, [open, account?.business_name, account?.email]);
+  }, [open, defaultBusinessName, defaultEmail]);
 
   const applyBankAccount = (bankAccountId: string) => {
     setLinkedBankAccountId(bankAccountId);
@@ -94,18 +104,24 @@ export function CreateXenditSubAccountDialog({
     const trimmedBank = bankCode.trim();
 
     if (!trimmedName) {
-      toast.error(t("xendit.subAccountBusinessNameRequired", "Business name is required"));
+      toast.error(t("xendit.subAccountDrawerLabelRequired", "Nama akun wajib diisi"));
       return;
     }
     if (!isValidEmailAddress(trimmedEmail)) {
-      toast.error(t("xendit.subAccountEmailInvalid", "Enter a valid email address"));
+      toast.error(t("xendit.subAccountEmailInvalid", "Masukkan alamat email yang valid"));
+      return;
+    }
+    if (isSubAccountEmailTaken(trimmedEmail, xenditSettings?.subAccounts)) {
+      toast.error(
+        t("xendit.subAccountEmailAlreadyExists", "Email sudah terdaftar untuk bisnis ini"),
+      );
       return;
     }
     if (!trimmedBank || !trimmedNumber || !trimmedHolder) {
       toast.error(
         t(
           "xendit.subAccountBankRequired",
-          "Select a bank account or fill in bank code, account number, and holder name",
+          "Pilih rekening bank atau isi kode bank, nomor rekening, dan nama pemilik",
         ),
       );
       return;
@@ -117,19 +133,19 @@ export function CreateXenditSubAccountDialog({
         organizationId,
         businessName: trimmedName,
         email: trimmedEmail.toLowerCase(),
-        type: "OWNED",
+        type: accountType,
         linkedBankAccountId:
           linkedBankAccountId !== NONE_BANK ? linkedBankAccountId : null,
         payoutBankCode: trimmedBank,
         payoutAccountNumber: trimmedNumber,
         payoutAccountHolderName: trimmedHolder,
       });
-      toast.success(t("xendit.subAccountCreated", "Sub-account created"));
+      toast.success(t("xendit.subAccountCreated", "Akun berhasil dibuat"));
       void queryClient.invalidateQueries({ queryKey: ["xendit-settings", organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["bank-accounts", organizationId] });
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(getSubAccountEmailErrorMessage(err, t));
     } finally {
       setSubmitting(false);
     }
@@ -139,32 +155,44 @@ export function CreateXenditSubAccountDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t("xendit.createSubAccountTitle", "Create Xendit sub-account")}</DialogTitle>
-          <DialogDescription>
-            {t(
-              "xendit.createSubAccountDesc",
-              "Register your xenPlatform drawer with Xendit. Use a real business email and the bank account used for withdrawals and disbursements.",
-            )}
-          </DialogDescription>
+          <DialogTitle>{t("xendit.createSubAccountTitle", "Sub-account Xendit baru")}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="xendit-business-name">
-              {t("xendit.subAccountBusinessName", "Business name")}
-            </Label>
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
+          <div className="space-y-1.5">
+            <FormFieldLabel
+              htmlFor="xendit-business-name"
+              label={t("xendit.subAccountNameShort", "Nama akun")}
+              info={t(
+                "xendit.subAccountDrawerLabelHint",
+                "Nama ini muncul di daftar sub-account Xendit. Contoh: Gaji operasional, Escrow PPh21 & BPJS, atau Penjualan online.",
+              )}
+              infoAriaLabel={t("xendit.subAccountNameShort", "Nama akun")}
+            />
             <Input
               id="xendit-business-name"
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
-              placeholder={t("xendit.subAccountBusinessNamePlaceholder", "PT Contoh Indonesia")}
+              placeholder={t(
+                "xendit.subAccountDrawerLabelPlaceholder",
+                "Escrow PPh21 & BPJS",
+              )}
               required
-              autoComplete="organization"
+              autoComplete="off"
+              className="h-9"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="xendit-email">{t("xendit.subAccountEmail", "Business email")}</Label>
+          <div className="space-y-1.5">
+            <FormFieldLabel
+              htmlFor="xendit-email"
+              label={t("xendit.subAccountEmailShort", "Email")}
+              info={t(
+                "xendit.subAccountEmailHint",
+                "Satu email = satu sub-account per organisasi. Harus email valid yang diterima Xendit (bukan alamat placeholder).",
+              )}
+              infoAriaLabel={t("xendit.subAccountEmailShort", "Email")}
+            />
             <Input
               id="xendit-email"
               type="email"
@@ -173,34 +201,36 @@ export function CreateXenditSubAccountDialog({
               placeholder="finance@company.com"
               required
               autoComplete="email"
+              className="h-9"
             />
-            <p className="text-[11px] text-muted-foreground">
-              {t(
-                "xendit.subAccountEmailHint",
-                "Must be a valid email accepted by Xendit (not a placeholder address).",
-              )}
-            </p>
           </div>
 
-          <div className="space-y-2">
-            <Label>{t("xendit.linkErpBankAccount", "Link ERP bank account")}</Label>
+          <div className="space-y-1.5">
+            <FormFieldLabel
+              label={t("xendit.linkErpBankAccountShort", "Rekening Keuangan")}
+              info={t(
+                "xendit.linkErpBankAccountHint",
+                "Opsional. Pilih rekening dari menu Keuangan agar kolom bank di bawah terisi otomatis.",
+              )}
+              infoAriaLabel={t("xendit.linkErpBankAccountShort", "Rekening Keuangan")}
+            />
             <Select
               value={linkedBankAccountId}
               onValueChange={applyBankAccount}
               disabled={banksLoading || activeBanks.length === 0}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-9">
                 <SelectValue
                   placeholder={
                     banksLoading
-                      ? t("common.loading", "Loading…")
-                      : t("xendit.selectBankAccount", "Select bank account (optional)")
+                      ? t("common.loading", "Memuat…")
+                      : t("xendit.manualBankEntry", "Isi manual")
                   }
                 />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE_BANK}>
-                  {t("xendit.manualBankEntry", "Enter bank details manually")}
+                  {t("xendit.manualBankEntry", "Isi manual")}
                 </SelectItem>
                 {activeBanks.map((bank) => (
                   <SelectItem key={bank.id} value={bank.id}>
@@ -214,11 +244,20 @@ export function CreateXenditSubAccountDialog({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label>{t("xendit.bank", "Bank")}</Label>
+            <div className="space-y-1.5 sm:col-span-2">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-sm font-medium">{t("xendit.bank", "Bank")}</Label>
+                <FormInfoHint
+                  ariaLabel={t("xendit.payoutBankInfo", "Validasi rekening")}
+                  content={t(
+                    "xendit.payoutValidation.createHint",
+                    "Rekening payout divalidasi ke bank (Iluma) sebelum akun dibuat. Hanya hasil MATCH yang diterima.",
+                  )}
+                />
+              </div>
               <Select value={bankCode || undefined} onValueChange={setBankCode}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("xendit.selectBank", "Select bank")} />
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder={t("xendit.selectBank", "Pilih bank")} />
                 </SelectTrigger>
                 <SelectContent>
                   {XENDIT_DISBURSEMENT_BANKS.map((bank) => (
@@ -230,9 +269,9 @@ export function CreateXenditSubAccountDialog({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="xendit-account-number">
-                {t("xendit.accountNumber", "Account number")}
+            <div className="space-y-1.5">
+              <Label htmlFor="xendit-account-number" className="text-sm font-medium">
+                {t("xendit.accountNumber", "Nomor rekening")}
               </Label>
               <Input
                 id="xendit-account-number"
@@ -240,37 +279,32 @@ export function CreateXenditSubAccountDialog({
                 onChange={(e) => setAccountNumber(e.target.value)}
                 inputMode="numeric"
                 required
+                className="h-9"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="xendit-account-holder">
-                {t("xendit.accountHolder", "Account holder")}
+            <div className="space-y-1.5">
+              <Label htmlFor="xendit-account-holder" className="text-sm font-medium">
+                {t("xendit.accountHolder", "Nama pemilik")}
               </Label>
               <Input
                 id="xendit-account-holder"
                 value={accountHolder}
                 onChange={(e) => setAccountHolder(e.target.value)}
                 required
+                className="h-9"
               />
             </div>
           </div>
 
-          <p className="text-[11px] text-muted-foreground">
-            {t(
-              "xendit.payoutValidation.createHint",
-              "Rekening payout akan divalidasi ke bank (Iluma) sebelum sub-account dibuat. Hanya hasil MATCH yang diterima.",
-            )}
-          </p>
-
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 pt-1 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-              {t("common.cancel", "Cancel")}
+              {t("common.cancel", "Batal")}
             </Button>
             <Button type="submit" disabled={submitting}>
               {submitting
-                ? t("xendit.processing", "Processing…")
-                : t("xendit.createSubAccount", "Create sub-account")}
+                ? t("xendit.processing", "Memproses…")
+                : t("xendit.createSubAccount", "Daftarkan")}
             </Button>
           </DialogFooter>
         </form>

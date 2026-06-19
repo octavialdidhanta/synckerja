@@ -5,6 +5,7 @@ import { useBrickLinkedAccounts } from '@/4-1-transaction/hooks/useBrickLinkedAc
 import { fetchBrickWalletBalance } from '@/4-1-transaction/lib/brickBankApi';
 import { fetchXenditWalletBalance, pollXenditDisbursements } from '@/xendit/lib/xenditApi';
 import { useXenditOrgSettings } from '@/xendit/hooks/useXenditOrgSettings';
+import { isSubAccountSelectable } from '@/xendit/lib/xenditSubAccountUtils';
 import { supabase } from '@/shared/lib/supabaseClient';
 
 export type GatewayWalletRow = {
@@ -19,6 +20,8 @@ export type GatewayWalletRow = {
   updated_at: string;
 };
 
+export type GatewayWalletSyncMode = 'if_stale' | 'always_on_mount';
+
 const STALE_SYNC_MS = 15 * 60 * 1000;
 
 function isSnapshotStale(row: GatewayWalletRow | null | undefined): boolean {
@@ -27,20 +30,27 @@ function isSnapshotStale(row: GatewayWalletRow | null | undefined): boolean {
   return Date.now() - new Date(row.synced_at).getTime() > STALE_SYNC_MS;
 }
 
-export function useGatewayWalletBalances(options?: { autoSync?: boolean }) {
+export function useGatewayWalletBalances(options?: {
+  autoSync?: boolean;
+  syncMode?: GatewayWalletSyncMode;
+}) {
   const autoSync = options?.autoSync !== false;
+  const syncMode = options?.syncMode ?? 'if_stale';
   const { organizationId } = useCurrentOrg();
   const queryClient = useQueryClient();
   const { hasLinkedAccount, loading: brickLinksLoading } = useBrickLinkedAccounts();
   const { data: xenditSettings, isLoading: xenditSettingsLoading } = useXenditOrgSettings(organizationId);
   const brickAutoSyncRef = useRef(false);
   const xenditAutoSyncRef = useRef(false);
+  const xenditMountSyncDoneRef = useRef<string | null>(null);
   const [syncingBrick, setSyncingBrick] = useState(false);
   const [syncingXendit, setSyncingXendit] = useState(false);
 
   const brickEligible = hasLinkedAccount;
   const xenditEligible = Boolean(
-    xenditSettings?.account?.is_enabled && xenditSettings?.account?.xendit_sub_account_id,
+    xenditSettings?.account?.is_enabled &&
+      ((xenditSettings?.subAccounts?.some(isSubAccountSelectable) ?? false) ||
+        xenditSettings?.account?.xendit_sub_account_id),
   );
 
   const invalidateGatewaySnapshots = useCallback(async () => {
@@ -88,6 +98,7 @@ export function useGatewayWalletBalances(options?: { autoSync?: boolean }) {
     } finally {
       await invalidateGatewaySnapshots();
       if (organizationId) {
+        await queryClient.invalidateQueries({ queryKey: ['xendit-akun-wallets', organizationId] });
         await queryClient.invalidateQueries({ queryKey: ['gateway-wallet-period-net', organizationId] });
         await queryClient.invalidateQueries({ queryKey: ['bank-statement-lines', organizationId] });
         await queryClient.invalidateQueries({ queryKey: ['purchase-requests', organizationId] });
@@ -126,6 +137,7 @@ export function useGatewayWalletBalances(options?: { autoSync?: boolean }) {
   useEffect(() => {
     brickAutoSyncRef.current = false;
     xenditAutoSyncRef.current = false;
+    xenditMountSyncDoneRef.current = null;
   }, [organizationId]);
 
   useEffect(() => {
@@ -157,29 +169,35 @@ export function useGatewayWalletBalances(options?: { autoSync?: boolean }) {
 
   useEffect(() => {
     if (!autoSync || !organizationId || query.isLoading || !xenditEligible) return;
-    const needXendit = isSnapshotStale(xendit) || Boolean(xendit?.sync_error);
-    if (!needXendit || xenditAutoSyncRef.current || syncingXendit) return;
+
+    const needXenditFromStale = isSnapshotStale(xendit) || Boolean(xendit?.sync_error);
+
+    if (syncMode === 'if_stale' && !needXenditFromStale) return;
+    if (syncMode === 'always_on_mount' && xenditMountSyncDoneRef.current === organizationId) return;
+    if (xenditAutoSyncRef.current || syncingXendit) return;
+
     xenditAutoSyncRef.current = true;
+    if (syncMode === 'always_on_mount') {
+      xenditMountSyncDoneRef.current = organizationId;
+    }
 
     void (async () => {
       try {
-        await fetchXenditWalletBalance(organizationId);
-      } catch {
-        // Edge function persists sync_error on failure.
+        await syncXenditWallet();
       } finally {
-        await invalidateGatewaySnapshots();
         xenditAutoSyncRef.current = false;
       }
     })();
   }, [
     autoSync,
+    syncMode,
     organizationId,
     xenditEligible,
     xendit?.synced_at,
     xendit?.sync_error,
     query.isLoading,
     syncingXendit,
-    invalidateGatewaySnapshots,
+    syncXenditWallet,
   ]);
 
   return {
@@ -193,6 +211,9 @@ export function useGatewayWalletBalances(options?: { autoSync?: boolean }) {
     isStaleXendit: xenditEligible && isSnapshotStale(xendit),
     syncingBrick,
     syncingXendit,
+    xenditSyncedAt: xendit?.synced_at ?? null,
+    xenditSyncError: xendit?.sync_error ?? null,
+    isXenditSyncing: syncingXendit,
     syncBrickWallet,
     syncXenditWallet,
     refetch: query.refetch,

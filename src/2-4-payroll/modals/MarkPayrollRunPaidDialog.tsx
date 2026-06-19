@@ -46,6 +46,13 @@ export function MarkPayrollRunPaidDialog({
       if (error) throw error;
       const result = data as { success?: boolean; message?: string };
       if (!result?.success) throw new Error(result?.message ?? "Mark paid failed");
+      try {
+        await supabase.functions.invoke("notify-payroll-paid-batch", {
+          body: { runId },
+        });
+      } catch {
+        // Notifications are best-effort; payroll is already marked paid.
+      }
       toast.success(result.message ?? "Payroll marked as paid");
       onOpenChange(false);
       setReference("");

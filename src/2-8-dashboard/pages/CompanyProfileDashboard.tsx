@@ -10,6 +10,7 @@ import {
   CompanyValues,
 } from '../components';
 import { useCompanyProfile, useCompanyLogo, useUpdateCompany } from '../hooks';
+import { useToast } from '@/shared/components/ui/use-toast';
 import { useCurrentUserEmployee } from '@/1-home/components/HomeOKRDashboard/component/SectionGreetingsImport/useCurrentUserEmployee';
 import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -67,6 +68,7 @@ export const CompanyProfileDashboard = () => {
   const isDepartmentsLoading = departmentsLoading || employeesLoading;
   const [isEditMode, setIsEditMode] = useState(false);
   const updateCompanyMutation = useUpdateCompany();
+  const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     company_name: '',
@@ -127,8 +129,21 @@ export const CompanyProfileDashboard = () => {
   };
 
   const handleSave = async () => {
+    const trimmedName = formData.company_name.trim();
+    if (!trimmedName) {
+      toast({
+        title: 'Company name required',
+        description: 'Please enter a company name before saving.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
-      await updateCompanyMutation.mutateAsync(formData);
+      await updateCompanyMutation.mutateAsync({
+        ...formData,
+        company_name: trimmedName,
+      });
       setIsEditMode(false);
     } catch (error) {
       console.error('Failed to save company data:', error);
@@ -161,7 +176,7 @@ export const CompanyProfileDashboard = () => {
   return (
     <div className="w-full max-w-none space-y-2 sm:space-y-3">
       <CompanyProfileHeader 
-        companyName={displayCompanyData.company_name}
+        companyName={isEditMode ? formData.company_name : displayCompanyData.company_name}
         logoUrl={logoUrl}
         isEditMode={isEditMode}
         onEdit={handleEdit}
@@ -169,6 +184,7 @@ export const CompanyProfileDashboard = () => {
         onSave={handleSave}
         isSaving={updateCompanyMutation.isPending}
         onLogoUpdate={updateLogo}
+        onCompanyNameChange={(value) => handleFieldChange('company_name', value)}
       />
       
       <div className="grid grid-cols-1 gap-2 sm:gap-3 xl:grid-cols-3">

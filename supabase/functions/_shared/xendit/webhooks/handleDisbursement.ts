@@ -3,6 +3,7 @@ import type { XenditEnvConfig } from "../xenditEnv.ts";
 import { decodeXenditExternalId } from "../xenditExternalId.ts";
 import { finalizePurchaseRequestGatewayPayment } from "../../finance/finalizePurchaseRequestGatewayPayment.ts";
 import { finalizeGatewayWithdrawal } from "../services/executeGatewayWithdrawal.ts";
+import { afterPayrollCalcTerminalUpdate } from "../services/finalizePayrollDisbursement.ts";
 
 export async function handleDisbursementWebhook(
   admin: SupabaseClient,
@@ -18,7 +19,15 @@ export async function handleDisbursementWebhook(
     .select("*")
     .eq("external_id", externalId)
     .maybeSingle();
-  if (!row) throw new Error(`Disbursement not found: ${externalId}`);
+
+  if (!row) {
+    // Xendit Dashboard "Tes dan simpan" sends dummy external_id (e.g. disbursement_123124123).
+    if (!externalId.startsWith("synckerja:")) {
+      console.warn("disbursement webhook: no local row, ignoring non-Synckerja external_id", externalId);
+      return;
+    }
+    throw new Error(`Disbursement not found: ${externalId}`);
+  }
 
   const isCompleted = status === "COMPLETED" || status === "SUCCEEDED";
   const isFailed = status === "FAILED";
@@ -44,7 +53,14 @@ export async function handleDisbursementWebhook(
   if (decoded.kind === "gateway_withdrawal") {
     if (isCompleted) {
       try {
-        await finalizeGatewayWithdrawal(admin, env, String(row.id), decoded.organizationId);
+        const { data: withdrawalRow } = await admin
+          .from("xendit_gateway_withdrawals")
+          .select("settled_at")
+          .eq("id", decoded.sourceId)
+          .maybeSingle();
+        if (!withdrawalRow?.settled_at) {
+          await finalizeGatewayWithdrawal(admin, env, String(row.id), decoded.organizationId);
+        }
       } catch (e) {
         console.error("finalizeGatewayWithdrawal:", e);
         throw e;
@@ -68,6 +84,13 @@ export async function handleDisbursementWebhook(
       payment_reference: payload.id != null ? String(payload.id) : null,
       payment_date: isCompleted ? new Date().toISOString().slice(0, 10) : null,
     }).eq("id", decoded.sourceId);
+
+    if (isCompleted || isFailed) {
+      await afterPayrollCalcTerminalUpdate(admin, env, decoded.sourceId, {
+        syncWallet: isCompleted,
+        notifyPaid: isCompleted,
+      });
+    }
   }
 
   if (decoded.kind === "purchase_request" && isCompleted) {

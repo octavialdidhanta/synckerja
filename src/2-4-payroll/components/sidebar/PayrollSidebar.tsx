@@ -8,6 +8,8 @@ import { CreatePeriodDialog } from "../../modals/CreatePeriodDialog";
 import { CreatePayrollRunDialog } from "../../modals/CreatePayrollRunDialog";
 import { PayrollSidebarFooter } from "./PayrollSidebarFooter";
 import { TaxCalculationModeSetting } from "../TaxCalculationModeSetting";
+import { PayrollEscrowSettingsSection } from "../../settings/PayrollEscrowSettingsSection";
+import { PayrollExpenseSettingsSection } from "../../expense/components/PayrollExpenseSettingsSection";
 
 interface PayrollSidebarProps {
   selectedPayrollRunId?: string | null;
@@ -81,6 +83,8 @@ export function PayrollSidebar({
       </div>
 
       <TaxCalculationModeSetting />
+      <PayrollEscrowSettingsSection />
+      <PayrollExpenseSettingsSection />
       <PayrollSidebarFooter activeTab={activeTab} />
 
       <CreatePeriodDialog open={isCreatePeriodOpen} onOpenChange={setIsCreatePeriodOpen} />

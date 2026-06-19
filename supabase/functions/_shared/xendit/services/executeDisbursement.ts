@@ -2,9 +2,15 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { xenditRequest } from "../xenditClient.ts";
 import { encodeXenditExternalId } from "../xenditExternalId.ts";
 import type { XenditEnvConfig } from "../xenditEnv.ts";
-import { resolveOrgSubAccount } from "./createSubAccount.ts";
+import { resolvePrimarySubAccount } from "./resolveSubAccount.ts";
 import { finalizePurchaseRequestGatewayPayment } from "../../finance/finalizePurchaseRequestGatewayPayment.ts";
 import { handleDisbursementWebhook } from "../webhooks/handleDisbursement.ts";
+import { mapBankNameToCode } from "../../payroll/payrollBankCodes.ts";
+import {
+  logPayrollXenditDisburseBatch,
+  maybeFinalizePayrollRun,
+  syncOrgXenditWalletAfterPayroll,
+} from "./finalizePayrollDisbursement.ts";
 type DisbursementResponse = {
   id?: string;
   status?: string;
@@ -82,24 +88,8 @@ async function pollDisbursementUntilTerminal(
 
   return current;
 }
-const BANK_NAME_TO_CODE: Record<string, string> = {
-  bca: "BCA",
-  mandiri: "MANDIRI",
-  bni: "BNI",
-  bri: "BRI",
-  permata: "PERMATA",
-  cimb: "CIMB",
-  bjb: "BJB",
-  bsi: "BSI",
-};
 
-export function mapBankNameToCode(bankName: string): string {
-  const key = bankName.trim().toLowerCase();
-  for (const [k, code] of Object.entries(BANK_NAME_TO_CODE)) {
-    if (key.includes(k)) return code;
-  }
-  return bankName.trim().toUpperCase().replace(/\s+/g, "_");
-}
+export { mapBankNameToCode } from "../../payroll/payrollBankCodes.ts";
 
 async function insertDisbursementRow(
   admin: SupabaseClient,
@@ -146,14 +136,19 @@ export async function executeTenantDisbursement(
   body: Record<string, unknown>,
 ): Promise<{ rows: Record<string, unknown>[]; processed: number; failed: number }> {
   const sourceType = String(body.source_type ?? "").trim();
-  const { subAccountId } = await resolveOrgSubAccount(admin, env, organizationId);
-
-  const { data: acct } = await admin
-    .from("organization_xendit_accounts")
+  const { data: settings } = await admin
+    .from("organization_xendit_settings")
     .select("is_enabled")
     .eq("organization_id", organizationId)
     .maybeSingle();
-  if (!acct?.is_enabled) throw new Error("Xendit not enabled for this organization");
+  if (!settings?.is_enabled) throw new Error("Xendit not enabled for this organization");
+
+  const { subAccountId, accountRow } = await resolvePrimarySubAccount(admin, env, organizationId);
+  if (String(accountRow.status ?? "") !== "active") {
+    throw new Error(
+      "Akun Xendit belum aktif. Selesaikan verifikasi legalitas di halaman Perbankan Xendit.",
+    );
+  }
 
   const rows: Record<string, unknown>[] = [];
   let processed = 0;
@@ -171,6 +166,8 @@ export async function executeTenantDisbursement(
       .eq("payment_status", "pending");
     if (error) throw new Error(error.message);
 
+    let totalThp = 0;
+
     for (const calc of calcs ?? []) {
       const calcId = String(calc.id);
       const snapshot = calc.payout_snapshot as Record<string, string> | null;
@@ -183,6 +180,11 @@ export async function executeTenantDisbursement(
         continue;
       }
       try {
+        await admin
+          .from("employee_payroll_calculations")
+          .update({ payment_status: "processing" })
+          .eq("id", calcId)
+          .in("payment_status", ["pending", "failed"]);
         const row = await disburseSingle(admin, env, organizationId, userId, subAccountId, {
           source_type: "payroll_calculation",
           source_id: calcId,
@@ -192,14 +194,25 @@ export async function executeTenantDisbursement(
           amount,
           description: `Payroll ${calcId.slice(0, 8)}`,
         });
-        await admin.from("employee_payroll_calculations").update({ payment_status: "processing" }).eq("id", calcId);
         rows.push(row);
         processed++;
+        totalThp += amount;
       } catch (e) {
         failed++;
         console.error("payroll disburse failed", calcId, e);
       }
     }
+
+    await maybeFinalizePayrollRun(admin, runId);
+    await syncOrgXenditWalletAfterPayroll(admin, organizationId, env);
+    if (processed > 0 || failed > 0) {
+      await logPayrollXenditDisburseBatch(admin, organizationId, runId, userId, {
+        processed,
+        failed,
+        total_thp: totalThp,
+      });
+    }
+
     return { rows, processed, failed };
   }
 
@@ -214,7 +227,16 @@ export async function executeTenantDisbursement(
       .eq("organization_id", organizationId)
       .maybeSingle();
     if (!calc) throw new Error("Payroll calculation not found");
+    const status = String(calc.payment_status ?? "");
+    if (status !== "pending" && status !== "failed") {
+      throw new Error("Payroll calculation is not eligible for disburse");
+    }
     const snapshot = calc.payout_snapshot as Record<string, string> | null;
+    await admin
+      .from("employee_payroll_calculations")
+      .update({ payment_status: "processing" })
+      .eq("id", sourceId)
+      .in("payment_status", ["pending", "failed"]);
     const row = await disburseSingle(admin, env, organizationId, userId, subAccountId, {
       source_type: "payroll_calculation",
       source_id: sourceId,
@@ -224,7 +246,6 @@ export async function executeTenantDisbursement(
       amount: Number(calc.take_home_pay),
       description: String(body.description ?? "Payroll disbursement"),
     });
-    await admin.from("employee_payroll_calculations").update({ payment_status: "processing" }).eq("id", sourceId);
     return { rows: [row], processed: 1, failed: 0 };
   }
 
@@ -364,6 +385,21 @@ export async function disburseSingle(
         result,
         externalId,
       );
+    } else if (initialStatus === "completed" || initialStatus === "failed") {
+      await handleDisbursementWebhook(admin, env, {
+        external_id: externalId,
+        status: apiRes.status ?? (initialStatus === "completed" ? "COMPLETED" : "FAILED"),
+        id: apiRes.id ?? null,
+        failure_code: apiRes.failure_code,
+        failure_reason: apiRes.failure_reason,
+        description: apiRes.description,
+      });
+      const { data: refreshed } = await admin
+        .from("xendit_disbursements")
+        .select("*")
+        .eq("id", pendingRow.id)
+        .maybeSingle();
+      if (refreshed) result = refreshed as Record<string, unknown>;
     }
 
     if (

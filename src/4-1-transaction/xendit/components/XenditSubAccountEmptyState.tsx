@@ -11,7 +11,7 @@ export function XenditSubAccountEmptyState() {
       <p className="text-sm text-muted-foreground">
         {t(
           "xendit.subAccountNotCreated",
-          "No sub-account yet. Create a sub-account on the Connect tab to register your drawer with Xendit.",
+          "No account yet. Register a new business on the Connect tab to register your drawer with Xendit.",
         )}
       </p>
       <Button asChild variant="outline" size="sm">

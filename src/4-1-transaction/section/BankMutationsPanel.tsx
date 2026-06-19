@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -37,23 +37,45 @@ import { cn } from '@/shared/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { RefreshBankMutationsButton } from './RefreshBankMutationsButton';
 import { BankMutationsTableFooter } from '@/4-1-bank-mutations/section/BankMutationsTableFooter';
+import { useXenditOrgSettings } from '@/xendit/hooks/useXenditOrgSettings';
+import { resolveSubAccountLabelByXenditId } from '@/xendit/lib/xenditSubAccountUtils';
+import type { XenditSubAccountRow } from '@/xendit/types/xendit';
+
+type PanelLayout = 'embedded' | 'page';
+
+function getSubAccountLabelFromPayload(
+  row: BankStatementLineWithMatch,
+  subAccounts: XenditSubAccountRow[] | undefined,
+): string | null {
+  const raw = row.raw_payload as Record<string, unknown> | undefined;
+  const subId = typeof raw?.sub_account_id === 'string' ? raw.sub_account_id : null;
+  return resolveSubAccountLabelByXenditId(subAccounts, subId);
+}
 
 function getGatewayDrawerLabel(
   row: BankStatementLineWithMatch,
-  t: (key: string, fallback: string) => string,
+  subAccounts: XenditSubAccountRow[] | undefined,
+  copy: {
+    sourceXenditTransfer: string;
+    sourceXenditWallet: string;
+    sourceBrickWallet: string;
+  },
 ): string | null {
+  const subLabel = getSubAccountLabelFromPayload(row, subAccounts);
   if (row.origin === 'erp_gateway_withdrawal') {
-    return t('incomes.brick.gatewayWithdrawalIn', 'Masuk dari laci Xendit');
+    const base = copy.sourceXenditTransfer;
+    return subLabel ? `${base} · ${subLabel}` : base;
   }
   const raw = row.raw_payload as Record<string, unknown> | undefined;
   const provider =
     (typeof raw?.gateway_wallet_provider === 'string' ? raw.gateway_wallet_provider : null) ??
     row.expense?.gateway_wallet_provider;
   if (provider === 'brick') {
-    return t('incomes.brick.gatewayBrickDrawer', 'Brick drawer');
+    return copy.sourceBrickWallet;
   }
   if (provider === 'xendit') {
-    return t('incomes.brick.gatewayXenditDrawer', 'Xendit drawer');
+    const base = copy.sourceXenditWallet;
+    return subLabel ? `${base} · ${subLabel}` : base;
   }
   return null;
 }
@@ -62,17 +84,140 @@ function getExpenseTitle(row: BankStatementLineWithMatch): string {
   return row.expense?.expense_name ?? 'Expense';
 }
 
+function useMutationCopy(layout: PanelLayout) {
+  const { t } = useAppTranslation();
+  const isPage = layout === 'page';
+  const ns = isPage ? 'finance.bankMutations' : 'incomes.brick';
+
+  return useMemo(
+    () => ({
+      filterAccount: t(`${ns}.filterAccount`, isPage ? 'Rekening' : 'Rekening'),
+      allAccounts: t(
+        isPage ? 'finance.bankMutations.allAccounts' : 'incomes.brick.allAccounts',
+        'Semua rekening',
+      ),
+      filterFlow: t('finance.bankMutations.filterFlow', 'Arah'),
+      flowAll: t(
+        isPage ? 'finance.bankMutations.flowAll' : 'incomes.brick.allDirections',
+        'Semua',
+      ),
+      flowIn: t(
+        isPage ? 'finance.bankMutations.flowIn' : 'incomes.brick.creditOnly',
+        'Uang masuk',
+      ),
+      flowOut: t(
+        isPage ? 'finance.bankMutations.flowOut' : 'incomes.brick.debitOnly',
+        'Uang keluar',
+      ),
+      filterMatching: t('finance.bankMutations.filterMatching', 'Status'),
+      matchingAll: t(
+        isPage ? 'finance.bankMutations.matchingAll' : 'incomes.brick.matchAll',
+        'Semua',
+      ),
+      matchingNeedsReview: t(
+        isPage ? 'finance.bankMutations.matchingNeedsReview' : 'incomes.brick.matchSuggested',
+        'Perlu dicek',
+      ),
+      matchingUnmatched: t(
+        isPage ? 'finance.bankMutations.matchingUnmatched' : 'incomes.brick.matchUnmatched',
+        'Belum dicocokkan',
+      ),
+      loading: t(`${ns}.loading`, 'Memuat…'),
+      loadError: t(`${ns}.loadError`, 'Gagal memuat data rekening.'),
+      empty: t(`${ns}.empty`, 'Belum ada transaksi.'),
+      colDate: t(`${ns}.colDate`, 'Tanggal'),
+      colAccount: t(`${ns}.colAccount`, 'Rekening'),
+      colAmount: t(`${ns}.colAmount`, 'Nominal'),
+      colDescription: t(
+        isPage ? 'finance.bankMutations.colDescription' : 'incomes.brick.colDesc',
+        'Keterangan',
+      ),
+      colStatus: t(
+        isPage ? 'finance.bankMutations.colStatus' : 'incomes.brick.colMatch',
+        'Status',
+      ),
+      colAction: t(`${ns}.colAction`, 'Tindakan'),
+      balanceAfter: t(
+        isPage ? 'finance.bankMutations.balanceAfter' : 'incomes.brick.colErpAfterTxn',
+        'Saldo setelah',
+      ),
+      sourceXenditTransfer: t(
+        isPage ? 'finance.bankMutations.sourceXenditTransfer' : 'incomes.brick.gatewayWithdrawalIn',
+        'Transfer dari pembayaran online',
+      ),
+      sourceXenditWallet: t(
+        isPage ? 'finance.bankMutations.sourceXenditWallet' : 'incomes.brick.gatewayXenditDrawer',
+        'Dari saldo Xendit',
+      ),
+      sourceBrickWallet: t(
+        isPage ? 'finance.bankMutations.sourceBrickWallet' : 'incomes.brick.gatewayBrickDrawer',
+        'Dari saldo Brick',
+      ),
+      statusRecordedWithdrawal: t(
+        isPage
+          ? 'finance.bankMutations.statusRecordedWithdrawal'
+          : 'incomes.brick.gatewayWithdrawalRecorded',
+        'Sudah tercatat',
+      ),
+      statusRecordedExpense: t(
+        isPage ? 'finance.bankMutations.statusRecordedExpense' : 'incomes.brick.expenseRecordedBadge',
+        'Pengeluaran tercatat',
+      ),
+      statusSuggestedExpense: t(
+        isPage ? 'finance.bankMutations.statusSuggestedExpense' : 'incomes.brick.expenseSuggestedBadge',
+        'Kemungkinan pengeluaran',
+      ),
+      statusSuggestedIncome: t(
+        isPage ? 'finance.bankMutations.statusSuggestedIncome' : 'incomes.brick.suggestedBadge',
+        'Kemungkinan pendapatan',
+      ),
+      confirmIncome: t(
+        isPage ? 'finance.bankMutations.confirmIncome' : 'incomes.brick.confirmDeposit',
+        'Catat pendapatan',
+      ),
+      confirmExpense: t(
+        isPage ? 'finance.bankMutations.confirmExpense' : 'incomes.brick.confirmExpense',
+        'Catat pengeluaran',
+      ),
+      dismiss: t(`${ns}.dismiss`, 'Abaikan'),
+      mutationsTitle: t('incomes.brick.mutationsTitle', 'Mutasi bank'),
+      mutationsHint: t('incomes.brick.mutationsHintOutgoing', 'Uang masuk dan keluar di rekening Anda.'),
+    }),
+    [t, isPage, ns],
+  );
+}
+
+function FilterField({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('flex min-w-[148px] flex-col gap-1', className)}>
+      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 export function BankMutationsPanel({
   layout = 'embedded',
   onLoadingOverlayChange,
 }: {
-  layout?: 'embedded' | 'page';
+  layout?: PanelLayout;
   onLoadingOverlayChange?: (showOverlay: boolean) => void;
 }) {
-  const { t } = useAppTranslation();
+  const { dateLocale } = useAppTranslation();
+  const copy = useMutationCopy(layout);
   const { organizationId } = useCurrentOrg();
+  const { data: xenditSettings } = useXenditOrgSettings(organizationId);
   const { orgBootstrapPending } = useOrgBootstrapPending();
   const { canAllocateIncome } = useCanAllocateIncome();
+  const isPage = layout === 'page';
   const {
     bankAccounts,
     loading: bankAccountsLoading,
@@ -118,10 +263,10 @@ export function BankMutationsPanel({
   const showContent = useDebouncedReady(accessReady && !showFullPageSkeleton, 220);
 
   useEffect(() => {
-    if (layout === 'page') {
+    if (isPage) {
       onLoadingOverlayChange?.(!showContent);
     }
-  }, [layout, onLoadingOverlayChange, showContent]);
+  }, [isPage, onLoadingOverlayChange, showContent]);
 
   const erpBalanceByAccount = useMemo(() => {
     const map = new Map<string, number>();
@@ -146,26 +291,237 @@ export function BankMutationsPanel({
     [lines],
   );
 
+  const renderTableBodyRows = () =>
+    lines.map((row) => {
+      const isDebit = row.direction === 'debit';
+      const suggestedIncome = (row.matches ?? []).find(
+        (m) => m.status === 'suggested' && m.income_transaction_id,
+      );
+      const suggestedExpense = (row.matches ?? []).find(
+        (m) => m.status === 'suggested' && m.expense_id,
+      );
+      const confirmedExpenseMatch = (row.matches ?? []).find(
+        (m) => m.status === 'confirmed' && m.expense_id,
+      );
+      const hasRecordedExpense = isDebit && Boolean(row.expense_id || confirmedExpenseMatch);
+      const hasRecordedGatewayWithdrawal = !isDebit && row.origin === 'erp_gateway_withdrawal';
+      const erpBalance = erpBalanceByLineId.get(row.id);
+      const gatewayLabel = getGatewayDrawerLabel(row, xenditSettings?.subAccounts, copy);
+      const expenseTitle = suggestedExpense
+        ? (suggestedExpense.expense?.expense_name ?? getExpenseTitle(row))
+        : getExpenseTitle(row);
+      const description = row.description || row.reference || '—';
+
+      return (
+        <TableRow key={row.id} className="align-top">
+          <TableCell className="whitespace-nowrap text-xs">
+            {formatMutationDateTime(resolveMutationDisplayDate(row), dateLocale)}
+          </TableCell>
+          <TableCell className="max-w-[160px] text-xs">
+            <div className="truncate font-medium">{row.bank_account?.name ?? '—'}</div>
+          </TableCell>
+          <TableCell className="whitespace-nowrap text-xs">
+            <div
+              className={cn(
+                'font-semibold',
+                row.direction === 'credit' ? 'text-green-700' : 'text-red-600',
+              )}
+            >
+              {row.direction === 'credit' ? '+' : '-'}
+              {formatToRupiah(row.amount)}
+            </div>
+            {erpBalance != null ? (
+              <div className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                {copy.balanceAfter}: {formatToRupiah(erpBalance)}
+              </div>
+            ) : null}
+          </TableCell>
+          <TableCell className="text-xs">
+            <div className="line-clamp-2 break-words">{description}</div>
+            {gatewayLabel ? (
+              <div className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                {gatewayLabel}
+              </div>
+            ) : null}
+          </TableCell>
+          <TableCell className="text-xs">
+            {hasRecordedGatewayWithdrawal ? (
+              <Badge
+                variant="secondary"
+                className="whitespace-normal bg-green-50 text-[10px] text-green-800"
+              >
+                {copy.statusRecordedWithdrawal}
+              </Badge>
+            ) : hasRecordedExpense ? (
+              <div className="space-y-1">
+                <Badge
+                  variant="secondary"
+                  className="whitespace-normal bg-green-50 text-[10px] text-green-800"
+                >
+                  {copy.statusRecordedExpense}
+                </Badge>
+                <p className="break-words text-[11px] leading-snug text-muted-foreground">
+                  {expenseTitle} · {formatToRupiah(row.expense?.amount ?? row.amount)}
+                </p>
+              </div>
+            ) : isDebit && suggestedExpense ? (
+              <div className="space-y-1">
+                <Badge variant="secondary" className="whitespace-normal text-[10px]">
+                  {copy.statusSuggestedExpense}
+                </Badge>
+                <p className="break-words text-[11px] leading-snug text-muted-foreground">
+                  {expenseTitle} ·{' '}
+                  {formatToRupiah(suggestedExpense.expense?.amount ?? row.amount)}
+                </p>
+              </div>
+            ) : suggestedIncome ? (
+              <div className="space-y-1">
+                <Badge variant="secondary" className="whitespace-normal text-[10px]">
+                  {copy.statusSuggestedIncome}
+                </Badge>
+                <p className="break-words text-[11px] leading-snug text-muted-foreground">
+                  {suggestedIncome.income_transaction?.customer_name ?? 'Piutang'} ·{' '}
+                  {formatToRupiah(suggestedIncome.income_transaction?.amount ?? row.amount)}
+                </p>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </TableCell>
+          {canAllocateIncome && isDebit && suggestedExpense ? (
+            <TableCell className="align-top">
+              <div className="flex flex-col gap-1">
+                <Button
+                  size="sm"
+                  className="h-8 w-full px-2 text-[11px]"
+                  disabled={confirmingExpenseMatch || confirmingMatch || rejectingMatch}
+                  onClick={() => confirmExpenseMatch(suggestedExpense.id)}
+                >
+                  {copy.confirmExpense}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-full px-2 text-[11px]"
+                  disabled={confirmingExpenseMatch || confirmingMatch || rejectingMatch}
+                  onClick={() => rejectMatch(suggestedExpense.id)}
+                >
+                  {copy.dismiss}
+                </Button>
+              </div>
+            </TableCell>
+          ) : canAllocateIncome && suggestedIncome ? (
+            <TableCell className="align-top">
+              <div className="flex flex-col gap-1">
+                <Button
+                  size="sm"
+                  className="h-8 w-full px-2 text-[11px]"
+                  disabled={confirmingMatch || rejectingMatch}
+                  onClick={() => confirmMatch(suggestedIncome.id)}
+                >
+                  {copy.confirmIncome}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-full px-2 text-[11px]"
+                  disabled={confirmingMatch || rejectingMatch}
+                  onClick={() => rejectMatch(suggestedIncome.id)}
+                >
+                  {copy.dismiss}
+                </Button>
+              </div>
+            </TableCell>
+          ) : canAllocateIncome ? (
+            <TableCell />
+          ) : null}
+        </TableRow>
+      );
+    });
+
+  const filterToolbar = (
+    <div
+      className={cn(
+        'flex flex-wrap items-end gap-3',
+        isPage ? 'px-4 py-3' : 'gap-2',
+      )}
+    >
+      <FilterField label={copy.filterAccount}>
+        <Select
+          value={filters.bankAccountId}
+          onValueChange={(v) => setFilters((f) => ({ ...f, bankAccountId: v }))}
+        >
+          <SelectTrigger className={cn('h-9 w-full text-xs', isPage && 'min-w-[168px]')}>
+            <SelectValue placeholder={copy.filterAccount} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{copy.allAccounts}</SelectItem>
+            {bankAccounts.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
+
+      <FilterField label={copy.filterFlow}>
+        <Select
+          value={filters.direction}
+          onValueChange={(v) =>
+            setFilters((f) => ({ ...f, direction: v as BankMutationsFilter['direction'] }))
+          }
+        >
+          <SelectTrigger className={cn('h-9 w-full text-xs', isPage && 'min-w-[140px]')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{copy.flowAll}</SelectItem>
+            <SelectItem value="credit">{copy.flowIn}</SelectItem>
+            <SelectItem value="debit">{copy.flowOut}</SelectItem>
+          </SelectContent>
+        </Select>
+      </FilterField>
+
+      <FilterField label={copy.filterMatching}>
+        <Select
+          value={filters.matchFilter}
+          onValueChange={(v) =>
+            setFilters((f) => ({ ...f, matchFilter: v as BankMutationsFilter['matchFilter'] }))
+          }
+        >
+          <SelectTrigger className={cn('h-9 w-full text-xs', isPage && 'min-w-[156px]')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{copy.matchingAll}</SelectItem>
+            <SelectItem value="suggested">
+              {copy.matchingNeedsReview} ({suggestedCount})
+            </SelectItem>
+            <SelectItem value="unmatched">{copy.matchingUnmatched}</SelectItem>
+          </SelectContent>
+        </Select>
+      </FilterField>
+
+      {isPage && canAllocateIncome ? (
+        <div className="ml-auto flex-shrink-0 pb-0.5">
+          <RefreshBankMutationsButton className="h-9" />
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
     <div
       className={cn(
-        layout === 'page'
-          ? 'flex h-full min-h-0 min-w-0 flex-col'
-          : 'flex min-h-0 flex-col gap-3 border-t border-gray-200 pt-3',
+        isPage ? 'flex flex-col' : 'flex min-h-0 flex-col gap-3 border-t border-gray-200 pt-3',
       )}
     >
-      {layout === 'embedded' ? (
+      {!isPage ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h4 className="text-sm font-semibold text-gray-900">
-              {t('incomes.brick.mutationsTitle', 'Mutasi bank')}
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              {t(
-                'incomes.brick.mutationsHintOutgoing',
-                'Data dari Brick dan Payment Process — deposit masuk dan pengeluaran keluar.',
-              )}
-            </p>
+            <h4 className="text-sm font-semibold text-gray-900">{copy.mutationsTitle}</h4>
+            <p className="text-xs text-muted-foreground">{copy.mutationsHint}</p>
           </div>
           {canAllocateIncome ? <RefreshBankMutationsButton /> : null}
         </div>
@@ -173,274 +529,103 @@ export function BankMutationsPanel({
 
       <div
         className={cn(
-          'flex flex-wrap items-center gap-2',
-          layout === 'page' && 'flex-shrink-0 border-b border-border px-4 py-3',
+          'flex-shrink-0',
+          isPage && 'border-b border-border bg-muted/20',
         )}
       >
-        <Select
-          value={filters.bankAccountId}
-          onValueChange={(v) => setFilters((f) => ({ ...f, bankAccountId: v }))}
-        >
-          <SelectTrigger className="h-8 w-[180px] text-xs">
-            <SelectValue placeholder={t('incomes.brick.filterAccount', 'Rekening')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('incomes.brick.allAccounts', 'Semua rekening')}</SelectItem>
-            {bankAccounts.map((a) => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filters.direction}
-          onValueChange={(v) =>
-            setFilters((f) => ({ ...f, direction: v as BankMutationsFilter['direction'] }))
-          }
-        >
-          <SelectTrigger className="h-8 w-[140px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('incomes.brick.allDirections', 'Semua')}</SelectItem>
-            <SelectItem value="credit">{t('incomes.brick.creditOnly', 'Masuk')}</SelectItem>
-            <SelectItem value="debit">{t('incomes.brick.debitOnly', 'Keluar')}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filters.matchFilter}
-          onValueChange={(v) =>
-            setFilters((f) => ({ ...f, matchFilter: v as BankMutationsFilter['matchFilter'] }))
-          }
-        >
-          <SelectTrigger className="h-8 w-[160px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('incomes.brick.matchAll', 'Semua mutasi')}</SelectItem>
-            <SelectItem value="suggested">
-              {t('incomes.brick.matchSuggested', 'Ada saran')} ({suggestedCount})
-            </SelectItem>
-            <SelectItem value="unmatched">{t('incomes.brick.matchUnmatched', 'Belum match')}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {layout === 'page' && canAllocateIncome ? (
-          <div className="ml-auto">
-            <RefreshBankMutationsButton />
-          </div>
-        ) : null}
+        {filterToolbar}
       </div>
 
-      {loading && layout !== 'page' ? (
+      {loading && !isPage ? (
         <div className="flex flex-1 items-center justify-center py-6 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          {t('incomes.brick.loading', 'Memuat mutasi…')}
+          {copy.loading}
         </div>
       ) : isError ? (
-        <div className="mx-4 my-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-6 text-center text-xs text-destructive">
-          {t('incomes.brick.loadError', 'Gagal memuat mutasi bank.')}
+        <div
+          className={cn(
+            'rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-6 text-center text-sm text-destructive',
+            isPage ? 'mx-4 my-4' : '',
+          )}
+        >
+          {copy.loadError}
           {error instanceof Error ? ` ${error.message}` : ''}
         </div>
       ) : (
-        <div
-          className={cn(
-            'flex min-h-0 flex-col',
-            layout === 'page' ? 'h-full min-h-0 flex-1 overflow-hidden' : 'min-h-[200px] max-h-[360px] overflow-hidden rounded-lg border',
-          )}
-        >
-          <div
-            className={cn(
-              'min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain',
-              layout === 'page' && 'h-full max-h-full',
-            )}
-          >
-            <Table className="min-w-[880px] table-fixed">
-              <TableHeader
-                className={cn(layout === 'page' && 'sticky top-0 z-20 bg-gray-50 shadow-sm')}
-              >
-                <TableRow className={cn(layout === 'page' && 'hover:bg-transparent')}>
-                  <TableHead className={cn('text-xs w-[118px]', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colDate', 'Tanggal')}</TableHead>
-                  <TableHead className={cn('text-xs w-[168px]', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colAccount', 'Rekening')}</TableHead>
-                  <TableHead className={cn('text-xs w-[108px]', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colAmount', 'Jumlah')}</TableHead>
-                  <TableHead className={cn('text-xs', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colDesc', 'Deskripsi')}</TableHead>
-                  <TableHead className={cn('text-xs w-[220px]', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colMatch', 'Saran')}</TableHead>
+        <>
+          {isPage ? (
+            <Table className="min-w-[960px]">
+              <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="whitespace-nowrap bg-card text-xs">
+                    {copy.colDate}
+                  </TableHead>
+                  <TableHead className="bg-card text-xs">{copy.colAccount}</TableHead>
+                  <TableHead className="whitespace-nowrap bg-card text-xs">
+                    {copy.colAmount}
+                  </TableHead>
+                  <TableHead className="min-w-[200px] bg-card text-xs">
+                    {copy.colDescription}
+                  </TableHead>
+                  <TableHead className="min-w-[180px] bg-card text-xs">
+                    {copy.colStatus}
+                  </TableHead>
                   {canAllocateIncome ? (
-                    <TableHead className={cn('text-xs w-32', layout === 'page' && 'bg-gray-50')}>{t('incomes.brick.colAction', 'Aksi')}</TableHead>
+                    <TableHead className="w-[112px] whitespace-nowrap bg-card text-xs">
+                      {copy.colAction}
+                    </TableHead>
                   ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lines.map((row) => {
-                  const isDebit = row.direction === 'debit';
-                  const suggestedIncome = (row.matches ?? []).find(
-                    (m) => m.status === 'suggested' && m.income_transaction_id,
-                  );
-                  const suggestedExpense = (row.matches ?? []).find(
-                    (m) => m.status === 'suggested' && m.expense_id,
-                  );
-                  const confirmedExpenseMatch = (row.matches ?? []).find(
-                    (m) => m.status === 'confirmed' && m.expense_id,
-                  );
-                  const hasRecordedExpense =
-                    isDebit && Boolean(row.expense_id || confirmedExpenseMatch);
-                  const hasRecordedGatewayWithdrawal =
-                    !isDebit && row.origin === 'erp_gateway_withdrawal';
-                  const erpBalance = erpBalanceByLineId.get(row.id);
-                  const gatewayLabel = getGatewayDrawerLabel(row, t);
-                  const expenseTitle = suggestedExpense
-                    ? (suggestedExpense.expense?.expense_name ?? getExpenseTitle(row))
-                    : getExpenseTitle(row);
-
-                  return (
-                    <TableRow key={row.id}>
-                      <TableCell className="text-xs whitespace-nowrap">
-                        {formatMutationDateTime(resolveMutationDisplayDate(row))}
-                      </TableCell>
-                      <TableCell className="text-xs w-[168px] align-top">
-                        <div className="whitespace-nowrap">{row.bank_account?.name ?? '-'}</div>
-                        {gatewayLabel ? (
-                          <div className="text-[10px] text-blue-700 mt-0.5">{gatewayLabel}</div>
-                        ) : null}
-                        {erpBalance != null ? (
-                          <div className="text-[10px] text-muted-foreground mt-0.5">
-                            {t('incomes.brick.colErpAfterTxn', 'ERP setelah mutasi')}:{' '}
-                            {formatToRupiah(erpBalance)}
-                          </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="text-xs font-medium">
-                        <span
-                          className={
-                            row.direction === 'credit' ? 'text-green-700' : 'text-red-600'
-                          }
-                        >
-                          {row.direction === 'credit' ? '+' : '-'}
-                          {formatToRupiah(row.amount)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[200px] truncate">
-                        {row.description || row.reference || '-'}
-                      </TableCell>
-                      <TableCell className="text-xs w-[220px] align-top">
-                        {hasRecordedGatewayWithdrawal ? (
-                          <div className="space-y-1 min-w-0">
-                            <Badge variant="secondary" className="text-[10px] bg-green-50 text-green-800 whitespace-normal">
-                              {t('incomes.brick.gatewayWithdrawalRecorded', 'Penarikan Xendit tercatat')}
-                            </Badge>
-                          </div>
-                        ) : hasRecordedExpense ? (
-                          <div className="space-y-1 min-w-0">
-                            <Badge variant="secondary" className="text-[10px] bg-green-50 text-green-800 whitespace-normal">
-                              {t('incomes.brick.expenseRecordedBadge', 'Expense recorded')}
-                            </Badge>
-                            <div className="text-[10px] text-muted-foreground break-words">
-                              {expenseTitle} · {formatToRupiah(row.expense?.amount ?? row.amount)}
-                            </div>
-                          </div>
-                        ) : isDebit && suggestedExpense ? (
-                          <div className="space-y-1 min-w-0">
-                            <Badge variant="secondary" className="text-[10px] whitespace-normal">
-                              {t('incomes.brick.expenseSuggestedBadge', 'Saran expense')}
-                            </Badge>
-                            <div className="text-[10px] text-muted-foreground break-words">
-                              {expenseTitle} ·{' '}
-                              {formatToRupiah(suggestedExpense.expense?.amount ?? row.amount)}
-                            </div>
-                          </div>
-                        ) : suggestedIncome ? (
-                          <div className="space-y-1 min-w-0">
-                            <Badge variant="secondary" className="text-[10px] whitespace-normal">
-                              {t('incomes.brick.suggestedBadge', 'Saran match')}
-                            </Badge>
-                            <div className="text-[10px] text-muted-foreground break-words">
-                              {suggestedIncome.income_transaction?.customer_name ?? 'Piutang'} ·{' '}
-                              {formatToRupiah(suggestedIncome.income_transaction?.amount ?? row.amount)}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      {canAllocateIncome && isDebit && suggestedExpense ? (
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              className="h-7 text-[10px] px-2"
-                              disabled={
-                                confirmingExpenseMatch ||
-                                confirmingMatch ||
-                                rejectingMatch
-                              }
-                              onClick={() => confirmExpenseMatch(suggestedExpense.id)}
-                            >
-                              {t('incomes.brick.confirmExpense', 'Konfirmasi expense')}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-[10px] px-2"
-                              disabled={
-                                confirmingExpenseMatch ||
-                                confirmingMatch ||
-                                rejectingMatch
-                              }
-                              onClick={() => rejectMatch(suggestedExpense.id)}
-                            >
-                              {t('incomes.brick.dismiss', 'Abaikan')}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      ) : canAllocateIncome && suggestedIncome ? (
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              className="h-7 text-[10px] px-2"
-                              disabled={confirmingMatch || rejectingMatch}
-                              onClick={() => confirmMatch(suggestedIncome.id)}
-                            >
-                              {t('incomes.brick.confirmDeposit', 'Konfirmasi')}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-[10px] px-2"
-                              disabled={confirmingMatch || rejectingMatch}
-                              onClick={() => rejectMatch(suggestedIncome.id)}
-                            >
-                              {t('incomes.brick.dismiss', 'Abaikan')}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      ) : canAllocateIncome ? (
-                        <TableCell />
-                      ) : null}
-                    </TableRow>
-                  );
-                })}
+                {renderTableBodyRows()}
                 {lines.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={canAllocateIncome ? 6 : 5}
-                      className="text-center py-6 text-xs text-muted-foreground"
+                      className="py-10 text-center text-sm text-muted-foreground"
                     >
-                      {t(
-                        'incomes.brick.empty',
-                        'Belum ada mutasi. Hubungkan rekening ke Brick lalu refresh.',
-                      )}
+                      {copy.empty}
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-          </div>
-          {layout === 'page' ? (
+          ) : (
+            <div className="max-h-[360px] min-h-[200px] overflow-y-auto rounded-lg border">
+              <Table className="min-w-[880px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">{copy.colDate}</TableHead>
+                    <TableHead className="text-xs">{copy.colAccount}</TableHead>
+                    <TableHead className="text-xs">{copy.colAmount}</TableHead>
+                    <TableHead className="text-xs">{copy.colDescription}</TableHead>
+                    <TableHead className="text-xs">{copy.colStatus}</TableHead>
+                    {canAllocateIncome ? (
+                      <TableHead className="text-xs">{copy.colAction}</TableHead>
+                    ) : null}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {renderTableBodyRows()}
+                  {lines.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={canAllocateIncome ? 6 : 5}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
+                        {copy.empty}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {isPage ? (
             <BankMutationsTableFooter filteredCount={lines.length} suggestedCount={suggestedCount} />
           ) : null}
-        </div>
+        </>
       )}
     </div>
   );

@@ -8,7 +8,7 @@ import { Label } from "@/shared/components/ui/label";
 import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "@/shared/hooks/use-toast";
-import { routeAfterLogin } from "@/0-auth/lib/postLoginRouting";
+import { resolvePostAuthRouting } from "@/shared/auth/mfa/resolvePostAuthRouting";
 import { startGoogleSignIn } from "@/0-auth/lib/googleSignIn";
 import { AuthDivider, GoogleSignInButton } from "@/0-auth/components/GoogleSignInButton";
 import {
@@ -86,6 +86,20 @@ export function LoginScreen({
     }
   }, [searchParams, t]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session || cancelled) return;
+      await resolvePostAuthRouting(navigate, searchParams.get("redirectTo"));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, searchParams]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -128,7 +142,7 @@ export function LoginScreen({
         toast({ title: messageForAuthError(error, t), variant: "destructive" });
         return;
       }
-      await routeAfterLogin(navigate, searchParams.get("redirectTo"));
+      await resolvePostAuthRouting(navigate, searchParams.get("redirectTo"));
     } finally {
       setLoading(false);
     }

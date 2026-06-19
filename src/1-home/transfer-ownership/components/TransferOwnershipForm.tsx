@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Crown, AlertTriangle, Loader2, Users } from "lucide-react";
 import { toast } from "@/shared/hooks/use-toast";
+import { useMfaStepUp } from "@/shared/auth/mfa";
 import { cn } from "@/shared/lib/utils";
 
 type TransferFormValues = {
@@ -43,6 +44,7 @@ export function TransferOwnershipForm({
   membersLoading = false,
 }: TransferOwnershipFormProps) {
   const { t } = useTranslation();
+  const { ensureAal2 } = useMfaStepUp();
   const [isConfirming, setIsConfirming] = useState(false);
 
   const transferSchema = useMemo(
@@ -76,6 +78,11 @@ export function TransferOwnershipForm({
         description: t("transferOwnership.toast.warning.membersLoading"),
         variant: "destructive",
       });
+      setIsConfirming(false);
+      return;
+    }
+
+    if (!(await ensureAal2())) {
       setIsConfirming(false);
       return;
     }

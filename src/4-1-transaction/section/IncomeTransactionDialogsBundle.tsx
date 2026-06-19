@@ -141,7 +141,7 @@ export function IncomeTransactionDialogsBundle({ ctrl, onRefresh, omitAddDialog 
                       <span className="font-semibold">
                         {selectedTransaction.description ||
                           selectedTransaction.customer_name ||
-                          t("incomes.transaction", "Transaction")}
+                          t("incomes.transactionLabel", "Transaction")}
                       </span>
                       <br />
                       {t("incomes.amountLabel", "Amount")}: {formatToRupiah(selectedTransaction.amount)}

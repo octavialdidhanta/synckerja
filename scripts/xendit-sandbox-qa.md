@@ -1,23 +1,37 @@
 # Xendit Sandbox QA Checklist
 
-Use this after applying migrations through `20260725120000_gateway_payout_bank_validation.sql`, setting Supabase secrets, and deploying `xendit-api`.
+Use this after applying migrations through `20260821120000_xendit_kyc_business_profile.sql`, setting Supabase secrets, and deploying `xendit-api`.
 
 ## 1. Server setup
 
 - [ ] `XENDIT_SECRET_KEY` set (sandbox key from Xendit Dashboard)
 - [ ] `XENDIT_WEBHOOK_VERIFICATION_TOKEN` set
 - [ ] `XENDIT_ENV=sandbox`
+- [ ] `XENDIT_INTERNAL_ORG_IDS` set for Synckerja internal org (sandbox UUID from seed script)
 - [ ] `xendit-api` deployed with `--no-verify-jwt` (webhook + API in one function)
 - [ ] Delete legacy `xendit-webhook` function in Dashboard if still listed
 - [ ] Webhook URL in Xendit → `https://<project>.supabase.co/functions/v1/xendit-api`
 
-## 2. Org opt-in (`/incomes/xendit`)
+## 2. Org opt-in (`/xendit/connect`)
 
-- [ ] Owner/admin can open `/incomes/xendit` (tab Xendit di Income Management)
-- [ ] Toggle **Enable Xendit** → row in `organization_xendit_accounts`
-- [ ] **Create sub-account** → `xendit_sub_account_id` populated, `status=active`
+- [ ] Owner/admin can open `/xendit/connect`
+- [ ] Toggle **Enable Xendit** → row in `organization_xendit_settings`
+- [ ] **Internal org** (in `XENDIT_INTERNAL_ORG_IDS`): **Tambah sub-account** → OWNED, no KYC modal
+- [ ] **External tenant (first sub-account)**: **Tambah sub-account** → KYC modal → MANAGED + `organization_kyc_documents` PENDING
+- [ ] KYC modal: wizard 3 langkah (Profil → Dokumen legal → Bisnis & payout)
+- [ ] KYC modal: pilih tipe entitas (Perorangan, PT/CV/PMA, PP, Yayasan, Koperasi)
+- [ ] Badan usaha: wajib NIB + NPWP perusahaan + NPWP direktur + dokumen sesuai entitas (Akta/SK Menkeh, TDY, PSE, dll.)
+- [ ] Badan usaha: wajib alamat bisnis + website **atau** bukti usaha (invoice/foto toko)
+- [ ] KYC modal: panduan 3 langkah Service Agreement + tombol **Unduh template** (`/templates/xendit-service-agreement-id.pdf`)
+- [ ] Unduh template → file `xendit-service-agreement-indonesia.pdf`; ganti placeholder di `public/templates/` dengan PDF resmi Xendit (lihat `scripts/xendit-service-agreement-template.md`)
+- [ ] KYC modal requires **Service Agreement PDF** (signed) + KTP; payload includes `service_agreement_document` + `business_registration_documents` (ID_NIB, ID_COMPANY_NPWP, ID_AKTA, ID_SKMENKEH, dll.) in Xendit verification
+- [ ] **KYC lama** (hanya NIB/NPWP): `kycDocumentsComplete` = false → tombol **Lengkapi dokumen** meminta Akta, SK Menkeh, NPWP direktur, alamat, bukti usaha
+- [ ] Sub-account row in `xendit_sub_accounts` with `document_upload_status` pending/completed/failed
+- [ ] **Second sub-account** (different email): create dialog only, no KYC re-upload; auto-upload org KYC docs to Xendit after create
+- [ ] **Lengkapi dokumen** on failed/incomplete rows opens KYC edit modal → `updateKycAndRetryDocuments`
+- [ ] **Retry upload** button when `document_upload_status=failed` and org KYC documents complete
+- [ ] **Jadikan utama** sets `is_primary` on one row per org
 - [ ] Bootstrap split rule → see `scripts/xendit-bootstrap-split-rule.md` → `xendit_platform_config.split_rule_id` populated
-- [ ] Settings panel shows platform fee read-only + **Otomatis aktif** (no manual Save fee button)
 
 ## 3. Piutang VA (`/incomes/piutang`)
 
@@ -34,10 +48,33 @@ Seed data simulasi (SQL Editor): `scripts/xendit-piutang-sandbox-seed.sql`
 
 ## 4. Payroll disburse (`/payroll/calculations`)
 
+- [ ] Primary sub-account `status=pending` → **Disburse via Xendit** disabled with tooltip
+- [ ] After Xendit verifies sub-account (`status=active`) → disburse enabled
 - [ ] Run in `calculated` status with pending employee payouts
-- [ ] **Disburse via Xendit** → `xendit_disbursements` rows, calcs `processing`
-- [ ] Webhook completed → calcs `paid`
+- [ ] **Disburse via Xendit** opens preview: employee list, bank, THP, invalid rows highlighted
+- [ ] Preview shows **CASH balance** vs **total pending THP**; confirm blocked if insufficient
+- [ ] Confirm → MFA step-up → disburse batch (`xendit_disbursements`, calcs `processing`)
+- [ ] Brick **Disburse via Brick** hidden on payroll (Brick still for balance/mutations elsewhere)
+- [ ] While any calc `processing`: **Mark as Paid** hidden; full re-disburse disabled
+- [ ] Webhook completed → calcs `paid`; all paid → run auto `paid` (`maybe_finalize_payroll_run`)
+- [ ] Failed calc → banner + per-row **Retry** (`payroll_calculation` source)
+- [ ] After batch: gateway wallet snapshot refreshed + `payroll_audit_log` `xendit_disburse_batch`
+- [ ] Process payroll: missing bank → warning only (not block); disburse preview blocks invalid rows
 - [ ] CSV export still available (unchanged)
+
+### Payroll statutory escrow (optional per org)
+
+Apply migration `20260826120000_payroll_xendit_escrow.sql`.
+
+- [ ] Enable escrow in Payroll sidebar → pick non-primary active sub-account (MFA)
+- [ ] Escrow ON → Mark as Paid hidden; disburse still works
+- [ ] Disburse card shows **Operational CASH (Primary)**; reserved escrow as subtext
+- [ ] After all calcs paid + run finalized → `POST /transfers` primary → escrow
+- [ ] Verify `payroll_xendit_escrow_transfers.status = completed` and wallet balances shift
+- [ ] Insufficient CASH after THP → `failed` row + banner; retry after top-up (MFA)
+- [ ] Org without escrow enabled → no transfer rows, no UI banners
+
+See `docs/payroll-escrow-runbook.md`.
 
 ## 5. Vendor payment (`/expenses/payment-process`)
 
@@ -73,6 +110,10 @@ Seed data simulasi (SQL Editor): `scripts/xendit-piutang-sandbox-seed.sql`
 4. Panel **Saldo per Laci Keuangan** shows **Laci Xendit**; **Total Current Balance** includes bank + Xendit usable balance.
 5. Period net on drawer row = Σ settled VA − Σ completed disbursements for dashboard filter period.
 6. Validation: `scripts/gateway-wallet-balance-validation.sql`.
+7. Drawer row shows **Terakhir sync** with absolute WIB timestamp (`formatGatewaySyncedAt`); Income dashboard still uses **if_stale** (15 min) auto-sync only.
+8. `/xendit/balance` forces one **getBalance** sync on page mount and shows the same timestamp on aggregate + primary CASH cards.
+9. Payroll disburse preview syncs fresh CASH on dialog open (primary sub-account balance); confirm stays disabled until sync completes.
+10. Payroll paid: webhook/manual mark paid → email karyawan + home banner 24h (`employee_payroll_paid_announcements`); inline 2FA on disburse confirm.
 
 ## 10. Gateway withdrawal (`/incomes/xendit` — Saldo & Penarikan)
 
@@ -113,3 +154,50 @@ Setup: `scripts/iluma-gateway-payout-setup.md` — migration `20260725120000_gat
 - [ ] Row in `gateway_payout_bank_validations` per attempt
 - [ ] Direct client `use_for_gateway_payout=true` without MATCH → DB trigger `gateway_payout_not_validated`
 - [ ] Create sub-account: Iluma validation runs before Xendit `/v2/accounts`; non-MATCH aborts create
+
+## 12. Multi sub-account balance & history
+
+Prerequisites: migration `20260822120000_xendit_sub_account_wallets.sql` applied; `xendit-api` deployed with `syncAllOrgXenditWallets`.
+
+Setup: org with **2+ active** sub-accounts (different business emails). Failed/suspended sub-accounts must **not** appear in selectors.
+
+### Balance (`/incomes/xendit/balance` or `/xendit/balance`)
+
+- [ ] **Aggregate card** shows SUM of CASH + HOLDING across all active sub-accounts (matches `organization_gateway_wallets` provider=xendit)
+- [ ] **Per-sub-account grid** shows email, business name, CASH/HOLDING per row from `xendit_sub_account_wallets`
+- [ ] Primary sub-account badge **Utama** / **Primary**
+- [ ] Refresh triggers sync for all active sub-accounts; aggregate updates after sync
+- [ ] **Withdraw** section uses **primary only** balance; subtitle shows primary email/label
+- [ ] Withdraw still debits primary sub-account CASH only (unchanged behavior)
+
+### History (`/incomes/xendit/history`)
+
+- [ ] Default filter **Semua sub-account** / **All sub-accounts** — shows all withdrawals
+- [ ] Filter by one sub-account → only rows with matching `sub_account_id`
+- [ ] **Sub-account** column always visible (email / business_name; fallback truncated ID or —)
+- [ ] Old rows without label still render (fallback)
+
+### Incomes dashboard
+
+- [ ] Xendit drawer total = **aggregate** (sum all active sub-accounts)
+- [ ] Subtitle shows count of active sub-accounts + link to balance page
+
+### Expenses / payment process
+
+- [ ] Gateway picker shows **primary** usable balance as operational amount
+- [ ] Footnote shows org aggregate total + sub-account count
+- [ ] Disbursement still uses primary sub-account (no sub-account selector)
+
+### Bank mutations
+
+- [ ] `erp_gateway_withdrawal` rows show sub-account label from `raw_payload.sub_account_id`
+- [ ] New `erp_expense` Xendit disbursements include `sub_account_id` in payload (primary at disburse time)
+
+### Primary switch & new sub-account
+
+- [ ] Set primary sub-account → resync **all** wallets + aggregate
+- [ ] New sub-account becomes `active` → auto-sync wallet row for that account
+
+### Polling fix
+
+- [ ] Pending `xendit_disbursements` poll uses each row's `sub_account_id`, not always primary

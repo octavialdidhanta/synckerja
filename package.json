@@ -61,6 +61,7 @@
     "supabase:functions:deploy:whatsapp-campaign-worker": "node scripts/sync-wa-template-graph.mjs && npx supabase functions deploy whatsapp-campaign-worker --no-verify-jwt",
     "supabase:functions:deploy:send-instagram-message": "npx supabase functions deploy send-instagram-message",
     "supabase:functions:deploy:instagram-webhook": "npx supabase functions deploy instagram-webhook --no-verify-jwt",
+    "supabase:functions:deploy:xendit-api": "npx supabase functions deploy xendit-api --no-verify-jwt",
     "supabase:functions:deploy:google-sso-public-config": "npx supabase functions deploy google-sso-public-config",
     "supabase:functions:deploy:google-drive-file-media": "npx supabase functions deploy google-drive-file-media --no-verify-jwt",
     "supabase:functions:deploy:google-drive-file-thumbnail": "npx supabase functions deploy google-drive-file-thumbnail --no-verify-jwt",

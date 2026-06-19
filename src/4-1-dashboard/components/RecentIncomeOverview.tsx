@@ -45,9 +45,9 @@ export const RecentIncomeOverview = () => {
   }
 
   return (
-    <div className="min-w-0">
+    <div className="flex min-h-full min-w-0 flex-col">
       {recentIncomes.length === 0 ? (
-        <div className="text-center py-6">
+        <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
           <p className="text-slate-500 text-sm">No recent income to display.</p>
           <p className="text-slate-400 text-xs mt-1 italic">
             This section shows the latest income transactions and their current status.
@@ -82,14 +82,6 @@ export const RecentIncomeOverview = () => {
               </div>
             </div>
           ))}
-        </div>
-      )}
-      
-      {recentIncomes.length > 0 && (
-        <div className="mt-3 pt-2 border-t border-slate-200/60">
-          <p className="text-xs text-slate-500 text-center">
-            Showing {recentIncomes.length} of {incomeTransactions.length} transactions
-          </p>
         </div>
       )}
     </div>
