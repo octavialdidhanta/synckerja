@@ -181,10 +181,18 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         stopOAuthPopupPoll();
         clearThreadsOAuthPopupFlag();
         setOauthLoading(false);
+        const desc = data.error_description || data.error || '';
+        const redirectBlocked =
+          /redirect/i.test(desc) && /white.?list|blocked/i.test(desc);
         toast.error(
-          data.error_description ||
-            data.error ||
-            t('instagramConnect.oauthDenied', 'Login cancelled or denied.'),
+          redirectBlocked
+            ? t(
+                'instagramConnect.threadsOAuthRedirectBlocked',
+                'Redirect URI not whitelisted in Meta. Add this exact URL under Use cases → Threads API → Settings: {{uri}}',
+                { uri: redirectUri },
+              )
+            : desc || t('instagramConnect.oauthDenied', 'Login cancelled or denied.'),
+          { duration: redirectBlocked ? 16000 : undefined },
         );
         return;
       }

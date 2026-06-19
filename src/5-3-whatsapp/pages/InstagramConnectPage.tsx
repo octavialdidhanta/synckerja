@@ -20,7 +20,7 @@ import { META_BUSINESS_OAUTH_SCOPES, hasThreadsScopes } from '@/meta-platform/co
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
 import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
 import { useThreadsOAuthConnect } from '@/meta-platform/hooks/useThreadsOAuthConnect';
-import { hasThreadsOAuthConfig } from '@/meta-platform/constants/threadsAppEnv';
+import { hasThreadsOAuthConfig, getThreadsOAuthRedirectUri } from '@/meta-platform/constants/threadsAppEnv';
 
 const META_OAUTH_SCOPE = META_BUSINESS_OAUTH_SCOPES;
 const META_OAUTH_VERSION = META_GRAPH_VERSION;
@@ -193,6 +193,7 @@ export function InstagramConnectPage() {
   const primaryGranted =
     connectedAccounts.length > 0 ? parseGrantedScopes(connectedAccounts[0].granted_scopes) : [];
   const needsThreadsOAuth = connectedAccounts.length > 0 && !hasThreadsScopes(primaryGranted);
+  const threadsOAuthRedirectUri = getThreadsOAuthRedirectUri();
 
   const startOAuthPopupPoll = useCallback(() => {
     stopOAuthPopupPoll();
@@ -535,6 +536,12 @@ export function InstagramConnectPage() {
                                       'Use Threads App ID (not the top App ID) from Meta → App settings → Basic. Local dev: open https://localhost:8080 and whitelist https://localhost:8080/auth/threads/callback in Meta.',
                                     )}
                                   </p>
+                                  {threadsOAuthRedirectUri ? (
+                                    <p className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 font-mono text-[11px] text-slate-700 break-all">
+                                      {t('instagramConnect.threadsRedirectUriLabel', 'Meta redirect URI:')}{' '}
+                                      {threadsOAuthRedirectUri}
+                                    </p>
+                                  ) : null}
                                 </div>
                               )}
                             </div>
