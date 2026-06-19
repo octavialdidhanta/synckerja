@@ -100,15 +100,16 @@ export async function resolveThreadsContentAccount(
 
   let row = byIg;
   if (!row) {
-    const { data: byThreads } = await admin
+    const { data: byThreadsRows } = await admin
       .from("organization_instagram_accounts")
       .select("*")
       .eq("organization_id", organizationId)
       .eq("threads_user_id", accountId)
       .eq("is_active", true)
       .eq("has_threads", true)
-      .maybeSingle();
-    row = byThreads;
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    row = (byThreadsRows ?? [])[0] ?? null;
   }
 
   if (!row) return null;
@@ -135,20 +136,28 @@ export async function getThreadsAccessToken(
   organizationId: string,
   threadsUserId: string,
 ): Promise<string | null> {
-  const { data: row } = await admin
+  const { data: tokenRows, error: tokenErr } = await admin
     .from("organization_instagram_accounts")
     .select("threads_access_token_enc, threads_token_expires_at")
     .eq("organization_id", organizationId)
     .eq("threads_user_id", threadsUserId)
     .eq("has_threads", true)
     .eq("is_active", true)
-    .maybeSingle();
+    .order("updated_at", { ascending: false })
+    .limit(1);
 
+  if (tokenErr) {
+    console.error("getThreadsAccessToken query:", tokenErr.message);
+    return null;
+  }
+
+  const row = (tokenRows ?? [])[0] as
+    | { threads_access_token_enc: string; threads_token_expires_at: string | null }
+    | undefined;
   if (!row?.threads_access_token_enc) return null;
 
-  const tokenRow = row as { threads_access_token_enc: string; threads_token_expires_at: string | null };
-  const expiresAtMs = tokenRow.threads_token_expires_at
-    ? new Date(String(tokenRow.threads_token_expires_at)).getTime()
+  const expiresAtMs = row.threads_token_expires_at
+    ? new Date(String(row.threads_token_expires_at)).getTime()
     : null;
   const needsRefresh = expiresAtMs != null &&
     Number.isFinite(expiresAtMs) &&
@@ -156,7 +165,7 @@ export async function getThreadsAccessToken(
 
   if (!needsRefresh) {
     try {
-      return await decryptThreadsContentToken(String(tokenRow.threads_access_token_enc));
+      return await decryptThreadsContentToken(String(row.threads_access_token_enc));
     } catch (e) {
       console.error("getThreadsAccessToken decrypt:", e);
     }
@@ -164,7 +173,7 @@ export async function getThreadsAccessToken(
 
   let currentToken: string;
   try {
-    currentToken = await decryptThreadsContentToken(String(tokenRow.threads_access_token_enc));
+    currentToken = await decryptThreadsContentToken(String(row.threads_access_token_enc));
   } catch (e) {
     console.error("getThreadsAccessToken refresh decrypt:", e);
     return null;
@@ -179,7 +188,7 @@ export async function getThreadsAccessToken(
   const accessEnc = await encryptThreadsContentToken(refreshed.access_token);
   const accessExpires = refreshed.expires_in
     ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
-    : tokenRow.threads_token_expires_at;
+    : row.threads_token_expires_at;
 
   await admin
     .from("organization_instagram_accounts")

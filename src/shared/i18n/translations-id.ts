@@ -1996,6 +1996,7 @@ export const idTranslations: TranslationDictionary = {
   "instagramConnect.threadsAppIdHint": "Pakai Threads App ID (bukan App ID paling atas) di Meta → App settings → Basic. Lokal: https://localhost:8080 + whitelist https://localhost:8080/auth/threads/callback.",
   "instagramConnect.threadsRedirectUriLabel": "Meta redirect URI:",
   "instagramConnect.threadsOAuthRedirectBlocked": "Redirect URI belum di-whitelist di Meta. Tambahkan URL persis ini di Use cases → Threads API → Settings: {{uri}}",
+  "instagramConnect.threadsTesterInviteRequired": "Terima undangan Threads Tester dulu: Threads → Settings → Account → Website permissions → Invites.",
   "instagramConnect.configIdNotSet": "Set VITE_META_OAUTH_CONFIG_ID ke Configuration ID Business Login Anda (dari Meta Developer → Business login → Configurations).",
   "instagramConnect.popupBlocked": "Popup diblokir. Izinkan popup untuk situs ini.",
   "instagramConnect.notAuthenticated": "Silakan masuk kembali.",

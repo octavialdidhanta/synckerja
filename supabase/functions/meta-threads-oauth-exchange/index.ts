@@ -97,26 +97,31 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { data: membership, error: membershipErr } = await supabaseAdmin
-      .from("organization_members")
-      .select("organization_id")
+    const { data: userProfile, error: profileErr } = await supabaseAdmin
+      .from("profiles")
+      .select("active_organization_id")
       .eq("user_id", userData.user.id)
-      .eq("is_active", true)
-      .limit(1)
       .maybeSingle();
 
-    const orgId = membership?.organization_id?.trim() ?? "";
-    if (membershipErr || !orgId) {
-      return new Response(JSON.stringify({ error: "Organization not found." }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const orgId = userProfile?.active_organization_id != null
+      ? String(userProfile.active_organization_id).trim()
+      : "";
+    if (profileErr || !orgId) {
+      return new Response(
+        JSON.stringify({
+          error: "No active organization. Select an organization first.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const shortLived = await exchangeThreadsAuthCode(code, redirectUri, appId, appSecret);
     const threadsExchanged = await exchangeThreadsLongLivedToken(shortLived.access_token, appSecret);
     const threadsToken = threadsExchanged.access_token;
-    const profile = await fetchThreadsProfile(threadsToken);
+    const threadsProfile = await fetchThreadsProfile(threadsToken);
     const tokenEnc = await encryptThreadsContentToken(threadsToken);
     const tokenExpiresAt = threadsExchanged.expires_in
       ? new Date(Date.now() + threadsExchanged.expires_in * 1000).toISOString()
@@ -155,9 +160,9 @@ Deno.serve(async (req: Request) => {
       const { error: updateErr } = await supabaseAdmin
         .from("organization_instagram_accounts")
         .update({
-          threads_user_id: profile.id,
-          threads_username: profile.username,
-          threads_profile_picture_url: profile.threads_profile_picture_url,
+          threads_user_id: threadsProfile.id,
+          threads_username: threadsProfile.username,
+          threads_profile_picture_url: threadsProfile.threads_profile_picture_url,
           has_threads: true,
           threads_access_token_enc: tokenEnc,
           threads_token_expires_at: tokenExpiresAt,
@@ -173,7 +178,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         threads_accounts_synced: threadsAccountsSynced,
-        threads_username: profile.username,
+        threads_username: threadsProfile.username,
         granted_scopes: [...THREADS_OAUTH_SCOPE_LIST],
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },

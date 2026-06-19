@@ -184,15 +184,22 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         const desc = data.error_description || data.error || '';
         const redirectBlocked =
           /redirect/i.test(desc) && /white.?list|blocked/i.test(desc);
+        const testerInvitePending =
+          /not accepted the invite/i.test(desc) || /1349245/.test(desc);
         toast.error(
-          redirectBlocked
+          testerInvitePending
             ? t(
-                'instagramConnect.threadsOAuthRedirectBlocked',
-                'Redirect URI not whitelisted in Meta. Add this exact URL under Use cases → Threads API → Settings: {{uri}}',
-                { uri: redirectUri },
+                'instagramConnect.threadsTesterInviteRequired',
+                'Accept the Threads Tester invite first: Threads → Settings → Account → Website permissions → Invites.',
               )
-            : desc || t('instagramConnect.oauthDenied', 'Login cancelled or denied.'),
-          { duration: redirectBlocked ? 16000 : undefined },
+            : redirectBlocked
+              ? t(
+                  'instagramConnect.threadsOAuthRedirectBlocked',
+                  'Redirect URI not whitelisted in Meta. Add this exact URL under Use cases → Threads API → Settings: {{uri}}',
+                  { uri: redirectUri },
+                )
+              : desc || t('instagramConnect.oauthDenied', 'Login cancelled or denied.'),
+          { duration: testerInvitePending || redirectBlocked ? 16000 : undefined },
         );
         return;
       }
