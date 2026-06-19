@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWhatsAppMessages } from '../../hooks/useWhatsAppMessages';
 import { useInstagramMessages } from '../../hooks/useInstagramMessages';
 import { useResolveWhatsAppMedia } from '../../hooks/useResolveWhatsAppMedia';
+import { useResolveInstagramMedia } from '../../hooks/useResolveInstagramMedia';
 import { useSendWhatsAppMessage } from '../../hooks/useSendWhatsAppMessage';
 import { useSendInstagramMessage } from '../../hooks/useSendInstagramMessage';
 import type {
@@ -844,6 +845,25 @@ function MediaPreview({
     );
   }
 
+  if (messageType === 'quick_reply' || messageType === 'postback') {
+    const chipLabel =
+      messageType === 'quick_reply'
+        ? t('whatsappInbox.quickReplyLabel', 'Quick reply')
+        : t('whatsappInbox.postbackLabel', 'Postback');
+    return (
+      <div className="min-w-0">
+        <span
+          className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            isOutbound ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-800'
+          }`}
+        >
+          {chipLabel}
+        </span>
+        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{body || '—'}</p>
+      </div>
+    );
+  }
+
   if (!mediaUrl) {
     const fallbackCaption = direction === 'inbound' ? getCaptionFromRawMetadata(rawMetadata) : null;
     const displayBody = (body && !MEDIA_TYPES.some((t) => body === `[${t}]`)) ? body : (fallbackCaption ?? (body || '[Media]'));
@@ -1217,7 +1237,11 @@ export function ChatThread({
   const isLoading = isInstagram ? igMessagesQuery.isLoading : waMessagesQuery.isLoading;
   const { send, isSending: isSendingWhatsApp } = useSendWhatsAppMessage();
   const { send: sendInstagram, isSending: isSendingInstagram } = useSendInstagramMessage();
-  const { resolve: resolveMedia, isResolving: isResolvingMedia, resolvingMessageId } = useResolveWhatsAppMedia(!isInstagram ? conversation?.id ?? null : null);
+  const { resolve: resolveWaMedia, isResolving: isResolvingWaMedia, resolvingMessageId: resolvingWaMessageId } = useResolveWhatsAppMedia(!isInstagram ? conversation?.id ?? null : null);
+  const { resolve: resolveIgMedia, isResolving: isResolvingIgMedia, resolvingMessageId: resolvingIgMessageId } = useResolveInstagramMedia(isInstagram ? conversation?.id ?? null : null);
+  const resolveMedia = isInstagram ? resolveIgMedia : resolveWaMedia;
+  const isResolvingMedia = isInstagram ? isResolvingIgMedia : isResolvingWaMedia;
+  const resolvingMessageId = isInstagram ? resolvingIgMessageId : resolvingWaMessageId;
 
   const hasConversationId = !!conversation?.id;
   const { data: conversationStatusRow } = useQuery({
@@ -1567,12 +1591,15 @@ export function ChatThread({
         return;
       }
       if (isInstagramConversation) {
-        toast.error(t('whatsappInbox.instagramMediaNotSupported', 'Pengiriman media ke Instagram belum tersedia. Kirim pesan teks saja.'));
-        return;
-      }
-      if (!customerId.replace(/\D/g, '')) {
-        toast.error('Nomor WhatsApp penerima tidak tersedia.');
-        return;
+        if (mediaType === 'document') {
+          toast.error(t('whatsappInbox.instagramDocumentNotSupported', 'Dokumen ke Instagram belum tersedia. Kirim gambar atau video.'));
+          return;
+        }
+      } else {
+        if (!customerId.replace(/\D/g, '')) {
+          toast.error('Nomor WhatsApp penerima tidak tersedia.');
+          return;
+        }
       }
       if (sendDisabled) {
         if (sendDisabledByNoAccount) {
@@ -1622,7 +1649,9 @@ export function ChatThread({
         return;
       }
       const displayBody = caption || `[${mediaType}]`;
-      const path = `${conversation.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const storagePath = isInstagramConversation
+        ? `ig/${conversation.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+        : `${conversation.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       setIsUploading(true);
       setOptimisticMedia({
         body: displayBody,
@@ -1634,26 +1663,38 @@ export function ChatThread({
         reply_to_sender: replyToSender ?? null,
       });
       try {
-        const { error: uploadError } = await supabase.storage.from(WHATSAPP_MEDIA_BUCKET).upload(path, file, {
+        const { error: uploadError } = await supabase.storage.from(WHATSAPP_MEDIA_BUCKET).upload(storagePath, file, {
           cacheControl: '31536000',
           upsert: false,
         });
         if (uploadError) throw new Error(uploadError.message);
-        const { data: urlData } = supabase.storage.from(WHATSAPP_MEDIA_BUCKET).getPublicUrl(path);
+        const { data: urlData } = supabase.storage.from(WHATSAPP_MEDIA_BUCKET).getPublicUrl(storagePath);
         const publicUrl = urlData.publicUrl;
         setOptimisticMedia((prev) => (prev ? { ...prev, media_url: publicUrl } : null));
-        await send({
-          to: customerId,
-          text: '',
-          conversation_id: conversation.id,
-          media_type: mediaType,
-          media_link: publicUrl,
-          caption: caption || undefined,
-          reply_to_wa_message_id: replyToWaMessageId ?? undefined,
-          reply_to_body: replyToBody ?? undefined,
-          reply_to_message_type: replyToMessageType ?? undefined,
-          reply_to_sender: replyToSender ?? undefined,
-        });
+        if (isInstagramConversation) {
+          await sendInstagram({
+            to: customerId,
+            text: caption || '',
+            conversation_id: conversation.id,
+            media_type: mediaType === 'video' ? 'video' : 'image',
+            media_link: publicUrl,
+            caption: caption || undefined,
+            reply_to_wa_message_id: replyToWaMessageId ?? undefined,
+          });
+        } else {
+          await send({
+            to: customerId,
+            text: '',
+            conversation_id: conversation.id,
+            media_type: mediaType,
+            media_link: publicUrl,
+            caption: caption || undefined,
+            reply_to_wa_message_id: replyToWaMessageId ?? undefined,
+            reply_to_body: replyToBody ?? undefined,
+            reply_to_message_type: replyToMessageType ?? undefined,
+            reply_to_sender: replyToSender ?? undefined,
+          });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Gagal mengirim media.';
         toast.error(msg);
@@ -1663,7 +1704,7 @@ export function ChatThread({
       }
       // Optimistic media dihapus saat pesan asli ada di list (useEffect hasMatchingRealMessage)
     },
-    [conversation, customerId, send, isInstagramConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, sendDisabledByNotAssignee, blockReasonResolved, blockReasonExpiredOrMeta]
+    [conversation, customerId, send, sendInstagram, isInstagramConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, sendDisabledByNotAssignee, blockReasonResolved, blockReasonExpiredOrMeta]
   );
 
   /** Blokir pesan yang meminta kontak. Default ON; set VITE_WHATSAPP_BLOCK_CONTACT_REQUESTS=false untuk nonaktifkan. */

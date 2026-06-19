@@ -1,4 +1,5 @@
 import {
+  INSIGHT_TARGET_PLATFORMS,
   insightTargetCellKey,
   type InsightTargetAccountRef,
   type InsightTargetMetric,
@@ -138,7 +139,7 @@ export function actualsFromAccountRow(
 export function aggregateInsightActualsByPlatform(
   accounts: SocialMediaInsightAccountRow[],
 ): Record<InsightTargetPlatform, PlatformPeriodActuals> {
-  const platforms: InsightTargetPlatform[] = ["tiktok", "youtube", "linkedin"];
+  const platforms: InsightTargetPlatform[] = [...INSIGHT_TARGET_PLATFORMS];
   return platforms.reduce(
     (acc, platform) => {
       acc[platform] = summarizePlatformAccounts(

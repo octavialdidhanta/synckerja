@@ -10,11 +10,11 @@ import {
 } from "recharts";
 import type { TooltipProps } from "recharts";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-
+import type { SocialMediaPlatform } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
 import { SOCIAL_INSIGHT_CHART_COLORS } from "@/6-0-social-media-report/socialMediaInsightChartColors";
 
 type Props = {
-  data: { platform: "tiktok" | "youtube" | "linkedin"; views: number }[];
+  data: { platform: SocialMediaPlatform; views: number }[];
   height?: number;
 };
 
@@ -36,16 +36,26 @@ function PlatformTooltip({ active, payload, label }: TooltipProps<number, string
 export function SocialMediaInsightReportPlatformBarChart({ data, height = 280 }: Props) {
   const { t } = useAppTranslation();
 
+  const platformLabel = (platform: SocialMediaPlatform): string => {
+    switch (platform) {
+      case "tiktok":
+        return t("digitalMarketing.socialMediaPerformance.platformTikTok", "TikTok");
+      case "youtube":
+        return t("digitalMarketing.socialMediaPerformance.platformYouTube", "YouTube");
+      case "linkedin":
+        return t("digitalMarketing.socialMediaPerformance.platformLinkedIn", "LinkedIn");
+      case "instagram":
+        return t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram");
+      case "facebook":
+        return t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook");
+    }
+  };
+
   const chartData = [...data]
     .sort((a, b) => a.views - b.views)
     .map((d) => ({
       ...d,
-      label:
-        d.platform === "tiktok"
-          ? t("digitalMarketing.socialMediaPerformance.platformTikTok", "TikTok")
-          : d.platform === "youtube"
-            ? t("digitalMarketing.socialMediaPerformance.platformYouTube", "YouTube")
-            : t("digitalMarketing.socialMediaPerformance.platformLinkedIn", "LinkedIn"),
+      label: platformLabel(d.platform),
     }));
 
   const total = chartData.reduce((s, d) => s + d.views, 0);

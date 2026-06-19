@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { LinkedInPageRow } from "./linkedinContentApi.ts";
+import { linkedinContentOAuthScopes } from "./linkedinContentAuth.ts";
 import {
   encryptLinkedInContentToken,
 } from "./linkedinContentConfigCrypto.ts";
@@ -13,9 +14,13 @@ export async function saveLinkedInPageConnection(
     accessToken: string;
     refreshToken: string;
     expiresIn?: number;
+    grantedScopes?: string[];
   },
 ): Promise<{ isExistingAccount: boolean }> {
-  const { organizationId, userId, page, accessToken, refreshToken, expiresIn } = args;
+  const { organizationId, userId, page, accessToken, refreshToken, expiresIn, grantedScopes } = args;
+  const scopes = grantedScopes?.length
+    ? grantedScopes
+    : linkedinContentOAuthScopes().split(/\s+/).filter(Boolean);
   const pageId = page.page_id;
   const now = new Date().toISOString();
   const accessExpires = expiresIn
@@ -82,6 +87,7 @@ export async function saveLinkedInPageConnection(
         ? Number((existingPage as { sort_order?: number }).sort_order) || 0
         : maxSort + 1,
       is_active: true,
+      granted_scopes: scopes,
       updated_at: now,
     },
     { onConflict: "organization_id,page_id" },

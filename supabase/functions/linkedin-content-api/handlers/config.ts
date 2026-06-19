@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { saveLinkedInPageConnection } from "../../_shared/linkedinContentConnectionSave.ts";
+import { linkedinContentOAuthScopes } from "../../_shared/linkedinContentAuth.ts";
 import { decryptLinkedInContentToken } from "../../_shared/linkedinContentConfigCrypto.ts";
 import type { LinkedInPageRow } from "../../_shared/linkedinContentApi.ts";
 import {
@@ -31,7 +32,7 @@ export async function handleLinkedInConfig(
 
     const { data: accounts } = await admin
       .from("organization_linkedin_content_accounts")
-      .select("id, page_id, label, display_name, thumbnail_url, is_default, sort_order, is_active, created_at, updated_at")
+      .select("id, page_id, label, display_name, thumbnail_url, is_default, sort_order, is_active, granted_scopes, created_at, updated_at")
       .eq("organization_id", organizationId)
       .order("sort_order", { ascending: true });
 
@@ -127,6 +128,7 @@ export async function handleLinkedInConfig(
             ),
           )
           : undefined,
+        grantedScopes: linkedinContentOAuthScopes().split(/\s+/).filter(Boolean),
       });
 
       await admin.from("linkedin_content_pending_connections").delete().eq("id", pending.id);

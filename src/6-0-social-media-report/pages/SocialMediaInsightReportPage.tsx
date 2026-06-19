@@ -302,6 +302,18 @@ function SocialMediaInsightReportPageBody({
                                         "LinkedIn",
                                       )}
                                     </SelectItem>
+                                    <SelectItem value="instagram">
+                                      {t(
+                                        "digitalMarketing.socialMediaPerformance.platformInstagram",
+                                        "Instagram",
+                                      )}
+                                    </SelectItem>
+                                    <SelectItem value="facebook">
+                                      {t(
+                                        "digitalMarketing.socialMediaPerformance.platformFacebook",
+                                        "Facebook",
+                                      )}
+                                    </SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <TikTokAdsDateRangePicker

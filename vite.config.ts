@@ -28,6 +28,17 @@ function legacyFeaturesShareResolve(): Plugin {
   };
 }
 
+function normalizeViteEnv(value: string | undefined): string {
+  const trimmed = (value ?? "").trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const envDir = path.resolve(__dirname);
@@ -47,6 +58,15 @@ export default defineConfig(({ mode }) => {
     process.env.VITE_GOOGLE_SSO_WEB_CLIENT_ID?.trim() ||
     fileEnv.VITE_GOOGLE_SSO_WEB_CLIENT_ID?.trim() ||
     "";
+  const metaAppId =
+    normalizeViteEnv(process.env.VITE_META_APP_ID) ||
+    normalizeViteEnv(fileEnv.VITE_META_APP_ID);
+  const threadsAppId =
+    normalizeViteEnv(process.env.VITE_THREADS_APP_ID) ||
+    normalizeViteEnv(fileEnv.VITE_THREADS_APP_ID);
+  const metaOAuthConfigId =
+    normalizeViteEnv(process.env.VITE_META_OAUTH_CONFIG_ID) ||
+    normalizeViteEnv(fileEnv.VITE_META_OAUTH_CONFIG_ID);
 
   return {
   envDir,
@@ -54,6 +74,9 @@ export default defineConfig(({ mode }) => {
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(supabaseUrl),
     "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(supabaseAnon),
     "import.meta.env.VITE_GOOGLE_SSO_WEB_CLIENT_ID": JSON.stringify(googleSsoWebClientId),
+    "import.meta.env.VITE_META_APP_ID": JSON.stringify(metaAppId),
+    "import.meta.env.VITE_THREADS_APP_ID": JSON.stringify(threadsAppId),
+    "import.meta.env.VITE_META_OAUTH_CONFIG_ID": JSON.stringify(metaOAuthConfigId),
   },
   server: {
     host: "::",

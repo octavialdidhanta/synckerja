@@ -12,10 +12,14 @@ export const SOCIAL_MEDIA_PERFORMANCE_TIKTOK_PATH =
   "/digital-marketing/social-media-performance/tiktok";
 export const SOCIAL_MEDIA_PERFORMANCE_FACEBOOK_PATH =
   "/digital-marketing/social-media-performance/facebook";
+export const SOCIAL_MEDIA_PERFORMANCE_INSTAGRAM_PATH =
+  "/digital-marketing/social-media-performance/instagram";
 export const SOCIAL_MEDIA_PERFORMANCE_YOUTUBE_PATH =
   "/digital-marketing/social-media-performance/youtube";
 export const SOCIAL_MEDIA_PERFORMANCE_LINKEDIN_PATH =
   "/digital-marketing/social-media-performance/linkedin";
+export const SOCIAL_MEDIA_PERFORMANCE_THREADS_PATH =
+  "/digital-marketing/social-media-performance/threads";
 export const SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH =
   "/digital-marketing/social-media-performance/report";
 export const SOCIAL_MEDIA_PERFORMANCE_MANAGE_COMMENTS_PATH =
@@ -41,8 +45,11 @@ export function SocialMediaPerformanceHeaderAndTab({
   const isTikTok =
     location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_TIKTOK_PATH) &&
     !location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_MANAGE_COMMENTS_PATH);
+  const isFacebook = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_FACEBOOK_PATH);
+  const isInstagram = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_INSTAGRAM_PATH);
   const isYouTube = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_YOUTUBE_PATH);
   const isLinkedIn = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_LINKEDIN_PATH);
+  const isThreads = location.pathname.startsWith(SOCIAL_MEDIA_PERFORMANCE_THREADS_PATH);
   const isReport = location.pathname.startsWith(activeReportPath);
   const isManageComments = location.pathname.startsWith(
     SOCIAL_MEDIA_PERFORMANCE_MANAGE_COMMENTS_PATH,
@@ -82,54 +89,33 @@ export function SocialMediaPerformanceHeaderAndTab({
             activeClassName={tabActive}
             inactiveClassName={tabInactive}
           />
-          <button
-            type="button"
-            role="tab"
-            aria-selected={false}
-            aria-disabled
-            onClick={showComingSoon}
-            title={t(
-              "digitalMarketing.socialMediaPerformance.platformFacebookPageHint",
-              "Facebook Page organic insights",
-            )}
-            className={cn(tabClass, tabDisabled)}
-            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
-          >
-            <Facebook className="h-4 w-4 shrink-0" aria-hidden />
-            <span>
-              {t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook")}
-            </span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={false}
-            aria-disabled
-            onClick={showComingSoon}
-            className={cn(tabClass, tabDisabled)}
-            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
-          >
-            <Instagram className="h-4 w-4 shrink-0" aria-hidden />
-            <span>
-              {t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram")}
-            </span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={false}
-            aria-disabled
-            onClick={showComingSoon}
-            title={t(
-              "digitalMarketing.socialMediaPerformance.platformThreadsHint",
-              "Threads organic insights",
-            )}
-            className={cn(tabClass, tabDisabled)}
-            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
-          >
-            <ThreadsTabIcon className="h-4 w-4 shrink-0" />
-            <span>{t("digitalMarketing.socialMediaPerformance.platformThreads", "Threads")}</span>
-          </button>
+          <ModuleTabNavItem
+            pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}
+            label={t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook")}
+            icon={Facebook}
+            isActive={isFacebook}
+            onActivate={() => navigate(SOCIAL_MEDIA_PERFORMANCE_FACEBOOK_PATH)}
+            activeClassName={tabActive}
+            inactiveClassName={tabInactive}
+          />
+          <ModuleTabNavItem
+            pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}
+            label={t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram")}
+            icon={Instagram}
+            isActive={isInstagram}
+            onActivate={() => navigate(SOCIAL_MEDIA_PERFORMANCE_INSTAGRAM_PATH)}
+            activeClassName={tabActive}
+            inactiveClassName={tabInactive}
+          />
+          <ModuleTabNavItem
+            pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}
+            label={t("digitalMarketing.socialMediaPerformance.platformThreads", "Threads")}
+            icon={ThreadsTabIcon}
+            isActive={isThreads}
+            onActivate={() => navigate(SOCIAL_MEDIA_PERFORMANCE_THREADS_PATH)}
+            activeClassName={tabActive}
+            inactiveClassName={tabInactive}
+          />
           <ModuleTabNavItem
             pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}
             label={t("digitalMarketing.socialMediaPerformance.platformYouTube", "YouTube")}

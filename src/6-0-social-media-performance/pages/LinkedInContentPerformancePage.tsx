@@ -265,6 +265,7 @@ function LinkedInContentPerformancePageContent() {
 
                             <LinkedInContentSummaryBar
                               summary={postsQuery.data?.summary}
+                              audienceCount={postsQuery.data?.audience_count}
                               isLoading={metricsLoading}
                             />
 

@@ -74,6 +74,8 @@ import {
   ManageCommentsHubPageSkeleton,
   TikTokManageCommentsPageSkeleton,
   YouTubeManageCommentsPageSkeleton,
+  MetaManageCommentsPageSkeleton,
+  MetaContentPerformancePageSkeleton,
   DigitalMarketingReportPageSkeleton,
   DigitalMarketingReportTargetsSettingsPageSkeleton,
   IncomeXenditPageSkeleton,
@@ -186,6 +188,15 @@ const YouTubeContentPerformancePage = lazy(
 const LinkedInContentPerformancePage = lazy(
   () => import("@/6-0-social-media-performance/pages/LinkedInContentPerformancePage"),
 );
+const ThreadsContentPerformancePage = lazy(
+  () => import("@/6-0-social-media-performance/pages/ThreadsContentPerformancePage"),
+);
+const InstagramContentPerformancePage = lazy(
+  () => import("@/6-0-social-media-performance/pages/InstagramContentPerformancePage"),
+);
+const FacebookContentPerformancePage = lazy(
+  () => import("@/6-0-social-media-performance/pages/FacebookContentPerformancePage"),
+);
 const SocialMediaInsightReportPage = lazy(
   () => import("@/6-0-social-media-report/pages/SocialMediaInsightReportPage"),
 );
@@ -200,6 +211,18 @@ const TikTokManageCommentsPage = lazy(
 );
 const YouTubeManageCommentsPage = lazy(
   () => import("@/6-0-social-media-manage-comments/pages/YouTubeManageCommentsPage"),
+);
+const InstagramManageCommentsPage = lazy(
+  () => import("@/6-0-social-media-manage-comments/pages/InstagramManageCommentsPage"),
+);
+const FacebookManageCommentsPage = lazy(
+  () => import("@/6-0-social-media-manage-comments/pages/FacebookManageCommentsPage"),
+);
+const LinkedInManageCommentsPage = lazy(
+  () => import("@/6-0-social-media-manage-comments/pages/LinkedInManageCommentsPage"),
+);
+const ThreadsManageCommentsPage = lazy(
+  () => import("@/6-0-social-media-manage-comments/pages/ThreadsManageCommentsPage"),
 );
 const DigitalMarketingReportPage = lazy(
   () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
@@ -344,6 +367,11 @@ const GoogleOAuthCallbackRouteElement = lazy(() =>
 const MetaOAuthCallbackRouteElement = lazy(() =>
   import("@/5-3-whatsapp/pages/MetaOAuthCallbackPage").then((m) => ({
     default: m.MetaOAuthCallbackPage,
+  })),
+);
+const ThreadsOAuthCallbackRouteElement = lazy(() =>
+  import("@/5-3-whatsapp/pages/ThreadsOAuthCallbackPage").then((m) => ({
+    default: m.ThreadsOAuthCallbackPage,
   })),
 );
 const BrickOAuthConnectPage = lazy(() =>
@@ -558,6 +586,7 @@ function AppRoutes() {
         <Route path="/first-login" element={<FirstLoginRouteElement />} />
         <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
         <Route path="/auth/meta/callback" element={<MetaOAuthCallbackRouteElement />} />
+        <Route path="/auth/threads/callback" element={<ThreadsOAuthCallbackRouteElement />} />
         <Route path="/finance/brick-oauth/connect" element={<BrickOAuthConnectPage />} />
         <Route path="/auth/sso/callback" element={<SupabaseSsoCallbackRouteElement />} />
         <Route
@@ -1940,6 +1969,34 @@ function LinkedInContentPerformancePageRouteElement() {
   );
 }
 
+function InstagramContentPerformancePageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <MetaContentPerformancePageSkeleton />
+        </div>
+      }
+    >
+      <InstagramContentPerformancePage />
+    </Suspense>
+  );
+}
+
+function FacebookContentPerformancePageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <MetaContentPerformancePageSkeleton />
+        </div>
+      }
+    >
+      <FacebookContentPerformancePage />
+    </Suspense>
+  );
+}
+
 function SocialMediaInsightReportPageRouteElement() {
   return (
     <Suspense
@@ -2006,6 +2063,76 @@ function YouTubeManageCommentsPageRouteElement() {
       }
     >
       <YouTubeManageCommentsPage />
+    </Suspense>
+  );
+}
+
+function InstagramManageCommentsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <MetaManageCommentsPageSkeleton />
+        </div>
+      }
+    >
+      <InstagramManageCommentsPage />
+    </Suspense>
+  );
+}
+
+function FacebookManageCommentsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <MetaManageCommentsPageSkeleton />
+        </div>
+      }
+    >
+      <FacebookManageCommentsPage />
+    </Suspense>
+  );
+}
+
+function LinkedInManageCommentsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <MetaManageCommentsPageSkeleton />
+        </div>
+      }
+    >
+      <LinkedInManageCommentsPage />
+    </Suspense>
+  );
+}
+
+function ThreadsContentPerformancePageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <LinkedInContentPerformancePageSkeleton />
+        </div>
+      }
+    >
+      <ThreadsContentPerformancePage />
+    </Suspense>
+  );
+}
+
+function ThreadsManageCommentsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <MetaManageCommentsPageSkeleton />
+        </div>
+      }
+    >
+      <ThreadsManageCommentsPage />
     </Suspense>
   );
 }
@@ -2173,6 +2300,7 @@ const App = () => (
                   <Route path="/first-login" element={<FirstLoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
                   <Route path="/auth/meta/callback" element={<MetaOAuthCallbackRouteElement />} />
+        <Route path="/auth/threads/callback" element={<ThreadsOAuthCallbackRouteElement />} />
                   <Route path="/finance/brick-oauth/connect" element={<BrickOAuthConnectPage />} />
                   <Route path="/auth/sso/callback" element={<SupabaseSsoCallbackRouteElement />} />
                   <Route
@@ -3431,6 +3559,54 @@ const App = () => (
                             }
                           />
                           <Route
+                            path="/digital-marketing/social-media-performance/manage-comments/instagram"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<MetaManageCommentsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <InstagramManageCommentsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/manage-comments/facebook"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<MetaManageCommentsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <FacebookManageCommentsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/manage-comments/linkedin"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance/manage-comments/linkedin"
+                                loadingShell={<MetaManageCommentsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <LinkedInManageCommentsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/manage-comments/threads"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance/manage-comments/threads"
+                                loadingShell={<MetaManageCommentsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <ThreadsManageCommentsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
                             path="/digital-marketing/social-media-performance/manage-comments"
                             element={
                               <PageAccessGuard
@@ -3491,6 +3667,54 @@ const App = () => (
                             }
                           />
                           <Route
+                            path="/digital-marketing/social-media-performance/instagram/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance/instagram/settings"
+                                loadingShell={<MetaContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <InstagramContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/instagram"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<MetaContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <InstagramContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/facebook/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance/facebook/settings"
+                                loadingShell={<MetaContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <FacebookContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/facebook"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance"
+                                loadingShell={<MetaContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <FacebookContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
                             path="/digital-marketing/social-media-performance/linkedin/settings"
                             element={
                               <PageAccessGuard
@@ -3511,6 +3735,18 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <LinkedInContentPerformancePageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/social-media-performance/threads"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/social-media-performance/threads"
+                                loadingShell={<LinkedInContentPerformancePageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <ThreadsContentPerformancePageRouteElement />
                               </PageAccessGuard>
                             }
                           />

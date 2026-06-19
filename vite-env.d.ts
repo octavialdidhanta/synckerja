@@ -12,6 +12,11 @@ interface ImportMetaEnv {
   readonly VITE_PUBLIC_SURVEY_HOSTNAME?: string;
   /** Full origin for preview links in omnichannel settings & Edge SURVEY_PUBLIC_ORIGIN should match. */
   readonly VITE_PUBLIC_SURVEY_ORIGIN?: string;
+  /** Meta Facebook/Instagram Login app ID. */
+  readonly VITE_META_APP_ID?: string;
+  readonly VITE_META_OAUTH_CONFIG_ID?: string;
+  /** Meta Threads API app ID (separate app from VITE_META_APP_ID). */
+  readonly VITE_THREADS_APP_ID?: string;
 }
 
 declare module "*.json" {

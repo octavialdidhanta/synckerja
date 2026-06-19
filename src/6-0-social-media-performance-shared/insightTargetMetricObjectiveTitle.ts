@@ -8,6 +8,9 @@ const PLATFORM_LABELS: Record<InsightTargetPlatform, string> = {
   tiktok: "TikTok",
   youtube: "YouTube",
   linkedin: "LinkedIn",
+  threads: "Threads",
+  instagram: "Instagram",
+  facebook: "Facebook",
 };
 
 const METRIC_LABELS: Record<InsightTargetMetric, string> = {

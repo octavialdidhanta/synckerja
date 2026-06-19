@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Linkedin, Youtube } from "lucide-react";
+import { Facebook, Instagram, Linkedin, Youtube } from "lucide-react";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
@@ -22,22 +22,36 @@ function formatPercent(n: number | null): string {
 }
 
 function PlatformIcon({ platform }: { platform: SocialMediaInsightAccountRow["platform"] }) {
-  if (platform === "tiktok") return <TikTokTabIcon className="h-4 w-4 shrink-0" />;
-  if (platform === "youtube") return <Youtube className="h-4 w-4 shrink-0" />;
-  return <Linkedin className="h-4 w-4 shrink-0" />;
+  switch (platform) {
+    case "tiktok":
+      return <TikTokTabIcon className="h-4 w-4 shrink-0" />;
+    case "youtube":
+      return <Youtube className="h-4 w-4 shrink-0" />;
+    case "instagram":
+      return <Instagram className="h-4 w-4 shrink-0" />;
+    case "facebook":
+      return <Facebook className="h-4 w-4 shrink-0" />;
+    case "linkedin":
+      return <Linkedin className="h-4 w-4 shrink-0" />;
+  }
 }
 
 function platformLabel(
   platform: SocialMediaInsightAccountRow["platform"],
   t: ReturnType<typeof useAppTranslation>["t"],
 ): string {
-  if (platform === "tiktok") {
-    return t("digitalMarketing.socialMediaPerformance.platformTikTok", "TikTok");
+  switch (platform) {
+    case "tiktok":
+      return t("digitalMarketing.socialMediaPerformance.platformTikTok", "TikTok");
+    case "youtube":
+      return t("digitalMarketing.socialMediaPerformance.platformYouTube", "YouTube");
+    case "linkedin":
+      return t("digitalMarketing.socialMediaPerformance.platformLinkedIn", "LinkedIn");
+    case "instagram":
+      return t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram");
+    case "facebook":
+      return t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook");
   }
-  if (platform === "youtube") {
-    return t("digitalMarketing.socialMediaPerformance.platformYouTube", "YouTube");
-  }
-  return t("digitalMarketing.socialMediaPerformance.platformLinkedIn", "LinkedIn");
 }
 
 function audienceCell(

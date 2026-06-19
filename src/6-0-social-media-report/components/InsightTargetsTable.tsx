@@ -44,6 +44,8 @@ function platformLabelKey(platform: InsightTargetPlatform): string {
     tiktok: "digitalMarketing.socialMediaPerformance.platformTikTok",
     youtube: "digitalMarketing.socialMediaPerformance.platformYouTube",
     linkedin: "digitalMarketing.socialMediaPerformance.platformLinkedIn",
+    instagram: "digitalMarketing.socialMediaPerformance.platformInstagram",
+    facebook: "digitalMarketing.socialMediaPerformance.platformFacebook",
   };
   return map[platform];
 }

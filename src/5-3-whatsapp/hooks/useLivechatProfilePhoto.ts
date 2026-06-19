@@ -3,28 +3,28 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 
 /**
- * Returns profile picture URL for a WhatsApp conversation (from Meta API via Edge Function).
- * Uses stream mode (proxy image) so the photo loads even when Meta URL requires auth.
- * Only runs when conversation is WhatsApp (not Instagram, not email).
- * Uses direct fetch + session to avoid 404/cache issues with functions.invoke.
+ * Profile picture for livechat header — WhatsApp (disabled until edge deployed) or Instagram via Graph API.
  */
 export function useLivechatProfilePhoto(
   conversationId: string | null | undefined,
   options: { source?: 'whatsapp' | 'email' | 'instagram'; channel?: string } = {}
 ) {
   const { source = 'whatsapp', channel } = options;
+  const isInstagram = source === 'instagram';
   const isWhatsApp = source === 'whatsapp' && channel !== 'instagram';
   const blobUrlRef = useRef<string | null>(null);
 
-  // Disabled: Edge Function get-whatsapp-profile-photo must be deployed to enable; when not deployed it returns 404 and triggers console errors.
   const { data: profileUrl, isLoading, error } = useQuery({
-    queryKey: ['livechat-profile-photo', conversationId],
-    enabled: false,
+    queryKey: ['livechat-profile-photo', source, conversationId],
+    enabled: isInstagram && Boolean(conversationId),
     queryFn: async (): Promise<string | null> => {
       if (!conversationId) return null;
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return null;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-whatsapp-profile-photo`, {
+      const endpoint = isInstagram
+        ? `${SUPABASE_URL}/functions/v1/get-instagram-profile-photo`
+        : `${SUPABASE_URL}/functions/v1/get-whatsapp-profile-photo`;
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -43,6 +43,9 @@ export function useLivechatProfilePhoto(
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+
+  // WhatsApp profile photo remains disabled (Cloud API limitation).
+  void isWhatsApp;
 
   useEffect(() => {
     return () => {

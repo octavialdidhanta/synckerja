@@ -12,21 +12,18 @@ import {
 } from "recharts";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { SocialMediaInsightMonthlyChartPoint } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
-import { SOCIAL_INSIGHT_CHART_COLORS } from "@/6-0-social-media-report/socialMediaInsightChartColors";
-
-const CHART_PLATFORMS = ["tiktok", "youtube", "linkedin"] as const;
-type ChartPlatform = (typeof CHART_PLATFORMS)[number];
+import {
+  SOCIAL_INSIGHT_CHART_COLORS,
+  SOCIAL_INSIGHT_CHART_PLATFORMS,
+  type SocialInsightChartPlatform,
+} from "@/6-0-social-media-report/socialMediaInsightChartColors";
 
 type GroupedSlotChartPoint = SocialMediaInsightMonthlyChartPoint & {
-  bar0: number;
-  bar0Platform: ChartPlatform | null;
-  bar1: number;
-  bar1Platform: ChartPlatform | null;
-  bar2: number;
-  bar2Platform: ChartPlatform | null;
+  [key: `bar${number}`]: number;
+  [key: `bar${number}Platform`]: SocialInsightChartPlatform | null;
 };
 
-function platformColor(platform: ChartPlatform | null): string {
+function platformColor(platform: SocialInsightChartPlatform | null): string {
   if (!platform) return "transparent";
   return SOCIAL_INSIGHT_CHART_COLORS[platform];
 }
@@ -36,22 +33,19 @@ function toSortedGroupedChartData(
   data: SocialMediaInsightMonthlyChartPoint[],
 ): GroupedSlotChartPoint[] {
   return data.map((point) => {
-    const sorted = CHART_PLATFORMS.map((platform) => ({
+    const sorted = SOCIAL_INSIGHT_CHART_PLATFORMS.map((platform) => ({
       platform,
       value: point[platform],
     }))
       .filter((entry) => entry.value > 0)
       .sort((a, b) => a.value - b.value);
 
-    return {
-      ...point,
-      bar0: sorted[0]?.value ?? 0,
-      bar0Platform: sorted[0]?.platform ?? null,
-      bar1: sorted[1]?.value ?? 0,
-      bar1Platform: sorted[1]?.platform ?? null,
-      bar2: sorted[2]?.value ?? 0,
-      bar2Platform: sorted[2]?.platform ?? null,
-    };
+    const slots: GroupedSlotChartPoint = { ...point, bar0: 0, bar0Platform: null };
+    for (let i = 0; i < SOCIAL_INSIGHT_CHART_PLATFORMS.length; i++) {
+      slots[`bar${i}`] = sorted[i]?.value ?? 0;
+      slots[`bar${i}Platform`] = sorted[i]?.platform ?? null;
+    }
+    return slots;
   });
 }
 
@@ -82,13 +76,13 @@ function InsightTooltip({
   formatValue: (n: number) => string;
   valueSuffix?: string;
   sourcePoint?: SocialMediaInsightMonthlyChartPoint;
-  platformLabels: Record<ChartPlatform, string>;
+  platformLabels: Record<SocialInsightChartPlatform, string>;
 }) {
   if (!active || !sourcePoint) return null;
   return (
     <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs shadow-md">
       <p className="mb-1 font-medium text-gray-900">{label}</p>
-      {CHART_PLATFORMS.map((platform) => (
+      {SOCIAL_INSIGHT_CHART_PLATFORMS.map((platform) => (
         <p key={platform} style={{ color: SOCIAL_INSIGHT_CHART_COLORS[platform] }}>
           {platformLabels[platform]}: {formatValue(sourcePoint[platform])}
           {valueSuffix}
@@ -106,12 +100,14 @@ export function SocialMediaInsightReportStackedBarChart({
 }: Props) {
   const { t } = useAppTranslation();
   const chartData = useMemo(() => toSortedGroupedChartData(data), [data]);
-  const platformLabels: Record<ChartPlatform, string> = {
+  const platformLabels: Record<SocialInsightChartPlatform, string> = {
     tiktok: t("digitalMarketing.socialMediaPerformance.platformTikTok", "TikTok"),
     youtube: t("digitalMarketing.socialMediaPerformance.platformYouTube", "YouTube"),
     linkedin: t("digitalMarketing.socialMediaPerformance.platformLinkedIn", "LinkedIn"),
+    instagram: t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram"),
+    facebook: t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook"),
   };
-  const legendPayload = CHART_PLATFORMS.map((platform) => ({
+  const legendPayload = SOCIAL_INSIGHT_CHART_PLATFORMS.map((platform) => ({
     value: platformLabels[platform],
     type: "square" as const,
     color: SOCIAL_INSIGHT_CHART_COLORS[platform],
@@ -153,21 +149,22 @@ export function SocialMediaInsightReportStackedBarChart({
           }}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} payload={legendPayload} />
-        <Bar dataKey="bar0" legendType="none" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-          {chartData.map((row) => (
-            <Cell key={`${row.monthKey}-bar0`} fill={platformColor(row.bar0Platform)} />
-          ))}
-        </Bar>
-        <Bar dataKey="bar1" legendType="none" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-          {chartData.map((row) => (
-            <Cell key={`${row.monthKey}-bar1`} fill={platformColor(row.bar1Platform)} />
-          ))}
-        </Bar>
-        <Bar dataKey="bar2" legendType="none" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-          {chartData.map((row) => (
-            <Cell key={`${row.monthKey}-bar2`} fill={platformColor(row.bar2Platform)} />
-          ))}
-        </Bar>
+        {SOCIAL_INSIGHT_CHART_PLATFORMS.map((_, index) => (
+          <Bar
+            key={`bar-${index}`}
+            dataKey={`bar${index}`}
+            legendType="none"
+            radius={[4, 4, 0, 0]}
+            isAnimationActive={false}
+          >
+            {chartData.map((row) => (
+              <Cell
+                key={`${row.monthKey}-bar${index}`}
+                fill={platformColor(row[`bar${index}Platform`])}
+              />
+            ))}
+          </Bar>
+        ))}
       </BarChart>
     </ResponsiveContainer>
   );

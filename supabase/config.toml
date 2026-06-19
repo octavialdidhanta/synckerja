@@ -240,6 +240,21 @@ verify_jwt = false
 [functions.meta-oauth-exchange]
 verify_jwt = false
 
+[functions.meta-threads-oauth-exchange]
+verify_jwt = false
+
+[functions.meta-content-config]
+verify_jwt = false
+
+[functions.meta-content-metrics]
+verify_jwt = false
+
+[functions.meta-content-comments]
+verify_jwt = false
+
+[functions.threads-content-api]
+verify_jwt = false
+
 [functions.list-instagram-accounts]
 verify_jwt = false
 
@@ -247,6 +262,12 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.instagram-subscribe-webhooks]
+verify_jwt = false
+
+[functions.resolve-instagram-media]
+verify_jwt = false
+
+[functions.get-instagram-profile-photo]
 verify_jwt = false
 
 [functions.xendit-api]

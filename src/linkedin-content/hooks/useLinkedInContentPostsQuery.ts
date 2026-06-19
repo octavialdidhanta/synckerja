@@ -37,6 +37,7 @@ export type LinkedInContentPostsResponse = {
   account_label: string | null;
   date_start: string;
   date_end: string;
+  audience_count?: number | null;
   cached?: boolean;
 };
 

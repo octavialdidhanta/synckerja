@@ -12,3 +12,21 @@ export const SOCIAL_MEDIA_MANAGE_COMMENTS_YOUTUBE_PATH =
 
 export const SOCIAL_MEDIA_MANAGE_COMMENTS_YOUTUBE_SETTINGS_PATH =
   "/digital-marketing/social-media-performance/manage-comments/youtube/settings";
+
+export const SOCIAL_MEDIA_MANAGE_COMMENTS_INSTAGRAM_PATH =
+  "/digital-marketing/social-media-performance/manage-comments/instagram";
+
+export const SOCIAL_MEDIA_MANAGE_COMMENTS_FACEBOOK_PATH =
+  "/digital-marketing/social-media-performance/manage-comments/facebook";
+
+export const SOCIAL_MEDIA_MANAGE_COMMENTS_LINKEDIN_PATH =
+  "/digital-marketing/social-media-performance/manage-comments/linkedin";
+
+export const SOCIAL_MEDIA_MANAGE_COMMENTS_THREADS_PATH =
+  "/digital-marketing/social-media-performance/manage-comments/threads";
+
+export const SOCIAL_MEDIA_PERFORMANCE_INSTAGRAM_PATH =
+  "/digital-marketing/social-media-performance/instagram";
+
+export const SOCIAL_MEDIA_PERFORMANCE_FACEBOOK_PATH =
+  "/digital-marketing/social-media-performance/facebook";

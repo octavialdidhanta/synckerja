@@ -4,6 +4,7 @@ import type { LinkedInContentPostsResponse } from "@/linkedin-content/hooks/useL
 
 type LinkedInContentSummaryBarProps = {
   summary: LinkedInContentPostsResponse["summary"] | null | undefined;
+  audienceCount?: number | null;
   isLoading?: boolean;
 };
 
@@ -17,10 +18,14 @@ function formatPercent(n: number | null): string {
   return `${n.toFixed(2)}%`;
 }
 
-export function LinkedInContentSummaryBar({ summary, isLoading = false }: LinkedInContentSummaryBarProps) {
+export function LinkedInContentSummaryBar({ summary, audienceCount, isLoading = false }: LinkedInContentSummaryBarProps) {
   const { t } = useTranslation();
 
   const cards = [
+    {
+      label: t("digitalMarketing.linkedinContent.summaryFollowers", "Followers"),
+      value: formatCount(audienceCount ?? summary?.audience_count ?? 0),
+    },
     {
       label: t("digitalMarketing.linkedinContent.summaryPosts", "Posts"),
       value: formatCount(summary?.post_count ?? 0),

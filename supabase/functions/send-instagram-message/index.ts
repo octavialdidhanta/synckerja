@@ -204,12 +204,21 @@ Deno.serve(async (req: Request) => {
     const text = body.text != null ? String(body.text).trim().slice(0, 1000) : "";
     const conversationId = body.conversation_id != null ? String(body.conversation_id).trim() : null;
     const replyToMid = body.reply_to_wa_message_id != null ? String(body.reply_to_wa_message_id).trim() : null;
+    const mediaType = body.media_type != null ? String(body.media_type).trim().toLowerCase() : "";
+    const mediaLink = body.media_link != null ? String(body.media_link).trim() : "";
+    const caption = body.caption != null ? String(body.caption).trim().slice(0, 1000) : "";
+
+    const isMedia = mediaType === "image" || mediaType === "video";
+    const hasMedia = isMedia && mediaLink.length > 0;
+    const hasText = text.length > 0;
 
     console.log("send-instagram-message: payload", {
       to: to ? `${to.slice(0, 6)}...` : "",
       textLen: text.length,
       conversationId: conversationId ?? null,
       replyToMid: replyToMid ?? null,
+      hasMedia,
+      mediaType: hasMedia ? mediaType : null,
     });
 
     if (!to) {
@@ -222,12 +231,11 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    if (!text) {
-      console.log("send-instagram-message: missing text");
+    if (!hasText && !hasMedia) {
       return new Response(
         JSON.stringify({
-          error: "Pesan tidak boleh kosong.",
-          code: "MISSING_TEXT",
+          error: "Pesan tidak boleh kosong. Kirim teks atau media (image/video).",
+          code: "MISSING_CONTENT",
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -461,9 +469,21 @@ Deno.serve(async (req: Request) => {
     const pageId = resolved.pageId;
     const tokenToUse = resolved.tokenToUse;
 
+    const messagePayload: Record<string, unknown> = {};
+    if (hasMedia) {
+      messagePayload.attachment = {
+        type: mediaType,
+        payload: { url: mediaLink, is_reusable: true },
+      };
+    }
+    const outboundText = hasMedia ? (caption || text) : text;
+    if (outboundText) {
+      messagePayload.text = outboundText;
+    }
+
     const metaPayload: Record<string, unknown> = {
       recipient: { id: to },
-      message: { text },
+      message: messagePayload,
     };
     if (replyToMid) {
       metaPayload.reply_to = { mid: replyToMid };
@@ -550,18 +570,20 @@ Deno.serve(async (req: Request) => {
 
     if (conversationId && messageId) {
       const now = new Date().toISOString();
-      const lastBody = text.slice(0, 200);
+      const storedBody = hasMedia ? (caption || text || `[${mediaType}]`) : text;
+      const lastBody = storedBody.slice(0, 200);
       const insertPayload: Record<string, unknown> = {
         conversation_id: conversationId,
         direction: "outbound",
         platform_message_id: messageId,
-        body: text,
-        message_type: "text",
+        body: storedBody,
+        message_type: hasMedia ? mediaType : "text",
         raw_metadata: metaData,
         status: "sent",
         status_updated_at: now,
         created_at: now,
       };
+      if (hasMedia && mediaLink) insertPayload.media_url = mediaLink;
       if (replyToMid) insertPayload.reply_to_platform_message_id = replyToMid;
 
       const insertResult = await supabase

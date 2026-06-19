@@ -12,6 +12,9 @@ export interface InstagramAccountRow {
   instagram_name: string | null;
   verify_token: string;
   is_active: boolean;
+  facebook_page_name?: string | null;
+  granted_scopes?: string[] | null;
+  has_instagram?: boolean;
   created_at: string;
   updated_at: string;
 }

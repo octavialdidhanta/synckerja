@@ -10,15 +10,19 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import { useWhatsAppConfig } from '../hooks/useWhatsAppConfig';
-import { useInstagramAccounts, type InstagramAccountFromApi } from '../hooks/useInstagramAccounts';
+import { useInstagramAccounts, type InstagramAccountFromApi, type InstagramAccountRow } from '../hooks/useInstagramAccounts';
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
 import { InstagramConnectPageSkeleton } from '../skeletons/InstagramConnectPageSkeleton';
 import { useInstagramConnectPageSkeletonGate } from '../hooks/useInstagramConnectPageSkeletonGate';
-import { Instagram, CheckCircle2, Unplug, Loader2, Facebook } from 'lucide-react';
+import { Instagram, CheckCircle2, Unplug, Loader2, Facebook, AtSign } from 'lucide-react';
 import { toast } from 'sonner';
+import { META_BUSINESS_OAUTH_SCOPES, hasThreadsScopes } from '@/meta-platform/constants/metaOAuthScopes';
+import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
+import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
+import { useThreadsOAuthConnect } from '@/meta-platform/hooks/useThreadsOAuthConnect';
 
-const META_OAUTH_SCOPE = 'pages_show_list,pages_read_engagement,pages_manage_metadata,instagram_manage_messages,instagram_basic,business_management';
-const META_OAUTH_VERSION = 'v21.0';
+const META_OAUTH_SCOPE = META_BUSINESS_OAUTH_SCOPES;
+const META_OAUTH_VERSION = META_GRAPH_VERSION;
 const OAUTH_POPUP_POLL_MS = 500;
 const OAUTH_POPUP_MAX_MS = 5 * 60 * 1000;
 
@@ -126,7 +130,7 @@ export function InstagramConnectPage() {
     const checklist = [
       t('instagramConnect.zeroAccountsChecklist.pageLinked', 'Facebook Page must be linked to an Instagram Business Account in Meta Business Suite.'),
       t('instagramConnect.zeroAccountsChecklist.pageAdmin', 'Your Facebook login must have admin access to that Page.'),
-      t('instagramConnect.zeroAccountsChecklist.permissions', 'App permissions instagram_manage_messages and pages_show_list must be approved.'),
+      t('instagramConnect.zeroAccountsChecklist.permissions', 'App permissions instagram_business_manage_messages and pages_show_list must be approved.'),
       t('instagramConnect.zeroAccountsChecklist.tryWhatsApp', 'If Connect WhatsApp is already set up, try Sync from WhatsApp token below.'),
     ].join('\n• ');
     toast.warning(t('instagramConnect.zeroAccountsWarning', 'Login succeeded but no Instagram Business account was found.'), {
@@ -167,6 +171,27 @@ export function InstagramConnectPage() {
     },
     [refetchAccounts, showZeroAccountsWarning, t],
   );
+
+  const { startOAuth: startThreadsOAuth, oauthLoading: threadsOauthLoading } = useThreadsOAuthConnect({
+    onExchangeComplete: async (result) => {
+      await refetchAccounts();
+      const synced = result.threads_accounts_synced ?? 0;
+      if (synced > 0) {
+        toast.success(
+          t('instagramConnect.threadsOAuthSuccess', 'Threads authorized. Insights and replies are ready to test.'),
+        );
+      }
+    },
+  });
+
+  const parseGrantedScopes = useCallback((raw: InstagramAccountRow['granted_scopes']): string[] => {
+    if (Array.isArray(raw)) return raw.map(String);
+    return [];
+  }, []);
+
+  const primaryGranted =
+    connectedAccounts.length > 0 ? parseGrantedScopes(connectedAccounts[0].granted_scopes) : [];
+  const needsThreadsOAuth = connectedAccounts.length > 0 && !hasThreadsScopes(primaryGranted);
 
   const startOAuthPopupPoll = useCallback(() => {
     stopOAuthPopupPoll();
@@ -486,11 +511,31 @@ export function InstagramConnectPage() {
                                     : t('instagramConnect.syncFromWhatsApp', 'Sync from WhatsApp token')}
                                 </Button>
                               )}
+                              {needsThreadsOAuth && (
+                                <Button
+                                  type="button"
+                                  onClick={() => void startThreadsOAuth()}
+                                  disabled={threadsOauthLoading || oauthLoading}
+                                  className="w-full bg-black hover:bg-neutral-800 text-white"
+                                >
+                                  {threadsOauthLoading ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <AtSign className="w-4 h-4 mr-2" />
+                                  )}
+                                  {threadsOauthLoading
+                                    ? t('instagramConnect.threadsOAuthConnecting', 'Authorizing Threads…')
+                                    : t('instagramConnect.connectThreads', 'Connect Threads (sandbox)')}
+                                </Button>
+                              )}
                             </div>
                           )}
                           <div className="border-t border-slate-200 pt-4 mt-4">
                             <WebhookInfoDisplay embedded variant="instagram" />
                           </div>
+                          {connectedAccounts.length > 0 && (
+                            <MetaScopeStatusCards accounts={connectedAccounts} />
+                          )}
                         </CardContent>
                       </Card>
 

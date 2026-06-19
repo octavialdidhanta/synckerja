@@ -18,6 +18,10 @@ type ManageCommentsPostListProps = {
   hasSearch?: boolean;
   onClearFilters?: () => void;
   platformBadge?: ReactNode;
+  /** Prefix React keys when post ids may repeat across accounts/platforms. */
+  listItemKeyPrefix?: string;
+  /** TikTok/YouTube use "video"; Meta platforms use "post". */
+  contentKind?: "video" | "post";
 };
 
 export function ManageCommentsPostList({
@@ -32,8 +36,11 @@ export function ManageCommentsPostList({
   hasSearch = false,
   onClearFilters,
   platformBadge,
+  listItemKeyPrefix,
+  contentKind = "video",
 }: ManageCommentsPostListProps) {
   const { t } = useTranslation();
+  const isPost = contentKind === "post";
 
   if (isLoading && posts.length === 0) {
     return (
@@ -50,14 +57,24 @@ export function ManageCommentsPostList({
       <div className="px-3 py-8 text-center text-sm text-muted-foreground">
         <p>
           {filteredEmpty
-            ? t(
-                "digitalMarketing.manageComments.noPostsFiltered",
-                "No videos match the current filters for this account.",
-              )
-            : t(
-                "digitalMarketing.manageComments.noPostsAccount",
-                "No videos found for this account.",
-              )}
+            ? isPost
+              ? t(
+                  "digitalMarketing.manageComments.noPostsFilteredPosts",
+                  "No posts match the current filters for this account.",
+                )
+              : t(
+                  "digitalMarketing.manageComments.noPostsFiltered",
+                  "No videos match the current filters for this account.",
+                )
+            : isPost
+              ? t(
+                  "digitalMarketing.manageComments.noPostsAccountPosts",
+                  "No posts found for this account.",
+                )
+              : t(
+                  "digitalMarketing.manageComments.noPostsAccount",
+                  "No videos found for this account.",
+                )}
         </p>
         {filteredEmpty && onClearFilters ? (
           <Button
@@ -66,7 +83,9 @@ export function ManageCommentsPostList({
             className="mt-2 h-auto p-0 text-primary"
             onClick={onClearFilters}
           >
-            {t("digitalMarketing.manageComments.showAllPosts", "Show all videos")}
+            {isPost
+              ? t("digitalMarketing.manageComments.showAllPostsPosts", "Show all posts")
+              : t("digitalMarketing.manageComments.showAllPosts", "Show all videos")}
           </Button>
         ) : null}
       </div>
@@ -77,9 +96,9 @@ export function ManageCommentsPostList({
     <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {posts.map((post) => (
         <ManageCommentsPostListItemRow
-          key={post.id}
+          key={listItemKeyPrefix ? `${listItemKeyPrefix}:${post.id}` : post.id}
           post={post}
-          selected={selectedId === post.id}
+          selected={selectedId != null && String(post.id) === String(selectedId)}
           isNew={highlightedPostIds?.has(post.id)}
           onSelect={() => onSelect(post)}
           platformBadge={platformBadge}

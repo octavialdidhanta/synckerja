@@ -9,6 +9,156 @@ const corsHeaders: Record<string, string> = {
 
 const META_GRAPH_VERSION = "v21.0";
 const INSTAGRAM_MEDIA_BUCKET = "whatsapp-media";
+const META_SESSION_MS = 24 * 60 * 60 * 1000;
+const LAZY_VIDEO_BYTES = 10 * 1024 * 1024;
+
+function extensionFromMediaType(mediaType: string, mime?: string): string {
+  const map: Record<string, string> = {
+    image: "jpg",
+    video: "mp4",
+    audio: "mp3",
+    file: "bin",
+  };
+  const t = mediaType.trim().toLowerCase();
+  if (mime) {
+    const m = mime.toLowerCase();
+    if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
+    if (m.includes("png")) return "png";
+    if (m.includes("gif")) return "gif";
+    if (m.includes("webp")) return "webp";
+    if (m.includes("mp4")) return "mp4";
+    if (m.includes("mpeg")) return "mp3";
+  }
+  return map[t] ?? "bin";
+}
+
+function getInstagramAttachmentInfo(
+  msg: Record<string, unknown>,
+): { type: string; url: string } | null {
+  const attachments = msg.attachments as Array<{ type?: string; payload?: { url?: string } }> | undefined;
+  if (!Array.isArray(attachments) || attachments.length === 0) return null;
+  const first = attachments[0];
+  const url = typeof first?.payload?.url === "string" ? first.payload.url.trim() : "";
+  const type = typeof first?.type === "string" ? first.type.trim().toLowerCase() : "file";
+  if (!url) return null;
+  return { type, url };
+}
+
+async function downloadInstagramAttachmentToStorage(
+  downloadUrl: string,
+  accessToken: string,
+  supabase: ReturnType<typeof createClient>,
+  conversationId: string,
+  platformMessageId: string,
+  mediaType: string,
+): Promise<string | null> {
+  try {
+    const fileRes = await fetch(downloadUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!fileRes.ok) return null;
+
+    const contentLength = Number(fileRes.headers.get("content-length") ?? 0);
+    const isVideo = mediaType === "video";
+    if (isVideo && contentLength > LAZY_VIDEO_BYTES) return null;
+
+    const blob = await fileRes.blob();
+    if (isVideo && blob.size > LAZY_VIDEO_BYTES) return null;
+
+    const ext = extensionFromMediaType(mediaType, blob.type);
+    const safeId = platformMessageId.replace(/\W/g, "_");
+    const path = `ig/inbound/${conversationId}/${safeId}.${ext}`;
+
+    const { error: uploadErr } = await supabase.storage.from(INSTAGRAM_MEDIA_BUCKET).upload(path, blob, {
+      contentType: blob.type || undefined,
+      upsert: true,
+    });
+    if (uploadErr) {
+      console.warn("[instagram-webhook] storage upload failed", uploadErr.message);
+      return null;
+    }
+    const { data: urlData } = supabase.storage.from(INSTAGRAM_MEDIA_BUCKET).getPublicUrl(path);
+    return urlData.publicUrl;
+  } catch (e) {
+    console.warn("[instagram-webhook] download attachment error", e);
+    return null;
+  }
+}
+
+async function extendInstagramMetaSession(
+  supabase: ReturnType<typeof createClient>,
+  conversationId: string,
+  inboundTimestampIso: string,
+): Promise<void> {
+  const inboundMs = new Date(inboundTimestampIso).getTime();
+  if (Number.isNaN(inboundMs)) return;
+  const expiresAt = new Date(inboundMs + META_SESSION_MS).toISOString();
+
+  const { data: row } = await supabase
+    .from("instagram_conversations")
+    .select("meta_session_expires_at")
+    .eq("id", conversationId)
+    .maybeSingle();
+
+  const prevMs = row?.meta_session_expires_at
+    ? new Date(String(row.meta_session_expires_at)).getTime()
+    : 0;
+  const nextMs = new Date(expiresAt).getTime();
+  const maxMs = Math.max(prevMs, nextMs);
+
+  await supabase
+    .from("instagram_conversations")
+    .update({
+      meta_session_expires_at: new Date(maxMs).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", conversationId);
+}
+
+async function handleInstagramReadReceipt(
+  supabase: ReturnType<typeof createClient>,
+  convId: string,
+  read: { watermark?: unknown; mid?: unknown },
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  if (read.mid != null) {
+    const mid = String(read.mid).trim();
+    if (mid) {
+      await supabase
+        .from("instagram_messages")
+        .update({ status: "read", status_updated_at: now })
+        .eq("conversation_id", convId)
+        .eq("platform_message_id", mid)
+        .eq("direction", "outbound");
+    }
+  }
+
+  if (read.watermark != null) {
+    const wmMs = Number(read.watermark);
+    if (Number.isFinite(wmMs) && wmMs > 0) {
+      const wmIso = new Date(wmMs).toISOString();
+      await supabase
+        .from("instagram_messages")
+        .update({ status: "read", status_updated_at: now })
+        .eq("conversation_id", convId)
+        .eq("direction", "outbound")
+        .lte("created_at", wmIso);
+    }
+  }
+
+  const { data: conv } = await supabase
+    .from("instagram_conversations")
+    .select("last_message_direction")
+    .eq("id", convId)
+    .maybeSingle();
+  if (conv?.last_message_direction === "outbound") {
+    await supabase
+      .from("instagram_conversations")
+      .update({ last_message_status: "read", updated_at: now })
+      .eq("id", convId);
+  }
+}
 
 function getMessageBody(evt: Record<string, unknown>): { body: string; messageType: string } {
   const msg = evt.message as Record<string, unknown> | undefined;
@@ -122,7 +272,18 @@ type InstagramWebhookAccount = {
 };
 
 type MessagingEvt = {
-  message?: { is_echo?: boolean; mid?: string; text?: unknown; attachments?: unknown[]; reply_to?: { mid?: string } };
+  message?: {
+    is_echo?: boolean;
+    is_deleted?: boolean;
+    is_unsupported?: boolean;
+    mid?: string;
+    text?: unknown;
+    attachments?: unknown[];
+    reply_to?: { mid?: string };
+    quick_reply?: { payload?: string };
+  };
+  postback?: { title?: string; payload?: string };
+  read?: { watermark?: unknown; mid?: unknown };
   sender?: { id?: unknown };
   recipient?: { id?: unknown };
   timestamp?: unknown;
@@ -405,22 +566,139 @@ Deno.serve(async (req: Request) => {
       type MessagingEvtLoop = MessagingEvt;
       for (const evt of messaging) {
         const e = evt as MessagingEvtLoop;
+        const senderId = e.sender?.id != null ? String(e.sender.id) : null;
+        const ts = e.timestamp != null ? new Date(Number(e.timestamp)).toISOString() : new Date().toISOString();
+
+        // Read receipts (message_reads subscription)
+        if (e.read && !e.message && !e.postback) {
+          const customerIgId = senderId;
+          if (!customerIgId) continue;
+          const { data: convForRead } = await supabase
+            .from("instagram_conversations")
+            .select("id")
+            .eq("organization_id", orgId)
+            .eq("instagram_business_account_id", effectiveId)
+            .eq("customer_ig_id", customerIgId)
+            .maybeSingle();
+          if (convForRead?.id) {
+            await handleInstagramReadReceipt(supabase, convForRead.id, e.read);
+            processedCount += 1;
+          }
+          continue;
+        }
+
+        // Postback events
+        if (e.postback && !e.message) {
+          const postback = e.postback;
+          if (!senderId) continue;
+          const payload = typeof postback.payload === "string" ? postback.payload.trim() : "";
+          const title = typeof postback.title === "string" ? postback.title.trim() : "";
+          const bodyText = payload || title || "[Postback]";
+          const mid = `postback_${senderId}_${String(e.timestamp ?? Date.now())}`;
+
+          const { data: existingConvPb } = await supabase
+            .from("instagram_conversations")
+            .select("id")
+            .eq("organization_id", orgId)
+            .eq("instagram_business_account_id", effectiveId)
+            .eq("customer_ig_id", senderId)
+            .maybeSingle();
+
+          let convPbId = existingConvPb?.id ?? null;
+          if (!convPbId) {
+            const newConvId = crypto.randomUUID();
+            const ticketId = "IG-" + newConvId.replace(/-/g, "").slice(0, 8).toUpperCase();
+            const orgOrGlobalPb = `organization_id.eq.${orgId},organization_id.is.null`;
+            const { data: openSt } = await supabase.from("lead_statuses").select("id").or(orgOrGlobalPb).eq("name", "Open").maybeSingle();
+            const { data: unreadSt } = openSt?.id
+              ? { data: null }
+              : await supabase.from("lead_statuses").select("id").or(orgOrGlobalPb).eq("name", "Unread").maybeSingle();
+            const { data: insertedPb } = await supabase
+              .from("instagram_conversations")
+              .insert({
+                id: newConvId,
+                organization_id: orgId,
+                instagram_business_account_id: effectiveId,
+                customer_ig_id: senderId,
+                customer_external_id: senderId,
+                ticket_id: ticketId,
+                lead_status_id: openSt?.id ?? unreadSt?.id ?? null,
+                last_message_at: ts,
+                last_message_body: bodyText.slice(0, 200),
+                last_message_direction: "inbound",
+                last_inbound_at: ts,
+                first_inbound_at: ts,
+                updated_at: ts,
+              })
+              .select("id")
+              .single();
+            convPbId = insertedPb?.id ?? null;
+          }
+
+          if (convPbId) {
+            await extendInstagramMetaSession(supabase, convPbId, ts);
+            await supabase
+              .from("instagram_conversations")
+              .update({
+                last_message_at: ts,
+                last_message_body: bodyText.slice(0, 200),
+                last_message_direction: "inbound",
+                last_inbound_at: ts,
+                updated_at: ts,
+              })
+              .eq("id", convPbId);
+            const pbPayload = {
+              conversation_id: convPbId,
+              direction: "inbound",
+              platform_message_id: mid,
+              body: bodyText,
+              message_type: "postback",
+              raw_metadata: evt,
+              created_at: ts,
+            };
+            await supabase.from("instagram_messages").insert(pbPayload);
+            await notifyLivechatInboundPush("instagram_messages", pbPayload);
+            processedCount += 1;
+          }
+          continue;
+        }
+
         if (e.message?.is_echo) {
           console.log("[instagram-webhook] skip: is_echo");
           continue;
         }
-        const senderId = e.sender?.id != null ? String(e.sender.id) : null;
-        const recipientId = e.recipient?.id != null ? String(e.recipient.id) : null;
+
+        const mid = e.message?.mid != null ? String(e.message.mid) : null;
+
+        // Deleted message: update existing row
+        if (e.message?.is_deleted && mid && senderId) {
+          const { data: convDel } = await supabase
+            .from("instagram_conversations")
+            .select("id")
+            .eq("organization_id", orgId)
+            .eq("instagram_business_account_id", effectiveId)
+            .eq("customer_ig_id", senderId)
+            .maybeSingle();
+          if (convDel?.id) {
+            await supabase
+              .from("instagram_messages")
+              .update({ body: "[Deleted]", message_type: "text" })
+              .eq("conversation_id", convDel.id)
+              .eq("platform_message_id", mid);
+            processedCount += 1;
+          }
+          continue;
+        }
+
         if (!senderId) {
           console.log("[instagram-webhook] skip: no senderId");
           continue;
         }
+        const recipientId = e.recipient?.id != null ? String(e.recipient.id) : null;
         if (recipientId && recipientId !== effectiveId) {
           console.log("[instagram-webhook] recipientId differs from entry id (continuing anyway)", { recipientId, effectiveId });
         }
 
-        const mid = e.message?.mid != null ? String(e.message.mid) : null;
-        const ts = e.timestamp != null ? new Date(Number(e.timestamp)).toISOString() : new Date().toISOString();
         const { body: bodyText, messageType } = getMessageBody(evt as Record<string, unknown>);
         const lastBody = bodyText.slice(0, 200);
 
@@ -532,6 +810,25 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
+        await extendInstagramMetaSession(supabase, conv.id, ts);
+
+        let mediaUrl: string | null = null;
+        const msgRecord = (evt as Record<string, unknown>).message as Record<string, unknown> | undefined;
+        const attachmentInfo = msgRecord ? getInstagramAttachmentInfo(msgRecord) : null;
+        if (attachmentInfo && accessToken) {
+          const eagerTypes = new Set(["image", "video"]);
+          if (eagerTypes.has(attachmentInfo.type)) {
+            mediaUrl = await downloadInstagramAttachmentToStorage(
+              attachmentInfo.url,
+              accessToken,
+              supabase,
+              conv.id,
+              mid,
+              attachmentInfo.type,
+            );
+          }
+        }
+
         const insertPayload: Record<string, unknown> = {
           conversation_id: conv.id,
           direction: "inbound",
@@ -541,6 +838,7 @@ Deno.serve(async (req: Request) => {
           raw_metadata: evt,
           created_at: ts,
         };
+        if (mediaUrl) insertPayload.media_url = mediaUrl;
 
         // Inbound reply context: extract reply_to.mid so UI can show reply preview
         const msgObj = (evt as Record<string, unknown>).message as { reply_to?: { mid?: string } } | undefined;

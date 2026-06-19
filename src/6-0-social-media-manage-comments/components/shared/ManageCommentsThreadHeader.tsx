@@ -10,7 +10,7 @@ type ManageCommentsThreadHeaderProps = {
   post: ManageCommentsPostListItem;
   onRefresh?: () => void;
   isRefreshing?: boolean;
-  openOnPlatform?: "tiktok" | "youtube";
+  openOnPlatform?: "tiktok" | "youtube" | "facebook" | "instagram" | "linkedin" | "threads";
 };
 
 export function ManageCommentsThreadHeader({
@@ -32,6 +32,23 @@ export function ManageCommentsThreadHeader({
     ? `${engagementStats} · ${postedLabel}`
     : engagementStats;
 
+  const openLabel = (() => {
+    switch (openOnPlatform) {
+      case "youtube":
+        return t("digitalMarketing.manageComments.openOnYouTube", "Open on YouTube");
+      case "facebook":
+        return t("digitalMarketing.manageComments.openOnFacebook", "Open on Facebook");
+      case "instagram":
+        return t("digitalMarketing.manageComments.openOnInstagram", "Open on Instagram");
+      case "linkedin":
+        return t("digitalMarketing.manageComments.openOnLinkedIn", "Open on LinkedIn");
+      case "threads":
+        return t("digitalMarketing.manageComments.openOnThreads", "Open on Threads");
+      default:
+        return t("digitalMarketing.manageComments.openOnTikTok", "Open on TikTok");
+    }
+  })();
+
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
       <div className="flex min-w-0 items-center gap-3">
@@ -49,9 +66,7 @@ export function ManageCommentsThreadHeader({
           <Button variant="outline" size="sm" asChild className="h-8 text-xs">
             <a href={post.shareUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-1 h-3.5 w-3.5" />
-              {openOnPlatform === "youtube"
-                ? t("digitalMarketing.manageComments.openOnYouTube", "Open on YouTube")
-                : t("digitalMarketing.manageComments.openOnTikTok", "Open on TikTok")}
+              {openLabel}
             </a>
           </Button>
         ) : null}

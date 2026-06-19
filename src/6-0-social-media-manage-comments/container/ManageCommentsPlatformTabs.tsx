@@ -9,17 +9,22 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { TikTokTabIcon } from "@/6-0-traffic/container/TikTokTabIcon";
+import { ThreadsTabIcon } from "@/6-0-social-media-performance/components/ThreadsTabIcon";
 
 import { cn } from "@/shared/lib/utils";
 
 import {
+  SOCIAL_MEDIA_MANAGE_COMMENTS_FACEBOOK_PATH,
+  SOCIAL_MEDIA_MANAGE_COMMENTS_INSTAGRAM_PATH,
+  SOCIAL_MEDIA_MANAGE_COMMENTS_LINKEDIN_PATH,
+  SOCIAL_MEDIA_MANAGE_COMMENTS_THREADS_PATH,
   SOCIAL_MEDIA_MANAGE_COMMENTS_TIKTOK_PATH,
   SOCIAL_MEDIA_MANAGE_COMMENTS_YOUTUBE_PATH,
 } from "@/6-0-social-media-manage-comments/lib/manageCommentsPaths";
 
 
 
-type PlatformId = "tiktok" | "facebook" | "instagram" | "youtube" | "linkedin";
+type PlatformId = "tiktok" | "facebook" | "instagram" | "youtube" | "linkedin" | "threads";
 
 
 
@@ -65,7 +70,9 @@ const platforms: Array<{
 
     icon: Facebook,
 
-    enabled: false,
+    enabled: true,
+
+    path: SOCIAL_MEDIA_MANAGE_COMMENTS_FACEBOOK_PATH,
 
   },
 
@@ -79,7 +86,9 @@ const platforms: Array<{
 
     icon: Instagram,
 
-    enabled: false,
+    enabled: true,
+
+    path: SOCIAL_MEDIA_MANAGE_COMMENTS_INSTAGRAM_PATH,
 
   },
 
@@ -109,7 +118,25 @@ const platforms: Array<{
 
     icon: Linkedin,
 
-    enabled: false,
+    enabled: true,
+
+    path: SOCIAL_MEDIA_MANAGE_COMMENTS_LINKEDIN_PATH,
+
+  },
+
+  {
+
+    id: "threads",
+
+    labelKey: "digitalMarketing.manageComments.platformThreads",
+
+    defaultLabel: "Threads",
+
+    icon: ThreadsTabIcon,
+
+    enabled: true,
+
+    path: SOCIAL_MEDIA_MANAGE_COMMENTS_THREADS_PATH,
 
   },
 

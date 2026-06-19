@@ -4,6 +4,8 @@ import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-share
 import {
   buildPlatformPlaceholderRow,
   normalizeLinkedInMetrics,
+  normalizeMetaMetrics,
+  normalizeThreadsMetrics,
   normalizeTikTokMetrics,
   normalizeYouTubeMetrics,
 } from "@/6-0-social-media-performance-shared/socialMediaInsightNormalize";
@@ -24,11 +26,16 @@ import type {
 } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
 import { fetchLinkedInContentPosts } from "@/linkedin-content/hooks/useLinkedInContentPostsQuery";
 import { useLinkedInContentSettings } from "@/linkedin-content/hooks/useLinkedInContentSettings";
+import { fetchThreadsContentMetrics } from "@/threads-content/hooks/useThreadsContentMetrics";
+import { useThreadsContentSettings } from "@/threads-content/hooks/useThreadsContentSettings";
 import { fetchTikTokContentVideos } from "@/tiktok-content/hooks/useTikTokContentVideosQuery";
 import { useTikTokContentSettings } from "@/tiktok-content/hooks/useTikTokContentSettings";
 import { toTikTokAdsMetricsDateRangePayload } from "@/tiktok-ads/lib/toTikTokAdsMetricsDateRangePayload";
 import { fetchYouTubeContentVideos } from "@/youtube-content/hooks/useYouTubeContentVideosQuery";
 import { useYouTubeContentSettings } from "@/youtube-content/hooks/useYouTubeContentSettings";
+import { fetchMetaContentMetrics } from "@/meta-content/hooks/useMetaContentMetrics";
+import { metaContentMetricsFetchArgs } from "@/meta-content/lib/toMetaContentMetricsDateRangePayload";
+import { useMetaContentConfig } from "@/meta-content/hooks/useMetaContentConfig";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 
 const CONCURRENCY = 4;
@@ -56,13 +63,17 @@ async function mapWithConcurrency<T, R>(
 type FetchTarget =
   | { platform: "tiktok"; accountId: string; avatarUrl: string | null }
   | { platform: "youtube"; accountId: string; avatarUrl: string | null }
-  | { platform: "linkedin"; accountId: string; avatarUrl: string | null };
+  | { platform: "linkedin"; accountId: string; avatarUrl: string | null }
+  | { platform: "instagram"; accountId: string; avatarUrl: string | null }
+  | { platform: "facebook"; accountId: string; avatarUrl: string | null }
+  | { platform: "threads"; accountId: string; avatarUrl: string | null };
 
 async function fetchAccountMetrics(
   organizationId: string,
   target: FetchTarget,
   dateStart: string,
   dateEnd: string,
+  metaDateArgs: { dateStart?: string; dateEnd?: string },
   forceRefresh: boolean,
 ): Promise<{ account: SocialMediaInsightAccountRow; contentRows: SocialMediaInsightContentRow[] }> {
   try {
@@ -86,14 +97,36 @@ async function fetchAccountMetrics(
       });
       return normalizeYouTubeMetrics(payload, target.avatarUrl);
     }
-    const payload = await fetchLinkedInContentPosts({
-      organizationId,
-      pageId: target.accountId,
-      dateStart,
-      dateEnd,
-      forceRefresh,
-    });
-    return normalizeLinkedInMetrics(payload, target.avatarUrl);
+    if (target.platform === "instagram" || target.platform === "facebook") {
+      const payload = await fetchMetaContentMetrics({
+        organizationId,
+        platform: target.platform,
+        accountId: target.accountId,
+        dateStart: metaDateArgs.dateStart,
+        dateEnd: metaDateArgs.dateEnd,
+      });
+      return normalizeMetaMetrics(payload, target.avatarUrl);
+    }
+    if (target.platform === "linkedin") {
+      const payload = await fetchLinkedInContentPosts({
+        organizationId,
+        pageId: target.accountId,
+        dateStart,
+        dateEnd,
+        forceRefresh,
+      });
+      return normalizeLinkedInMetrics(payload, target.avatarUrl);
+    }
+    if (target.platform === "threads") {
+      const payload = await fetchThreadsContentMetrics({
+        organizationId,
+        accountId: target.accountId,
+        dateStart,
+        dateEnd,
+      });
+      return normalizeThreadsMetrics(payload, target.avatarUrl);
+    }
+    throw new Error(`Unsupported platform: ${(target as { platform: string }).platform}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const placeholder = buildPlatformPlaceholderRow(target.platform);
@@ -133,12 +166,20 @@ export function useSocialMediaInsightReportData(args: {
     [dateSelection],
   );
 
+  const metaDateArgs = useMemo(
+    () => metaContentMetricsFetchArgs(dateSelection),
+    [dateSelection],
+  );
+
   const tiktokSettings = useTikTokContentSettings(organizationId, { enabled });
   const youtubeSettings = useYouTubeContentSettings(organizationId, { enabled });
   const linkedinSettings = useLinkedInContentSettings(organizationId, { enabled });
+  const threadsSettings = useThreadsContentSettings(organizationId, { enabled });
+  const metaConfig = useMetaContentConfig(organizationId);
 
   const settingsLoading =
-    tiktokSettings.isPending || youtubeSettings.isPending || linkedinSettings.isPending;
+    tiktokSettings.isPending || youtubeSettings.isPending || linkedinSettings.isPending ||
+    threadsSettings.isPending || metaConfig.isPending;
 
   const fetchTargets = useMemo((): FetchTarget[] => {
     const targets: FetchTarget[] = [];
@@ -173,8 +214,24 @@ export function useSocialMediaInsightReportData(args: {
         });
       }
     }
+    for (const acc of metaConfig.data?.accounts ?? []) {
+      targets.push({
+        platform: acc.platform,
+        accountId: acc.account_id,
+        avatarUrl: acc.avatar_url,
+      });
+    }
+    if (threadsSettings.data?.oauthConnected) {
+      for (const acc of threadsSettings.data.accounts) {
+        targets.push({
+          platform: "threads",
+          accountId: acc.account_id,
+          avatarUrl: acc.avatar_url,
+        });
+      }
+    }
     return targets;
-  }, [tiktokSettings.data, youtubeSettings.data, linkedinSettings.data]);
+  }, [tiktokSettings.data, youtubeSettings.data, linkedinSettings.data, threadsSettings.data, metaConfig.data?.accounts]);
 
   const metricsQuery = useQuery({
     queryKey: socialMediaInsightQueryKeys.report(
@@ -196,6 +253,7 @@ export function useSocialMediaInsightReportData(args: {
           target,
           datePayload.start,
           datePayload.end,
+          metaDateArgs,
           forceRefresh,
         ),
       );
@@ -217,8 +275,15 @@ export function useSocialMediaInsightReportData(args: {
       if (!linkedinSettings.data?.oauthConnected) {
         accounts.push(buildPlatformPlaceholderRow("linkedin"));
       }
+      const hasIg = (metaConfig.data?.accounts ?? []).some((a) => a.platform === "instagram");
+      const hasFb = (metaConfig.data?.accounts ?? []).some((a) => a.platform === "facebook");
+      if (!hasIg) accounts.push(buildPlatformPlaceholderRow("instagram"));
+      if (!hasFb) accounts.push(buildPlatformPlaceholderRow("facebook"));
+      if (!threadsSettings.data?.oauthConnected) {
+        accounts.push(buildPlatformPlaceholderRow("threads"));
+      }
 
-      const platformOrder = { tiktok: 0, youtube: 1, linkedin: 2 };
+      const platformOrder = { tiktok: 0, youtube: 1, linkedin: 2, threads: 3, instagram: 4, facebook: 5 };
       accounts.sort((a, b) => {
         const po = platformOrder[a.platform] - platformOrder[b.platform];
         if (po !== 0) return po;

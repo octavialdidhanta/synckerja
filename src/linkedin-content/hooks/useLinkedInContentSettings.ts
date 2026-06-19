@@ -12,6 +12,7 @@ export type LinkedInContentAccountRow = {
   is_default: boolean;
   sort_order: number;
   is_active: boolean;
+  granted_scopes?: string[] | null;
 };
 
 export type LinkedInPendingPage = {

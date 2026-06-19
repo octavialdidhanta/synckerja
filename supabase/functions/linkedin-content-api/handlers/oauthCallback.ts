@@ -1,5 +1,6 @@
 import { encryptLinkedInContentToken } from "../../_shared/linkedinContentConfigCrypto.ts";
 import { saveLinkedInPageConnection } from "../../_shared/linkedinContentConnectionSave.ts";
+import { linkedinContentOAuthScopes } from "../../_shared/linkedinContentAuth.ts";
 import {
   LINKEDIN_CONTENT_OAUTH_RETURN_PATHS,
   appPublicOrigin,
@@ -118,6 +119,8 @@ export async function handleLinkedInOAuthCallback(req: Request): Promise<Respons
     return redirectDefault("?oauth_error=no_linkedin_pages", oauthReturnPath);
   }
 
+  const grantedScopes = linkedinContentOAuthScopes().split(/\s+/).filter(Boolean);
+
   if (pages.length === 1) {
     try {
       const { isExistingAccount } = await saveLinkedInPageConnection(admin, {
@@ -127,6 +130,7 @@ export async function handleLinkedInOAuthCallback(req: Request): Promise<Respons
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
         expiresIn: tokenData.expires_in,
+        grantedScopes,
       });
       const query = isExistingAccount ? "?connected=1&existing=1" : "?connected=1";
       return redirectDefault(query, oauthReturnPath);

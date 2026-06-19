@@ -9,6 +9,9 @@ export interface SendInstagramMessageParams {
   text: string;
   conversation_id?: string | null;
   reply_to_wa_message_id?: string | null;
+  media_type?: 'image' | 'video';
+  media_link?: string;
+  caption?: string;
 }
 
 export function useSendInstagramMessage() {
@@ -30,6 +33,9 @@ export function useSendInstagramMessage() {
           text: params.text,
           conversation_id: params.conversation_id ?? null,
           reply_to_wa_message_id: params.reply_to_wa_message_id ?? null,
+          media_type: params.media_type ?? null,
+          media_link: params.media_link ?? null,
+          caption: params.caption ?? null,
         }),
       });
       const json = await res.json().catch(() => ({})) as { error?: string; code?: string; details?: { error?: { message?: string } } };

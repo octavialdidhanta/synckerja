@@ -8,8 +8,25 @@ import {
 } from "../_shared/linkedinContentAuth.ts";
 import { handleLinkedInConfig } from "./handlers/config.ts";
 import { handleLinkedInMetrics } from "./handlers/metrics.ts";
+import { handleLinkedInComments } from "./handlers/comments.ts";
 import { handleLinkedInOAuthStart } from "./handlers/oauthStart.ts";
 import { handleLinkedInOAuthCallback } from "./handlers/oauthCallback.ts";
+
+const COMMENT_ACTIONS = new Set([
+  "getInboxState",
+  "syncPostBaselines",
+  "syncInboundComments",
+  "dismissPostHighlight",
+  "markCommentEngaged",
+  "sync_posts",
+  "listPosts",
+  "getCommentPosts",
+  "sync_comments",
+  "listComments",
+  "listReplies",
+  "reply",
+  "replyComment",
+]);
 
 const CONFIG_ACTIONS = new Set([
   "getSettings",
@@ -66,6 +83,10 @@ Deno.serve(async (req: Request) => {
 
   if (CONFIG_ACTIONS.has(action)) {
     return await handleLinkedInConfig(admin, userRes.userId, body);
+  }
+
+  if (COMMENT_ACTIONS.has(action)) {
+    return await handleLinkedInComments(admin, userRes.userId, body);
   }
 
   return linkedinContentJson({ error: "Unknown action" }, 400);

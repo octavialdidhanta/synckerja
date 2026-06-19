@@ -8,6 +8,8 @@ import { useLinkedInContentSettings } from "@/linkedin-content/hooks/useLinkedIn
 import { useTikTokContentSettings } from "@/tiktok-content/hooks/useTikTokContentSettings";
 import { getTikTokAccountDisplayLabel } from "@/tiktok-content/lib/tiktokAccountDisplayLabel";
 import { useYouTubeContentSettings } from "@/youtube-content/hooks/useYouTubeContentSettings";
+import { useMetaContentConfig } from "@/meta-content/hooks/useMetaContentConfig";
+import { useThreadsContentSettings } from "@/threads-content/hooks/useThreadsContentSettings";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 
 export function useSocialMediaInsightTargetAccounts() {
@@ -22,6 +24,8 @@ export function useSocialMediaInsightTargetAccounts() {
   const linkedinSettings = useLinkedInContentSettings(organizationId, {
     enabled: Boolean(organizationId),
   });
+  const metaConfig = useMetaContentConfig(organizationId);
+  const threadsSettings = useThreadsContentSettings(organizationId);
 
   const accounts = useMemo((): InsightTargetAccountRef[] => {
     const list: InsightTargetAccountRef[] = [];
@@ -59,6 +63,24 @@ export function useSocialMediaInsightTargetAccounts() {
         });
       }
     }
+    for (const acc of metaConfig.data?.accounts ?? []) {
+      list.push({
+        platform: acc.platform,
+        accountId: acc.account_id,
+        accountLabel: acc.account_label,
+        avatarUrl: acc.avatar_url,
+      });
+    }
+    if (threadsSettings.data?.oauthConnected) {
+      for (const acc of threadsSettings.data.accounts) {
+        list.push({
+          platform: "threads",
+          accountId: acc.account_id,
+          accountLabel: acc.account_label,
+          avatarUrl: acc.avatar_url,
+        });
+      }
+    }
 
     return list.sort((a, b) => {
       const platformOrder =
@@ -67,7 +89,7 @@ export function useSocialMediaInsightTargetAccounts() {
       if (platformOrder !== 0) return platformOrder;
       return a.accountLabel.localeCompare(b.accountLabel);
     });
-  }, [tiktokSettings.data, youtubeSettings.data, linkedinSettings.data]);
+  }, [tiktokSettings.data, youtubeSettings.data, linkedinSettings.data, threadsSettings.data, metaConfig.data?.accounts]);
 
   const accountsByPlatform = useMemo(() => {
     return INSIGHT_TARGET_PLATFORMS.reduce(
@@ -80,7 +102,8 @@ export function useSocialMediaInsightTargetAccounts() {
   }, [accounts]);
 
   const isLoading =
-    tiktokSettings.isPending || youtubeSettings.isPending || linkedinSettings.isPending;
+    tiktokSettings.isPending || youtubeSettings.isPending || linkedinSettings.isPending ||
+    threadsSettings.isPending || metaConfig.isPending;
 
   return { accounts, accountsByPlatform, isLoading };
 }

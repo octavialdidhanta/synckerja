@@ -1,4 +1,4 @@
-export type SocialMediaPlatform = "tiktok" | "youtube" | "linkedin";
+export type SocialMediaPlatform = "tiktok" | "youtube" | "linkedin" | "instagram" | "facebook" | "threads";
 
 export type SocialMediaPlatformFilter = "all" | SocialMediaPlatform;
 
@@ -55,5 +55,8 @@ export type SocialMediaInsightMonthlyChartPoint = {
   tiktok: number;
   youtube: number;
   linkedin: number;
+  instagram: number;
+  facebook: number;
+  threads: number;
   total: number;
 };

@@ -396,3 +396,171 @@ export async function fetchLinkedInOrganizationPosts(
 
   return posts;
 }
+
+export async function fetchLinkedInFollowerCount(
+  accessToken: string,
+  pageId: string,
+): Promise<number | null> {
+  const orgUrn = buildOrganizationUrn(pageId);
+  try {
+    const json = await linkedInRestGet<{
+      elements?: Array<{
+        followerCounts?: { organicFollowerCount?: number; paidFollowerCount?: number };
+      }>;
+    }>(
+      accessToken,
+      "/rest/organizationalEntityFollowerStatistics",
+      {
+        q: "organizationalEntity",
+        organizationalEntity: orgUrn,
+      },
+      { "X-RestLi-Method": "FINDER" },
+    );
+    const el = json.elements?.[0];
+    const organic = Number(el?.followerCounts?.organicFollowerCount ?? 0);
+    const paid = Number(el?.followerCounts?.paidFollowerCount ?? 0);
+    const total = organic + paid;
+    return Number.isFinite(total) && total >= 0 ? total : null;
+  } catch (e) {
+    console.warn("fetchLinkedInFollowerCount:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+export type LinkedInContentComment = {
+  id: string;
+  post_id: string;
+  text: string;
+  author_name: string | null;
+  like_count: number;
+  reply_count: number;
+  parent_comment_id: string | null;
+  published_at: string | null;
+  is_owner: boolean;
+  can_reply: boolean;
+};
+
+async function linkedInRestPost<T>(
+  accessToken: string,
+  path: string,
+  body: unknown,
+): Promise<T> {
+  const res = await fetch(`${LINKEDIN_API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      ...linkedInRestHeaders(accessToken),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({})) as T & { error?: { message?: string }; message?: string };
+  if (!res.ok) {
+    const msg = json.error?.message ?? json.message ?? `LinkedIn API HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return json;
+}
+
+function parseLinkedInCommentId(raw: unknown): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const m = /comment:(\d+)/.exec(s);
+  return m?.[1] ?? s;
+}
+
+function mapLinkedInCommentElement(
+  el: Record<string, unknown>,
+  postUrn: string,
+  pageUrn: string,
+): LinkedInContentComment {
+  const actor = String(el.actor ?? "").trim();
+  const id = parseLinkedInCommentId(el.id ?? el.$URN ?? el.urn);
+  const parentRaw = el.parentComment != null ? String(el.parentComment) : "";
+  const parentId = parentRaw ? parseLinkedInCommentId(parentRaw) : null;
+  const message = el.message as { text?: string } | undefined;
+  const createdMs = Number(el.created?.time ?? el.createdAt ?? 0);
+  return {
+    id,
+    post_id: postUrn,
+    text: String(message?.text ?? "").trim(),
+    author_name: actor.includes("organization:") ? null : actor || null,
+    like_count: 0,
+    reply_count: 0,
+    parent_comment_id: parentId,
+    published_at: Number.isFinite(createdMs) && createdMs > 0
+      ? new Date(createdMs).toISOString()
+      : null,
+    is_owner: actor === pageUrn,
+    can_reply: true,
+  };
+}
+
+export async function fetchLinkedInComments(
+  accessToken: string,
+  postUrn: string,
+  pageId: string,
+): Promise<LinkedInContentComment[]> {
+  const pageUrn = buildOrganizationUrn(pageId);
+  const encodedUrn = encodeURIComponent(postUrn);
+  const json = await linkedInRestGet<{
+    elements?: Array<Record<string, unknown>>;
+  }>(accessToken, `/rest/socialActions/${encodedUrn}/comments`, {
+    q: "comments",
+    count: "100",
+  });
+
+  const topLevel = (json.elements ?? []).map((el) =>
+    mapLinkedInCommentElement(el, postUrn, pageUrn)
+  );
+
+  const all: LinkedInContentComment[] = [...topLevel];
+  for (const parent of topLevel) {
+    if (!parent.id) continue;
+    try {
+      const parentUrn = `${postUrn},${parent.id}`;
+      const encodedParent = encodeURIComponent(parentUrn);
+      const nested = await linkedInRestGet<{
+        elements?: Array<Record<string, unknown>>;
+      }>(accessToken, `/rest/socialActions/${encodedParent}/comments`, {
+        q: "comments",
+        count: "50",
+      });
+      for (const el of nested.elements ?? []) {
+        all.push(mapLinkedInCommentElement(el, postUrn, pageUrn));
+      }
+    } catch {
+      // nested replies optional
+    }
+  }
+
+  return all;
+}
+
+export async function replyLinkedInComment(
+  accessToken: string,
+  postUrn: string,
+  pageId: string,
+  parentCommentId: string,
+  text: string,
+): Promise<{ id: string }> {
+  const pageUrn = buildOrganizationUrn(pageId);
+  const encodedUrn = encodeURIComponent(postUrn);
+  const parentUrn = parentCommentId.includes(",")
+    ? parentCommentId
+    : `${postUrn},${parentCommentId}`;
+
+  const body: Record<string, unknown> = {
+    actor: pageUrn,
+    object: postUrn,
+    message: { text: text.trim() },
+    parentComment: parentUrn,
+  };
+
+  const res = await linkedInRestPost<{ id?: string }>(
+    accessToken,
+    `/rest/socialActions/${encodedUrn}/comments`,
+    body,
+  );
+  const id = parseLinkedInCommentId(res.id);
+  return { id: id || "pending" };
+}

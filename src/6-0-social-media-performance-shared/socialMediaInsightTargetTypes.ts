@@ -25,6 +25,9 @@ export const INSIGHT_TARGET_PLATFORMS: InsightTargetPlatform[] = [
   "tiktok",
   "youtube",
   "linkedin",
+  "threads",
+  "instagram",
+  "facebook",
 ];
 
 export type InsightTargetAccountRef = {

@@ -11,3 +11,14 @@ export function formatCommentRelativeTime(
   const loc = locale.startsWith("id") ? idLocale : enUS;
   return formatDistanceToNow(date, { addSuffix: true, locale: loc });
 }
+
+export function formatCommentRelativeTimeFromIso(
+  iso: string | null | undefined,
+  locale: string,
+): string {
+  if (!iso) return "";
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return "";
+  const loc = locale.startsWith("id") ? idLocale : enUS;
+  return formatDistanceToNow(new Date(ms), { addSuffix: true, locale: loc });
+}

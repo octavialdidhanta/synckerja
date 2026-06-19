@@ -20,6 +20,7 @@ import {
   type LinkedInPendingPage,
 } from "@/linkedin-content/hooks/useLinkedInContentSettings";
 import type { LinkedInContentOAuthReturnPath } from "@/linkedin-content/settings/linkedinContentSettingsPaths";
+import { LinkedInScopeStatusCards } from "@/linkedin-content/components/LinkedInScopeStatusCards";
 
 export type LinkedInContentSettingsPanelProps = {
   organizationId: string | null | undefined;
@@ -286,6 +287,8 @@ export function LinkedInContentSettingsPanel({
             ))}
           </div>
         )}
+
+        {accounts.length > 0 && <LinkedInScopeStatusCards accounts={accounts} />}
       </div>
 
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>

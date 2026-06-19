@@ -1,12 +1,16 @@
 import {
   buildPlatformPlaceholderRow,
   normalizeLinkedInMetrics,
+  normalizeMetaMetrics,
+  normalizeThreadsMetrics,
   normalizeTikTokMetrics,
   normalizeYouTubeMetrics,
 } from "@/6-0-social-media-performance-shared/socialMediaInsightNormalize";
 import type { InsightTargetAccountRef } from "@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes";
 import type { SocialMediaInsightAccountRow } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
 import { fetchLinkedInContentPosts } from "@/linkedin-content/hooks/useLinkedInContentPostsQuery";
+import { fetchThreadsContentMetrics } from "@/threads-content/hooks/useThreadsContentMetrics";
+import { fetchMetaContentMetrics } from "@/meta-content/hooks/useMetaContentMetrics";
 import { fetchTikTokContentVideos } from "@/tiktok-content/hooks/useTikTokContentVideosQuery";
 import { fetchYouTubeContentVideos } from "@/youtube-content/hooks/useYouTubeContentVideosQuery";
 
@@ -60,14 +64,36 @@ export async function fetchInsightAccountMetrics(
       });
       return normalizeYouTubeMetrics(payload, account.avatarUrl).account;
     }
-    const payload = await fetchLinkedInContentPosts({
-      organizationId,
-      pageId: account.accountId,
-      dateStart,
-      dateEnd,
-      forceRefresh: false,
-    });
-    return normalizeLinkedInMetrics(payload, account.avatarUrl).account;
+    if (account.platform === "instagram" || account.platform === "facebook") {
+      const payload = await fetchMetaContentMetrics({
+        organizationId,
+        platform: account.platform,
+        accountId: account.accountId,
+        dateStart,
+        dateEnd,
+      });
+      return normalizeMetaMetrics(payload, account.avatarUrl).account;
+    }
+    if (account.platform === "linkedin") {
+      const payload = await fetchLinkedInContentPosts({
+        organizationId,
+        pageId: account.accountId,
+        dateStart,
+        dateEnd,
+        forceRefresh: false,
+      });
+      return normalizeLinkedInMetrics(payload, account.avatarUrl).account;
+    }
+    if (account.platform === "threads") {
+      const payload = await fetchThreadsContentMetrics({
+        organizationId,
+        accountId: account.accountId,
+        dateStart,
+        dateEnd,
+      });
+      return normalizeThreadsMetrics(payload, account.avatarUrl).account;
+    }
+    throw new Error(`Unsupported platform: ${account.platform}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const placeholder = buildPlatformPlaceholderRow(account.platform);

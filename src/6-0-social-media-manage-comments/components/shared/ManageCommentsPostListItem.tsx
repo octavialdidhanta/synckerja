@@ -5,7 +5,7 @@ import { formatPostListSnippet } from "@/6-0-social-media-manage-comments/lib/fo
 import { User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { cn } from "@/shared/lib/utils";
-import { TikTokTabIcon } from "@/6-0-traffic/container/TikTokTabIcon";
+import { ManageCommentsPlatformBadge } from "@/6-0-social-media-manage-comments/components/shared/ManageCommentsPlatformBadge";
 import type { ManageCommentsPostListItem } from "@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes";
 
 type ManageCommentsPostListItemRowProps = {
@@ -23,11 +23,7 @@ function formatPostDate(postedAt: string | null): string {
   return format(d, "dd/MM/yyyy");
 }
 
-const defaultPlatformBadge = (
-  <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black ring-2 ring-white">
-    <TikTokTabIcon className="h-2.5 w-2.5 text-white" />
-  </span>
-);
+const defaultPlatformBadge = <ManageCommentsPlatformBadge platform="tiktok" />;
 
 export function ManageCommentsPostListItemRow({
   post,

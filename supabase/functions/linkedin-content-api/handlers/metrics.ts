@@ -6,6 +6,7 @@ import {
 } from "../../_shared/linkedinContentAuth.ts";
 import {
   buildLinkedInPostUrl,
+  fetchLinkedInFollowerCount,
   fetchLinkedInOrganizationPosts,
 } from "../../_shared/linkedinContentApi.ts";
 import { resolveOrgLinkedInContentForMetrics } from "../../_shared/linkedinContentOrgResolver.ts";
@@ -102,13 +103,12 @@ export async function handleLinkedInMetrics(
     }
 
     let posts;
+    let audienceCount: number | null = null;
     try {
-      posts = await fetchLinkedInOrganizationPosts(
-        accessToken,
-        pageId,
-        dateStart,
-        dateEnd,
-      );
+      [posts, audienceCount] = await Promise.all([
+        fetchLinkedInOrganizationPosts(accessToken, pageId, dateStart, dateEnd),
+        fetchLinkedInFollowerCount(accessToken, pageId),
+      ]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("linkedin-content-api getMetrics fetchPosts:", msg);
@@ -170,6 +170,7 @@ export async function handleLinkedInMetrics(
     const payload = {
       rows,
       summary,
+      audience_count: audienceCount,
       page_id: pageId,
       account_id: account.id,
       account_label: account.label || account.display_name,

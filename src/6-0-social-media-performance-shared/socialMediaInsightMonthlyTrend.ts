@@ -1,7 +1,35 @@
 import type {
+  SocialMediaInsightAccountRow,
   SocialMediaInsightContentRow,
   SocialMediaInsightMonthlyChartPoint,
+  SocialMediaPlatform,
 } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
+
+const CHART_PLATFORMS: SocialMediaPlatform[] = [
+  "tiktok",
+  "youtube",
+  "linkedin",
+  "threads",
+  "instagram",
+  "facebook",
+];
+
+function emptyPlatformCounts(): Record<SocialMediaPlatform, number> {
+  return { tiktok: 0, youtube: 0, linkedin: 0, threads: 0, instagram: 0, facebook: 0 };
+}
+
+type EngagementBucket = Record<SocialMediaPlatform, { views: number; engagements: number }>;
+
+function emptyEngagementBuckets(): EngagementBucket {
+  return {
+    tiktok: { views: 0, engagements: 0 },
+    youtube: { views: 0, engagements: 0 },
+    linkedin: { views: 0, engagements: 0 },
+    threads: { views: 0, engagements: 0 },
+    instagram: { views: 0, engagements: 0 },
+    facebook: { views: 0, engagements: 0 },
+  };
+}
 
 function monthKeysBetween(startYmd: string, endYmd: string): string[] {
   const start = new Date(`${startYmd}T00:00:00`);
@@ -34,6 +62,28 @@ function postedMonthKey(postedAt: string | null): string | null {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function sumPlatformCounts(b: Record<SocialMediaPlatform, number>): number {
+  return CHART_PLATFORMS.reduce((sum, platform) => sum + b[platform], 0);
+}
+
+function toMonthlyChartPoint(
+  monthKey: string,
+  locale: string,
+  counts: Record<SocialMediaPlatform, number>,
+): SocialMediaInsightMonthlyChartPoint {
+  return {
+    monthKey,
+    monthLabel: monthLabel(monthKey, locale),
+    tiktok: counts.tiktok,
+    youtube: counts.youtube,
+    linkedin: counts.linkedin,
+    threads: counts.threads,
+    instagram: counts.instagram,
+    facebook: counts.facebook,
+    total: sumPlatformCounts(counts),
+  };
+}
+
 export function buildMonthlyViewsChartPoints(
   rows: SocialMediaInsightContentRow[],
   dateStart: string,
@@ -41,29 +91,17 @@ export function buildMonthlyViewsChartPoints(
   locale: string,
 ): SocialMediaInsightMonthlyChartPoint[] {
   const monthKeys = monthKeysBetween(dateStart, dateEnd);
-  const buckets = new Map(
-    monthKeys.map((k) => [k, { tiktok: 0, youtube: 0, linkedin: 0 }]),
-  );
+  const buckets = new Map(monthKeys.map((k) => [k, emptyPlatformCounts()]));
 
   for (const row of rows) {
     const key = postedMonthKey(row.postedAt);
     if (!key || !buckets.has(key)) continue;
-    const b = buckets.get(key)!;
-    b[row.platform] += row.viewCount;
+    buckets.get(key)![row.platform] += row.viewCount;
   }
 
-  return monthKeys.map((monthKey) => {
-    const b = buckets.get(monthKey)!;
-    const total = b.tiktok + b.youtube + b.linkedin;
-    return {
-      monthKey,
-      monthLabel: monthLabel(monthKey, locale),
-      tiktok: b.tiktok,
-      youtube: b.youtube,
-      linkedin: b.linkedin,
-      total,
-    };
-  });
+  return monthKeys.map((monthKey) =>
+    toMonthlyChartPoint(monthKey, locale, buckets.get(monthKey)!),
+  );
 }
 
 export function buildMonthlyContentChartPoints(
@@ -73,9 +111,7 @@ export function buildMonthlyContentChartPoints(
   locale: string,
 ): SocialMediaInsightMonthlyChartPoint[] {
   const monthKeys = monthKeysBetween(dateStart, dateEnd);
-  const buckets = new Map(
-    monthKeys.map((k) => [k, { tiktok: 0, youtube: 0, linkedin: 0 }]),
-  );
+  const buckets = new Map(monthKeys.map((k) => [k, emptyPlatformCounts()]));
 
   for (const row of rows) {
     const key = postedMonthKey(row.postedAt);
@@ -83,17 +119,9 @@ export function buildMonthlyContentChartPoints(
     buckets.get(key)![row.platform] += 1;
   }
 
-  return monthKeys.map((monthKey) => {
-    const b = buckets.get(monthKey)!;
-    return {
-      monthKey,
-      monthLabel: monthLabel(monthKey, locale),
-      tiktok: b.tiktok,
-      youtube: b.youtube,
-      linkedin: b.linkedin,
-      total: b.tiktok + b.youtube + b.linkedin,
-    };
-  });
+  return monthKeys.map((monthKey) =>
+    toMonthlyChartPoint(monthKey, locale, buckets.get(monthKey)!),
+  );
 }
 
 export function buildMonthlyEngagementChartPoints(
@@ -103,16 +131,7 @@ export function buildMonthlyEngagementChartPoints(
   locale: string,
 ): SocialMediaInsightMonthlyChartPoint[] {
   const monthKeys = monthKeysBetween(dateStart, dateEnd);
-  const buckets = new Map(
-    monthKeys.map((k) => [
-      k,
-      {
-        tiktok: { views: 0, engagements: 0 },
-        youtube: { views: 0, engagements: 0 },
-        linkedin: { views: 0, engagements: 0 },
-      },
-    ]),
-  );
+  const buckets = new Map(monthKeys.map((k) => [k, emptyEngagementBuckets()]));
 
   for (const row of rows) {
     const key = postedMonthKey(row.postedAt);
@@ -123,16 +142,22 @@ export function buildMonthlyEngagementChartPoints(
     b.engagements += engagements;
   }
 
+  const engagementRate = (p: { views: number; engagements: number }) =>
+    p.views > 0 ? (p.engagements / p.views) * 100 : 0;
+
   return monthKeys.map((monthKey) => {
     const bucket = buckets.get(monthKey)!;
-    const rate = (p: { views: number; engagements: number }) =>
-      p.views > 0 ? (p.engagements / p.views) * 100 : 0;
-    const tiktok = rate(bucket.tiktok);
-    const youtube = rate(bucket.youtube);
-    const linkedin = rate(bucket.linkedin);
-    const totalViews = bucket.tiktok.views + bucket.youtube.views + bucket.linkedin.views;
-    const totalEng =
-      bucket.tiktok.engagements + bucket.youtube.engagements + bucket.linkedin.engagements;
+    const tiktok = engagementRate(bucket.tiktok);
+    const youtube = engagementRate(bucket.youtube);
+    const linkedin = engagementRate(bucket.linkedin);
+    const threads = engagementRate(bucket.threads);
+    const instagram = engagementRate(bucket.instagram);
+    const facebook = engagementRate(bucket.facebook);
+    const totalViews = CHART_PLATFORMS.reduce((sum, platform) => sum + bucket[platform].views, 0);
+    const totalEng = CHART_PLATFORMS.reduce(
+      (sum, platform) => sum + bucket[platform].engagements,
+      0,
+    );
     const total = totalViews > 0 ? (totalEng / totalViews) * 100 : 0;
     return {
       monthKey,
@@ -140,6 +165,9 @@ export function buildMonthlyEngagementChartPoints(
       tiktok,
       youtube,
       linkedin,
+      threads,
+      instagram,
+      facebook,
       total,
     };
   });
@@ -147,16 +175,12 @@ export function buildMonthlyEngagementChartPoints(
 
 export function buildMonthlyViewsByPlatformTotals(
   rows: SocialMediaInsightContentRow[],
-): { platform: "tiktok" | "youtube" | "linkedin"; views: number }[] {
-  const totals = { tiktok: 0, youtube: 0, linkedin: 0 };
+): { platform: SocialMediaPlatform; views: number }[] {
+  const totals = emptyPlatformCounts();
   for (const row of rows) {
     totals[row.platform] += row.viewCount;
   }
-  return [
-    { platform: "tiktok", views: totals.tiktok },
-    { platform: "youtube", views: totals.youtube },
-    { platform: "linkedin", views: totals.linkedin },
-  ];
+  return CHART_PLATFORMS.map((platform) => ({ platform, views: totals[platform] }));
 }
 
 export function computeInsightSummary(

@@ -449,6 +449,22 @@ export const YouTubeManageCommentsPageSkeleton = createDeferredSkeleton(() =>
   ),
 );
 
+export const MetaManageCommentsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-manage-comments/skeletons/MetaManageCommentsPageSkeleton").then(
+    (m) => ({
+      default: m.MetaManageCommentsPageSkeleton,
+    }),
+  ),
+);
+
+export const MetaContentPerformancePageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-social-media-performance/skeletons/MetaContentPerformancePageSkeleton").then(
+    (m) => ({
+      default: m.MetaContentPerformancePageSkeleton,
+    }),
+  ),
+);
+
 export const DigitalMarketingReportPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-report/skeletons/DigitalMarketingReportPageSkeleton").then((m) => ({
     default: m.DigitalMarketingReportPageSkeleton,
