@@ -7805,7 +7805,6 @@ export const idTranslations: TranslationDictionary = {
   "xendit.subAccount.primaryWithdrawTitle": "Penarikan (akun utama)",
   "xendit.subAccount.primaryWithdrawHint": "Dana ditarik dari: {{label}}",
   "xendit.history.colSubAccount": "Akun",
-  "xendit.history.subtitle": "Riwayat penarikan dana dari akun Xendit ke rekening payout.",
   "xendit.kyc.businessVerificationTitle": "Verifikasi Bisnis Anda",
   "xendit.kyc.businessVerificationDesc": "Lengkapi data legalitas bisnis sebelum akun Xendit dibuat. Data akan dikirim ke Xendit untuk verifikasi.",
   "xendit.kyc.startVerification": "Mulai verifikasi bisnis",

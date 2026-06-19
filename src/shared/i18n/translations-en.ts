@@ -7532,7 +7532,6 @@ export const enTranslations: TranslationDictionary = {
   "xendit.subAccount.primaryWithdrawTitle": "Withdrawal (primary account)",
   "xendit.subAccount.primaryWithdrawHint": "Funds withdrawn from: {{label}}",
   "xendit.history.colSubAccount": "Account",
-  "xendit.history.subtitle": "Withdrawal history from Xendit accounts to your payout bank.",
   "xendit.platformSplitNotReady": "VA payments are temporarily unavailable. Contact your platform administrator.",
   "xendit.platformSplitNotReadyPanel": "VA payments are temporarily unavailable because platform fee configuration is not active yet. Contact your Synckerja platform administrator.",
   "xendit.piutangVaNetHint": "After payment, platform fee {{fee}} is deducted automatically. You receive net {{net}}.",
