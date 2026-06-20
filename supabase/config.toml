@@ -293,3 +293,9 @@ verify_jwt = false
 
 [functions.omnichannel-api-manage]
 verify_jwt = false
+
+[functions.connect-email-imap]
+verify_jwt = false
+
+[functions.email-imap-sync]
+verify_jwt = false

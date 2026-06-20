@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import DOMPurify from 'dompurify';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
@@ -11,6 +10,9 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Button } from '@/shared/components/ui/button';
 import { EmailComposePopup } from './EmailComposePopup';
+import { EmailBodyRenderer } from './EmailBodyRenderer';
+import { emailBodyPlainTextForMatch } from '../../utils/formatEmailBodyForDisplay';
+import { cn } from '@/shared/lib/utils';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import {
   isAssignedToOtherAgent,
@@ -63,20 +65,6 @@ const emailBodyResponsiveStyles = `
   }
 `;
 
-/** Sanitize email body and make URLs clickable (linkify plain text). */
-function sanitizeEmailBody(body: string): string {
-  if (!body?.trim()) return '';
-  const trimmed = body.trim();
-  const looksLikeHtml = /</.test(trimmed);
-  const toSanitize = looksLikeHtml
-    ? trimmed
-    : trimmed.replace(
-        /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/gi,
-        (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
-      );
-  return DOMPurify.sanitize(toSanitize, { ADD_ATTR: ['target', 'rel'] });
-}
-
 interface EmailChatThreadProps {
   conversation: EmailConversation;
   /** When true, hide the in-component header (e.g. for mobile where parent provides back + avatar + name). */
@@ -126,22 +114,38 @@ function normalizeSubjectForDisplay(subject: string | null | undefined): string 
   return withoutRe ? `Re: ${withoutRe}` : s;
 }
 
-/** True only when the message looks like a Gmail/email verification (forwarding) email, so we show the confirmation code box only then. */
+/** True only for Gmail/Hostinger email forwarding verification — not OTP, tickets, or LinkedIn security alerts. */
 function isVerificationEmail(msg: EmailMessage): boolean {
   const subj = (msg.subject ?? '').toLowerCase();
-  const body = (msg.body ?? '').toLowerCase();
-  const verificationPhrases = [
+  const body = emailBodyPlainTextForMatch(msg.body ?? '').toLowerCase();
+  const text = `${subj} ${body}`;
+
+  if (
+    /linkedin\.com|verifikasi perangkat|device baru|two.step verification|ticket\s*#|\bxendit\b|\bvercel\b|\bsupabase\b|log in code|login code|otp/i.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+
+  const forwardingPhrases = [
     'confirmation code',
-    'verification code',
+    'kode konfirmasi',
     'paste in gmail',
     'forwarding and pop/imap',
+    'penerusan dan pop/imap',
     'gmail forwarding',
     'forwarding address',
-    'kode konfirmasi',
-    'penerusan dan pop/imap',
+    'email forwarder',
+    'menunggu konfirmasi',
+    'waiting for confirmation',
   ];
-  const text = `${subj} ${body}`;
-  return verificationPhrases.some((p) => text.includes(p));
+  return forwardingPhrases.some((p) => text.includes(p));
+}
+
+function isHostingerForwarderVerification(msg: EmailMessage): boolean {
+  const text = `${msg.subject ?? ''} ${msg.body ?? ''}`.toLowerCase();
+  return text.includes('hostinger') && (text.includes('forward') || text.includes('diteruskan') || text.includes('forwarder'));
 }
 
 export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadProps) {
@@ -192,6 +196,11 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeInitialSubject, setComposeInitialSubject] = useState('');
   const [composeInitialBody, setComposeInitialBody] = useState('');
+  const threadScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    threadScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [conversation.id, messages.length]);
 
   const handleCopyCode = (code: string) => {
     void navigator.clipboard.writeText(code).then(() => {
@@ -302,14 +311,19 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
           <p className="text-xs text-slate-500 truncate">{conversation.email_connection_display ?? ''}</p>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 min-w-0 flex flex-col pb-2">
-        {messages.map((msg) => {
+      <div ref={threadScrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden seamless-scroll min-w-0">
+        <div className="flex min-h-full flex-1 flex-col">
+        {messages.map((msg, index) => {
           const senderDisplay = getMessageSenderDisplay(msg, conversation);
           const isOutbound = msg.direction === 'outbound';
+          const isLast = index === messages.length - 1;
           return (
             <article
               key={msg.id}
-              className="shrink-0 w-full bg-white border-b border-slate-200"
+              className={cn(
+                'w-full border-b border-slate-200 bg-white',
+                isLast ? 'flex min-h-0 flex-1 flex-col' : 'shrink-0',
+              )}
             >
               <div className="px-4 pt-4 pb-2">
                 {msg.subject ? (
@@ -327,7 +341,7 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
                   <span className="shrink-0">{formatTime(msg.created_at)}</span>
                 </div>
               </div>
-              <div className="px-4 pb-4 min-w-0">
+              <div className={cn('px-4 pb-4 min-w-0', isLast && 'flex min-h-0 flex-1 flex-col')}>
                 {msg.confirmation_code != null && String(msg.confirmation_code).trim() !== '' && isVerificationEmail(msg) ? (
                   <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 mb-4 min-h-0">
                     <p className="text-sm font-medium text-amber-800 mb-2 leading-normal">
@@ -345,19 +359,31 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
                       </button>
                     </div>
                   </div>
+                ) : isHostingerForwarderVerification(msg) ? (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 mb-4 min-h-0">
+                    <p className="text-sm font-medium text-amber-900 mb-1">
+                      {t('emailConnect.hostingerVerifyTitle', 'Verifikasi forwarder Hostinger')}
+                    </p>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      {t(
+                        'emailConnect.hostingerVerifyHint',
+                        'Klik link verifikasi di isi email di bawah. Setelah itu status di hPanel berubah dari "Menunggu konfirmasi" menjadi aktif.',
+                      )}
+                    </p>
+                  </div>
                 ) : null}
                 {msg.body ? (
                   <div className="min-w-0 w-full max-w-full overflow-x-auto">
                     <p className="text-xs font-medium text-slate-600 mb-2">
                       {t('emailConnect.messageLabel', 'Pesan')}:
                     </p>
-                    <div
+                    <EmailBodyRenderer
+                      body={msg.body}
                       className="email-body email-body-responsive text-sm text-slate-800 min-w-0 w-full max-w-full leading-relaxed prose prose-sm max-w-none prose-p:my-2 prose-p:leading-relaxed prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-a:text-blue-600 prose-a:underline prose-a:break-words prose-img:max-w-full prose-img:h-auto prose-img:rounded"
-                      dangerouslySetInnerHTML={{ __html: sanitizeEmailBody(msg.body) }}
                     />
                   </div>
                 ) : null}
-                <div className="mt-4 pt-3 border-t border-slate-100">
+                <div className="mt-4 border-t border-slate-100 pt-3">
                   <Button
                     type="button"
                     variant="outline"
@@ -387,8 +413,9 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
             </article>
           );
         })}
+        </div>
       </div>
-      <div className="flex-shrink-0 sticky bottom-0 left-0 right-0 z-10 pt-1 pb-2.5 px-3 border-t border-slate-700 bg-slate-800 safe-area-bottom">
+      <div className="flex-shrink-0 border-t border-slate-700 bg-slate-800 px-3 pb-2.5 pt-1 safe-area-bottom">
         {sendBlocked ? (
           <p className="mb-2 text-center text-xs text-amber-200 px-1">
             {sendBlockedUnassigned

@@ -1,11 +1,13 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import nodemailer from "npm:nodemailer@6.9.16";
 import {
   assertSenderIsActiveAssignee,
   jsonGateError,
   resolveEmployeeForOmnichannelSend,
 } from "./omnichannelAssigneeGate.ts";
+import { decryptEmailConnectionPassword } from "../_shared/emailConnectionCrypto.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -161,7 +163,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: conn, error: connError } = await supabaseAdmin
       .from("organization_email_connections")
-      .select("id, inbound_address, email_address")
+      .select("id, inbound_address, email_address, connection_method, smtp_host, smtp_port")
       .eq("id", conv.email_connection_id)
       .eq("organization_id", conv.organization_id)
       .maybeSingle();
@@ -182,50 +184,117 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const apiKey = Deno.env.get(RESEND_API_KEY_ENV)?.trim();
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "RESEND_API_KEY not configured" }), {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const fromAddress = conn.inbound_address;
     const displayName = conn.email_address?.trim() || "Support";
-    const fromHeader = `${displayName} <${fromAddress}>`;
     const rawSubject = replySubject || `Re: ${conv.thread_subject?.trim() || "Email"}`;
     const subjectBase = rawSubject.replace(/^(Re:\s*)+/i, "").trim() || "Email";
     const subject = subjectBase === "Email" ? rawSubject : `Re: ${subjectBase}`;
     const htmlBody = replyBody.replace(/\n/g, "<br>\n");
+    const connectionMethod = (conn.connection_method as string | null) ?? "forwarding";
+    let fromAddress = conn.inbound_address;
+    const ccList = cc ? cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
+    const bccList = bcc ? bcc.split(",").map((e) => e.trim()).filter(Boolean) : [];
+    const mailAttachments = attachments.map((a) => ({
+      filename: a.filename,
+      content: Uint8Array.from(atob(a.content), (c) => c.charCodeAt(0)),
+    }));
 
-    const payload: Record<string, unknown> = {
-      from: fromHeader,
-      to: toEmails,
-      subject,
-      html: htmlBody,
-      reply_to: conn.email_address?.trim() || undefined,
-    };
-    if (cc) payload.cc = cc.split(",").map((e) => e.trim()).filter(Boolean);
-    if (bcc) payload.bcc = bcc.split(",").map((e) => e.trim()).filter(Boolean);
-    if (attachments.length > 0) {
-      payload.attachments = attachments.map((a) => ({ filename: a.filename, content: a.content }));
-    }
-    const res = await fetch(RESEND_SEND_API, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    if (connectionMethod === "imap") {
+      const { data: secretRow, error: secretErr } = await supabaseAdmin
+        .from("organization_email_connection_secrets")
+        .select("password_enc")
+        .eq("connection_id", conn.id)
+        .maybeSingle();
+      if (secretErr || !secretRow?.password_enc) {
+        return new Response(JSON.stringify({ error: "IMAP credentials not found for this connection." }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      let mailboxPassword: string;
+      try {
+        mailboxPassword = await decryptEmailConnectionPassword(secretRow.password_enc);
+      } catch (e) {
+        console.error("[send-email-reply] decrypt password failed", e);
+        return new Response(JSON.stringify({ error: "Failed to decrypt mailbox credentials." }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    const resJson = await res.json().catch(() => ({})) as { id?: string; message?: string };
-    if (!res.ok) {
-      const msg = resJson?.message ?? res.statusText ?? "Resend send failed";
-      return new Response(JSON.stringify({ error: msg }), {
-        status: res.status >= 400 ? res.status : 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const smtpHost = (conn.smtp_host as string | null)?.trim() || "smtp.hostinger.com";
+      const smtpPort = (conn.smtp_port as number | null) && (conn.smtp_port as number) > 0
+        ? (conn.smtp_port as number)
+        : 465;
+      fromAddress = conn.email_address?.trim() || fromAddress;
+
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: conn.email_address?.trim(),
+          pass: mailboxPassword,
+        },
       });
+
+      try {
+        await transporter.sendMail({
+          from: `${displayName} <${fromAddress}>`,
+          to: toEmails,
+          cc: ccList.length > 0 ? ccList : undefined,
+          bcc: bccList.length > 0 ? bccList : undefined,
+          subject,
+          text: replyBody,
+          html: htmlBody,
+          attachments: mailAttachments.length > 0 ? mailAttachments : undefined,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[send-email-reply] SMTP send failed", msg);
+        return new Response(JSON.stringify({ error: msg || "SMTP send failed" }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      const apiKey = Deno.env.get(RESEND_API_KEY_ENV)?.trim();
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: "RESEND_API_KEY not configured" }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const fromHeader = `${displayName} <${fromAddress}>`;
+      const payload: Record<string, unknown> = {
+        from: fromHeader,
+        to: toEmails,
+        subject,
+        html: htmlBody,
+        reply_to: conn.email_address?.trim() || undefined,
+      };
+      if (ccList.length > 0) payload.cc = ccList;
+      if (bccList.length > 0) payload.bcc = bccList;
+      if (attachments.length > 0) {
+        payload.attachments = attachments.map((a) => ({ filename: a.filename, content: a.content }));
+      }
+      const res = await fetch(RESEND_SEND_API, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resJson = await res.json().catch(() => ({})) as { id?: string; message?: string };
+      if (!res.ok) {
+        const msg = resJson?.message ?? res.statusText ?? "Resend send failed";
+        return new Response(JSON.stringify({ error: msg }), {
+          status: res.status >= 400 ? res.status : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const now = new Date().toISOString();

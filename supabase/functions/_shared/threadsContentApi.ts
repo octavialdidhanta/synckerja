@@ -260,6 +260,38 @@ export async function fetchThreadsList(
   return inRange;
 }
 
+/** Top-level reply count for manage-comments sidebar (matches listComments filter). */
+export async function countThreadTopLevelReplies(
+  mediaId: string,
+  accessToken: string,
+): Promise<number> {
+  const replies = await fetchThreadReplies(mediaId, accessToken);
+  return replies.filter((c) => !c.parent_comment_id || c.parent_comment_id === mediaId).length;
+}
+
+export async function enrichThreadsPostsWithCommentCounts(
+  posts: ThreadsPost[],
+  accessToken: string,
+): Promise<ThreadsPost[]> {
+  const batchSize = 8;
+  const enriched: ThreadsPost[] = [];
+  for (let i = 0; i < posts.length; i += batchSize) {
+    const chunk = posts.slice(i, i + batchSize);
+    const rows = await Promise.all(
+      chunk.map(async (post) => {
+        try {
+          const commentCount = await countThreadTopLevelReplies(post.id, accessToken);
+          return { ...post, comment_count: commentCount };
+        } catch {
+          return post;
+        }
+      }),
+    );
+    enriched.push(...rows);
+  }
+  return enriched;
+}
+
 type InsightMetricRow = {
   name?: string;
   values?: Array<{ value?: number }>;

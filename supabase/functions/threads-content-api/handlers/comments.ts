@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  countThreadTopLevelReplies,
+  enrichThreadsPostsWithCommentCounts,
   fetchThreadReplies,
   fetchThreadsList,
   replyThreadsComment,
@@ -149,7 +151,10 @@ export async function handleThreadsComments(
     const resolvedAccountId = account.instagramBusinessAccountId || account.threadsUserId;
 
     if (action === "sync_posts" || action === "listPosts" || action === "getCommentPosts") {
-      const dateRange = parseThreadsPostDateRange(body);
+      const isManageComments = action === "getCommentPosts";
+      const dateRange = isManageComments
+        ? { isAllTime: true as const, startYmd: null, endYmd: null }
+        : parseThreadsPostDateRange(body);
       const listOptions = dateRange.isAllTime
         ? { allTime: true as const }
         : {
@@ -157,9 +162,41 @@ export async function handleThreadsComments(
           endYmd: dateRange.endYmd!,
         };
       try {
-        const posts = await fetchThreadsList(accessToken, 50, listOptions);
+        const posts = await fetchThreadsList(accessToken, isManageComments ? 100 : 50, listOptions);
+        const withCounts = isManageComments
+          ? await enrichThreadsPostsWithCommentCounts(posts, accessToken)
+          : posts;
+        if (isManageComments) {
+          const inboxState = await syncThreadsManageCommentsPostBaselines(
+            admin,
+            organizationId,
+            resolvedThreadsUserId,
+            withCounts.map((p) => ({ media_id: p.id, comment_count: p.comment_count ?? 0 })),
+          );
+          return threadsContentJson({
+            posts: withCounts.map((p) => ({
+            id: String(p.id ?? ""),
+            media_id: String(p.id ?? ""),
+            post_id: String(p.id ?? ""),
+            caption: p.caption ?? "",
+            title: p.caption ?? "",
+            thumbnail_url: p.thumbnail_url ?? null,
+            cover_image_url: p.thumbnail_url ?? null,
+            media_url: p.media_url ?? null,
+            permalink: p.permalink,
+            timestamp: p.timestamp,
+            posted_at: p.timestamp,
+            comment_count: p.comment_count ?? 0,
+            like_count: p.like_count ?? 0,
+          })),
+          threads_user_id: resolvedThreadsUserId,
+          account_id: resolvedAccountId,
+          account_label: account.accountLabel,
+          inbox: inboxState,
+        }, 200);
+        }
         return threadsContentJson({
-          posts: posts.map((p) => ({
+          posts: withCounts.map((p) => ({
             id: String(p.id ?? ""),
             media_id: String(p.id ?? ""),
             post_id: String(p.id ?? ""),
@@ -191,8 +228,13 @@ export async function handleThreadsComments(
       try {
         const comments = await fetchThreadReplies(mediaId, accessToken);
         const topLevel = comments.filter((c) => !c.parent_comment_id || c.parent_comment_id === mediaId);
+        const commentCount = topLevel.length;
+        await syncThreadsManageCommentsPostBaselines(admin, organizationId, resolvedThreadsUserId, [
+          { media_id: mediaId, comment_count: commentCount },
+        ]);
         return threadsContentJson({
           comments: sortComments(topLevel.map(mapCommentRow), sort),
+          comment_count: commentCount,
           threads_user_id: resolvedThreadsUserId,
           account_id: resolvedAccountId,
         }, 200);

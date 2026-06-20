@@ -24,6 +24,7 @@ import {
   buildScheduleFromWizardPayload,
   type WizardLocationPayload,
 } from '@/shared/lib/sales/scheduleVisitFromWizard';
+import { dedupeInstagramConversations } from '@/5-3-whatsapp/lib/dedupeInstagramConversations';
 
 const invalidateClientVisitQueries = (
   queryClient: QueryClient,
@@ -1974,11 +1975,12 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         console.error('Error fetching facebook conversations for leads:', facebookError);
       }
 
-      const { data: instagramConvs, error: instagramError } = await supabase
+      const { data: instagramConvsRaw, error: instagramError } = await supabase
         .from('instagram_conversations')
-        .select('id, organization_id, customer_ig_id, customer_name, last_message_at, last_message_body, lead_status_id, last_inbound_at, assignee_id, created_at, updated_at, ticket_id, meta_session_expires_at')
+        .select('id, organization_id, customer_ig_id, customer_external_id, customer_name, instagram_business_account_id, last_message_at, last_message_body, lead_status_id, last_inbound_at, assignee_id, created_at, updated_at, ticket_id, meta_session_expires_at')
         .eq('organization_id', organizationId)
         .order('last_message_at', { ascending: false, nullsFirst: false });
+      const instagramConvs = dedupeInstagramConversations(instagramConvsRaw ?? []);
       if (instagramError) {
         console.error('Error fetching instagram conversations for leads:', instagramError);
       }

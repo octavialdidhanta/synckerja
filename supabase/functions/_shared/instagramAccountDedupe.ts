@@ -16,20 +16,22 @@ export function normalizeInstagramUsername(username: string | null | undefined):
   return (username ?? "").trim().replace(/^@+/i, "").toLowerCase();
 }
 
-/** Prefer webhook sender id (external) over resolved messaging id — keeps IGSID/business-id drift in one bucket. */
+/** Stable customer identity: @username > external (webhook sender) > ig id. Username survives Meta ID drift. */
 export function instagramConversationCustomerDedupeKey(
   customerIgId: string | null | undefined,
   customerExternalId: string | null | undefined,
   customerName: string | null | undefined,
 ): string {
+  const username = normalizeInstagramUsername(
+    (customerName ?? "").trim().startsWith("@") ? customerName : null,
+  );
+  if (username) return username;
+
   const external = (customerExternalId ?? "").trim().toLowerCase();
   if (external) return external;
 
   const ig = (customerIgId ?? "").trim().toLowerCase();
   if (ig) return ig;
-
-  const name = (customerName ?? "").trim();
-  if (name.startsWith("@")) return name.slice(1).toLowerCase();
 
   return "";
 }

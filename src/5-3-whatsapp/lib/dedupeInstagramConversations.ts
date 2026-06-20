@@ -1,15 +1,19 @@
 import type { InstagramConversation } from '../types';
 
-/** Match server instagramConversationCustomerDedupeKey (external id > ig id > @username). */
+function normalizeUsername(name: string | null | undefined): string {
+  return (name ?? '').trim().replace(/^@+/i, '').toLowerCase();
+}
+
+/** Match server instagramConversationCustomerDedupeKey (@username > external > ig id). */
 function customerDedupeKey(conv: InstagramConversation): string {
+  const username = normalizeUsername(conv.customer_name?.trim().startsWith('@') ? conv.customer_name : null);
+  if (username) return username;
+
   const external = (conv as { customer_external_id?: string | null }).customer_external_id?.trim().toLowerCase();
   if (external) return external;
 
   const ig = conv.customer_ig_id?.trim().toLowerCase();
   if (ig) return ig;
-
-  const name = conv.customer_name?.trim() ?? '';
-  if (name.startsWith('@')) return name.slice(1).toLowerCase();
 
   return '';
 }
@@ -20,8 +24,8 @@ function customerIdentityTokens(conv: InstagramConversation): Set<string> {
   const ext = (conv as { customer_external_id?: string | null }).customer_external_id?.trim().toLowerCase();
   if (ig) tokens.add(ig);
   if (ext) tokens.add(ext);
-  const name = conv.customer_name?.trim();
-  if (name?.startsWith('@')) tokens.add(`@${name.slice(1).toLowerCase()}`);
+  const username = normalizeUsername(conv.customer_name?.trim().startsWith('@') ? conv.customer_name : null);
+  if (username) tokens.add(`@${username}`);
   return tokens;
 }
 
@@ -31,6 +35,9 @@ function identitiesOverlap(a: InstagramConversation, b: InstagramConversation): 
   for (const t of ta) {
     if (tb.has(t)) return true;
   }
+  const aUser = normalizeUsername(a.customer_name?.trim().startsWith('@') ? a.customer_name : null);
+  const bUser = normalizeUsername(b.customer_name?.trim().startsWith('@') ? b.customer_name : null);
+  if (aUser && bUser && aUser === bUser) return true;
   return false;
 }
 

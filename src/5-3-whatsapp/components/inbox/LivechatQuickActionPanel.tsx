@@ -274,6 +274,7 @@ export function LivechatQuickActionPanel({
   const [selectedServiceName, setSelectedServiceName] = useState<string>('');
   const [selectedCategoryName, setSelectedCategoryName] = useState<string>('');
   const [isUpdatingLead, setIsUpdatingLead] = useState(false);
+  const [isMarkUnmarkLeadLoading, setIsMarkUnmarkLeadLoading] = useState(false);
   const [serviceCategoryDialogOpen, setServiceCategoryDialogOpen] = useState(false);
   const [pendingMarkAsLead, setPendingMarkAsLead] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);

@@ -18,6 +18,9 @@ async function fetchPage(after: string | undefined, whatsappAccountId: string | 
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (json?.code === "WHATSAPP_NOT_CONFIGURED") {
+      return { data: [], paging: null };
+    }
     const msg = typeof json?.error === "string" ? json.error : "Failed to load templates";
     const err = new Error(msg) as Error & { code?: string };
     if (typeof json?.code === "string") err.code = json.code;
@@ -26,11 +29,15 @@ async function fetchPage(after: string | undefined, whatsappAccountId: string | 
   return json as TemplateListResponse;
 }
 
-export function useWhatsAppMessageTemplates(whatsappAccountId: string | null) {
+export function useWhatsAppMessageTemplates(
+  whatsappAccountId: string | null,
+  options?: { enabled?: boolean },
+) {
   const { organizationId } = useCurrentOrg();
+  const queryEnabled = options?.enabled ?? true;
   return useInfiniteQuery({
     queryKey: ["whatsapp-message-templates", organizationId, whatsappAccountId],
-    enabled: !!organizationId,
+    enabled: Boolean(organizationId && queryEnabled),
     initialPageParam: "" as string,
     queryFn: ({ pageParam }) => fetchPage(pageParam || undefined, whatsappAccountId),
     getNextPageParam: (last) => {

@@ -87,7 +87,7 @@ export function LivechatFollowUpDialog({
   }, [conversation.phone_number_id, waAccounts]);
 
   const waAccountId = matchedAccount?.id ?? null;
-  const tplQuery = useWhatsAppMessageTemplates(open ? waAccountId : null);
+  const tplQuery = useWhatsAppMessageTemplates(waAccountId, { enabled: open && !!waAccountId });
   const [templateHsmId, setTemplateHsmId] = useState('');
   const [parameterValues, setParameterValues] = useState<string[]>([]);
   const [agentName, setAgentName] = useState('');

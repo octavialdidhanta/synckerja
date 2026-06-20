@@ -110,7 +110,7 @@ export function WebhookInfoDisplay({ embedded, compact, variant = 'whatsapp' }: 
           )}
         </div>
       )}
-      {isThreads && (
+      {isThreads && !compact && (
         <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50/90 p-3 text-xs leading-relaxed text-slate-800">
           <p className="font-semibold">
             {t('threadsConnect.webhookSetupTitle', 'Setup webhook di Meta (Threads API app)')}

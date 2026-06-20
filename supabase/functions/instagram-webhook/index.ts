@@ -5,7 +5,12 @@ import {
   resolveFacebookPageForWebhookEntry,
 } from "../_shared/facebookMessengerWebhook.ts";
 import { resolveInstagramDmRecipientIdWithRetry } from "../_shared/instagramMessagingRecipient.ts";
-import { instagramConversationCustomerDedupeKey, mergeInstagramConversationDuplicates } from "../_shared/instagramAccountDedupe.ts";
+import {
+  instagramConversationCustomerDedupeKey,
+  instagramCustomerIdentitiesOverlap,
+  mergeInstagramConversationDuplicates,
+  normalizeInstagramUsername,
+} from "../_shared/instagramAccountDedupe.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -523,6 +528,11 @@ async function findExistingInstagramConversation(
 ): Promise<ExistingInstagramConvRow | null> {
   const tryIds = [...new Set([customerMessagingId.trim(), senderId.trim()].filter(Boolean))];
   const matches = new Map<string, ExistingInstagramConvRow & { customer_external_id?: string | null; last_message_at?: string | null }>();
+  const probe = {
+    customer_ig_id: customerMessagingId.trim() || senderId.trim(),
+    customer_external_id: senderId.trim() || null,
+    customer_name: customerName,
+  };
 
   if (tryIds.length > 0) {
     const orParts = tryIds.flatMap((id) => [
@@ -552,26 +562,46 @@ async function findExistingInstagramConversation(
     senderId,
     customerName,
   );
-  if (dedupeKey) {
-    const { data: candidates } = await supabase
-      .from("instagram_conversations")
-      .select("id, first_inbound_at, customer_name, customer_ig_id, customer_external_id, last_message_at")
-      .eq("organization_id", orgId)
-      .eq("instagram_business_account_id", inboxBusinessAccountId)
-      .order("last_message_at", { ascending: false })
-      .limit(80);
+  const usernameKey = normalizeInstagramUsername(
+    customerName?.trim().startsWith("@") ? customerName : null,
+  );
 
-    for (const row of candidates ?? []) {
-      const r = row as ExistingInstagramConvRow & {
-        customer_external_id?: string | null;
-        last_message_at?: string | null;
-      };
+  const { data: candidates } = await supabase
+    .from("instagram_conversations")
+    .select("id, first_inbound_at, customer_name, customer_ig_id, customer_external_id, last_message_at")
+    .eq("organization_id", orgId)
+    .eq("instagram_business_account_id", inboxBusinessAccountId)
+    .order("last_message_at", { ascending: false })
+    .limit(80);
+
+  for (const row of candidates ?? []) {
+    const r = row as ExistingInstagramConvRow & {
+      customer_external_id?: string | null;
+      last_message_at?: string | null;
+    };
+
+    if (dedupeKey) {
       const rowKey = instagramConversationCustomerDedupeKey(
         r.customer_ig_id,
         r.customer_external_id ?? null,
         r.customer_name,
       );
       if (rowKey === dedupeKey) {
+        matches.set(r.id, r);
+        continue;
+      }
+    }
+
+    if (instagramCustomerIdentitiesOverlap(probe, r)) {
+      matches.set(r.id, r);
+      continue;
+    }
+
+    if (usernameKey) {
+      const rowUsername = normalizeInstagramUsername(
+        r.customer_name?.trim().startsWith("@") ? r.customer_name : null,
+      );
+      if (rowUsername && rowUsername === usernameKey) {
         matches.set(r.id, r);
       }
     }
@@ -586,8 +616,138 @@ async function findExistingInstagramConversation(
     inboxBusinessAccountId,
     ids: rows.map((r) => r.id),
     tryIds,
+    dedupeKey,
   });
   return mergeInstagramConversationDuplicates(supabase, rows);
+}
+
+/** Resolve messaging id + display name before conversation lookup (all webhook paths). */
+async function resolveInstagramCustomerIdentity(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  inboxBusinessAccountId: string,
+  senderId: string,
+  facebookPageId: string | null | undefined,
+  accessToken: string | null,
+): Promise<{ customerMessagingId: string; customerName: string | null }> {
+  let customerMessagingId = senderId.trim();
+  if (accessToken && facebookPageId) {
+    customerMessagingId = await resolveInstagramDmRecipientIdWithRetry(
+      supabase,
+      orgId,
+      inboxBusinessAccountId,
+      senderId,
+      String(facebookPageId).trim(),
+      accessToken,
+      { altCustomerIds: [senderId], attempts: 3, delayMs: 500 },
+    );
+  }
+
+  let customerName: string | null = null;
+  const linkedSender = await lookupConnectedIgAccountInOrg(supabase, orgId, senderId);
+  if (linkedSender?.customer_name) {
+    customerName = linkedSender.customer_name;
+  } else if (accessToken) {
+    customerName = await fetchInstagramSenderDisplayName(senderId, accessToken);
+  }
+
+  return { customerMessagingId, customerName };
+}
+
+/** IDs that represent our inbox (Page / IG business account), not the customer. */
+function collectOwnedInboxIds(
+  account: InstagramWebhookAccount,
+  effectiveInboxId: string,
+  entryId: string | null,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const id of [
+    effectiveInboxId,
+    account.instagram_business_account_id,
+    account.facebook_page_id,
+    entryId,
+  ]) {
+    const trimmed = String(id ?? "").trim();
+    if (trimmed) ids.add(trimmed);
+  }
+  return ids;
+}
+
+function isOwnedInboxParticipant(participantId: string | null, ownedIds: Set<string>): boolean {
+  const p = (participantId ?? "").trim();
+  return p.length > 0 && ownedIds.has(p);
+}
+
+/** True when webhook event is our API/Page outbound (not a customer DM). Matches Messenger is_echo skip. */
+function isInstagramOutboundWebhookEvent(
+  message: MessagingEvtLoop["message"] | undefined,
+  senderId: string | null,
+  ownedInboxIds: Set<string>,
+): boolean {
+  if (!message || message.is_deleted) return false;
+  if (message.is_echo === true) return true;
+  // Customer DMs have the customer as sender; our sends echo with Page/IG inbox id as sender.
+  return isOwnedInboxParticipant(senderId, ownedInboxIds);
+}
+
+async function findConversationWithRecentOutboundBody(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  inboxBusinessAccountId: string,
+  bodyText: string,
+  withinMs = 5 * 60 * 1000,
+): Promise<ExistingInstagramConvRow | null> {
+  const trimmedBody = bodyText.trim();
+  if (!trimmedBody) return null;
+  const since = new Date(Date.now() - withinMs).toISOString();
+
+  const { data: recentOutbound } = await supabase
+    .from("instagram_messages")
+    .select("conversation_id, body, created_at")
+    .eq("direction", "outbound")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(15);
+
+  for (const row of recentOutbound ?? []) {
+    const msg = row as { conversation_id?: string; body?: string | null };
+    if ((msg.body ?? "").trim() !== trimmedBody || !msg.conversation_id) continue;
+
+    const { data: conv } = await supabase
+      .from("instagram_conversations")
+      .select("id, first_inbound_at, customer_name, customer_ig_id, customer_external_id, last_message_at")
+      .eq("id", msg.conversation_id)
+      .eq("organization_id", orgId)
+      .eq("instagram_business_account_id", inboxBusinessAccountId)
+      .maybeSingle();
+
+    if (conv?.id) {
+      console.warn("[instagram-webhook] matched recent outbound body — avoid duplicate inbound thread", {
+        conversation_id: conv.id,
+        body: trimmedBody.slice(0, 80),
+      });
+      return conv as ExistingInstagramConvRow;
+    }
+  }
+  return null;
+}
+
+async function skipIfOutboundInstagramMessageAlreadyStored(
+  supabase: ReturnType<typeof createClient>,
+  mid: string | null,
+  meta: Record<string, unknown>,
+): Promise<boolean> {
+  if (!mid) return false;
+  const { data: existingMsg } = await supabase
+    .from("instagram_messages")
+    .select("id, direction")
+    .eq("platform_message_id", mid)
+    .maybeSingle();
+  if (existingMsg?.id) {
+    console.log("[instagram-webhook] skip duplicate platform_message_id", { ...meta, mid, direction: existingMsg.direction });
+    return true;
+  }
+  return false;
 }
 
 async function lookupConnectedIgAccountInOrg(
@@ -881,13 +1041,22 @@ Deno.serve(async (req: Request) => {
         if (e.read && !e.message && !e.postback) {
           const customerIgId = senderId;
           if (!customerIgId) continue;
-          const { data: convForRead } = await supabase
-            .from("instagram_conversations")
-            .select("id")
-            .eq("organization_id", orgId)
-            .eq("instagram_business_account_id", effectiveId)
-            .eq("customer_ig_id", customerIgId)
-            .maybeSingle();
+          const { customerMessagingId, customerName } = await resolveInstagramCustomerIdentity(
+            supabase,
+            orgId,
+            effectiveId,
+            customerIgId,
+            account.facebook_page_id,
+            accessToken,
+          );
+          const convForRead = await findExistingInstagramConversation(
+            supabase,
+            orgId,
+            effectiveId,
+            customerMessagingId,
+            customerIgId,
+            customerName,
+          );
           if (convForRead?.id) {
             await handleInstagramReadReceipt(supabase, convForRead.id, e.read);
             processedCount += 1;
@@ -904,13 +1073,22 @@ Deno.serve(async (req: Request) => {
           const bodyText = payload || title || "[Postback]";
           const mid = `postback_${senderId}_${String(e.timestamp ?? Date.now())}`;
 
-          const { data: existingConvPb } = await supabase
-            .from("instagram_conversations")
-            .select("id")
-            .eq("organization_id", orgId)
-            .eq("instagram_business_account_id", effectiveId)
-            .eq("customer_ig_id", senderId)
-            .maybeSingle();
+          const { customerMessagingId, customerName } = await resolveInstagramCustomerIdentity(
+            supabase,
+            orgId,
+            effectiveId,
+            senderId,
+            account.facebook_page_id,
+            accessToken,
+          );
+          const existingConvPb = await findExistingInstagramConversation(
+            supabase,
+            orgId,
+            effectiveId,
+            customerMessagingId,
+            senderId,
+            customerName,
+          );
 
           let convPbId = existingConvPb?.id ?? null;
           if (!convPbId) {
@@ -921,14 +1099,15 @@ Deno.serve(async (req: Request) => {
             const { data: unreadSt } = openSt?.id
               ? { data: null }
               : await supabase.from("lead_statuses").select("id").or(orgOrGlobalPb).eq("name", "Unread").maybeSingle();
-            const { data: insertedPb } = await supabase
+            const { data: insertedPb, error: insertPbErr } = await supabase
               .from("instagram_conversations")
               .insert({
                 id: newConvId,
                 organization_id: orgId,
                 instagram_business_account_id: effectiveId,
-                customer_ig_id: senderId,
+                customer_ig_id: customerMessagingId,
                 customer_external_id: senderId,
+                ...(customerName ? { customer_name: customerName } : {}),
                 ticket_id: ticketId,
                 lead_status_id: openSt?.id ?? unreadSt?.id ?? null,
                 last_message_at: ts,
@@ -940,7 +1119,19 @@ Deno.serve(async (req: Request) => {
               })
               .select("id")
               .single();
-            convPbId = insertedPb?.id ?? null;
+            if (insertPbErr) {
+              const retried = await findExistingInstagramConversation(
+                supabase,
+                orgId,
+                effectiveId,
+                customerMessagingId,
+                senderId,
+                customerName,
+              );
+              convPbId = retried?.id ?? null;
+            } else {
+              convPbId = insertedPb?.id ?? null;
+            }
           }
 
           if (convPbId) {
@@ -1007,15 +1198,49 @@ Deno.serve(async (req: Request) => {
 
         const mid = e.message?.mid != null ? String(e.message.mid) : null;
 
+        const ownedInboxIds = collectOwnedInboxIds(account, effectiveId, entryId);
+        if (
+          e.message &&
+          !e.message.is_deleted &&
+          isInstagramOutboundWebhookEvent(e.message, senderId, ownedInboxIds)
+        ) {
+          if (await skipIfOutboundInstagramMessageAlreadyStored(supabase, mid, {
+            reason: "outbound_or_echo",
+            senderId,
+            recipientId,
+            is_echo: e.message.is_echo === true,
+            owned_inbox_ids: [...ownedInboxIds],
+          })) {
+            processedCount += 1;
+          } else {
+            console.log("[instagram-webhook] skip outbound/echo (sender is inbox/page)", {
+              senderId,
+              recipientId,
+              mid,
+              is_echo: e.message.is_echo === true,
+            });
+          }
+          continue;
+        }
+
         // Deleted message: update existing row
         if (e.message?.is_deleted && mid && senderId) {
-          const { data: convDel } = await supabase
-            .from("instagram_conversations")
-            .select("id")
-            .eq("organization_id", orgId)
-            .eq("instagram_business_account_id", effectiveId)
-            .eq("customer_ig_id", senderId)
-            .maybeSingle();
+          const { customerMessagingId, customerName } = await resolveInstagramCustomerIdentity(
+            supabase,
+            orgId,
+            effectiveId,
+            senderId,
+            account.facebook_page_id,
+            accessToken,
+          );
+          const convDel = await findExistingInstagramConversation(
+            supabase,
+            orgId,
+            effectiveId,
+            customerMessagingId,
+            senderId,
+            customerName,
+          );
           if (convDel?.id) {
             await supabase
               .from("instagram_messages")
@@ -1031,6 +1256,16 @@ Deno.serve(async (req: Request) => {
           console.log("[instagram-webhook] skip: no senderId");
           continue;
         }
+
+        const { body: bodyText, messageType } = getMessageBody(evt as Record<string, unknown>);
+        const lastBody = bodyText.slice(0, 200);
+
+        // Reject misrouted webhooks where Meta sends our Page id as sender (would become "Instagram Contact").
+        if (isOwnedInboxParticipant(senderId, ownedInboxIds)) {
+          console.log("[instagram-webhook] skip: sender is owned inbox/page id on message path", { senderId, mid });
+          continue;
+        }
+
         if (recipientId && recipientId !== effectiveId) {
           console.warn("[instagram-webhook] recipientId differs from resolved inbox account", {
             recipientId,
@@ -1039,31 +1274,17 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        const { body: bodyText, messageType } = getMessageBody(evt as Record<string, unknown>);
-        const lastBody = bodyText.slice(0, 200);
+        const { customerMessagingId, customerName: resolvedCustomerName } = await resolveInstagramCustomerIdentity(
+          supabase,
+          orgId,
+          effectiveId,
+          senderId!,
+          account.facebook_page_id,
+          accessToken,
+        );
+        let customerName = resolvedCustomerName;
 
-        let customerMessagingId = senderId!;
-        if (accessToken && account.facebook_page_id) {
-          customerMessagingId = await resolveInstagramDmRecipientIdWithRetry(
-            supabase,
-            orgId,
-            effectiveId,
-            senderId!,
-            String(account.facebook_page_id).trim(),
-            accessToken,
-            { altCustomerIds: [senderId!], attempts: 3, delayMs: 500 },
-          );
-        }
-
-        let customerName: string | null = null;
-        const linkedSender = await lookupConnectedIgAccountInOrg(supabase, orgId, senderId!);
-        if (linkedSender?.customer_name) {
-          customerName = linkedSender.customer_name;
-        } else if (accessToken) {
-          customerName = await fetchInstagramSenderDisplayName(senderId!, accessToken);
-        }
-
-        const existingConvResolved = await findExistingInstagramConversation(
+        let existingConvResolved = await findExistingInstagramConversation(
           supabase,
           orgId,
           effectiveId,
@@ -1071,6 +1292,29 @@ Deno.serve(async (req: Request) => {
           senderId!,
           customerName,
         );
+
+        const outboundEchoConv = await findConversationWithRecentOutboundBody(
+          supabase,
+          orgId,
+          effectiveId,
+          bodyText,
+        );
+        if (outboundEchoConv && !existingConvResolved) {
+          if (await skipIfOutboundInstagramMessageAlreadyStored(supabase, mid, {
+            reason: "body_matches_recent_outbound_no_customer_conv",
+            conversation_id: outboundEchoConv.id,
+          })) {
+            processedCount += 1;
+          } else {
+            console.log("[instagram-webhook] skip misrouted echo (matches recent outbound, no customer thread)", {
+              conversation_id: outboundEchoConv.id,
+              body: bodyText.slice(0, 80),
+              senderId,
+              mid,
+            });
+          }
+          continue;
+        }
 
         const existingName = existingConvResolved?.customer_name?.trim() ?? "";
         if (!customerName && existingName) {
@@ -1148,31 +1392,67 @@ Deno.serve(async (req: Request) => {
             .select("id, first_inbound_at")
             .single();
           if (insertErr) {
-            console.error("[instagram-webhook] conversation insert error", insertErr);
-            continue;
+            console.warn("[instagram-webhook] conversation insert error, retry lookup", insertErr);
+            const retried = await findExistingInstagramConversation(
+              supabase,
+              orgId,
+              effectiveId,
+              customerMessagingId,
+              senderId!,
+              customerName,
+            );
+            if (retried) {
+              const { data: updatedAfterRace } = await supabase
+                .from("instagram_conversations")
+                .update({
+                  last_message_at: ts,
+                  last_message_body: lastBody,
+                  last_message_direction: "inbound",
+                  last_inbound_at: ts,
+                  updated_at: ts,
+                  customer_ig_id: customerMessagingId,
+                  customer_external_id: senderId,
+                  ...(customerName && !existingName ? { customer_name: customerName } : {}),
+                })
+                .eq("id", retried.id)
+                .select("id, first_inbound_at")
+                .single();
+              conv = updatedAfterRace;
+            } else {
+              continue;
+            }
+          } else {
+            conv = inserted;
+            const createdByDisplayName = account.instagram_username?.trim()
+              ? `@${account.instagram_username.trim()}`
+              : (account.instagram_name?.trim() || "Instagram");
+            await ensureLeadForNewInstagramConversation(
+              supabase,
+              orgId,
+              conv!.id,
+              customerName || "Instagram contact",
+              lastBody || "Instagram",
+              senderId,
+              createdByDisplayName
+            );
+            const { error: newCycleErr } = await supabase.from("instagram_conversation_cycles").insert({
+              conversation_id: conv!.id,
+              cycle_started_at: ts,
+            });
+            if (newCycleErr) console.error("[instagram-webhook] new conversation cycle insert error", newCycleErr);
           }
-          conv = inserted;
-          const createdByDisplayName = account.instagram_username?.trim()
-            ? `@${account.instagram_username.trim()}`
-            : (account.instagram_name?.trim() || "Instagram");
-          await ensureLeadForNewInstagramConversation(
-            supabase,
-            orgId,
-            conv!.id,
-            customerName || "Instagram contact",
-            lastBody || "Instagram",
-            senderId,
-            createdByDisplayName
-          );
-          const { error: newCycleErr } = await supabase.from("instagram_conversation_cycles").insert({
-            conversation_id: conv!.id,
-            cycle_started_at: ts,
-          });
-          if (newCycleErr) console.error("[instagram-webhook] new conversation cycle insert error", newCycleErr);
         }
 
         if (!conv || !mid) {
           console.log("[instagram-webhook] skip save: no conv or mid", { conv: !!conv, mid: !!mid });
+          continue;
+        }
+
+        if (await skipIfOutboundInstagramMessageAlreadyStored(supabase, mid, {
+          reason: "duplicate_before_inbound_insert",
+          conversation_id: conv.id,
+        })) {
+          processedCount += 1;
           continue;
         }
 

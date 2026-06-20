@@ -20,13 +20,13 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useEmailConnections } from '../hooks/useEmailConnections';
 import { EmailConnectPageSkeleton } from './EmailConnectPageSkeleton';
-import { Mail, Plus, ChevronLeft, ChevronDown, Copy, CheckCircle2, Unplug, MessageCircle } from 'lucide-react';
+import { Mail, Plus, ChevronLeft, ChevronDown, CheckCircle2, Unplug, MessageCircle } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import type { EmailConnection } from '../types';
+import { EmailConnectionVerifyPanel } from '../components/connect/EmailConnectionVerifyPanel';
 
 const EMAIL_INBOUND_DOMAIN = (import.meta.env.VITE_EMAIL_INBOUND_DOMAIN as string)?.trim() || 'chat.example.com';
-const IS_INBOUND_DOMAIN_CONFIGURED = EMAIL_INBOUND_DOMAIN !== 'chat.example.com';
 
 /** Deterministic inbound address per (org, email) so re-adding the same connection gives the same address. */
 async function generateInboundAddress(organizationId: string, emailAddress: string): Promise<string> {
@@ -39,12 +39,12 @@ async function generateInboundAddress(organizationId: string, emailAddress: stri
   return `inbound-${id}@${EMAIL_INBOUND_DOMAIN}`;
 }
 
-/** Email providers (well-known only). */
+/** Email providers — Hostinger IMAP first (direct connect, no forwarder). */
 const EMAIL_PROVIDERS = [
-  'AOL (TLS)', 'AOL (SSL)',
-  'Gmail (TLS)', 'Gmail (SSL)',
-  'Outlook (TLS)', 'Outlook (SSL)',
-  'Yahoo (TLS)', 'Yahoo (SSL)',
+  'Hostinger (IMAP)',
+  'Gmail (IMAP)',
+  'Outlook (IMAP)',
+  'Yahoo (IMAP)',
 ] as const;
 
 /** `/omnichannel/integrations/email` — Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`). */
@@ -52,7 +52,7 @@ export function EmailConnectPage() {
   const { t } = useAppTranslation();
   const navigate = useNavigate();
   const { organizationId, loading: orgLoading } = useCurrentOrg();
-  const { connections, isLoading: connectionsLoading, insertConnection, insertConnectionMutation, deleteConnection } =
+  const { connections, isLoading: connectionsLoading, connectImap, connectImapMutation, syncImap, syncImapMutation, deleteConnection } =
     useEmailConnections();
 
   const hasPendingLoad = orgLoading || (!!organizationId && connectionsLoading);
@@ -83,15 +83,18 @@ export function EmailConnectPage() {
   const [provider, setProvider] = useState<string>('');
   const [providerOpen, setProviderOpen] = useState(false);
   const [customProvider, setCustomProvider] = useState(false);
-  const [createdInboundAddress, setCreatedInboundAddress] = useState<string | null>(null);
-  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [customImapHost, setCustomImapHost] = useState('');
+  const [customSmtpHost, setCustomSmtpHost] = useState('');
+  const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
 
   const handleBack = () => {
     setIsAddingEmail(false);
-    setCreatedInboundAddress(null);
+    setConnectedEmail(null);
     setEmail('');
     setPassword('');
     setProvider('');
+    setCustomImapHost('');
+    setCustomSmtpHost('');
   };
   const handleSelectProvider = (value: string) => {
     setProvider(value);
@@ -102,6 +105,14 @@ export function EmailConnectPage() {
     const emailTrim = email.trim();
     if (!emailTrim) {
       toast.error(t('emailConnect.emailRequired', 'Email address is required.'));
+      return;
+    }
+    if (!password.trim()) {
+      toast.error(t('emailConnect.passwordRequired', 'Password akun email wajib diisi.'));
+      return;
+    }
+    if (!provider.trim()) {
+      toast.error(t('emailConnect.providerRequired', 'Pilih provider email.'));
       return;
     }
     if (!organizationId) {
@@ -117,35 +128,43 @@ export function EmailConnectPage() {
     }
     try {
       const inboundAddress = await generateInboundAddress(organizationId, emailTrim);
-      await insertConnection({
-        organization_id: '', // filled in hook
+      const passwordForConnect =
+        provider.includes('Gmail') ? password.replace(/\s+/g, '') : password.trim();
+      await connectImap({
         email_address: emailTrim,
+        password: passwordForConnect,
         inbound_address: inboundAddress,
-        provider: provider || null,
-        status: 'pending_verification',
+        provider: provider || 'Hostinger (IMAP)',
+        imap_host: customProvider ? customImapHost.trim() || null : null,
+        smtp_host: customProvider ? customSmtpHost.trim() || null : null,
       });
-      setCreatedInboundAddress(inboundAddress);
-      toast.success(t('emailConnect.connectionCreated', 'Email connection created. Add the forwarding address in Gmail.'));
+      setConnectedEmail(emailTrim);
+      toast.success(
+        t(
+          'emailConnect.connectionCreatedImap',
+          'Email terhubung via IMAP. Pesan masuk akan muncul di Live Chat otomatis.',
+        ),
+      );
     } catch (err) {
       toast.error((err as Error)?.message ?? t('emailConnect.createFailed', 'Failed to create connection.'));
     }
   };
-  const handleCopyInboundAddress = () => {
-    if (!createdInboundAddress) return;
-    void navigator.clipboard.writeText(createdInboundAddress).then(() => {
-      setCopiedAddress(true);
-      toast.success(t('emailConnect.copied', 'Address copied to clipboard.'));
-      setTimeout(() => setCopiedAddress(false), 2000);
-    });
-  };
   const handleDoneAfterCreate = () => {
-    setCreatedInboundAddress(null);
+    setConnectedEmail(null);
     setIsAddingEmail(false);
     setEmail('');
     setPassword('');
     setProvider('');
   };
-  const handleOpenLiveChat = () => navigate("/omnichannel/livechat");
+  const handleOpenLiveChat = () => navigate('/omnichannel/livechat');
+  const handleSyncImap = async (connectionId: string) => {
+    try {
+      await syncImap(connectionId);
+      toast.success(t('emailConnect.imapSyncStarted', 'Sinkron email dimulai.'));
+    } catch (err) {
+      toast.error((err as Error)?.message ?? t('emailConnect.imapSyncFailed', 'Sinkron gagal.'));
+    }
+  };
   const handleRemoveConnection = async (conn: EmailConnection) => {
     if (!window.confirm(t('emailConnect.confirmRemove', 'Remove this email connection?'))) return;
     try {
@@ -190,7 +209,10 @@ export function EmailConnectPage() {
                                 {t('emailConnect.leftTitle', 'Connect Email')}
                               </h2>
                               <p className="text-sm text-gray-500">
-                                {t('emailConnect.description', 'Connect your email account to sync conversations and manage leads from email.')}
+                                {t(
+                                  'emailConnect.descriptionImap',
+                                  'Hubungkan akun Hostinger langsung — tanpa forwarder atau verifikasi Resend.',
+                                )}
                               </p>
                             </div>
                           </div>
@@ -201,7 +223,10 @@ export function EmailConnectPage() {
                               <Button
                                 type="button"
                                 className="w-full"
-                                onClick={() => setIsAddingEmail(true)}
+                                onClick={() => {
+                                  setProvider('Hostinger (IMAP)');
+                                  setIsAddingEmail(true);
+                                }}
                               >
                                 <Plus className="w-4 h-4 mr-2" />
                                 {t('emailConnect.addEmail', 'Add Email')}
@@ -240,16 +265,30 @@ export function EmailConnectPage() {
                                   </div>
                                   <div className="space-y-2">
                                     <Label htmlFor="email-password">
-                                      {t('emailConnect.password', 'Password (Encrypted) *')}
+                                      {provider.includes('Gmail')
+                                        ? t('emailConnect.gmailAppPassword', 'App Password Gmail *')
+                                        : t('emailConnect.password', 'Password (Encrypted) *')}
                                     </Label>
                                     <Input
                                       id="email-password"
                                       type="password"
-                                      placeholder={t('emailConnect.passwordPlaceholder', 'Enter password')}
+                                      placeholder={
+                                        provider.includes('Gmail')
+                                          ? t('emailConnect.gmailAppPasswordPlaceholder', '16 karakter App Password')
+                                          : t('emailConnect.passwordPlaceholder', 'Enter password')
+                                      }
                                       value={password}
                                       onChange={(e) => setPassword(e.target.value)}
                                       className="w-full h-10 rounded-md border border-input"
                                     />
+                                    {provider.includes('Gmail') ? (
+                                      <p className="text-xs leading-relaxed text-amber-800 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                                        {t(
+                                          'emailConnect.gmailAppPasswordHint',
+                                          'Gmail tidak menerima password login biasa untuk IMAP. Buat App Password: Google Account → Keamanan → Verifikasi 2 langkah → App Password → Mail. Aktifkan IMAP di Gmail Settings → Forwarding and POP/IMAP.',
+                                        )}
+                                      </p>
+                                    ) : null}
                                   </div>
                                   <div className="space-y-2">
                                     <Label>
@@ -307,48 +346,61 @@ export function EmailConnectPage() {
                                       {t('emailConnect.customProvider', 'Custom Provider Manually')}
                                     </Label>
                                   </div>
+                                  {customProvider ? (
+                                    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+                                      <div className="space-y-2">
+                                        <Label htmlFor="custom-imap-host">
+                                          {t('emailConnect.customImapHost', 'IMAP host')}
+                                        </Label>
+                                        <Input
+                                          id="custom-imap-host"
+                                          placeholder="imap.hostinger.com"
+                                          value={customImapHost}
+                                          onChange={(e) => setCustomImapHost(e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor="custom-smtp-host">
+                                          {t('emailConnect.customSmtpHost', 'SMTP host')}
+                                        </Label>
+                                        <Input
+                                          id="custom-smtp-host"
+                                          placeholder="smtp.hostinger.com"
+                                          value={customSmtpHost}
+                                          onChange={(e) => setCustomSmtpHost(e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : null}
                                   <Button
                                     type="submit"
                                     className="w-full"
-                                    disabled={insertConnectionMutation.isPending}
+                                    disabled={connectImapMutation.isPending}
                                   >
-                                    {insertConnectionMutation.isPending ? t('emailConnect.submitting', 'Submitting...') : t('emailConnect.submit', 'Submit')}
+                                    {connectImapMutation.isPending
+                                      ? t('emailConnect.submitting', 'Submitting...')
+                                      : t('emailConnect.submit', 'Submit')}
                                   </Button>
                                 </form>
                               </div>
                             </div>
                           )}
-                          {createdInboundAddress ? (
+                          {connectedEmail ? (
                             <div className="space-y-4 rounded-lg border border-green-200 bg-green-50/80 p-4">
-                              {!IS_INBOUND_DOMAIN_CONFIGURED ? (
-                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                                  {t('emailConnect.inboundDomainNotConfigured', 'Set VITE_EMAIL_INBOUND_DOMAIN in .env to your Resend inbound domain (e.g. profitloop.id) so Gmail can deliver emails to this address.')}
-                                </div>
-                              ) : null}
-                              <div className="flex items-center gap-2 text-green-800 font-semibold">
-                                <CheckCircle2 className="w-5 h-5 shrink-0" />
-                                {t('emailConnect.inboundAddressTitle', 'Forwarding address')}
+                              <div className="flex items-center gap-2 font-semibold text-green-800">
+                                <CheckCircle2 className="h-5 w-5 shrink-0" />
+                                {t('emailConnect.imapConnectedTitle', 'Email terhubung')}
                               </div>
                               <p className="text-sm text-slate-700">
-                                {t('emailConnect.inboundAddressInstruction', 'Add this address in Gmail → Settings → Forwarding and POP/IMAP. The confirmation code will appear in Live Chat after Gmail sends the verification email.')}
+                                {t(
+                                  'emailConnect.imapConnectedHint',
+                                  '{{email}} aktif via IMAP. Pesan masuk akan disinkronkan ke Live Chat setiap ~2 menit.',
+                                  { email: connectedEmail },
+                                )}
                               </p>
-                              <div className="flex items-center gap-2">
-                                <code className="flex-1 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-mono text-slate-800 break-all">
-                                  {createdInboundAddress}
-                                </code>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={handleCopyInboundAddress}
-                                  className="shrink-0"
-                                >
-                                  {copiedAddress ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                                </Button>
-                              </div>
                               <div className="flex flex-wrap gap-2">
                                 <Button type="button" variant="default" size="sm" onClick={handleOpenLiveChat}>
-                                  <MessageCircle className="w-4 h-4 mr-2" />
+                                  <MessageCircle className="mr-2 h-4 w-4" />
                                   {t('emailConnect.openLiveChat', 'Open Live Chat')}
                                 </Button>
                                 <Button type="button" variant="outline" size="sm" onClick={handleDoneAfterCreate}>
@@ -385,8 +437,10 @@ export function EmailConnectPage() {
                                       </div>
                                       <div className="min-w-0">
                                         <p className="truncate font-medium text-slate-900">{conn.email_address}</p>
-                                        <p className="mt-0.5 truncate text-xs text-slate-500" title={conn.inbound_address}>
-                                          {conn.inbound_address}
+                                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                                          {conn.connection_method === 'imap'
+                                            ? t('emailConnect.methodImap', 'IMAP langsung')
+                                            : conn.inbound_address}
                                         </p>
                                         <span
                                           className={cn(
@@ -422,6 +476,12 @@ export function EmailConnectPage() {
                                       </Button>
                                     </div>
                                   </div>
+                                  <EmailConnectionVerifyPanel
+                                    connection={conn}
+                                    onOpenLiveChat={handleOpenLiveChat}
+                                    onSyncImap={handleSyncImap}
+                                    isSyncingImap={syncImapMutation.isPending}
+                                  />
                                 </div>
                               ))}
                             </div>

@@ -124,6 +124,14 @@ export interface EmailConnection {
   provider: string | null;
   status: 'pending_verification' | 'verified';
   confirmation_code: string | null;
+  connection_method?: 'forwarding' | 'imap';
+  imap_host?: string | null;
+  imap_port?: number | null;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  imap_last_uid?: number | null;
+  imap_last_sync_at?: string | null;
+  imap_sync_error?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -134,6 +142,18 @@ export interface EmailConnectionInsert {
   inbound_address: string;
   provider?: string | null;
   status?: 'pending_verification' | 'verified';
+  connection_method?: 'forwarding' | 'imap';
+}
+
+export interface ConnectEmailImapPayload {
+  email_address: string;
+  password: string;
+  inbound_address: string;
+  provider?: string | null;
+  imap_host?: string | null;
+  imap_port?: number | null;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
 }
 
 export interface EmailConversation {

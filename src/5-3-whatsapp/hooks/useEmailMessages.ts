@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog } from '@/shared/lib/logger';
@@ -14,6 +14,7 @@ export function useEmailMessages(conversationId: string | null) {
 
   useEffect(() => {
     if (!conversationId) return;
+    void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, conversationId] });
     const channelName = `email_messages:${conversationId}`;
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);

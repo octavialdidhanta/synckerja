@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { ManageCommentsEmptyState } from '@/6-0-social-media-manage-comments/components/shared/ManageCommentsEmptyState';
@@ -13,6 +14,7 @@ import type { ManageCommentsPostListItem } from '@/6-0-social-media-manage-comme
 import { MANAGE_COMMENTS_THREAD_POLL_MS } from '@/6-0-social-media-manage-comments/lib/manageCommentsPolling';
 import { sortCommentsForThread } from '@/6-0-social-media-manage-comments/lib/sortCommentsForThread';
 import {
+  patchThreadsPostCommentCountInCache,
   useThreadsContentCommentMutations,
   useThreadsContentCommentsQuery,
 } from '@/threads-content/hooks/useThreadsContentComments';
@@ -41,6 +43,7 @@ export function ThreadsCommentThreadPanel({
   connectPath,
 }: ThreadsCommentThreadPanelProps) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const mediaId = post?.id ?? null;
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
 
@@ -98,6 +101,28 @@ export function ThreadsCommentThreadPanel({
   );
 
   const comments = useMemo(() => commentsQuery.data?.comments ?? [], [commentsQuery.data?.comments]);
+
+  useEffect(() => {
+    if (!mediaId || !commentsQuery.isFetched || commentsQuery.isLoading) return;
+    const count = commentsQuery.data?.comment_count ?? comments.length;
+    if (count <= 0) return;
+    patchThreadsPostCommentCountInCache({
+      queryClient,
+      organizationId,
+      accountId,
+      mediaId,
+      commentCount: count,
+    });
+  }, [
+    queryClient,
+    organizationId,
+    accountId,
+    mediaId,
+    comments.length,
+    commentsQuery.data?.comment_count,
+    commentsQuery.isFetched,
+    commentsQuery.isLoading,
+  ]);
 
   const displayComments = useMemo(() => {
     const withTime = comments.map((c) => ({

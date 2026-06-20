@@ -21,6 +21,41 @@ export type ThreadsCommentPostRow = {
   like_count?: number;
 };
 
+export type ThreadsContentCommentInboxState = {
+  posts: Array<{
+    media_id: string;
+    last_known_comment_count: number;
+    is_highlighted: boolean;
+    pinned_at: string | null;
+  }>;
+  inbound_comments: Array<{ media_id: string; comment_id: string; detected_at: string }>;
+  engaged_comment_ids: string[];
+};
+
+export function patchThreadsPostCommentCountInCache(args: {
+  queryClient: ReturnType<typeof useQueryClient>;
+  organizationId: string;
+  accountId: string;
+  mediaId: string;
+  commentCount: number;
+}) {
+  const { queryClient, organizationId, accountId, mediaId, commentCount } = args;
+  queryClient.setQueriesData<{ posts?: ThreadsCommentPostRow[]; inbox?: ThreadsContentCommentInboxState }>(
+    { queryKey: ['threads-content-comment-posts', organizationId, accountId] },
+    (prev) => {
+      if (!prev?.posts?.length) return prev;
+      return {
+        ...prev,
+        posts: prev.posts.map((row) => {
+          const id = String(row.id ?? row.media_id ?? row.post_id ?? '').trim();
+          if (id !== mediaId) return row;
+          return { ...row, comment_count: commentCount };
+        }),
+      };
+    },
+  );
+}
+
 export type ThreadsContentCommentRow = {
   id: string;
   media_id: string;
@@ -73,9 +108,6 @@ function toPostListItem(
 export function useThreadsContentCommentPostsQuery(args: {
   organizationId: string | null | undefined;
   accountId: string;
-  dateStart?: string;
-  dateEnd?: string;
-  allTime?: boolean;
   accountAvatarUrl?: string | null;
   accountLabel?: string | null;
   enabled?: boolean;
@@ -84,9 +116,6 @@ export function useThreadsContentCommentPostsQuery(args: {
   const {
     organizationId,
     accountId,
-    dateStart,
-    dateEnd,
-    allTime,
     accountAvatarUrl = null,
     accountLabel = null,
     enabled = true,
@@ -94,25 +123,20 @@ export function useThreadsContentCommentPostsQuery(args: {
   } = args;
 
   const query = useQuery({
-    queryKey: [
-      'threads-content-comment-posts',
-      organizationId,
-      accountId,
-      dateStart,
-      dateEnd,
-      allTime,
-    ],
+    queryKey: ['threads-content-comment-posts', organizationId, accountId],
     enabled: Boolean(organizationId && accountId && enabled),
     queryFn: async () => {
       const data = await invokeThreadsComments({
         action: 'getCommentPosts',
         organization_id: organizationId,
         account_id: accountId,
-        ...(allTime ? { all_time: true } : {}),
-        ...(dateStart ? { date_start: dateStart } : {}),
-        ...(dateEnd ? { date_end: dateEnd } : {}),
+        all_time: true,
       });
-      return data as { posts: ThreadsCommentPostRow[]; account_label?: string };
+      return data as {
+        posts: ThreadsCommentPostRow[];
+        account_label?: string;
+        inbox?: ThreadsContentCommentInboxState;
+      };
     },
     refetchInterval: liveRefresh ? MANAGE_COMMENTS_POSTS_POLL_MS : false,
   });
@@ -125,7 +149,9 @@ export function useThreadsContentCommentPostsQuery(args: {
     [query.data, accountAvatarUrl, accountLabel, accountId],
   );
 
-  return { ...query, posts };
+  const inboxState = query.data?.inbox ?? null;
+
+  return { ...query, posts, inboxState };
 }
 
 export function useThreadsContentCommentsQuery(args: {
@@ -148,7 +174,7 @@ export function useThreadsContentCommentsQuery(args: {
         post_id: mediaId,
         sort: 'newest',
       });
-      return data as { comments: ThreadsContentCommentRow[] };
+      return data as { comments: ThreadsContentCommentRow[]; comment_count?: number };
     },
     refetchInterval: refetchIntervalMs ?? false,
   });
@@ -175,7 +201,7 @@ export function useThreadsContentCommentRepliesQuery(args: {
         comment_id: commentId,
         sort: 'newest',
       });
-      return data as { comments: ThreadsContentCommentRow[] };
+      return data as { comments: ThreadsContentCommentRow[]; comment_count?: number };
     },
   });
 }

@@ -60,7 +60,7 @@ export function LeadTemplateFollowUpDialog({
   const matchedAccount = activeAccounts[0] ?? null;
   const waAccountId = matchedAccount?.id ?? null;
 
-  const tplQuery = useWhatsAppMessageTemplates(open ? waAccountId : null);
+  const tplQuery = useWhatsAppMessageTemplates(waAccountId, { enabled: open && !!waAccountId });
   const [templateHsmId, setTemplateHsmId] = useState('');
   const [parameterValues, setParameterValues] = useState<string[]>([]);
   const [agentName, setAgentName] = useState('');

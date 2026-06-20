@@ -431,6 +431,16 @@ Deno.serve(async (req: Request) => {
             updated_at: new Date().toISOString(),
           })
           .eq("id", conn.id);
+      } else {
+        // Hostinger / generic forwarders: any inbound proves Resend path works.
+        await supabase
+          .from("organization_email_connections")
+          .update({
+            status: "verified",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conn.id)
+          .eq("status", "pending_verification");
       }
     }
 

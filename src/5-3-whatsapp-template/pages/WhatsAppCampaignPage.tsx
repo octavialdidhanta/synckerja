@@ -91,7 +91,9 @@ export function WhatsAppCampaignPage() {
     organizationId,
     createFlow && listId ? listId : undefined,
   );
-  const tplQuery = useWhatsAppMessageTemplates(waForTemplates);
+  const tplQuery = useWhatsAppMessageTemplates(waForTemplates, {
+    enabled: createFlow && Boolean(waAccountId),
+  });
   const templateDetail = useWhatsAppMessageTemplateByHsmId({
     hsmId: createFlow && templateHsmId ? templateHsmId : null,
     whatsappAccountId: waForTemplates,

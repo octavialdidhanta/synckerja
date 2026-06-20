@@ -126,7 +126,9 @@ export function WhatsAppTemplatePage() {
   }, [organizationId, whatsappAccounts]);
 
   const { data, isLoading, isError, isFetched, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useWhatsAppMessageTemplates(selectedWhatsappAccountId);
+    useWhatsAppMessageTemplates(selectedWhatsappAccountId, {
+      enabled: !whatsappAccountsLoading && whatsappAccounts.length > 0,
+    });
 
   const [subTab, setSubTab] = useState<TemplateManagerSubTab>("templates");
   const [searchQuery, setSearchQuery] = useState("");
