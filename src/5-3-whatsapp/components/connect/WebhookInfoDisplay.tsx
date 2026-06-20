@@ -11,12 +11,13 @@ import { Link2, Key, Info } from 'lucide-react';
 
 const WHATSAPP_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 const INSTAGRAM_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/instagram-webhook`;
+const THREADS_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/threads-webhook`;
 
 interface WebhookInfoDisplayProps {
   /** When true, no top border (e.g. when inside a single Card with other sections) */
   embedded?: boolean;
-  /** 'whatsapp' | 'instagram' | 'facebook' (Messenger uses instagram-webhook URL). */
-  variant?: 'whatsapp' | 'instagram' | 'facebook';
+  /** 'whatsapp' | 'instagram' | 'facebook' | 'threads'. Messenger uses instagram-webhook URL. */
+  variant?: 'whatsapp' | 'instagram' | 'facebook' | 'threads';
 }
 
 function copyToClipboard(text: string) {
@@ -32,14 +33,28 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
 
   const isInstagram = variant === 'instagram';
   const isFacebook = variant === 'facebook';
-  const isMetaWebhook = isInstagram || isFacebook;
-  const webhookUrl = isMetaWebhook ? INSTAGRAM_WEBHOOK_URL : WHATSAPP_WEBHOOK_URL;
-  const verifyToken = isFacebook
-    ? (fbPages?.[0]?.verify_token?.trim() || null)
-    : isInstagram
-      ? (igAccounts?.[0]?.verify_token ?? config?.instagram_verify_token ?? null)
-      : (config?.verify_token ?? null);
-  const verifyTokenPlaceholder = isFacebook
+  const isThreads = variant === 'threads';
+  const isMetaWebhook = isInstagram || isFacebook || isThreads;
+  const threadsAccount = igAccounts.find((a) => a.has_threads);
+  const webhookUrl = isThreads
+    ? THREADS_WEBHOOK_URL
+    : isMetaWebhook
+      ? INSTAGRAM_WEBHOOK_URL
+      : WHATSAPP_WEBHOOK_URL;
+  const verifyToken = isThreads
+    ? (
+        (threadsAccount as { threads_verify_token?: string | null } | undefined)?.threads_verify_token?.trim()
+        || threadsAccount?.verify_token?.trim()
+        || null
+      )
+    : isFacebook
+      ? (fbPages?.[0]?.verify_token?.trim() || null)
+      : isInstagram
+        ? (igAccounts?.[0]?.verify_token ?? config?.instagram_verify_token ?? null)
+        : (config?.verify_token ?? null);
+  const verifyTokenPlaceholder = isThreads
+    ? (threadsAccount ? null : t('threadsConnect.verifyTokenPlaceholder', '— Connect Threads dulu untuk melihat Verify Token —'))
+    : isFacebook
     ? (fbPages?.length ? null : t('facebookConnect.verifyTokenPlaceholder', '— Connect a Facebook Page to see Verify Token —'))
     : isInstagram
       ? (igAccounts?.length || config?.instagram_verify_token ? null : t('instagramConnect.verifyTokenPlaceholder', '— Connect an Instagram account, or set up Connect WhatsApp, to see Verify Token —'))
@@ -69,7 +84,12 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-xs">
               <p className="text-xs">
-                {isFacebook
+                {isThreads
+                  ? t(
+                      'threadsConnect.webhookReceiveHint',
+                      'Di Meta Developer → App Threads → Webhooks: isi Callback URL + Verify Token di bawah, Verify and Save, lalu subscribe field replies dan mentions.',
+                    )
+                  : isFacebook
                   ? t(
                       'facebookConnect.webhookReceiveHint',
                       'Agar Messenger masuk ke livechat: di Meta Developer → App → Webhooks, pilih product Page (bukan User), isi Callback URL dan Verify Token di bawah, Verify and Save, lalu subscribe messages.',
@@ -83,6 +103,39 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
           </Tooltip>
         )}
       </div>
+      {isThreads && (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50/90 p-3 text-xs leading-relaxed text-slate-800">
+          <p className="font-semibold">
+            {t('threadsConnect.webhookSetupTitle', 'Setup webhook di Meta (Threads API app)')}
+          </p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4">
+            <li>
+              {t(
+                'threadsConnect.webhookStep1',
+                'developers.facebook.com → App "Connect Threads" → Use cases → Threads API → Webhooks.',
+              )}
+            </li>
+            <li>
+              {t(
+                'threadsConnect.webhookStep2',
+                'Callback URL + Verify Token di bawah → Verify and Save.',
+              )}
+            </li>
+            <li>
+              {t(
+                'threadsConnect.webhookStep3',
+                'Subscribe field replies dan mentions untuk Threads user @vialdi_wedding (tester).',
+              )}
+            </li>
+            <li>
+              {t(
+                'threadsConnect.webhookStep4',
+                'OAuth redirect URI wajib: https://office.synckerja.com/auth/threads/callback',
+              )}
+            </li>
+          </ol>
+        </div>
+      )}
       {isFacebook && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-xs leading-relaxed text-amber-950">
           <p className="font-semibold">

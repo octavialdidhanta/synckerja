@@ -65,23 +65,6 @@ export async function handleThreadsLivechat(
     if (orgForbidden) return orgForbidden;
 
     if (action === "listLivechatConversations") {
-      const accounts = await listThreadsWebhookAccounts(admin, organizationId);
-      let syncResult = {
-        ingested: 0,
-        scanned_posts: 0,
-        scanned_replies: 0,
-        accounts_synced: 0,
-      };
-      if (accounts.length > 0) {
-        syncResult = await syncThreadsLivechatInboundForOrg(
-          admin,
-          organizationId,
-          (id) => getThreadsAccessToken(admin, organizationId, id),
-          accounts,
-          { lookbackDays: 90, maxPosts: 50 },
-        );
-      }
-
       const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
       const userClient = createClient(supabaseUrl, anonKey, {
@@ -92,12 +75,11 @@ export async function handleThreadsLivechat(
         { p_organization_id: organizationId },
       );
       if (rpcErr) {
-        return threadsContentJson({ error: rpcErr.message, sync: syncResult }, 400);
+        return threadsContentJson({ error: rpcErr.message }, 400);
       }
       return threadsContentJson({
         ok: true,
         conversations: conversations ?? [],
-        sync: syncResult,
       }, 200);
     }
 

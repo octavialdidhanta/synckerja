@@ -19,6 +19,7 @@ export interface InstagramAccountRow {
   threads_username?: string | null;
   threads_profile_picture_url?: string | null;
   has_threads?: boolean;
+  threads_verify_token?: string | null;
   created_at: string;
   updated_at: string;
 }

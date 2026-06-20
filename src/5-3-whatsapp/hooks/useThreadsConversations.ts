@@ -7,46 +7,48 @@ import { toast } from 'sonner';
 import type { ThreadsConversation } from '../types';
 
 const QUERY_KEY = ['threads-conversations'] as const;
+const SYNC_INTERVAL_MS = 3 * 60 * 1000;
 
-type LivechatListResponse = {
-  ok?: boolean;
-  conversations?: ThreadsConversation[];
-  sync?: {
-    ingested?: number;
-    scanned_posts?: number;
-    scanned_replies?: number;
-    accounts_synced?: number;
-  };
-  error?: string;
-};
-
-async function fetchThreadsLivechatConversations(
-  organizationId: string,
-): Promise<{ conversations: ThreadsConversation[]; sync: LivechatListResponse['sync'] }> {
-  const { data, error } = await supabase.functions.invoke('threads-content-api', {
-    body: {
-      action: 'listLivechatConversations',
-      organization_id: organizationId,
-    },
+async function fetchThreadsConversations(organizationId: string): Promise<ThreadsConversation[]> {
+  const { data, error } = await supabase.rpc('get_threads_conversations_with_preview', {
+    p_organization_id: organizationId,
   });
   if (error) {
-    devLog.warn('Threads livechat list failed', error.message);
+    devLog.warn('Threads conversations RPC failed', error.message);
     throw error;
   }
-  const payload = (data ?? {}) as LivechatListResponse;
-  if (payload.error) {
-    throw new Error(payload.error);
-  }
-  const sync = payload.sync;
-  if (sync?.ingested && sync.ingested > 0) {
-    devLog.info('Threads livechat ingested', sync.ingested);
-  } else if (sync?.scanned_replies === 0 && sync?.scanned_posts === 0) {
-    devLog.info('Threads livechat sync: no posts found for account');
-  }
-  return {
-    conversations: Array.isArray(payload.conversations) ? payload.conversations : [],
-    sync,
-  };
+  return (data ?? []) as ThreadsConversation[];
+}
+
+function triggerThreadsLivechatSync(
+  organizationId: string,
+  onIngested?: () => void,
+): void {
+  void supabase.functions
+    .invoke('threads-content-api', {
+      body: {
+        action: 'syncLivechatInbound',
+        organization_id: organizationId,
+        lookback_days: 14,
+        max_posts: 15,
+      },
+    })
+    .then(({ data, error }) => {
+      if (error) {
+        devLog.warn('Threads livechat background sync failed', error.message);
+        return;
+      }
+      const payload = (data ?? {}) as { ingested?: number; scanned_replies?: number };
+      if (payload.ingested && payload.ingested > 0) {
+        devLog.info('Threads livechat ingested', payload.ingested);
+        onIngested?.();
+      } else if (payload.scanned_replies === 0) {
+        devLog.info('Threads livechat sync: no new replies');
+      }
+    })
+    .catch((err: unknown) => {
+      devLog.warn('Threads livechat background sync error', err);
+    });
 }
 
 export function useThreadsConversations() {
@@ -54,6 +56,27 @@ export function useThreadsConversations() {
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const channelErrorToastShownRef = useRef(false);
+  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    };
+
+    triggerThreadsLivechatSync(organizationId, invalidate);
+    syncIntervalRef.current = setInterval(() => {
+      triggerThreadsLivechatSync(organizationId, invalidate);
+    }, SYNC_INTERVAL_MS);
+
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+    };
+  }, [organizationId, queryClient]);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -96,8 +119,7 @@ export function useThreadsConversations() {
     enabled: !!organizationId,
     queryFn: async (): Promise<ThreadsConversation[]> => {
       if (!organizationId) return [];
-      const { conversations } = await fetchThreadsLivechatConversations(organizationId);
-      return conversations;
+      return fetchThreadsConversations(organizationId);
     },
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,

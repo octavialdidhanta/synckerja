@@ -321,9 +321,16 @@ Deno.serve(async (req: Request) => {
     };
     if (replyToPlatformId) insertPayload.reply_to_platform_message_id = replyToPlatformId;
 
-    const insertResult = await supabase.from("threads_messages").insert(insertPayload).select().single();
-    let insertedMessage = insertResult.data ?? null;
-    if (insertResult.error && messageId) {
+    const { data: upsertedMessage, error: upsertErr } = await supabase
+      .from("threads_messages")
+      .upsert(insertPayload, {
+        onConflict: "conversation_id,platform_message_id",
+        ignoreDuplicates: true,
+      })
+      .select()
+      .maybeSingle();
+    let insertedMessage = upsertedMessage ?? null;
+    if (!insertedMessage && messageId) {
       const { data: existing } = await supabase
         .from("threads_messages")
         .select("*")
@@ -331,6 +338,9 @@ Deno.serve(async (req: Request) => {
         .eq("platform_message_id", messageId)
         .maybeSingle();
       insertedMessage = existing ?? null;
+    }
+    if (upsertErr && !insertedMessage) {
+      console.error("send-threads-message: message upsert error", upsertErr.message);
     }
 
     await supabase

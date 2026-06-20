@@ -13,8 +13,8 @@ import { hasThreadsScopes } from '@/meta-platform/constants/metaOAuthScopes';
 import { CONNECT_INSTAGRAM_PATH, CONNECT_THREADS_PATH } from '../constants/omnichannelIntegrationPaths';
 import { ThreadsConnectPageSkeleton } from '../skeletons/ThreadsConnectPageSkeleton';
 import { useThreadsConnectPageSkeletonGate } from '../hooks/useThreadsConnectPageSkeletonGate';
+import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
 import { AtSign, CheckCircle2, Instagram, Loader2 } from 'lucide-react';
-import { SUPABASE_URL } from '@/shared/lib/supabaseClient';
 
 function parseGrantedScopes(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String);
@@ -135,15 +135,7 @@ export function ThreadsConnectPage() {
                                             'Versi ini menampilkan balasan & mention publik ke post Threads di livechat (ticket TH-*). Private DM Threads belum tersedia di Meta API — akan ditambahkan saat Meta membuka Messaging API.',
                                           )}
                                         </p>
-                                        <p className="font-mono text-xs break-all text-foreground">
-                                          {`${SUPABASE_URL}/functions/v1/threads-webhook`}
-                                        </p>
-                                        <p className="text-xs">
-                                          {t(
-                                            'threadsConnect.livechatWebhookHint',
-                                            'Di Meta App → Threads → Webhooks, subscribe field replies dan mentions. Gunakan verify token dari kolom threads_verify_token akun IG terhubung.',
-                                          )}
-                                        </p>
+                                        <WebhookInfoDisplay embedded variant="threads" />
                                       </CardContent>
                                     </Card>
                                   </div>

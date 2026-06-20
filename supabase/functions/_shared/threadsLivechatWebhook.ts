@@ -396,11 +396,20 @@ export async function processThreadsLivechatWebhook(
     }
   }
 
-  const { error: msgErr } = await supabase.from("threads_messages").insert(insertPayload);
+  const { data: insertedRow, error: msgErr } = await supabase
+    .from("threads_messages")
+    .upsert(insertPayload, {
+      onConflict: "conversation_id,platform_message_id",
+      ignoreDuplicates: true,
+    })
+    .select("id")
+    .maybeSingle();
   if (msgErr) {
-    if (msgErr.code === "23505") return false;
-    console.error("[threads-webhook] threads_messages insert error", msgErr.message);
+    console.error("[threads-webhook] threads_messages upsert error", msgErr.message);
     return false;
+  }
+  if (!insertedRow?.id) {
+    return true;
   }
 
   await notifyPush(insertPayload);
