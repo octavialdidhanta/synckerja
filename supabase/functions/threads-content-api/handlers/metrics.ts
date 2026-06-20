@@ -12,39 +12,10 @@ import {
   resolveOrgThreadsContent,
   threadsContentJson,
 } from "../../_shared/threadsContentAuth.ts";
-
-const MAX_LOOKBACK_DAYS = 365;
-
-function formatDateYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function defaultDateRange(): { start: string; end: string } {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - 29);
-  return { start: formatDateYmd(start), end: formatDateYmd(end) };
-}
-
-function parseYmd(ymd: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
-  if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function clampDateRange(startYmd: string, endYmd: string, now = new Date()) {
-  const minStart = new Date(now);
-  minStart.setDate(minStart.getDate() - MAX_LOOKBACK_DAYS);
-  let start = parseYmd(startYmd) ?? minStart;
-  let end = parseYmd(endYmd) ?? now;
-  if (start.getTime() < minStart.getTime()) start = minStart;
-  if (start.getTime() > end.getTime()) start = end;
-  return { start: formatDateYmd(start), end: formatDateYmd(end) };
-}
+import {
+  parseThreadsPostDateRange,
+  THREADS_ALL_TIME_START_YMD,
+} from "../../_shared/threadsContentDateRange.ts";
 
 export async function handleThreadsMetrics(
   admin: SupabaseClient,
@@ -61,12 +32,23 @@ export async function handleThreadsMetrics(
     const orgForbidden = await requireActiveOrg(admin, userId, organizationId);
     if (orgForbidden) return orgForbidden;
 
-    const dr = defaultDateRange();
-    const rawStart = String(body.date_start ?? dr.start).trim();
-    const rawEnd = String(body.date_end ?? dr.end).trim();
-    const { start: dateStart, end: dateEnd } = clampDateRange(rawStart, rawEnd);
-    const accountIdParam = body.account_id != null ? String(body.account_id).trim() : null;
     const now = new Date();
+
+    function formatDateYmd(d: Date): string {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    const dateRange = parseThreadsPostDateRange(body, now);
+    const dateStart = dateRange.isAllTime
+      ? THREADS_ALL_TIME_START_YMD
+      : (dateRange.startYmd ?? THREADS_ALL_TIME_START_YMD);
+    const dateEnd = dateRange.isAllTime
+      ? formatDateYmd(now)
+      : (dateRange.endYmd ?? formatDateYmd(now));
+    const accountIdParam = body.account_id != null ? String(body.account_id).trim() : null;
 
     const resolved = await resolveOrgThreadsContent(admin, organizationId, accountIdParam);
     if (!resolved) {
@@ -80,7 +62,9 @@ export async function handleThreadsMetrics(
     let audienceCount: number | null = null;
     try {
       [posts, audienceCount] = await Promise.all([
-        fetchThreadsList(accessToken, 50, { startYmd: dateStart, endYmd: dateEnd }),
+        fetchThreadsList(accessToken, 50, dateRange.isAllTime
+          ? { allTime: true }
+          : { startYmd: dateStart, endYmd: dateEnd }),
         fetchThreadsFollowerCount(accessToken),
       ]);
     } catch (e) {

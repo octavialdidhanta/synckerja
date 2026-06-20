@@ -45,13 +45,15 @@ export async function fetchThreadsContentMetrics(args: {
   accountId: string;
   dateStart?: string;
   dateEnd?: string;
+  allTime?: boolean;
 }): Promise<ThreadsContentMetricsPayload> {
-  const { organizationId, accountId, dateStart, dateEnd } = args;
+  const { organizationId, accountId, dateStart, dateEnd, allTime } = args;
   const { data, error } = await supabase.functions.invoke('threads-content-api', {
     body: {
       action: 'getMetrics',
       organization_id: organizationId,
       account_id: accountId,
+      ...(allTime ? { all_time: true } : {}),
       ...(dateStart ? { date_start: dateStart } : {}),
       ...(dateEnd ? { date_end: dateEnd } : {}),
     },
@@ -67,14 +69,21 @@ export function useThreadsContentMetricsQuery(args: {
   accountId: string;
   dateStart?: string;
   dateEnd?: string;
+  allTime?: boolean;
   enabled?: boolean;
 }) {
-  const { organizationId, accountId, dateStart, dateEnd, enabled = true } = args;
+  const { organizationId, accountId, dateStart, dateEnd, allTime, enabled = true } = args;
   return useQuery({
-    queryKey: ['threads-content-metrics', organizationId, accountId, dateStart, dateEnd],
+    queryKey: ['threads-content-metrics', organizationId, accountId, dateStart, dateEnd, allTime],
     queryFn: async () => {
       if (!organizationId || !accountId) return null;
-      return fetchThreadsContentMetrics({ organizationId, accountId, dateStart, dateEnd });
+      return fetchThreadsContentMetrics({
+        organizationId,
+        accountId,
+        dateStart,
+        dateEnd,
+        allTime,
+      });
     },
     enabled: Boolean(organizationId && accountId && enabled),
     staleTime: 60_000,

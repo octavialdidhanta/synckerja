@@ -20,14 +20,20 @@ import type {
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useOmnichannelSurveySettingsAdmin } from '@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin';
+import { useDigitalMarketingPaidAdsFilters } from '@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext';
 import { ThreadsContentAccountNav } from '@/6-0-social-media-performance/components/ThreadsContentAccountNav';
 import { useThreadsContentSettings } from '@/threads-content/hooks/useThreadsContentSettings';
 import { useThreadsContentCommentPostsQuery } from '@/threads-content/hooks/useThreadsContentComments';
+import {
+  buildThreadsCalendarYearPresetYears,
+  threadsContentMetricsFetchArgs,
+} from '@/threads-content/lib/toThreadsPostDateRangePayload';
 import {
   CONNECT_INSTAGRAM_PATH,
   CONNECT_THREADS_PATH,
 } from '@/threads-content/settings/threadsContentSettingsPaths';
 import { ThreadsTabIcon } from '@/6-0-social-media-performance/components/ThreadsTabIcon';
+import { ThreadsDateRangePicker } from '@/6-0-social-media-performance/components/ThreadsDateRangePicker';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 
@@ -47,10 +53,17 @@ function ThreadsManageCommentsPageContent() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
+  const { dateSelection, setDateSelection } = useDigitalMarketingPaidAdsFilters();
   const settingsQuery = useThreadsContentSettings(organizationId);
   const [accountId, setAccountId] = useState('');
   const [postFilter, setPostFilter] = useState<ManageCommentsPostFilter>('all');
   const selectedPostId = searchParams.get('videoId')?.trim() || null;
+
+  const datePayload = useMemo(
+    () => threadsContentMetricsFetchArgs(dateSelection),
+    [dateSelection],
+  );
+  const calendarYearPresetYears = useMemo(() => buildThreadsCalendarYearPresetYears(), []);
 
   const platformBadge = useMemo(() => <ManageCommentsPlatformBadge platform="threads" />, []);
   const accounts = useMemo(() => settingsQuery.data?.accounts ?? [], [settingsQuery.data?.accounts]);
@@ -73,6 +86,9 @@ function ThreadsManageCommentsPageContent() {
   const postsQuery = useThreadsContentCommentPostsQuery({
     organizationId,
     accountId,
+    dateStart: datePayload.dateStart,
+    dateEnd: datePayload.dateEnd,
+    allTime: datePayload.allTime,
     accountAvatarUrl: selectedAccount?.avatar_url ?? null,
     accountLabel: selectedAccount?.account_label ?? null,
     enabled:
@@ -176,6 +192,13 @@ function ThreadsManageCommentsPageContent() {
                   sidebar={
                     <div className="flex h-full min-h-0 flex-col overflow-hidden">
                       <ManageCommentsPlatformTabs />
+                      <div className="flex shrink-0 justify-end border-b border-gray-100 px-2 py-1.5">
+                        <ThreadsDateRangePicker
+                          value={dateSelection}
+                          onChange={setDateSelection}
+                          calendarYearPresetYears={calendarYearPresetYears}
+                        />
+                      </div>
                       <ManageCommentsFilterTabs value={postFilter} onChange={setPostFilter} />
                       {postsQuery.isError ? (
                         <div className="px-3 py-4 text-xs text-destructive">

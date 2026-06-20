@@ -101,8 +101,19 @@ async function verifyThreadsWebhookToken(
 function normalizeWebhookPayload(body: Record<string, unknown>): ThreadsWebhookPayload[] {
   const payloads: ThreadsWebhookPayload[] = [];
 
+  // Meta Threads flat payload (documented sample).
   if (body.values && typeof body.values === "object") {
     payloads.push(body as ThreadsWebhookPayload);
+    return payloads;
+  }
+
+  // Batch array at root (some Meta deliveries).
+  if (Array.isArray(body)) {
+    for (const item of body) {
+      if (item && typeof item === "object") {
+        payloads.push(...normalizeWebhookPayload(item as Record<string, unknown>));
+      }
+    }
     return payloads;
   }
 
@@ -116,6 +127,8 @@ function normalizeWebhookPayload(body: Record<string, unknown>): ThreadsWebhookP
         const change = ch as Record<string, unknown>;
         payloads.push({
           target_id: e.id,
+          topic: body.topic,
+          time: e.time ?? body.time,
           values: {
             field: change.field,
             value: change.value as Record<string, unknown>,
@@ -174,12 +187,25 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const body = await req.json().catch((e) => {
+    const rawBody = await req.json().catch((e) => {
       console.error("[threads-webhook] POST body parse error", e);
       return {};
-    }) as Record<string, unknown>;
+    });
 
-    const payloads = normalizeWebhookPayload(body);
+    const body = (Array.isArray(rawBody) ? { __batch: rawBody } : rawBody) as Record<string, unknown>;
+    if (Array.isArray(rawBody)) {
+      console.log("[threads-webhook] POST batch length", rawBody.length);
+    } else {
+      console.log("[threads-webhook] POST keys", Object.keys(body).join(", "));
+    }
+
+    const payloads = Array.isArray(rawBody)
+      ? rawBody.flatMap((item) =>
+        item && typeof item === "object"
+          ? normalizeWebhookPayload(item as Record<string, unknown>)
+          : []
+      )
+      : normalizeWebhookPayload(body);
     if (payloads.length === 0) {
       console.log("[threads-webhook] POST: no supported payloads", {
         keys: Object.keys(body).join(", "),

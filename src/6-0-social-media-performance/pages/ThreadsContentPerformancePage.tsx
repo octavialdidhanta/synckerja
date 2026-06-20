@@ -16,9 +16,8 @@ import { ThreadsContentPerformancePageSkeleton } from '@/6-0-social-media-perfor
 import { useThreadsContentSettings } from '@/threads-content/hooks/useThreadsContentSettings';
 import { useThreadsContentMetricsQuery } from '@/threads-content/hooks/useThreadsContentMetrics';
 import { CONNECT_INSTAGRAM_PATH } from '@/threads-content/settings/threadsContentSettingsPaths';
-import { TikTokAdsDateRangePicker } from '@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker';
-import { buildTikTokAdsCalendarYearPresetYears } from '@/tiktok-ads/lib/clampTikTokAdsDateRange';
-import { toTikTokAdsMetricsDateRangePayload } from '@/tiktok-ads/lib/toTikTokAdsMetricsDateRangePayload';
+import { ThreadsDateRangePicker } from '@/6-0-social-media-performance/components/ThreadsDateRangePicker';
+import { buildThreadsCalendarYearPresetYears, threadsContentMetricsFetchArgs } from '@/threads-content/lib/toThreadsPostDateRangePayload';
 
 const SOCIAL_MEDIA_PERFORMANCE_PATH = '/digital-marketing/social-media-performance';
 
@@ -50,19 +49,20 @@ function ThreadsContentPerformancePageContent() {
   }, [accounts, accountId]);
 
   const datePayload = useMemo(
-    () => toTikTokAdsMetricsDateRangePayload(dateSelection),
+    () => threadsContentMetricsFetchArgs(dateSelection),
     [dateSelection],
   );
 
   const metricsQuery = useThreadsContentMetricsQuery({
     organizationId,
     accountId,
-    dateStart: datePayload.start,
-    dateEnd: datePayload.end,
+    dateStart: datePayload.dateStart,
+    dateEnd: datePayload.dateEnd,
+    allTime: datePayload.allTime,
     enabled: Boolean(organizationId && accountId && settingsQuery.data?.oauthConnected),
   });
 
-  const calendarYearPresetYears = useMemo(() => buildTikTokAdsCalendarYearPresetYears(), []);
+  const calendarYearPresetYears = useMemo(() => buildThreadsCalendarYearPresetYears(), []);
   const metricsLoading = metricsQuery.isLoading || metricsQuery.isFetching;
 
   if (gatePending || settingsQuery.isPending) {
@@ -131,7 +131,7 @@ function ThreadsContentPerformancePageContent() {
                             <RefreshCw className="h-4 w-4" />
                           )}
                         </Button>
-                        <TikTokAdsDateRangePicker
+                        <ThreadsDateRangePicker
                           value={dateSelection}
                           onChange={setDateSelection}
                           calendarYearPresetYears={calendarYearPresetYears}

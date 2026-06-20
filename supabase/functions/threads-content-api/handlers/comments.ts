@@ -18,6 +18,7 @@ import {
   syncThreadsManageCommentsInboundComments,
   syncThreadsManageCommentsPostBaselines,
 } from "../../_shared/threadsManageCommentsInboxState.ts";
+import { parseThreadsPostDateRange } from "../../_shared/threadsContentDateRange.ts";
 
 function sortComments<T extends { published_at: string | null }>(comments: T[], sort: string): T[] {
   const copy = [...comments];
@@ -64,19 +65,6 @@ function parseCommentIds(body: Record<string, unknown>): string[] {
   const raw = body.comment_ids;
   if (!Array.isArray(raw)) return [];
   return raw.map((id) => String(id).trim()).filter(Boolean);
-}
-
-function defaultDateRange(): { start: string; end: string } {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - 364);
-  const fmt = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  };
-  return { start: fmt(start), end: fmt(end) };
 }
 
 export async function handleThreadsComments(
@@ -161,9 +149,15 @@ export async function handleThreadsComments(
     const resolvedAccountId = account.instagramBusinessAccountId || account.threadsUserId;
 
     if (action === "sync_posts" || action === "listPosts" || action === "getCommentPosts") {
-      const dr = defaultDateRange();
+      const dateRange = parseThreadsPostDateRange(body);
+      const listOptions = dateRange.isAllTime
+        ? { allTime: true as const }
+        : {
+          startYmd: dateRange.startYmd!,
+          endYmd: dateRange.endYmd!,
+        };
       try {
-        const posts = await fetchThreadsList(accessToken, 50, dr);
+        const posts = await fetchThreadsList(accessToken, 50, listOptions);
         return threadsContentJson({
           posts: posts.map((p) => ({
             id: String(p.id ?? ""),

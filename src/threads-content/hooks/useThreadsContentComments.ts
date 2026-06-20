@@ -73,6 +73,9 @@ function toPostListItem(
 export function useThreadsContentCommentPostsQuery(args: {
   organizationId: string | null | undefined;
   accountId: string;
+  dateStart?: string;
+  dateEnd?: string;
+  allTime?: boolean;
   accountAvatarUrl?: string | null;
   accountLabel?: string | null;
   enabled?: boolean;
@@ -81,6 +84,9 @@ export function useThreadsContentCommentPostsQuery(args: {
   const {
     organizationId,
     accountId,
+    dateStart,
+    dateEnd,
+    allTime,
     accountAvatarUrl = null,
     accountLabel = null,
     enabled = true,
@@ -88,13 +94,23 @@ export function useThreadsContentCommentPostsQuery(args: {
   } = args;
 
   const query = useQuery({
-    queryKey: ['threads-content-comment-posts', organizationId, accountId],
+    queryKey: [
+      'threads-content-comment-posts',
+      organizationId,
+      accountId,
+      dateStart,
+      dateEnd,
+      allTime,
+    ],
     enabled: Boolean(organizationId && accountId && enabled),
     queryFn: async () => {
       const data = await invokeThreadsComments({
         action: 'getCommentPosts',
         organization_id: organizationId,
         account_id: accountId,
+        ...(allTime ? { all_time: true } : {}),
+        ...(dateStart ? { date_start: dateStart } : {}),
+        ...(dateEnd ? { date_end: dateEnd } : {}),
       });
       return data as { posts: ThreadsCommentPostRow[]; account_label?: string };
     },

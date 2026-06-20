@@ -93,6 +93,7 @@ export function WhatsAppInboxPage() {
       waPending,
       igPending,
       fbPending,
+      thPending,
       emailPending,
       waAccountsPending,
       igAccountsPending,
@@ -318,7 +319,7 @@ export function WhatsAppInboxPage() {
                   <div className="flex-1 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain min-h-0">
                     <ConversationList
                       conversations={conversations}
-                      error={waError ?? igError ?? fbError ?? emailError}
+                      error={waError ?? igError ?? fbError ?? thError ?? emailError}
                       selectedId={selectedId}
                       onSelect={handleSelectConversation}
                       initialConversationId={initialConversationId}

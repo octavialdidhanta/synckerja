@@ -192,27 +192,40 @@ function mapThreadsPost(row: Record<string, unknown>): ThreadsPost {
   };
 }
 
+export type FetchThreadsListOptions = {
+  startYmd?: string;
+  endYmd?: string;
+  /** Paginate through posts without API since/until (up to `limit`). */
+  allTime?: boolean;
+};
+
 export async function fetchThreadsList(
   accessToken: string,
   limit = 25,
-  dateRange?: { startYmd: string; endYmd: string },
+  options?: FetchThreadsListOptions,
 ): Promise<ThreadsPost[]> {
   const fields = "id,media_type,media_url,permalink,text,timestamp,thumbnail_url";
+  const cap = Math.min(Math.max(limit, 1), 100);
+  const filterByDate = Boolean(
+    options?.startYmd && options?.endYmd && !options?.allTime,
+  );
+  const paginate = filterByDate || options?.allTime === true;
+
   const params: Record<string, string> = {
     fields,
-    limit: String(Math.min(Math.max(limit, 1), 25)),
+    limit: "25",
   };
-  if (dateRange?.startYmd && dateRange?.endYmd) {
-    const { since, until } = toUnixSinceUntil(dateRange.startYmd, dateRange.endYmd);
+  if (filterByDate && options?.startYmd && options?.endYmd) {
+    const { since, until } = toUnixSinceUntil(options.startYmd, options.endYmd);
     params.since = since;
     params.until = until;
   }
 
   const inRange: ThreadsPost[] = [];
   let after: string | undefined;
-  const maxPages = dateRange ? 25 : 1;
+  const maxPages = paginate ? 40 : 1;
 
-  for (let page = 0; page < maxPages && inRange.length < limit; page++) {
+  for (let page = 0; page < maxPages && inRange.length < cap; page++) {
     const pageParams = { ...params };
     if (after) pageParams.after = after;
 
@@ -224,22 +237,21 @@ export async function fetchThreadsList(
     const batch = (data.data ?? []).map(mapThreadsPost);
     if (batch.length === 0) break;
 
-    if (!dateRange) {
-      return batch.slice(0, limit);
-    }
-
     for (const post of batch) {
-      if (!post.timestamp) continue;
-      const ymd = timestampToUtcYmd(post.timestamp);
-      if (ymd >= dateRange.startYmd && ymd <= dateRange.endYmd) {
-        inRange.push(post);
-        if (inRange.length >= limit) break;
+      if (filterByDate && options?.startYmd && options?.endYmd) {
+        if (!post.timestamp) continue;
+        const ymd = timestampToUtcYmd(post.timestamp);
+        if (!ymd || ymd < options.startYmd || ymd > options.endYmd) continue;
       }
+      inRange.push(post);
+      if (inRange.length >= cap) break;
     }
 
-    const oldest = batch[batch.length - 1];
-    const oldestYmd = oldest?.timestamp ? timestampToUtcYmd(oldest.timestamp) : "";
-    if (oldestYmd && oldestYmd < dateRange.startYmd) break;
+    if (filterByDate && options?.startYmd) {
+      const oldest = batch[batch.length - 1];
+      const oldestYmd = oldest?.timestamp ? timestampToUtcYmd(oldest.timestamp) : "";
+      if (oldestYmd && oldestYmd < options.startYmd) break;
+    }
 
     after = data.paging?.cursors?.after;
     if (!after) break;
