@@ -35,13 +35,6 @@ function ChannelIcon({ channel = 'whatsapp', className }: { channel?: string; cl
   if (c === 'email') {
     return <Mail className={className} />;
   }
-  if (c === 'threads') {
-    return (
-      <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.2 7.8l-1.4 1.4-2.8-2.8-2.8 2.8-1.4-1.4 4.2-4.2 4.2 4.2z" />
-      </svg>
-    );
-  }
   // WhatsApp (default)
   return (
     <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -61,9 +54,8 @@ function LivechatAvatar({
   const isEmail = conv.source === 'email';
   const isInstagram = conv.source === 'instagram';
   const isFacebook = conv.source === 'facebook';
-  const isThreads = conv.source === 'threads';
   const waConv = conv as WhatsAppConversation;
-  const channel = isInstagram ? 'instagram' : isFacebook ? 'facebook' : isThreads ? 'threads' : (waConv.channel ?? 'whatsapp');
+  const channel = isInstagram ? 'instagram' : isFacebook ? 'facebook' : (waConv.channel ?? 'whatsapp');
 
   const { profileUrl } = useLivechatProfilePhoto(conv.id, {
     source: conv.source,
@@ -84,8 +76,8 @@ function LivechatAvatar({
       : channel === 'facebook'
         ? 'bg-[#1877F2]'
         : isEmail
-          ? 'bg-blue-600'
-          : 'bg-[#25D366]';
+            ? 'bg-blue-600'
+            : 'bg-[#25D366]';
 
   return (
     <div className="relative shrink-0">
@@ -214,10 +206,6 @@ export function getConversationTicketId(conv: LiveChatConversation): string {
   }
   if (conv.source === 'facebook') {
     return 'FB-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase();
-  }
-  if (conv.source === 'threads') {
-    const ticket = (conv as { ticket_id?: string | null }).ticket_id;
-    return ticket ?? ('TH-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase());
   }
   return 'WA-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase();
 }
@@ -383,13 +371,12 @@ export function ConversationList({
     if (c.source === 'email') return (c as { email_connection_display?: string | null }).email_connection_display ?? '—';
     if (c.source === 'instagram') return (c as { instagram_account_display_name?: string | null }).instagram_account_display_name ?? '';
     if (c.source === 'facebook') return (c as { facebook_page_display_name?: string | null }).facebook_page_display_name ?? '';
-    if (c.source === 'threads') return (c as { threads_account_display_name?: string | null }).threads_account_display_name ?? '';
     const wa = c as WhatsAppConversation;
     return wa.whatsapp_account_display_name ?? wa.channel ?? '';
   }, []);
 
   const handleSelect = (conv: LiveChatConversation) => {
-    if (conv.source === 'whatsapp' || conv.source === 'facebook') {
+    if (conv.source === 'whatsapp' || conv.source === 'instagram' || conv.source === 'facebook') {
       if (unreadByConversation[conv.id] > 0) {
         markConversationRead(conv).catch((err) => {
           devLog.warn('Failed to mark conversation read', err);

@@ -11,6 +11,7 @@ import {
   jsonGateError,
   resolveEmployeeForOmnichannelSend,
 } from "./omnichannelAssigneeGate.ts";
+import { resolveInstagramDmRecipientId } from "../_shared/instagramMessagingRecipient.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -254,6 +255,13 @@ Deno.serve(async (req: Request) => {
     };
 
     let resolved: ResolvedConfig | null = null;
+    let convRow: {
+      organization_id: string;
+      instagram_business_account_id: string;
+      lead_status_id: string | null;
+      meta_session_expires_at: string | null;
+      assignee_id: string | null;
+    } | null = null;
 
     // 1) When conversation_id is provided we MUST use the same Page that owns the conversation (avoids Meta #100 "No matching user found")
     if (conversationId) {
@@ -262,6 +270,7 @@ Deno.serve(async (req: Request) => {
         .select("organization_id, instagram_business_account_id, lead_status_id, meta_session_expires_at, assignee_id")
         .eq("id", conversationId)
         .maybeSingle();
+      convRow = conv ?? null;
       if (conv?.organization_id && conv?.instagram_business_account_id) {
         if (conv.assignee_id == null || String(conv.assignee_id).trim() === "") {
           return new Response(
@@ -469,6 +478,32 @@ Deno.serve(async (req: Request) => {
     const pageId = resolved.pageId;
     const tokenToUse = resolved.tokenToUse;
 
+    let recipientId = to;
+    if (conversationId && convRow?.organization_id && convRow?.instagram_business_account_id) {
+      recipientId = await resolveInstagramDmRecipientId(
+        supabase,
+        convRow.organization_id,
+        String(convRow.instagram_business_account_id),
+        to,
+        pageId,
+        tokenToUse,
+      );
+      if (recipientId !== to) {
+        console.log("send-instagram-message: resolved connected-account recipient", {
+          from: to.slice(0, 8) + "...",
+          to: recipientId.slice(0, 8) + "...",
+        });
+        await supabase
+          .from("instagram_conversations")
+          .update({
+            customer_ig_id: recipientId,
+            customer_external_id: to,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conversationId);
+      }
+    }
+
     const messagePayload: Record<string, unknown> = {};
     if (hasMedia) {
       messagePayload.attachment = {
@@ -482,7 +517,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const metaPayload: Record<string, unknown> = {
-      recipient: { id: to },
+      recipient: { id: recipientId },
       message: messagePayload,
     };
     if (replyToMid) {
@@ -493,7 +528,7 @@ Deno.serve(async (req: Request) => {
     console.log("send-instagram-message: calling Meta API", {
       conversation_id: conversationId ? conversationId.slice(0, 8) + "..." : null,
       page_id_prefix: pageId.slice(0, 8) + "...",
-      recipient_id_prefix: to.slice(0, 8) + "...",
+      recipient_id_prefix: recipientId.slice(0, 8) + "...",
     });
 
     let metaRes: Response;
@@ -544,6 +579,8 @@ Deno.serve(async (req: Request) => {
       const errMsg =
         code === 551 || subcode === 551
           ? "Sesi percakapan Meta sudah berakhir. Gunakan pesan template yang disetujui untuk menghubungi pengguna lagi."
+          : code === 100 && recipientId === to
+          ? "Meta tidak menemukan penerima (ID Instagram tidak valid). Untuk DM antar akun bisnis terhubung, pastikan kontak sudah mengirim pesan ke inbox ini dari app Instagram."
           : rawMsg;
       const sessionMaybe =
         code === 551 ||

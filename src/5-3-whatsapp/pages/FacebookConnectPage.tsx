@@ -10,6 +10,7 @@ import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatus
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 import { CONNECT_FACEBOOK_PATH } from '../constants/omnichannelIntegrationPaths';
+import { META_FACEBOOK_PAGE_OAUTH_SCOPE_LIST } from '@/meta-platform/constants/metaOAuthScopes';
 import { FacebookConnectPageSkeleton } from '../skeletons/FacebookConnectPageSkeleton';
 import { useFacebookConnectPageSkeletonGate } from '../hooks/useFacebookConnectPageSkeletonGate';
 import { useQueryClient } from '@tanstack/react-query';
@@ -138,6 +139,17 @@ export function FacebookConnectPage() {
                                   {t('instagramConnect.oauthNotConfigured', 'VITE_META_APP_ID not set.')}
                                 </p>
                               ) : (
+                                <>
+                                <p className="text-xs leading-relaxed text-slate-600">
+                                  {t(
+                                    'facebookConnect.oauthPagePickerHint',
+                                    'Setelah klik Connect: (1) pilih Edit settings (bukan Continue saja), (2) centang Facebook Page yang ingin dihubungkan — layar ini memakai permission pages_show_list, (3) lanjutkan step Instagram jika muncul, (4) selesai — Page muncul di kolom kanan.',
+                                  )}
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  {t('facebookConnect.oauthScopesLabel', 'Scopes:')}{' '}
+                                  {META_FACEBOOK_PAGE_OAUTH_SCOPE_LIST.join(', ')}
+                                </p>
                                 <Button
                                   type="button"
                                   onClick={() => void startOAuth()}
@@ -155,6 +167,7 @@ export function FacebookConnectPage() {
                                       ? t('facebookConnect.reconnect', 'Connect again')
                                       : t('facebookConnect.connectButton', 'Connect with Facebook')}
                                 </Button>
+                                </>
                               )}
 
                               {connectedPages.length > 0 && (

@@ -49,6 +49,8 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
   const redirectUri =
     typeof window !== 'undefined' ? `${window.location.origin}/auth/meta/callback` : '';
 
+  const isMetaRedirectHttps = redirectUri.startsWith('https://');
+
   const clearMetaOAuthPopupFlag = useCallback(() => {
     sessionStorage.removeItem('metaOAuthPopupOpen');
     sessionStorage.removeItem('metaOAuthPopupSession');
@@ -134,6 +136,8 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
     });
     params.set('display', 'page');
     params.set('response_type', 'token');
+    // Facebook Page connect: re-show asset picker (Pages) instead of skipping with previous settings.
+    if (flow === 'facebook') params.set('auth_type', 'rerequest');
     if (metaOAuthConfigId) params.set('config_id', metaOAuthConfigId);
     const url = `https://www.facebook.com/${META_OAUTH_VERSION}/dialog/oauth?${params.toString()}`;
     try {
@@ -250,8 +254,4 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
   }, [clearMetaOAuthPopupFlag, exchangeToken, redirectUri, stopOAuthPopupPoll, t]);
 
   return {
-    startOAuth: openOAuthPopup,
-    oauthLoading,
-    hasOAuth,
-  };
-}
+    

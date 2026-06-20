@@ -163,7 +163,7 @@ export function SearchConversationPopup({
   const showConversationListOnly = !searchQuery.trim() || (!hasMessageResults && !hasContactOnlyMatches && filteredConversations.length > 0);
 
   const handleSelectConv = (conv: LiveChatConversation) => {
-    if (conv.source === 'whatsapp' || conv.source === 'facebook') {
+    if (conv.source === 'whatsapp' || conv.source === 'instagram' || conv.source === 'facebook') {
       if (unreadByConversation[conv.id] > 0) markConversationRead(conv).catch(() => {});
     }
     if (conv.source === 'whatsapp') {

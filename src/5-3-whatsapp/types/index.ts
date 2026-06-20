@@ -212,23 +212,6 @@ export interface InstagramMessage {
   created_at: string;
 }
 
-export interface FacebookMessage {
-  id: string;
-  conversation_id: string;
-  direction: 'inbound' | 'outbound';
-  platform_message_id: string | null;
-  body: string | null;
-  message_type: string;
-  media_url: string | null;
-  raw_metadata: unknown;
-  status: string | null;
-  status_updated_at: string | null;
-  reply_to_platform_message_id: string | null;
-  reply_to_body: string | null;
-  reply_to_message_type: string | null;
-  created_at: string;
-}
-
 export interface FacebookConversation {
   id: string;
   organization_id: string;
@@ -247,7 +230,7 @@ export interface FacebookConversation {
   updated_at: string;
 }
 
-export interface ThreadsMessage {
+export interface FacebookMessage {
   id: string;
   conversation_id: string;
   direction: 'inbound' | 'outbound';
@@ -264,32 +247,9 @@ export interface ThreadsMessage {
   created_at: string;
 }
 
-export interface ThreadsConversation {
-  id: string;
-  organization_id: string;
-  threads_user_id: string;
-  customer_threads_id: string;
-  customer_name: string | null;
-  root_media_id: string;
-  last_message_at: string | null;
-  last_message_body: string | null;
-  last_message_direction: string | null;
-  last_message_status: string | null;
-  lead_status_id: string | null;
-  lead_status_name: string | null;
-  assignee_id?: string | null;
-  threads_account_display_name: string | null;
-  ticket_id: string | null;
-  meta_session_expires_at?: string | null;
-  last_inbound_at?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Unified conversation for Live Chat list (WhatsApp/Instagram/Messenger/Threads or Email). */
+/** Unified conversation for Live Chat list (WhatsApp/Instagram/Messenger or Email). */
 export type LiveChatConversation =
   | (WhatsAppConversation & { source: 'whatsapp' })
   | (InstagramConversation & { source: 'instagram' })
   | (FacebookConversation & { source: 'facebook' })
-  | (ThreadsConversation & { source: 'threads' })
   | (EmailConversation & { source: 'email' });

@@ -3,14 +3,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWhatsAppMessages } from '../../hooks/useWhatsAppMessages';
 import { useInstagramMessages } from '../../hooks/useInstagramMessages';
 import { useFacebookMessages } from '../../hooks/useFacebookMessages';
-import { useThreadsMessages } from '../../hooks/useThreadsMessages';
 import { useResolveWhatsAppMedia } from '../../hooks/useResolveWhatsAppMedia';
 import { useResolveInstagramMedia } from '../../hooks/useResolveInstagramMedia';
 import { useResolveFacebookMedia } from '../../hooks/useResolveFacebookMedia';
 import { useSendWhatsAppMessage } from '../../hooks/useSendWhatsAppMessage';
 import { useSendInstagramMessage } from '../../hooks/useSendInstagramMessage';
 import { useSendFacebookMessage } from '../../hooks/useSendFacebookMessage';
-import { useSendThreadsMessage } from '../../hooks/useSendThreadsMessage';
 import type {
   LiveChatConversation,
   WhatsAppAccount,
@@ -20,8 +18,6 @@ import type {
   InstagramMessage,
   FacebookConversation,
   FacebookMessage,
-  ThreadsConversation,
-  ThreadsMessage,
   EmailConversation,
 } from '../../types';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -1233,18 +1229,14 @@ export function ChatThread({
   const { lacksOmnichannelEntitlement, showNoAddonWarning } = useOmnichannelOutboundEntitlement();
   const isInstagram = (conversation as LiveChatConversation)?.source === 'instagram';
   const isFacebook = (conversation as LiveChatConversation)?.source === 'facebook';
-  const isThreads = (conversation as LiveChatConversation)?.source === 'threads';
   const isMetaDm = isInstagram || isFacebook;
-  const isMetaChannel = isMetaDm || isThreads;
-  const waMessagesQuery = useWhatsAppMessages(!isMetaChannel ? conversation?.id ?? null : null);
+  const waMessagesQuery = useWhatsAppMessages(!isMetaDm ? conversation?.id ?? null : null);
   const igMessagesQuery = useInstagramMessages(isInstagram ? conversation?.id ?? null : null);
   const fbMessagesQuery = useFacebookMessages(isFacebook ? conversation?.id ?? null : null);
-  const thMessagesQuery = useThreadsMessages(isThreads ? conversation?.id ?? null : null);
   const waMessages = waMessagesQuery.data ?? [];
   const igMessages = igMessagesQuery.data ?? [];
   const fbMessages = fbMessagesQuery.data ?? [];
-  const thMessages = thMessagesQuery.data ?? [];
-  const messages: Array<WhatsAppMessage | (InstagramMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null }) | (FacebookMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null }) | (ThreadsMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null })> = isInstagram
+  const messages: Array<WhatsAppMessage | (InstagramMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null }) | (FacebookMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null })> = isInstagram
     ? (igMessages as InstagramMessage[]).map((m) => ({
         ...m,
         wa_message_id: m.platform_message_id,
@@ -1256,19 +1248,12 @@ export function ChatThread({
           wa_message_id: m.platform_message_id,
           reply_to_wa_message_id: m.reply_to_platform_message_id ?? undefined,
         }))
-      : isThreads
-        ? (thMessages as ThreadsMessage[]).map((m) => ({
-            ...m,
-            wa_message_id: m.platform_message_id,
-            reply_to_wa_message_id: m.reply_to_platform_message_id ?? undefined,
-          }))
-        : waMessages;
-  const isLoading = isInstagram ? igMessagesQuery.isLoading : isFacebook ? fbMessagesQuery.isLoading : isThreads ? thMessagesQuery.isLoading : waMessagesQuery.isLoading;
+      : waMessages;
+  const isLoading = isInstagram ? igMessagesQuery.isLoading : isFacebook ? fbMessagesQuery.isLoading : waMessagesQuery.isLoading;
   const { send, isSending: isSendingWhatsApp } = useSendWhatsAppMessage();
   const { send: sendInstagram, isSending: isSendingInstagram } = useSendInstagramMessage();
   const { send: sendFacebook, isSending: isSendingFacebook } = useSendFacebookMessage();
-  const { send: sendThreads, isSending: isSendingThreads } = useSendThreadsMessage();
-  const { resolve: resolveWaMedia, isResolving: isResolvingWaMedia, resolvingMessageId: resolvingWaMessageId } = useResolveWhatsAppMedia(!isMetaChannel ? conversation?.id ?? null : null);
+  const { resolve: resolveWaMedia, isResolving: isResolvingWaMedia, resolvingMessageId: resolvingWaMessageId } = useResolveWhatsAppMedia(!isMetaDm ? conversation?.id ?? null : null);
   const { resolve: resolveIgMedia, isResolving: isResolvingIgMedia, resolvingMessageId: resolvingIgMessageId } = useResolveInstagramMedia(isInstagram ? conversation?.id ?? null : null);
   const { resolve: resolveFbMedia, isResolving: isResolvingFbMedia, resolvingMessageId: resolvingFbMessageId } = useResolveFacebookMedia(isFacebook ? conversation?.id ?? null : null);
   const resolveMedia = isInstagram ? resolveIgMedia : isFacebook ? resolveFbMedia : resolveWaMedia;
@@ -1280,11 +1265,19 @@ export function ChatThread({
     ? ['instagram-conversation-status', conversation?.id]
     : isFacebook
       ? ['facebook-conversation-status', conversation?.id]
-      : isThreads
-        ? ['threads-conversation-status', conversation?.id]
-        : ['whatsapp-conversation-status', conversation?.id];
-  const { data: conversationStatusRow } = useQuery({
+      : ['whatsapp-conversation-status', conversation?.id];
+  const { data: conversationStatusRow, isSuccess: conversationStatusLoaded } = useQuery({
     queryKey: statusQueryKey,
+    initialData: () => {
+      if (!conversation?.id) return undefined;
+      return queryClient.getQueryData<{
+        lead_status_id?: string;
+        last_inbound_at?: string | null;
+        created_at?: string;
+        assignee_id?: string | null;
+        meta_session_expires_at?: string | null;
+      }>(statusQueryKey);
+    },
     queryFn: async () => {
       if (!conversation?.id) return null;
       if (isInstagram) {
@@ -1305,21 +1298,6 @@ export function ChatThread({
       if (isFacebook) {
         const { data, error } = await supabase
           .from('facebook_conversations')
-          .select('lead_status_id, last_inbound_at, created_at, assignee_id, meta_session_expires_at')
-          .eq('id', conversation.id)
-          .maybeSingle();
-        if (error) throw error;
-        return data as {
-          lead_status_id?: string;
-          last_inbound_at?: string | null;
-          created_at?: string;
-          assignee_id?: string | null;
-          meta_session_expires_at?: string | null;
-        } | null;
-      }
-      if (isThreads) {
-        const { data, error } = await supabase
-          .from('threads_conversations')
           .select('lead_status_id, last_inbound_at, created_at, assignee_id, meta_session_expires_at')
           .eq('id', conversation.id)
           .maybeSingle();
@@ -1375,7 +1353,7 @@ export function ChatThread({
   const isResolved = isResolvedStatus(effectiveStatusName);
   const metaSessionExpiresAt = conversationStatusRow?.meta_session_expires_at ?? null;
   const outboundSessionBlocked =
-    (isWhatsAppConversation || isMetaChannel) &&
+    (isWhatsAppConversation || isMetaDm) &&
     isOutboundBlockedForLivechat({
       statusName: effectiveStatusName,
       metaSessionExpiresAt,
@@ -1387,15 +1365,22 @@ export function ChatThread({
   const sendDisabledByNoAccount = Boolean(hasNoConnectedWhatsAppAccount && isWhatsAppConversation);
   /** WA/IG outbound: block only after subscription + roster resolve and no paid seats / agents. */
   const sendDisabledByNoOmnichannelAddon =
-    (isWhatsAppConversation || isMetaChannel) && lacksOmnichannelEntitlement;
-  const conversationAssigneeId = conversationStatusRow?.assignee_id ?? null;
-  const assigneeGateApplies = isWhatsAppConversation || isMetaChannel;
+    (isWhatsAppConversation || isMetaDm) && lacksOmnichannelEntitlement;
+  const conversationAssigneeId = conversationStatusLoaded
+    ? (conversationStatusRow?.assignee_id ?? null)
+    : null;
+  const assigneeGateApplies = isWhatsAppConversation || isMetaDm;
+  /** Avoid flashing "belum di-assign" while assignee_id is still loading from DB. */
   const sendDisabledByNoAssignee =
-    assigneeGateApplies && isConversationUnassigned(conversationAssigneeId);
+    conversationStatusLoaded &&
+    assigneeGateApplies &&
+    isConversationUnassigned(conversationAssigneeId);
   const sendDisabledByNotAssignee =
+    conversationStatusLoaded &&
     assigneeGateApplies &&
     isAssignedToOtherAgent(conversationAssigneeId, currentEmployeeId);
-  const hasAssignee = !isConversationUnassigned(conversationAssigneeId);
+  const hasAssignee =
+    conversationStatusLoaded && !isConversationUnassigned(conversationAssigneeId);
   const showFollowUpComposer =
     isWhatsAppConversation &&
     (isResolvedStatus(effectiveStatusName) || isExpiredStatusName(effectiveStatusName));
@@ -1430,20 +1415,17 @@ export function ChatThread({
 
   const isInstagramConversation = isInstagram;
   const isFacebookConversation = isFacebook;
-  const isThreadsConversation = isThreads;
   const isMetaDmConversation = isMetaDm;
-  const isSending = isSendingWhatsApp || isSendingInstagram || isSendingFacebook || isSendingThreads;
+  const isSending = isSendingWhatsApp || isSendingInstagram || isSendingFacebook;
   const customerId = isInstagram
     ? (conversation as InstagramConversation)?.customer_ig_id
     : isFacebook
       ? (conversation as FacebookConversation)?.customer_psid
-      : isThreads
-        ? (conversation as ThreadsConversation)?.customer_threads_id
-        : (conversation as WhatsAppConversation)?.customer_wa_id;
+      : (conversation as WhatsAppConversation)?.customer_wa_id;
   const displayName =
     conversation?.source === 'email'
       ? (conversation as EmailConversation).from_display_name ?? (conversation as EmailConversation).from_email
-      : (conversation as WhatsAppConversation | InstagramConversation | FacebookConversation | ThreadsConversation).customer_name ?? null;
+      : (conversation as WhatsAppConversation | InstagramConversation | FacebookConversation).customer_name ?? null;
 
   const optimisticEntry = optimisticMessage || optimisticMedia;
 
@@ -1922,16 +1904,6 @@ export function ChatThread({
           setTimeout(() => reject(new Error('Request timed out. Please try again.')), SEND_TIMEOUT_MS)
         );
         await Promise.race([sendPromise, timeoutPromise]);
-      } else if (isThreadsConversation) {
-        const sendPromise = sendThreads({
-          text: trimmed,
-          conversation_id: conversation.id,
-          reply_to_platform_message_id: replyWaId ?? undefined,
-        });
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Request timed out. Please try again.')), SEND_TIMEOUT_MS)
-        );
-        await Promise.race([sendPromise, timeoutPromise]);
       } else {
         const sendPromise = send({
           to: customerId,
@@ -1985,11 +1957,9 @@ export function ChatThread({
                   ? t('whatsappInbox.instagramContact', 'Kontak Instagram')
                   : isFacebookConversation && !displayName?.trim()
                     ? t('whatsappInbox.messengerContact', 'Messenger contact')
-                    : isThreadsConversation && !displayName?.trim()
-                      ? t('whatsappInbox.threadsContact', 'Threads contact')
-                      : (displayName || (customerId ? maskPhoneLast4(customerId) : '') || 'Unknown')}
+                    : (displayName || (customerId ? maskPhoneLast4(customerId) : '') || 'Unknown')}
               </h3>
-              {displayName && !isInstagramConversation && !isFacebookConversation && !isThreadsConversation && customerId && (
+              {displayName && !isInstagramConversation && !isFacebookConversation && customerId && (
                 <p className="text-xs text-gray-500 truncate">{maskPhoneLast4(customerId)}</p>
               )}
             </div>
@@ -2175,9 +2145,7 @@ export function ChatThread({
                 ? 'instagram_messages'
                 : isFacebookConversation
                   ? 'facebook_messages'
-                  : isThreadsConversation
-                    ? 'threads_messages'
-                    : 'whatsapp_messages';
+                  : 'whatsapp_messages';
               const { error } = await supabase.from(table).delete().eq('id', msg.id);
               if (error) {
                 toast.error(t('whatsappInbox.deleteFailed', 'Failed to delete message.'));
@@ -2190,9 +2158,6 @@ export function ChatThread({
                 } else if (isFacebookConversation) {
                   queryClient.invalidateQueries({ queryKey: ['facebook-messages', conversation.id] });
                   queryClient.invalidateQueries({ queryKey: ['facebook-conversations'] });
-                } else if (isThreadsConversation) {
-                  queryClient.invalidateQueries({ queryKey: ['threads-messages', conversation.id] });
-                  queryClient.invalidateQueries({ queryKey: ['threads-conversations'] });
                 } else {
                   queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', conversation.id] });
                   queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });

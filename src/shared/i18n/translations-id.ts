@@ -2063,6 +2063,8 @@ export const idTranslations: TranslationDictionary = {
   "facebookConnect.disconnect": "Putuskan",
   "facebookConnect.disconnected": "Terputus",
   "facebookConnect.loading": "Memuat…",
+  "facebookConnect.oauthPagePickerHint": "Setelah klik Connect: (1) pilih Edit settings (bukan Continue saja), (2) centang Facebook Page yang ingin dihubungkan — layar ini memakai permission pages_show_list, (3) lanjut Continue, (4) jika ada layar Instagram accounts bisa Back untuk kembali ke Page atau lanjut saja, (5) Page terhubung muncul di kolom kanan.",
+  "facebookConnect.oauthScopesLabel": "Scopes OAuth:",
   "instagramConnect.zeroAccountsWarning": "Login berhasil, tetapi tidak ada akun Instagram Business ditemukan.",
   "instagramConnect.zeroAccountsChecklist.pageLinked": "Facebook Page harus terhubung ke Instagram Business Account di Meta Business Suite.",
   "instagramConnect.zeroAccountsChecklist.pageAdmin": "Login Facebook Anda harus punya akses admin ke Page tersebut.",

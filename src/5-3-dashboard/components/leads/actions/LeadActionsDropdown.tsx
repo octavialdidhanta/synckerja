@@ -20,17 +20,16 @@ export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete, onTe
   const { t } = useAppTranslation();
   const fromWhatsApp = (lead as any)._fromWhatsApp === true;
   const fromFacebook = (lead as any)._fromFacebook === true || (typeof lead.id === 'string' && lead.id.startsWith('fb-'));
-  const fromThreads = (lead as any)._fromThreads === true || (typeof lead.id === 'string' && lead.id.startsWith('th-'));
   const fromEmail = (lead as any)._fromEmail === true || (typeof lead.id === 'string' && lead.id.startsWith('email-'));
-  const hasConversationId = fromWhatsApp || fromEmail || fromFacebook || fromThreads;
+  const hasConversationId = fromWhatsApp || fromEmail || fromFacebook;
   const ticketId = (lead.ticket_id ?? '').trim();
-  const hasTicketId = /^(WA-|IG-|FB-|EMAIL-|TH-)/i.test(ticketId);
+  const hasTicketId = /^(WA-|IG-|FB-|EMAIL-)/i.test(ticketId);
   const canOpenChat = hasConversationId || hasTicketId;
   const isManualLead = (lead.created_by ?? '').trim() !== '' && lead.created_by !== ZERO_UUID;
 
   if (canOpenChat) {
     const url = hasConversationId
-      ? `/omnichannel/livechat?conversation=${String(lead.id).replace(/^wa-/, '').replace(/^fb-/, '').replace(/^email-/, '').replace(/^th-/, '')}`
+      ? `/omnichannel/livechat?conversation=${String(lead.id).replace(/^wa-/, '').replace(/^fb-/, '').replace(/^email-/, '')}`
       : `/omnichannel/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
     return (
       <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-medium" asChild>

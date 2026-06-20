@@ -32,6 +32,9 @@ export function useLivechatUnreadByConversation() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages' }, () => {
         queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'instagram_messages' }, () => {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'facebook_messages' }, () => {
         queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       })
@@ -49,13 +52,19 @@ export function useLivechatUnreadByConversation() {
     enabled: !!organizationId,
     queryFn: async (): Promise<Record<string, number>> => {
       if (!organizationId) return {};
-      const [waRes, fbRes] = await Promise.all([
+      const [waRes, igRes, fbRes] = await Promise.all([
         supabase.rpc('get_whatsapp_unread_counts', { p_organization_id: organizationId }),
+        supabase.rpc('get_instagram_unread_counts', { p_organization_id: organizationId }),
         supabase.rpc('get_facebook_unread_counts', { p_organization_id: organizationId }),
       ]);
       if (waRes.error) throw waRes.error;
+      if (igRes.error) throw igRes.error;
       if (fbRes.error) throw fbRes.error;
-      return { ...rowsToMap(waRes.data), ...rowsToMap(fbRes.data) };
+      return {
+        ...rowsToMap(waRes.data),
+        ...rowsToMap(igRes.data),
+        ...rowsToMap(fbRes.data),
+      };
     },
     refetchInterval: 15000,
   });
@@ -63,6 +72,11 @@ export function useLivechatUnreadByConversation() {
   const markConversationRead = async (conv: LiveChatConversation) => {
     if (conv.source === 'whatsapp') {
       const { error } = await supabase.rpc('mark_whatsapp_conversation_read', {
+        p_conversation_id: conv.id,
+      });
+      if (error) throw error;
+    } else if (conv.source === 'instagram') {
+      const { error } = await supabase.rpc('mark_instagram_conversation_read', {
         p_conversation_id: conv.id,
       });
       if (error) throw error;
@@ -76,6 +90,7 @@ export function useLivechatUnreadByConversation() {
     }
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
+    queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
     queryClient.invalidateQueries({ queryKey: ['facebook-conversations'] });
     queryClient.invalidateQueries({ queryKey: ['whatsapp-unread-count'] });
   };

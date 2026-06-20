@@ -240,9 +240,6 @@ verify_jwt = false
 [functions.threads-webhook]
 verify_jwt = false
 
-[functions.send-threads-message]
-verify_jwt = false
-
 [functions.meta-oauth-exchange]
 verify_jwt = false
 
@@ -259,9 +256,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.threads-content-api]
-verify_jwt = false
-
-[functions.threads-livechat-sync-cron]
 verify_jwt = false
 
 [functions.list-instagram-accounts]

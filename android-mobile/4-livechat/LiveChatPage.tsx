@@ -8,13 +8,12 @@ import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatu
 import { useWhatsAppConversations } from '@/5-3-whatsapp/hooks/useWhatsAppConversations';
 import { useInstagramConversations } from '@/5-3-whatsapp/hooks/useInstagramConversations';
 import { useFacebookConversations } from '@/5-3-whatsapp/hooks/useFacebookConversations';
-import { useThreadsConversations } from '@/5-3-whatsapp/hooks/useThreadsConversations';
 import { useEmailConversations } from '@/5-3-whatsapp/hooks/useEmailConversations';
 import { useWhatsAppAccounts } from '@/5-3-whatsapp/hooks/useWhatsAppAccounts';
 import { useInstagramAccounts } from '@/5-3-whatsapp/hooks/useInstagramAccounts';
 import { useFacebookPages } from '@/5-3-whatsapp/hooks/useFacebookPages';
 import { useEmailConnections } from '@/5-3-whatsapp/hooks/useEmailConnections';
-import type { LiveChatConversation, WhatsAppConversation, InstagramConversation, FacebookConversation, ThreadsConversation } from '@/5-3-whatsapp/types';
+import type { LiveChatConversation, WhatsAppConversation, InstagramConversation, FacebookConversation } from '@/5-3-whatsapp/types';
 import { getConversationTicketId } from './shared/getConversationTicketId';
 import { LiveChatListView } from './LiveChatListView';
 import { LiveChatChatView } from './LiveChatChatView';
@@ -27,7 +26,7 @@ import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSu
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
 
-type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `fb:${string}` | `th:${string}` | `email:${string}`;
+type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `fb:${string}` | `email:${string}`;
 
 export default function LiveChatPage() {
   const { t } = useAppTranslation();
@@ -66,7 +65,6 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
   const { data: waConversations = [], isLoading: waLoading, error: waError, refetch: refetchWa } = useWhatsAppConversations();
   const { data: igConversations = [], isLoading: igLoading, error: igError, refetch: refetchIg } = useInstagramConversations();
   const { data: fbConversations = [], isLoading: fbLoading, error: fbError, refetch: refetchFb } = useFacebookConversations();
-  const { data: thConversations = [], isLoading: thLoading, error: thError, refetch: refetchTh } = useThreadsConversations();
   const { data: emailConversations = [], isLoading: emailLoading, error: emailError, refetch: refetchEmail } = useEmailConversations();
   const { accounts: waAccounts } = useWhatsAppAccounts();
   const { accounts: igAccounts } = useInstagramAccounts();
@@ -97,16 +95,15 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
     const wa: LiveChatConversation[] = (waConversations as WhatsAppConversation[]).map((c) => ({ ...c, source: 'whatsapp' as const }));
     const ig: LiveChatConversation[] = (igConversations as InstagramConversation[]).map((c) => ({ ...c, source: 'instagram' as const }));
     const fb: LiveChatConversation[] = (fbConversations as FacebookConversation[]).map((c) => ({ ...c, source: 'facebook' as const }));
-    const th: LiveChatConversation[] = (thConversations as ThreadsConversation[]).map((c) => ({ ...c, source: 'threads' as const }));
     const email: LiveChatConversation[] = emailConversations.map((c) => ({ ...c, source: 'email' as const }));
-    const merged = [...wa, ...ig, ...fb, ...th, ...email];
+    const merged = [...wa, ...ig, ...fb, ...email];
     merged.sort((a, b) => {
       const aAt = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
       const bAt = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
       return bAt - aAt;
     });
     return merged;
-  }, [waConversations, igConversations, fbConversations, thConversations, emailConversations]);
+  }, [waConversations, igConversations, fbConversations, emailConversations]);
 
   const accountOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
@@ -119,10 +116,6 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
     igAccounts.forEach((acc) => {
       const name = acc.instagram_username?.trim() ? `@${acc.instagram_username}` : acc.instagram_name?.trim() || acc.instagram_business_account_id || t('whatsappInbox.instagram', 'Instagram');
       opts.push({ value: `ig:${acc.instagram_business_account_id}` as const, label: `Instagram - ${name}` });
-      if (acc.has_threads && acc.threads_user_id) {
-        const thName = acc.threads_username?.trim() ? `@${acc.threads_username}` : acc.threads_user_id;
-        opts.push({ value: `th:${acc.threads_user_id}` as const, label: `Threads - ${thName}` });
-      }
     });
     fbPages.forEach((page) => {
       const name = page.page_name?.trim() || page.facebook_page_id || t('livechat.channelMessenger', 'Messenger');
@@ -183,12 +176,6 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
         list = list.filter((c) => {
           if (c.source !== 'facebook') return false;
           return (c as FacebookConversation).facebook_page_id === fbPageId;
-        });
-      } else if (accountFilter.startsWith('th:')) {
-        const threadsUserId = accountFilter.slice(3);
-        list = list.filter((c) => {
-          if (c.source !== 'threads') return false;
-          return (c as ThreadsConversation).threads_user_id === threadsUserId;
         });
       } else if (accountFilter.startsWith('email:')) {
         const connId = accountFilter.slice(6);

@@ -1782,6 +1782,24 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       )
       .on(
         'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'instagram_conversations' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'instagram_conversations' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status'] });
+        }
+      )
+      .on(
+        'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'facebook_conversations' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -1956,11 +1974,21 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         console.error('Error fetching facebook conversations for leads:', facebookError);
       }
 
+      const { data: instagramConvs, error: instagramError } = await supabase
+        .from('instagram_conversations')
+        .select('id, organization_id, customer_ig_id, customer_name, last_message_at, last_message_body, lead_status_id, last_inbound_at, assignee_id, created_at, updated_at, ticket_id, meta_session_expires_at')
+        .eq('organization_id', organizationId)
+        .order('last_message_at', { ascending: false, nullsFirst: false });
+      if (instagramError) {
+        console.error('Error fetching instagram conversations for leads:', instagramError);
+      }
+
       // Resolve assignee_id → assignee name for ALL leads (regular + WhatsApp) so Consultant Performance section has data
       const assigneeIdsFromLeads = [...new Set(rawLeads.map((l: any) => l.assignee_id).filter(Boolean))] as string[];
       const assigneeIdsFromWa = (whatsappConvs ?? []).map((c: any) => c.assignee_id).filter(Boolean) as string[];
       const assigneeIdsFromFb = (facebookConvs ?? []).map((c: any) => c.assignee_id).filter(Boolean) as string[];
-      const allAssigneeIds = [...new Set([...assigneeIdsFromLeads, ...assigneeIdsFromWa, ...assigneeIdsFromFb])];
+      const assigneeIdsFromIg = (instagramConvs ?? []).map((c: any) => c.assignee_id).filter(Boolean) as string[];
+      const allAssigneeIds = [...new Set([...assigneeIdsFromLeads, ...assigneeIdsFromWa, ...assigneeIdsFromFb, ...assigneeIdsFromIg])];
       const assigneeNameMap = new Map<string, string>();
       if (allAssigneeIds.length > 0) {
         const { data: assigneeRows } = await supabase
@@ -2009,8 +2037,24 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         }
       }
 
+      if (instagramConvs && instagramConvs.length > 0) {
+        const igStatusIds = [...new Set(instagramConvs.map((c: any) => c.lead_status_id).filter(Boolean))].filter((id: string) => !statusMap.has(normId(id)));
+        if (igStatusIds.length > 0) {
+          const { data: igStatuses, error: igErr } = await supabase
+            .from('lead_statuses')
+            .select('id, name, color, is_active')
+            .in('id', igStatusIds);
+          if (!igErr && igStatuses) {
+            igStatuses.forEach((status: any) => {
+              const id = normId(status.id);
+              statusMap.set(id, { id: status.id, name: status.name, color: status.color });
+            });
+          }
+        }
+      }
+
       // Sync status and assignee from omnichannel conversations when lead has matching ticket_id.
-      if ((whatsappConvs && whatsappConvs.length > 0) || (facebookConvs && facebookConvs.length > 0)) {
+      if ((whatsappConvs && whatsappConvs.length > 0) || (facebookConvs && facebookConvs.length > 0) || (instagramConvs && instagramConvs.length > 0)) {
         const convByTicketId = new Map<
           string,
           {
@@ -2044,6 +2088,18 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             meta_session_expires_at: c.meta_session_expires_at ?? null,
             followup: c.followup ?? null,
             fu_priority: c.fu_priority ?? null,
+            template_followup_awaiting_reply: false,
+            follow_up_cycle_reset_at: null,
+          });
+        });
+        instagramConvs?.forEach((c: any) => {
+          const igTicketId = c.ticket_id ?? ('IG-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          convByTicketId.set(normTicket(igTicketId), {
+            lead_status_id: c.lead_status_id ?? null,
+            assignee_id: c.assignee_id ?? null,
+            meta_session_expires_at: c.meta_session_expires_at ?? null,
+            followup: null,
+            fu_priority: null,
             template_followup_awaiting_reply: false,
             follow_up_cycle_reset_at: null,
           });
@@ -2090,7 +2146,8 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       });
       const emailTicketIds = (emailConvs ?? []).map((c: any) => 'EMAIL-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
       const fbTicketIds = (facebookConvs ?? []).map((c: any) => c.ticket_id ?? ('FB-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase()));
-      const allConvTicketIds = [...new Set([...waTicketIds, ...emailTicketIds, ...fbTicketIds])];
+      const igTicketIds = (instagramConvs ?? []).map((c: any) => c.ticket_id ?? ('IG-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase()));
+      const allConvTicketIds = [...new Set([...waTicketIds, ...emailTicketIds, ...fbTicketIds, ...igTicketIds])];
       const leadByTicketMap = new Map<string, { services: string | null; category: string | null }>();
       if (allConvTicketIds.length > 0) {
         const { data: convLeads } = await supabase
@@ -2201,37 +2258,31 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         leadsWithStatus = [...leadsWithStatus, ...facebookAsLeads];
       }
 
-      const { data: threadsConvs, error: threadsError } = await supabase.rpc('get_threads_conversations_with_preview', {
-        p_organization_id: organizationId,
-      });
-      if (threadsError) {
-        console.error('Error fetching threads conversations for leads:', threadsError);
-      }
-      if (!threadsError && threadsConvs && threadsConvs.length > 0) {
-        const thConvsWithoutLead = (threadsConvs as any[]).filter((c) => {
-          const thTicketId = c.ticket_id ?? ('TH-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
-          return !ticketIdsInLeadsTable.has(normTicket(thTicketId));
+      if (!instagramError && instagramConvs && instagramConvs.length > 0) {
+        const igConvsWithoutLead = instagramConvs.filter((c: any) => {
+          const igTicketId = c.ticket_id ?? ('IG-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          return !ticketIdsInLeadsTable.has(normTicket(igTicketId));
         });
-        const threadsAsLeads = thConvsWithoutLead.map((c: any) => {
+        const instagramAsLeads = igConvsWithoutLead.map((c: any) => {
           const statusId = c.lead_status_id ?? '';
           const leadStatus = statusId ? statusMap.get(normId(statusId)) ?? null : null;
-          const thTicketId = c.ticket_id ?? ('TH-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
-          const leadRow = leadByTicketMap.get(thTicketId);
+          const igTicketId = c.ticket_id ?? ('IG-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          const leadRow = leadByTicketMap.get(igTicketId);
           const assigneeId = c.assignee_id ?? null;
           const assigneeName = assigneeId ? assigneeNameMap.get(normId(assigneeId)) ?? null : null;
           return {
-            id: 'th-' + c.id,
-            client: c.customer_name || c.customer_threads_id || 'Threads',
-            title: (c.last_message_body || 'Threads').slice(0, 100),
+            id: 'ig-' + c.id,
+            client: c.customer_name || c.customer_ig_id || 'Instagram',
+            title: (c.last_message_body || 'Instagram').slice(0, 100),
             services: leadRow?.services ?? null,
             category: leadRow?.category ?? '-',
             assignee: assigneeName as string | null,
             assignee_id: assigneeId,
-            fu_priority: c.fu_priority ?? null,
+            fu_priority: null,
             status_id: statusId,
-            source: 'Threads',
-            channel: 'threads',
-            followup: c.followup ?? 0,
+            source: 'Instagram',
+            channel: 'instagram',
+            followup: 0,
             template_followup_awaiting_reply: false,
             follow_up_cycle_reset_at: null,
             converted_at: null,
@@ -2240,15 +2291,15 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             created_by: '',
             created_by_name: '',
             organization_id: c.organization_id,
-            ticket_id: thTicketId,
+            ticket_id: igTicketId,
             lead_status: leadStatus,
             meta_session_expires_at: c.meta_session_expires_at ?? null,
-            _fromThreads: true as const,
+            _fromInstagram: true as const,
             _chatOpenedAt: null,
-            _customerThreadsId: (c.customer_threads_id ?? '') as string,
+            _customerIgId: (c.customer_ig_id ?? '') as string,
           };
         });
-        leadsWithStatus = [...leadsWithStatus, ...threadsAsLeads];
+        leadsWithStatus = [...leadsWithStatus, ...instagramAsLeads];
       }
 
       // Email: only show in leads list if they have a row in leads table (user clicked "Mark as lead" in livechat).
@@ -2644,97 +2695,78 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         }
         return lead;
       }
-      // Threads livechat virtual lead (id th-{convId})
-      if (lead?.id && String(lead.id).startsWith('th-')) {
-        const convId = String(lead.id).replace(/^th-/, '');
+      // Instagram DM virtual lead (id ig-{convId})
+      if (lead?.id && String(lead.id).startsWith('ig-')) {
+        const convId = String(lead.id).replace(/^ig-/, '');
         const onlyAssigneeUpdate = (lead as { _onlyAssigneeUpdate?: boolean })._onlyAssigneeUpdate === true;
         const nowIso = new Date().toISOString();
 
         if (onlyAssigneeUpdate) {
-          const thPatch: Record<string, unknown> = {
+          const igPatch: Record<string, unknown> = {
             assignee_id: lead.assignee_id ?? null,
             updated_at: nowIso,
           };
           const { data: auth } = await supabase.auth.getUser();
           const actorUserId = auth?.user?.id ?? null;
           if (actorUserId) {
-            thPatch.last_assigned_by_user_id = actorUserId;
-            thPatch.last_assigned_at = nowIso;
+            igPatch.last_assigned_by_user_id = actorUserId;
+            igPatch.last_assigned_at = nowIso;
           }
-          const { error: thUpdErr } = await supabase
-            .from('threads_conversations')
-            .update(thPatch)
+          const { error: igUpdErr } = await supabase
+            .from('instagram_conversations')
+            .update(igPatch)
             .eq('id', convId);
-          if (thUpdErr) throw thUpdErr;
-          const ticketId = (lead.ticket_id as string | undefined) ?? `TH-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+          if (igUpdErr) {
+            console.error('Error updating Instagram conversation assignee:', igUpdErr);
+            throw igUpdErr;
+          }
+          const ticketId = (lead.ticket_id as string | undefined) ?? `IG-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
           const orgId = lead.organization_id ?? organizationId;
           if (orgId && ticketId) {
             await supabase
               .from('leads')
-              .update({ assignee_id: lead.assignee_id ?? null, assignee: lead.assignee ?? '', updated_at: nowIso })
+              .update({
+                assignee_id: lead.assignee_id ?? null,
+                assignee: lead.assignee ?? '',
+                updated_at: nowIso,
+              })
               .eq('organization_id', orgId)
               .ilike('ticket_id', ticketId);
           }
-          queryClient.invalidateQueries({ queryKey: ['threads-conversation-status', convId] });
+          queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', convId] });
           queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
-          return { ...lead, assignee_id: lead.assignee_id ?? null, assignee: lead.assignee ?? '' };
+          return {
+            ...lead,
+            assignee_id: lead.assignee_id ?? null,
+            assignee: lead.assignee ?? '',
+          };
         }
 
         let safeStatusId: string | null = null;
         if (lead.status_id) {
-          const { data: statusExists } = await supabase.from('lead_statuses').select('id').eq('id', lead.status_id).maybeSingle();
+          const { data: statusExists } = await supabase
+            .from('lead_statuses')
+            .select('id')
+            .eq('id', lead.status_id)
+            .maybeSingle();
           if (statusExists?.id) safeStatusId = lead.status_id;
         }
-        const { data: convBefore } = await supabase
-          .from('threads_conversations')
-          .select('lead_status_id, assignee_id, ticket_id')
-          .eq('id', convId)
-          .maybeSingle();
-        const priorStatusId = (convBefore?.lead_status_id as string | null) ?? null;
-        const effectiveStatusId = safeStatusId ?? priorStatusId;
-        const statusChanged = safeStatusId != null && String(safeStatusId) !== String(priorStatusId ?? '');
-
-        let newStatusName = '';
-        if (effectiveStatusId) {
-          const { data: statusRow } = await supabase.from('lead_statuses').select('name').eq('id', effectiveStatusId).maybeSingle();
-          newStatusName = (statusRow?.name as string) ?? '';
+        const igPatch: Record<string, unknown> = { updated_at: nowIso };
+        if (safeStatusId) igPatch.lead_status_id = safeStatusId;
+        if (lead.assignee_id !== undefined) igPatch.assignee_id = lead.assignee_id ?? null;
+        const { error: igUpdErr } = await supabase
+          .from('instagram_conversations')
+          .update(igPatch)
+          .eq('id', convId);
+        if (igUpdErr) {
+          console.error('Error updating Instagram conversation:', igUpdErr);
+          throw igUpdErr;
         }
-        const clearAssigneeOnResolve = isResolvedStatus(newStatusName);
-        const thPatch: Record<string, unknown> = {
-          updated_at: nowIso,
-          assignee_id: clearAssigneeOnResolve ? null : (lead.assignee_id ?? null),
-        };
-        if (statusChanged && safeStatusId) thPatch.lead_status_id = safeStatusId;
-        const { error: thUpdErr } = await supabase.from('threads_conversations').update(thPatch).eq('id', convId);
-        if (thUpdErr) throw thUpdErr;
-
-        if (isResolvedStatus(newStatusName)) {
-          await supabase
-            .from('threads_conversation_cycles')
-            .update({ resolved_at: nowIso, updated_at: nowIso })
-            .eq('conversation_id', convId)
-            .is('resolved_at', null);
-        }
-        const orgId = lead.organization_id ?? organizationId;
-        const ticketId = (convBefore?.ticket_id as string) ?? `TH-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
-        if (orgId && statusChanged && safeStatusId) {
-          await supabase
-            .from('leads')
-            .update({
-              status_id: safeStatusId,
-              assignee_id: clearAssigneeOnResolve ? null : (lead.assignee_id ?? null),
-              assignee: clearAssigneeOnResolve ? '' : (lead.assignee ?? ''),
-              updated_at: nowIso,
-            })
-            .eq('organization_id', orgId)
-            .ilike('ticket_id', ticketId);
-        }
-        queryClient.invalidateQueries({ queryKey: ['threads-conversation-status', convId] });
+        queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', convId] });
         queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
-        if (clearAssigneeOnResolve) return { ...lead, assignee_id: null, assignee: '' };
         return lead;
       }
-      // WhatsApp / Instagram conversation virtual lead (id wa-{convId})
+      // WhatsApp / legacy Instagram-in-WA-table virtual lead (id wa-{convId})
       if (lead?.id && String(lead.id).startsWith('wa-')) {
         const convId = String(lead.id).replace(/^wa-/, '');
         const onlyAssigneeUpdate = (lead as { _onlyAssigneeUpdate?: boolean })._onlyAssigneeUpdate === true;

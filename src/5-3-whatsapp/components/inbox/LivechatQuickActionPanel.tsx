@@ -428,10 +428,6 @@ export function LivechatQuickActionPanel({
                 ? ((conversation as { customer_name?: string; customer_psid?: string }).customer_name
                   || (conversation as { customer_psid?: string }).customer_psid
                   || 'Messenger')
-                : conversation?.source === 'threads'
-                  ? ((conversation as { customer_name?: string; customer_threads_id?: string }).customer_name
-                    || (conversation as { customer_threads_id?: string }).customer_threads_id
-                    || 'Threads')
               : ((conversation as { customer_name?: string; customer_wa_id?: string }).customer_name
                 || (conversation as { customer_wa_id?: string }).customer_wa_id
                 || 'WhatsApp');
@@ -443,8 +439,6 @@ export function LivechatQuickActionPanel({
                 ? 'Instagram'
                 : conversation?.source === 'facebook'
                   ? 'Messenger'
-                  : conversation?.source === 'threads'
-                    ? 'Threads'
                   : 'WhatsApp';
           // Same as Status dropdown: no organization_id so RLS / shared statuses apply
           const { data: defaultStatusRows } = await supabase
@@ -641,9 +635,8 @@ export function LivechatQuickActionPanel({
   const isEmail = conversation?.source === 'email';
   const isInstagram = conversation?.source === 'instagram';
   const isFacebook = conversation?.source === 'facebook';
-  const isThreads = conversation?.source === 'threads';
   const isWhatsApp = conversation?.source === 'whatsapp';
-  const isMetaDm = isInstagram || isFacebook || isThreads;
+  const isMetaDm = isInstagram || isFacebook;
 
   useEnsureLivechatLeadStatuses(organizationId, Boolean(conversation && (isWhatsApp || isMetaDm)));
   const statusTable = isEmail
@@ -652,18 +645,14 @@ export function LivechatQuickActionPanel({
       ? 'instagram_conversations'
       : isFacebook
         ? 'facebook_conversations'
-        : isThreads
-          ? 'threads_conversations'
-          : 'whatsapp_conversations';
+        : 'whatsapp_conversations';
   const statusQueryKeyBase = isEmail
     ? 'email-conversation-status'
     : isInstagram
       ? 'instagram-conversation-status'
       : isFacebook
         ? 'facebook-conversation-status'
-        : isThreads
-          ? 'threads-conversation-status'
-          : 'whatsapp-conversation-status';
+        : 'whatsapp-conversation-status';
 
   const statusRowFromConversation = useMemo((): ConversationStatusSnapshot | null => {
     if (!conversation) return null;
@@ -850,9 +839,7 @@ export function LivechatQuickActionPanel({
       ? `email-${conversation.id}`
       : conversation.source === 'facebook'
         ? `fb-${conversation.id}`
-        : conversation.source === 'threads'
-          ? `th-${conversation.id}`
-          : `wa-${conversation.id}`
+        : `wa-${conversation.id}`
     : '';
   const leadTitle = conversation ? getLeadTitle(conversation, t) : '';
   // Only use a status id that exists in leadStatuses so Select stays controlled and we never send invalid FK
@@ -1309,7 +1296,6 @@ export function LivechatQuickActionPanel({
         ...(leadUuid && conversation.source === 'whatsapp' && { whatsapp_conversation_id: conversation.id }),
         ...(conversation.source === 'instagram' && { channel: 'instagram' }),
         ...(conversation.source === 'facebook' && { channel: 'facebook' }),
-        ...(conversation.source === 'threads' && { channel: 'threads' }),
       });
       const salesActivityId = isConverted
         ? getSalesActivityIdFromUpdateLeadResult(updateResult)

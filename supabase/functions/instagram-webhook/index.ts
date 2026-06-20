@@ -4,6 +4,7 @@ import {
   processFacebookMessengerEvents,
   resolveFacebookPageForWebhookEntry,
 } from "../_shared/facebookMessengerWebhook.ts";
+import { resolveInstagramDmRecipientId } from "../_shared/instagramMessagingRecipient.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -237,9 +238,15 @@ async function ensureLeadForNewInstagramConversation(
     .or(`organization_id.eq.${orgId},organization_id.is.null`)
     .eq("name", "Unread")
     .maybeSingle();
-  const statusId = unreadStatus?.id ?? null;
+  const { data: openStatus } = await supabase
+    .from("lead_statuses")
+    .select("id")
+    .or(`organization_id.eq.${orgId},organization_id.is.null`)
+    .eq("name", "Open")
+    .maybeSingle();
+  const statusId = openStatus?.id ?? unreadStatus?.id ?? null;
   if (!statusId) {
-    console.warn("ensureLeadForNewInstagramConversation: no Unread status, skip lead insert");
+    console.warn("ensureLeadForNewInstagramConversation: no Open/Unread status, skip lead insert");
     return;
   }
 
@@ -265,7 +272,11 @@ async function ensureLeadForNewInstagramConversation(
 }
 
 /** Inline: deploy bundle — avoid separate module import. */
-type LivechatPushTable = "whatsapp_messages" | "instagram_messages" | "facebook_messages" | "email_messages";
+type LivechatPushTable =
+  | "whatsapp_messages"
+  | "instagram_messages"
+  | "facebook_messages"
+  | "email_messages";
 
 type InstagramWebhookAccount = {
   organization_id: string;
@@ -273,6 +284,10 @@ type InstagramWebhookAccount = {
   instagram_username: string | null;
   instagram_name: string | null;
   instagram_business_account_id: string;
+  facebook_page_id: string;
+  threads_user_id: string | null;
+  threads_username: string | null;
+  has_threads: boolean | null;
 };
 
 type MessagingEvt = {
@@ -295,52 +310,226 @@ type MessagingEvt = {
 
 const SUPPORTED_INSTAGRAM_WEBHOOK_OBJECTS = new Set(["instagram", "page"]);
 
-async function resolveInstagramAccountByEntryId(
+const IG_ACCOUNT_SELECT =
+  "organization_id, page_access_token, instagram_username, instagram_name, instagram_business_account_id, facebook_page_id, threads_user_id, threads_username, has_threads";
+
+async function lookupInstagramAccountByField(
+  supabase: ReturnType<typeof createClient>,
+  field: "instagram_business_account_id" | "facebook_page_id",
+  value: string,
+): Promise<InstagramWebhookAccount | null> {
+  const { data, error } = await supabase
+    .from("organization_instagram_accounts")
+    .select(IG_ACCOUNT_SELECT)
+    .eq(field, value)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error(`[instagram-webhook] account lookup by ${field} error:`, error.message);
+  }
+  return data ? (data as InstagramWebhookAccount) : null;
+}
+
+/** Prefer recipient.id (inbox owner) when org has multiple IG accounts sharing one Threads profile. */
+async function resolveInstagramAccountForMessaging(
   supabase: ReturnType<typeof createClient>,
   entryId: string | null,
+  recipientId: string | null,
+  senderId: string | null = null,
 ): Promise<InstagramWebhookAccount | null> {
-  const select =
-    "organization_id, page_access_token, instagram_username, instagram_name, instagram_business_account_id, facebook_page_id";
-  const trimmed = entryId?.trim() ?? "";
+  const recipient = recipientId?.trim() ?? "";
+  const entry = entryId?.trim() ?? "";
+  const sender = senderId?.trim() ?? "";
 
-  if (trimmed) {
-    const { data: byIg, error: byIgErr } = await supabase
-      .from("organization_instagram_accounts")
-      .select(select)
-      .eq("instagram_business_account_id", trimmed)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-    if (byIgErr) {
-      console.error("[instagram-webhook] account lookup by ig id error:", byIgErr.message);
+  if (recipient) {
+    const byRecipient = await lookupInstagramAccountByField(
+      supabase,
+      "instagram_business_account_id",
+      recipient,
+    );
+    if (byRecipient) {
+      console.log("[instagram-webhook] matched account via recipient.id:", recipient);
+      return byRecipient;
     }
-    if (byIg) return byIg as InstagramWebhookAccount;
+  }
 
-    const { data: byPage, error: byPageErr } = await supabase
-      .from("organization_instagram_accounts")
-      .select(select)
-      .eq("facebook_page_id", trimmed)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-    if (byPageErr) {
-      console.error("[instagram-webhook] account lookup by page id error:", byPageErr.message);
+  if (sender) {
+    const bySender = await lookupInstagramAccountByField(
+      supabase,
+      "instagram_business_account_id",
+      sender,
+    );
+    if (bySender) {
+      console.log("[instagram-webhook] matched account via sender.id (business):", sender);
+      return bySender;
     }
+  }
+
+  if (entry) {
+    const byIg = await lookupInstagramAccountByField(
+      supabase,
+      "instagram_business_account_id",
+      entry,
+    );
+    if (byIg) return byIg;
+
+    const byPage = await lookupInstagramAccountByField(supabase, "facebook_page_id", entry);
     if (byPage) {
-      console.log("[instagram-webhook] matched account via facebook_page_id:", trimmed);
-      return byPage as InstagramWebhookAccount;
+      console.log("[instagram-webhook] matched account via facebook_page_id:", entry);
+      return byPage;
+    }
+
+    const { data: byThreadsList, error: byThreadsErr } = await supabase
+      .from("organization_instagram_accounts")
+      .select(IG_ACCOUNT_SELECT)
+      .eq("threads_user_id", entry)
+      .eq("is_active", true)
+      .eq("has_threads", true);
+    if (byThreadsErr) {
+      console.error("[instagram-webhook] account lookup by threads_user_id error:", byThreadsErr.message);
+    }
+    const threadsMatches = (byThreadsList ?? []) as InstagramWebhookAccount[];
+    if (threadsMatches.length === 1) {
+      console.log("[instagram-webhook] matched account via threads_user_id:", entry);
+      return threadsMatches[0];
+    }
+    if (threadsMatches.length > 1) {
+      if (recipient) {
+        const disambiguated = threadsMatches.find(
+          (row) => String(row.instagram_business_account_id).trim() === recipient,
+        );
+        if (disambiguated) {
+          console.log("[instagram-webhook] disambiguated shared threads_user_id via recipient:", recipient);
+          return disambiguated;
+        }
+      }
+      if (sender) {
+        const bySenderBiz = threadsMatches.find(
+          (row) => String(row.instagram_business_account_id).trim() === sender,
+        );
+        if (bySenderBiz) {
+          console.log("[instagram-webhook] disambiguated shared threads_user_id via sender.id:", sender);
+          return bySenderBiz;
+        }
+      }
+      console.warn(
+        "[instagram-webhook] ambiguous threads_user_id entry — multiple IG accounts; need recipient/sender.id",
+        {
+          entryId: entry,
+          recipientId: recipient || null,
+          senderId: sender || null,
+          accounts: threadsMatches.map((row) => row.instagram_username ?? row.instagram_business_account_id),
+        },
+      );
+      return null;
     }
   }
 
   const { data: singleAccount } = await supabase
     .from("organization_instagram_accounts")
-    .select(select)
+    .select(IG_ACCOUNT_SELECT)
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
   if (singleAccount) {
     console.log("[instagram-webhook] using single active account fallback");
     return singleAccount as InstagramWebhookAccount;
+  }
+  return null;
+}
+
+/** Echo DMs to another connected IG account often use the contact IGSID as recipient.id, not business account id. */
+async function resolveEchoBridgeInboxAccount(
+  supabase: ReturnType<typeof createClient>,
+  senderAccount: InstagramWebhookAccount,
+  recipientId: string,
+): Promise<InstagramWebhookAccount | null> {
+  const rid = recipientId.trim();
+  if (!rid) return null;
+
+  const byBiz = await lookupInstagramAccountByField(
+    supabase,
+    "instagram_business_account_id",
+    rid,
+  );
+  if (byBiz && byBiz.organization_id === senderAccount.organization_id) {
+    return byBiz;
+  }
+
+  const senderBizId = String(senderAccount.instagram_business_account_id).trim();
+  const { data: crossConv } = await supabase
+    .from("instagram_conversations")
+    .select("customer_name")
+    .eq("organization_id", senderAccount.organization_id)
+    .eq("instagram_business_account_id", senderBizId)
+    .eq("customer_ig_id", rid)
+    .maybeSingle();
+
+  if (!crossConv) return null;
+
+  const customerName = (crossConv as { customer_name?: string | null }).customer_name?.trim() ?? "";
+  const { data: siblings } = await supabase
+    .from("organization_instagram_accounts")
+    .select(IG_ACCOUNT_SELECT)
+    .eq("organization_id", senderAccount.organization_id)
+    .eq("is_active", true);
+
+  for (const row of siblings ?? []) {
+    const sibling = row as InstagramWebhookAccount;
+    const siblingBizId = String(sibling.instagram_business_account_id).trim();
+    if (siblingBizId === senderBizId) continue;
+    const uname = sibling.instagram_username?.trim();
+    if (uname && customerName.toLowerCase() === `@${uname.toLowerCase()}`) {
+      console.log("[instagram-webhook] echo bridge inbox via cross-conversation IGSID", {
+        recipientIgsid: rid,
+        inbox: uname,
+      });
+      return sibling;
+    }
+  }
+
+  const fallback = (siblings ?? []).find((row) => {
+    const sibling = row as InstagramWebhookAccount;
+    return String(sibling.instagram_business_account_id).trim() !== senderBizId;
+  }) as InstagramWebhookAccount | undefined;
+
+  if (fallback && (siblings ?? []).length === 2) {
+    console.log("[instagram-webhook] echo bridge inbox via sibling fallback", {
+      recipientIgsid: rid,
+      inbox: fallback.instagram_username,
+    });
+    return fallback;
+  }
+
+  return null;
+}
+
+async function lookupConnectedIgAccountInOrg(
+  supabase: ReturnType<typeof createClient>,
+  organizationId: string,
+  igScopedId: string,
+): Promise<{ customer_ig_id: string; customer_name: string | null } | null> {
+  const sid = igScopedId.trim();
+  if (!sid) return null;
+  const { data: rows } = await supabase
+    .from("organization_instagram_accounts")
+    .select("instagram_business_account_id, instagram_username, instagram_name")
+    .eq("organization_id", organizationId)
+    .eq("is_active", true);
+  for (const row of rows ?? []) {
+    const r = row as {
+      instagram_business_account_id: string;
+      instagram_username: string | null;
+      instagram_name: string | null;
+    };
+    if (String(r.instagram_business_account_id).trim() === sid) {
+      const uname = r.instagram_username?.trim();
+      return {
+        customer_ig_id: sid,
+        customer_name: uname ? `@${uname}` : (r.instagram_name?.trim() || null),
+      };
+    }
   }
   return null;
 }
@@ -572,39 +761,35 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      const account = await resolveInstagramAccountByEntryId(supabase, entryId);
-      if (!account) {
-        console.error(
-          "[instagram-webhook] config not found for entry id:",
-          entryId,
-          "— pastikan akun Instagram di-connect di halaman Connect Instagram.",
-        );
-        continue;
-      }
-
-      const effectiveId = String(account.instagram_business_account_id).trim();
-      console.log("[instagram-webhook] account found — ig id:", effectiveId, "org:", account.organization_id);
-      const orgId = account.organization_id;
-      if (!ensuredLivechatStatusOrgs.has(orgId)) {
-        const { error: ensureStatusErr } = await supabase.rpc("ensure_livechat_lead_statuses_for_org", {
-          p_organization_id: orgId,
-        });
-        if (ensureStatusErr) {
-          console.warn("[instagram-webhook] ensure_livechat_lead_statuses_for_org:", ensureStatusErr.message);
-        } else {
-          ensuredLivechatStatusOrgs.add(orgId);
-        }
-      }
-      const accessToken = (account.page_access_token ?? "").trim() || null;
-      const displayName =
-        (account.instagram_username ? "@" + account.instagram_username.trim() : null) ||
-        (account.instagram_name ?? "").trim() ||
-        "Instagram";
-
       type MessagingEvtLoop = MessagingEvt;
       for (const evt of messaging) {
         const e = evt as MessagingEvtLoop;
+
+        const recipientId = e.recipient?.id != null ? String(e.recipient.id).trim() : null;
         const senderId = e.sender?.id != null ? String(e.sender.id) : null;
+        let account = await resolveInstagramAccountForMessaging(supabase, entryId, recipientId, senderId);
+        if (!account) {
+          console.error(
+            "[instagram-webhook] config not found for entry/recipient/sender:",
+            { entryId, recipientId, senderId },
+            "— pastikan akun Instagram di-connect di halaman Connect Instagram.",
+          );
+          continue;
+        }
+
+        let effectiveId = String(account.instagram_business_account_id).trim();
+        let orgId = account.organization_id;
+        if (!ensuredLivechatStatusOrgs.has(orgId)) {
+          const { error: ensureStatusErr } = await supabase.rpc("ensure_livechat_lead_statuses_for_org", {
+            p_organization_id: orgId,
+          });
+          if (ensureStatusErr) {
+            console.warn("[instagram-webhook] ensure_livechat_lead_statuses_for_org:", ensureStatusErr.message);
+          } else {
+            ensuredLivechatStatusOrgs.add(orgId);
+          }
+        }
+        let accessToken = (account.page_access_token ?? "").trim() || null;
         const ts = e.timestamp != null ? new Date(Number(e.timestamp)).toISOString() : new Date().toISOString();
 
         // Read receipts (message_reads subscription)
@@ -702,8 +887,37 @@ Deno.serve(async (req: Request) => {
         }
 
         if (e.message?.is_echo) {
-          console.log("[instagram-webhook] skip: is_echo");
-          continue;
+          const echoRecipientInbox = recipientId
+            ? await resolveEchoBridgeInboxAccount(supabase, account, recipientId)
+            : null;
+          if (!echoRecipientInbox) {
+            console.log("[instagram-webhook] skip: is_echo (outbound to external customer)", {
+              senderId,
+              recipientId,
+              inbox: account.instagram_username,
+            });
+            continue;
+          }
+          console.log("[instagram-webhook] bridge is_echo to connected inbox", {
+            from: account.instagram_username,
+            to: echoRecipientInbox.instagram_username,
+            recipientId,
+            senderId,
+          });
+          account = echoRecipientInbox;
+          effectiveId = String(echoRecipientInbox.instagram_business_account_id).trim();
+          orgId = echoRecipientInbox.organization_id;
+          accessToken = (echoRecipientInbox.page_access_token ?? "").trim() || null;
+          if (!ensuredLivechatStatusOrgs.has(orgId)) {
+            const { error: ensureStatusErr } = await supabase.rpc("ensure_livechat_lead_statuses_for_org", {
+              p_organization_id: orgId,
+            });
+            if (ensureStatusErr) {
+              console.warn("[instagram-webhook] ensure_livechat_lead_statuses_for_org:", ensureStatusErr.message);
+            } else {
+              ensuredLivechatStatusOrgs.add(orgId);
+            }
+          }
         }
 
         const mid = e.message?.mid != null ? String(e.message.mid) : null;
@@ -732,32 +946,64 @@ Deno.serve(async (req: Request) => {
           console.log("[instagram-webhook] skip: no senderId");
           continue;
         }
-        const recipientId = e.recipient?.id != null ? String(e.recipient.id) : null;
         if (recipientId && recipientId !== effectiveId) {
-          console.log("[instagram-webhook] recipientId differs from entry id (continuing anyway)", { recipientId, effectiveId });
+          console.warn("[instagram-webhook] recipientId differs from resolved inbox account", {
+            recipientId,
+            effectiveId,
+            inbox: account.instagram_username,
+          });
         }
 
         const { body: bodyText, messageType } = getMessageBody(evt as Record<string, unknown>);
         const lastBody = bodyText.slice(0, 200);
 
+        let customerMessagingId = senderId!;
+        if (accessToken && account.facebook_page_id) {
+          customerMessagingId = await resolveInstagramDmRecipientId(
+            supabase,
+            orgId,
+            effectiveId,
+            senderId!,
+            String(account.facebook_page_id).trim(),
+            accessToken,
+          );
+        }
+
         const { data: existingConv } = await supabase
           .from("instagram_conversations")
-          .select("id, first_inbound_at, customer_name")
+          .select("id, first_inbound_at, customer_name, customer_ig_id")
           .eq("organization_id", orgId)
           .eq("instagram_business_account_id", effectiveId)
-          .eq("customer_ig_id", senderId)
+          .eq("customer_ig_id", customerMessagingId)
           .maybeSingle();
 
-        const existingName = (existingConv as { customer_name?: string | null } | null)?.customer_name?.trim() ?? "";
+        let existingConvResolved = existingConv;
+        if (!existingConvResolved && customerMessagingId !== senderId) {
+          const { data: legacyConv } = await supabase
+            .from("instagram_conversations")
+            .select("id, first_inbound_at, customer_name, customer_ig_id")
+            .eq("organization_id", orgId)
+            .eq("instagram_business_account_id", effectiveId)
+            .eq("customer_ig_id", senderId!)
+            .maybeSingle();
+          existingConvResolved = legacyConv;
+        }
+
+        const existingName = (existingConvResolved as { customer_name?: string | null } | null)?.customer_name?.trim() ?? "";
         let customerName = existingName || null;
-        if (!customerName && accessToken) {
-          customerName = await fetchInstagramSenderDisplayName(senderId, accessToken);
+        if (!customerName) {
+          const linkedSender = await lookupConnectedIgAccountInOrg(supabase, orgId, senderId!);
+          if (linkedSender?.customer_name) {
+            customerName = linkedSender.customer_name;
+          } else if (accessToken) {
+            customerName = await fetchInstagramSenderDisplayName(senderId!, accessToken);
+          }
         }
 
         const convPayload = {
           organization_id: orgId,
           instagram_business_account_id: effectiveId,
-          customer_ig_id: senderId,
+          customer_ig_id: customerMessagingId,
           customer_external_id: senderId,
           ...(customerName ? { customer_name: customerName } : {}),
           last_message_at: ts,
@@ -770,7 +1016,7 @@ Deno.serve(async (req: Request) => {
         };
 
         let conv: { id: string; first_inbound_at: string | null } | null = null;
-        if (existingConv) {
+        if (existingConvResolved) {
           const { data: updated } = await supabase
             .from("instagram_conversations")
             .update({
@@ -779,9 +1025,11 @@ Deno.serve(async (req: Request) => {
               last_message_direction: "inbound",
               last_inbound_at: ts,
               updated_at: ts,
+              customer_ig_id: customerMessagingId,
+              customer_external_id: senderId,
               ...(customerName && !existingName ? { customer_name: customerName } : {}),
             })
-            .eq("id", existingConv.id)
+            .eq("id", existingConvResolved.id)
             .select("id, first_inbound_at")
             .single();
           conv = updated;
@@ -827,6 +1075,9 @@ Deno.serve(async (req: Request) => {
             continue;
           }
           conv = inserted;
+          const createdByDisplayName = account.instagram_username?.trim()
+            ? `@${account.instagram_username.trim()}`
+            : (account.instagram_name?.trim() || "Instagram");
           await ensureLeadForNewInstagramConversation(
             supabase,
             orgId,
@@ -834,7 +1085,7 @@ Deno.serve(async (req: Request) => {
             customerName || "Instagram contact",
             lastBody || "Instagram",
             senderId,
-            displayName
+            createdByDisplayName
           );
           const { error: newCycleErr } = await supabase.from("instagram_conversation_cycles").insert({
             conversation_id: conv!.id,
@@ -911,7 +1162,7 @@ Deno.serve(async (req: Request) => {
         }
         await notifyLivechatInboundPush("instagram_messages", insertPayload);
 
-        if (!existingConv?.first_inbound_at && conv.first_inbound_at) {
+        if (!existingConvResolved?.first_inbound_at && conv.first_inbound_at) {
           await supabase
             .from("instagram_conversations")
             .update({ first_inbound_at: ts, updated_at: ts })
@@ -919,7 +1170,7 @@ Deno.serve(async (req: Request) => {
         }
 
         // Resolve-cycle: when existing conversation receives inbound, re-open to Open (Unread) if status is Closed/Resolve or null (same logic as whatsapp-webhook)
-        if (existingConv) {
+        if (existingConvResolved) {
           const { data: convRow } = await supabase
             .from("instagram_conversations")
             .select("lead_status_id")

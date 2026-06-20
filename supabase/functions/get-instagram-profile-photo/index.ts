@@ -93,15 +93,31 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const { data: linkedBizAcc } = await supabaseAdmin
+      .from("organization_instagram_accounts")
+      .select("instagram_business_account_id")
+      .eq("organization_id", conv.organization_id)
+      .eq("instagram_business_account_id", conv.customer_ig_id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    const isIgBusinessAccount = Boolean(linkedBizAcc?.instagram_business_account_id);
+    const profileField = isIgBusinessAccount ? "profile_picture_url" : "profile_pic";
+
     const graphUrl =
       `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(conv.customer_ig_id)}` +
-      `?fields=${encodeURIComponent("profile_pic")}` +
+      `?fields=${encodeURIComponent(profileField)}` +
       `&access_token=${encodeURIComponent(accessToken)}`;
 
     const graphRes = await fetch(graphUrl, { method: "GET" });
-    const graphData = await graphRes.json().catch(() => ({})) as { profile_pic?: string; error?: { message?: string } };
+    const graphData = await graphRes.json().catch(() => ({})) as {
+      profile_pic?: string;
+      profile_picture_url?: string;
+      error?: { message?: string };
+    };
 
-    const profileUrl = typeof graphData.profile_pic === "string" ? graphData.profile_pic.trim() : "";
+    const profileUrlRaw = isIgBusinessAccount ? graphData.profile_picture_url : graphData.profile_pic;
+    const profileUrl = typeof profileUrlRaw === "string" ? profileUrlRaw.trim() : "";
     if (!graphRes.ok || !profileUrl) {
       return new Response(JSON.stringify({ error: "Profile picture not available" }), {
         status: 404,

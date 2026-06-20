@@ -148,7 +148,7 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
   const { t } = useAppTranslation();
   const { employee } = useCentralizedUserData();
   const currentEmployeeId = employee?.id ?? null;
-  const { data: convStatus } = useQuery({
+  const { data: convStatus, isSuccess: convStatusLoaded } = useQuery({
     queryKey: ['email-conversation-status', conversation.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -161,9 +161,11 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
     },
     refetchInterval: 5000,
   });
-  const conversationAssigneeId = convStatus?.assignee_id ?? null;
-  const sendBlockedUnassigned = isConversationUnassigned(conversationAssigneeId);
-  const sendBlockedNotAssignee = isAssignedToOtherAgent(conversationAssigneeId, currentEmployeeId);
+  const conversationAssigneeId = convStatusLoaded ? (convStatus?.assignee_id ?? null) : null;
+  const sendBlockedUnassigned =
+    convStatusLoaded && isConversationUnassigned(conversationAssigneeId);
+  const sendBlockedNotAssignee =
+    convStatusLoaded && isAssignedToOtherAgent(conversationAssigneeId, currentEmployeeId);
   const sendBlocked = sendBlockedUnassigned || sendBlockedNotAssignee;
 
   const { data: assigneeEmployeeRow } = useQuery({

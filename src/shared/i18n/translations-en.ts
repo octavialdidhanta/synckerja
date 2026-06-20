@@ -2063,6 +2063,8 @@ export const enTranslations: TranslationDictionary = {
   "facebookConnect.disconnect": "Disconnect",
   "facebookConnect.disconnected": "Disconnected",
   "facebookConnect.loading": "Loading…",
+  "facebookConnect.oauthPagePickerHint": "After Connect: (1) choose Edit settings (not Continue only), (2) check the Facebook Page(s) to connect — this step uses pages_show_list, (3) Continue, (4) if you see Instagram accounts you can go Back to Pages or continue, (5) connected Pages appear on the right.",
+  "facebookConnect.oauthScopesLabel": "OAuth scopes:",
   "instagramConnect.zeroAccountsWarning": "Login succeeded but no Instagram Business account was found.",
   "instagramConnect.zeroAccountsChecklist.pageLinked": "Facebook Page must be linked to an Instagram Business Account in Meta Business Suite.",
   "instagramConnect.zeroAccountsChecklist.pageAdmin": "Your Facebook login must have admin access to that Page.",

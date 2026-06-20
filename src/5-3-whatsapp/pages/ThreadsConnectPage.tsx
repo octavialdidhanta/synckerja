@@ -125,14 +125,14 @@ export function ThreadsConnectPage() {
                                     <Card className="border-slate-200">
                                       <CardHeader className="pb-2">
                                         <CardTitle className="text-base">
-                                          {t('threadsConnect.livechatTitle', 'Threads Live Chat')}
+                                          {t('threadsConnect.manageCommentsTitle', 'Kelola komentar Threads')}
                                         </CardTitle>
                                       </CardHeader>
                                       <CardContent className="space-y-2 text-sm text-muted-foreground">
                                         <p>
                                           {t(
-                                            'threadsConnect.livechatV1Copy',
-                                            'Versi ini menampilkan balasan & mention publik ke post Threads di livechat (ticket TH-*). Private DM Threads belum tersedia di Meta API — akan ditambahkan saat Meta membuka Messaging API.',
+                                            'threadsConnect.manageCommentsCopy',
+                                            'Threads terhubung untuk insights, balasan publik, dan Manage Comments. Private DM Threads belum didukung API Meta — gunakan Instagram Live Chat untuk pesan DM.',
                                           )}
                                         </p>
                                         <WebhookInfoDisplay embedded variant="threads" />
