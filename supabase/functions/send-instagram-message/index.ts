@@ -11,7 +11,7 @@ import {
   jsonGateError,
   resolveEmployeeForOmnichannelSend,
 } from "./omnichannelAssigneeGate.ts";
-import { resolveInstagramDmRecipientId } from "../_shared/instagramMessagingRecipient.ts";
+import { resolveInstagramDmRecipientIdWithRetry } from "../_shared/instagramMessagingRecipient.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +21,52 @@ const corsHeaders: Record<string, string> = {
 };
 
 const META_GRAPH_VERSION = "v21.0";
+
+function uniqueRecipientIds(...ids: Array<string | null | undefined>): string[] {
+  return [...new Set(ids.map((id) => (id ?? "").trim()).filter(Boolean))];
+}
+
+async function postInstagramMessageToMeta(
+  pageId: string,
+  tokenToUse: string,
+  recipientId: string,
+  messagePayload: Record<string, unknown>,
+  replyToMid: string | null,
+): Promise<{
+  ok: boolean;
+  status: number;
+  data: { recipient_id?: string; message_id?: string; error?: { message?: string; code?: number; error_subcode?: number; type?: string } };
+}> {
+  const metaPayload: Record<string, unknown> = {
+    recipient: { id: recipientId },
+    message: messagePayload,
+  };
+  if (replyToMid) {
+    metaPayload.reply_to = { mid: replyToMid };
+  }
+  const metaUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}/messages`;
+  const metaRes = await fetch(metaUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenToUse}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(metaPayload),
+  });
+  const rawBody = await metaRes.text();
+  const metaData = (() => {
+    try {
+      return (rawBody ? JSON.parse(rawBody) : {}) as {
+        recipient_id?: string;
+        message_id?: string;
+        error?: { message?: string; code?: number; error_subcode?: number; type?: string };
+      };
+    } catch {
+      return {};
+    }
+  })();
+  return { ok: metaRes.ok, status: metaRes.status, data: metaData };
+}
 
 async function markInstagramConversationExpiredReactive(
   supabase: ReturnType<typeof createClient>,
@@ -261,13 +307,17 @@ Deno.serve(async (req: Request) => {
       lead_status_id: string | null;
       meta_session_expires_at: string | null;
       assignee_id: string | null;
+      customer_ig_id?: string | null;
+      customer_external_id?: string | null;
     } | null = null;
 
     // 1) When conversation_id is provided we MUST use the same Page that owns the conversation (avoids Meta #100 "No matching user found")
     if (conversationId) {
       const { data: conv } = await supabase
         .from("instagram_conversations")
-        .select("organization_id, instagram_business_account_id, lead_status_id, meta_session_expires_at, assignee_id")
+        .select(
+          "organization_id, instagram_business_account_id, lead_status_id, meta_session_expires_at, assignee_id, customer_ig_id, customer_external_id",
+        )
         .eq("id", conversationId)
         .maybeSingle();
       convRow = conv ?? null;
@@ -479,25 +529,35 @@ Deno.serve(async (req: Request) => {
     const tokenToUse = resolved.tokenToUse;
 
     let recipientId = to;
+    const storedExternalId = (convRow?.customer_external_id ?? "").trim();
+    const storedIgId = (convRow?.customer_ig_id ?? to).trim();
+    const seedRecipient = storedIgId || to;
+
     if (conversationId && convRow?.organization_id && convRow?.instagram_business_account_id) {
-      recipientId = await resolveInstagramDmRecipientId(
+      recipientId = await resolveInstagramDmRecipientIdWithRetry(
         supabase,
         convRow.organization_id,
         String(convRow.instagram_business_account_id),
-        to,
+        seedRecipient,
         pageId,
         tokenToUse,
+        {
+          altCustomerIds: uniqueRecipientIds(to, storedExternalId, storedIgId),
+          attempts: 4,
+          delayMs: 600,
+        },
       );
-      if (recipientId !== to) {
-        console.log("send-instagram-message: resolved connected-account recipient", {
-          from: to.slice(0, 8) + "...",
-          to: recipientId.slice(0, 8) + "...",
-        });
+
+      const canonicalExternal = storedExternalId || to;
+      if (
+        recipientId !== seedRecipient ||
+        (storedExternalId && recipientId !== storedExternalId)
+      ) {
         await supabase
           .from("instagram_conversations")
           .update({
             customer_ig_id: recipientId,
-            customer_external_id: to,
+            customer_external_id: canonicalExternal,
             updated_at: new Date().toISOString(),
           })
           .eq("id", conversationId);
@@ -516,40 +576,66 @@ Deno.serve(async (req: Request) => {
       messagePayload.text = outboundText;
     }
 
-    const metaPayload: Record<string, unknown> = {
-      recipient: { id: recipientId },
-      message: messagePayload,
-    };
-    if (replyToMid) {
-      metaPayload.reply_to = { mid: replyToMid };
-    }
-
-    const metaUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}/messages`;
     console.log("send-instagram-message: calling Meta API", {
       conversation_id: conversationId ? conversationId.slice(0, 8) + "..." : null,
       page_id_prefix: pageId.slice(0, 8) + "...",
       recipient_id_prefix: recipientId.slice(0, 8) + "...",
     });
 
-    let metaRes: Response;
-    let metaData: { recipient_id?: string; message_id?: string; error?: { message?: string; code?: number; error_subcode?: number; type?: string } };
+    let metaResOk = false;
+    let metaStatus = 502;
+    let metaData: {
+      recipient_id?: string;
+      message_id?: string;
+      error?: { message?: string; code?: number; error_subcode?: number; type?: string };
+    } = {};
+
     try {
-      metaRes = await fetch(metaUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${tokenToUse}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(metaPayload),
-      });
-      const rawBody = await metaRes.text();
-      metaData = (() => {
-        try {
-          return (rawBody ? JSON.parse(rawBody) : {}) as typeof metaData;
-        } catch {
-          return {};
+      const maxSendAttempts = conversationId && convRow ? 3 : 1;
+      for (let attempt = 0; attempt < maxSendAttempts; attempt++) {
+        if (attempt > 0 && conversationId && convRow?.organization_id && convRow?.instagram_business_account_id) {
+          recipientId = await resolveInstagramDmRecipientIdWithRetry(
+            supabase,
+            convRow.organization_id,
+            String(convRow.instagram_business_account_id),
+            seedRecipient,
+            pageId,
+            tokenToUse,
+            {
+              altCustomerIds: uniqueRecipientIds(to, storedExternalId, storedIgId),
+              attempts: 4,
+              delayMs: 800,
+            },
+          );
+          await supabase
+            .from("instagram_conversations")
+            .update({
+              customer_ig_id: recipientId,
+              customer_external_id: storedExternalId || to,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", conversationId);
         }
-      })();
+
+        const result = await postInstagramMessageToMeta(
+          pageId,
+          tokenToUse,
+          recipientId,
+          messagePayload,
+          replyToMid,
+        );
+        metaResOk = result.ok;
+        metaStatus = result.status;
+        metaData = result.data;
+
+        const errCode = metaData?.error?.code;
+        if (metaResOk) break;
+        if (errCode !== 100 || attempt >= maxSendAttempts - 1) break;
+        console.warn("send-instagram-message: Meta #100, retrying recipient resolve", {
+          attempt: attempt + 1,
+          recipient_id_prefix: recipientId.slice(0, 8) + "...",
+        });
+      }
     } catch (fetchErr) {
       const msg = fetchErr instanceof Error ? fetchErr.message : "Meta API request failed";
       console.error("send-instagram-message: Meta fetch error", msg, fetchErr);
@@ -563,14 +649,14 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log("send-instagram-message: Meta response", {
-      ok: metaRes.ok,
-      status: metaRes.status,
+      ok: metaResOk,
+      status: metaStatus,
       message_id: metaData?.message_id ?? null,
       error: metaData?.error?.message ?? null,
       error_code: metaData?.error?.code ?? null,
     });
 
-    if (!metaRes.ok) {
+    if (!metaResOk) {
       const rawMsg = metaData?.error?.message ?? "Meta API error";
       const code = metaData?.error?.code;
       const subcode = metaData?.error?.error_subcode;
@@ -592,7 +678,7 @@ Deno.serve(async (req: Request) => {
       // Log full Meta error for debugging (no PII)
       console.error("send-instagram-message: Meta API error full", JSON.stringify({ code, subcode, type: errorType, message: rawMsg }));
       // Use 400 for Meta client errors (invalid request, token, permission) so client can show message; 502 for rate limit / server-side
-      const statusFromMeta = metaRes.status >= 400 && metaRes.status < 500 ? 400 : 502;
+      const statusFromMeta = metaStatus >= 400 && metaStatus < 500 ? 400 : 502;
       return new Response(
         JSON.stringify({
           error: errMsg,

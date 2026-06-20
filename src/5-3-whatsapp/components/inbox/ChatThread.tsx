@@ -1418,7 +1418,10 @@ export function ChatThread({
   const isMetaDmConversation = isMetaDm;
   const isSending = isSendingWhatsApp || isSendingInstagram || isSendingFacebook;
   const customerId = isInstagram
-    ? (conversation as InstagramConversation)?.customer_ig_id
+    ? (
+        (conversation as InstagramConversation)?.customer_external_id?.trim()
+        || (conversation as InstagramConversation)?.customer_ig_id
+      )
     : isFacebook
       ? (conversation as FacebookConversation)?.customer_psid
       : (conversation as WhatsAppConversation)?.customer_wa_id;
