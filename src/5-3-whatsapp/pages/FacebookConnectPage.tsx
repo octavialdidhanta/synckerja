@@ -10,7 +10,6 @@ import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatus
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 import { CONNECT_FACEBOOK_PATH } from '../constants/omnichannelIntegrationPaths';
-import { META_FACEBOOK_PAGE_OAUTH_SCOPE_LIST } from '@/meta-platform/constants/metaOAuthScopes';
 import { FacebookConnectPageSkeleton } from '../skeletons/FacebookConnectPageSkeleton';
 import { useFacebookConnectPageSkeletonGate } from '../hooks/useFacebookConnectPageSkeletonGate';
 import { useQueryClient } from '@tanstack/react-query';
@@ -140,15 +139,11 @@ export function FacebookConnectPage() {
                                 </p>
                               ) : (
                                 <>
-                                <p className="text-xs leading-relaxed text-slate-600">
+                                <p className="text-xs text-slate-600">
                                   {t(
                                     'facebookConnect.oauthPagePickerHint',
-                                    'Setelah klik Connect: (1) pilih Edit settings (bukan Continue saja), (2) centang Facebook Page yang ingin dihubungkan — layar ini memakai permission pages_show_list, (3) lanjutkan step Instagram jika muncul, (4) selesai — Page muncul di kolom kanan.',
+                                    'Pilih Facebook Page di popup Meta, lalu Continue.',
                                   )}
-                                </p>
-                                <p className="text-[11px] text-slate-500">
-                                  {t('facebookConnect.oauthScopesLabel', 'Scopes:')}{' '}
-                                  {META_FACEBOOK_PAGE_OAUTH_SCOPE_LIST.join(', ')}
                                 </p>
                                 <Button
                                   type="button"
@@ -182,19 +177,14 @@ export function FacebookConnectPage() {
                                     {isSubscribingWebhooks ? (
                                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     ) : null}
-                                    {t('facebookConnect.enableMessengerWebhooks', 'Enable Messenger webhooks')}
+                                    {t('facebookConnect.enableMessengerWebhooks', 'Aktifkan webhook Messenger')}
                                   </Button>
-                                  <p className="text-xs leading-relaxed text-slate-600">
-                                    {t(
-                                      'facebookConnect.metaMessengerSetupHint',
-                                      'Di Meta → Messenger → API Settings: (1) scroll field messages → toggle Subscribe ON (Test saja tidak cukup), (2) Step 2 tambahkan Page Octa Vialdi, (3) mode Dev → pengirim harus Tester app.',
-                                    )}
-                                  </p>
                                   <MetaScopeStatusCards
                                     accounts={connectedPages}
-                                    features={['pages', 'comments', 'insights', 'messenger_dm']}
+                                    features={['messenger_dm', 'comments', 'insights']}
+                                    compact
                                   />
-                                  <WebhookInfoDisplay variant="facebook" embedded />
+                                  <WebhookInfoDisplay variant="facebook" embedded compact />
                                 </>
                               )}
                             </CardContent>

@@ -181,6 +181,7 @@ export interface InstagramConversation {
   id: string;
   organization_id: string;
   customer_ig_id: string;
+  customer_external_id?: string | null;
   customer_name: string | null;
   last_message_at: string | null;
   last_message_body: string | null;

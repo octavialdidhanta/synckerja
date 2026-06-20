@@ -73,6 +73,9 @@ export default defineConfig(({ mode }) => {
   const metaFacebookOAuthConfigId =
     normalizeViteEnv(process.env.VITE_META_FACEBOOK_OAUTH_CONFIG_ID) ||
     normalizeViteEnv(fileEnv.VITE_META_FACEBOOK_OAUTH_CONFIG_ID);
+  const devHttps =
+    normalizeViteEnv(process.env.VITE_DEV_HTTPS) === "1" ||
+    normalizeViteEnv(fileEnv.VITE_DEV_HTTPS) === "1";
 
   return {
   envDir,
@@ -89,11 +92,13 @@ export default defineConfig(({ mode }) => {
   server: {
     host: "::",
     port: 8080,
+    ...(devHttps ? { https: {} } : {}),
     hmr: {
       overlay: false,
     },
   },
   plugins: [
+    ...(devHttps ? [basicSsl()] : []),
     omnichannelApiDocsPlugin(),
     legacyFeaturesShareResolve(),
     react(),

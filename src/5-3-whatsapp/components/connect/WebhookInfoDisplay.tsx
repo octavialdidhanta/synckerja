@@ -7,6 +7,7 @@ import { useInstagramAccounts } from '../../hooks/useInstagramAccounts';
 import { useFacebookPages } from '../../hooks/useFacebookPages';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { SUPABASE_URL } from '@/shared/lib/supabaseClient';
+import { cn } from '@/shared/lib/utils';
 import { Link2, Key, Info } from 'lucide-react';
 
 const WHATSAPP_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
@@ -16,6 +17,8 @@ const THREADS_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/threads-webhook`;
 interface WebhookInfoDisplayProps {
   /** When true, no top border (e.g. when inside a single Card with other sections) */
   embedded?: boolean;
+  /** Shorter layout — hides step-by-step boxes (Facebook/Threads). */
+  compact?: boolean;
   /** 'whatsapp' | 'instagram' | 'facebook' | 'threads'. Messenger uses instagram-webhook URL. */
   variant?: 'whatsapp' | 'instagram' | 'facebook' | 'threads';
 }
@@ -24,7 +27,7 @@ function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text);
 }
 
-export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookInfoDisplayProps) {
+export function WebhookInfoDisplay({ embedded, compact, variant = 'whatsapp' }: WebhookInfoDisplayProps) {
   const { config, ensureInstagramVerifyToken } = useWhatsAppConfig();
   const { accounts: igAccounts } = useInstagramAccounts();
   const { pages: fbPages } = useFacebookPages();
@@ -72,9 +75,13 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
 
   return (
     <div className={embedded ? 'pt-0' : 'pt-4 border-t border-dashed border-gray-300'}>
-      <div className="flex items-center gap-2 mb-4">
+      <div className={cn('flex items-center gap-2', compact ? 'mb-2' : 'mb-4')}>
         <Link2 className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
-        <h3 className="text-sm font-semibold text-slate-800">{t('whatsappConnect.webhookConfigTitle', 'Webhook configuration')}</h3>
+        <h3 className="text-sm font-semibold text-slate-800">
+          {compact
+            ? t('facebookConnect.webhookCompactTitle', 'Webhook Meta')
+            : t('whatsappConnect.webhookConfigTitle', 'Webhook configuration')}
+        </h3>
         {isMetaWebhook && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -92,7 +99,9 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
                   : isFacebook
                   ? t(
                       'facebookConnect.webhookReceiveHint',
-                      'Agar Messenger masuk ke livechat: di Meta Developer → App → Webhooks, pilih product Page (bukan User), isi Callback URL dan Verify Token di bawah, Verify and Save, lalu subscribe messages.',
+                      compact
+                        ? 'Meta Developer → Webhooks → product Page → paste URL & token → subscribe messages.'
+                        : 'Agar Messenger masuk ke livechat: di Meta Developer → App → Webhooks, pilih product Page (bukan User), isi Callback URL dan Verify Token di bawah, Verify and Save, lalu subscribe messages.',
                     )
                   : t(
                       'instagramConnect.webhookReceiveHint',
@@ -136,7 +145,7 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
           </ol>
         </div>
       )}
-      {isFacebook && (
+      {isFacebook && !compact && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-xs leading-relaxed text-amber-950">
           <p className="font-semibold">
             {t('facebookConnect.webhookPageNotUserTitle', 'Penting: pilih product "Page", bukan "User"')}
@@ -201,7 +210,7 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
               </Button>
             )}
           </div>
-          {isMetaWebhook && verifyToken && (
+          {isMetaWebhook && verifyToken && !compact && (
             <p className="text-xs text-slate-500 leading-relaxed">
               {t(
                 isFacebook ? 'facebookConnect.verifyTokenReverifyHint' : 'instagramConnect.verifyTokenReverifyHint',

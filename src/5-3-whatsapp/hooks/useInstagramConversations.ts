@@ -4,6 +4,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { devLog } from '@/shared/lib/logger';
 import { toast } from 'sonner';
+import { dedupeInstagramConversations } from '../lib/dedupeInstagramConversations';
 import type { InstagramConversation } from '../types';
 
 const QUERY_KEY = ['instagram-conversations'] as const;
@@ -71,7 +72,7 @@ export function useInstagramConversations() {
         p_organization_id: organizationId,
       });
       if (error) throw error;
-      return (data ?? []) as InstagramConversation[];
+      return dedupeInstagramConversations((data ?? []) as InstagramConversation[]);
     },
     refetchInterval: 20000,
     refetchOnWindowFocus: false,

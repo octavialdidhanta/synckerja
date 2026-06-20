@@ -5,6 +5,7 @@ import {
   subscribeInstagramPageToWebhooks,
   type InstagramPageSubscribeResult,
 } from "../_shared/metaInstagramPageSubscribe.ts";
+import { dedupeOrganizationInstagramAccountsByUsername, normalizeInstagramUsername, pickCanonicalInstagramBusinessAccountId } from "../_shared/instagramAccountDedupe.ts";
 import {
   fetchGrantedPermissions,
   metaGraphVersion,
@@ -41,6 +42,33 @@ type PageRow = {
   igUsername: string | null;
   igName: string | null;
 };
+
+/** Meta FBE can surface two business IDs for the same @username — keep one Page row per username. */
+function dedupePageRowsByIgUsername(pageRows: PageRow[]): PageRow[] {
+  const byUsername = new Map<string, PageRow>();
+  const passthrough: PageRow[] = [];
+
+  for (const row of pageRows) {
+    if (!row.igId) {
+      passthrough.push(row);
+      continue;
+    }
+    const uname = normalizeInstagramUsername(row.igUsername);
+    if (!uname) {
+      passthrough.push(row);
+      continue;
+    }
+    const prev = byUsername.get(uname);
+    if (!prev) {
+      byUsername.set(uname, row);
+      continue;
+    }
+    const canonicalId = pickCanonicalInstagramBusinessAccountId([prev.igId!, row.igId!]);
+    byUsername.set(uname, canonicalId === prev.igId ? prev : row);
+  }
+
+  return [...passthrough, ...byUsername.values()];
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -205,11 +233,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const pagesToSync = dedupePageRowsByIgUsername(pages);
     const webhookSubscribeResults: InstagramPageSubscribeResult[] = [];
     let igAccountsSynced = 0;
     let fbPagesSynced = 0;
 
-    for (const row of pages) {
+    for (const row of pagesToSync) {
       if (row.igId) {
         const { data: existingIg } = await supabaseAdmin
           .from("organization_instagram_accounts")
@@ -312,6 +341,18 @@ Deno.serve(async (req: Request) => {
     const accountsSynced = igAccountsSynced;
     const totalPagesSynced = igAccountsSynced + fbPagesSynced;
     const webhookSubscribedCount = webhookSubscribeResults.filter((r) => r.success).length;
+
+    const deactivatedDuplicateIgAccounts = await dedupeOrganizationInstagramAccountsByUsername(
+      supabaseAdmin,
+      orgId,
+    );
+    if (deactivatedDuplicateIgAccounts > 0) {
+      console.log(
+        "meta-oauth-exchange: deactivated duplicate IG accounts by username",
+        deactivatedDuplicateIgAccounts,
+      );
+    }
+
     const responseBody: Record<string, unknown> = {
       success: true,
       message: accountsSynced > 0 || fbPagesSynced > 0

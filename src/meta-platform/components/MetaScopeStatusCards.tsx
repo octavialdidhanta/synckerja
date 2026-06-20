@@ -17,6 +17,8 @@ type MetaScopeStatusCardsProps = {
   accounts: ScopeStatusAccount[];
   /** When set, only these permission cards are shown. */
   features?: MetaScopeFeature[];
+  /** Hide section title for tighter layouts. */
+  compact?: boolean;
 };
 
 function parseGrantedScopes(account: ScopeStatusAccount): string[] {
@@ -44,7 +46,7 @@ const FEATURE_LINKS: Record<keyof typeof META_SCOPE_FEATURE_MAP, string> = {
   threads_replies: '/digital-marketing/social-media-performance/manage-comments/threads',
 };
 
-export function MetaScopeStatusCards({ accounts, features: featuresFilter }: MetaScopeStatusCardsProps) {
+export function MetaScopeStatusCards({ accounts, features: featuresFilter, compact }: MetaScopeStatusCardsProps) {
   const { t } = useAppTranslation();
   if (accounts.length === 0) return null;
 
@@ -55,10 +57,12 @@ export function MetaScopeStatusCards({ accounts, features: featuresFilter }: Met
     (Object.keys(META_SCOPE_FEATURE_MAP) as MetaScopeFeature[]);
 
   return (
-    <div className="space-y-2 border-t border-slate-200 pt-4">
-      <p className="text-xs font-medium text-slate-700">
-        {t('metaPlatform.scopeStatus.title', 'Meta permissions status')}
-      </p>
+    <div className={cn('space-y-2', !compact && 'border-t border-slate-200 pt-4')}>
+      {!compact && (
+        <p className="text-xs font-medium text-slate-700">
+          {t('metaPlatform.scopeStatus.title', 'Meta permissions status')}
+        </p>
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         {features.map((feature) => {
           const missing = missingScopesForFeature(granted, feature);

@@ -16,6 +16,7 @@ import { InstagramConnectPageSkeleton } from '../skeletons/InstagramConnectPageS
 import { useInstagramConnectPageSkeletonGate } from '../hooks/useInstagramConnectPageSkeletonGate';
 import { Instagram, CheckCircle2, Unplug, Loader2, Facebook } from 'lucide-react';
 import { toast } from 'sonner';
+import { buildMetaOAuthDialogUrl } from '@/meta-platform/constants/buildMetaOAuthDialogUrl';
 import { META_BUSINESS_OAUTH_SCOPES } from '@/meta-platform/constants/metaOAuthScopes';
 import { getMetaInstagramOAuthConfigId } from '@/meta-platform/constants/metaOAuthEnv';
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
@@ -206,18 +207,27 @@ export function InstagramConnectPage() {
         setOauthLoading(false);
         return;
       }
+      if (!redirectUri.startsWith('https://')) {
+        toast.error(
+          t(
+            'facebookConnect.oauthHttpsRequired',
+            'OAuth Facebook/Instagram wajib HTTPS. Buka https://localhost:8080 (npm run dev:https) atau https://office.synckerja.com.',
+          ),
+          { duration: 14000 },
+        );
+        setOauthLoading(false);
+        return;
+      }
       const state = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       oauthStateRef.current = state;
-      const params = new URLSearchParams({
-        client_id: metaAppId,
-        redirect_uri: redirectUri,
-        scope: META_OAUTH_SCOPE,
+      const url = buildMetaOAuthDialogUrl({
+        appId: metaAppId,
+        redirectUri,
         state,
+        configId: metaOAuthConfigId,
+        scope: META_OAUTH_SCOPE,
+        graphVersion: META_OAUTH_VERSION,
       });
-      params.set('display', 'page');
-      params.set('response_type', 'token');
-      if (metaOAuthConfigId) params.set('config_id', metaOAuthConfigId);
-      const url = `https://www.facebook.com/${META_OAUTH_VERSION}/dialog/oauth?${params.toString()}`;
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -258,7 +268,16 @@ export function InstagramConnectPage() {
         stopOAuthPopupPoll();
         clearMetaOAuthPopupFlag();
         setOauthLoading(false);
-        toast.error(data.error_description || data.error || t('instagramConnect.oauthDenied', 'Login cancelled or denied.'));
+        const isInvalidScope = data.error === 'invalid_scope';
+        toast.error(
+          isInvalidScope
+            ? t(
+                'instagramConnect.oauthInvalidScope',
+                'Meta rejected permissions (invalid_scope). In App Dashboard → App Review → Permissions, ensure every permission in your Instagram config is Added, then try Connect again.',
+              )
+            : data.error_description || data.error || t('instagramConnect.oauthDenied', 'Login cancelled or denied.'),
+          { duration: isInvalidScope ? 14000 : 8000 },
+        );
         return;
       }
       const token = data.long_lived_token || data.access_token;

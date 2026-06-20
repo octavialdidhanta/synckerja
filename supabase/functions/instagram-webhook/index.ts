@@ -5,6 +5,7 @@ import {
   resolveFacebookPageForWebhookEntry,
 } from "../_shared/facebookMessengerWebhook.ts";
 import { resolveInstagramDmRecipientId } from "../_shared/instagramMessagingRecipient.ts";
+import { instagramConversationCustomerDedupeKey } from "../_shared/instagramAccountDedupe.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -505,6 +506,78 @@ async function resolveEchoBridgeInboxAccount(
   return null;
 }
 
+type ExistingInstagramConvRow = {
+  id: string;
+  first_inbound_at: string | null;
+  customer_name: string | null;
+  customer_ig_id: string;
+};
+
+async function findExistingInstagramConversation(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  inboxBusinessAccountId: string,
+  customerMessagingId: string,
+  senderId: string,
+  customerName: string | null,
+): Promise<ExistingInstagramConvRow | null> {
+  const tryIds = [...new Set([customerMessagingId.trim(), senderId.trim()].filter(Boolean))];
+  for (const cid of tryIds) {
+    const { data } = await supabase
+      .from("instagram_conversations")
+      .select("id, first_inbound_at, customer_name, customer_ig_id")
+      .eq("organization_id", orgId)
+      .eq("instagram_business_account_id", inboxBusinessAccountId)
+      .eq("customer_ig_id", cid)
+      .maybeSingle();
+    if (data) return data as ExistingInstagramConvRow;
+  }
+
+  for (const cid of tryIds) {
+    const { data } = await supabase
+      .from("instagram_conversations")
+      .select("id, first_inbound_at, customer_name, customer_ig_id")
+      .eq("organization_id", orgId)
+      .eq("instagram_business_account_id", inboxBusinessAccountId)
+      .eq("customer_external_id", cid)
+      .maybeSingle();
+    if (data) return data as ExistingInstagramConvRow;
+  }
+
+  const dedupeKey = instagramConversationCustomerDedupeKey(
+    customerMessagingId,
+    senderId,
+    customerName,
+  );
+  if (!dedupeKey) return null;
+
+  const { data: candidates } = await supabase
+    .from("instagram_conversations")
+    .select("id, first_inbound_at, customer_name, customer_ig_id, customer_external_id")
+    .eq("organization_id", orgId)
+    .eq("instagram_business_account_id", inboxBusinessAccountId)
+    .order("last_message_at", { ascending: false })
+    .limit(50);
+
+  for (const row of candidates ?? []) {
+    const r = row as {
+      id: string;
+      first_inbound_at: string | null;
+      customer_name: string | null;
+      customer_ig_id: string;
+      customer_external_id?: string | null;
+    };
+    const rowKey = instagramConversationCustomerDedupeKey(
+      r.customer_ig_id,
+      r.customer_external_id ?? null,
+      r.customer_name,
+    );
+    if (rowKey === dedupeKey) return r;
+  }
+
+  return null;
+}
+
 async function lookupConnectedIgAccountInOrg(
   supabase: ReturnType<typeof createClient>,
   organizationId: string,
@@ -969,35 +1042,26 @@ Deno.serve(async (req: Request) => {
           );
         }
 
-        const { data: existingConv } = await supabase
-          .from("instagram_conversations")
-          .select("id, first_inbound_at, customer_name, customer_ig_id")
-          .eq("organization_id", orgId)
-          .eq("instagram_business_account_id", effectiveId)
-          .eq("customer_ig_id", customerMessagingId)
-          .maybeSingle();
-
-        let existingConvResolved = existingConv;
-        if (!existingConvResolved && customerMessagingId !== senderId) {
-          const { data: legacyConv } = await supabase
-            .from("instagram_conversations")
-            .select("id, first_inbound_at, customer_name, customer_ig_id")
-            .eq("organization_id", orgId)
-            .eq("instagram_business_account_id", effectiveId)
-            .eq("customer_ig_id", senderId!)
-            .maybeSingle();
-          existingConvResolved = legacyConv;
+        let customerName: string | null = null;
+        const linkedSender = await lookupConnectedIgAccountInOrg(supabase, orgId, senderId!);
+        if (linkedSender?.customer_name) {
+          customerName = linkedSender.customer_name;
+        } else if (accessToken) {
+          customerName = await fetchInstagramSenderDisplayName(senderId!, accessToken);
         }
 
-        const existingName = (existingConvResolved as { customer_name?: string | null } | null)?.customer_name?.trim() ?? "";
-        let customerName = existingName || null;
-        if (!customerName) {
-          const linkedSender = await lookupConnectedIgAccountInOrg(supabase, orgId, senderId!);
-          if (linkedSender?.customer_name) {
-            customerName = linkedSender.customer_name;
-          } else if (accessToken) {
-            customerName = await fetchInstagramSenderDisplayName(senderId!, accessToken);
-          }
+        const existingConvResolved = await findExistingInstagramConversation(
+          supabase,
+          orgId,
+          effectiveId,
+          customerMessagingId,
+          senderId!,
+          customerName,
+        );
+
+        const existingName = existingConvResolved?.customer_name?.trim() ?? "";
+        if (!customerName && existingName) {
+          customerName = existingName;
         }
 
         const convPayload = {

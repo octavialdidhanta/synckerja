@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
+import { buildMetaOAuthDialogUrl } from '@/meta-platform/constants/buildMetaOAuthDialogUrl';
 import {
   type MetaOAuthConnectFlow,
   resolveMetaOAuthConfigId,
@@ -139,18 +140,15 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
     }
     const state = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     oauthStateRef.current = state;
-    const params = new URLSearchParams({
-      client_id: metaAppId,
-      redirect_uri: redirectUri,
-      scope: oauthScope,
+    const url = buildMetaOAuthDialogUrl({
+      appId: metaAppId,
+      redirectUri,
       state,
+      configId: metaOAuthConfigId,
+      scope: oauthScope,
+      authTypeRerequest: flow === 'facebook',
+      graphVersion: META_OAUTH_VERSION,
     });
-    params.set('display', 'page');
-    params.set('response_type', 'token');
-    // Facebook Page connect: re-show asset picker (Pages) instead of skipping with previous settings.
-    if (flow === 'facebook') params.set('auth_type', 'rerequest');
-    if (metaOAuthConfigId) params.set('config_id', metaOAuthConfigId);
-    const url = `https://www.facebook.com/${META_OAUTH_VERSION}/dialog/oauth?${params.toString()}`;
     try {
       const {
         data: { session },
@@ -187,6 +185,7 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
     redirectUri,
     startOAuthPopupPoll,
     t,
+    isMetaRedirectHttps,
   ]);
 
   useEffect(() => () => stopOAuthPopupPoll(), [stopOAuthPopupPoll]);
