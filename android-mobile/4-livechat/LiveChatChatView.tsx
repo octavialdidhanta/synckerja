@@ -70,8 +70,9 @@ export function LiveChatChatView({
   const isEmail = selectedConversation.source === 'email';
   const isInstagram = selectedConversation.source === 'instagram';
   const isFacebook = selectedConversation.source === 'facebook';
+  const isThreads = selectedConversation.source === 'threads';
   const waConv = selectedConversation as WhatsAppConversation;
-  const channel = isInstagram ? 'instagram' : isFacebook ? 'facebook' : (waConv.channel ?? 'whatsapp');
+  const channel = isInstagram ? 'instagram' : isFacebook ? 'facebook' : isThreads ? 'threads' : (waConv.channel ?? 'whatsapp');
   const { profileUrl } = useLivechatProfilePhoto(selectedConversation.id, {
     source: selectedConversation.source,
     channel: isEmail ? 'email' : channel,
@@ -89,6 +90,10 @@ export function LiveChatChatView({
         ? (selectedConversation as { customer_name?: string | null; customer_psid?: string }).customer_name ||
           maskPhoneLast4((selectedConversation as { customer_psid?: string }).customer_psid) ||
           t('livechat.messengerContact', 'Kontak Messenger')
+        : isThreads
+          ? (selectedConversation as { customer_name?: string | null; customer_threads_id?: string }).customer_name ||
+            maskPhoneLast4((selectedConversation as { customer_threads_id?: string }).customer_threads_id) ||
+            t('livechat.threadsContact', 'Kontak Threads')
       : selectedConversation.customer_name ||
         maskPhoneLast4(waConv.customer_wa_id) ||
         'Unknown';
@@ -105,7 +110,7 @@ export function LiveChatChatView({
     .toUpperCase()
     .slice(0, 2) || '?';
 
-  const overlayColor = channel === 'instagram' ? 'bg-[#E4405F]' : channel === 'facebook' ? 'bg-[#1877F2]' : isEmail ? 'bg-blue-600' : 'bg-[#25D366]';
+  const overlayColor = channel === 'instagram' ? 'bg-[#E4405F]' : channel === 'facebook' ? 'bg-[#1877F2]' : channel === 'threads' ? 'bg-black' : isEmail ? 'bg-blue-600' : 'bg-[#25D366]';
 
   const connectedPhoneNumberIds = waAccounts.map((a) => a.phone_number_id);
   const hasNoConnectedWhatsAppAccount = waAccounts.length === 0;

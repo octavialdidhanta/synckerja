@@ -72,7 +72,7 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
                 {isFacebook
                   ? t(
                       'facebookConnect.webhookReceiveHint',
-                      'Agar Messenger masuk ke livechat: di Meta Developer → App → Webhooks (Page), isi Callback URL dan Verify Token di bawah, Verify and Save, lalu subscribe messages.',
+                      'Agar Messenger masuk ke livechat: di Meta Developer → App → Webhooks, pilih product Page (bukan User), isi Callback URL dan Verify Token di bawah, Verify and Save, lalu subscribe messages.',
                     )
                   : t(
                       'instagramConnect.webhookReceiveHint',
@@ -83,6 +83,39 @@ export function WebhookInfoDisplay({ embedded, variant = 'whatsapp' }: WebhookIn
           </Tooltip>
         )}
       </div>
+      {isFacebook && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-xs leading-relaxed text-amber-950">
+          <p className="font-semibold">
+            {t('facebookConnect.webhookPageNotUserTitle', 'Penting: pilih product "Page", bukan "User"')}
+          </p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4">
+            <li>
+              {t(
+                'facebookConnect.webhookPageStep1',
+                'Meta Developer → App → Webhooks → dropdown "Select product" → pilih Page (bukan User).',
+              )}
+            </li>
+            <li>
+              {t(
+                'facebookConnect.webhookPageStep2',
+                'Isi Callback URL + Verify Token di bawah → Verify and Save.',
+              )}
+            </li>
+            <li>
+              {t(
+                'facebookConnect.webhookPageStep3',
+                'Di tabel field Page, toggle Subscribe pada messages (jika tidak muncul: tambah product Messenger di App Dashboard).',
+              )}
+            </li>
+            <li>
+              {t(
+                'facebookConnect.webhookPageStep4',
+                'Tombol "Enable Messenger webhooks" di Synckerja sudah subscribe via API — tetap wajib verify URL di Page di atas.',
+              )}
+            </li>
+          </ol>
+        </div>
+      )}
       <div className="space-y-5">
         <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
           <Label className="text-slate-700 text-xs font-medium uppercase tracking-wide">Webhook Callback URL</Label>

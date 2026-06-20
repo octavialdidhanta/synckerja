@@ -67,32 +67,95 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const body = await req.json().catch(() => ({})) as { account_id?: string };
+    const body = await req.json().catch(() => ({})) as {
+      account_id?: string;
+      facebook_page_row_id?: string;
+      channel?: string;
+    };
     const accountIdFilter = typeof body.account_id === "string" ? body.account_id.trim() : "";
+    const fbPageRowIdFilter = typeof body.facebook_page_row_id === "string"
+      ? body.facebook_page_row_id.trim()
+      : "";
+    const channelFilter = typeof body.channel === "string" ? body.channel.trim().toLowerCase() : "";
 
-    let query = supabaseAdmin
-      .from("organization_instagram_accounts")
-      .select("id, facebook_page_id, page_access_token, instagram_business_account_id, instagram_username")
-      .eq("organization_id", orgId)
-      .eq("is_active", true);
+    type PageTarget = {
+      pageId: string;
+      pageToken: string;
+      label: string;
+      igId?: string | null;
+    };
+    const pageTargets = new Map<string, PageTarget>();
 
-    if (accountIdFilter) {
-      query = query.eq("id", accountIdFilter);
+    if (channelFilter !== "facebook") {
+      let query = supabaseAdmin
+        .from("organization_instagram_accounts")
+        .select("id, facebook_page_id, page_access_token, instagram_business_account_id, instagram_username")
+        .eq("organization_id", orgId)
+        .eq("is_active", true);
+
+      if (accountIdFilter) {
+        query = query.eq("id", accountIdFilter);
+      }
+
+      const { data: accounts, error: accountsError } = await query;
+      if (accountsError) {
+        return new Response(JSON.stringify({ error: accountsError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      for (const acc of accounts ?? []) {
+        const pageId = (acc.facebook_page_id ?? "").trim();
+        const pageToken = (acc.page_access_token ?? "").trim();
+        if (!pageId || !pageToken) continue;
+        pageTargets.set(pageId, {
+          pageId,
+          pageToken,
+          label: (acc.instagram_username as string | null) ? `@${acc.instagram_username}` : pageId,
+          igId: acc.instagram_business_account_id as string,
+        });
+      }
     }
 
-    const { data: accounts, error: accountsError } = await query;
-    if (accountsError) {
-      return new Response(JSON.stringify({ error: accountsError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (channelFilter !== "instagram") {
+      let fbQuery = supabaseAdmin
+        .from("organization_facebook_pages")
+        .select("id, facebook_page_id, page_name, page_access_token")
+        .eq("organization_id", orgId)
+        .eq("is_active", true);
+
+      if (fbPageRowIdFilter) {
+        fbQuery = fbQuery.eq("id", fbPageRowIdFilter);
+      }
+
+      const { data: fbPages, error: fbPagesError } = await fbQuery;
+      if (fbPagesError) {
+        return new Response(JSON.stringify({ error: fbPagesError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      for (const page of fbPages ?? []) {
+        const pageId = (page.facebook_page_id ?? "").trim();
+        const pageToken = (page.page_access_token ?? "").trim();
+        if (!pageId || !pageToken) continue;
+        if (!pageTargets.has(pageId)) {
+          pageTargets.set(pageId, {
+            pageId,
+            pageToken,
+            label: (page.page_name as string | null)?.trim() || pageId,
+          });
+        }
+      }
     }
 
-    if (!accounts?.length) {
+    if (pageTargets.size === 0) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "No connected Instagram accounts found.",
+          error: "No connected Facebook Pages found.",
           subscribed_count: 0,
           results: [],
         }),
@@ -102,36 +165,28 @@ Deno.serve(async (req: Request) => {
 
     const results: Array<
       InstagramPageSubscribeResult & {
+        page_label?: string;
         instagram_username?: string | null;
         before_subscribed_fields?: string[];
       }
     > = [];
 
-    for (const acc of accounts) {
-      const pageId = (acc.facebook_page_id ?? "").trim();
-      const pageToken = (acc.page_access_token ?? "").trim();
-      const igId = acc.instagram_business_account_id as string;
+    for (const target of pageTargets.values()) {
+      const { pageId, pageToken, label, igId } = target;
 
-      const before = pageId && pageToken
-        ? await getInstagramPageSubscriptionStatus(pageId, pageToken)
-        : { pageId, subscribedFields: [] as string[] };
+      const before = await getInstagramPageSubscriptionStatus(pageId, pageToken);
 
-      const subscribeResult = pageId && pageToken
-        ? await subscribeInstagramPageToWebhooks(pageId, pageToken)
-        : {
-          pageId,
-          success: false,
-          error: "Missing facebook_page_id or page_access_token. Reconnect with Facebook OAuth.",
-        };
+      const subscribeResult = await subscribeInstagramPageToWebhooks(pageId, pageToken);
 
-      const after = subscribeResult.success && pageId && pageToken
+      const after = subscribeResult.success
         ? await getInstagramPageSubscriptionStatus(pageId, pageToken)
         : before;
 
       results.push({
         ...subscribeResult,
-        instagramBusinessAccountId: igId,
-        instagram_username: acc.instagram_username as string | null,
+        instagramBusinessAccountId: igId ?? null,
+        page_label: label,
+        instagram_username: label.startsWith("@") ? label.slice(1) : null,
         before_subscribed_fields: before.subscribedFields,
         subscribedFields: after.subscribedFields,
       });
@@ -147,7 +202,7 @@ Deno.serve(async (req: Request) => {
         total: results.length,
         results,
         hint: allOk
-          ? "Page webhook subscription enabled. Send a real DM from Instagram app, then check instagram-webhook POST logs."
+          ? "Page webhook subscription enabled (messages, postbacks, reads). Send a real Messenger message to the Page, then check instagram-webhook POST logs."
           : "Some pages failed. Reconnect Facebook OAuth to grant pages_manage_metadata, then try again.",
       }),
       {

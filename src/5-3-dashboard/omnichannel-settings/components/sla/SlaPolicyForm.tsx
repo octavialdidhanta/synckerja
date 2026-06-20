@@ -31,6 +31,8 @@ type ConditionRow = { id: string; value: string };
 const CHANNEL_OPTIONS = [
   { value: 'whatsapp', labelKey: 'omnichannel.slaManagement.channelWhatsapp' },
   { value: 'instagram', labelKey: 'omnichannel.slaManagement.channelInstagram' },
+  { value: 'facebook', labelKey: 'omnichannel.slaManagement.channelMessenger' },
+  { value: 'threads', labelKey: 'omnichannel.slaManagement.channelThreads' },
   { value: 'email', labelKey: 'omnichannel.slaManagement.channelEmail' },
 ];
 

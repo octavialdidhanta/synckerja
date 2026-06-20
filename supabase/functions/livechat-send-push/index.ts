@@ -28,6 +28,7 @@ function ticketIdFromConversationId(conversationId: string, table: string): stri
   if (table === "email_messages") return `EMAIL-${raw}`;
   if (table === "instagram_messages") return `IG-${raw}`;
   if (table === "facebook_messages") return `FB-${raw}`;
+  if (table === "threads_messages") return `TH-${raw}`;
   return `WA-${raw}`;
 }
 
@@ -41,6 +42,7 @@ function channelLabelFromTable(table: string): string {
   if (table === "whatsapp_messages") return "WhatsApp";
   if (table === "instagram_messages") return "Instagram";
   if (table === "facebook_messages") return "Messenger";
+  if (table === "threads_messages") return "Threads";
   if (table === "email_messages") return "Email";
   return "Live Chat";
 }
@@ -159,7 +161,7 @@ Deno.serve(async (req: Request) => {
     const table = payload?.table ?? "";
     const record = payload?.record ?? {};
 
-    if (payload?.type !== "INSERT" || !["whatsapp_messages", "instagram_messages", "facebook_messages", "email_messages"].includes(table)) {
+    if (payload?.type !== "INSERT" || !["whatsapp_messages", "instagram_messages", "facebook_messages", "threads_messages", "email_messages"].includes(table)) {
       console.log("livechat-send-push: skipped", { table, type: payload?.type });
       return new Response(JSON.stringify({ ok: true, skipped: "not_insert_or_unknown_table" }), {
         status: 200,
@@ -239,6 +241,21 @@ Deno.serve(async (req: Request) => {
       }
       organizationId = (conv as { organization_id: string }).organization_id;
       senderName = ((conv as { customer_name?: string }).customer_name ?? "Messenger").trim() || "Customer";
+    } else if (table === "threads_messages") {
+      const { data: conv, error: convErr } = await supabase
+        .from("threads_conversations")
+        .select("organization_id, customer_name")
+        .eq("id", conversationId)
+        .single();
+      if (convErr || !conv) {
+        console.log("livechat-send-push: skipped conversation_not_found", { table, conversationId });
+        return new Response(JSON.stringify({ ok: true, skipped: "conversation_not_found" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      organizationId = (conv as { organization_id: string }).organization_id;
+      senderName = ((conv as { customer_name?: string }).customer_name ?? "Threads").trim() || "Customer";
     } else {
       const { data: conv, error: convErr } = await supabase
         .from("email_conversations")
@@ -366,7 +383,19 @@ Deno.serve(async (req: Request) => {
         if (projectId) {
           const accessToken = await getFcmAccessToken(fcmServiceAccountJson);
           const fcmToDelete: string[] = [];
-          const dataPayload = { url, ticket_id: ticketId, channel: table === "whatsapp_messages" ? "wa" : table === "instagram_messages" ? "ig" : table === "facebook_messages" ? "fb" : "email" };
+          const dataPayload = {
+            url,
+            ticket_id: ticketId,
+            channel: table === "whatsapp_messages"
+              ? "wa"
+              : table === "instagram_messages"
+              ? "ig"
+              : table === "facebook_messages"
+              ? "fb"
+              : table === "threads_messages"
+              ? "th"
+              : "email",
+          };
           for (const row of fcmTokensList) {
             const notificationImageUrl = (APP_ORIGIN || "https://app.profitloop.id") + "/splash-logo.png";
             const result = await sendFcmMessage(accessToken, projectId, row.token, title, bodyPreview, dataPayload, notificationImageUrl);

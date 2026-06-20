@@ -50,11 +50,49 @@ export function useFacebookPages() {
     },
   });
 
+  const subscribeWebhooksMutation = useMutation({
+    mutationFn: async (pageRowId?: string) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL ?? ''}/functions/v1/instagram-subscribe-webhooks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(
+          pageRowId
+            ? { facebook_page_row_id: pageRowId, channel: 'facebook' }
+            : { channel: 'facebook' },
+        ),
+      });
+      const json = await res.json().catch(() => ({})) as {
+        success?: boolean;
+        subscribed_count?: number;
+        total?: number;
+        error?: string;
+        hint?: string;
+        results?: Array<{
+          success?: boolean;
+          error?: string;
+          page_label?: string;
+          subscribedFields?: string[];
+        }>;
+      };
+      if (!res.ok && res.status !== 207) {
+        throw new Error(json?.error ?? 'Failed to enable Messenger webhooks');
+      }
+      return json;
+    },
+  });
+
   return {
     pages: query.data ?? [],
     isLoading: query.isLoading,
     refetch: query.refetch,
     disconnectPage: disconnectMutation.mutateAsync,
     isDisconnecting: disconnectMutation.isPending,
+    subscribeMessengerWebhooks: subscribeWebhooksMutation.mutateAsync,
+    isSubscribingWebhooks: subscribeWebhooksMutation.isPending,
   };
 }

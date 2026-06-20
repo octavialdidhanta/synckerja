@@ -1691,6 +1691,8 @@ export const enTranslations: TranslationDictionary = {
   "omnichannel.slaManagement.operationalHoursHelp": "Business hours use the org schedule (Mon–Fri 09:00–17:00 default Asia/Jakarta). 24×7 uses full calendar time.",
   "omnichannel.slaManagement.channelWhatsapp": "WhatsApp",
   "omnichannel.slaManagement.channelInstagram": "Instagram",
+  "omnichannel.slaManagement.channelMessenger": "Messenger",
+  "omnichannel.slaManagement.channelThreads": "Threads",
   "omnichannel.slaManagement.channelEmail": "Email",
   "omnichannel.slaManagement.cancel": "Cancel",
   "omnichannel.slaManagement.save": "Save",

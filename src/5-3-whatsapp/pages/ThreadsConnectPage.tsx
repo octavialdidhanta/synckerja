@@ -14,7 +14,7 @@ import { CONNECT_INSTAGRAM_PATH, CONNECT_THREADS_PATH } from '../constants/omnic
 import { ThreadsConnectPageSkeleton } from '../skeletons/ThreadsConnectPageSkeleton';
 import { useThreadsConnectPageSkeletonGate } from '../hooks/useThreadsConnectPageSkeletonGate';
 import { AtSign, CheckCircle2, Instagram, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { SUPABASE_URL } from '@/shared/lib/supabaseClient';
 
 function parseGrantedScopes(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String);
@@ -121,9 +121,35 @@ export function ThreadsConnectPage() {
                                     </Button>
                                   </div>
                                 ) : threadsReady ? (
-                                  <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 text-sm text-emerald-800">
-                                    <CheckCircle2 className="h-4 w-4 shrink-0" />
-                                    {t('threadsConnect.alreadyConnected', 'Threads terhubung.')}
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 text-sm text-emerald-800">
+                                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                      {t('threadsConnect.alreadyConnected', 'Threads terhubung.')}
+                                    </div>
+                                    <Card className="border-slate-200">
+                                      <CardHeader className="pb-2">
+                                        <CardTitle className="text-base">
+                                          {t('threadsConnect.livechatTitle', 'Threads Live Chat')}
+                                        </CardTitle>
+                                      </CardHeader>
+                                      <CardContent className="space-y-2 text-sm text-muted-foreground">
+                                        <p>
+                                          {t(
+                                            'threadsConnect.livechatV1Copy',
+                                            'Versi ini menampilkan balasan & mention publik ke post Threads di livechat (ticket TH-*). Private DM Threads belum tersedia di Meta API — akan ditambahkan saat Meta membuka Messaging API.',
+                                          )}
+                                        </p>
+                                        <p className="font-mono text-xs break-all text-foreground">
+                                          {`${SUPABASE_URL}/functions/v1/threads-webhook`}
+                                        </p>
+                                        <p className="text-xs">
+                                          {t(
+                                            'threadsConnect.livechatWebhookHint',
+                                            'Di Meta App → Threads → Webhooks, subscribe field replies dan mentions. Gunakan verify token dari kolom threads_verify_token akun IG terhubung.',
+                                          )}
+                                        </p>
+                                      </CardContent>
+                                    </Card>
                                   </div>
                                 ) : (
                                   <>

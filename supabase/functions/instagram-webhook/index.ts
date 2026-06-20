@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   processFacebookMessengerEvents,
-  resolveFacebookPageByEntryId,
+  resolveFacebookPageForWebhookEntry,
 } from "../_shared/facebookMessengerWebhook.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -548,12 +548,15 @@ Deno.serve(async (req: Request) => {
       );
 
       if (webhookObject === "page") {
-        const fbPage = await resolveFacebookPageByEntryId(supabase, entryId);
+        const fbPage = await resolveFacebookPageForWebhookEntry(supabase, entryId, messaging);
         if (!fbPage) {
+          const recipientHint = messaging[0]?.recipient?.id != null ? String(messaging[0].recipient.id) : "(none)";
           console.error(
             "[instagram-webhook] Facebook Page not found for entry id:",
-            entryId,
-            "— connect Page di /omnichannel/integrations/facebook.",
+            entryId ?? "(missing)",
+            "recipient:",
+            recipientHint,
+            "— connect Page di /omnichannel/integrations/facebook. Meta Test pakai ID dummy; kirim pesan nyata ke Page Octa Vialdi (937482819452507).",
           );
           continue;
         }

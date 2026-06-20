@@ -3,8 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Search, User, MessageCircle, Check, CheckCheck } from 'lucide-react';
 import { useWhatsAppConversations } from '../../hooks/useWhatsAppConversations';
 import { useWhatsAppMessageSearch, type WhatsAppMessageSearchResult } from '../../hooks/useWhatsAppMessageSearch';
+import { useFacebookMessageSearch } from '../../hooks/useFacebookMessageSearch';
 import { useWhatsAppConfig } from '../../hooks/useWhatsAppConfig';
-import { useWhatsAppUnreadByConversation } from '../../hooks/useWhatsAppUnreadByConversation';
+import { useLivechatUnreadByConversation } from '../../hooks/useLivechatUnreadByConversation';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -111,9 +112,16 @@ export function SearchConversationPopup({
   const { organizationId } = useCurrentOrg();
   const { data: waConversations = [], isLoading, error } = useWhatsAppConversations();
   const conversations: LiveChatConversation[] = conversationsProp ?? waConversations;
-  const { data: messageResults = [], isLoading: isSearchingMessages } = useWhatsAppMessageSearch(searchQuery);
+  const { data: waMessageResults = [], isLoading: isSearchingWaMessages } = useWhatsAppMessageSearch(searchQuery);
+  const { data: fbMessageResults = [], isLoading: isSearchingFbMessages } = useFacebookMessageSearch(searchQuery);
+  const messageResults: WhatsAppMessageSearchResult[] = useMemo(() => {
+    const merged = [...waMessageResults, ...fbMessageResults];
+    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return merged.slice(0, 500);
+  }, [waMessageResults, fbMessageResults]);
+  const isSearchingMessages = isSearchingWaMessages || isSearchingFbMessages;
   const { config: whatsappConfig } = useWhatsAppConfig();
-  const { unreadByConversation, markConversationRead } = useWhatsAppUnreadByConversation();
+  const { unreadByConversation, markConversationRead } = useLivechatUnreadByConversation();
   const businessName = whatsappConfig?.whatsapp_business_name ?? whatsappConfig?.display_phone_number ?? null;
 
   const convById = useMemo(() => {
@@ -131,6 +139,10 @@ export function SearchConversationPopup({
       if (conv.source === 'instagram') {
         const igId = (conv as { customer_ig_id?: string }).customer_ig_id ?? '';
         return name.includes(q) || igId.toLowerCase().includes(q) || lastBody.includes(q);
+      }
+      if (conv.source === 'facebook') {
+        const psid = (conv as { customer_psid?: string }).customer_psid ?? '';
+        return name.includes(q) || psid.toLowerCase().includes(q) || lastBody.includes(q);
       }
       const waId = (conv.customer_wa_id ?? '').toLowerCase();
       return name.includes(q) || waId.includes(q) || lastBody.includes(q);
@@ -151,8 +163,10 @@ export function SearchConversationPopup({
   const showConversationListOnly = !searchQuery.trim() || (!hasMessageResults && !hasContactOnlyMatches && filteredConversations.length > 0);
 
   const handleSelectConv = (conv: LiveChatConversation) => {
+    if (conv.source === 'whatsapp' || conv.source === 'facebook') {
+      if (unreadByConversation[conv.id] > 0) markConversationRead(conv).catch(() => {});
+    }
     if (conv.source === 'whatsapp') {
-      if (unreadByConversation[conv.id] > 0) markConversationRead(conv.id).catch(() => {});
       supabase
         .from('whatsapp_conversations')
         .update({ last_opened_at: new Date().toISOString() })
@@ -168,15 +182,17 @@ export function SearchConversationPopup({
   const handleSelectMessageResult = (row: WhatsAppMessageSearchResult) => {
     const conv = convById[row.conversation_id];
     if (!conv) return;
-    if (unreadByConversation[conv.id] > 0) markConversationRead(conv.id).catch(() => {});
-    supabase
-      .from('whatsapp_conversations')
-      .update({ last_opened_at: new Date().toISOString() })
-      .eq('id', conv.id)
-      .then(() => {
-        if (organizationId) queryClient.invalidateQueries({ queryKey: ['leads', organizationId] });
-      })
-      .catch(() => {});
+    if (unreadByConversation[conv.id] > 0) markConversationRead(conv).catch(() => {});
+    if (conv.source === 'whatsapp') {
+      supabase
+        .from('whatsapp_conversations')
+        .update({ last_opened_at: new Date().toISOString() })
+        .eq('id', conv.id)
+        .then(() => {
+          if (organizationId) queryClient.invalidateQueries({ queryKey: ['leads', organizationId] });
+        })
+        .catch(() => {});
+    }
     onSelectMessageResult?.(conv, row.message_id);
   };
 

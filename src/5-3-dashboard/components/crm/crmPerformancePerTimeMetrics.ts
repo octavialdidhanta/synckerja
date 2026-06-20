@@ -76,6 +76,7 @@ export function conversationChannelMatches(
     .toLowerCase();
   if (filterChannel === 'whatsapp') return ch === 'whatsapp' || ch === '';
   if (filterChannel === 'instagram') return ch === 'instagram';
+  if (filterChannel === 'facebook') return ch === 'facebook' || ch === 'messenger';
   if (filterChannel === 'email') return ch === 'email';
   return true;
 }

@@ -1690,6 +1690,8 @@ export const idTranslations: TranslationDictionary = {
   "omnichannel.slaManagement.operationalHoursHelp": "Jam kerja memakai jadwal organisasi (Sen–Jum 09:00–17:00 default Asia/Jakarta). 24×7 sama seperti kalender penuh.",
   "omnichannel.slaManagement.channelWhatsapp": "WhatsApp",
   "omnichannel.slaManagement.channelInstagram": "Instagram",
+  "omnichannel.slaManagement.channelMessenger": "Messenger",
+  "omnichannel.slaManagement.channelThreads": "Threads",
   "omnichannel.slaManagement.channelEmail": "Email",
   "omnichannel.slaManagement.cancel": "Batal",
   "omnichannel.slaManagement.save": "Simpan",

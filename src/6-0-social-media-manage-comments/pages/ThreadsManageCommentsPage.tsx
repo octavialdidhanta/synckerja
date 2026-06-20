@@ -23,7 +23,10 @@ import { useOmnichannelSurveySettingsAdmin } from '@/features/customer-survey/ho
 import { ThreadsContentAccountNav } from '@/6-0-social-media-performance/components/ThreadsContentAccountNav';
 import { useThreadsContentSettings } from '@/threads-content/hooks/useThreadsContentSettings';
 import { useThreadsContentCommentPostsQuery } from '@/threads-content/hooks/useThreadsContentComments';
-import { CONNECT_THREADS_PATH } from '@/threads-content/settings/threadsContentSettingsPaths';
+import {
+  CONNECT_INSTAGRAM_PATH,
+  CONNECT_THREADS_PATH,
+} from '@/threads-content/settings/threadsContentSettingsPaths';
 import { ThreadsTabIcon } from '@/6-0-social-media-performance/components/ThreadsTabIcon';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';

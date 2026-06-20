@@ -69,6 +69,7 @@ import {
 } from '@/shared/lib/leadConversionFinancial';
 import { insertIncomeTransactionFromSalesFlow } from '@/shared/lib/finance/insertIncomeTransactionFromSalesFlow';
 import { resolveInstagramConversationIdByTicket } from '@/shared/lib/resolveInstagramConversationId';
+import { resolveFacebookConversationIdByTicket } from '@/shared/lib/resolveFacebookConversationId';
 
 // Types
 export interface SalesActivity {
@@ -1486,6 +1487,46 @@ export const useLeadStatusHistory = () => {
         }));
       }
 
+      if (String(leadId).startsWith('fb-')) {
+        const conversationId = String(leadId).replace(/^fb-/, '');
+        const { data, error } = await supabase
+          .from('facebook_conversation_status_history')
+          .select('*')
+          .eq('conversation_id', conversationId)
+          .eq('organization_id', organizationId)
+          .order('changed_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching Facebook conversation status history:', error);
+          throw error;
+        }
+
+        const rows = (data || []) as Array<{
+          id: string;
+          conversation_id: string;
+          old_status: string | null;
+          new_status: string;
+          changed_at: string;
+          changed_by: string | null;
+          changed_by_name: string | null;
+          notes: string | null;
+          organization_id: string;
+          created_at: string;
+        }>;
+        return rows.map((row) => ({
+          id: row.id,
+          lead_id: leadId,
+          old_status: row.old_status,
+          new_status: row.new_status,
+          changed_at: row.changed_at,
+          changed_by: row.changed_by,
+          changed_by_name: row.changed_by_name,
+          notes: row.notes,
+          organization_id: row.organization_id,
+          created_at: row.created_at,
+        }));
+      }
+
       const { data, error } = await supabase
         .from('lead_status_history')
         .select('*')
@@ -1741,6 +1782,32 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       )
       .on(
         'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'facebook_conversations' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['facebook-conversation-status'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'facebook_conversations' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+          queryClient.invalidateQueries({ queryKey: ['facebook-conversation-status'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'facebook_conversation_cycles' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          invalidateCycleDerivedCrmQueries();
+        }
+      )
+      .on(
+        'postgres_changes',
         { event: '*', schema: 'public', table: 'email_conversation_cycles' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -1880,10 +1947,20 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         .eq('organization_id', organizationId)
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
+      const { data: facebookConvs, error: facebookError } = await supabase
+        .from('facebook_conversations')
+        .select('id, organization_id, customer_psid, customer_name, last_message_at, last_message_body, lead_status_id, last_inbound_at, followup, fu_priority, assignee_id, created_at, updated_at, ticket_id, meta_session_expires_at')
+        .eq('organization_id', organizationId)
+        .order('last_message_at', { ascending: false, nullsFirst: false });
+      if (facebookError) {
+        console.error('Error fetching facebook conversations for leads:', facebookError);
+      }
+
       // Resolve assignee_id → assignee name for ALL leads (regular + WhatsApp) so Consultant Performance section has data
       const assigneeIdsFromLeads = [...new Set(rawLeads.map((l: any) => l.assignee_id).filter(Boolean))] as string[];
       const assigneeIdsFromWa = (whatsappConvs ?? []).map((c: any) => c.assignee_id).filter(Boolean) as string[];
-      const allAssigneeIds = [...new Set([...assigneeIdsFromLeads, ...assigneeIdsFromWa])];
+      const assigneeIdsFromFb = (facebookConvs ?? []).map((c: any) => c.assignee_id).filter(Boolean) as string[];
+      const allAssigneeIds = [...new Set([...assigneeIdsFromLeads, ...assigneeIdsFromWa, ...assigneeIdsFromFb])];
       const assigneeNameMap = new Map<string, string>();
       if (allAssigneeIds.length > 0) {
         const { data: assigneeRows } = await supabase
@@ -1916,8 +1993,24 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         }
       }
 
-      // Sync status and assignee from WhatsApp/Instagram conversation when lead has matching ticket_id (DB truth; Meta expiry via lead_status Expired + meta_session_expires_at).
-      if (whatsappConvs && whatsappConvs.length > 0) {
+      if (facebookConvs && facebookConvs.length > 0) {
+        const fbStatusIds = [...new Set(facebookConvs.map((c: any) => c.lead_status_id).filter(Boolean))].filter((id: string) => !statusMap.has(normId(id)));
+        if (fbStatusIds.length > 0) {
+          const { data: fbStatuses, error: fbErr } = await supabase
+            .from('lead_statuses')
+            .select('id, name, color, is_active')
+            .in('id', fbStatusIds);
+          if (!fbErr && fbStatuses) {
+            fbStatuses.forEach((status: any) => {
+              const id = normId(status.id);
+              statusMap.set(id, { id: status.id, name: status.name, color: status.color });
+            });
+          }
+        }
+      }
+
+      // Sync status and assignee from omnichannel conversations when lead has matching ticket_id.
+      if ((whatsappConvs && whatsappConvs.length > 0) || (facebookConvs && facebookConvs.length > 0)) {
         const convByTicketId = new Map<
           string,
           {
@@ -1930,7 +2023,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             follow_up_cycle_reset_at: string | null;
           }
         >();
-        whatsappConvs.forEach((c: any) => {
+        whatsappConvs?.forEach((c: any) => {
           const isInstagram = (c.channel ?? '').toLowerCase() === 'instagram';
           const waTicketId = c.ticket_id ?? ((isInstagram ? 'IG-' : 'WA-') + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
           convByTicketId.set(normTicket(waTicketId), {
@@ -1941,6 +2034,18 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             fu_priority: c.fu_priority ?? null,
             template_followup_awaiting_reply: Boolean(c.template_followup_awaiting_reply),
             follow_up_cycle_reset_at: c.follow_up_cycle_reset_at ?? null,
+          });
+        });
+        facebookConvs?.forEach((c: any) => {
+          const fbTicketId = c.ticket_id ?? ('FB-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          convByTicketId.set(normTicket(fbTicketId), {
+            lead_status_id: c.lead_status_id ?? null,
+            assignee_id: c.assignee_id ?? null,
+            meta_session_expires_at: c.meta_session_expires_at ?? null,
+            followup: c.followup ?? null,
+            fu_priority: c.fu_priority ?? null,
+            template_followup_awaiting_reply: false,
+            follow_up_cycle_reset_at: null,
           });
         });
         leadsWithStatus = leadsWithStatus.map((lead: any) => {
@@ -1984,7 +2089,8 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         return c.ticket_id ?? ((isInstagram ? 'IG-' : 'WA-') + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
       });
       const emailTicketIds = (emailConvs ?? []).map((c: any) => 'EMAIL-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
-      const allConvTicketIds = [...new Set([...waTicketIds, ...emailTicketIds])];
+      const fbTicketIds = (facebookConvs ?? []).map((c: any) => c.ticket_id ?? ('FB-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase()));
+      const allConvTicketIds = [...new Set([...waTicketIds, ...emailTicketIds, ...fbTicketIds])];
       const leadByTicketMap = new Map<string, { services: string | null; category: string | null }>();
       if (allConvTicketIds.length > 0) {
         const { data: convLeads } = await supabase
@@ -2049,6 +2155,100 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           };
         });
         leadsWithStatus = [...leadsWithStatus, ...whatsappAsLeads];
+      }
+
+      if (!facebookError && facebookConvs && facebookConvs.length > 0) {
+        const fbConvsWithoutLead = facebookConvs.filter((c: any) => {
+          const fbTicketId = c.ticket_id ?? ('FB-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          return !ticketIdsInLeadsTable.has(normTicket(fbTicketId));
+        });
+        const facebookAsLeads = fbConvsWithoutLead.map((c: any) => {
+          const statusId = c.lead_status_id ?? '';
+          const leadStatus = statusId ? statusMap.get(normId(statusId)) ?? null : null;
+          const fbTicketId = c.ticket_id ?? ('FB-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          const leadRow = leadByTicketMap.get(fbTicketId);
+          const assigneeId = c.assignee_id ?? null;
+          const assigneeName = assigneeId ? assigneeNameMap.get(normId(assigneeId)) ?? null : null;
+          return {
+            id: 'fb-' + c.id,
+            client: c.customer_name || c.customer_psid || 'Messenger',
+            title: (c.last_message_body || 'Messenger').slice(0, 100),
+            services: leadRow?.services ?? null,
+            category: leadRow?.category ?? '-',
+            assignee: assigneeName as string | null,
+            assignee_id: assigneeId,
+            fu_priority: c.fu_priority ?? null,
+            status_id: statusId,
+            source: 'Messenger',
+            channel: 'facebook',
+            followup: c.followup ?? 0,
+            template_followup_awaiting_reply: false,
+            follow_up_cycle_reset_at: null,
+            converted_at: null,
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+            created_by: '',
+            created_by_name: '',
+            organization_id: c.organization_id,
+            ticket_id: fbTicketId,
+            lead_status: leadStatus,
+            meta_session_expires_at: c.meta_session_expires_at ?? null,
+            _fromFacebook: true as const,
+            _chatOpenedAt: null,
+            _customerPsid: (c.customer_psid ?? '') as string,
+          };
+        });
+        leadsWithStatus = [...leadsWithStatus, ...facebookAsLeads];
+      }
+
+      const { data: threadsConvs, error: threadsError } = await supabase.rpc('get_threads_conversations_with_preview', {
+        p_organization_id: organizationId,
+      });
+      if (threadsError) {
+        console.error('Error fetching threads conversations for leads:', threadsError);
+      }
+      if (!threadsError && threadsConvs && threadsConvs.length > 0) {
+        const thConvsWithoutLead = (threadsConvs as any[]).filter((c) => {
+          const thTicketId = c.ticket_id ?? ('TH-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          return !ticketIdsInLeadsTable.has(normTicket(thTicketId));
+        });
+        const threadsAsLeads = thConvsWithoutLead.map((c: any) => {
+          const statusId = c.lead_status_id ?? '';
+          const leadStatus = statusId ? statusMap.get(normId(statusId)) ?? null : null;
+          const thTicketId = c.ticket_id ?? ('TH-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          const leadRow = leadByTicketMap.get(thTicketId);
+          const assigneeId = c.assignee_id ?? null;
+          const assigneeName = assigneeId ? assigneeNameMap.get(normId(assigneeId)) ?? null : null;
+          return {
+            id: 'th-' + c.id,
+            client: c.customer_name || c.customer_threads_id || 'Threads',
+            title: (c.last_message_body || 'Threads').slice(0, 100),
+            services: leadRow?.services ?? null,
+            category: leadRow?.category ?? '-',
+            assignee: assigneeName as string | null,
+            assignee_id: assigneeId,
+            fu_priority: c.fu_priority ?? null,
+            status_id: statusId,
+            source: 'Threads',
+            channel: 'threads',
+            followup: c.followup ?? 0,
+            template_followup_awaiting_reply: false,
+            follow_up_cycle_reset_at: null,
+            converted_at: null,
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+            created_by: '',
+            created_by_name: '',
+            organization_id: c.organization_id,
+            ticket_id: thTicketId,
+            lead_status: leadStatus,
+            meta_session_expires_at: c.meta_session_expires_at ?? null,
+            _fromThreads: true as const,
+            _chatOpenedAt: null,
+            _customerThreadsId: (c.customer_threads_id ?? '') as string,
+          };
+        });
+        leadsWithStatus = [...leadsWithStatus, ...threadsAsLeads];
       }
 
       // Email: only show in leads list if they have a row in leads table (user clicked "Mark as lead" in livechat).
@@ -2269,6 +2469,269 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         if (clearEmailAssigneeOnResolve) {
           return { ...lead, assignee_id: null, assignee: '' };
         }
+        return lead;
+      }
+      // Facebook Messenger virtual lead (id fb-{convId})
+      if (lead?.id && String(lead.id).startsWith('fb-')) {
+        const convId = String(lead.id).replace(/^fb-/, '');
+        const onlyAssigneeUpdate = (lead as { _onlyAssigneeUpdate?: boolean })._onlyAssigneeUpdate === true;
+        const nowIso = new Date().toISOString();
+
+        if (onlyAssigneeUpdate) {
+          const fbPatch: Record<string, unknown> = {
+            assignee_id: lead.assignee_id ?? null,
+            updated_at: nowIso,
+          };
+          const { data: auth } = await supabase.auth.getUser();
+          const actorUserId = auth?.user?.id ?? null;
+          if (actorUserId) {
+            fbPatch.last_assigned_by_user_id = actorUserId;
+            fbPatch.last_assigned_at = nowIso;
+          }
+          const { error: fbUpdErr } = await supabase
+            .from('facebook_conversations')
+            .update(fbPatch)
+            .eq('id', convId);
+          if (fbUpdErr) {
+            console.error('Error updating Facebook conversation assignee:', fbUpdErr);
+            throw fbUpdErr;
+          }
+          const ticketId = (lead.ticket_id as string | undefined) ?? `FB-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+          const orgId = lead.organization_id ?? organizationId;
+          if (orgId && ticketId) {
+            await supabase
+              .from('leads')
+              .update({
+                assignee_id: lead.assignee_id ?? null,
+                assignee: lead.assignee ?? '',
+                updated_at: nowIso,
+              })
+              .eq('organization_id', orgId)
+              .ilike('ticket_id', ticketId);
+          }
+          queryClient.invalidateQueries({ queryKey: ['facebook-conversation-status', convId] });
+          queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
+          return {
+            ...lead,
+            assignee_id: lead.assignee_id ?? null,
+            assignee: lead.assignee ?? '',
+          };
+        }
+
+        const statusIdNorm = (id: string | null | undefined) =>
+          id == null || String(id).trim() === '' ? '' : String(id).trim().toLowerCase();
+
+        const { data: convBefore } = await supabase
+          .from('facebook_conversations')
+          .select('lead_status_id, assignee_id, ticket_id, organization_id')
+          .eq('id', convId)
+          .maybeSingle();
+
+        const priorStatusId = (convBefore?.lead_status_id as string | null | undefined) ?? null;
+
+        let safeStatusId: string | null = null;
+        if (lead.status_id) {
+          const { data: statusExists } = await supabase
+            .from('lead_statuses')
+            .select('id')
+            .eq('id', lead.status_id)
+            .maybeSingle();
+          if (statusExists?.id) safeStatusId = lead.status_id;
+        }
+
+        const effectiveStatusId = safeStatusId ?? priorStatusId;
+        const statusChanged =
+          effectiveStatusId != null && statusIdNorm(effectiveStatusId) !== statusIdNorm(priorStatusId);
+
+        let oldStatusNameFromDb = '';
+        if (priorStatusId) {
+          const { data: oldStatusRow } = await supabase
+            .from('lead_statuses')
+            .select('name')
+            .eq('id', priorStatusId)
+            .maybeSingle();
+          oldStatusNameFromDb = (oldStatusRow?.name as string) ?? '';
+        }
+
+        let newStatusName = '';
+        if (effectiveStatusId) {
+          const { data: statusRow } = await supabase
+            .from('lead_statuses')
+            .select('name')
+            .eq('id', effectiveStatusId)
+            .maybeSingle();
+          newStatusName = (statusRow?.name as string) ?? '';
+        }
+
+        const transitioningToResolve =
+          statusChanged &&
+          isResolvedStatus(newStatusName) &&
+          !isResolvedStatus(oldStatusNameFromDb);
+        const clearAssigneeOnResolve = transitioningToResolve;
+        const priorFbAssigneeId =
+          (convBefore?.assignee_id as string | null | undefined) ??
+          (lead.assignee_id as string | null | undefined) ??
+          null;
+
+        const convUpdatePayload: Record<string, unknown> = {
+          assignee_id: clearAssigneeOnResolve ? null : (lead.assignee_id ?? null),
+          updated_at: nowIso,
+        };
+        if (clearAssigneeOnResolve && priorFbAssigneeId) {
+          convUpdatePayload.last_handling_assignee_id = priorFbAssigneeId;
+        }
+        if (statusChanged && effectiveStatusId) {
+          convUpdatePayload.lead_status_id = effectiveStatusId;
+        }
+
+        const { error: updateError } = await supabase
+          .from('facebook_conversations')
+          .update(convUpdatePayload)
+          .eq('id', convId);
+        if (updateError) {
+          console.error('Error updating Facebook conversation status:', updateError);
+          throw updateError;
+        }
+
+        if (statusChanged && (oldStatusNameFromDb || newStatusName)) {
+          const { data: userData } = await supabase.auth.getUser();
+          const userId = userData?.user?.id ?? null;
+          const userName = userData?.user?.user_metadata?.full_name || userData?.user?.email || null;
+          await supabase.from('facebook_conversation_status_history').insert({
+            conversation_id: convId,
+            old_status: oldStatusNameFromDb,
+            new_status: newStatusName || 'Open',
+            changed_at: nowIso,
+            changed_by: userId,
+            changed_by_name: userName,
+            organization_id: lead.organization_id ?? organizationId,
+          });
+        }
+
+        if (isResolvedStatus(newStatusName)) {
+          const { error: cycleUpdErr } = await supabase
+            .from('facebook_conversation_cycles')
+            .update({ resolved_at: nowIso, updated_at: nowIso })
+            .eq('conversation_id', convId)
+            .is('resolved_at', null);
+          const orgForKeys = lead.organization_id ?? organizationId;
+          if (!cycleUpdErr && orgForKeys) {
+            queryClient.invalidateQueries({ queryKey: ['whatsapp-cycle-metrics', orgForKeys] });
+            queryClient.invalidateQueries({ queryKey: ['crm-first-response-per-room', orgForKeys] });
+            queryClient.invalidateQueries({ queryKey: ['crm-sla-conversation', orgForKeys] });
+          }
+        }
+
+        const orgId = lead.organization_id ?? organizationId;
+        const ticketId = (convBefore?.ticket_id as string) ?? `FB-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+        if (orgId && statusChanged && effectiveStatusId != null) {
+          await supabase
+            .from('leads')
+            .update({
+              status_id: effectiveStatusId,
+              assignee_id: clearAssigneeOnResolve ? null : (lead.assignee_id ?? null),
+              assignee: clearAssigneeOnResolve ? '' : (lead.assignee ?? ''),
+              updated_at: nowIso,
+            })
+            .eq('organization_id', orgId)
+            .ilike('ticket_id', ticketId);
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['facebook-conversation-status', convId] });
+        if (clearAssigneeOnResolve) {
+          return { ...lead, assignee_id: null, assignee: '' };
+        }
+        return lead;
+      }
+      // Threads livechat virtual lead (id th-{convId})
+      if (lead?.id && String(lead.id).startsWith('th-')) {
+        const convId = String(lead.id).replace(/^th-/, '');
+        const onlyAssigneeUpdate = (lead as { _onlyAssigneeUpdate?: boolean })._onlyAssigneeUpdate === true;
+        const nowIso = new Date().toISOString();
+
+        if (onlyAssigneeUpdate) {
+          const thPatch: Record<string, unknown> = {
+            assignee_id: lead.assignee_id ?? null,
+            updated_at: nowIso,
+          };
+          const { data: auth } = await supabase.auth.getUser();
+          const actorUserId = auth?.user?.id ?? null;
+          if (actorUserId) {
+            thPatch.last_assigned_by_user_id = actorUserId;
+            thPatch.last_assigned_at = nowIso;
+          }
+          const { error: thUpdErr } = await supabase
+            .from('threads_conversations')
+            .update(thPatch)
+            .eq('id', convId);
+          if (thUpdErr) throw thUpdErr;
+          const ticketId = (lead.ticket_id as string | undefined) ?? `TH-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+          const orgId = lead.organization_id ?? organizationId;
+          if (orgId && ticketId) {
+            await supabase
+              .from('leads')
+              .update({ assignee_id: lead.assignee_id ?? null, assignee: lead.assignee ?? '', updated_at: nowIso })
+              .eq('organization_id', orgId)
+              .ilike('ticket_id', ticketId);
+          }
+          queryClient.invalidateQueries({ queryKey: ['threads-conversation-status', convId] });
+          queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
+          return { ...lead, assignee_id: lead.assignee_id ?? null, assignee: lead.assignee ?? '' };
+        }
+
+        let safeStatusId: string | null = null;
+        if (lead.status_id) {
+          const { data: statusExists } = await supabase.from('lead_statuses').select('id').eq('id', lead.status_id).maybeSingle();
+          if (statusExists?.id) safeStatusId = lead.status_id;
+        }
+        const { data: convBefore } = await supabase
+          .from('threads_conversations')
+          .select('lead_status_id, assignee_id, ticket_id')
+          .eq('id', convId)
+          .maybeSingle();
+        const priorStatusId = (convBefore?.lead_status_id as string | null) ?? null;
+        const effectiveStatusId = safeStatusId ?? priorStatusId;
+        const statusChanged = safeStatusId != null && String(safeStatusId) !== String(priorStatusId ?? '');
+
+        let newStatusName = '';
+        if (effectiveStatusId) {
+          const { data: statusRow } = await supabase.from('lead_statuses').select('name').eq('id', effectiveStatusId).maybeSingle();
+          newStatusName = (statusRow?.name as string) ?? '';
+        }
+        const clearAssigneeOnResolve = isResolvedStatus(newStatusName);
+        const thPatch: Record<string, unknown> = {
+          updated_at: nowIso,
+          assignee_id: clearAssigneeOnResolve ? null : (lead.assignee_id ?? null),
+        };
+        if (statusChanged && safeStatusId) thPatch.lead_status_id = safeStatusId;
+        const { error: thUpdErr } = await supabase.from('threads_conversations').update(thPatch).eq('id', convId);
+        if (thUpdErr) throw thUpdErr;
+
+        if (isResolvedStatus(newStatusName)) {
+          await supabase
+            .from('threads_conversation_cycles')
+            .update({ resolved_at: nowIso, updated_at: nowIso })
+            .eq('conversation_id', convId)
+            .is('resolved_at', null);
+        }
+        const orgId = lead.organization_id ?? organizationId;
+        const ticketId = (convBefore?.ticket_id as string) ?? `TH-${convId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+        if (orgId && statusChanged && safeStatusId) {
+          await supabase
+            .from('leads')
+            .update({
+              status_id: safeStatusId,
+              assignee_id: clearAssigneeOnResolve ? null : (lead.assignee_id ?? null),
+              assignee: clearAssigneeOnResolve ? '' : (lead.assignee ?? ''),
+              updated_at: nowIso,
+            })
+            .eq('organization_id', orgId)
+            .ilike('ticket_id', ticketId);
+        }
+        queryClient.invalidateQueries({ queryKey: ['threads-conversation-status', convId] });
+        queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
+        if (clearAssigneeOnResolve) return { ...lead, assignee_id: null, assignee: '' };
         return lead;
       }
       // WhatsApp / Instagram conversation virtual lead (id wa-{convId})
@@ -2721,6 +3184,14 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           igSyncId = await resolveInstagramConversationIdByTicket(organizationIdForHistory, tid);
         }
 
+        let fbSyncId: string | null =
+          tidUpper.startsWith('FB-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
+            ? whatsappConvId.trim()
+            : null;
+        if (!fbSyncId && tid && tidUpper.startsWith('FB-') && organizationIdForHistory) {
+          fbSyncId = await resolveFacebookConversationIdByTicket(organizationIdForHistory, tid);
+        }
+
         let emailSyncId: string | null =
           tidUpper.startsWith('EMAIL-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
             ? whatsappConvId.trim()
@@ -2760,6 +3231,14 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
               .maybeSingle();
             const handlerId = (igBefore?.assignee_id as string | null) ?? priorFromLead;
             if (handlerId) convPatch.last_handling_assignee_id = handlerId;
+          } else if (fbSyncId) {
+            const { data: fbBefore } = await supabase
+              .from('facebook_conversations')
+              .select('assignee_id')
+              .eq('id', fbSyncId)
+              .maybeSingle();
+            const handlerId = (fbBefore?.assignee_id as string | null) ?? priorFromLead;
+            if (handlerId) convPatch.last_handling_assignee_id = handlerId;
           } else if (emailSyncId) {
             const { data: emBefore } = await supabase
               .from('email_conversations')
@@ -2787,6 +3266,15 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           if (igConvSyncErr) console.error('Sync lead → instagram_conversations failed:', igConvSyncErr);
           else {
             queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', igSyncId] });
+          }
+        } else if (fbSyncId) {
+          const { error: fbConvSyncErr } = await supabase
+            .from('facebook_conversations')
+            .update(convPatch)
+            .eq('id', fbSyncId);
+          if (fbConvSyncErr) console.error('Sync lead → facebook_conversations failed:', fbConvSyncErr);
+          else {
+            queryClient.invalidateQueries({ queryKey: ['facebook-conversation-status', fbSyncId] });
           }
         } else if (emailSyncId) {
           const { error: emConvSyncErr } = await supabase
@@ -2852,7 +3340,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             }
           }
 
-          if (waConvId && !tidUpperCycle.startsWith('IG-') && !tidUpperCycle.startsWith('EMAIL-')) {
+          if (waConvId && !tidUpperCycle.startsWith('IG-') && !tidUpperCycle.startsWith('FB-') && !tidUpperCycle.startsWith('EMAIL-')) {
             const { error: cycleUpdErr } = await supabase
               .from('whatsapp_conversation_cycles')
               .update({ resolved_at: nowIso, updated_at: nowIso })
@@ -2889,6 +3377,22 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
                 .eq('conversation_id', igConvId)
                 .is('resolved_at', null);
               if (!igCycleErr) await bumpCrm();
+            }
+          }
+
+          if (tidUpperCycle.startsWith('FB-')) {
+            let fbConvId: string | null =
+              typeof whatsappConvId === 'string' && whatsappConvId.trim() !== '' ? whatsappConvId.trim() : null;
+            if (!fbConvId && tidStr && organizationIdForHistory) {
+              fbConvId = await resolveFacebookConversationIdByTicket(organizationIdForHistory, tidStr);
+            }
+            if (fbConvId) {
+              const { error: fbCycleErr } = await supabase
+                .from('facebook_conversation_cycles')
+                .update({ resolved_at: nowIso, updated_at: nowIso })
+                .eq('conversation_id', fbConvId)
+                .is('resolved_at', null);
+              if (!fbCycleErr) await bumpCrm();
             }
           }
 

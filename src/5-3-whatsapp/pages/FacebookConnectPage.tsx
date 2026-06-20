@@ -28,6 +28,8 @@ export function FacebookConnectPage() {
     refetch,
     disconnectPage,
     isDisconnecting,
+    subscribeMessengerWebhooks,
+    isSubscribingWebhooks,
   } = useFacebookPages();
 
   const blockingPagePending = orgLoading || (hasOrg && pagesLoading);
@@ -65,6 +67,34 @@ export function FacebookConnectPage() {
       toast.success(t('facebookConnect.disconnected', 'Disconnected'));
     } catch (e) {
       toast.error((e as Error)?.message ?? t('common.error', 'Error'));
+    }
+  };
+
+  const handleSubscribeWebhooks = async () => {
+    try {
+      const sub = await subscribeMessengerWebhooks();
+      const fields = sub.results?.flatMap((r) => r.subscribedFields ?? []) ?? [];
+      const hasMessages = fields.includes('messages');
+      if (sub.success !== false && (sub.subscribed_count ?? 0) > 0 && hasMessages) {
+        toast.success(
+          t(
+            'facebookConnect.webhookSubscribeSuccess',
+            'Messenger webhook enabled (messages). Send a test message to your Page via Facebook Messenger.',
+          ),
+        );
+      } else if (sub.success !== false && (sub.subscribed_count ?? 0) > 0) {
+        toast.warning(
+          t(
+            'facebookConnect.webhookSubscribePartial',
+            'Webhook subscribed but "messages" field missing. Reconnect Facebook or check Meta Developer → Webhooks → Page.',
+          ),
+          { duration: 12000 },
+        );
+      } else {
+        toast.error(sub.error ?? t('facebookConnect.webhookSubscribeFailed', 'Failed to enable Messenger webhooks.'));
+      }
+    } catch (e) {
+      toast.error((e as Error)?.message ?? t('facebookConnect.webhookSubscribeFailed', 'Failed to enable Messenger webhooks.'));
     }
   };
 
@@ -129,6 +159,24 @@ export function FacebookConnectPage() {
 
                               {connectedPages.length > 0 && (
                                 <>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full border-[#1877F2]/40 text-[#1877F2] hover:bg-[#1877F2]/5"
+                                    disabled={isSubscribingWebhooks}
+                                    onClick={() => void handleSubscribeWebhooks()}
+                                  >
+                                    {isSubscribingWebhooks ? (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : null}
+                                    {t('facebookConnect.enableMessengerWebhooks', 'Enable Messenger webhooks')}
+                                  </Button>
+                                  <p className="text-xs leading-relaxed text-slate-600">
+                                    {t(
+                                      'facebookConnect.metaMessengerSetupHint',
+                                      'Di Meta → Messenger → API Settings: (1) scroll field messages → toggle Subscribe ON (Test saja tidak cukup), (2) Step 2 tambahkan Page Octa Vialdi, (3) mode Dev → pengirim harus Tester app.',
+                                    )}
+                                  </p>
                                   <MetaScopeStatusCards
                                     accounts={connectedPages}
                                     features={['pages', 'comments', 'insights', 'messenger_dm']}

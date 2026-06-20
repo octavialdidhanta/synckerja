@@ -59,6 +59,7 @@ type SortCol =
 function displayChannel(ch: string): string {
   const x = String(ch).trim().toLowerCase();
   if (x === 'whatsapp') return 'wa_cloud';
+  if (x === 'facebook' || x === 'messenger') return 'messenger';
   if (x === 'email') return 'email';
   return ch;
 }
@@ -297,6 +298,7 @@ export function CrmFirstResponsePerRoomSection() {
               <SelectItem value="all">All channels</SelectItem>
               <SelectItem value="whatsapp">WhatsApp</SelectItem>
               <SelectItem value="instagram">Instagram</SelectItem>
+              <SelectItem value="facebook">Messenger</SelectItem>
               <SelectItem value="email">Email</SelectItem>
             </SelectContent>
           </Select>

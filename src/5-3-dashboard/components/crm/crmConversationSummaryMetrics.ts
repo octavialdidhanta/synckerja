@@ -4,7 +4,7 @@
  */
 
 export type ConversationSummaryPeriodKey = '7' | '30' | '90' | 'all';
-export type ConversationSummaryChannelKey = 'all' | 'whatsapp' | 'instagram' | 'email';
+export type ConversationSummaryChannelKey = 'all' | 'whatsapp' | 'instagram' | 'facebook' | 'email';
 
 const MS_PER_DAY = 86_400_000;
 

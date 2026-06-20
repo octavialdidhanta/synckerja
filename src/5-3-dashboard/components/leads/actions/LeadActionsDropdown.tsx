@@ -8,7 +8,7 @@ import { NewLead } from '@/shared/types/leads';
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 interface LeadActionsDropdownProps {
-  lead: NewLead & { _fromWhatsApp?: boolean; _fromEmail?: boolean };
+  lead: NewLead & { _fromWhatsApp?: boolean; _fromEmail?: boolean; _fromFacebook?: boolean };
   onEdit: (lead: NewLead) => void;
   onViewDetail?: (lead: NewLead) => void;
   onDelete?: (leadId: string) => void;
@@ -19,16 +19,18 @@ interface LeadActionsDropdownProps {
 export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete, onTemplateFollowUp }: LeadActionsDropdownProps) => {
   const { t } = useAppTranslation();
   const fromWhatsApp = (lead as any)._fromWhatsApp === true;
+  const fromFacebook = (lead as any)._fromFacebook === true || (typeof lead.id === 'string' && lead.id.startsWith('fb-'));
+  const fromThreads = (lead as any)._fromThreads === true || (typeof lead.id === 'string' && lead.id.startsWith('th-'));
   const fromEmail = (lead as any)._fromEmail === true || (typeof lead.id === 'string' && lead.id.startsWith('email-'));
-  const hasConversationId = fromWhatsApp || fromEmail;
+  const hasConversationId = fromWhatsApp || fromEmail || fromFacebook || fromThreads;
   const ticketId = (lead.ticket_id ?? '').trim();
-  const hasTicketId = /^(WA-|IG-|EMAIL-)/i.test(ticketId);
+  const hasTicketId = /^(WA-|IG-|FB-|EMAIL-|TH-)/i.test(ticketId);
   const canOpenChat = hasConversationId || hasTicketId;
   const isManualLead = (lead.created_by ?? '').trim() !== '' && lead.created_by !== ZERO_UUID;
 
   if (canOpenChat) {
     const url = hasConversationId
-      ? `/omnichannel/livechat?conversation=${String(lead.id).replace(/^wa-/, '').replace(/^email-/, '')}`
+      ? `/omnichannel/livechat?conversation=${String(lead.id).replace(/^wa-/, '').replace(/^fb-/, '').replace(/^email-/, '').replace(/^th-/, '')}`
       : `/omnichannel/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
     return (
       <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-medium" asChild>

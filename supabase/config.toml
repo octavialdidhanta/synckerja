@@ -237,6 +237,12 @@ verify_jwt = false
 [functions.instagram-webhook]
 verify_jwt = false
 
+[functions.threads-webhook]
+verify_jwt = false
+
+[functions.send-threads-message]
+verify_jwt = false
+
 [functions.meta-oauth-exchange]
 verify_jwt = false
 

@@ -186,6 +186,7 @@ export async function resolveFacebookPageByEntryId(
 ): Promise<FacebookWebhookPage | null> {
   const trimmed = entryId?.trim() ?? "";
   if (!trimmed) return null;
+
   const { data: page } = await supabase
     .from("organization_facebook_pages")
     .select("organization_id, facebook_page_id, page_name, page_access_token")
@@ -193,7 +194,102 @@ export async function resolveFacebookPageByEntryId(
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
-  return (page as FacebookWebhookPage | null) ?? null;
+  if (page) return page as FacebookWebhookPage;
+
+  // Page connected via Instagram OAuth only — mirror row may exist on IG table first.
+  const { data: igRow } = await supabase
+    .from("organization_instagram_accounts")
+    .select("organization_id, facebook_page_id, page_access_token, instagram_name")
+    .eq("facebook_page_id", trimmed)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (!igRow?.facebook_page_id) return null;
+
+  const { data: fbByIgOrg } = await supabase
+    .from("organization_facebook_pages")
+    .select("organization_id, facebook_page_id, page_name, page_access_token")
+    .eq("facebook_page_id", trimmed)
+    .eq("organization_id", igRow.organization_id)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (fbByIgOrg) return fbByIgOrg as FacebookWebhookPage;
+
+  const token = (igRow.page_access_token as string | null)?.trim() ?? "";
+  if (!token) return null;
+
+  return {
+    organization_id: igRow.organization_id as string,
+    facebook_page_id: String(igRow.facebook_page_id).trim(),
+    page_name: (igRow.instagram_name as string | null) ?? null,
+    page_access_token: token,
+  };
+}
+
+/** Resolve Page from webhook entry id and/or messaging recipient (Page PSID). */
+export async function resolveFacebookPageForWebhookEntry(
+  supabase: SupabaseClient,
+  entryId: string | null,
+  messaging: MessagingEvt[],
+): Promise<FacebookWebhookPage | null> {
+  const candidates = new Set<string>();
+  const entryTrimmed = entryId?.trim() ?? "";
+  if (entryTrimmed) candidates.add(entryTrimmed);
+  for (const evt of messaging) {
+    const recipientId = evt.recipient?.id != null ? String(evt.recipient.id).trim() : "";
+    if (recipientId) candidates.add(recipientId);
+  }
+  for (const id of candidates) {
+    const page = await resolveFacebookPageByEntryId(supabase, id);
+    if (page) return page;
+  }
+  return null;
+}
+
+async function handleFacebookReadReceipt(
+  supabase: SupabaseClient,
+  convId: string,
+  read: { watermark?: unknown; mid?: unknown },
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  if (read.mid != null) {
+    const mid = String(read.mid).trim();
+    if (mid) {
+      await supabase
+        .from("facebook_messages")
+        .update({ status: "read", status_updated_at: now })
+        .eq("conversation_id", convId)
+        .eq("platform_message_id", mid)
+        .eq("direction", "outbound");
+    }
+  }
+
+  if (read.watermark != null) {
+    const wmMs = Number(read.watermark);
+    if (Number.isFinite(wmMs) && wmMs > 0) {
+      const wmIso = new Date(wmMs).toISOString();
+      await supabase
+        .from("facebook_messages")
+        .update({ status: "read", status_updated_at: now })
+        .eq("conversation_id", convId)
+        .eq("direction", "outbound")
+        .lte("created_at", wmIso);
+    }
+  }
+
+  const { data: conv } = await supabase
+    .from("facebook_conversations")
+    .select("last_message_direction")
+    .eq("id", convId)
+    .maybeSingle();
+  if (conv?.last_message_direction === "outbound") {
+    await supabase
+      .from("facebook_conversations")
+      .update({ last_message_status: "read", updated_at: now })
+      .eq("id", convId);
+  }
 }
 
 export async function processFacebookMessengerEvents(
@@ -241,6 +337,24 @@ export async function processFacebookMessengerEvents(
         };
         await supabase.from("facebook_messages").insert(pbPayload);
         await notifyPush(pbPayload);
+        processedCount += 1;
+      }
+      continue;
+    }
+
+    // Read receipts (message_reads subscription)
+    if (evt.read && !evt.message && !evt.postback) {
+      const customerPsid = senderId;
+      if (!customerPsid) continue;
+      const { data: convForRead } = await supabase
+        .from("facebook_conversations")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("facebook_page_id", pageId)
+        .eq("customer_psid", customerPsid)
+        .maybeSingle();
+      if (convForRead?.id) {
+        await handleFacebookReadReceipt(supabase, convForRead.id, evt.read);
         processedCount += 1;
       }
       continue;
