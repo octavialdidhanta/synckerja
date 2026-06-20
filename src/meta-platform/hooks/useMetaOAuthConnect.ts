@@ -126,6 +126,17 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
       setOauthLoading(false);
       return;
     }
+    if (!isMetaRedirectHttps) {
+      toast.error(
+        t(
+          'facebookConnect.oauthHttpsRequired',
+          'Facebook/Instagram OAuth requires HTTPS. Open https://localhost:8080 (npm run dev:https) or use https://office.synckerja.com, and whitelist the same redirect URL in Meta.',
+        ),
+        { duration: 14000 },
+      );
+      setOauthLoading(false);
+      return;
+    }
     const state = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     oauthStateRef.current = state;
     const params = new URLSearchParams({
@@ -254,4 +265,8 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
   }, [clearMetaOAuthPopupFlag, exchangeToken, redirectUri, stopOAuthPopupPoll, t]);
 
   return {
-    
+    startOAuth: openOAuthPopup,
+    oauthLoading,
+    hasOAuth,
+  };
+}
