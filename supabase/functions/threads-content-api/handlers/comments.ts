@@ -189,7 +189,7 @@ export async function handleThreadsComments(
       if (!mediaId) return threadsContentJson({ error: "Missing media_id" }, 400);
       const sort = String(body.sort ?? "newest");
       try {
-        const comments = await fetchThreadReplies(accessToken, mediaId);
+        const comments = await fetchThreadReplies(mediaId, accessToken);
         const topLevel = comments.filter((c) => !c.parent_comment_id || c.parent_comment_id === mediaId);
         return threadsContentJson({
           comments: sortComments(topLevel.map(mapCommentRow), sort),
@@ -210,7 +210,7 @@ export async function handleThreadsComments(
       }
       const sort = String(body.sort ?? "newest");
       try {
-        const comments = await fetchThreadReplies(accessToken, mediaId);
+        const comments = await fetchThreadReplies(mediaId, accessToken);
         const replies = comments.filter((c) => c.parent_comment_id === commentId);
         return threadsContentJson({ comments: sortComments(replies.map(mapCommentRow), sort) }, 200);
       } catch (e) {

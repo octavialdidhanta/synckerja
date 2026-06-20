@@ -262,9 +262,24 @@ export async function listThreadsContentAccounts(
 
   const features = Object.keys(THREADS_SCOPE_FEATURE_MAP) as Array<keyof typeof THREADS_SCOPE_FEATURE_MAP>;
 
-  return (rows ?? []).map((row) => {
+  const seenThreadsUserIds = new Set<string>();
+  const out: Array<{
+    platform: "threads";
+    account_id: string;
+    threads_user_id: string;
+    account_label: string;
+    avatar_url: string | null;
+    granted_scopes: string[];
+    instagram_business_account_id: string;
+    feature_status: Record<string, { ok: boolean; missing: string[] }>;
+  }> = [];
+
+  for (const row of rows ?? []) {
     const r = row as Record<string, unknown>;
-    const threadsUserId = String(r.threads_user_id ?? "");
+    const threadsUserId = String(r.threads_user_id ?? "").trim();
+    if (!threadsUserId || seenThreadsUserIds.has(threadsUserId)) continue;
+    seenThreadsUserIds.add(threadsUserId);
+
     const igId = String(r.instagram_business_account_id ?? "");
     const grantedScopes = parseThreadsGrantedScopes(r.granted_scopes);
     const featureStatus = Object.fromEntries(
@@ -273,7 +288,7 @@ export async function listThreadsContentAccounts(
         missing: missingScopesForFeature(grantedScopes, f),
       }]),
     );
-    return {
+    out.push({
       platform: "threads" as const,
       account_id: igId || threadsUserId,
       threads_user_id: threadsUserId,
@@ -282,6 +297,8 @@ export async function listThreadsContentAccounts(
       granted_scopes: grantedScopes,
       instagram_business_account_id: igId,
       feature_status: featureStatus,
-    };
-  });
+    });
+  }
+
+  return out;
 }

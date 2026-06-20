@@ -375,11 +375,24 @@ export async function fetchThreadReplies(
   accessToken: string,
 ): Promise<ThreadsComment[]> {
   const fields = "id,text,username,timestamp,like_count,reply_count,replied_to,is_reply,is_reply_owned_by_me";
-  const data = await threadsGet<{ data?: Array<Record<string, unknown>> }>(
-    threadsUrl(`${mediaId}/replies`, { fields, limit: "25" }),
-    accessToken,
-  );
-  return (data.data ?? []).map((row) => mapThreadsReply(row, mediaId, null));
+  try {
+    const data = await threadsGet<{ data?: Array<Record<string, unknown>> }>(
+      threadsUrl(`${mediaId}/replies`, { fields, limit: "25" }),
+      accessToken,
+    );
+    return (data.data ?? []).map((row) => mapThreadsReply(row, mediaId, null));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // No replies yet / invalid media for replies endpoint — treat as empty thread, not hard error.
+    if (
+      /does not exist|unsupported get request|nonexisting|\(#100\)/i.test(msg) ||
+      /missing permissions|\(#10\)|\(#200\)/i.test(msg)
+    ) {
+      console.warn("fetchThreadReplies soft-empty:", mediaId, msg);
+      return [];
+    }
+    throw e;
+  }
 }
 
 export async function replyThreadsComment(
