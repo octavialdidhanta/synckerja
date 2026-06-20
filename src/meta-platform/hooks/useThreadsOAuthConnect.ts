@@ -8,6 +8,15 @@ import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 const OAUTH_POPUP_POLL_MS = 500;
 const OAUTH_POPUP_MAX_MS = 5 * 60 * 1000;
 
+function parseEdgeFunctionError(data: unknown, fallback: string): string {
+  if (data && typeof data === 'object') {
+    const row = data as Record<string, unknown>;
+    if (typeof row.error === 'string' && row.error.trim()) return row.error.trim();
+    if (typeof row.message === 'string' && row.message.trim()) return row.message.trim();
+  }
+  return fallback;
+}
+
 export type ThreadsOAuthExchangeResult = {
   threads_accounts_synced?: number;
   threads_username?: string | null;
@@ -26,6 +35,7 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
   const oauthCompletedRef = useRef(false);
   const oauthPopupPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const oauthPopupStartedAtRef = useRef(0);
+  const exchangedCodesRef = useRef(new Set<string>());
 
   const hasOAuth = hasThreadsOAuthConfig();
   const redirectUri = getThreadsOAuthRedirectUri();
@@ -91,8 +101,23 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
       const resData = (await res.json().catch(() => ({}))) as ThreadsOAuthExchangeResult;
       if (!res.ok) {
         toast.error(
-          resData?.error ||
+          parseEdgeFunctionError(
+            resData,
             t('instagramConnect.threadsOAuthExchangeFailed', 'Failed to save Threads authorization.'),
+          ),
+        );
+        setOauthLoading(false);
+        return;
+      }
+      if ((resData.threads_accounts_synced ?? 0) <= 0) {
+        toast.error(
+          parseEdgeFunctionError(
+            resData,
+            t(
+              'instagramConnect.threadsOAuthSaveEmpty',
+              'Authorization succeeded but could not save to your organization. Check Edge Function secrets and try again.',
+            ),
+          ),
         );
         setOauthLoading(false);
         return;
@@ -127,6 +152,7 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
     }
     const state = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     oauthStateRef.current = state;
+    exchangedCodesRef.current.clear();
     const params = new URLSearchParams({
       client_id: appId,
       redirect_uri: redirectUri,
@@ -213,6 +239,8 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         }
         return;
       }
+      if (exchangedCodesRef.current.has(code)) return;
+      exchangedCodesRef.current.add(code);
       oauthCompletedRef.current = true;
       stopOAuthPopupPoll();
       setOauthLoading(true);

@@ -9,6 +9,7 @@ import {
 import { handleThreadsConfig } from "./handlers/config.ts";
 import { handleThreadsMetrics } from "./handlers/metrics.ts";
 import { handleThreadsComments } from "./handlers/comments.ts";
+import { handleThreadsLivechat } from "./handlers/livechat.ts";
 
 const COMMENT_ACTIONS = new Set([
   "getInboxState",
@@ -25,6 +26,8 @@ const COMMENT_ACTIONS = new Set([
   "reply",
   "replyComment",
 ]);
+
+const LIVECHAT_ACTIONS = new Set(["syncLivechatInbound"]);
 
 const CONFIG_ACTIONS = new Set(["getSettings"]);
 
@@ -66,6 +69,10 @@ Deno.serve(async (req: Request) => {
 
   if (COMMENT_ACTIONS.has(action)) {
     return await handleThreadsComments(admin, userRes.userId, body);
+  }
+
+  if (LIVECHAT_ACTIONS.has(action)) {
+    return await handleThreadsLivechat(admin, userRes.userId, body);
   }
 
   return threadsContentJson({ error: "Unknown action" }, 400);

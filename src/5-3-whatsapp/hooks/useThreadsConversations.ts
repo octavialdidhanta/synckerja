@@ -7,12 +7,40 @@ import { toast } from 'sonner';
 import type { ThreadsConversation } from '../types';
 
 const QUERY_KEY = ['threads-conversations'] as const;
+const SYNC_MIN_MS = 45_000;
+
+type SyncLivechatResult = {
+  ok?: boolean;
+  ingested?: number;
+  scanned_posts?: number;
+  scanned_replies?: number;
+};
+
+async function syncThreadsLivechatInbound(organizationId: string): Promise<SyncLivechatResult | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('threads-content-api', {
+      body: {
+        action: 'syncLivechatInbound',
+        organization_id: organizationId,
+      },
+    });
+    if (error) {
+      devLog.warn('Threads livechat sync failed', error.message);
+      return null;
+    }
+    return (data ?? null) as SyncLivechatResult | null;
+  } catch (e) {
+    devLog.warn('Threads livechat sync error', e);
+    return null;
+  }
+}
 
 export function useThreadsConversations() {
   const { organizationId } = useCurrentOrg();
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const channelErrorToastShownRef = useRef(false);
+  const lastSyncAtRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!organizationId) return;
@@ -55,6 +83,13 @@ export function useThreadsConversations() {
     enabled: !!organizationId,
     queryFn: async (): Promise<ThreadsConversation[]> => {
       if (!organizationId) return [];
+
+      const lastSync = lastSyncAtRef.current.get(organizationId) ?? 0;
+      if (Date.now() - lastSync >= SYNC_MIN_MS) {
+        lastSyncAtRef.current.set(organizationId, Date.now());
+        await syncThreadsLivechatInbound(organizationId);
+      }
+
       const { data, error } = await supabase.rpc('get_threads_conversations_with_preview', {
         p_organization_id: organizationId,
       });

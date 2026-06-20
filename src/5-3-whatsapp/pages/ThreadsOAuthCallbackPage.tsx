@@ -11,6 +11,10 @@ export function ThreadsOAuthCallbackPage() {
     const code = query.get('code');
     const state = query.get('state');
     const error = query.get('error');
+    const dedupeKey = `threads-oauth-posted:${code ?? ''}:${state ?? ''}:${error ?? ''}`;
+    if (sessionStorage.getItem(dedupeKey)) return;
+    sessionStorage.setItem(dedupeKey, '1');
+    window.setTimeout(() => sessionStorage.removeItem(dedupeKey), 60_000);
     const errorReason = query.get('error_reason') ?? undefined;
     const errorDescription = query.get('error_description') ?? undefined;
     const redirectUriUsed = `${window.location.origin}${window.location.pathname}`;

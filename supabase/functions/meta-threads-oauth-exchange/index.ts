@@ -155,6 +155,7 @@ Deno.serve(async (req: Request) => {
     }
 
     let threadsAccountsSynced = 0;
+    const saveErrors: string[] = [];
     for (const row of rows) {
       const mergedScopes = mergeGrantedScopes(row.granted_scopes, THREADS_OAUTH_SCOPE_LIST);
       const { error: updateErr } = await supabaseAdmin
@@ -170,8 +171,26 @@ Deno.serve(async (req: Request) => {
           updated_at: nowIso,
         })
         .eq("id", row.id);
-      if (!updateErr) threadsAccountsSynced += 1;
-      else console.warn("meta-threads-oauth-exchange: save failed", row.id, updateErr.message);
+      if (!updateErr) {
+        threadsAccountsSynced += 1;
+      } else {
+        console.warn("meta-threads-oauth-exchange: save failed", row.id, updateErr.message);
+        saveErrors.push(updateErr.message);
+      }
+    }
+
+    if (threadsAccountsSynced === 0) {
+      return new Response(
+        JSON.stringify({
+          error: saveErrors[0] ??
+            "Failed to save Threads token. Check THREADS_CONTENT_CONFIG_ENCRYPTION_KEY and database columns.",
+          save_errors: saveErrors,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     return new Response(
