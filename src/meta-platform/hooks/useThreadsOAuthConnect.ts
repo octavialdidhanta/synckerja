@@ -51,6 +51,7 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
   const oauthPopupPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const oauthPopupStartedAtRef = useRef(0);
   const exchangedCodesRef = useRef(new Set<string>());
+  const exchangeSucceededRef = useRef(false);
 
   const hasOAuth = hasThreadsOAuthConfig();
   const redirectUri = getThreadsOAuthRedirectUri();
@@ -143,6 +144,8 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         t('threadsConnect.oauthSuccess', 'Threads connected.'),
         { id: 'threads-oauth-success' },
       );
+      toast.dismiss('threads-oauth-error');
+      exchangeSucceededRef.current = true;
       try {
         await args.onExchangeComplete?.(resData);
       } catch (callbackErr) {
@@ -179,6 +182,7 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
     const state = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     oauthStateRef.current = state;
     exchangedCodesRef.current.clear();
+    exchangeSucceededRef.current = false;
     const params = new URLSearchParams({
       client_id: appId,
       redirect_uri: redirectUri,
@@ -278,14 +282,19 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
               ? data.redirect_uri.trim()
               : redirectUri;
           await exchangeCode(code, exchangeRedirectUri);
-        } catch {
-          toast.error(
-            t('instagramConnect.threadsOAuthExchangeFailed', 'Failed to save Threads authorization.'),
-            { id: 'threads-oauth-error' },
-          );
+        } catch (err) {
+          if (!exchangeSucceededRef.current) {
+            console.warn('Threads OAuth exchange failed', err);
+            toast.error(
+              t('instagramConnect.threadsOAuthExchangeFailed', 'Failed to save Threads authorization.'),
+              { id: 'threads-oauth-error' },
+            );
+          }
         } finally {
           clearThreadsOAuthPopupFlag();
-          setOauthLoading(false);
+          if (!exchangeSucceededRef.current) {
+            setOauthLoading(false);
+          }
         }
       })();
     };
