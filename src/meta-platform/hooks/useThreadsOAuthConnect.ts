@@ -7,6 +7,7 @@ import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 
 const OAUTH_POPUP_POLL_MS = 500;
 const OAUTH_POPUP_MAX_MS = 5 * 60 * 1000;
+const OAUTH_EXCHANGED_CODES_KEY = 'threads-oauth-exchanged-codes';
 
 function parseEdgeFunctionError(data: unknown, fallback: string): string {
   if (data && typeof data === 'object') {
@@ -15,6 +16,20 @@ function parseEdgeFunctionError(data: unknown, fallback: string): string {
     if (typeof row.message === 'string' && row.message.trim()) return row.message.trim();
   }
   return fallback;
+}
+
+function markOAuthCodeExchanged(code: string): boolean {
+  try {
+    const raw = sessionStorage.getItem(OAUTH_EXCHANGED_CODES_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    const codes = Array.isArray(parsed) ? parsed.map(String) : [];
+    if (codes.includes(code)) return false;
+    codes.push(code);
+    sessionStorage.setItem(OAUTH_EXCHANGED_CODES_KEY, JSON.stringify(codes.slice(-30)));
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 export type ThreadsOAuthExchangeResult = {
@@ -122,7 +137,15 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         setOauthLoading(false);
         return;
       }
-      await args.onExchangeComplete?.(resData);
+      toast.success(
+        t('threadsConnect.oauthSuccess', 'Threads connected.'),
+      );
+      try {
+        await args.onExchangeComplete?.(resData);
+      } catch (callbackErr) {
+        console.warn('Threads OAuth post-success callback failed', callbackErr);
+      }
+      setOauthLoading(false);
     },
     [args, clearThreadsOAuthPopupFlag, t],
   );
@@ -240,6 +263,7 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         return;
       }
       if (exchangedCodesRef.current.has(code)) return;
+      if (!markOAuthCodeExchanged(code)) return;
       exchangedCodesRef.current.add(code);
       oauthCompletedRef.current = true;
       stopOAuthPopupPoll();

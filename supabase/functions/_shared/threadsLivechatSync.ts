@@ -10,8 +10,8 @@ import {
   type ThreadsWebhookPayload,
 } from "./threadsLivechatWebhook.ts";
 
-const DEFAULT_LOOKBACK_DAYS = 14;
-const DEFAULT_MAX_POSTS = 30;
+const DEFAULT_LOOKBACK_DAYS = 60;
+const DEFAULT_MAX_POSTS = 40;
 
 function formatYmd(d: Date): string {
   const y = d.getUTCFullYear();

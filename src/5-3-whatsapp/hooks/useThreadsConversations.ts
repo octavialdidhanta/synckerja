@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import type { ThreadsConversation } from '../types';
 
 const QUERY_KEY = ['threads-conversations'] as const;
-const SYNC_MIN_MS = 45_000;
+const SYNC_MIN_MS = 30_000;
 
 type SyncLivechatResult = {
   ok?: boolean;
@@ -22,13 +22,19 @@ async function syncThreadsLivechatInbound(organizationId: string): Promise<SyncL
       body: {
         action: 'syncLivechatInbound',
         organization_id: organizationId,
+        lookback_days: 60,
+        max_posts: 40,
       },
     });
     if (error) {
       devLog.warn('Threads livechat sync failed', error.message);
       return null;
     }
-    return (data ?? null) as SyncLivechatResult | null;
+    const result = (data ?? null) as SyncLivechatResult | null;
+    if (result?.ingested && result.ingested > 0) {
+      devLog.info('Threads livechat sync ingested', result.ingested);
+    }
+    return result;
   } catch (e) {
     devLog.warn('Threads livechat sync error', e);
     return null;

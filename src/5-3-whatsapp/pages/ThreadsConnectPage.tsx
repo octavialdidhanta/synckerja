@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { toast } from 'sonner';
 import { HeaderAndTab } from '@/5-3-dashboard/components/layout/HeaderAndTab';
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
@@ -53,12 +52,8 @@ export function ThreadsConnectPage() {
   const threadsReady = anyAccountHasThreads && threadsScopesGranted;
 
   const { startOAuth, oauthLoading } = useThreadsOAuthConnect({
-    onExchangeComplete: async (result) => {
+    onExchangeComplete: async () => {
       await refetch();
-      const synced = result.threads_accounts_synced ?? 0;
-      if (synced > 0) {
-        toast.success(t('threadsConnect.oauthSuccess', 'Threads connected.'));
-      }
     },
   });
 
@@ -212,7 +207,17 @@ export function ThreadsConnectPage() {
                                   </div>
                                 ) : (
                                   <div className="scrollbar-hide nested-scroll-touch-chain seamless-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                                    {connectedAccounts.map((acc) => (
+                                    {(() => {
+                                      const seenThreadsUserIds = new Set<string>();
+                                      return connectedAccounts.map((acc) => {
+                                        const threadsUserId = acc.threads_user_id?.trim() ?? '';
+                                        const showThreadsLine =
+                                          acc.has_threads &&
+                                          Boolean(acc.threads_username?.trim()) &&
+                                          threadsUserId &&
+                                          !seenThreadsUserIds.has(threadsUserId);
+                                        if (showThreadsLine) seenThreadsUserIds.add(threadsUserId);
+                                        return (
                                       <div
                                         key={acc.id}
                                         className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3"
@@ -227,9 +232,13 @@ export function ThreadsConnectPage() {
                                                 ? `@${acc.instagram_username}`
                                                 : acc.instagram_name || acc.instagram_business_account_id}
                                             </p>
-                                            {acc.has_threads && acc.threads_username ? (
+                                            {showThreadsLine ? (
                                               <p className="truncate text-xs text-slate-500">
-                                                @{acc.threads_username}
+                                                Threads @{acc.threads_username}
+                                              </p>
+                                            ) : acc.has_threads ? (
+                                              <p className="truncate text-xs text-slate-500">
+                                                {t('threadsConnect.threadsSharedProfile', 'Threads profile shared with linked IG above')}
                                               </p>
                                             ) : null}
                                           </div>
@@ -242,7 +251,9 @@ export function ThreadsConnectPage() {
                                           </span>
                                         )}
                                       </div>
-                                    ))}
+                                        );
+                                      });
+                                    })()}
                                   </div>
                                 )}
                               </CardContent>
