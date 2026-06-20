@@ -120,6 +120,7 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
             resData,
             t('instagramConnect.threadsOAuthExchangeFailed', 'Failed to save Threads authorization.'),
           ),
+          { id: 'threads-oauth-error' },
         );
         setOauthLoading(false);
         return;
@@ -133,12 +134,14 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
               'Authorization succeeded but could not save to your organization. Check Edge Function secrets and try again.',
             ),
           ),
+          { id: 'threads-oauth-error' },
         );
         setOauthLoading(false);
         return;
       }
       toast.success(
         t('threadsConnect.oauthSuccess', 'Threads connected.'),
+        { id: 'threads-oauth-success' },
       );
       try {
         await args.onExchangeComplete?.(resData);
@@ -278,6 +281,7 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         } catch {
           toast.error(
             t('instagramConnect.threadsOAuthExchangeFailed', 'Failed to save Threads authorization.'),
+            { id: 'threads-oauth-error' },
           );
         } finally {
           clearThreadsOAuthPopupFlag();

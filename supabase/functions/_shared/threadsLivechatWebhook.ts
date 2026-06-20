@@ -70,13 +70,12 @@ function rootMediaIdFromValue(
   if (rootPost?.id != null && String(rootPost.id).trim()) {
     return String(rootPost.id).trim();
   }
+  if (targetId) return targetId;
   const repliedTo = value.replied_to as { id?: unknown } | undefined;
-  if (field === "replies" && repliedTo?.id != null && String(repliedTo.id).trim()) {
+  if (repliedTo?.id != null && String(repliedTo.id).trim()) {
     return String(repliedTo.id).trim();
   }
-  if (targetId) return targetId;
-  const selfId = value.id != null ? String(value.id).trim() : "";
-  return selfId;
+  return "";
 }
 
 function messageBodyFromValue(value: Record<string, unknown>): { body: string; messageType: string } {
@@ -269,6 +268,10 @@ export async function processThreadsLivechatWebhook(
   const customerKey = customerKeyFromValue(value);
   const customerName = customerDisplayName(value);
   const rootMediaId = rootMediaIdFromValue(field, targetId, value);
+  if (!rootMediaId) {
+    console.error("[threads-webhook] missing root_media_id for message", platformMessageId);
+    return false;
+  }
   const ts = parseTimestamp(payload, value);
   const { body: bodyText, messageType } = messageBodyFromValue(value);
   const lastBody = bodyText.slice(0, 200);

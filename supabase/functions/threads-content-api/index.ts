@@ -27,7 +27,7 @@ const COMMENT_ACTIONS = new Set([
   "replyComment",
 ]);
 
-const LIVECHAT_ACTIONS = new Set(["syncLivechatInbound"]);
+const LIVECHAT_ACTIONS = new Set(["syncLivechatInbound", "listLivechatConversations"]);
 
 const CONFIG_ACTIONS = new Set(["getSettings"]);
 
@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (LIVECHAT_ACTIONS.has(action)) {
-    return await handleThreadsLivechat(admin, userRes.userId, body);
+    return await handleThreadsLivechat(admin, userRes.userId, body, req.headers.get("Authorization"));
   }
 
   return threadsContentJson({ error: "Unknown action" }, 400);

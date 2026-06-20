@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   getThreadsAccessToken,
   requireActiveOrg,
@@ -50,21 +51,59 @@ export async function handleThreadsLivechat(
   admin: SupabaseClient,
   userId: string,
   body: Record<string, unknown>,
+  authHeader: string | null,
 ): Promise<Response> {
   try {
     const platformForbidden = requireThreadsPlatformConfigured();
     if (platformForbidden) return platformForbidden;
 
     const action = String(body.action ?? "").trim();
-    if (action !== "syncLivechatInbound") {
-      return threadsContentJson({ error: "Unknown action", action }, 400);
-    }
-
     const organizationId = String(body.organization_id ?? "").trim();
     if (!organizationId) return threadsContentJson({ error: "Missing organization_id" }, 400);
 
     const orgForbidden = await requireActiveOrg(admin, userId, organizationId);
     if (orgForbidden) return orgForbidden;
+
+    if (action === "listLivechatConversations") {
+      const accounts = await listThreadsWebhookAccounts(admin, organizationId);
+      let syncResult = {
+        ingested: 0,
+        scanned_posts: 0,
+        scanned_replies: 0,
+        accounts_synced: 0,
+      };
+      if (accounts.length > 0) {
+        syncResult = await syncThreadsLivechatInboundForOrg(
+          admin,
+          organizationId,
+          (id) => getThreadsAccessToken(admin, organizationId, id),
+          accounts,
+          { lookbackDays: 90, maxPosts: 50 },
+        );
+      }
+
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: authHeader ? { Authorization: authHeader } : {} },
+      });
+      const { data: conversations, error: rpcErr } = await userClient.rpc(
+        "get_threads_conversations_with_preview",
+        { p_organization_id: organizationId },
+      );
+      if (rpcErr) {
+        return threadsContentJson({ error: rpcErr.message, sync: syncResult }, 400);
+      }
+      return threadsContentJson({
+        ok: true,
+        conversations: conversations ?? [],
+        sync: syncResult,
+      }, 200);
+    }
+
+    if (action !== "syncLivechatInbound") {
+      return threadsContentJson({ error: "Unknown action", action }, 400);
+    }
 
     let threadsUserIdFilter = body.threads_user_id != null
       ? String(body.threads_user_id).trim()

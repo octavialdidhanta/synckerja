@@ -395,6 +395,92 @@ export async function fetchThreadReplies(
   }
 }
 
+export async function fetchThreadsRepliedToId(
+  mediaOrReplyId: string,
+  accessToken: string,
+): Promise<string | null> {
+  try {
+    const data = await threadsGet<{ replied_to?: { id?: string } }>(
+      threadsUrl(`${mediaOrReplyId}`, { fields: "replied_to" }),
+      accessToken,
+    );
+    const parent = data.replied_to?.id != null ? String(data.replied_to.id).trim() : "";
+    return parent || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Walk replied_to chain to find the root post/media id for /{id}/replies. */
+export async function resolveThreadsPostIdFromReplyChain(
+  startId: string,
+  accessToken: string,
+  maxHops = 5,
+): Promise<string | null> {
+  let current = String(startId ?? "").trim();
+  if (!current) return null;
+  for (let hop = 0; hop < maxHops; hop++) {
+    const parent = await fetchThreadsRepliedToId(current, accessToken);
+    if (!parent || parent === current) return current;
+    current = parent;
+  }
+  return current;
+}
+
+export function extractRootPostIdFromRawMetadata(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const meta = raw as Record<string, unknown>;
+  const values = meta.values as { value?: Record<string, unknown> } | undefined;
+  const rootPost = values?.value?.root_post as { id?: unknown } | undefined;
+  if (rootPost?.id != null && String(rootPost.id).trim()) {
+    return String(rootPost.id).trim();
+  }
+  return null;
+}
+
+export async function resolveThreadsPostMediaIdForReply(
+  admin: import("https://esm.sh/@supabase/supabase-js@2").SupabaseClient,
+  conversationId: string,
+  storedRootMediaId: string,
+  accessToken: string,
+  replyToCommentId?: string | null,
+): Promise<string> {
+  let root = String(storedRootMediaId ?? "").trim();
+  const replyTo = replyToCommentId?.trim() ?? "";
+
+  const { data: msgRows } = await admin
+    .from("threads_messages")
+    .select("raw_metadata")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true })
+    .limit(10);
+
+  for (const row of msgRows ?? []) {
+    const fromMeta = extractRootPostIdFromRawMetadata(
+      (row as { raw_metadata?: unknown }).raw_metadata,
+    );
+    if (fromMeta) {
+      root = fromMeta;
+      break;
+    }
+  }
+
+  if (!root || (replyTo && root === replyTo)) {
+    const seed = replyTo || root || storedRootMediaId;
+    const resolved = await resolveThreadsPostIdFromReplyChain(seed, accessToken);
+    if (resolved) root = resolved;
+  }
+
+  if (root && root !== storedRootMediaId) {
+    await admin
+      .from("threads_conversations")
+      .update({ root_media_id: root, updated_at: new Date().toISOString() })
+      .eq("id", conversationId);
+  }
+
+  return root || storedRootMediaId;
+}
+
 export async function replyThreadsComment(
   mediaId: string,
   text: string,

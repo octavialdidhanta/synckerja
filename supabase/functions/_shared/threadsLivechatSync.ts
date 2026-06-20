@@ -68,13 +68,17 @@ export async function syncThreadsLivechatInboundForAccount(
   const start = new Date(end);
   start.setUTCDate(start.getUTCDate() - lookbackDays);
 
-  const posts = await fetchThreadsList(accessToken, maxPosts, {
-    startYmd: formatYmd(start),
-    endYmd: formatYmd(end),
-  });
+  let posts = await fetchThreadsList(accessToken, maxPosts, { allTime: true });
+  if (posts.length === 0) {
+    posts = await fetchThreadsList(accessToken, maxPosts, {
+      startYmd: formatYmd(start),
+      endYmd: formatYmd(end),
+    });
+  }
 
   let ingested = 0;
   let scannedReplies = 0;
+  let skippedOwner = 0;
   const ensuredLivechatStatusOrgs = new Set<string>();
   const noopPush = async () => {};
 
@@ -86,8 +90,11 @@ export async function syncThreadsLivechatInboundForAccount(
     scannedReplies += replies.length;
 
     for (const reply of replies) {
-      if (reply.is_owner) continue;
       if (!reply.id?.trim()) continue;
+      if (reply.is_owner) {
+        skippedOwner += 1;
+        continue;
+      }
 
       const payload = commentToWebhookPayload(
         reply,
@@ -103,6 +110,16 @@ export async function syncThreadsLivechatInboundForAccount(
       );
       if (ok) ingested += 1;
     }
+  }
+
+  if (posts.length > 0) {
+    console.log("[threads-livechat-sync]", {
+      threads_user_id: account.threads_user_id,
+      posts: posts.length,
+      scanned_replies: scannedReplies,
+      skipped_owner: skippedOwner,
+      ingested,
+    });
   }
 
   return {

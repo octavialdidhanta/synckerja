@@ -7,38 +7,46 @@ import { toast } from 'sonner';
 import type { ThreadsConversation } from '../types';
 
 const QUERY_KEY = ['threads-conversations'] as const;
-const SYNC_MIN_MS = 30_000;
 
-type SyncLivechatResult = {
+type LivechatListResponse = {
   ok?: boolean;
-  ingested?: number;
-  scanned_posts?: number;
-  scanned_replies?: number;
+  conversations?: ThreadsConversation[];
+  sync?: {
+    ingested?: number;
+    scanned_posts?: number;
+    scanned_replies?: number;
+    accounts_synced?: number;
+  };
+  error?: string;
 };
 
-async function syncThreadsLivechatInbound(organizationId: string): Promise<SyncLivechatResult | null> {
-  try {
-    const { data, error } = await supabase.functions.invoke('threads-content-api', {
-      body: {
-        action: 'syncLivechatInbound',
-        organization_id: organizationId,
-        lookback_days: 60,
-        max_posts: 40,
-      },
-    });
-    if (error) {
-      devLog.warn('Threads livechat sync failed', error.message);
-      return null;
-    }
-    const result = (data ?? null) as SyncLivechatResult | null;
-    if (result?.ingested && result.ingested > 0) {
-      devLog.info('Threads livechat sync ingested', result.ingested);
-    }
-    return result;
-  } catch (e) {
-    devLog.warn('Threads livechat sync error', e);
-    return null;
+async function fetchThreadsLivechatConversations(
+  organizationId: string,
+): Promise<{ conversations: ThreadsConversation[]; sync: LivechatListResponse['sync'] }> {
+  const { data, error } = await supabase.functions.invoke('threads-content-api', {
+    body: {
+      action: 'listLivechatConversations',
+      organization_id: organizationId,
+    },
+  });
+  if (error) {
+    devLog.warn('Threads livechat list failed', error.message);
+    throw error;
   }
+  const payload = (data ?? {}) as LivechatListResponse;
+  if (payload.error) {
+    throw new Error(payload.error);
+  }
+  const sync = payload.sync;
+  if (sync?.ingested && sync.ingested > 0) {
+    devLog.info('Threads livechat ingested', sync.ingested);
+  } else if (sync?.scanned_replies === 0 && sync?.scanned_posts === 0) {
+    devLog.info('Threads livechat sync: no posts found for account');
+  }
+  return {
+    conversations: Array.isArray(payload.conversations) ? payload.conversations : [],
+    sync,
+  };
 }
 
 export function useThreadsConversations() {
@@ -46,7 +54,6 @@ export function useThreadsConversations() {
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const channelErrorToastShownRef = useRef(false);
-  const lastSyncAtRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!organizationId) return;
@@ -89,21 +96,11 @@ export function useThreadsConversations() {
     enabled: !!organizationId,
     queryFn: async (): Promise<ThreadsConversation[]> => {
       if (!organizationId) return [];
-
-      const lastSync = lastSyncAtRef.current.get(organizationId) ?? 0;
-      if (Date.now() - lastSync >= SYNC_MIN_MS) {
-        lastSyncAtRef.current.set(organizationId, Date.now());
-        await syncThreadsLivechatInbound(organizationId);
-      }
-
-      const { data, error } = await supabase.rpc('get_threads_conversations_with_preview', {
-        p_organization_id: organizationId,
-      });
-      if (error) throw error;
-      return (data ?? []) as ThreadsConversation[];
+      const { conversations } = await fetchThreadsLivechatConversations(organizationId);
+      return conversations;
     },
-    refetchInterval: 20000,
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
   });
 }

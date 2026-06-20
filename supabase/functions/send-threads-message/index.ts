@@ -1,7 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { replyThreadsComment } from "../_shared/threadsContentApi.ts";
+import { replyThreadsComment, resolveThreadsPostMediaIdForReply } from "../_shared/threadsContentApi.ts";
 import { getThreadsAccessToken } from "../_shared/threadsContentAuth.ts";
 import {
   isUnreadLeadStatusName,
@@ -259,20 +259,50 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const rootMediaId = String(conv.root_media_id).trim();
+    const rootMediaId = await resolveThreadsPostMediaIdForReply(
+      supabase,
+      conversationId,
+      String(conv.root_media_id).trim(),
+      accessToken,
+      replyToPlatformId,
+    );
     let apiResult: { id: string };
     try {
       apiResult = await replyThreadsComment(rootMediaId, text, accessToken, replyToPlatformId ?? undefined);
     } catch (apiErr) {
       const rawMsg = apiErr instanceof Error ? apiErr.message : "Threads API error";
-      const sessionMaybe = /24 hours|window|session|expired|permission/i.test(rawMsg);
-      if (sessionMaybe) {
-        await markThreadsConversationExpiredReactive(supabase, conversationId, conv.organization_id as string);
+      const maybeWrongMedia = /does not exist|unsupported post|cannot be loaded/i.test(rawMsg);
+      if (maybeWrongMedia && replyToPlatformId) {
+        try {
+          const recovered = await resolveThreadsPostMediaIdForReply(
+            supabase,
+            conversationId,
+            replyToPlatformId,
+            accessToken,
+            replyToPlatformId,
+          );
+          apiResult = await replyThreadsComment(recovered, text, accessToken, replyToPlatformId);
+        } catch (retryErr) {
+          const retryMsg = retryErr instanceof Error ? retryErr.message : rawMsg;
+          const sessionMaybe = /24 hours|window|session|expired|permission/i.test(retryMsg);
+          if (sessionMaybe) {
+            await markThreadsConversationExpiredReactive(supabase, conversationId, conv.organization_id as string);
+          }
+          return new Response(
+            JSON.stringify({ error: retryMsg, code: "THREADS_API_ERROR" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      } else {
+        const sessionMaybe = /24 hours|window|session|expired|permission/i.test(rawMsg);
+        if (sessionMaybe) {
+          await markThreadsConversationExpiredReactive(supabase, conversationId, conv.organization_id as string);
+        }
+        return new Response(
+          JSON.stringify({ error: rawMsg, code: "THREADS_API_ERROR" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
-      return new Response(
-        JSON.stringify({ error: rawMsg, code: "THREADS_API_ERROR" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
     }
 
     const messageId = apiResult.id || null;
