@@ -7,7 +7,10 @@ import { toast } from 'sonner';
 import type { ThreadsConversation } from '../types';
 
 const QUERY_KEY = ['threads-conversations'] as const;
-const SYNC_INTERVAL_MS = 3 * 60 * 1000;
+const SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const SYNC_SESSION_KEY = 'threads-livechat-last-sync-at';
+
+let syncInFlight = false;
 
 async function fetchThreadsConversations(organizationId: string): Promise<ThreadsConversation[]> {
   const { data, error } = await supabase.rpc('get_threads_conversations_with_preview', {
@@ -20,17 +23,38 @@ async function fetchThreadsConversations(organizationId: string): Promise<Thread
   return (data ?? []) as ThreadsConversation[];
 }
 
+function canRunBackgroundSync(): boolean {
+  try {
+    const raw = sessionStorage.getItem(SYNC_SESSION_KEY);
+    const last = raw ? Number(raw) : 0;
+    return !Number.isFinite(last) || Date.now() - last >= SYNC_COOLDOWN_MS;
+  } catch {
+    return true;
+  }
+}
+
+function markBackgroundSyncRan(): void {
+  try {
+    sessionStorage.setItem(SYNC_SESSION_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
 function triggerThreadsLivechatSync(
   organizationId: string,
   onIngested?: () => void,
 ): void {
+  if (syncInFlight || !canRunBackgroundSync()) return;
+  syncInFlight = true;
+
   void supabase.functions
     .invoke('threads-content-api', {
       body: {
         action: 'syncLivechatInbound',
         organization_id: organizationId,
-        lookback_days: 14,
-        max_posts: 15,
+        lookback_days: 7,
+        max_posts: 8,
       },
     })
     .then(({ data, error }) => {
@@ -38,16 +62,18 @@ function triggerThreadsLivechatSync(
         devLog.warn('Threads livechat background sync failed', error.message);
         return;
       }
+      markBackgroundSyncRan();
       const payload = (data ?? {}) as { ingested?: number; scanned_replies?: number };
       if (payload.ingested && payload.ingested > 0) {
         devLog.info('Threads livechat ingested', payload.ingested);
         onIngested?.();
-      } else if (payload.scanned_replies === 0) {
-        devLog.info('Threads livechat sync: no new replies');
       }
     })
     .catch((err: unknown) => {
       devLog.warn('Threads livechat background sync error', err);
+    })
+    .finally(() => {
+      syncInFlight = false;
     });
 }
 
@@ -56,26 +82,15 @@ export function useThreadsConversations() {
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const channelErrorToastShownRef = useRef(false);
-  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const syncStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!organizationId) return;
+    if (!organizationId || syncStartedRef.current) return;
+    syncStartedRef.current = true;
 
-    const invalidate = () => {
+    triggerThreadsLivechatSync(organizationId, () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-    };
-
-    triggerThreadsLivechatSync(organizationId, invalidate);
-    syncIntervalRef.current = setInterval(() => {
-      triggerThreadsLivechatSync(organizationId, invalidate);
-    }, SYNC_INTERVAL_MS);
-
-    return () => {
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-        syncIntervalRef.current = null;
-      }
-    };
+    });
   }, [organizationId, queryClient]);
 
   useEffect(() => {
@@ -121,8 +136,7 @@ export function useThreadsConversations() {
       if (!organizationId) return [];
       return fetchThreadsConversations(organizationId);
     },
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
-    staleTime: 15_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }

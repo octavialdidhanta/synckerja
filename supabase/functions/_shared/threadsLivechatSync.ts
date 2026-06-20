@@ -12,6 +12,37 @@ import {
 
 const DEFAULT_LOOKBACK_DAYS = 60;
 const DEFAULT_MAX_POSTS = 40;
+const MAX_REPLIES_PER_SYNC = 40;
+
+async function loadKnownInboundMessageIdsForOrg(
+  admin: SupabaseClient,
+  organizationId: string,
+): Promise<Set<string>> {
+  const { data: convRows, error: convErr } = await admin
+    .from("threads_conversations")
+    .select("id")
+    .eq("organization_id", organizationId);
+  if (convErr) throw new Error(convErr.message);
+
+  const convIds = (convRows ?? [])
+    .map((row) => String((row as { id?: unknown }).id ?? "").trim())
+    .filter(Boolean);
+  if (convIds.length === 0) return new Set();
+
+  const { data: msgRows, error: msgErr } = await admin
+    .from("threads_messages")
+    .select("platform_message_id")
+    .in("conversation_id", convIds)
+    .not("platform_message_id", "is", null);
+  if (msgErr) throw new Error(msgErr.message);
+
+  const ids = new Set<string>();
+  for (const row of msgRows ?? []) {
+    const id = String((row as { platform_message_id?: unknown }).platform_message_id ?? "").trim();
+    if (id) ids.add(id);
+  }
+  return ids;
+}
 
 function formatYmd(d: Date): string {
   const y = d.getUTCFullYear();
@@ -60,7 +91,7 @@ export async function syncThreadsLivechatInboundForAccount(
   admin: SupabaseClient,
   account: ThreadsWebhookAccount,
   accessToken: string,
-  options?: { lookbackDays?: number; maxPosts?: number },
+  options?: { lookbackDays?: number; maxPosts?: number; knownInboundMessageIds?: Set<string> },
 ): Promise<SyncThreadsLivechatResult> {
   const lookbackDays = options?.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
   const maxPosts = options?.maxPosts ?? DEFAULT_MAX_POSTS;
@@ -79,7 +110,10 @@ export async function syncThreadsLivechatInboundForAccount(
   let ingested = 0;
   let scannedReplies = 0;
   let skippedOwner = 0;
+  let skippedKnown = 0;
+  let processed = 0;
   const ensuredLivechatStatusOrgs = new Set<string>();
+  const knownInboundMessageIds = options?.knownInboundMessageIds ?? new Set<string>();
   const noopPush = async () => {};
 
   for (const post of posts) {
@@ -95,6 +129,15 @@ export async function syncThreadsLivechatInboundForAccount(
         skippedOwner += 1;
         continue;
       }
+      const replyId = reply.id.trim();
+      if (knownInboundMessageIds.has(replyId)) {
+        skippedKnown += 1;
+        continue;
+      }
+      if (processed >= MAX_REPLIES_PER_SYNC) {
+        break;
+      }
+      processed += 1;
 
       const payload = commentToWebhookPayload(
         reply,
@@ -107,9 +150,18 @@ export async function syncThreadsLivechatInboundForAccount(
         payload,
         noopPush,
         ensuredLivechatStatusOrgs,
+        {
+          knownInboundMessageIds,
+          onInserted: () => {
+            ingested += 1;
+          },
+        },
       );
-      if (ok) ingested += 1;
+      if (!ok) {
+        /* keep scanning */
+      }
     }
+    if (processed >= MAX_REPLIES_PER_SYNC) break;
   }
 
   if (posts.length > 0) {
@@ -118,6 +170,7 @@ export async function syncThreadsLivechatInboundForAccount(
       posts: posts.length,
       scanned_replies: scannedReplies,
       skipped_owner: skippedOwner,
+      skipped_known: skippedKnown,
       ingested,
     });
   }
@@ -147,6 +200,8 @@ export async function syncThreadsLivechatInboundForOrg(
   let scannedReplies = 0;
   let accountsSynced = 0;
 
+  const knownInboundMessageIds = await loadKnownInboundMessageIdsForOrg(admin, organizationId);
+
   const seenThreadsUserIds = new Set<string>();
   for (const account of accounts) {
     const threadsUserId = String(account.threads_user_id ?? "").trim();
@@ -160,7 +215,7 @@ export async function syncThreadsLivechatInboundForOrg(
       admin,
       account,
       accessToken,
-      options,
+      { ...options, knownInboundMessageIds },
     );
     ingested += result.ingested;
     scannedPosts += result.scanned_posts;

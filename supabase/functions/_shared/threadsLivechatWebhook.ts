@@ -242,12 +242,18 @@ export async function resolveThreadsAccountForWebhook(
   return null;
 }
 
+export type ThreadsWebhookProcessOptions = {
+  knownInboundMessageIds?: Set<string>;
+  onInserted?: () => void;
+};
+
 export async function processThreadsLivechatWebhook(
   supabase: SupabaseClient,
   account: ThreadsWebhookAccount,
   payload: ThreadsWebhookPayload,
   notifyPush: (record: Record<string, unknown>) => Promise<void>,
   ensuredLivechatStatusOrgs: Set<string>,
+  options?: ThreadsWebhookProcessOptions,
 ): Promise<boolean> {
   const field = payload.values?.field != null ? String(payload.values.field).trim().toLowerCase() : "";
   if (field !== "replies" && field !== "mentions") {
@@ -259,6 +265,8 @@ export async function processThreadsLivechatWebhook(
 
   const platformMessageId = value.id != null ? String(value.id).trim() : "";
   if (!platformMessageId) return false;
+
+  if (options?.knownInboundMessageIds?.has(platformMessageId)) return true;
 
   if (isOwnInbound(value, account)) return false;
 
@@ -409,8 +417,13 @@ export async function processThreadsLivechatWebhook(
     return false;
   }
   if (!insertedRow?.id) {
+    options?.knownInboundMessageIds?.add(platformMessageId);
     return true;
   }
+
+  options?.knownInboundMessageIds?.add(platformMessageId);
+
+  options?.onInserted?.();
 
   await notifyPush(insertPayload);
 

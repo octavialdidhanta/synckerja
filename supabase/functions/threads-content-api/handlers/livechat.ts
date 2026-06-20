@@ -107,8 +107,8 @@ export async function handleThreadsLivechat(
       return threadsContentJson({ error: "No Threads account connected for this organization" }, 404);
     }
 
-    const lookbackDays = Number(body.lookback_days ?? 60);
-    const maxPosts = Number(body.max_posts ?? 40);
+    const lookbackDays = Number(body.lookback_days ?? 7);
+    const maxPosts = Number(body.max_posts ?? 8);
 
     const result = await syncThreadsLivechatInboundForOrg(
       admin,
@@ -116,8 +116,8 @@ export async function handleThreadsLivechat(
       (id) => getThreadsAccessToken(admin, organizationId, id),
       accounts,
       {
-        lookbackDays: Number.isFinite(lookbackDays) && lookbackDays > 0 ? lookbackDays : 60,
-        maxPosts: Number.isFinite(maxPosts) && maxPosts > 0 ? Math.min(maxPosts, 50) : 40,
+        lookbackDays: Number.isFinite(lookbackDays) && lookbackDays > 0 ? lookbackDays : 7,
+        maxPosts: Number.isFinite(maxPosts) && maxPosts > 0 ? Math.min(maxPosts, 20) : 8,
       },
     );
 
