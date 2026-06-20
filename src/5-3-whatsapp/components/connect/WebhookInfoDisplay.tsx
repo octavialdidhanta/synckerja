@@ -8,7 +8,7 @@ import { useFacebookPages } from '../../hooks/useFacebookPages';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import { cn } from '@/shared/lib/utils';
-import { Link2, Key, Info } from 'lucide-react';
+import { Link2, Info } from 'lucide-react';
 
 const WHATSAPP_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 const INSTAGRAM_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/instagram-webhook`;
@@ -75,43 +75,41 @@ export function WebhookInfoDisplay({ embedded, compact, variant = 'whatsapp' }: 
 
   return (
     <div className={embedded ? 'pt-0' : 'pt-4 border-t border-dashed border-gray-300'}>
-      <div className={cn('flex items-center gap-2', compact ? 'mb-2' : 'mb-4')}>
-        <Link2 className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
-        <h3 className="text-sm font-semibold text-slate-800">
-          {compact
-            ? t('facebookConnect.webhookCompactTitle', 'Webhook Meta')
-            : t('whatsappConnect.webhookConfigTitle', 'Webhook configuration')}
-        </h3>
-        {isMetaWebhook && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex text-slate-400 hover:text-slate-600 cursor-help" aria-label="Info">
-                <Info className="w-3.5 h-3.5 shrink-0" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs">
-              <p className="text-xs">
-                {isThreads
-                  ? t(
-                      'threadsConnect.webhookReceiveHint',
-                      'Di Meta Developer → App Threads → Webhooks: isi Callback URL + Verify Token di bawah, Verify and Save, lalu subscribe field replies dan mentions.',
-                    )
-                  : isFacebook
-                  ? t(
-                      'facebookConnect.webhookReceiveHint',
-                      compact
-                        ? 'Meta Developer → Webhooks → product Page → paste URL & token → subscribe messages.'
-                        : 'Agar Messenger masuk ke livechat: di Meta Developer → App → Webhooks, pilih product Page (bukan User), isi Callback URL dan Verify Token di bawah, Verify and Save, lalu subscribe messages.',
-                    )
-                  : t(
-                      'instagramConnect.webhookReceiveHint',
-                      'Agar DM masuk ke aplikasi: di Meta Developer → App Anda → Instagram → Configuration → Webhook, isi Callback URL dan Verify Token di bawah, klik Verify and Save, lalu subscribe ke "messages".',
-                    )}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </div>
+      {!compact && (
+        <div className={cn('flex items-center gap-2', 'mb-4')}>
+          <Link2 className="w-4 h-4 text-slate-600 shrink-0" aria-hidden />
+          <h3 className="text-sm font-semibold text-slate-800">
+            {t('whatsappConnect.webhookConfigTitle', 'Webhook configuration')}
+          </h3>
+          {isMetaWebhook && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex text-slate-400 hover:text-slate-600 cursor-help" aria-label="Info">
+                  <Info className="w-3.5 h-3.5 shrink-0" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs">
+                <p className="text-xs">
+                  {isThreads
+                    ? t(
+                        'threadsConnect.webhookReceiveHint',
+                        'Di Meta Developer → App Threads → Webhooks: isi Callback URL + Verify Token di bawah, Verify and Save, lalu subscribe field replies dan mentions.',
+                      )
+                    : isFacebook
+                      ? t(
+                          'facebookConnect.webhookReceiveHint',
+                          'Meta Developer → Webhooks → product Page → paste URL & token → subscribe messages.',
+                        )
+                      : t(
+                          'instagramConnect.webhookReceiveHint',
+                          'Agar DM masuk ke aplikasi: di Meta Developer → App Anda → Instagram → Configuration → Webhook, isi Callback URL dan Verify Token di bawah, klik Verify and Save, lalu subscribe ke "messages".',
+                        )}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )}
       {isThreads && (
         <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50/90 p-3 text-xs leading-relaxed text-slate-800">
           <p className="font-semibold">
@@ -178,9 +176,11 @@ export function WebhookInfoDisplay({ embedded, compact, variant = 'whatsapp' }: 
           </ol>
         </div>
       )}
-      <div className="space-y-5">
-        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
-          <Label className="text-slate-700 text-xs font-medium uppercase tracking-wide">Webhook Callback URL</Label>
+      <div className={compact ? 'space-y-2' : 'space-y-5'}>
+        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 space-y-1.5">
+          <Label className="text-slate-600 text-[11px] font-medium uppercase tracking-wide">
+            {compact ? 'URL' : 'Webhook Callback URL'}
+          </Label>
           <div className="flex items-center gap-2 flex-wrap">
             <a
               href={webhookUrl}
@@ -195,11 +195,10 @@ export function WebhookInfoDisplay({ embedded, compact, variant = 'whatsapp' }: 
             </Button>
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <Key className="w-3.5 h-3.5 text-slate-600 shrink-0" aria-hidden />
-            <Label className="text-slate-700 text-xs font-medium uppercase tracking-wide">Verify Token</Label>
-          </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 space-y-1.5">
+          <Label className="text-slate-600 text-[11px] font-medium uppercase tracking-wide">
+            {compact ? t('facebookConnect.verifyTokenShort', 'Token') : 'Verify Token'}
+          </Label>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-mono bg-white border border-slate-200 px-2.5 py-1.5 rounded flex-1 min-w-0 truncate">
               {verifyToken ?? verifyTokenPlaceholder}

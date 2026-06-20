@@ -4,7 +4,7 @@ import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate'
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { useDepartmentAccess } from '@/shared/auth/page-access/useDepartmentAccess';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -20,7 +20,6 @@ import { buildMetaOAuthDialogUrl } from '@/meta-platform/constants/buildMetaOAut
 import { META_BUSINESS_OAUTH_SCOPES } from '@/meta-platform/constants/metaOAuthScopes';
 import { getMetaInstagramOAuthConfigId } from '@/meta-platform/constants/metaOAuthEnv';
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
-import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
 
 const META_OAUTH_SCOPE = META_BUSINESS_OAUTH_SCOPES;
 const META_OAUTH_VERSION = META_GRAPH_VERSION;
@@ -450,7 +449,6 @@ export function InstagramConnectPage() {
                             </div>
                             <div>
                               <h2 className="text-xl font-bold text-[#E4405F]">{t('instagramConnect.leftTitle', 'Connect Instagram')}</h2>
-                              <p className="text-sm text-gray-500">{t('instagramConnect.leftDescriptionShort', 'OAuth via Facebook atau token dari Connect WhatsApp.')}</p>
                             </div>
                           </div>
                         </CardHeader>
@@ -511,14 +509,15 @@ export function InstagramConnectPage() {
                               )}
                             </div>
                           )}
-                          <div className="border-t border-slate-200 pt-4 mt-4">
-                            <WebhookInfoDisplay embedded variant="instagram" />
-                          </div>
                           {connectedAccounts.length > 0 && (
-                            <MetaScopeStatusCards
-                              accounts={connectedAccounts}
-                              features={['dm', 'comments', 'insights', 'pages']}
-                            />
+                            <details className="group border-t border-slate-200 pt-3">
+                              <summary className="cursor-pointer list-none text-xs font-medium text-slate-600 [&::-webkit-details-marker]:hidden">
+                                {t('instagramConnect.webhookManualSetup', 'Meta webhook (manual setup)')}
+                              </summary>
+                              <div className="mt-2">
+                                <WebhookInfoDisplay embedded variant="instagram" compact />
+                              </div>
+                            </details>
                           )}
                         </CardContent>
                       </Card>
@@ -526,17 +525,13 @@ export function InstagramConnectPage() {
                       <Card className="flex h-full min-h-0 min-w-0 flex-col">
                         <CardHeader className="shrink-0">
                           <CardTitle>{t('instagramConnect.rightTitle', 'Connected accounts')}</CardTitle>
-                          <CardDescription>{t('instagramConnect.rightDescription', 'List of connected Instagram Business accounts.')}</CardDescription>
                         </CardHeader>
                         <CardContent className="flex min-h-0 flex-1 flex-col">
                           {connectedAccounts.length === 0 && availableToConnect.length === 0 ? (
                             <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-12 text-center">
                               <Instagram className="mb-3 h-12 w-12 text-slate-300" />
                               <p className="text-sm text-slate-600">
-                                {t(
-                                  'instagramConnect.noConnectedAccounts',
-                                  'No Instagram account connected. Use Connect with Facebook only to authorize.',
-                                )}
+                                {t('instagramConnect.noConnectedAccountsShort', 'No account connected yet.')}
                               </p>
                             </div>
                           ) : (

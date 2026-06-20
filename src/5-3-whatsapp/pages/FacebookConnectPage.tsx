@@ -6,7 +6,6 @@ import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useFacebookPages } from '../hooks/useFacebookPages';
-import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 import { CONNECT_FACEBOOK_PATH } from '../constants/omnichannelIntegrationPaths';
@@ -138,13 +137,6 @@ export function FacebookConnectPage() {
                                   {t('instagramConnect.oauthNotConfigured', 'VITE_META_APP_ID not set.')}
                                 </p>
                               ) : (
-                                <>
-                                <p className="text-xs text-slate-600">
-                                  {t(
-                                    'facebookConnect.oauthPagePickerHint',
-                                    'Pilih Facebook Page di popup Meta, lalu Continue.',
-                                  )}
-                                </p>
                                 <Button
                                   type="button"
                                   onClick={() => void startOAuth()}
@@ -162,7 +154,6 @@ export function FacebookConnectPage() {
                                       ? t('facebookConnect.reconnect', 'Connect again')
                                       : t('facebookConnect.connectButton', 'Connect with Facebook')}
                                 </Button>
-                                </>
                               )}
 
                               {connectedPages.length > 0 && (
@@ -177,14 +168,16 @@ export function FacebookConnectPage() {
                                     {isSubscribingWebhooks ? (
                                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     ) : null}
-                                    {t('facebookConnect.enableMessengerWebhooks', 'Aktifkan webhook Messenger')}
+                                    {t('facebookConnect.enableMessengerWebhooks', 'Enable Messenger webhooks')}
                                   </Button>
-                                  <MetaScopeStatusCards
-                                    accounts={connectedPages}
-                                    features={['messenger_dm', 'comments', 'insights']}
-                                    compact
-                                  />
-                                  <WebhookInfoDisplay variant="facebook" embedded compact />
+                                  <details className="group border-t border-slate-200 pt-3">
+                                    <summary className="cursor-pointer list-none text-xs font-medium text-slate-600 [&::-webkit-details-marker]:hidden">
+                                      {t('facebookConnect.webhookManualSetup', 'Meta webhook (manual setup)')}
+                                    </summary>
+                                    <div className="mt-2">
+                                      <WebhookInfoDisplay variant="facebook" embedded compact />
+                                    </div>
+                                  </details>
                                 </>
                               )}
                             </CardContent>
