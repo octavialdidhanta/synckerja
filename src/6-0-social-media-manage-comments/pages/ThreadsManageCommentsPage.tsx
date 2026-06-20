@@ -23,7 +23,7 @@ import { useOmnichannelSurveySettingsAdmin } from '@/features/customer-survey/ho
 import { ThreadsContentAccountNav } from '@/6-0-social-media-performance/components/ThreadsContentAccountNav';
 import { useThreadsContentSettings } from '@/threads-content/hooks/useThreadsContentSettings';
 import { useThreadsContentCommentPostsQuery } from '@/threads-content/hooks/useThreadsContentComments';
-import { CONNECT_INSTAGRAM_PATH } from '@/threads-content/settings/threadsContentSettingsPaths';
+import { CONNECT_THREADS_PATH } from '@/threads-content/settings/threadsContentSettingsPaths';
 import { ThreadsTabIcon } from '@/6-0-social-media-performance/components/ThreadsTabIcon';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
@@ -152,12 +152,12 @@ function ThreadsManageCommentsPageContent() {
               <p className="mb-4 text-sm text-slate-600">
                 {t(
                   'digitalMarketing.threadsContent.manageCommentsConnectFirst',
-                  'Connect Threads via Instagram integration to manage replies.',
+                  'Connect Threads on the Threads integration tab to manage replies.',
                 )}
               </p>
               <Button asChild>
-                <Link to={CONNECT_INSTAGRAM_PATH}>
-                  {t('digitalMarketing.threadsContent.openConnect', 'Connect Instagram / Threads')}
+                <Link to={CONNECT_THREADS_PATH}>
+                  {t('threadsConnect.tabTitle', 'Connect Threads')}
                 </Link>
               </Button>
             </div>

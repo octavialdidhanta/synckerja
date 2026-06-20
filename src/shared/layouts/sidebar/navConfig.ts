@@ -198,6 +198,8 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: [
           "/omnichannel/integrations/whatsapp",
           "/omnichannel/integrations/instagram",
+          "/omnichannel/integrations/facebook",
+          "/omnichannel/integrations/threads",
           "/omnichannel/integrations/email",
         ],
       },

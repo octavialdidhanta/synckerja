@@ -5,14 +5,21 @@ import {
   META_SCOPE_FEATURE_MAP,
   missingScopesForFeature,
 } from '@/meta-platform/constants/metaOAuthScopes';
-import type { InstagramAccountRow } from '@/5-3-whatsapp/hooks/useInstagramAccounts';
 import { cn } from '@/shared/lib/utils';
 
-type MetaScopeStatusCardsProps = {
-  accounts: InstagramAccountRow[];
+type ScopeStatusAccount = {
+  granted_scopes?: string[] | null;
 };
 
-function parseGrantedScopes(account: InstagramAccountRow): string[] {
+type MetaScopeFeature = keyof typeof META_SCOPE_FEATURE_MAP;
+
+type MetaScopeStatusCardsProps = {
+  accounts: ScopeStatusAccount[];
+  /** When set, only these permission cards are shown. */
+  features?: MetaScopeFeature[];
+};
+
+function parseGrantedScopes(account: ScopeStatusAccount): string[] {
   const raw = account.granted_scopes;
   if (Array.isArray(raw)) return raw.map(String);
   if (typeof raw === 'string') {
@@ -27,6 +34,8 @@ function parseGrantedScopes(account: InstagramAccountRow): string[] {
 }
 
 const FEATURE_LINKS: Record<keyof typeof META_SCOPE_FEATURE_MAP, string> = {
+  instagram_dm: '/omnichannel/livechat',
+  messenger_dm: '/omnichannel/livechat',
   dm: '/omnichannel/livechat',
   comments: '/digital-marketing/social-media-performance/manage-comments/instagram',
   insights: '/digital-marketing/social-media-performance/instagram',
@@ -35,13 +44,15 @@ const FEATURE_LINKS: Record<keyof typeof META_SCOPE_FEATURE_MAP, string> = {
   threads_replies: '/digital-marketing/social-media-performance/manage-comments/threads',
 };
 
-export function MetaScopeStatusCards({ accounts }: MetaScopeStatusCardsProps) {
+export function MetaScopeStatusCards({ accounts, features: featuresFilter }: MetaScopeStatusCardsProps) {
   const { t } = useAppTranslation();
   if (accounts.length === 0) return null;
 
   const primary = accounts[0];
   const granted = parseGrantedScopes(primary);
-  const features = Object.keys(META_SCOPE_FEATURE_MAP) as Array<keyof typeof META_SCOPE_FEATURE_MAP>;
+  const features =
+    featuresFilter ??
+    (Object.keys(META_SCOPE_FEATURE_MAP) as MetaScopeFeature[]);
 
   return (
     <div className="space-y-2 border-t border-slate-200 pt-4">
@@ -53,6 +64,8 @@ export function MetaScopeStatusCards({ accounts }: MetaScopeStatusCardsProps) {
           const missing = missingScopesForFeature(granted, feature);
           const ok = missing.length === 0;
           const labels: Record<typeof feature, string> = {
+            instagram_dm: t('metaPlatform.scopeStatus.instagramDm', 'Instagram DM'),
+            messenger_dm: t('metaPlatform.scopeStatus.messengerDm', 'Messenger Live Chat'),
             dm: t('metaPlatform.scopeStatus.dm', 'DM Live Chat'),
             comments: t('metaPlatform.scopeStatus.comments', 'Comments'),
             insights: t('metaPlatform.scopeStatus.insights', 'Insights'),
@@ -82,7 +95,7 @@ export function MetaScopeStatusCards({ accounts }: MetaScopeStatusCardsProps) {
                       <span className="block mt-0.5">
                         {t(
                           'metaPlatform.scopeStatus.threadsReconnectHint',
-                          'Use Connect Threads on the Instagram integration page.',
+                          'Use Connect Threads on the Threads integration tab.',
                         )}
                       </span>
                     )}

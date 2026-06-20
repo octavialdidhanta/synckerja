@@ -15,6 +15,8 @@ interface ImportMetaEnv {
   /** Meta Facebook/Instagram Login app ID. */
   readonly VITE_META_APP_ID?: string;
   readonly VITE_META_OAUTH_CONFIG_ID?: string;
+  /** Business Login configuration ID for Facebook Page connect (separate from Instagram). */
+  readonly VITE_META_FACEBOOK_OAUTH_CONFIG_ID?: string;
   /** Meta Threads API app ID (separate app from VITE_META_APP_ID). */
   readonly VITE_THREADS_APP_ID?: string;
   /** Optional override when Meta whitelist differs from window.location.origin (must match opener origin for popup). */

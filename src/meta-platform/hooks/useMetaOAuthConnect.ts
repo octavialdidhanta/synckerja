@@ -1,27 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { META_BUSINESS_OAUTH_SCOPES } from '@/meta-platform/constants/metaOAuthScopes';
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
+import {
+  type MetaOAuthConnectFlow,
+  resolveMetaOAuthConfigId,
+  resolveMetaOAuthScopes,
+} from '@/meta-platform/constants/metaOAuthEnv';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 
-const META_OAUTH_SCOPE = META_BUSINESS_OAUTH_SCOPES;
 const META_OAUTH_VERSION = META_GRAPH_VERSION;
 const OAUTH_POPUP_POLL_MS = 500;
 const OAUTH_POPUP_MAX_MS = 5 * 60 * 1000;
 
 export type MetaOAuthExchangeResult = {
   accounts_synced?: number;
+  facebook_pages_synced?: number;
   webhook_subscribed_count?: number;
   error?: string;
   warning?: string;
 };
 
 type UseMetaOAuthConnectArgs = {
+  /** Which Business Login configuration + scope set to use. */
+  flow?: MetaOAuthConnectFlow;
+  /** Overrides env config_id when set (use "" to force omit). */
+  oauthConfigId?: string;
   onExchangeComplete?: (result: MetaOAuthExchangeResult) => void | Promise<void>;
 };
 
 export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
+  const flow: MetaOAuthConnectFlow = args.flow ?? 'instagram';
   const { t } = useTranslation();
   const [oauthLoading, setOauthLoading] = useState(false);
   const oauthStateRef = useRef('');
@@ -31,7 +40,11 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
   const oauthPopupStartedAtRef = useRef(0);
 
   const metaAppId = (import.meta.env.VITE_META_APP_ID as string)?.trim() || '';
-  const metaOAuthConfigId = (import.meta.env.VITE_META_OAUTH_CONFIG_ID as string)?.trim() || '';
+  const metaOAuthConfigId =
+    args.oauthConfigId !== undefined
+      ? args.oauthConfigId.trim()
+      : resolveMetaOAuthConfigId(flow);
+  const oauthScope = resolveMetaOAuthScopes(flow);
   const hasOAuth = !!metaAppId;
   const redirectUri =
     typeof window !== 'undefined' ? `${window.location.origin}/auth/meta/callback` : '';
@@ -116,7 +129,7 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
     const params = new URLSearchParams({
       client_id: metaAppId,
       redirect_uri: redirectUri,
-      scope: META_OAUTH_SCOPE,
+      scope: oauthScope,
       state,
     });
     params.set('display', 'page');
@@ -155,6 +168,7 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
     hasOAuth,
     metaAppId,
     metaOAuthConfigId,
+    oauthScope,
     redirectUri,
     startOAuthPopupPoll,
     t,

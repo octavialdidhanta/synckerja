@@ -1,5 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  processFacebookMessengerEvents,
+  resolveFacebookPageByEntryId,
+} from "../_shared/facebookMessengerWebhook.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -261,7 +265,7 @@ async function ensureLeadForNewInstagramConversation(
 }
 
 /** Inline: deploy bundle — avoid separate module import. */
-type LivechatPushTable = "whatsapp_messages" | "instagram_messages" | "email_messages";
+type LivechatPushTable = "whatsapp_messages" | "instagram_messages" | "facebook_messages" | "email_messages";
 
 type InstagramWebhookAccount = {
   organization_id: string;
@@ -468,6 +472,15 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
           if (metaByIgToken) verified = true;
         }
+        if (!verified) {
+          const { data: fbPage } = await supabase
+            .from("organization_facebook_pages")
+            .select("id")
+            .eq("verify_token", token)
+            .eq("is_active", true)
+            .maybeSingle();
+          if (fbPage) verified = true;
+        }
       }
 
       if (!verified) {
@@ -534,12 +547,34 @@ Deno.serve(async (req: Request) => {
         messaging.length,
       );
 
+      if (webhookObject === "page") {
+        const fbPage = await resolveFacebookPageByEntryId(supabase, entryId);
+        if (!fbPage) {
+          console.error(
+            "[instagram-webhook] Facebook Page not found for entry id:",
+            entryId,
+            "— connect Page di /omnichannel/integrations/facebook.",
+          );
+          continue;
+        }
+        console.log("[instagram-webhook] Facebook Page found — page id:", fbPage.facebook_page_id, "org:", fbPage.organization_id);
+        const fbProcessed = await processFacebookMessengerEvents(
+          supabase,
+          fbPage,
+          messaging,
+          async (record) => notifyLivechatInboundPush("facebook_messages", record),
+          ensuredLivechatStatusOrgs,
+        );
+        processedCount += fbProcessed;
+        continue;
+      }
+
       const account = await resolveInstagramAccountByEntryId(supabase, entryId);
       if (!account) {
         console.error(
           "[instagram-webhook] config not found for entry id:",
           entryId,
-          "— pastikan akun Instagram (@octa.vialdi) di-connect di halaman Connect Instagram.",
+          "— pastikan akun Instagram di-connect di halaman Connect Instagram.",
         );
         continue;
       }

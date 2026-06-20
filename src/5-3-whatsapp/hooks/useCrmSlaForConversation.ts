@@ -20,6 +20,7 @@ export type LivechatCrmSlaSnapshot = {
 export function livechatSlaRpcChannel(source: string | undefined | null): string {
   const s = String(source ?? 'whatsapp').trim().toLowerCase();
   if (s === 'instagram') return 'instagram';
+  if (s === 'facebook' || s === 'messenger') return 'facebook';
   if (s === 'email') return 'email';
   return 'whatsapp';
 }

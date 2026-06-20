@@ -10,16 +10,16 @@
 6. **Valid OAuth Redirect URI** (Threads use case): `https://office.synckerja.com/auth/threads/callback` (HTTPS required; localhost not supported)
 7. Development mode test user as Threads profile admin
 
-## 1. OAuth (`/omnichannel/integrations/instagram`)
+## 1. OAuth (`/omnichannel/integrations/threads`)
 
 **Two steps** — Threads scopes are **not** Facebook Login permissions:
 
-1. **Connect with Facebook** — IG/FB scopes only (no Invalid Scopes warning).
-2. **Connect Threads (sandbox)** — separate dialog at `threads.net` with:
+1. **Connect Instagram** tab — IG/FB scopes only (no Invalid Scopes warning).
+2. **Connect Threads** tab — separate dialog at `threads.net` with:
    `threads_basic`, `threads_manage_insights`, `threads_read_replies`, `threads_manage_replies`
 
 - [ ] Facebook connect succeeds without Invalid Scopes error
-- [ ] **Connect Threads** button appears after IG is connected
+- [ ] **Connect Threads** tab shows Connect button after IG is connected
 - [ ] Threads authorize completes; scope cards: Threads Insights + Threads Replies show green
 - [ ] `threads_user_id`, `has_threads=true` on `organization_instagram_accounts`
 

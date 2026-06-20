@@ -15,6 +15,10 @@ export interface InstagramAccountRow {
   facebook_page_name?: string | null;
   granted_scopes?: string[] | null;
   has_instagram?: boolean;
+  threads_user_id?: string | null;
+  threads_username?: string | null;
+  threads_profile_picture_url?: string | null;
+  has_threads?: boolean;
   created_at: string;
   updated_at: string;
 }

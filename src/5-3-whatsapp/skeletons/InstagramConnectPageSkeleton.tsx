@@ -3,9 +3,9 @@ import { Skeleton } from '@/shared/components/ui/skeleton';
 
 type InstagramConnectPageSkeletonMode = 'route' | 'overlay';
 
-/** Mirrors `HeaderAndTab` on integrations routes (Connect WhatsApp / Instagram / Email tabs only). */
+/** Mirrors `HeaderAndTab` on integrations routes (Connect WhatsApp / Instagram / Threads / Email tabs). */
 function CrmHeaderTabSkeleton() {
-  const tabWidths = ['w-36', 'w-40', 'w-28'] as const;
+  const tabWidths = ['w-32', 'w-36', 'w-36', 'w-28', 'w-28'] as const;
   return (
     <div className="min-w-0 max-w-full px-1 py-3" aria-hidden>
       <Skeleton className="mb-0.5 h-7 w-14 max-w-[40%] rounded-md" />

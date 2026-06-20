@@ -63,6 +63,7 @@ export function MetaContentSettingsPanel({
   };
 
   const { startOAuth, oauthLoading, hasOAuth } = useMetaOAuthConnect({
+    flow: platform,
     onExchangeComplete: async (resData) => {
       await refetch();
       queryClient.invalidateQueries({ queryKey: ['meta-content-config', organizationId] });

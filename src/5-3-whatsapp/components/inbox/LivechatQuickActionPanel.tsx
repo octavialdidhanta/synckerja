@@ -111,6 +111,11 @@ function getTicketIdForConversation(conv: LiveChatConversation): string {
     if (c.ticket_id) return c.ticket_id;
     return 'IG-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase();
   }
+  if (conv.source === 'facebook') {
+    const c = conv as { ticket_id?: string; id: string };
+    if (c.ticket_id) return c.ticket_id;
+    return 'FB-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase();
+  }
   const c = conv as { ticket_id?: string; id: string };
   if (c.ticket_id) return c.ticket_id;
   return 'WA-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase();
@@ -149,7 +154,15 @@ function getLeadTitle(conv: LiveChatConversation, t: (key: string, fallback?: st
   if (conv.source === 'instagram' && !conv.customer_name?.trim()) {
     return t('whatsappInbox.instagramContact', 'Kontak Instagram');
   }
-  const customerId = conv.source === 'instagram' ? (conv as { customer_ig_id?: string }).customer_ig_id : (conv as { customer_wa_id?: string }).customer_wa_id;
+  if (conv.source === 'facebook' && !conv.customer_name?.trim()) {
+    return t('livechat.messengerContact', 'Kontak Messenger');
+  }
+  const customerId =
+    conv.source === 'instagram'
+      ? (conv as { customer_ig_id?: string }).customer_ig_id
+      : conv.source === 'facebook'
+        ? (conv as { customer_psid?: string }).customer_psid
+        : (conv as { customer_wa_id?: string }).customer_wa_id;
   return conv.customer_name || (customerId ? maskPhoneLast4(customerId) : '') || 'Unknown';
 }
 
@@ -162,7 +175,9 @@ function getLeadSubtitle(conv: LiveChatConversation): string | null {
   const customerId =
     conv.source === 'instagram'
       ? (conv as { customer_ig_id?: string }).customer_ig_id
-      : (conv as { customer_wa_id?: string }).customer_wa_id;
+      : conv.source === 'facebook'
+        ? (conv as { customer_psid?: string }).customer_psid
+        : (conv as { customer_wa_id?: string }).customer_wa_id;
   if (!customerId) return null;
   return maskPhoneLast4(customerId);
 }
@@ -177,6 +192,10 @@ function createdByDisplayName(conv: LiveChatConversation | null): string {
   if (conv.source === 'instagram') {
     const s = (conv as { instagram_account_display_name?: string }).instagram_account_display_name?.trim();
     return s || 'Instagram';
+  }
+  if (conv.source === 'facebook') {
+    const s = (conv as { facebook_page_display_name?: string }).facebook_page_display_name?.trim();
+    return s || 'Messenger';
   }
   const s = (conv as { whatsapp_account_display_name?: string }).whatsapp_account_display_name?.trim();
   return s || 'WhatsApp';
@@ -409,7 +428,14 @@ export function LivechatQuickActionPanel({
                 || (conversation as { customer_wa_id?: string }).customer_wa_id
                 || 'WhatsApp');
           const title = (conversation as { last_message_body?: string }).last_message_body?.slice(0, 100) || 'Lead';
-          const source = conversation?.source === 'email' ? 'Email' : conversation?.source === 'instagram' ? 'Instagram' : 'WhatsApp';
+          const source =
+            conversation?.source === 'email'
+              ? 'Email'
+              : conversation?.source === 'instagram'
+                ? 'Instagram'
+                : conversation?.source === 'facebook'
+                  ? 'Messenger'
+                  : 'WhatsApp';
           // Same as Status dropdown: no organization_id so RLS / shared statuses apply
           const { data: defaultStatusRows } = await supabase
             .from('lead_statuses')
@@ -604,11 +630,25 @@ export function LivechatQuickActionPanel({
 
   const isEmail = conversation?.source === 'email';
   const isInstagram = conversation?.source === 'instagram';
+  const isFacebook = conversation?.source === 'facebook';
   const isWhatsApp = conversation?.source === 'whatsapp';
+  const isMetaDm = isInstagram || isFacebook;
 
-  useEnsureLivechatLeadStatuses(organizationId, Boolean(conversation && (isWhatsApp || isInstagram)));
-  const statusTable = isEmail ? 'email_conversations' : isInstagram ? 'instagram_conversations' : 'whatsapp_conversations';
-  const statusQueryKeyBase = isEmail ? 'email-conversation-status' : isInstagram ? 'instagram-conversation-status' : 'whatsapp-conversation-status';
+  useEnsureLivechatLeadStatuses(organizationId, Boolean(conversation && (isWhatsApp || isMetaDm)));
+  const statusTable = isEmail
+    ? 'email_conversations'
+    : isInstagram
+      ? 'instagram_conversations'
+      : isFacebook
+        ? 'facebook_conversations'
+        : 'whatsapp_conversations';
+  const statusQueryKeyBase = isEmail
+    ? 'email-conversation-status'
+    : isInstagram
+      ? 'instagram-conversation-status'
+      : isFacebook
+        ? 'facebook-conversation-status'
+        : 'whatsapp-conversation-status';
 
   const statusRowFromConversation = useMemo((): ConversationStatusSnapshot | null => {
     if (!conversation) return null;
@@ -802,13 +842,13 @@ export function LivechatQuickActionPanel({
   const isConvertedStatus =
     (currentStatus?.name ?? '').trim().toLowerCase() === 'converted';
   const showLivechatPaymentHistory =
-    !isEmail && (isWhatsApp || isInstagram) && isConvertedStatus;
+    !isEmail && (isWhatsApp || isMetaDm) && isConvertedStatus;
   const { data: conversionSalesActivity, refetch: refetchConversionSalesActivity } =
     useLeadConversionSalesActivity(leadRow?.id, showLivechatPaymentHistory);
   const isResolved = isResolvedStatus(currentStatus?.name ?? null);
   const isUnreadStatus = isUnreadLeadStatus(currentStatus?.name ?? null);
   const sessionLocked =
-    (isWhatsApp || isInstagram) &&
+    (isWhatsApp || isMetaDm) &&
     isOutboundBlockedForLivechat({
       statusName: currentStatus?.name ?? null,
       metaSessionExpiresAt: conversationStatusRow?.meta_session_expires_at ?? null,

@@ -38,6 +38,8 @@ import {
   DefaultPricesPageSkeleton,
   EmailConnectPageSkeleton,
   InstagramConnectPageSkeleton,
+  ThreadsConnectPageSkeleton,
+  FacebookConnectPageSkeleton,
   KolManagementCampaignsPageSkeleton,
   KolManagementContentPostPageSkeleton,
   KolManagementDashboardPageSkeleton,
@@ -258,6 +260,16 @@ const WhatsAppConnectPage = lazy(() =>
 const InstagramConnectPage = lazy(() =>
   import("@/5-3-whatsapp/pages/InstagramConnectPage").then((m) => ({
     default: m.InstagramConnectPage,
+  })),
+);
+const ThreadsConnectPage = lazy(() =>
+  import("@/5-3-whatsapp/pages/ThreadsConnectPage").then((m) => ({
+    default: m.ThreadsConnectPage,
+  })),
+);
+const FacebookConnectPage = lazy(() =>
+  import("@/5-3-whatsapp/pages/FacebookConnectPage").then((m) => ({
+    default: m.FacebookConnectPage,
   })),
 );
 const EmailConnectPage = lazy(() =>
@@ -1279,6 +1291,52 @@ function AppRoutes() {
                 }
               />
               <Route
+                path="/omnichannel/integrations/facebook"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/integrations/facebook"
+                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={
+                      <div
+                        className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
+                        aria-busy
+                        aria-label="Loading Connect Facebook Page"
+                      >
+                        <span className="sr-only">Loading Connect Facebook Page</span>
+                        <FacebookConnectPageSkeleton mode="route" />
+                      </div>
+                    }
+                  >
+                    <FacebookConnectOperationsSuspense>
+                      <FacebookConnectPage />
+                    </FacebookConnectOperationsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/omnichannel/integrations/threads"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/integrations/threads"
+                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={
+                      <div
+                        className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
+                        aria-busy
+                        aria-label="Loading Connect Threads"
+                      >
+                        <span className="sr-only">Loading Connect Threads</span>
+                        <ThreadsConnectPageSkeleton mode="route" />
+                      </div>
+                    }
+                  >
+                    <ThreadsConnectOperationsSuspense>
+                      <ThreadsConnectPage />
+                    </ThreadsConnectOperationsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
                 path="/omnichannel/integrations/email"
                 element={
                   <PageAccessGuard
@@ -1421,6 +1479,40 @@ const InstagramConnectOperationsSuspense = ({ children }: { children: ReactNode 
       >
         <span className="sr-only">Loading Connect Instagram</span>
         <InstagramConnectPageSkeleton mode="route" />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const ThreadsConnectOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading Connect Threads"
+      >
+        <span className="sr-only">Loading Connect Threads</span>
+        <ThreadsConnectPageSkeleton mode="route" />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const FacebookConnectOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading Connect Facebook Page"
+      >
+        <span className="sr-only">Loading Connect Facebook Page</span>
+        <FacebookConnectPageSkeleton mode="route" />
       </div>
     }
   >
@@ -3078,6 +3170,52 @@ const App = () => (
                               <InstagramConnectOperationsSuspense>
                                 <InstagramConnectPage />
                               </InstagramConnectOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/omnichannel/integrations/facebook"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/integrations/facebook"
+                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={
+                                <div
+                                  className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
+                                  aria-busy
+                                  aria-label="Loading Connect Facebook Page"
+                                >
+                                  <span className="sr-only">Loading Connect Facebook Page</span>
+                                  <FacebookConnectPageSkeleton mode="route" />
+                                </div>
+                              }
+                            >
+                              <FacebookConnectOperationsSuspense>
+                                <FacebookConnectPage />
+                              </FacebookConnectOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/omnichannel/integrations/threads"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/integrations/threads"
+                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={
+                                <div
+                                  className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
+                                  aria-busy
+                                  aria-label="Loading Connect Threads"
+                                >
+                                  <span className="sr-only">Loading Connect Threads</span>
+                                  <ThreadsConnectPageSkeleton mode="route" />
+                                </div>
+                              }
+                            >
+                              <ThreadsConnectOperationsSuspense>
+                                <ThreadsConnectPage />
+                              </ThreadsConnectOperationsSuspense>
                             </PageAccessGuard>
                           }
                         />

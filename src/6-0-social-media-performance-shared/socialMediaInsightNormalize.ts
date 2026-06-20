@@ -263,7 +263,7 @@ export function normalizeThreadsMetrics(
       matchedPlans: 0,
       totalContent: acc.content_count,
       hasUnmappedContent: false,
-      settingsPath: "/omnichannel/integrations/instagram",
+      settingsPath: "/omnichannel/integrations/threads",
       performancePath: THREADS_CONTENT_DIGITAL_MARKETING_BASE_PATH,
       isPlatformPlaceholder: false,
     },
@@ -291,7 +291,7 @@ export function buildPlatformPlaceholderRow(
       audienceLabel: "followers" as const,
     },
     threads: {
-      settings: "/omnichannel/integrations/instagram",
+      settings: "/omnichannel/integrations/threads",
       performance: THREADS_CONTENT_DIGITAL_MARKETING_BASE_PATH,
       audienceLabel: "followers" as const,
     },
@@ -301,7 +301,7 @@ export function buildPlatformPlaceholderRow(
       audienceLabel: "followers" as const,
     },
     facebook: {
-      settings: "/omnichannel/integrations/instagram",
+      settings: "/omnichannel/integrations/facebook",
       performance: SOCIAL_MEDIA_PERFORMANCE_FACEBOOK_PATH,
       audienceLabel: "followers" as const,
     },

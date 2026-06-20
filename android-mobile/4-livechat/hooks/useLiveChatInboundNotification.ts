@@ -32,11 +32,12 @@ function showInboundNotification(
   }
 }
 
-type InboundTable = 'whatsapp_messages' | 'instagram_messages' | 'email_messages';
+type InboundTable = 'whatsapp_messages' | 'instagram_messages' | 'facebook_messages' | 'email_messages';
 
 function getChannelLabel(table: InboundTable): string {
   if (table === 'whatsapp_messages') return 'WhatsApp';
   if (table === 'instagram_messages') return 'Instagram';
+  if (table === 'facebook_messages') return 'Messenger';
   return 'Email';
 }
 
@@ -121,6 +122,11 @@ export function useLiveChatInboundNotification(currentConversationId: string | n
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'instagram_messages' },
         handleInbound('instagram_messages')
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'facebook_messages' },
+        handleInbound('facebook_messages')
       )
       .on(
         'postgres_changes',

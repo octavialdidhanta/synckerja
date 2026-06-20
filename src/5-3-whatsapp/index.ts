@@ -1,6 +1,8 @@
 export { WhatsAppConnectPage } from './pages/WhatsAppConnectPage';
 export { WhatsAppInboxPage } from './pages/WhatsAppInboxPage';
 export { InstagramConnectPage } from './pages/InstagramConnectPage';
+export { FacebookConnectPage } from './pages/FacebookConnectPage';
+export { ThreadsConnectPage } from './pages/ThreadsConnectPage';
 export { EmailConnectPage } from './pages/EmailConnectPage';
 export { MetaOAuthCallbackPage } from './pages/MetaOAuthCallbackPage';
 export { useWhatsAppConfig } from './hooks/useWhatsAppConfig';

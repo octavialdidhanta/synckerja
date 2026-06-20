@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { CONNECT_THREADS_PATH } from '@/5-3-whatsapp/constants/omnichannelIntegrationPaths';
 
 /**
  * OAuth callback for Threads API (threads.net/oauth/authorize).
@@ -33,7 +34,7 @@ export function ThreadsOAuthCallbackPage() {
       window.opener.postMessage(payload, window.location.origin);
       setTimeout(() => window.close(), 150);
     } else {
-      window.location.replace(`${window.location.origin}/omnichannel/integrations/instagram`);
+      window.location.replace(`${window.location.origin}${CONNECT_THREADS_PATH}`);
     }
   }, []);
 

@@ -6,8 +6,6 @@ import { VitePWA } from "vite-plugin-pwa";
 import { componentTagger } from "lovable-tagger";
 import { deferAppCssPlugin } from "./vite/deferAppCssPlugin";
 import { omnichannelApiDocsPlugin } from "./vite/omnichannelApiDocsPlugin";
-import basicSsl from "@vitejs/plugin-basic-ssl";
-
 /** Must run before default resolve: legacy `@/features/share/*` meant `src/shared/*` (not `src/features/share/*`). */
 function legacyFeaturesShareResolve(): Plugin {
   const sharePrefix = "@/features/share/";
@@ -71,6 +69,9 @@ export default defineConfig(({ mode }) => {
   const metaOAuthConfigId =
     normalizeViteEnv(process.env.VITE_META_OAUTH_CONFIG_ID) ||
     normalizeViteEnv(fileEnv.VITE_META_OAUTH_CONFIG_ID);
+  const metaFacebookOAuthConfigId =
+    normalizeViteEnv(process.env.VITE_META_FACEBOOK_OAUTH_CONFIG_ID) ||
+    normalizeViteEnv(fileEnv.VITE_META_FACEBOOK_OAUTH_CONFIG_ID);
 
   return {
   envDir,
@@ -82,17 +83,16 @@ export default defineConfig(({ mode }) => {
     "import.meta.env.VITE_THREADS_APP_ID": JSON.stringify(threadsAppId),
     "import.meta.env.VITE_THREADS_OAUTH_REDIRECT_URI": JSON.stringify(threadsOAuthRedirectUri),
     "import.meta.env.VITE_META_OAUTH_CONFIG_ID": JSON.stringify(metaOAuthConfigId),
+    "import.meta.env.VITE_META_FACEBOOK_OAUTH_CONFIG_ID": JSON.stringify(metaFacebookOAuthConfigId),
   },
   server: {
     host: "::",
     port: 8080,
-    https: mode === "development" ? {} : undefined,
     hmr: {
       overlay: false,
     },
   },
   plugins: [
-    ...(mode === "development" ? [basicSsl()] : []),
     omnichannelApiDocsPlugin(),
     legacyFeaturesShareResolve(),
     react(),

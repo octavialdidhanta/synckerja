@@ -239,7 +239,16 @@ Deno.serve(async (req: Request) => {
             },
             { onConflict: "organization_id,instagram_business_account_id", ignoreDuplicates: false }
           );
-        // Mirror page token for Facebook organic tab (posts/insights use page_id).
+        // Mirror page token for Facebook organic + Messenger livechat.
+        const { data: existingFb } = await supabaseAdmin
+          .from("organization_facebook_pages")
+          .select("verify_token")
+          .eq("organization_id", orgId)
+          .eq("facebook_page_id", row.pageId)
+          .maybeSingle();
+        const fbVerifyToken =
+          (existingFb as { verify_token?: string } | null)?.verify_token?.trim() ||
+          `fb_${orgId.replace(/-/g, "").slice(0, 8)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
         await supabaseAdmin
           .from("organization_facebook_pages")
           .upsert(
@@ -248,6 +257,7 @@ Deno.serve(async (req: Request) => {
               facebook_page_id: row.pageId,
               page_name: row.pageName,
               page_access_token: row.pageToken,
+              verify_token: fbVerifyToken,
               granted_scopes: grantedScopesJson,
               is_active: true,
               updated_at: new Date().toISOString(),
@@ -265,6 +275,15 @@ Deno.serve(async (req: Request) => {
           console.warn("meta-oauth-exchange: page webhook subscribe failed", row.pageId, subscribeResult.error);
         }
       } else {
+        const { data: existingFb } = await supabaseAdmin
+          .from("organization_facebook_pages")
+          .select("verify_token")
+          .eq("organization_id", orgId)
+          .eq("facebook_page_id", row.pageId)
+          .maybeSingle();
+        const fbVerifyToken =
+          (existingFb as { verify_token?: string } | null)?.verify_token?.trim() ||
+          `fb_${orgId.replace(/-/g, "").slice(0, 8)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
         await supabaseAdmin
           .from("organization_facebook_pages")
           .upsert(
@@ -273,6 +292,7 @@ Deno.serve(async (req: Request) => {
               facebook_page_id: row.pageId,
               page_name: row.pageName,
               page_access_token: row.pageToken,
+              verify_token: fbVerifyToken,
               granted_scopes: grantedScopesJson,
               is_active: true,
               updated_at: new Date().toISOString(),
@@ -280,10 +300,17 @@ Deno.serve(async (req: Request) => {
             { onConflict: "organization_id,facebook_page_id", ignoreDuplicates: false }
           );
         fbPagesSynced += 1;
+
+        const subscribeResult = await subscribeInstagramPageToWebhooks(row.pageId, row.pageToken);
+        webhookSubscribeResults.push(subscribeResult);
+        if (!subscribeResult.success) {
+          console.warn("meta-oauth-exchange: FB-only page webhook subscribe failed", row.pageId, subscribeResult.error);
+        }
       }
     }
 
     const accountsSynced = igAccountsSynced;
+    const totalPagesSynced = igAccountsSynced + fbPagesSynced;
     const webhookSubscribedCount = webhookSubscribeResults.filter((r) => r.success).length;
     const responseBody: Record<string, unknown> = {
       success: true,
@@ -299,7 +326,7 @@ Deno.serve(async (req: Request) => {
     if (accountsSynced === 0 && fbPagesSynced === 0) {
       responseBody.warning =
         "No Facebook Pages were found. Ensure your login has Page admin access and pages_show_list is granted.";
-    } else if (accountsSynced > 0 && webhookSubscribedCount < accountsSynced) {
+    } else if (totalPagesSynced > 0 && webhookSubscribedCount < totalPagesSynced) {
       responseBody.warning =
         "Accounts synced but Page webhook subscription failed for some Pages. Grant pages_manage_metadata and reconnect.";
     }

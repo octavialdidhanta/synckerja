@@ -212,8 +212,44 @@ export interface InstagramMessage {
   created_at: string;
 }
 
-/** Unified conversation for Live Chat list (WhatsApp/Instagram or Email). */
+export interface FacebookMessage {
+  id: string;
+  conversation_id: string;
+  direction: 'inbound' | 'outbound';
+  platform_message_id: string | null;
+  body: string | null;
+  message_type: string;
+  media_url: string | null;
+  raw_metadata: unknown;
+  status: string | null;
+  status_updated_at: string | null;
+  reply_to_platform_message_id: string | null;
+  reply_to_body: string | null;
+  reply_to_message_type: string | null;
+  created_at: string;
+}
+
+export interface FacebookConversation {
+  id: string;
+  organization_id: string;
+  customer_psid: string;
+  customer_name: string | null;
+  last_message_at: string | null;
+  last_message_body: string | null;
+  last_message_direction: string | null;
+  last_message_status: string | null;
+  lead_status_id: string | null;
+  lead_status_name: string | null;
+  assignee_id?: string | null;
+  facebook_page_id: string;
+  facebook_page_display_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Unified conversation for Live Chat list (WhatsApp/Instagram/Messenger or Email). */
 export type LiveChatConversation =
   | (WhatsAppConversation & { source: 'whatsapp' })
   | (InstagramConversation & { source: 'instagram' })
+  | (FacebookConversation & { source: 'facebook' })
   | (EmailConversation & { source: 'email' });

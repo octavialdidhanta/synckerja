@@ -77,6 +77,20 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
       })),
   },
   {
+    prefix: "/omnichannel/integrations/facebook",
+    prefetch: () =>
+      import("@/5-3-whatsapp/pages/FacebookConnectPage").then((m) => ({
+        default: m.FacebookConnectPage,
+      })),
+  },
+  {
+    prefix: "/omnichannel/integrations/threads",
+    prefetch: () =>
+      import("@/5-3-whatsapp/pages/ThreadsConnectPage").then((m) => ({
+        default: m.ThreadsConnectPage,
+      })),
+  },
+  {
     prefix: "/omnichannel/integrations/whatsapp",
     prefetch: () =>
       import("@/5-3-whatsapp/pages/WhatsAppConnectPage").then((m) => ({

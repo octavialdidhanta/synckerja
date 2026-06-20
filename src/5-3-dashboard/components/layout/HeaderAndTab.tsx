@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Users, MessageCircle, Instagram, Mail, Inbox, FileText, ListChecks, Megaphone, Settings, History } from "lucide-react";
+import { LayoutDashboard, Users, MessageCircle, Instagram, Facebook, Mail, Inbox, FileText, ListChecks, Megaphone, Settings, History, AtSign } from "lucide-react";
 import { Lock } from "lucide-react";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
@@ -45,6 +45,20 @@ const tabs: CrmHeaderTab[] = [
     path: "/omnichannel/integrations/instagram",
     title: "Connect Instagram",
     icon: Instagram,
+  },
+  {
+    key: "facebook-connect",
+    path: "/omnichannel/integrations/facebook",
+    title: "Connect Facebook Page",
+    titleKey: "facebookConnect.tabTitle",
+    icon: Facebook,
+  },
+  {
+    key: "threads-connect",
+    path: "/omnichannel/integrations/threads",
+    title: "Connect Threads",
+    titleKey: "threadsConnect.tabTitle",
+    icon: AtSign,
   },
   {
     key: "email-connect",
@@ -125,6 +139,8 @@ export const HeaderAndTab = () => {
   const isIntegrationsSection =
     location.pathname.startsWith("/omnichannel/integrations/whatsapp") ||
     location.pathname.startsWith("/omnichannel/integrations/instagram") ||
+    location.pathname.startsWith("/omnichannel/integrations/facebook") ||
+    location.pathname.startsWith("/omnichannel/integrations/threads") ||
     location.pathname.startsWith("/omnichannel/integrations/email");
 
   const isOmnichannelSettingsSection =
@@ -140,6 +156,8 @@ export const HeaderAndTab = () => {
   const integrationTabKeys = new Set<string>([
     "whatsapp-connect",
     "instagram-connect",
+    "facebook-connect",
+    "threads-connect",
     "email-connect",
   ]);
 
@@ -168,6 +186,8 @@ export const HeaderAndTab = () => {
       return "leads-management";
     if (location.pathname.startsWith("/omnichannel/integrations/whatsapp")) return "whatsapp-connect";
     if (location.pathname.startsWith("/omnichannel/integrations/instagram")) return "instagram-connect";
+    if (location.pathname.startsWith("/omnichannel/integrations/facebook")) return "facebook-connect";
+    if (location.pathname.startsWith("/omnichannel/integrations/threads")) return "threads-connect";
     if (location.pathname.startsWith("/omnichannel/integrations/email")) return "email-connect";
     if (location.pathname.startsWith("/omnichannel/livechat/template-follow-ups")) return "template-followups";
     if (location.pathname.startsWith("/omnichannel/livechat")) return "livechat";

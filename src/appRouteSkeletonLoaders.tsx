@@ -209,6 +209,18 @@ export const InstagramConnectPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const ThreadsConnectPageSkeleton = createDeferredSkeleton(() =>
+  import("@/5-3-whatsapp/skeletons/ThreadsConnectPageSkeleton").then((m) => ({
+    default: m.ThreadsConnectPageSkeleton,
+  })),
+);
+
+export const FacebookConnectPageSkeleton = createDeferredSkeleton(() =>
+  import("@/5-3-whatsapp/skeletons/FacebookConnectPageSkeleton").then((m) => ({
+    default: m.FacebookConnectPageSkeleton,
+  })),
+);
+
 export const ConsultantCrmDashboardPageSkeleton = createDeferredSkeleton(() =>
   import("@/5-3-dashboard/skeletons/ConsultantCrmDashboardPageSkeleton").then((m) => ({
     default: m.ConsultantCrmDashboardPageSkeleton,

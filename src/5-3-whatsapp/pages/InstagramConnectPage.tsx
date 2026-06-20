@@ -14,13 +14,12 @@ import { useInstagramAccounts, type InstagramAccountFromApi, type InstagramAccou
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
 import { InstagramConnectPageSkeleton } from '../skeletons/InstagramConnectPageSkeleton';
 import { useInstagramConnectPageSkeletonGate } from '../hooks/useInstagramConnectPageSkeletonGate';
-import { Instagram, CheckCircle2, Unplug, Loader2, Facebook, AtSign } from 'lucide-react';
+import { Instagram, CheckCircle2, Unplug, Loader2, Facebook } from 'lucide-react';
 import { toast } from 'sonner';
-import { META_BUSINESS_OAUTH_SCOPES, hasThreadsScopes } from '@/meta-platform/constants/metaOAuthScopes';
+import { META_BUSINESS_OAUTH_SCOPES } from '@/meta-platform/constants/metaOAuthScopes';
+import { getMetaInstagramOAuthConfigId } from '@/meta-platform/constants/metaOAuthEnv';
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
 import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
-import { useThreadsOAuthConnect } from '@/meta-platform/hooks/useThreadsOAuthConnect';
-import { hasThreadsOAuthConfig, getThreadsOAuthRedirectUri } from '@/meta-platform/constants/threadsAppEnv';
 
 const META_OAUTH_SCOPE = META_BUSINESS_OAUTH_SCOPES;
 const META_OAUTH_VERSION = META_GRAPH_VERSION;
@@ -109,7 +108,7 @@ export function InstagramConnectPage() {
   const oauthPopupStartedAtRef = useRef(0);
 
   const metaAppId = (import.meta.env.VITE_META_APP_ID as string)?.trim() || '';
-  const metaOAuthConfigId = (import.meta.env.VITE_META_OAUTH_CONFIG_ID as string)?.trim() || '';
+  const metaOAuthConfigId = getMetaInstagramOAuthConfigId();
   const hasOAuth = !!metaAppId;
   const hasMetaConfig = !!config?.meta_access_token?.trim();
   const redirectUri = typeof window !== 'undefined' ? `${window.location.origin}/auth/meta/callback` : '';
@@ -172,28 +171,6 @@ export function InstagramConnectPage() {
     },
     [refetchAccounts, showZeroAccountsWarning, t],
   );
-
-  const { startOAuth: startThreadsOAuth, oauthLoading: threadsOauthLoading } = useThreadsOAuthConnect({
-    onExchangeComplete: async (result) => {
-      await refetchAccounts();
-      const synced = result.threads_accounts_synced ?? 0;
-      if (synced > 0) {
-        toast.success(
-          t('instagramConnect.threadsOAuthSuccess', 'Threads authorized. Insights and replies are ready to test.'),
-        );
-      }
-    },
-  });
-
-  const parseGrantedScopes = useCallback((raw: InstagramAccountRow['granted_scopes']): string[] => {
-    if (Array.isArray(raw)) return raw.map(String);
-    return [];
-  }, []);
-
-  const primaryGranted =
-    connectedAccounts.length > 0 ? parseGrantedScopes(connectedAccounts[0].granted_scopes) : [];
-  const needsThreadsOAuth = connectedAccounts.length > 0 && !hasThreadsScopes(primaryGranted);
-  const threadsOAuthRedirectUri = getThreadsOAuthRedirectUri();
 
   const startOAuthPopupPoll = useCallback(() => {
     stopOAuthPopupPoll();
@@ -513,44 +490,16 @@ export function InstagramConnectPage() {
                                     : t('instagramConnect.syncFromWhatsApp', 'Sync from WhatsApp token')}
                                 </Button>
                               )}
-                              {needsThreadsOAuth && (
-                                <div className="space-y-2">
-                                  <Button
-                                    type="button"
-                                    onClick={() => void startThreadsOAuth()}
-                                    disabled={threadsOauthLoading || oauthLoading || !hasThreadsOAuthConfig()}
-                                    className="w-full bg-black hover:bg-neutral-800 text-white"
-                                  >
-                                    {threadsOauthLoading ? (
-                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    ) : (
-                                      <AtSign className="w-4 h-4 mr-2" />
-                                    )}
-                                    {threadsOauthLoading
-                                      ? t('instagramConnect.threadsOAuthConnecting', 'Authorizing Threads…')
-                                      : t('instagramConnect.connectThreads', 'Connect Threads (sandbox)')}
-                                  </Button>
-                                  <p className="text-xs text-slate-600">
-                                    {t(
-                                      'instagramConnect.threadsAppIdHint',
-                                      'Use Threads App ID (not the top App ID) from Meta → App settings → Basic. Local dev: open https://localhost:8080 and whitelist https://localhost:8080/auth/threads/callback in Meta.',
-                                    )}
-                                  </p>
-                                  {threadsOAuthRedirectUri ? (
-                                    <p className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 font-mono text-[11px] text-slate-700 break-all">
-                                      {t('instagramConnect.threadsRedirectUriLabel', 'Meta redirect URI:')}{' '}
-                                      {threadsOAuthRedirectUri}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              )}
                             </div>
                           )}
                           <div className="border-t border-slate-200 pt-4 mt-4">
                             <WebhookInfoDisplay embedded variant="instagram" />
                           </div>
                           {connectedAccounts.length > 0 && (
-                            <MetaScopeStatusCards accounts={connectedAccounts} />
+                            <MetaScopeStatusCards
+                              accounts={connectedAccounts}
+                              features={['dm', 'comments', 'insights', 'pages']}
+                            />
                           )}
                         </CardContent>
                       </Card>

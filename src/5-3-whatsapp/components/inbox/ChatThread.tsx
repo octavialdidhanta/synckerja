@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMe
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWhatsAppMessages } from '../../hooks/useWhatsAppMessages';
 import { useInstagramMessages } from '../../hooks/useInstagramMessages';
+import { useFacebookMessages } from '../../hooks/useFacebookMessages';
 import { useResolveWhatsAppMedia } from '../../hooks/useResolveWhatsAppMedia';
 import { useResolveInstagramMedia } from '../../hooks/useResolveInstagramMedia';
 import { useSendWhatsAppMessage } from '../../hooks/useSendWhatsAppMessage';
 import { useSendInstagramMessage } from '../../hooks/useSendInstagramMessage';
+import { useSendFacebookMessage } from '../../hooks/useSendFacebookMessage';
 import type {
   LiveChatConversation,
   WhatsAppAccount,
@@ -13,6 +15,8 @@ import type {
   WhatsAppMessage,
   InstagramConversation,
   InstagramMessage,
+  FacebookConversation,
+  FacebookMessage,
   EmailConversation,
 } from '../../types';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -315,9 +319,9 @@ function extractIgUnixMillisFromRaw(raw: unknown): number | null {
  * ISO instant for ordering + bubble clock + day separators.
  * WhatsApp: prefer Meta unix time embedded in `raw_metadata` (any direction) over DB `created_at`.
  */
-function getChatTimelineIso(msg: { direction: string; created_at: string; raw_metadata?: unknown }, isInstagram: boolean): string {
+function getChatTimelineIso(msg: { direction: string; created_at: string; raw_metadata?: unknown }, isMetaDm: boolean): string {
   const ca = msg.created_at;
-  if (isInstagram) {
+  if (isMetaDm) {
     const ms = extractIgUnixMillisFromRaw(msg.raw_metadata);
     if (ms != null && Number.isFinite(ms)) return new Date(ms).toISOString();
     return ca;
@@ -1223,34 +1227,65 @@ export function ChatThread({
   const currentEmployeeId = employee?.id ?? null;
   const { lacksOmnichannelEntitlement, showNoAddonWarning } = useOmnichannelOutboundEntitlement();
   const isInstagram = (conversation as LiveChatConversation)?.source === 'instagram';
-  const waMessagesQuery = useWhatsAppMessages(!isInstagram ? conversation?.id ?? null : null);
+  const isFacebook = (conversation as LiveChatConversation)?.source === 'facebook';
+  const isMetaDm = isInstagram || isFacebook;
+  const waMessagesQuery = useWhatsAppMessages(!isMetaDm ? conversation?.id ?? null : null);
   const igMessagesQuery = useInstagramMessages(isInstagram ? conversation?.id ?? null : null);
+  const fbMessagesQuery = useFacebookMessages(isFacebook ? conversation?.id ?? null : null);
   const waMessages = waMessagesQuery.data ?? [];
   const igMessages = igMessagesQuery.data ?? [];
-  const messages: Array<WhatsAppMessage | (InstagramMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null })> = isInstagram
+  const fbMessages = fbMessagesQuery.data ?? [];
+  const messages: Array<WhatsAppMessage | (InstagramMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null }) | (FacebookMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null })> = isInstagram
     ? (igMessages as InstagramMessage[]).map((m) => ({
         ...m,
         wa_message_id: m.platform_message_id,
         reply_to_wa_message_id: m.reply_to_platform_message_id ?? undefined,
       }))
-    : waMessages;
-  const isLoading = isInstagram ? igMessagesQuery.isLoading : waMessagesQuery.isLoading;
+    : isFacebook
+      ? (fbMessages as FacebookMessage[]).map((m) => ({
+          ...m,
+          wa_message_id: m.platform_message_id,
+          reply_to_wa_message_id: m.reply_to_platform_message_id ?? undefined,
+        }))
+      : waMessages;
+  const isLoading = isInstagram ? igMessagesQuery.isLoading : isFacebook ? fbMessagesQuery.isLoading : waMessagesQuery.isLoading;
   const { send, isSending: isSendingWhatsApp } = useSendWhatsAppMessage();
   const { send: sendInstagram, isSending: isSendingInstagram } = useSendInstagramMessage();
-  const { resolve: resolveWaMedia, isResolving: isResolvingWaMedia, resolvingMessageId: resolvingWaMessageId } = useResolveWhatsAppMedia(!isInstagram ? conversation?.id ?? null : null);
+  const { send: sendFacebook, isSending: isSendingFacebook } = useSendFacebookMessage();
+  const { resolve: resolveWaMedia, isResolving: isResolvingWaMedia, resolvingMessageId: resolvingWaMessageId } = useResolveWhatsAppMedia(!isMetaDm ? conversation?.id ?? null : null);
   const { resolve: resolveIgMedia, isResolving: isResolvingIgMedia, resolvingMessageId: resolvingIgMessageId } = useResolveInstagramMedia(isInstagram ? conversation?.id ?? null : null);
   const resolveMedia = isInstagram ? resolveIgMedia : resolveWaMedia;
   const isResolvingMedia = isInstagram ? isResolvingIgMedia : isResolvingWaMedia;
   const resolvingMessageId = isInstagram ? resolvingIgMessageId : resolvingWaMessageId;
 
   const hasConversationId = !!conversation?.id;
+  const statusQueryKey = isInstagram
+    ? ['instagram-conversation-status', conversation?.id]
+    : isFacebook
+      ? ['facebook-conversation-status', conversation?.id]
+      : ['whatsapp-conversation-status', conversation?.id];
   const { data: conversationStatusRow } = useQuery({
-    queryKey: isInstagram ? ['instagram-conversation-status', conversation?.id] : ['whatsapp-conversation-status', conversation?.id],
+    queryKey: statusQueryKey,
     queryFn: async () => {
       if (!conversation?.id) return null;
       if (isInstagram) {
         const { data, error } = await supabase
           .from('instagram_conversations')
+          .select('lead_status_id, last_inbound_at, created_at, assignee_id, meta_session_expires_at')
+          .eq('id', conversation.id)
+          .maybeSingle();
+        if (error) throw error;
+        return data as {
+          lead_status_id?: string;
+          last_inbound_at?: string | null;
+          created_at?: string;
+          assignee_id?: string | null;
+          meta_session_expires_at?: string | null;
+        } | null;
+      }
+      if (isFacebook) {
+        const { data, error } = await supabase
+          .from('facebook_conversations')
           .select('lead_status_id, last_inbound_at, created_at, assignee_id, meta_session_expires_at')
           .eq('id', conversation.id)
           .maybeSingle();
@@ -1306,7 +1341,7 @@ export function ChatThread({
   const isResolved = isResolvedStatus(effectiveStatusName);
   const metaSessionExpiresAt = conversationStatusRow?.meta_session_expires_at ?? null;
   const outboundSessionBlocked =
-    (isWhatsAppConversation || isInstagram) &&
+    (isWhatsAppConversation || isMetaDm) &&
     isOutboundBlockedForLivechat({
       statusName: effectiveStatusName,
       metaSessionExpiresAt,
@@ -1318,9 +1353,9 @@ export function ChatThread({
   const sendDisabledByNoAccount = Boolean(hasNoConnectedWhatsAppAccount && isWhatsAppConversation);
   /** WA/IG outbound: block only after subscription + roster resolve and no paid seats / agents. */
   const sendDisabledByNoOmnichannelAddon =
-    (isWhatsAppConversation || isInstagram) && lacksOmnichannelEntitlement;
+    (isWhatsAppConversation || isMetaDm) && lacksOmnichannelEntitlement;
   const conversationAssigneeId = conversationStatusRow?.assignee_id ?? null;
-  const assigneeGateApplies = isWhatsAppConversation || isInstagram;
+  const assigneeGateApplies = isWhatsAppConversation || isMetaDm;
   const sendDisabledByNoAssignee =
     assigneeGateApplies && isConversationUnassigned(conversationAssigneeId);
   const sendDisabledByNotAssignee =
@@ -1360,12 +1395,18 @@ export function ChatThread({
     null;
 
   const isInstagramConversation = isInstagram;
-  const isSending = isSendingWhatsApp || isSendingInstagram;
-  const customerId = isInstagram ? (conversation as InstagramConversation)?.customer_ig_id : (conversation as WhatsAppConversation)?.customer_wa_id;
+  const isFacebookConversation = isFacebook;
+  const isMetaDmConversation = isMetaDm;
+  const isSending = isSendingWhatsApp || isSendingInstagram || isSendingFacebook;
+  const customerId = isInstagram
+    ? (conversation as InstagramConversation)?.customer_ig_id
+    : isFacebook
+      ? (conversation as FacebookConversation)?.customer_psid
+      : (conversation as WhatsAppConversation)?.customer_wa_id;
   const displayName =
     conversation?.source === 'email'
       ? (conversation as EmailConversation).from_display_name ?? (conversation as EmailConversation).from_email
-      : (conversation as WhatsAppConversation | InstagramConversation).customer_name ?? null;
+      : (conversation as WhatsAppConversation | InstagramConversation | FacebookConversation).customer_name ?? null;
 
   const optimisticEntry = optimisticMessage || optimisticMedia;
 
@@ -1491,11 +1532,11 @@ export function ChatThread({
     });
     return unique.sort((a, b) =>
       compareTimelineMessages(
-        { created_at: getChatTimelineIso(a, isInstagramConversation), id: String(a.id) },
-        { created_at: getChatTimelineIso(b, isInstagramConversation), id: String(b.id) },
+        { created_at: getChatTimelineIso(a, isMetaDmConversation), id: String(a.id) },
+        { created_at: getChatTimelineIso(b, isMetaDmConversation), id: String(b.id) },
       ),
     );
-  }, [displayMessages, isInstagramConversation]);
+  }, [displayMessages, isMetaDmConversation]);
 
   const scrollToTextInChatTrimmed = scrollToTextInChat?.trim();
   const onScrollToTextDoneRef = useRef(onScrollToTextDone);
@@ -1590,9 +1631,9 @@ export function ChatThread({
         toast.error(t('whatsappInbox.recipientNotAvailable', 'Penerima tidak tersedia.'));
         return;
       }
-      if (isInstagramConversation) {
+      if (isInstagramConversation || isFacebookConversation) {
         if (mediaType === 'document') {
-          toast.error(t('whatsappInbox.instagramDocumentNotSupported', 'Dokumen ke Instagram belum tersedia. Kirim gambar atau video.'));
+          toast.error(t('whatsappInbox.instagramDocumentNotSupported', 'Dokumen ke Instagram/Messenger belum tersedia. Kirim gambar atau video.'));
           return;
         }
       } else {
@@ -1649,8 +1690,8 @@ export function ChatThread({
         return;
       }
       const displayBody = caption || `[${mediaType}]`;
-      const storagePath = isInstagramConversation
-        ? `ig/${conversation.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const storagePath = isMetaDmConversation
+        ? `${isFacebookConversation ? 'fb' : 'ig'}/${conversation.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
         : `${conversation.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       setIsUploading(true);
       setOptimisticMedia({
@@ -1673,6 +1714,16 @@ export function ChatThread({
         setOptimisticMedia((prev) => (prev ? { ...prev, media_url: publicUrl } : null));
         if (isInstagramConversation) {
           await sendInstagram({
+            to: customerId,
+            text: caption || '',
+            conversation_id: conversation.id,
+            media_type: mediaType === 'video' ? 'video' : 'image',
+            media_link: publicUrl,
+            caption: caption || undefined,
+            reply_to_wa_message_id: replyToWaMessageId ?? undefined,
+          });
+        } else if (isFacebookConversation) {
+          await sendFacebook({
             to: customerId,
             text: caption || '',
             conversation_id: conversation.id,
@@ -1704,7 +1755,7 @@ export function ChatThread({
       }
       // Optimistic media dihapus saat pesan asli ada di list (useEffect hasMatchingRealMessage)
     },
-    [conversation, customerId, send, sendInstagram, isInstagramConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, sendDisabledByNotAssignee, blockReasonResolved, blockReasonExpiredOrMeta]
+    [conversation, customerId, send, sendInstagram, sendFacebook, isInstagramConversation, isFacebookConversation, t, sendDisabled, sendDisabledByNoAccount, sendDisabledByNoOmnichannelAddon, sendDisabledByNoAssignee, sendDisabledByNotAssignee, blockReasonResolved, blockReasonExpiredOrMeta]
   );
 
   /** Blokir pesan yang meminta kontak. Default ON; set VITE_WHATSAPP_BLOCK_CONTACT_REQUESTS=false untuk nonaktifkan. */
@@ -1767,8 +1818,10 @@ export function ChatThread({
 
     const replySender =
       replyTo?.direction === 'inbound'
-        ? (isInstagramConversation && !displayName?.trim()
-          ? t('whatsappInbox.instagramContact', 'Kontak Instagram')
+        ? (isMetaDmConversation && !displayName?.trim()
+          ? (isFacebookConversation
+            ? t('livechat.messengerContact', 'Kontak Messenger')
+            : t('whatsappInbox.instagramContact', 'Kontak Instagram'))
           : (displayName || (customerId ? maskPhoneLast4(customerId) : '') || ''))
         : replyTo?.direction === 'outbound'
           ? t('whatsappInbox.you', 'You')
@@ -1812,6 +1865,17 @@ export function ChatThread({
     try {
       if (isInstagramConversation) {
         const sendPromise = sendInstagram({
+          to: customerId,
+          text: trimmed,
+          conversation_id: conversation.id,
+          reply_to_wa_message_id: replyWaId ?? undefined,
+        });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out. Please try again.')), SEND_TIMEOUT_MS)
+        );
+        await Promise.race([sendPromise, timeoutPromise]);
+      } else if (isFacebookConversation) {
+        const sendPromise = sendFacebook({
           to: customerId,
           text: trimmed,
           conversation_id: conversation.id,
@@ -1936,7 +2000,7 @@ export function ChatThread({
             const chron = timelineMessages;
             const n = chron.length;
             const tz = browserTimeZone;
-            const tlIso = (m: DisplayMessage) => getChatTimelineIso(m, isInstagramConversation);
+            const tlIso = (m: DisplayMessage) => getChatTimelineIso(m, isMetaDmConversation);
             const showSepAfterRev = new Array<boolean>(n).fill(false);
             for (let i = 1; i < n; i++) {
               if (
@@ -2056,7 +2120,11 @@ export function ChatThread({
             const handleDeleteMsg = async () => {
               const confirmed = window.confirm(t('whatsappInbox.confirmDelete', 'Are you sure you want to delete this message?'));
               if (!confirmed) return;
-              const table = isInstagramConversation ? 'instagram_messages' : 'whatsapp_messages';
+              const table = isInstagramConversation
+                ? 'instagram_messages'
+                : isFacebookConversation
+                  ? 'facebook_messages'
+                  : 'whatsapp_messages';
               const { error } = await supabase.from(table).delete().eq('id', msg.id);
               if (error) {
                 toast.error(t('whatsappInbox.deleteFailed', 'Failed to delete message.'));

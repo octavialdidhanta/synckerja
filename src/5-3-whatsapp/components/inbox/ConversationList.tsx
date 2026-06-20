@@ -25,6 +25,13 @@ function ChannelIcon({ channel = 'whatsapp', className }: { channel?: string; cl
       </svg>
     );
   }
+  if (c === 'facebook' || c === 'messenger') {
+    return (
+      <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.477 2 2 6.145 2 11.243c0 2.891 1.436 5.474 3.684 7.157V22l3.372-1.848c.896.248 1.843.382 2.832.382 5.523 0 10-4.145 10-9.243C22 6.145 17.523 2 12 2zm.995 12.41h-2.52c-.276 0-.5-.224-.5-.5s.224-.5.5-.5h2.52c.276 0 .5.224.5.5s-.224.5-.5.5zm2.835-3.32h-7.69c-.276 0-.5-.224-.5-.5s.224-.5.5-.5h7.69c.276 0 .5.224.5.5s-.224.5-.5.5z" />
+      </svg>
+    );
+  }
   if (c === 'email') {
     return <Mail className={className} />;
   }
@@ -46,8 +53,9 @@ function LivechatAvatar({
 }) {
   const isEmail = conv.source === 'email';
   const isInstagram = conv.source === 'instagram';
+  const isFacebook = conv.source === 'facebook';
   const waConv = conv as WhatsAppConversation;
-  const channel = isInstagram ? 'instagram' : (waConv.channel ?? 'whatsapp');
+  const channel = isInstagram ? 'instagram' : isFacebook ? 'facebook' : (waConv.channel ?? 'whatsapp');
 
   const { profileUrl } = useLivechatProfilePhoto(conv.id, {
     source: conv.source,
@@ -65,9 +73,11 @@ function LivechatAvatar({
   const overlayColor =
     channel === 'instagram'
       ? 'bg-[#E4405F]'
-      : isEmail
-        ? 'bg-blue-600'
-        : 'bg-[#25D366]';
+      : channel === 'facebook'
+        ? 'bg-[#1877F2]'
+        : isEmail
+          ? 'bg-blue-600'
+          : 'bg-[#25D366]';
 
   return (
     <div className="relative shrink-0">
@@ -194,6 +204,9 @@ export function getConversationTicketId(conv: LiveChatConversation): string {
   if (conv.source === 'instagram') {
     return 'IG-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase();
   }
+  if (conv.source === 'facebook') {
+    return 'FB-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase();
+  }
   return 'WA-' + String(conv.id).replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
@@ -230,6 +243,11 @@ export function ConversationList({
         const name = (conv.customer_name ?? '').toLowerCase();
         const igId = (conv.customer_ig_id ?? '').toLowerCase();
         return name.includes(q) || igId.includes(q);
+      }
+      if (conv.source === 'facebook') {
+        const name = (conv.customer_name ?? '').toLowerCase();
+        const psid = (conv.customer_psid ?? '').toLowerCase();
+        return name.includes(q) || psid.includes(q);
       }
       const name = (conv.customer_name ?? '').toLowerCase();
       const waId = (conv.customer_wa_id ?? '').toLowerCase();
@@ -352,6 +370,7 @@ export function ConversationList({
   const getAccountLabel = useCallback((c: LiveChatConversation) => {
     if (c.source === 'email') return (c as { email_connection_display?: string | null }).email_connection_display ?? '—';
     if (c.source === 'instagram') return (c as { instagram_account_display_name?: string | null }).instagram_account_display_name ?? '';
+    if (c.source === 'facebook') return (c as { facebook_page_display_name?: string | null }).facebook_page_display_name ?? '';
     const wa = c as WhatsAppConversation;
     return wa.whatsapp_account_display_name ?? wa.channel ?? '';
   }, []);
@@ -391,6 +410,7 @@ export function ConversationList({
     const handleRetry = () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['instagram-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['facebook-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['email-conversations'] });
     };
     return (
@@ -460,7 +480,9 @@ export function ConversationList({
           ? (conv.from_display_name || emailToDisplayLabel(conv.from_email) || conv.from_email || conv.email_connection_display || 'Email')
           : conv.source === 'instagram'
             ? (conv.customer_name?.trim() || t('whatsappInbox.instagramContact', 'Kontak Instagram'))
-            : (conv.customer_name || maskPhoneLast4(conv.customer_wa_id) || 'Unknown');
+            : conv.source === 'facebook'
+              ? (conv.customer_name?.trim() || t('livechat.messengerContact', 'Kontak Messenger'))
+              : (conv.customer_name || maskPhoneLast4(conv.customer_wa_id) || 'Unknown');
         const isSwiping = swipeState?.convId === conv.id;
         const swipeOffset = isSwiping ? swipeState.offset : 0;
         const useDomTransform = isDragging && isSwiping;

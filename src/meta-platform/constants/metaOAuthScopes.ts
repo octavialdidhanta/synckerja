@@ -14,6 +14,18 @@ export const META_BUSINESS_OAUTH_SCOPE_LIST = [
 
 export const META_BUSINESS_OAUTH_SCOPES = META_BUSINESS_OAUTH_SCOPE_LIST.join(',');
 
+/** Facebook Page organic content — no Instagram scopes (avoids IG Graph API / FBE link step). */
+export const META_FACEBOOK_PAGE_OAUTH_SCOPE_LIST = [
+  'pages_show_list',
+  'pages_manage_metadata',
+  'pages_read_engagement',
+  'pages_manage_engagement',
+  'pages_messaging',
+  'business_management',
+] as const;
+
+export const META_FACEBOOK_PAGE_OAUTH_SCOPES = META_FACEBOOK_PAGE_OAUTH_SCOPE_LIST.join(',');
+
 /** Threads API scopes — requested via threads.net OAuth, not Facebook Login. */
 export const THREADS_OAUTH_SCOPE_LIST = [
   'threads_basic',
@@ -32,6 +44,11 @@ export function hasThreadsScopes(granted: string[]): boolean {
 }
 
 export const META_SCOPE_FEATURE_MAP = {
+  /** Instagram DM livechat — requires IG messaging scope + Page Send API. */
+  instagram_dm: ['instagram_manage_messages', 'pages_messaging'] as const,
+  /** Facebook Messenger livechat — Page messaging + webhook subscribe. */
+  messenger_dm: ['pages_messaging', 'pages_manage_metadata'] as const,
+  /** @deprecated Use instagram_dm on Instagram connect. */
   dm: ['instagram_manage_messages', 'pages_messaging'] as const,
   comments: ['instagram_manage_comments', 'pages_manage_engagement'] as const,
   insights: ['instagram_manage_insights', 'pages_read_engagement'] as const,

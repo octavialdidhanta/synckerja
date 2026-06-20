@@ -16,7 +16,9 @@ export function readConversationAssigneeIdFromQueryCache(
       ? (['email-conversation-status', conversation.id] as const)
       : conversation.source === 'instagram'
         ? (['instagram-conversation-status', conversation.id] as const)
-        : (['whatsapp-conversation-status', conversation.id] as const);
+        : conversation.source === 'facebook'
+          ? (['facebook-conversation-status', conversation.id] as const)
+          : (['whatsapp-conversation-status', conversation.id] as const);
   const row = queryClient.getQueryData<{ assignee_id?: string | null }>(key);
   const id = row?.assignee_id;
   return id == null || String(id).trim() === '' ? null : String(id);

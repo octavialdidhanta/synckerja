@@ -69,8 +69,9 @@ export function LiveChatChatView({
 
   const isEmail = selectedConversation.source === 'email';
   const isInstagram = selectedConversation.source === 'instagram';
+  const isFacebook = selectedConversation.source === 'facebook';
   const waConv = selectedConversation as WhatsAppConversation;
-  const channel = isInstagram ? 'instagram' : (waConv.channel ?? 'whatsapp');
+  const channel = isInstagram ? 'instagram' : isFacebook ? 'facebook' : (waConv.channel ?? 'whatsapp');
   const { profileUrl } = useLivechatProfilePhoto(selectedConversation.id, {
     source: selectedConversation.source,
     channel: isEmail ? 'email' : channel,
@@ -84,6 +85,10 @@ export function LiveChatChatView({
       ? (selectedConversation as InstagramConversation).customer_name ||
         maskPhoneLast4((selectedConversation as InstagramConversation).customer_ig_id) ||
         t('whatsappInbox.instagramContact', 'Kontak Instagram')
+      : isFacebook
+        ? (selectedConversation as { customer_name?: string | null; customer_psid?: string }).customer_name ||
+          maskPhoneLast4((selectedConversation as { customer_psid?: string }).customer_psid) ||
+          t('livechat.messengerContact', 'Kontak Messenger')
       : selectedConversation.customer_name ||
         maskPhoneLast4(waConv.customer_wa_id) ||
         'Unknown';
@@ -100,7 +105,7 @@ export function LiveChatChatView({
     .toUpperCase()
     .slice(0, 2) || '?';
 
-  const overlayColor = channel === 'instagram' ? 'bg-[#E4405F]' : isEmail ? 'bg-blue-600' : 'bg-[#25D366]';
+  const overlayColor = channel === 'instagram' ? 'bg-[#E4405F]' : channel === 'facebook' ? 'bg-[#1877F2]' : isEmail ? 'bg-blue-600' : 'bg-[#25D366]';
 
   const connectedPhoneNumberIds = waAccounts.map((a) => a.phone_number_id);
   const hasNoConnectedWhatsAppAccount = waAccounts.length === 0;

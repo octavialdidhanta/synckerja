@@ -15,9 +15,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/compo
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { useWhatsAppConversations } from '../hooks/useWhatsAppConversations';
 import { useInstagramConversations } from '../hooks/useInstagramConversations';
+import { useFacebookConversations } from '../hooks/useFacebookConversations';
 import { useEmailConversations } from '../hooks/useEmailConversations';
 import { useWhatsAppAccounts } from '../hooks/useWhatsAppAccounts';
 import { useInstagramAccounts } from '../hooks/useInstagramAccounts';
+import { useFacebookPages } from '../hooks/useFacebookPages';
 import { useEmailConnections } from '../hooks/useEmailConnections';
 import { useWhatsAppLivechatPageSkeletonGate } from '../hooks/useWhatsAppLivechatPageSkeletonGate';
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
@@ -28,10 +30,10 @@ import { useServices } from '@/6-1-product-knowledge/hooks/useServices';
 import { useSubServices } from '@/6-1-product-knowledge/hooks/useSubServices';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { cn } from '@/shared/lib/utils';
-import type { LiveChatConversation, WhatsAppConversation, InstagramConversation } from '../types';
+import type { LiveChatConversation, WhatsAppConversation, InstagramConversation, FacebookConversation } from '../types';
 import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSubscription';
 
-type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `email:${string}`;
+type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `fb:${string}` | `email:${string}`;
 
 export function WhatsAppInboxPage() {
   const { t } = useAppTranslation();
@@ -48,6 +50,7 @@ export function WhatsAppInboxPage() {
   }, [organizationId, refreshSubscriptionStatus]);
   const { data: waConversations = [], isPending: waPending, error: waError } = useWhatsAppConversations();
   const { data: igConversations = [], isPending: igPending, error: igError } = useInstagramConversations();
+  const { data: fbConversations = [], isPending: fbPending, error: fbError } = useFacebookConversations();
 
   const { data: leadStatuses = [], isLoading: leadStatusesLoading } = useQuery({
     queryKey: ['lead-statuses'],
@@ -61,6 +64,7 @@ export function WhatsAppInboxPage() {
   const { data: emailConversations = [], isPending: emailPending, error: emailError } = useEmailConversations();
   const { accounts: waAccounts, isLoading: waAccountsPending } = useWhatsAppAccounts();
   const { accounts: igAccounts, isLoading: igAccountsPending } = useInstagramAccounts();
+  const { pages: fbPages, isLoading: fbPagesPending } = useFacebookPages();
   const { connections: emailConnections, isLoading: emailConnectionsPending } = useEmailConnections();
   const { isPending: servicesPending } = useServices();
   const { isPending: subServicesPending } = useSubServices();
@@ -71,9 +75,11 @@ export function WhatsAppInboxPage() {
       (hasOrg &&
         (waPending ||
           igPending ||
+          fbPending ||
           emailPending ||
           waAccountsPending ||
           igAccountsPending ||
+          fbPagesPending ||
           emailConnectionsPending ||
           leadStatusesLoading ||
           servicesPending ||
@@ -83,9 +89,11 @@ export function WhatsAppInboxPage() {
       hasOrg,
       waPending,
       igPending,
+      fbPending,
       emailPending,
       waAccountsPending,
       igAccountsPending,
+      fbPagesPending,
       emailConnectionsPending,
       leadStatusesLoading,
       servicesPending,
@@ -108,15 +116,16 @@ export function WhatsAppInboxPage() {
   const allConversations: LiveChatConversation[] = useMemo(() => {
     const wa: LiveChatConversation[] = (waConversations as WhatsAppConversation[]).map((c) => ({ ...c, source: 'whatsapp' as const }));
     const ig: LiveChatConversation[] = (igConversations as InstagramConversation[]).map((c) => ({ ...c, source: 'instagram' as const }));
+    const fb: LiveChatConversation[] = (fbConversations as FacebookConversation[]).map((c) => ({ ...c, source: 'facebook' as const }));
     const email: LiveChatConversation[] = emailConversations.map((c) => ({ ...c, source: 'email' as const }));
-    const merged = [...wa, ...ig, ...email];
+    const merged = [...wa, ...ig, ...fb, ...email];
     merged.sort((a, b) => {
       const aAt = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
       const bAt = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
       return bAt - aAt;
     });
     return merged;
-  }, [waConversations, igConversations, emailConversations]);
+  }, [waConversations, igConversations, fbConversations, emailConversations]);
 
   const accountOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
@@ -130,11 +139,15 @@ export function WhatsAppInboxPage() {
       const name = acc.instagram_username?.trim() ? `@${acc.instagram_username}` : acc.instagram_name?.trim() || acc.instagram_business_account_id || t('whatsappInbox.instagram', 'Instagram');
       opts.push({ value: `ig:${acc.instagram_business_account_id}` as const, label: `Instagram - ${name}` });
     });
+    fbPages.forEach((page) => {
+      const name = page.page_name?.trim() || page.facebook_page_id || t('livechat.channelMessenger', 'Messenger');
+      opts.push({ value: `fb:${page.facebook_page_id}` as const, label: `Messenger - ${name}` });
+    });
     emailConnections.forEach((conn) => {
       opts.push({ value: `email:${conn.id}` as const, label: `Email - ${conn.email_address}` });
     });
     return opts;
-  }, [waAccounts, igAccounts, emailConnections, t]);
+  }, [waAccounts, igAccounts, fbPages, emailConnections, t]);
 
   const uniqueLeadStatusOptions = useMemo(() => {
     const excluded = leadStatuses.filter((s) => {
@@ -175,6 +188,12 @@ export function WhatsAppInboxPage() {
         list = list.filter((c) => {
           if (c.source !== 'instagram') return false;
           return (c as InstagramConversation).instagram_business_account_id === igAccountId;
+        });
+      } else if (accountFilter.startsWith('fb:')) {
+        const fbPageId = accountFilter.slice(3);
+        list = list.filter((c) => {
+          if (c.source !== 'facebook') return false;
+          return (c as FacebookConversation).facebook_page_id === fbPageId;
         });
       } else if (accountFilter.startsWith('email:')) {
         const connId = accountFilter.slice(6);
@@ -285,7 +304,7 @@ export function WhatsAppInboxPage() {
                   <div className="flex-1 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain min-h-0">
                     <ConversationList
                       conversations={conversations}
-                      error={waError ?? igError ?? emailError}
+                      error={waError ?? igError ?? fbError ?? emailError}
                       selectedId={selectedId}
                       onSelect={handleSelectConversation}
                       initialConversationId={initialConversationId}

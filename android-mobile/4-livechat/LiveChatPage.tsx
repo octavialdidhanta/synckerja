@@ -7,11 +7,13 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
 import { useWhatsAppConversations } from '@/5-3-whatsapp/hooks/useWhatsAppConversations';
 import { useInstagramConversations } from '@/5-3-whatsapp/hooks/useInstagramConversations';
+import { useFacebookConversations } from '@/5-3-whatsapp/hooks/useFacebookConversations';
 import { useEmailConversations } from '@/5-3-whatsapp/hooks/useEmailConversations';
 import { useWhatsAppAccounts } from '@/5-3-whatsapp/hooks/useWhatsAppAccounts';
 import { useInstagramAccounts } from '@/5-3-whatsapp/hooks/useInstagramAccounts';
+import { useFacebookPages } from '@/5-3-whatsapp/hooks/useFacebookPages';
 import { useEmailConnections } from '@/5-3-whatsapp/hooks/useEmailConnections';
-import type { LiveChatConversation, WhatsAppConversation, InstagramConversation } from '@/5-3-whatsapp/types';
+import type { LiveChatConversation, WhatsAppConversation, InstagramConversation, FacebookConversation } from '@/5-3-whatsapp/types';
 import { getConversationTicketId } from './shared/getConversationTicketId';
 import { LiveChatListView } from './LiveChatListView';
 import { LiveChatChatView } from './LiveChatChatView';
@@ -24,7 +26,7 @@ import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSu
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
 
-type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `email:${string}`;
+type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `fb:${string}` | `email:${string}`;
 
 export default function LiveChatPage() {
   const { t } = useAppTranslation();
@@ -62,9 +64,11 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
 
   const { data: waConversations = [], isLoading: waLoading, error: waError, refetch: refetchWa } = useWhatsAppConversations();
   const { data: igConversations = [], isLoading: igLoading, error: igError, refetch: refetchIg } = useInstagramConversations();
+  const { data: fbConversations = [], isLoading: fbLoading, error: fbError, refetch: refetchFb } = useFacebookConversations();
   const { data: emailConversations = [], isLoading: emailLoading, error: emailError, refetch: refetchEmail } = useEmailConversations();
   const { accounts: waAccounts } = useWhatsAppAccounts();
   const { accounts: igAccounts } = useInstagramAccounts();
+  const { pages: fbPages } = useFacebookPages();
   const { connections: emailConnections } = useEmailConnections();
 
   const { data: leadStatuses = [], error: leadStatusesError } = useQuery({
@@ -90,15 +94,16 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
   const allConversations: LiveChatConversation[] = useMemo(() => {
     const wa: LiveChatConversation[] = (waConversations as WhatsAppConversation[]).map((c) => ({ ...c, source: 'whatsapp' as const }));
     const ig: LiveChatConversation[] = (igConversations as InstagramConversation[]).map((c) => ({ ...c, source: 'instagram' as const }));
+    const fb: LiveChatConversation[] = (fbConversations as FacebookConversation[]).map((c) => ({ ...c, source: 'facebook' as const }));
     const email: LiveChatConversation[] = emailConversations.map((c) => ({ ...c, source: 'email' as const }));
-    const merged = [...wa, ...ig, ...email];
+    const merged = [...wa, ...ig, ...fb, ...email];
     merged.sort((a, b) => {
       const aAt = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
       const bAt = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
       return bAt - aAt;
     });
     return merged;
-  }, [waConversations, igConversations, emailConversations]);
+  }, [waConversations, igConversations, fbConversations, emailConversations]);
 
   const accountOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
@@ -112,11 +117,15 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
       const name = acc.instagram_username?.trim() ? `@${acc.instagram_username}` : acc.instagram_name?.trim() || acc.instagram_business_account_id || t('whatsappInbox.instagram', 'Instagram');
       opts.push({ value: `ig:${acc.instagram_business_account_id}` as const, label: `Instagram - ${name}` });
     });
+    fbPages.forEach((page) => {
+      const name = page.page_name?.trim() || page.facebook_page_id || t('livechat.channelMessenger', 'Messenger');
+      opts.push({ value: `fb:${page.facebook_page_id}` as const, label: `Messenger - ${name}` });
+    });
     emailConnections.forEach((conn) => {
       opts.push({ value: `email:${conn.id}` as const, label: `Email - ${conn.email_address}` });
     });
     return opts;
-  }, [waAccounts, igAccounts, emailConnections, t]);
+  }, [waAccounts, igAccounts, fbPages, emailConnections, t]);
 
   const statusOptions = useMemo(() => {
     const excluded = leadStatuses.filter((s) => {
@@ -162,6 +171,12 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
           if (c.source !== 'instagram') return false;
           return (c as InstagramConversation).instagram_business_account_id === igAccountId;
         });
+      } else if (accountFilter.startsWith('fb:')) {
+        const fbPageId = accountFilter.slice(3);
+        list = list.filter((c) => {
+          if (c.source !== 'facebook') return false;
+          return (c as FacebookConversation).facebook_page_id === fbPageId;
+        });
       } else if (accountFilter.startsWith('email:')) {
         const connId = accountFilter.slice(6);
         list = list.filter((c) => c.source === 'email' && (c as { email_connection_id: string }).email_connection_id === connId);
@@ -182,7 +197,7 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
   // Global realtime: show system notification on inbound message (list view or app in background)
   useLiveChatInboundNotification(selectedConversation?.id ?? null);
 
-  const isLoading = waLoading || igLoading || emailLoading;
+  const isLoading = waLoading || igLoading || fbLoading || emailLoading;
   const invalidTicketId = !!(ticketId?.trim() && !isLoading && !selectedConversation);
 
   useEffect(() => {
@@ -215,8 +230,8 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
   };
 
   const refreshLiveChat = useCallback(() => {
-    return Promise.all([refetchWa(), refetchIg(), refetchEmail()]);
-  }, [refetchWa, refetchIg, refetchEmail]);
+    return Promise.all([refetchWa(), refetchIg(), refetchFb(), refetchEmail()]);
+  }, [refetchWa, refetchIg, refetchFb, refetchEmail]);
 
   if (ticketId && selectedConversation) {
     return (
@@ -236,7 +251,7 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
     <LiveChatListView
       conversations={conversations}
       isLoading={isLoading}
-      error={waError ?? igError ?? emailError}
+      error={waError ?? igError ?? fbError ?? emailError}
       waAccounts={waAccounts}
       accountOptions={accountOptions}
       accountFilter={accountFilter}

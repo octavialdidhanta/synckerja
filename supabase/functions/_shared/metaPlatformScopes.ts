@@ -13,6 +13,8 @@ export const META_BUSINESS_OAUTH_SCOPE_LIST = [
 ] as const;
 
 export const META_SCOPE_FEATURE_MAP = {
+  instagram_dm: ["instagram_manage_messages", "pages_messaging"],
+  messenger_dm: ["pages_messaging", "pages_manage_metadata"],
   dm: ["instagram_manage_messages", "pages_messaging"],
   comments: ["instagram_manage_comments", "pages_manage_engagement"],
   insights: ["instagram_manage_insights", "pages_read_engagement"],
