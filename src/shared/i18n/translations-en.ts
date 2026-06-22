@@ -203,6 +203,10 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.googleAds.currency": "Currency",
   "digitalMarketing.traffic.allTimeRangeHint":
     "All time uses the same date range as Report and Google Ads tabs.",
+  "digitalMarketing.traffic.connectWebIdRequestSubmitted":
+    "web_id \"{{webId}}\" is pending approval before it can be used.",
+  "digitalMarketing.traffic.connectWebIdRequestSubmittedHint":
+    "For automatic activation, create an SDK token in Omnichannel → API Integration with the same web_id.",
   "digitalMarketing.googleAds.trafficWebIdLabel": "Traffic source",
   "digitalMarketing.googleAds.trafficWebIdPlaceholder": "Traffic web_id",
   "digitalMarketing.googleAds.trafficVisitUnavailable":
@@ -1531,10 +1535,19 @@ export const enTranslations: TranslationDictionary = {
   "omnichannel.settings.apiIntegration.revokedAt": "Revoked {{date}}",
   "omnichannel.settings.apiIntegration.createTokenWaTemplateNote": "Invoice WhatsApp receipts use the organization template \"{{template}}\" from settings above.",
   "omnichannel.settings.apiIntegration.createTokenWaTemplateEmpty": "No organization WhatsApp template set yet — configure it in Organization settings above to enable invoice receipts.",
-  "omnichannel.settings.apiIntegration.tokenRotationHint": "You can have multiple active tokens. Create a new token to rotate credentials, deploy the updated SDK, then revoke the old token when traffic is confirmed.",
+  "omnichannel.settings.apiIntegration.tokenRotationHint": "To add or change domains only, edit allowed origins on an active SDK token — the plaintext secret stays the same and your website does not need a redeploy. Create a new token only when you need to rotate the secret or use a different web_id; then revoke the old token after traffic is confirmed.",
+  "omnichannel.settings.apiIntegration.sdkTrafficApprovalHint": "An SDK token also enables Traffic dashboard access for this web_id (revoking the last active SDK token disables it).",
   "omnichannel.settings.apiIntegration.duplicateWebIdWarning": "{{count}} active token(s) already use this web_id — only continue if this is an intentional rotation or separate environment.",
   "omnichannel.settings.apiIntegration.revokeConfirmTitle": "Revoke API token?",
   "omnichannel.settings.apiIntegration.revokeConfirmBody": "API requests using this token will be rejected immediately (403). The row stays in the list for audit; plaintext cannot be recovered.",
+  "omnichannel.settings.apiIntegration.editOriginsTitle": "Edit allowed origins",
+  "omnichannel.settings.apiIntegration.editOriginsBody": "Changes apply immediately on the next request. The plaintext token does not change — your website does not need an SDK redeploy.",
+  "omnichannel.settings.apiIntegration.editOriginsSave": "Save origins",
+  "omnichannel.settings.apiIntegration.editOriginsSuccess": "Allowed origins updated.",
+  "omnichannel.settings.apiIntegration.editOriginsFailed": "Failed to update allowed origins.",
+  "omnichannel.settings.apiIntegration.editOriginsNoChangeHint": "No changes from the current value.",
+  "omnichannel.settings.apiIntegration.colOrigins": "Origins",
+  "omnichannel.settings.apiIntegration.editOrigins": "Edit allowed origins",
   "omnichannel.settings.apiIntegration.createTokenLimitFailed": "Active token limit reached (max 50 per organization). Revoke unused tokens first.",
   "omnichannel.settings.apiIntegration.createToken": "Create token",
   "omnichannel.settings.apiIntegration.colLabel": "Label",

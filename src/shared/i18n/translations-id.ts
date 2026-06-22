@@ -203,6 +203,10 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.googleAds.currency": "Mata uang",
   "digitalMarketing.traffic.allTimeRangeHint":
     "All time memakai rentang tanggal yang sama dengan tab Report dan Google Ads.",
+  "digitalMarketing.traffic.connectWebIdRequestSubmitted":
+    "web_id \"{{webId}}\" menunggu approval sebelum bisa dipakai.",
+  "digitalMarketing.traffic.connectWebIdRequestSubmittedHint":
+    "Untuk aktivasi otomatis, buat token SDK di Omnichannel → Integrasi API dengan web_id yang sama.",
   "digitalMarketing.googleAds.trafficWebIdLabel": "Sumber traffic",
   "digitalMarketing.googleAds.trafficWebIdPlaceholder": "web_id traffic",
   "digitalMarketing.googleAds.trafficVisitUnavailable":
@@ -1530,10 +1534,19 @@ export const idTranslations: TranslationDictionary = {
   "omnichannel.settings.apiIntegration.revokedAt": "Dicabut {{date}}",
   "omnichannel.settings.apiIntegration.createTokenWaTemplateNote": "Nota invoice WhatsApp memakai template organisasi \"{{template}}\" dari pengaturan di atas.",
   "omnichannel.settings.apiIntegration.createTokenWaTemplateEmpty": "Template WhatsApp organisasi belum diset — atur di Pengaturan organisasi di atas agar nota invoice bisa terkirim.",
-  "omnichannel.settings.apiIntegration.tokenRotationHint": "Anda dapat memiliki banyak token aktif. Buat token baru untuk rotasi, deploy SDK yang diperbarui, lalu cabut token lama setelah traffic terkonfirmasi.",
+  "omnichannel.settings.apiIntegration.tokenRotationHint": "Untuk menambah atau mengganti domain saja, edit allowed origins pada token SDK aktif — plaintext tidak berubah dan website tidak perlu deploy ulang. Buat token baru hanya jika secret perlu diganti atau web_id berbeda; lalu cabut token lama setelah traffic terkonfirmasi.",
+  "omnichannel.settings.apiIntegration.sdkTrafficApprovalHint": "Token SDK juga mengaktifkan akses dashboard Traffic untuk web_id ini (mencabut token SDK terakhir menonaktifkannya).",
   "omnichannel.settings.apiIntegration.duplicateWebIdWarning": "Sudah ada {{count}} token aktif untuk web_id ini — lanjutkan hanya jika ini rotasi yang disengaja atau environment terpisah.",
   "omnichannel.settings.apiIntegration.revokeConfirmTitle": "Cabut token API?",
   "omnichannel.settings.apiIntegration.revokeConfirmBody": "Permintaan API dengan token ini akan ditolak segera (403). Baris tetap di daftar untuk audit; plaintext tidak bisa dipulihkan.",
+  "omnichannel.settings.apiIntegration.editOriginsTitle": "Edit allowed origins",
+  "omnichannel.settings.apiIntegration.editOriginsBody": "Perubahan berlaku segera untuk request berikutnya. Token plaintext tidak berubah — website tidak perlu deploy ulang SDK.",
+  "omnichannel.settings.apiIntegration.editOriginsSave": "Simpan origins",
+  "omnichannel.settings.apiIntegration.editOriginsSuccess": "Allowed origins diperbarui.",
+  "omnichannel.settings.apiIntegration.editOriginsFailed": "Gagal memperbarui allowed origins.",
+  "omnichannel.settings.apiIntegration.editOriginsNoChangeHint": "Tidak ada perubahan dari nilai saat ini.",
+  "omnichannel.settings.apiIntegration.colOrigins": "Origins",
+  "omnichannel.settings.apiIntegration.editOrigins": "Edit allowed origins",
   "omnichannel.settings.apiIntegration.createTokenLimitFailed": "Batas token aktif tercapai (maks. 50 per organisasi). Cabut token yang tidak dipakai terlebih dahulu.",
   "omnichannel.settings.apiIntegration.createToken": "Buat token",
   "omnichannel.settings.apiIntegration.colLabel": "Label",

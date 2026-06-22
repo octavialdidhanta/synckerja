@@ -7,6 +7,10 @@ import {
   computeTokenExpiresAt,
   isOmnichannelApiTokenExpired,
 } from "../_shared/omnichannelPublicApi/auth.ts";
+import {
+  parseAllowedOriginsInput,
+  validateSdkAllowedOrigins,
+} from "../_shared/omnichannelPublicApi/tokenOrigins.ts";
 import { isValidWebId, normalizeWebId } from "../_shared/omnichannelPublicApi/urlParams.ts";
 import { handleLeadTemplateMappingAction } from "../_shared/omnichannelPublicApi/leadTemplateMappingManage.ts";
 
@@ -111,7 +115,7 @@ Deno.serve(async (req) => {
 
     const { data: existing, error: fetchErr } = await admin
       .from("organization_omnichannel_api_tokens")
-      .select("id, is_active")
+      .select("id, is_active, web_id, token_type")
       .eq("id", tokenId)
       .eq("organization_id", organizationId)
       .maybeSingle();
@@ -122,6 +126,9 @@ Deno.serve(async (req) => {
     if (!existing.is_active) {
       return json({ success: true });
     }
+
+    const revokedWebId = String(existing.web_id ?? "").trim();
+    const revokedTokenType = String(existing.token_type ?? "");
 
     const { error } = await admin
       .from("organization_omnichannel_api_tokens")
@@ -135,7 +142,72 @@ Deno.serve(async (req) => {
       .eq("organization_id", organizationId);
 
     if (error) return json({ success: false, error: error.message }, 500);
+
+    if (revokedTokenType === "sdk" && revokedWebId) {
+      const { error: syncErr } = await admin.rpc("sync_analytics_web_access_for_web_id", {
+        p_organization_id: organizationId,
+        p_web_id: revokedWebId,
+        p_created_by: null,
+      });
+      if (syncErr) {
+        return json({
+          success: false,
+          error: `Token dicabut, tetapi sinkronisasi akses Traffic gagal: ${syncErr.message}`,
+        }, 500);
+      }
+    }
+
     return json({ success: true });
+  }
+
+  if (action === "updateTokenOrigins") {
+    const tokenId = String(body.tokenId ?? "").trim();
+    if (!tokenId) return json({ success: false, error: "tokenId wajib." }, 400);
+
+    const allowedOrigins = parseAllowedOriginsInput(body.allowed_origins);
+    const originsErr = validateSdkAllowedOrigins(allowedOrigins);
+    if (originsErr) {
+      return json({ success: false, error: originsErr }, 422);
+    }
+
+    const { data: existing, error: fetchErr } = await admin
+      .from("organization_omnichannel_api_tokens")
+      .select("id, token_type, is_active, expires_at")
+      .eq("id", tokenId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (fetchErr) return json({ success: false, error: fetchErr.message }, 500);
+    if (!existing) return json({ success: false, error: "Token tidak ditemukan." }, 404);
+
+    if (!existing.is_active) {
+      return json({ success: false, error: "Token sudah dicabut." }, 422);
+    }
+
+    if (isOmnichannelApiTokenExpired(existing.expires_at as string | null)) {
+      return json({ success: false, error: "Token sudah kedaluwarsa." }, 422);
+    }
+
+    if (String(existing.token_type ?? "") !== "sdk") {
+      return json({
+        success: false,
+        error: "Hanya token SDK yang dapat mengubah allowed origins.",
+      }, 422);
+    }
+
+    const { data: updated, error } = await admin
+      .from("organization_omnichannel_api_tokens")
+      .update({
+        allowed_origins: allowedOrigins,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", tokenId)
+      .eq("organization_id", organizationId)
+      .select("id, web_id, token_prefix, token_type, label, allowed_origins, expires_at, updated_at")
+      .single();
+
+    if (error) return json({ success: false, error: error.message }, 500);
+    return json({ success: true, token: updated });
   }
 
   if (action === "getSettings") {
@@ -249,15 +321,13 @@ Deno.serve(async (req) => {
     }
     const tokenType = rawTokenType as "sdk" | "server";
 
-    const allowedOrigins = Array.isArray(body.allowed_origins)
-      ? (body.allowed_origins as unknown[]).map((o) => String(o).trim()).filter(Boolean)
-      : [];
+    const allowedOrigins = parseAllowedOriginsInput(body.allowed_origins);
 
-    if (tokenType === "sdk" && allowedOrigins.length === 0) {
-      return json({
-        success: false,
-        error: "allowed_origins wajib diisi untuk token tipe SDK.",
-      }, 422);
+    if (tokenType === "sdk") {
+      const originsErr = validateSdkAllowedOrigins(allowedOrigins);
+      if (originsErr) {
+        return json({ success: false, error: originsErr }, 422);
+      }
     }
 
     let expiresAt: string | null = null;
@@ -304,12 +374,6 @@ Deno.serve(async (req) => {
     const tokenHash = await hashApiToken(plaintext);
     const tokenPrefix = plaintext.slice(0, 16);
 
-    await admin.rpc("ensure_analytics_web_access_for_org", {
-      p_organization_id: organizationId,
-      p_web_id: webId,
-      p_created_by: userRes.user.id,
-    });
-
     const { data: inserted, error } = await admin
       .from("organization_omnichannel_api_tokens")
       .insert({
@@ -335,6 +399,20 @@ Deno.serve(async (req) => {
       .single();
 
     if (error) return json({ success: false, error: error.message }, 500);
+
+    if (tokenType === "sdk") {
+      const { error: syncErr } = await admin.rpc("sync_analytics_web_access_for_web_id", {
+        p_organization_id: organizationId,
+        p_web_id: webId,
+        p_created_by: userRes.user.id,
+      });
+      if (syncErr) {
+        return json({
+          success: false,
+          error: `Token dibuat, tetapi aktivasi akses Traffic gagal: ${syncErr.message}`,
+        }, 500);
+      }
+    }
 
     return json({
       success: true,

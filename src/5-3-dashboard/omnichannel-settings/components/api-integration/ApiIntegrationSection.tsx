@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { ApiTokenCreateDialog } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiTokenCreateDialog";
+import { ApiTokenEditOriginsDialog } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiTokenEditOriginsDialog";
 import { ApiIntegrationDocsPanel } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiIntegrationDocsPanel";
 import { ApiTokenRevokeDialog } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiTokenRevokeDialog";
 import { ClickInfoHint } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ClickInfoHint";
@@ -36,6 +37,7 @@ import {
   useOmnichannelApiSettings,
   useOmnichannelApiTokens,
   useRevokeOmnichannelApiToken,
+  useUpdateOmnichannelTokenOrigins,
   useUpdateOmnichannelApiSettings,
   useUpsertLeadTemplateMapping,
   type OmnichannelApiTokenRow,
@@ -48,6 +50,7 @@ import {
   OMNICHANNEL_SETTINGS_CARD_TITLE_CLASS,
 } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsCardHeader";
 import { cn } from "@/shared/lib/utils";
+import { formatOriginsPreview } from "@/5-3-dashboard/omnichannel-settings/lib/omnichannelTokenOrigins";
 
 const panelScrollClass =
   "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
@@ -83,6 +86,7 @@ export function ApiIntegrationSection() {
   const [plaintextToken, setPlaintextToken] = useState<string | null>(null);
   const [plaintextTokenType, setPlaintextTokenType] = useState<OmnichannelApiTokenType | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<OmnichannelApiTokenRow | null>(null);
+  const [editOriginsTarget, setEditOriginsTarget] = useState<OmnichannelApiTokenRow | null>(null);
   const [waInvoiceTemplate, setWaInvoiceTemplate] = useState<WhatsAppTemplateSelection | null>(null);
   const [waLeadTemplate, setWaLeadTemplate] = useState<WhatsAppTemplateSelection | null>(null);
   const [settingsDirty, setSettingsDirty] = useState(false);
@@ -105,6 +109,7 @@ export function ApiIntegrationSection() {
   });
   const createToken = useCreateOmnichannelApiToken(organizationId);
   const revokeToken = useRevokeOmnichannelApiToken(organizationId);
+  const updateTokenOrigins = useUpdateOmnichannelTokenOrigins(organizationId);
   const updateSettings = useUpdateOmnichannelApiSettings(organizationId);
   const upsertLeadMapping = useUpsertLeadTemplateMapping(organizationId);
 
@@ -221,6 +226,23 @@ export function ApiIntegrationSection() {
       toast.error(
         mutationErrorMessage(error) ?? t("omnichannel.settings.apiIntegration.revokeFailed"),
       );
+    }
+  }
+
+  async function handleSaveOrigins(allowed_origins: string[]) {
+    if (!editOriginsTarget) return;
+    try {
+      await updateTokenOrigins.mutateAsync({
+        tokenId: editOriginsTarget.id,
+        allowed_origins,
+      });
+      toast.success(t("omnichannel.settings.apiIntegration.editOriginsSuccess"));
+      setEditOriginsTarget(null);
+    } catch (error) {
+      toast.error(
+        mutationErrorMessage(error) ?? t("omnichannel.settings.apiIntegration.editOriginsFailed"),
+      );
+      throw error;
     }
   }
 
@@ -452,27 +474,28 @@ export function ApiIntegrationSection() {
                     <TableHead>web_id</TableHead>
                     <TableHead>{t("omnichannel.settings.apiIntegration.colPrefix")}</TableHead>
                     <TableHead>{t("omnichannel.settings.apiIntegration.colStatus")}</TableHead>
+                    <TableHead>{t("omnichannel.settings.apiIntegration.colOrigins")}</TableHead>
                     <TableHead>{t("omnichannel.settings.apiIntegration.colExpiry")}</TableHead>
                     <TableHead>{t("omnichannel.settings.apiIntegration.colLastUsed")}</TableHead>
-                    <TableHead className="w-[100px]" />
+                    <TableHead className="w-[120px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tokensLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground">
                         {t("common.loading")}
                       </TableCell>
                     </TableRow>
                   ) : tokensError ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-destructive">
+                      <TableCell colSpan={9} className="text-center text-destructive">
                         {t("omnichannel.settings.apiIntegration.loadFailed")}
                       </TableCell>
                     </TableRow>
                   ) : sortedTokens.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground">
                         {t("omnichannel.settings.apiIntegration.noTokens")}
                       </TableCell>
                     </TableRow>
@@ -482,6 +505,9 @@ export function ApiIntegrationSection() {
                       const isExpired = expiryState === "expired";
                       const displayStatus = getOmnichannelTokenDisplayStatus(tok);
                       const rowInactive = displayStatus !== "active";
+                      const canEditOrigins =
+                        normalizeOmnichannelTokenType(tok.token_type) === "sdk" &&
+                        displayStatus === "active";
                       return (
                       <TableRow key={tok.id} className={rowInactive ? "opacity-60" : undefined}>
                         <TableCell>{tok.label || "—"}</TableCell>
@@ -493,6 +519,11 @@ export function ApiIntegrationSection() {
                           <code className="text-xs">{tok.token_prefix}…</code>
                         </TableCell>
                         <TableCell>{renderTokenStatus(tok)}</TableCell>
+                        <TableCell className="max-w-[180px] truncate text-xs text-muted-foreground" title={tok.allowed_origins?.join(", ")}>
+                          {normalizeOmnichannelTokenType(tok.token_type) === "sdk"
+                            ? formatOriginsPreview(tok.allowed_origins ?? [])
+                            : "—"}
+                        </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {!tok.is_active && tok.revoked_at ? (
                             <span>
@@ -514,16 +545,31 @@ export function ApiIntegrationSection() {
                           {tok.last_used_at ? new Date(tok.last_used_at).toLocaleString() : "—"}
                         </TableCell>
                         <TableCell>
-                          {tok.is_active && !isExpired ? (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              disabled={revokeToken.isPending}
-                              aria-label={t("omnichannel.settings.apiIntegration.revoke")}
-                              onClick={() => setRevokeTarget(tok)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                          {canEditOrigins || (tok.is_active && !isExpired) ? (
+                            <div className="flex items-center justify-end gap-0.5">
+                              {canEditOrigins ? (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  disabled={updateTokenOrigins.isPending}
+                                  aria-label={t("omnichannel.settings.apiIntegration.editOrigins")}
+                                  onClick={() => setEditOriginsTarget(tok)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              ) : null}
+                              {tok.is_active && !isExpired ? (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  disabled={revokeToken.isPending}
+                                  aria-label={t("omnichannel.settings.apiIntegration.revoke")}
+                                  onClick={() => setRevokeTarget(tok)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              ) : null}
+                            </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
@@ -591,6 +637,16 @@ export function ApiIntegrationSection() {
         onConfirm={() => {
           void handleConfirmRevoke();
         }}
+      />
+
+      <ApiTokenEditOriginsDialog
+        token={editOriginsTarget}
+        open={editOriginsTarget != null}
+        loading={updateTokenOrigins.isPending}
+        onOpenChange={(open) => {
+          if (!open) setEditOriginsTarget(null);
+        }}
+        onSubmit={handleSaveOrigins}
       />
     </div>
   );

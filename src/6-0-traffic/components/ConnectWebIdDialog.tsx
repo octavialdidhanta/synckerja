@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -23,6 +24,7 @@ export function ConnectWebIdDialog({
   onConnected: (webId: string) => void;
   onRequestSubmitted?: () => void;
 }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [webIdInput, setWebIdInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -94,7 +96,12 @@ export function ConnectWebIdDialog({
 
     toast({
       title: "Request submitted",
-      description: `web_id "${normalized}" menunggu approval sebelum bisa dipakai.`,
+      description: (
+        <span>
+          {t("digitalMarketing.traffic.connectWebIdRequestSubmitted", { webId: normalized })}{" "}
+          {t("digitalMarketing.traffic.connectWebIdRequestSubmittedHint")}
+        </span>
+      ),
     });
     onRequestSubmitted?.();
     setWebIdInput("");

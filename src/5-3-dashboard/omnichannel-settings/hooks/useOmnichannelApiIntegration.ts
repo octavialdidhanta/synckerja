@@ -97,6 +97,22 @@ export function useRevokeOmnichannelApiToken(organizationId: string | null | und
   });
 }
 
+export function useUpdateOmnichannelTokenOrigins(organizationId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { tokenId: string; allowed_origins: string[] }) =>
+      invokeManage({
+        action: "updateTokenOrigins",
+        organizationId,
+        tokenId: payload.tokenId,
+        allowed_origins: payload.allowed_origins,
+      }),
+    onSuccess: () => {
+      if (organizationId) void qc.invalidateQueries({ queryKey: queryKey(organizationId) });
+    },
+  });
+}
+
 export function useUpdateOmnichannelApiSettings(organizationId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({

@@ -22,6 +22,7 @@ import {
   countActiveTokensForWebId,
   type OmnichannelApiTokenRow,
 } from "@/5-3-dashboard/omnichannel-settings/hooks/useOmnichannelApiIntegration";
+import { parseOriginsFromText } from "@/5-3-dashboard/omnichannel-settings/lib/omnichannelTokenOrigins";
 
 export type CreateTokenPayload = {
   web_id: string;
@@ -70,14 +71,7 @@ export function ApiTokenCreateDialog({
   const [origins, setOrigins] = useState("");
   const [expiryDays, setExpiryDays] = useState<string>("none");
 
-  const parsedOrigins = useMemo(
-    () =>
-      origins
-        .split(/[\n,]/)
-        .map((o) => o.trim())
-        .filter(Boolean),
-    [origins],
-  );
+  const parsedOrigins = useMemo(() => parseOriginsFromText(origins), [origins]);
 
   const canSubmit =
     Boolean(webId.trim()) &&
@@ -97,10 +91,13 @@ export function ApiTokenCreateDialog({
     return (
       <div className="space-y-2">
         <p>{t("omnichannel.settings.apiIntegration.tokenRotationHint")}</p>
+        {tokenType === "sdk" ? (
+          <p>{t("omnichannel.settings.apiIntegration.sdkTrafficApprovalHint")}</p>
+        ) : null}
         <p>{waNote}</p>
       </div>
     );
-  }, [orgDefaultWaTemplate, t]);
+  }, [orgDefaultWaTemplate, t, tokenType]);
 
   useEffect(() => {
     if (!open) {

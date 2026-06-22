@@ -85,6 +85,8 @@ Token `legacy_full` (lama) masih boleh semua endpoint dari **server**, tetapi **
 |-----------|--------|
 | **Banyak token aktif** | Diizinkan — buat token baru tanpa revoke dulu (rotasi tanpa downtime, multi-website, staging/prod). |
 | **Rotasi aman** | 1) Buat token baru → 2) Deploy SDK dengan token baru → 3) Verifikasi traffic/leads → 4) Cabut token lama. |
+| **Edit allowed origins** | Token SDK aktif dapat diubah dari dashboard — plaintext tidak berubah; website tidak perlu redeploy. Untuk rotasi secret atau ganti `web_id`, tetap buat token baru + cabut lama. |
+| **Traffic approval** | Membuat token SDK otomatis menyetujui `web_id` di dashboard Traffic (`analytics_web_access.is_approved = true`). Mencabut token SDK terakhir untuk `web_id` menonaktifkan akses Traffic. |
 | **Revoke** | Soft revoke — `is_active` menjadi `false`, request API ditolak **403**. Baris tetap di database untuk audit (`revoked_at`, prefix, `last_used_at`). |
 | **Plaintext** | Hanya ditampilkan **sekali** saat create — tidak disimpan di server (hanya hash + prefix). |
 | **Batas abuse** | Maks. **50 token aktif** per organisasi (token kedaluwarsa tidak dihitung). |
