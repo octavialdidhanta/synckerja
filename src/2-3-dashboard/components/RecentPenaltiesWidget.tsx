@@ -46,8 +46,8 @@ export const RecentPenaltiesWidget = () => {
   };
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+    <Card className="flex h-[292px] flex-col overflow-hidden">
+      <CardHeader className="flex shrink-0 flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <AlertTriangle className="text-destructive h-5 w-5" />
           {t('penalties.recent.title', 'Recent Penalties')}
@@ -57,9 +57,9 @@ export const RecentPenaltiesWidget = () => {
           {t('penalties.recent.viewAll', 'View All')}
         </Button>
       </CardHeader>
-      <CardContent className="flex-1">
+      <CardContent className="scrollbar-hide min-h-0 flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {recentPenalties.length === 0 ? (
-          <div className="text-muted-foreground py-8 text-center">
+          <div className="text-muted-foreground flex h-full items-center justify-center py-8 text-center">
             <AlertTriangle className="mx-auto mb-2 h-12 w-12 text-muted-foreground/40" />
             <p>{t('penalties.recent.noPenalties', 'No recent penalties')}</p>
           </div>

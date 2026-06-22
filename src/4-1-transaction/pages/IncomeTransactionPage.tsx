@@ -17,7 +17,9 @@ import {
 } from '@/4-1-transaction/skeletons';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import {
+  INCOME_TX_MAIN_COLUMN,
   INCOME_TX_MAIN_GRID,
+  INCOME_TX_SIDEBAR_COLUMN,
   INCOME_TX_TABLE_SECTION,
 } from '@/4-1-transaction/layout/incomeTransactionLayout';
 import { DeferredMount } from '@/shared/components/DeferredMount';
@@ -96,79 +98,71 @@ export function IncomeTransactionPage() {
 
   return (
     <div className={INCOME_TX_MAIN_GRID}>
-      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden xl:col-span-9">
-        <div className="flex h-full min-h-0 min-w-0 flex-col">
-          {canAllocateIncome && needsAllocationCount > 0 ? (
-            <div className="mb-2 flex-shrink-0">
-              <Alert className="border-amber-200 bg-amber-50">
-                <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-sm text-amber-900">
-                  <span>
-                    {t(
-                      'incomes.allocation.banner',
-                      '{{count}} transaction(s) need Type, Category, and Bank Account before they affect balance and completed reports.',
-                      { count: needsAllocationCount },
-                    )}
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 border-amber-300 bg-white text-xs"
-                    onClick={() => handleFilterChange('allocation', 'needs_allocation')}
-                  >
-                    {t('incomes.allocation.filterNeeds', 'Needs allocation')}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            </div>
-          ) : null}
+      <div className={`${INCOME_TX_MAIN_COLUMN} flex flex-col gap-2`}>
+        {canAllocateIncome && needsAllocationCount > 0 ? (
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-sm text-amber-900">
+              <span>
+                {t(
+                  'incomes.allocation.banner',
+                  '{{count}} transaction(s) need Type, Category, and Bank Account before they affect balance and completed reports.',
+                  { count: needsAllocationCount },
+                )}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 border-amber-300 bg-white text-xs"
+                onClick={() => handleFilterChange('allocation', 'needs_allocation')}
+              >
+                {t('incomes.allocation.filterNeeds', 'Needs allocation')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-          <div className="mb-2 flex-shrink-0">
-            <div className="rounded-md border border-border bg-card p-2">
-              <IncomeTransactionFilters
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                onClearFilters={handleClearFilters}
-              />
-            </div>
-          </div>
+        <div className="rounded-md border border-border bg-card p-2">
+          <IncomeTransactionFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={handleClearFilters}
+          />
+        </div>
 
-          <div className="mb-2 flex-shrink-0">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <IncomeTransactionMetricsCards />
-            </div>
-          </div>
+        <IncomeTransactionMetricsCards />
 
-          <div className={INCOME_TX_TABLE_SECTION}>
-            <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-              <IncomeTransactionTable
-                transactions={filteredTransactions}
-                onRefresh={handleRefresh}
-              />
-              <IncomeTransactionTableFooter
-                totalTransactions={incomeTransactions.length}
-                filteredTransactions={filteredTransactions.length}
-                selectedType={filters.type}
-              />
-            </div>
+        <div className={INCOME_TX_TABLE_SECTION}>
+          <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+            <IncomeTransactionTable
+              transactions={filteredTransactions}
+              onRefresh={handleRefresh}
+            />
+            <IncomeTransactionTableFooter
+              totalTransactions={incomeTransactions.length}
+              filteredTransactions={filteredTransactions.length}
+              selectedType={filters.type}
+            />
           </div>
         </div>
       </div>
 
-      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-3">
-        <DeferredMount
-          fallback={<IncomeTransactionSidebarSkeleton />}
-          idleTimeoutMs={900}
-          delayMs={80}
-        >
-          <Suspense fallback={<IncomeTransactionSidebarSkeleton />}>
-            <IncomeTransactionSidebarColumn
-              transactions={filteredTransactions}
-              filteredCount={filteredTransactions.length}
-              totalTransactions={incomeTransactions.length}
-            />
-          </Suspense>
-        </DeferredMount>
+      <div className={INCOME_TX_SIDEBAR_COLUMN}>
+        <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <DeferredMount
+            fallback={<IncomeTransactionSidebarSkeleton />}
+            idleTimeoutMs={900}
+            delayMs={80}
+          >
+            <Suspense fallback={<IncomeTransactionSidebarSkeleton />}>
+              <IncomeTransactionSidebarColumn
+                transactions={filteredTransactions}
+                filteredCount={filteredTransactions.length}
+                totalTransactions={incomeTransactions.length}
+              />
+            </Suspense>
+          </DeferredMount>
+        </div>
       </div>
     </div>
   );

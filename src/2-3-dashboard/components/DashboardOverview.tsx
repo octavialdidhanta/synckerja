@@ -16,9 +16,9 @@ const DashboardOverview = () => {
 
       {/* Main Content Grid */}
       <Suspense fallback={<div className="p-4 text-center">Loading widgets...</div>}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-3 lg:items-start">
           {/* Left Column - Recent Penalties */}
-          <div className="lg:col-span-1 h-full">
+          <div className="lg:col-span-1">
             <RecentPenaltiesWidget />
           </div>
 

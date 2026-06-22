@@ -9,6 +9,12 @@ import { useVisitScheduling } from '@/shared/hooks/organized/sales';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { ClientVisitEditPayload } from '@/5-2-client_visits/components/ClientVisitEditDialog';
+import {
+  SALES_OPS_MAIN_COLUMN,
+  SALES_OPS_MAIN_GRID,
+  SALES_OPS_SIDEBAR_COLUMN,
+  SALES_OPS_TABLE_SECTION,
+} from '@/5-2-activities/layout/salesOperationsLayout';
 
 export const VisitSchedulingPageContent = () => {
   const { t } = useAppTranslation();
@@ -141,65 +147,48 @@ export const VisitSchedulingPageContent = () => {
         onSave={handleScheduleVisit}
       />
 
-      {/* Grid Layout: 12 columns (9-3 desktop); full-width rows on small screens */}
-      <div className="grid min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-12 gap-2">
-        {/* Main Content */}
-        <div className="col-span-12 h-full min-h-0 min-w-0 w-full max-w-full flex flex-col lg:col-span-9">
-          <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
-            {/* Filter Section */}
-            <div className="flex-shrink-0 mb-2">
-              <div className="bg-white border rounded-md p-2">
-                <VisitSchedulingFilters
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  onNewVisit={() => setIsModalOpen(true)}
-                />
-              </div>
-            </div>
-            
-            {/* Metrics Cards Section */}
-            <div className="flex-shrink-0 mb-2">
-              <VisitSchedulingMetricsCards visits={filteredVisits} />
-            </div>
-            
-            {/* Table Section - Main Content */}
-            <div className="flex-1 min-h-0 h-full min-w-0">
-              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm seamless-scroll">
-                <VisitSchedulingTable
-                  visits={filteredVisits}
-                  onUpdateVisit={handleUpdateVisit}
-                  onCancelVisit={handleCancelVisit}
-                  selectedStatus={filters.status}
-                  showPaymentActions={false}
-                />
-              </div>
+      <div className={SALES_OPS_MAIN_GRID}>
+        <div className={`${SALES_OPS_MAIN_COLUMN} flex flex-col gap-2`}>
+          <div className="rounded-md border bg-white p-2">
+            <VisitSchedulingFilters
+              filters={filters}
+              onFiltersChange={setFilters}
+              onNewVisit={() => setIsModalOpen(true)}
+            />
+          </div>
+
+          <VisitSchedulingMetricsCards visits={filteredVisits} />
+
+          <div className={SALES_OPS_TABLE_SECTION}>
+            <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+              <VisitSchedulingTable
+                visits={filteredVisits}
+                onUpdateVisit={handleUpdateVisit}
+                onCancelVisit={handleCancelVisit}
+                selectedStatus={filters.status}
+                showPaymentActions={false}
+              />
             </div>
           </div>
         </div>
-        
-        {/* Right Column - Overview Sidebar */}
-        <div className="col-span-12 h-full min-h-0 min-w-0 w-full max-w-full flex flex-col lg:col-span-3">
-          <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
-            <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
-              {/* Sidebar Header */}
-              <div className="flex-shrink-0 border-b px-4 py-1.5">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-gray-900">Visit Scheduling Overview</h3>
-                  <p className="mt-1 text-xs text-gray-500">Summary of scheduled visits</p>
-                </div>
-              </div>
 
-              {/* Scrollable Sidebar Content */}
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4">
-                <UpcomingVisitsOverview visits={filteredVisits} />
+        <div className={SALES_OPS_SIDEBAR_COLUMN}>
+          <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="flex-shrink-0 border-b px-4 py-1.5">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-gray-900">Visit Scheduling Overview</h3>
+                <p className="mt-1 text-xs text-gray-500">Summary of scheduled visits</p>
               </div>
-
-              {/* Sidebar Footer */}
-              <VisitSchedulingSidebarFooter 
-                totalStatuses={uniqueStatuses.length}
-                totalVisits={filteredVisits.length}
-              />
             </div>
+
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden p-4">
+              <UpcomingVisitsOverview visits={filteredVisits} />
+            </div>
+
+            <VisitSchedulingSidebarFooter
+              totalStatuses={uniqueStatuses.length}
+              totalVisits={filteredVisits.length}
+            />
           </div>
         </div>
       </div>

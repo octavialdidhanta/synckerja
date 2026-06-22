@@ -27,7 +27,7 @@ import {
 } from '../shared/piutangI18n';
 
 const TABLE_SCROLL =
-  'scrollbar-hide seamless-scroll min-h-0 min-w-0 flex-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+  'scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 export function PiutangActivityTable({
   rows,
@@ -39,7 +39,7 @@ export function PiutangActivityTable({
   const { t } = useAppTranslation();
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-2">
         <h2 className="text-sm font-semibold text-gray-900">
           {t('incomes.piutang.table.title', 'Piutang penjualan')}
@@ -49,30 +49,30 @@ export function PiutangActivityTable({
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Table containerClassName={TABLE_SCROLL}>
-          <TableHeader className="sticky top-0 z-20">
-            <TableRow className="bg-gray-50">
-              <TableHead className="h-8 min-w-[140px] w-[160px] bg-gray-50 px-3 text-xs font-medium">
+          <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-8 min-w-[140px] w-[160px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 {t('incomes.piutang.table.client', 'Klien')}
               </TableHead>
-              <TableHead className="h-8 min-w-[180px] bg-gray-50 px-3 text-xs font-medium">
+              <TableHead className="h-8 min-w-[180px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 {t('incomes.piutang.table.service', 'Layanan')}
               </TableHead>
-              <TableHead className="h-8 min-w-[110px] bg-gray-50 px-3 text-right text-xs font-medium">
+              <TableHead className="h-8 min-w-[110px] whitespace-nowrap bg-gray-50 px-3 text-right text-xs font-medium text-gray-700">
                 {t('incomes.piutang.table.totalContract', 'Total kontrak')}
               </TableHead>
-              <TableHead className="h-8 min-w-[100px] bg-gray-50 px-3 text-right text-xs font-medium">
+              <TableHead className="h-8 min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-right text-xs font-medium text-gray-700">
                 {t('incomes.piutang.table.paid', 'Terbayar')}
               </TableHead>
-              <TableHead className="h-8 min-w-[100px] bg-gray-50 px-3 text-right text-xs font-medium">
+              <TableHead className="h-8 min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-right text-xs font-medium text-gray-700">
                 {t('incomes.piutang.table.remaining', 'Sisa')}
               </TableHead>
-              <TableHead className="h-8 min-w-[90px] bg-gray-50 px-3 text-xs font-medium">
+              <TableHead className="h-8 min-w-[90px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 {t('incomes.piutang.table.status', 'Status')}
               </TableHead>
-              <TableHead className="h-8 min-w-[100px] bg-gray-50 px-3 text-xs font-medium">
+              <TableHead className="h-8 min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 {t('incomes.piutang.table.verification', 'Verifikasi')}
               </TableHead>
-              <TableHead className="h-8 w-[52px] min-w-[52px] bg-gray-50 px-2 text-right text-xs font-medium">
+              <TableHead className="h-8 w-[52px] min-w-[52px] whitespace-nowrap bg-gray-50 px-2 text-right text-xs font-medium text-gray-700">
                 {t('incomes.piutang.table.actions', 'Aksi')}
               </TableHead>
             </TableRow>

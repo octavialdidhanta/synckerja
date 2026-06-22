@@ -99,7 +99,7 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-2">
         <h2 className="text-sm font-semibold text-gray-900">Income Transactions</h2>
@@ -121,27 +121,27 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Table
-          containerClassName="scrollbar-hide seamless-scroll min-h-0 min-w-0 flex-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          containerClassName="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <TableHeader className="sticky top-0 z-20">
-            <TableRow className="bg-gray-50">
-              <TableHead className="h-8 w-[200px] min-w-[200px] px-3 text-xs font-medium bg-gray-50">Transaction</TableHead>
-              <TableHead className="h-8 w-[130px] min-w-[130px] px-3 text-xs font-medium bg-gray-50">Customer</TableHead>
-              <TableHead className="h-8 w-[160px] min-w-[160px] px-3 text-xs font-medium bg-gray-50">
+          <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-8 w-[200px] min-w-[200px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Transaction</TableHead>
+              <TableHead className="h-8 w-[130px] min-w-[130px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Customer</TableHead>
+              <TableHead className="h-8 w-[160px] min-w-[160px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Service
               </TableHead>
-              <TableHead className="h-8 w-[150px] min-w-[150px] px-3 text-xs font-medium bg-gray-50">Type & Category</TableHead>
-              <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Amount</TableHead>
-              <TableHead className="h-8 min-w-[150px] w-[150px] px-3 text-xs font-medium bg-gray-50">Payment Method</TableHead>
-              <TableHead className="h-8 min-w-[200px] w-[200px] px-3 text-xs font-medium bg-gray-50">Bank Account</TableHead>
-              <TableHead className="h-8 w-[118px] min-w-[118px] px-3 text-xs font-medium bg-gray-50">Recurring</TableHead>
-              <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Receipt</TableHead>
-              <TableHead className="h-8 px-3 text-xs font-medium bg-gray-50">Status</TableHead>
-              <TableHead className="h-8 w-[130px] min-w-[130px] px-3 text-xs font-medium bg-gray-50">
+              <TableHead className="h-8 w-[150px] min-w-[150px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Type & Category</TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Amount</TableHead>
+              <TableHead className="h-8 min-w-[150px] w-[150px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Payment Method</TableHead>
+              <TableHead className="h-8 min-w-[200px] w-[200px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Bank Account</TableHead>
+              <TableHead className="h-8 w-[118px] min-w-[118px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Recurring</TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Receipt</TableHead>
+              <TableHead className="h-8 whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Status</TableHead>
+              <TableHead className="h-8 w-[130px] min-w-[130px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 {t('incomes.tableTransactionId', 'Transaction ID')}
               </TableHead>
-              <TableHead className="h-8 w-[110px] min-w-[110px] px-3 text-xs font-medium bg-gray-50">Date</TableHead>
-              <TableHead className="h-8 px-3 text-xs font-medium w-16 bg-gray-50">Actions</TableHead>
+              <TableHead className="h-8 w-[110px] min-w-[110px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Date</TableHead>
+              <TableHead className="h-8 w-16 whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

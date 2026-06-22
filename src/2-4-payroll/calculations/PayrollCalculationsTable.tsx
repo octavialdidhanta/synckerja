@@ -94,42 +94,42 @@ export function PayrollCalculationsTable({
   };
 
   return (
-    <div className="flex h-full min-w-0 flex-col">
-      <div className="scrollbar-hide min-h-0 min-w-0 flex-1 overflow-x-auto">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <table className="w-full caption-bottom text-sm">
-          <TableHeader className="bg-muted/50 sticky top-0 z-20 shadow-sm">
+          <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-foreground bg-muted/50 min-w-[180px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[180px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Employee
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Department
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[140px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[140px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Period
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Basic Salary
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[110px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[110px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Allowances
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Gross Pay
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[110px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[110px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Deductions
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[120px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Net Pay
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[100px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Status
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[100px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Payment
               </TableHead>
-              <TableHead className="text-foreground bg-muted/50 min-w-[80px] px-3 text-xs font-medium whitespace-nowrap">
+              <TableHead className="min-w-[80px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
                 Actions
               </TableHead>
             </TableRow>

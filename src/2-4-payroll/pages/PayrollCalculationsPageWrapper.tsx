@@ -31,6 +31,12 @@ import { payrollCalculationsQueryKey } from "../hooks/payrollCalculationsQueryKe
 import { usePayrollPeriodsOverview } from "../hooks/usePayrollPeriodsOverview";
 import { useDefaultTaxConfiguration } from "../hooks/useDefaultTaxConfiguration";
 
+const SEAMLESS_SCROLL =
+  "scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+const PAYROLL_TABLE_SHELL_HEIGHT =
+  "flex h-[calc(100dvh-280px)] min-h-[560px] min-w-0 flex-col [@media(max-height:900px)]:h-[calc(100dvh-300px)] [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:h-[calc(100dvh-320px)] [@media(max-height:760px)]:min-h-[680px]";
+
 /** Columns + joins required by list, filters, metrics, detail, and delete. */
 const PAYROLL_CALCULATIONS_LIST_SELECT = `
   id,
@@ -302,65 +308,62 @@ export default function PayrollCalculationsPage() {
   const loadingAria = t("payroll.page.loadingAria", "Loading payroll");
 
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden bg-gray-100 font-sans">
+    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div
         className={cn(
-          "flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2",
+          "flex min-h-0 min-w-0 w-full flex-1",
           showShellSkeleton && "pointer-events-none invisible",
         )}
       >
-        <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-h-full flex-col">
-              <div className="mb-1 flex-shrink-0">
-                <HeaderAndTab />
-              </div>
+        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
+          <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-h-full flex-col">
+                <div className="mb-1 flex-shrink-0">
+                  <HeaderAndTab />
+                </div>
 
-              <ModuleShellContentGate>
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-1 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch xl:grid-cols-12">
-                {selectedEmployee ? (
-                  <div className="col-span-full flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
-                    <EmployeeDetailView
-                      selectedEmployee={selectedEmployee}
-                      onBack={() => setSelectedEmployee(null)}
-                      allowanceData={payrollItems.filter(isAllowanceItem)}
-                      deductionData={payrollItems.filter(isDeductionItem)}
-                      taxData={payrollItems.filter(isTaxItem)}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <div className="col-span-full flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden xl:col-span-9">
-                      <div className="mb-2 shrink-0">
-                        <div className="rounded-md border border-border bg-card p-2">
-                          <PayrollFilters
-                            searchTerm={searchTerm}
-                            setSearchTerm={setSearchTerm}
-                            statusFilter={statusFilter}
-                            setStatusFilter={setStatusFilter}
-                            paymentFilter={paymentFilter}
-                            setPaymentFilter={setPaymentFilter}
-                          />
-                        </div>
-                      </div>
+                <ModuleShellContentGate pagePath={location.pathname}>
+                  <div className="min-h-0 min-w-0 w-full">
+              {selectedEmployee ? (
+                <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+                  <EmployeeDetailView
+                    selectedEmployee={selectedEmployee}
+                    onBack={() => setSelectedEmployee(null)}
+                    allowanceData={payrollItems.filter(isAllowanceItem)}
+                    deductionData={payrollItems.filter(isDeductionItem)}
+                    taxData={payrollItems.filter(isTaxItem)}
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-12 xl:items-stretch">
+                  <div className="flex min-w-0 flex-col gap-2 xl:col-span-9">
+                    <div className="rounded-md border border-border bg-card p-2">
+                      <PayrollFilters
+                        searchTerm={searchTerm}
+                        setSearchTerm={setSearchTerm}
+                        statusFilter={statusFilter}
+                        setStatusFilter={setStatusFilter}
+                        paymentFilter={paymentFilter}
+                        setPaymentFilter={setPaymentFilter}
+                      />
+                    </div>
 
-                      <div className="mb-2 shrink-0">
-                        <PayrollMetricsCards
-                          calculations={filteredCalculations}
-                          selectedPayrollRunId={selectedPayrollRunId}
-                          disburseMode={
-                            disbursePanelOpen && selectedPayrollRunId && organizationId
-                              ? { organizationId, runId: selectedPayrollRunId }
-                              : null
-                          }
-                        />
-                      </div>
+                    {!disbursePanelOpen ? (
+                      <PayrollMetricsCards
+                        calculations={filteredCalculations}
+                        selectedPayrollRunId={selectedPayrollRunId}
+                        disburseMode={
+                          disbursePanelOpen && selectedPayrollRunId && organizationId
+                            ? { organizationId, runId: selectedPayrollRunId }
+                            : null
+                        }
+                      />
+                    ) : null}
 
+                    {selectedPayrollRunId || disbursePanelOpen ? (
                       <div
-                        className={cn(
-                          "mb-2 shrink-0",
-                          disbursePanelOpen && "min-h-0 flex flex-1 flex-col",
-                        )}
+                        className={cn(disbursePanelOpen && "flex min-h-0 flex-1 flex-col")}
                       >
                         <PayrollRunActions
                           runId={selectedPayrollRunId}
@@ -371,88 +374,107 @@ export default function PayrollCalculationsPage() {
                           onDisbursePanelOpenChange={setDisbursePanelOpen}
                         />
                       </div>
+                    ) : null}
 
-                      <PayrollEscrowStatusBanner
-                        runId={selectedPayrollRunId}
-                        runStatus={selectedRunMeta.status}
-                      />
+                    {!disbursePanelOpen &&
+                    (selectedPayrollRunId ||
+                      runBlockedMessage ||
+                      runPaymentState.hasActiveDisbursement ||
+                      runPaymentState.failedCount > 0) ? (
+                      <div
+                        className={cn(
+                          SEAMLESS_SCROLL,
+                          "max-h-[min(220px,28vh)] space-y-2 overflow-y-auto overflow-x-hidden",
+                        )}
+                      >
+                        <PayrollEscrowStatusBanner
+                          runId={selectedPayrollRunId}
+                          runStatus={selectedRunMeta.status}
+                        />
 
-                      <PayrollExpenseStatusBanner
-                        runId={selectedPayrollRunId}
-                        runStatus={selectedRunMeta.status}
-                      />
+                        <PayrollExpenseStatusBanner
+                          runId={selectedPayrollRunId}
+                          runStatus={selectedRunMeta.status}
+                        />
 
-                      {runPaymentState.hasActiveDisbursement && (
-                        <div className="mb-2 shrink-0 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
-                          {t(
-                            "payroll.xendit.disbursingBanner",
-                            "Disburse Xendit sedang berjalan ({{count}} karyawan). Mark as Paid dinonaktifkan sampai selesai.",
-                            { count: runPaymentState.processingCount },
-                          )}
-                        </div>
-                      )}
-
-                      {!runPaymentState.hasActiveDisbursement && runPaymentState.failedCount > 0 && (
-                        <div className="mb-2 shrink-0 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                          {t(
-                            "payroll.xendit.failedBanner",
-                            "{{count}} disburse gagal. Gunakan tombol Retry pada baris yang gagal.",
-                            { count: runPaymentState.failedCount },
-                          )}
-                        </div>
-                      )}
-
-                      {runBlockedMessage && (
-                        <div className="mb-2 shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/30">
-                          <div className="flex items-start gap-2">
-                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                            <pre className="font-sans text-xs whitespace-pre-wrap text-amber-900 dark:text-amber-100">
-                              {runBlockedMessage}
-                            </pre>
+                        {runPaymentState.hasActiveDisbursement ? (
+                          <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+                            {t(
+                              "payroll.xendit.disbursingBanner",
+                              "Disburse Xendit sedang berjalan ({{count}} karyawan). Mark as Paid dinonaktifkan sampai selesai.",
+                              { count: runPaymentState.processingCount },
+                            )}
                           </div>
-                        </div>
-                      )}
+                        ) : null}
 
-                      {!disbursePanelOpen && selectedPayrollRunId ? (
-                        <div className="mb-2 shrink-0">
+                        {!runPaymentState.hasActiveDisbursement &&
+                        runPaymentState.failedCount > 0 ? (
+                          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                            {t(
+                              "payroll.xendit.failedBanner",
+                              "{{count}} disburse gagal. Gunakan tombol Retry pada baris yang gagal.",
+                              { count: runPaymentState.failedCount },
+                            )}
+                          </div>
+                        ) : null}
+
+                        {runBlockedMessage ? (
+                          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/30">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                              <pre className="font-sans text-xs whitespace-pre-wrap text-amber-900 dark:text-amber-100">
+                                {runBlockedMessage}
+                              </pre>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {selectedPayrollRunId ? (
                           <PayrollEscrowHistoryPanel
                             runId={selectedPayrollRunId}
                             runStatus={selectedRunMeta.status}
                           />
-                        </div>
-                      ) : null}
-
-                      {!disbursePanelOpen && (
-                        <div className="flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
-                          <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-                            <PayrollCalculationsTable
-                              calculations={filteredCalculations}
-                              totalUnfiltered={calculations.length}
-                              isLoading={isLoading}
-                              onEmployeeSelect={setSelectedEmployee}
-                              onRefresh={() => refetch()}
-                              onDeleteCalculation={handleDeleteCalculation}
-                              deletingCalculationId={deletingCalculationId}
-                              onRetryComplete={() => void refetch()}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="col-span-full flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-3">
-                      <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-                        <PayrollSidebar
-                          selectedPayrollRunId={selectedPayrollRunId}
-                          onPayrollRunSelect={setSelectedPayrollRunId}
-                          onRunBlocked={setRunBlockedMessage}
-                        />
+                        ) : null}
                       </div>
+                    ) : null}
+
+                    {!disbursePanelOpen ? (
+                      <div className={PAYROLL_TABLE_SHELL_HEIGHT}>
+                        <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                          <PayrollCalculationsTable
+                            calculations={filteredCalculations}
+                            totalUnfiltered={calculations.length}
+                            isLoading={isLoading}
+                            onEmployeeSelect={setSelectedEmployee}
+                            onRefresh={() => refetch()}
+                            onDeleteCalculation={handleDeleteCalculation}
+                            deletingCalculationId={deletingCalculationId}
+                            onRetryComplete={() => void refetch()}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden xl:col-span-3 xl:h-full xl:max-h-full">
+                    <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                      <PayrollSidebar
+                        selectedPayrollRunId={selectedPayrollRunId}
+                        onPayrollRunSelect={setSelectedPayrollRunId}
+                        onRunBlocked={setRunBlockedMessage}
+                      />
                     </div>
-                  </>
-                )}
+                  </div>
+                </div>
+              )}
+            </div>
+                </ModuleShellContentGate>
+
+                <div
+                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                  aria-hidden
+                />
               </div>
-              </ModuleShellContentGate>
             </div>
           </div>
         </div>

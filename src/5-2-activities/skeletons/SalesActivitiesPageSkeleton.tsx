@@ -1,4 +1,11 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import {
+  SALES_OPS_CARD_FOOTER,
+  SALES_OPS_MAIN_COLUMN,
+  SALES_OPS_MAIN_GRID,
+  SALES_OPS_SIDEBAR_COLUMN,
+  SALES_OPS_TABLE_SECTION,
+} from "@/5-2-activities/layout/salesOperationsLayout";
 
 /** Mirrors `HeaderAndTab.tsx` (px-1 py-3, title, nav). */
 function SalesActivitiesHeaderAndTabSkeleton() {
@@ -85,9 +92,11 @@ function SalesActivitiesTableSkeleton() {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-3 py-2">
-        <Skeleton className="h-4 w-40 rounded-sm" />
-        <Skeleton className="h-4 w-32 rounded-sm" />
+      <div className={SALES_OPS_CARD_FOOTER}>
+        <div className="flex w-full items-center justify-between gap-2">
+          <Skeleton className="h-3 w-40 rounded-sm" />
+          <Skeleton className="h-3 w-32 rounded-sm" />
+        </div>
       </div>
     </div>
   );
@@ -130,50 +139,42 @@ export function SalesActivitiesPageSkeleton() {
               <div className="mb-1 w-full min-w-0 max-w-full shrink-0">
                 <SalesActivitiesHeaderAndTabSkeleton />
               </div>
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full max-w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                <div className="col-span-12 flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col">
-                  <div className="grid min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-12 gap-2">
-                    <div className="col-span-12 flex h-full min-h-0 min-w-0 w-full max-w-full flex-col lg:col-span-9">
-                      <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
-                        <div className="mb-2 flex-shrink-0">
-                          <div className="rounded-md border border-gray-200 bg-white p-2">
-                            <SalesActivitiesFiltersSkeleton />
-                          </div>
-                        </div>
-                        <div className="mb-2 flex-shrink-0">
-                          <SalesActivitiesMetricsSkeleton />
-                        </div>
-                        <div className="flex h-full min-h-0 flex-1">
-                          <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
-                            <SalesActivitiesTableSkeleton />
-                          </div>
-                        </div>
+              <div className={SALES_OPS_MAIN_GRID}>
+                <div className={`${SALES_OPS_MAIN_COLUMN} flex flex-col gap-2`}>
+                  <div className="rounded-md border border-gray-200 bg-white p-2">
+                    <SalesActivitiesFiltersSkeleton />
+                  </div>
+                  <SalesActivitiesMetricsSkeleton />
+                  <div className={SALES_OPS_TABLE_SECTION}>
+                    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                      <SalesActivitiesTableSkeleton />
+                    </div>
+                  </div>
+                </div>
+                <div className={SALES_OPS_SIDEBAR_COLUMN}>
+                  <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <div className="flex-shrink-0 border-b px-4 py-1.5">
+                      <div className="min-w-0 space-y-2">
+                        <Skeleton className="h-4 w-48 max-w-full rounded-sm" />
+                        <Skeleton className="h-3 w-40 max-w-full rounded-sm" />
                       </div>
                     </div>
-                    <div className="col-span-12 flex h-full min-h-0 min-w-0 w-full max-w-full flex-col lg:col-span-3">
-                      <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col">
-                        <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
-                          <div className="flex-shrink-0 border-b px-4 py-1.5">
-                            <div className="min-w-0 space-y-2">
-                              <Skeleton className="h-4 w-48 max-w-full rounded-sm" />
-                              <Skeleton className="h-3 w-40 max-w-full rounded-sm" />
-                            </div>
-                          </div>
-                          <div className="scrollbar-hide flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden p-4">
-                            <SalesActivitiesOverviewSidebarSkeleton />
-                          </div>
-                          <div className="flex-shrink-0 border-t border-gray-200 bg-gray-50 px-4 py-2">
-                            <div className="flex items-center justify-between">
-                              <Skeleton className="h-3 w-20 rounded-sm" />
-                              <Skeleton className="h-3 w-16 rounded-sm" />
-                            </div>
-                          </div>
-                        </div>
+                    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden p-4">
+                      <SalesActivitiesOverviewSidebarSkeleton />
+                    </div>
+                    <div className={SALES_OPS_CARD_FOOTER}>
+                      <div className="flex w-full items-center justify-between">
+                        <Skeleton className="h-3 w-20 rounded-sm" />
+                        <Skeleton className="h-3 w-16 rounded-sm" />
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+              <div
+                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                aria-hidden
+              />
             </div>
           </div>
         </div>

@@ -197,27 +197,27 @@ export function PayrollMetricsCards({
           title: t("payroll.calculations.metrics.totalEmployees", "Total Karyawan"),
           value: selectedPayrollRun.total_employees || 0,
           icon: Calculator,
-          color: "text-primary",
-          bgColor: "bg-primary/10",
-          borderColor: "border-primary/20",
+          color: "text-brand-blue",
+          bgColor: "bg-brand-blue/10",
+          borderColor: "border-brand-blue/30",
           subtitle: disburseActive ? undefined : inSelectedRun,
         },
         {
           title: t("payroll.calculations.metrics.totalGrossPay", "Total Gaji Kotor"),
           value: formatCurrency(Number(selectedPayrollRun.total_gross_pay) || 0),
           icon: TrendingUp,
-          color: "text-emerald-600 dark:text-emerald-400",
-          bgColor: "bg-emerald-500/10",
-          borderColor: "border-emerald-500/20",
+          color: "text-brand-blue-deep",
+          bgColor: "bg-brand-blue-soft",
+          borderColor: "border-brand-blue/25",
           subtitle: disburseActive ? undefined : inSelectedRun,
         },
         {
           title: t("payroll.calculations.metrics.totalNetPay", "Total Gaji Bersih"),
           value: formatCurrency(Number(selectedPayrollRun.total_net_pay) || 0),
           icon: DollarSign,
-          color: "text-teal-600 dark:text-teal-400",
-          bgColor: "bg-teal-500/10",
-          borderColor: "border-teal-500/20",
+          color: "text-brand-blue-on-soft",
+          bgColor: "bg-brand-blue/15",
+          borderColor: "border-brand-blue/20",
           subtitle: netPayComparisonSubtitle ?? (disburseActive ? undefined : inSelectedRun),
         },
         {
@@ -227,9 +227,9 @@ export function PayrollMetricsCards({
               (Number(selectedPayrollRun.total_penalties) || 0),
           ),
           icon: AlertTriangle,
-          color: "text-destructive",
-          bgColor: "bg-destructive/10",
-          borderColor: "border-destructive/20",
+          color: "text-red-500",
+          bgColor: "bg-red-50",
+          borderColor: "border-red-200",
           subtitle: disburseActive ? undefined : inSelectedRun,
         },
         ...(disburseActive
@@ -253,9 +253,9 @@ export function PayrollMetricsCards({
           title: t("payroll.calculations.metrics.totalCalculations", "Total Kalkulasi"),
           value: calculations?.length || 0,
           icon: Calculator,
-          color: "text-primary",
-          bgColor: "bg-primary/10",
-          borderColor: "border-primary/20",
+          color: "text-brand-blue",
+          bgColor: "bg-brand-blue/10",
+          borderColor: "border-brand-blue/30",
           subtitle: allCalculations,
         },
         {
@@ -264,9 +264,9 @@ export function PayrollMetricsCards({
             calculations?.reduce((sum, calc) => sum + (Number(calc.gross_pay) || 0), 0) || 0,
           ),
           icon: TrendingUp,
-          color: "text-emerald-600 dark:text-emerald-400",
-          bgColor: "bg-emerald-500/10",
-          borderColor: "border-emerald-500/20",
+          color: "text-brand-blue-deep",
+          bgColor: "bg-brand-blue-soft",
+          borderColor: "border-brand-blue/25",
           subtitle: allCalculations,
         },
         {
@@ -275,9 +275,9 @@ export function PayrollMetricsCards({
             calculations?.reduce((sum, calc) => sum + (Number(calc.net_pay) || 0), 0) || 0,
           ),
           icon: DollarSign,
-          color: "text-teal-600 dark:text-teal-400",
-          bgColor: "bg-teal-500/10",
-          borderColor: "border-teal-500/20",
+          color: "text-brand-blue-on-soft",
+          bgColor: "bg-brand-blue/15",
+          borderColor: "border-brand-blue/20",
           subtitle: allCalculations,
         },
         {
@@ -290,9 +290,9 @@ export function PayrollMetricsCards({
             ) || 0,
           ),
           icon: AlertTriangle,
-          color: "text-destructive",
-          bgColor: "bg-destructive/10",
-          borderColor: "border-destructive/20",
+          color: "text-red-500",
+          bgColor: "bg-red-50",
+          borderColor: "border-red-200",
           subtitle: allCalculations,
         },
       ];
@@ -300,7 +300,7 @@ export function PayrollMetricsCards({
   return (
     <div
       className={cn(
-        "grid grid-cols-1 gap-1 sm:grid-cols-2",
+        "grid grid-cols-1 gap-1.5 sm:grid-cols-2",
         disburseActive ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4",
       )}
     >
@@ -309,31 +309,23 @@ export function PayrollMetricsCards({
         return (
           <div
             key={index}
-            className={cn(
-              "rounded-md border px-2.5 py-2",
-              metric.bgColor,
-              metric.borderColor,
-            )}
+            className={`${metric.bgColor} ${metric.borderColor} rounded-md border p-4`}
           >
-            <div className="flex items-center justify-between gap-1">
-              <h3 className="text-foreground truncate text-xs font-medium leading-none">
-                {metric.title}
-              </h3>
-              <Icon className={cn("h-3.5 w-3.5 shrink-0", metric.color)} />
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-foreground">{metric.title}</h3>
+              <Icon className={`h-5 w-5 shrink-0 ${metric.color}`} />
             </div>
 
-            <div className="text-foreground mt-1 truncate text-2xl font-bold leading-tight tabular-nums">
-              {metric.value}
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-foreground tabular-nums">{metric.value}</div>
+              {metric.subtitle ? (
+                typeof metric.subtitle === "string" ? (
+                  <div className="text-xs text-muted-foreground">{metric.subtitle}</div>
+                ) : (
+                  <div>{metric.subtitle}</div>
+                )
+              ) : null}
             </div>
-            {metric.subtitle ? (
-              typeof metric.subtitle === "string" ? (
-                <div className="text-muted-foreground mt-0.5 text-[11px] leading-snug">
-                  {metric.subtitle}
-                </div>
-              ) : (
-                <div className="mt-0.5">{metric.subtitle}</div>
-              )
-            ) : null}
           </div>
         );
       })}

@@ -349,8 +349,8 @@ export const SalesActivitiesTable = memo(({
   ), [activities, onEdit, onViewDetails, onDelete, onUpdatePayment, onCheckHistory]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="scrollbar-hide flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <table className="w-full caption-bottom text-sm">
           <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
             <TableRow className="hover:bg-transparent">

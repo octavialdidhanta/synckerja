@@ -52,11 +52,11 @@ export const PenaltyTrendsChart = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
       {/* Penalty Count Trends */}
-      <Card>
-        <CardHeader>
+      <Card className="flex h-[292px] flex-col">
+        <CardHeader className="shrink-0">
           <CardTitle className="text-base">Monthly Penalty Count</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-h-0 flex-1">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -81,11 +81,11 @@ export const PenaltyTrendsChart = () => {
       </Card>
 
       {/* Penalty Amount Trends */}
-      <Card>
-        <CardHeader>
+      <Card className="flex h-[292px] flex-col">
+        <CardHeader className="shrink-0">
           <CardTitle className="text-base">Monthly Penalty Amount</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-h-0 flex-1">
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />

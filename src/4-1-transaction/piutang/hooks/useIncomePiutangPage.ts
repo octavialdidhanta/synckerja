@@ -86,7 +86,10 @@ export function useIncomePiutangPage() {
     [activities],
   );
 
-  const metrics = useMemo(() => computePiutangMetrics(filteredRows), [filteredRows]);
+  const metrics = useMemo(
+    () => computePiutangMetrics(filteredRows, verificationAggregateByActivity),
+    [filteredRows, verificationAggregateByActivity],
+  );
 
   return {
     showContent,

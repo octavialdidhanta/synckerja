@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Button } from "@/shared/components/ui/button";
 import { Calendar, Clock } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
 import { PayrollPeriodsOverview } from "../overview/PayrollPeriodsOverview";
 import { PayrollRunsOverview } from "../overview/PayrollRunsOverview";
 import { CreatePeriodDialog } from "../../modals/CreatePeriodDialog";
@@ -10,6 +11,9 @@ import { PayrollSidebarFooter } from "./PayrollSidebarFooter";
 import { TaxCalculationModeSetting } from "../TaxCalculationModeSetting";
 import { PayrollEscrowSettingsSection } from "../../settings/PayrollEscrowSettingsSection";
 import { PayrollExpenseSettingsSection } from "../../expense/components/PayrollExpenseSettingsSection";
+
+const TAB_PANEL_SCROLL =
+  "scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
 interface PayrollSidebarProps {
   selectedPayrollRunId?: string | null;
@@ -26,7 +30,7 @@ export function PayrollSidebar({
   const [isCreatePeriodOpen, setIsCreatePeriodOpen] = useState(false);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden">
       <div className="border-border shrink-0 border-b px-4 py-1.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -54,37 +58,48 @@ export function PayrollSidebar({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <Tabs defaultValue="periods" className="flex h-full flex-col" onValueChange={setActiveTab}>
-          <div className="shrink-0 px-4 pt-3">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="periods">Periods</TabsTrigger>
-              <TabsTrigger value="runs">Runs</TabsTrigger>
-            </TabsList>
-          </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <div className="shrink-0 px-4 pt-3">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="periods">Periods</TabsTrigger>
+            <TabsTrigger value="runs">Runs</TabsTrigger>
+          </TabsList>
+        </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <TabsContent value="periods" className="mt-0 h-full">
-              <div className="min-h-0 h-full p-4 pt-3">
-                <PayrollPeriodsOverview />
-              </div>
-            </TabsContent>
-            <TabsContent value="runs" className="mt-0 h-full">
-              <div className="min-h-0 h-full p-4 pt-3">
-                <PayrollRunsOverview
-                  selectedRunId={selectedPayrollRunId}
-                  onRunSelect={onPayrollRunSelect}
-                  onRunBlocked={onRunBlocked}
-                />
-              </div>
-            </TabsContent>
-          </div>
-        </Tabs>
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <TabsContent
+            value="periods"
+            className="absolute inset-0 mt-0 flex flex-col overflow-hidden data-[state=inactive]:hidden"
+          >
+            <div className={cn(TAB_PANEL_SCROLL, "px-4 pb-3 pt-3")}>
+              <PayrollPeriodsOverview />
+            </div>
+          </TabsContent>
+          <TabsContent
+            value="runs"
+            className="absolute inset-0 mt-0 flex flex-col overflow-hidden data-[state=inactive]:hidden"
+          >
+            <div className={cn(TAB_PANEL_SCROLL, "px-4 pb-3 pt-3")}>
+              <PayrollRunsOverview
+                selectedRunId={selectedPayrollRunId}
+                onRunSelect={onPayrollRunSelect}
+                onRunBlocked={onRunBlocked}
+              />
+            </div>
+          </TabsContent>
+        </div>
+      </Tabs>
+
+      <div className="shrink-0 space-y-0 border-t border-border px-4 pb-2 pt-2">
+        <TaxCalculationModeSetting />
+        <PayrollEscrowSettingsSection />
+        <PayrollExpenseSettingsSection />
       </div>
 
-      <TaxCalculationModeSetting />
-      <PayrollEscrowSettingsSection />
-      <PayrollExpenseSettingsSection />
       <PayrollSidebarFooter activeTab={activeTab} />
 
       <CreatePeriodDialog open={isCreatePeriodOpen} onOpenChange={setIsCreatePeriodOpen} />

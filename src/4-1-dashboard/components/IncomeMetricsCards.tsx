@@ -1,6 +1,4 @@
-
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { TrendingUp, TrendingDown, DollarSign, Receipt, Calendar, Target } from 'lucide-react';
+import { DollarSign, Receipt, Calendar, Target } from 'lucide-react';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useIncomeMetrics } from '../hooks';
 
@@ -9,24 +7,20 @@ export const IncomeMetricsCards = () => {
 
   if (isLoading) {
     return (
-      <>
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-md border border-gray-200/50 p-2.5 shadow-sm animate-pulse">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex-1">
-                <div className="h-3 bg-gray-200 rounded mb-1"></div>
-                <div className="h-5 bg-gray-200 rounded mb-1"></div>
-                <div className="h-2 bg-gray-200 rounded"></div>
-              </div>
-              <div className="w-8 h-8 bg-gray-200 rounded-md"></div>
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="animate-pulse rounded-md border border-brand-blue/30 bg-brand-blue/10 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="h-4 w-24 rounded bg-muted" />
+              <div className="h-5 w-5 rounded bg-muted" />
             </div>
+            <div className="h-8 w-20 rounded bg-muted" />
+            <div className="mt-1 h-3 w-28 rounded bg-muted" />
           </div>
         ))}
-      </>
+      </div>
     );
   }
-
-  const isGrowthPositive = (metrics?.growthPercentage || 0) >= 0;
 
   const metricsData = [
     {
@@ -34,62 +28,66 @@ export const IncomeMetricsCards = () => {
       value: metrics?.currentMonthTotal || 0,
       subtitle: `${Math.abs(metrics?.growthPercentage || 0).toFixed(1)}% from last month`,
       icon: DollarSign,
-      iconColor: 'text-emerald-600',
-      iconBg: 'bg-emerald-50',
-      formatValue: true
+      iconColor: 'text-brand-blue',
+      bgColor: 'bg-brand-blue/10',
+      borderColor: 'border-brand-blue/30',
+      formatValue: true,
     },
     {
       title: 'Total Transactions',
       value: metrics?.totalTransactions || 0,
       subtitle: `${metrics?.currentMonthTransactionCount || 0} this month`,
       icon: Receipt,
-      iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-50',
-      formatValue: false
+      iconColor: 'text-brand-blue-deep',
+      bgColor: 'bg-brand-blue-soft',
+      borderColor: 'border-brand-blue/25',
+      formatValue: false,
     },
     {
       title: 'This Year Revenue',
       value: metrics?.yearTotal || 0,
       subtitle: 'Year-to-date income',
       icon: Calendar,
-      iconColor: 'text-purple-600',
-      iconBg: 'bg-purple-50',
-      formatValue: true
+      iconColor: 'text-brand-blue-on-soft',
+      bgColor: 'bg-brand-blue/15',
+      borderColor: 'border-brand-blue/20',
+      formatValue: true,
     },
     {
       title: 'Monthly Average',
       value: (metrics?.yearTotal || 0) / (new Date().getMonth() + 1),
       subtitle: 'Based on year-to-date',
       icon: Target,
-      iconColor: 'text-orange-600',
-      iconBg: 'bg-orange-50',
-      formatValue: true
-    }
+      iconColor: 'text-orange-500',
+      bgColor: 'bg-orange-50',
+      borderColor: 'border-orange-200',
+      formatValue: true,
+    },
   ];
 
   return (
-    <>
+    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
       {metricsData.map((metric, index) => {
         const Icon = metric.icon;
         return (
-          <div key={index} className="bg-white rounded-md border border-gray-200/50 p-2.5 shadow-sm">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex-1">
-                <div className="text-xs font-medium text-gray-500 mb-0.5">{metric.title}</div>
-                <div className="text-xl font-bold text-gray-900">
-                  {metric.formatValue ? formatToRupiah(metric.value) : metric.value}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {metric.subtitle}
-                </div>
+          <div
+            key={index}
+            className={`${metric.bgColor} ${metric.borderColor} rounded-md border p-4`}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-foreground">{metric.title}</h3>
+              <Icon className={`h-5 w-5 shrink-0 ${metric.iconColor}`} />
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-2xl font-bold tabular-nums text-foreground">
+                {metric.formatValue ? formatToRupiah(metric.value) : metric.value}
               </div>
-              <div className={`p-1.5 rounded-md ${metric.iconBg} ml-2`}>
-                <Icon className={`h-3.5 w-3.5 ${metric.iconColor}`} />
-              </div>
+              <div className="text-xs text-muted-foreground">{metric.subtitle}</div>
             </div>
           </div>
         );
       })}
-    </>
+    </div>
   );
 };

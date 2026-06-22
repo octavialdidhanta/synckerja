@@ -1,3 +1,5 @@
+import { SALES_OPS_CARD_FOOTER } from '@/5-2-activities/layout/salesOperationsLayout';
+
 interface VisitSchedulingSidebarFooterProps {
   totalStatuses: number;
   totalVisits: number;
@@ -8,7 +10,7 @@ export const VisitSchedulingSidebarFooter = ({
   totalVisits 
 }: VisitSchedulingSidebarFooterProps) => {
   return (
-    <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 bg-gray-50">
+    <div className={SALES_OPS_CARD_FOOTER}>
       <div className="flex items-center justify-between text-xs text-gray-500">
         <span>Statuses: {totalStatuses}</span>
         <span className="text-xs text-gray-400">Total: {totalVisits}</span>
