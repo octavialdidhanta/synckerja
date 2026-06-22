@@ -17,22 +17,26 @@ export function aggregateMetaContentPostRows(
   let views = 0;
   let likes = 0;
   let comments = 0;
+  let engagement = 0;
 
   for (const row of posts) {
     reach += Number(row.reach) || 0;
     views += Number(row.view_count) || 0;
     likes += Number(row.like_count) || 0;
     comments += Number(row.comment_count) || 0;
+    engagement += Number(row.total_interactions) || 0;
   }
 
-  if (reach > 0 && views < reach) views = reach;
+  if (engagement === 0) {
+    engagement = likes + comments;
+  }
 
   return {
     reach,
     views,
     likes,
     comments,
-    engagement: likes + comments,
+    engagement,
     postCount: posts.length,
   };
 }

@@ -19,6 +19,8 @@ type MetaScopeStatusCardsProps = {
   features?: MetaScopeFeature[];
   /** Hide section title for tighter layouts. */
   compact?: boolean;
+  /** Hide technical missing-scope lists (shorter copy for end users). */
+  hideMissingDetails?: boolean;
 };
 
 function parseGrantedScopes(account: ScopeStatusAccount): string[] {
@@ -46,7 +48,7 @@ const FEATURE_LINKS: Record<keyof typeof META_SCOPE_FEATURE_MAP, string> = {
   threads_replies: '/digital-marketing/social-media-performance/manage-comments/threads',
 };
 
-export function MetaScopeStatusCards({ accounts, features: featuresFilter, compact }: MetaScopeStatusCardsProps) {
+export function MetaScopeStatusCards({ accounts, features: featuresFilter, compact, hideMissingDetails }: MetaScopeStatusCardsProps) {
   const { t } = useAppTranslation();
   if (accounts.length === 0) return null;
 
@@ -94,15 +96,21 @@ export function MetaScopeStatusCards({ accounts, features: featuresFilter, compa
                 <p className="font-medium text-slate-800">{labels[feature]}</p>
                 {!ok && (
                   <p className="mt-0.5 text-slate-600">
-                    {t('metaPlatform.scopeStatus.missing', 'Missing')}: {missing.join(', ')}
-                    {(feature === 'threads_insights' || feature === 'threads_replies') && (
-                      <span className="block mt-0.5">
-                        {t(
-                          'metaPlatform.scopeStatus.threadsReconnectHint',
-                          'Use Connect Threads on the Threads integration tab.',
-                        )}
-                      </span>
-                    )}
+                    {hideMissingDetails
+                      ? t('metaPlatform.scopeStatus.reconnectRequired', 'Reconnect to grant this permission.')
+                      : (
+                        <>
+                          {t('metaPlatform.scopeStatus.missing', 'Missing')}: {missing.join(', ')}
+                          {(feature === 'threads_insights' || feature === 'threads_replies') && (
+                            <span className="block mt-0.5">
+                              {t(
+                                'metaPlatform.scopeStatus.threadsReconnectHint',
+                                'Use Connect Threads on the Threads integration tab.',
+                              )}
+                            </span>
+                          )}
+                        </>
+                      )}
                   </p>
                 )}
                 {ok && feature !== 'pages' && (

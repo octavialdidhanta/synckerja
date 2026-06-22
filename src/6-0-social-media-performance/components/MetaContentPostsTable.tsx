@@ -10,7 +10,7 @@ type MetaContentPostsTableProps = {
   rows: MetaContentPostRow[];
 };
 
-type MetricSortKey = 'views' | 'likes' | 'comments' | 'reach' | 'engagement';
+type MetricSortKey = 'views' | 'likes' | 'comments' | 'reach' | 'shares' | 'engagement';
 
 type SortDir = 'asc' | 'desc';
 
@@ -52,6 +52,9 @@ function compareRows(
       break;
     case 'reach':
       cmp = a.reach - b.reach;
+      break;
+    case 'shares':
+      cmp = a.share_count - b.share_count;
       break;
     case 'engagement': {
       const av = a.engagement_rate;
@@ -136,20 +139,36 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
 
   return (
     <div className="h-full min-h-0 overflow-auto">
-      <table className="w-full min-w-[880px] table-fixed text-sm">
+      <table className="w-full min-w-[1280px] table-fixed text-sm">
         <colgroup>
-          <col className="w-[280px]" />
+          <col className="w-[168px]" />
+          <col className="w-[160px]" />
+          <col className="w-[96px]" />
+          <col className="w-[96px]" />
           <col className="w-[88px]" />
           <col className="w-[72px]" />
+          <col className="w-[64px]" />
           <col className="w-[80px]" />
           <col className="w-[72px]" />
-          <col className="w-[88px]" />
+          <col className="w-[64px]" />
           <col className="w-[88px]" />
         </colgroup>
         <thead className="sticky top-0 z-10 border-b border-gray-200 bg-white shadow-[0_1px_0_0_rgb(229,231,235)]">
           <tr className="text-left text-xs text-muted-foreground">
             <th className="px-3 py-2 font-medium">
               {t('metaPlatform.performance.caption', 'Caption')}
+            </th>
+            <th className="px-3 py-2 font-medium">
+              {t('digitalMarketing.metaContent.colLink', 'Link')}
+            </th>
+            <th className="px-3 py-2 font-medium">
+              {t('digitalMarketing.metaContent.colService', 'Service')}
+            </th>
+            <th className="px-3 py-2 font-medium">
+              {t('digitalMarketing.metaContent.colPillar', 'Pillar')}
+            </th>
+            <th className="px-3 py-2 font-medium">
+              {t('digitalMarketing.metaContent.colPosted', 'Posted')}
             </th>
             <SortableMetricHeader
               label={t('metaPlatform.performance.views', 'Views')}
@@ -180,15 +199,19 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
               onSort={handleSort}
             />
             <SortableMetricHeader
+              label={t('digitalMarketing.metaContent.colShares', 'Shares')}
+              sortKey="shares"
+              activeSortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+            <SortableMetricHeader
               label={t('digitalMarketing.metaContent.colEngagement', 'Engagement')}
               sortKey="engagement"
               activeSortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}
             />
-            <th className="px-3 py-2 font-medium">
-              {t('digitalMarketing.metaContent.colPosted', 'Posted')}
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -196,7 +219,7 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
             const caption = row.caption?.trim() || row.content_id;
             return (
               <tr key={row.content_id} className="border-b border-gray-100 hover:bg-gray-50/50">
-                <td className="max-w-[280px] overflow-hidden px-3 py-2">
+                <td className="max-w-[168px] overflow-hidden px-3 py-2">
                   <div className="flex min-w-0 items-center gap-2">
                     {row.media_url ? (
                       <img
@@ -210,14 +233,42 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
                     </p>
                   </div>
                 </td>
+                <td className="max-w-[160px] overflow-hidden px-3 py-2">
+                  {row.permalink ? (
+                    <a
+                      href={row.permalink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block truncate text-xs text-primary hover:underline"
+                      title={row.permalink}
+                    >
+                      {row.permalink}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td
+                  className="max-w-[96px] truncate px-3 py-2 text-muted-foreground"
+                  title={row.service_name ?? undefined}
+                >
+                  {row.service_name ?? '—'}
+                </td>
+                <td
+                  className="max-w-[96px] truncate px-3 py-2 text-muted-foreground"
+                  title={row.content_pillar ?? undefined}
+                >
+                  {row.content_pillar ?? '—'}
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">{formatDate(row.posted_at)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.view_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.like_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.comment_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.reach)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.share_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {formatPercent(row.engagement_rate)}
                 </td>
-                <td className="px-3 py-2 text-muted-foreground">{formatDate(row.posted_at)}</td>
               </tr>
             );
           })}

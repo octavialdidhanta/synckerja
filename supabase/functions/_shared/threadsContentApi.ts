@@ -26,7 +26,6 @@ export type ThreadsComment = {
   text: string;
   author_name: string;
   author_id: string | null;
-  like_count: number;
   reply_count: number;
   parent_comment_id: string | null;
   published_at: string | null;
@@ -61,6 +60,18 @@ async function threadsPost<T>(
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ ...body, access_token: accessToken }).toString(),
+  });
+  const data = await res.json().catch(() => ({})) as T & GraphError;
+  if (!res.ok || data?.error) {
+    throw new Error(data?.error?.message ?? `Threads API error ${res.status}`);
+  }
+  return data;
+}
+
+async function threadsDelete<T>(url: string, accessToken: string): Promise<T> {
+  const sep = url.includes("?") ? "&" : "?";
+  const res = await fetch(`${url}${sep}access_token=${encodeURIComponent(accessToken)}`, {
+    method: "DELETE",
   });
   const data = await res.json().catch(() => ({})) as T & GraphError;
   if (!res.ok || data?.error) {
@@ -149,6 +160,147 @@ export async function fetchThreadsProfile(accessToken: string): Promise<ThreadsP
       ? data.threads_profile_picture_url
       : null,
   };
+}
+
+/** Scopes actually granted on the Threads user token (via graph.threads.net debug_token). */
+export async function fetchThreadsGrantedPermissions(
+  accessToken: string,
+  appId?: string,
+  appSecret?: string,
+): Promise<string[]> {
+  const inspectors: string[] = [accessToken];
+  const trimmedAppId = appId?.trim() ?? "";
+  const trimmedSecret = appSecret?.trim() ?? "";
+  if (trimmedAppId && trimmedSecret) {
+    inspectors.push(`${trimmedAppId}|${trimmedSecret}`);
+  }
+
+  for (const inspectorToken of inspectors) {
+    try {
+      const data = await threadsGet<{
+        data?: {
+          scopes?: string[];
+          granular_scopes?: Array<{ scope?: string; target_ids?: string[] }>;
+          is_valid?: boolean;
+        };
+      }>(
+        threadsUrl("debug_token", { input_token: accessToken }),
+        inspectorToken,
+      );
+      const flat = Array.isArray(data.data?.scopes) ? data.data!.scopes!.map(String) : [];
+      const granular = (data.data?.granular_scopes ?? [])
+        .map((row) => String(row.scope ?? "").trim())
+        .filter(Boolean);
+      const merged = [...new Set([...flat, ...granular])];
+      if (merged.length > 0) return merged;
+    } catch (e) {
+      const label = inspectorToken === accessToken ? "user token" : "app token";
+      console.warn(`fetchThreadsGrantedPermissions (${label}):`, e);
+    }
+  }
+  return [];
+}
+
+/** Live probe: reply quota config is only returned when publish+reply permissions are on the token. */
+export async function canThreadsTokenPublishReplies(
+  threadsUserId: string,
+  accessToken: string,
+): Promise<boolean> {
+  const userId = threadsUserId?.trim() || "me";
+  try {
+    const data = await threadsGet<{
+      data?: Array<{ reply_config?: { quota_total?: number }; reply_quota_usage?: number }>;
+    }>(
+      threadsUrl(`${userId}/threads_publishing_limit`, {
+        fields: "reply_quota_usage,reply_config",
+      }),
+      accessToken,
+    );
+    const row = data.data?.[0];
+    return Number(row?.reply_config?.quota_total ?? 0) > 0;
+  } catch (e) {
+    console.warn("canThreadsTokenPublishReplies:", e);
+    return false;
+  }
+}
+
+function isThreadsReplyPermissionError(message: string): boolean {
+  return /does not have permission|unsupported post request|not support this operation/i.test(message);
+}
+
+function isThreadsReplyRetryableError(message: string): boolean {
+  return isThreadsReplyPermissionError(message) ||
+    /does not exist|nonexisting|unsupported get request|\(#100\)|invalid parameter/i.test(message);
+}
+
+export type ThreadsMediaContext = {
+  id: string;
+  repliedToId: string | null;
+  rootPostId: string | null;
+  isReply: boolean;
+};
+
+export async function fetchThreadsMediaContext(
+  mediaOrReplyId: string,
+  accessToken: string,
+): Promise<ThreadsMediaContext | null> {
+  const seed = String(mediaOrReplyId ?? "").trim();
+  if (!seed) return null;
+  try {
+    const data = await threadsGet<{
+      id?: string;
+      is_reply?: boolean;
+      replied_to?: { id?: string };
+      root_post?: { id?: string };
+    }>(
+      threadsUrl(seed, { fields: "id,is_reply,replied_to,root_post" }),
+      accessToken,
+    );
+    const id = String(data.id ?? "").trim();
+    if (!id) return null;
+    return {
+      id,
+      repliedToId: data.replied_to?.id != null ? String(data.replied_to.id).trim() : null,
+      rootPostId: data.root_post?.id != null ? String(data.root_post.id).trim() : null,
+      isReply: Boolean(data.is_reply),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Ordered reply_to_id candidates — verify via Graph before publishing. */
+export async function buildThreadsReplyTargetIds(
+  postMediaId: string,
+  replyToCommentId: string | undefined,
+  accessToken: string,
+): Promise<string[]> {
+  const postId = String(postMediaId ?? "").trim();
+  const commentId = String(replyToCommentId ?? "").trim();
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+  const push = (id: string) => {
+    const value = String(id ?? "").trim();
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    ordered.push(value);
+  };
+
+  if (commentId && commentId !== postId) {
+    const commentCtx = await fetchThreadsMediaContext(commentId, accessToken);
+    if (commentCtx?.id) push(commentCtx.id);
+    if (commentCtx?.rootPostId) push(commentCtx.rootPostId);
+    if (commentCtx?.repliedToId && commentCtx.repliedToId !== commentCtx.id) {
+      push(commentCtx.repliedToId);
+    }
+  }
+
+  const resolvedPost = await resolveThreadsPostIdFromReplyChain(postId, accessToken);
+  push(resolvedPost ?? postId);
+
+  if (commentId) push(commentId);
+
+  return ordered.length > 0 ? ordered : (postId ? [postId] : []);
 }
 
 function timestampToUtcYmd(iso: string): string {
@@ -265,8 +417,8 @@ export async function countThreadTopLevelReplies(
   mediaId: string,
   accessToken: string,
 ): Promise<number> {
-  const replies = await fetchThreadReplies(mediaId, accessToken);
-  return replies.filter((c) => !c.parent_comment_id || c.parent_comment_id === mediaId).length;
+  const conversation = await fetchThreadConversation(mediaId, accessToken);
+  return buildTopLevelCommentsFromConversation(conversation, mediaId).length;
 }
 
 export async function enrichThreadsPostsWithCommentCounts(
@@ -382,18 +534,19 @@ export async function fetchThreadsFollowerCount(accessToken: string): Promise<nu
 
 function mapThreadsReply(
   row: Record<string, unknown>,
-  mediaId: string,
+  fetchTargetId: string,
   parentId: string | null,
 ): ThreadsComment {
   const repliedTo = row.replied_to as { id?: string } | undefined;
+  const rootPost = row.root_post as { id?: string } | undefined;
+  const rootId = rootPost?.id ? String(rootPost.id) : fetchTargetId;
   const parent = parentId ?? (repliedTo?.id ? String(repliedTo.id) : null);
   return {
     id: String(row.id ?? ""),
-    media_id: mediaId,
+    media_id: rootId,
     text: typeof row.text === "string" ? row.text : "",
     author_name: typeof row.username === "string" ? row.username : "Unknown",
     author_id: null,
-    like_count: Number(row.like_count ?? 0),
     reply_count: Number(row.reply_count ?? 0),
     parent_comment_id: parent,
     published_at: typeof row.timestamp === "string" ? row.timestamp : null,
@@ -402,29 +555,241 @@ function mapThreadsReply(
   };
 }
 
+const THREADS_REPLY_FIELDS =
+  "id,text,username,timestamp,reply_count,replied_to,root_post,is_reply,is_reply_owned_by_me,hide_status,has_replies";
+
+function dedupeThreadsCommentsById(comments: ThreadsComment[]): ThreadsComment[] {
+  const seen = new Set<string>();
+  const out: ThreadsComment[] = [];
+  for (const row of comments) {
+    const id = String(row.id ?? "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(row);
+  }
+  return out;
+}
+
+export function buildTopLevelCommentsFromConversation(
+  conversation: ThreadsComment[],
+  postMediaId: string,
+): ThreadsComment[] {
+  const postId = String(postMediaId ?? "").trim();
+  return conversation.filter(
+    (c) => c.id !== postId && (!c.parent_comment_id || c.parent_comment_id === postId),
+  );
+}
+
+export function enrichTopLevelReplyCountsFromConversation(
+  topLevel: ThreadsComment[],
+  conversation: ThreadsComment[],
+): ThreadsComment[] {
+  return topLevel.map((comment) => enrichCommentReplyCountFromConversation(comment, conversation));
+}
+
+export function enrichCommentReplyCountFromConversation(
+  comment: ThreadsComment,
+  conversation: ThreadsComment[],
+): ThreadsComment {
+  const nestedCount = conversation.filter((c) => c.parent_comment_id === comment.id).length;
+  return { ...comment, reply_count: Math.max(comment.reply_count, nestedCount) };
+}
+
+export function enrichReplyCountsFromConversation(
+  replies: ThreadsComment[],
+  conversation: ThreadsComment[],
+): ThreadsComment[] {
+  return replies.map((reply) => enrichCommentReplyCountFromConversation(reply, conversation));
+}
+
+export function countConversationActivity(
+  conversation: ThreadsComment[],
+  postMediaId: string,
+): number {
+  const postId = String(postMediaId ?? "").trim();
+  return conversation.filter((c) => c.id !== postId).length;
+}
+
+export function filterNestedRepliesFromConversation(
+  conversation: ThreadsComment[],
+  parentCommentId: string,
+): ThreadsComment[] {
+  const parentId = String(parentCommentId ?? "").trim();
+  return conversation.filter((c) => c.parent_comment_id === parentId);
+}
+
+async function fetchThreadPendingReplies(
+  postMediaId: string,
+  accessToken: string,
+): Promise<ThreadsComment[]> {
+  const postId = String(postMediaId ?? "").trim();
+  if (!postId) return [];
+  try {
+    const data = await threadsGet<{ data?: Array<Record<string, unknown>> }>(
+      threadsUrl(`${postId}/pending_replies`, { fields: THREADS_REPLY_FIELDS, limit: "25" }),
+      accessToken,
+    );
+    return (data.data ?? []).map((row) => mapThreadsReply(row, postId, null));
+  } catch {
+    return [];
+  }
+}
+
+/** Flattened top-level + nested replies — includes replies created in the Threads app. */
+export async function fetchThreadConversation(
+  postMediaId: string,
+  accessToken: string,
+  maxPages = 12,
+): Promise<ThreadsComment[]> {
+  const postId = String(postMediaId ?? "").trim();
+  if (!postId) return [];
+
+  const all: ThreadsComment[] = [];
+  let after: string | undefined;
+  let conversationSupported = true;
+
+  for (let page = 0; page < maxPages; page++) {
+    const params: Record<string, string> = {
+      fields: THREADS_REPLY_FIELDS,
+      limit: "25",
+    };
+    if (after) params.after = after;
+
+    try {
+      const data = await threadsGet<{
+        data?: Array<Record<string, unknown>>;
+        paging?: { cursors?: { after?: string } };
+      }>(threadsUrl(`${postId}/conversation`, params), accessToken);
+      const batch = (data.data ?? []).map((row) => mapThreadsReply(row, postId, null));
+      all.push(...batch);
+      after = data.paging?.cursors?.after;
+      if (!after || batch.length === 0) break;
+    } catch (e) {
+      conversationSupported = false;
+      console.warn("fetchThreadConversation fallback:", postId, e);
+      break;
+    }
+  }
+
+  if (!conversationSupported && all.length === 0) {
+    const topLevel = await fetchThreadRepliesPaginated(postId, accessToken, maxPages);
+    const pending = await fetchThreadPendingReplies(postId, accessToken);
+    return dedupeThreadsCommentsById([...topLevel, ...pending]);
+  }
+
+  const pending = await fetchThreadPendingReplies(postId, accessToken);
+  return dedupeThreadsCommentsById([...all, ...pending]);
+}
+
+export async function fetchThreadRepliesPaginated(
+  mediaId: string,
+  accessToken: string,
+  maxPages = 8,
+): Promise<ThreadsComment[]> {
+  const targetId = String(mediaId ?? "").trim();
+  if (!targetId) return [];
+
+  const all: ThreadsComment[] = [];
+  let after: string | undefined;
+
+  for (let page = 0; page < maxPages; page++) {
+    const params: Record<string, string> = {
+      fields: THREADS_REPLY_FIELDS,
+      limit: "25",
+    };
+    if (after) params.after = after;
+
+    try {
+      const data = await threadsGet<{
+        data?: Array<Record<string, unknown>>;
+        paging?: { cursors?: { after?: string } };
+      }>(threadsUrl(`${targetId}/replies`, params), accessToken);
+      const batch = (data.data ?? []).map((row) => mapThreadsReply(row, targetId, null));
+      all.push(...batch);
+      after = data.paging?.cursors?.after;
+      if (!after || batch.length === 0) break;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (
+        /does not exist|unsupported get request|nonexisting|\(#100\)/i.test(msg) ||
+        /missing permissions|\(#10\)|\(#200\)/i.test(msg)
+      ) {
+        console.warn("fetchThreadRepliesPaginated soft-empty:", targetId, msg);
+        break;
+      }
+      throw e;
+    }
+  }
+
+  return dedupeThreadsCommentsById(all);
+}
+
 export async function fetchThreadReplies(
   mediaId: string,
   accessToken: string,
 ): Promise<ThreadsComment[]> {
-  const fields = "id,text,username,timestamp,like_count,reply_count,replied_to,is_reply,is_reply_owned_by_me";
-  try {
-    const data = await threadsGet<{ data?: Array<Record<string, unknown>> }>(
-      threadsUrl(`${mediaId}/replies`, { fields, limit: "25" }),
-      accessToken,
-    );
-    return (data.data ?? []).map((row) => mapThreadsReply(row, mediaId, null));
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    // No replies yet / invalid media for replies endpoint — treat as empty thread, not hard error.
-    if (
-      /does not exist|unsupported get request|nonexisting|\(#100\)/i.test(msg) ||
-      /missing permissions|\(#10\)|\(#200\)/i.test(msg)
-    ) {
-      console.warn("fetchThreadReplies soft-empty:", mediaId, msg);
-      return [];
-    }
-    throw e;
+  return fetchThreadRepliesPaginated(mediaId, accessToken, 4);
+}
+
+/** Prefer full conversation tree; fall back to per-comment /replies. */
+export async function fetchThreadNestedReplies(
+  postMediaId: string,
+  parentCommentId: string,
+  accessToken: string,
+): Promise<ThreadsComment[]> {
+  const parentId = String(parentCommentId ?? "").trim();
+  const postId = String(postMediaId ?? "").trim();
+  if (!parentId) return [];
+
+  const conversation = postId ? await fetchThreadConversation(postId, accessToken) : [];
+  const fromConversation = filterNestedRepliesFromConversation(conversation, parentId);
+  if (fromConversation.length > 0) return fromConversation;
+
+  const direct = await fetchThreadRepliesPaginated(parentId, accessToken);
+  if (direct.length > 0) {
+    return direct.map((row) => ({
+      ...row,
+      parent_comment_id: row.parent_comment_id === parentId ? row.parent_comment_id : parentId,
+    }));
   }
+
+  if (!postId || parentId === postId) return [];
+
+  const topLevel = await fetchThreadRepliesPaginated(postId, accessToken);
+  return topLevel.filter((row) => row.parent_comment_id === parentId);
+}
+
+export async function enrichThreadsTopLevelCommentsWithReplyCounts(
+  comments: ThreadsComment[],
+  accessToken: string,
+  postMediaId?: string,
+): Promise<ThreadsComment[]> {
+  const postId = String(postMediaId ?? comments[0]?.media_id ?? "").trim();
+  if (postId) {
+    const conversation = await fetchThreadConversation(postId, accessToken);
+    const topLevel = buildTopLevelCommentsFromConversation(conversation, postId);
+    const enriched = enrichTopLevelReplyCountsFromConversation(topLevel, conversation);
+    const enrichedById = new Map(enriched.map((c) => [c.id, c]));
+    return comments.map((c) => enrichedById.get(c.id) ?? c);
+  }
+
+  const batchSize = 8;
+  const enriched: ThreadsComment[] = [];
+  for (let i = 0; i < comments.length; i += batchSize) {
+    const chunk = comments.slice(i, i + batchSize);
+    const rows = await Promise.all(
+      chunk.map(async (comment) => {
+        try {
+          const nested = await fetchThreadRepliesPaginated(comment.id, accessToken, 4);
+          return { ...comment, reply_count: Math.max(comment.reply_count, nested.length) };
+        } catch {
+          return comment;
+        }
+      }),
+    );
+    enriched.push(...rows);
+  }
+  return enriched;
 }
 
 export async function fetchThreadsRepliedToId(
@@ -513,34 +878,220 @@ export async function resolveThreadsPostMediaIdForReply(
   return root || storedRootMediaId;
 }
 
+async function threadsPostStep<T>(
+  step: "create_reply_container" | "publish_reply",
+  url: string,
+  accessToken: string,
+  body: Record<string, string>,
+): Promise<T> {
+  try {
+    return await threadsPost<T>(url, accessToken, body);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/does not have permission/i.test(msg)) {
+      const hint = step === "publish_reply"
+        ? "threads_content_publish"
+        : "threads_manage_replies (and threads_content_publish for nested replies)";
+      throw new Error(`${msg} (${step}: requires ${hint} on the Threads access token)`);
+    }
+    throw e;
+  }
+}
+
+async function publishThreadsReplyContainer(
+  creationId: string,
+  accessToken: string,
+  threadsUserId?: string,
+): Promise<{ id: string }> {
+  const publishPaths = ["me/threads_publish"];
+  const explicitUserId = threadsUserId?.trim();
+  if (explicitUserId) publishPaths.push(`${explicitUserId}/threads_publish`);
+
+  let lastError: Error | null = null;
+  for (const path of publishPaths) {
+    try {
+      const published = await threadsPostStep<{ id?: string }>(
+        "publish_reply",
+        threadsUrl(path),
+        accessToken,
+        { creation_id: creationId },
+      );
+      return { id: String(published.id ?? "") };
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      if (!isThreadsReplyRetryableError(lastError.message)) throw lastError;
+    }
+  }
+  throw lastError ?? new Error("Failed to publish Threads reply");
+}
+
+async function tryDirectThreadsReplyPost(
+  targetId: string,
+  text: string,
+  accessToken: string,
+): Promise<{ id: string } | null> {
+  try {
+    const data = await threadsPost<{ id?: string }>(
+      threadsUrl(`${targetId}/replies`),
+      accessToken,
+      { text, media_type: "TEXT" },
+    );
+    const id = String(data.id ?? "").trim();
+    return id ? { id } : null;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (isThreadsReplyRetryableError(msg)) return null;
+    throw e instanceof Error ? e : new Error(msg);
+  }
+}
+
+async function tryContainerThreadsReplyPost(
+  replyToId: string,
+  text: string,
+  accessToken: string,
+  threadsUserId?: string,
+): Promise<{ id: string } | null> {
+  const createPaths = ["me/threads"];
+  const explicitUserId = threadsUserId?.trim();
+  if (explicitUserId) createPaths.push(`${explicitUserId}/threads`);
+
+  let lastError: Error | null = null;
+  for (const createPath of createPaths) {
+    try {
+      const container = await threadsPostStep<{ id?: string }>(
+        "create_reply_container",
+        threadsUrl(createPath),
+        accessToken,
+        {
+          media_type: "TEXT",
+          text,
+          reply_to_id: replyToId,
+        },
+      );
+      const creationId = String(container.id ?? "").trim();
+      if (!creationId) throw new Error("Failed to create Threads reply container");
+      return await publishThreadsReplyContainer(creationId, accessToken, threadsUserId);
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      if (!isThreadsReplyRetryableError(lastError.message)) throw lastError;
+      console.warn(`tryContainerThreadsReplyPost retry (${createPath}, reply_to_id=${replyToId}):`, lastError.message);
+    }
+  }
+  if (lastError) throw lastError;
+  return null;
+}
+
 export async function replyThreadsComment(
   mediaId: string,
   text: string,
   accessToken: string,
   replyToCommentId?: string,
+  threadsUserId?: string,
 ): Promise<{ id: string }> {
-  const body: Record<string, string> = {
-    media_type: "TEXT",
-    text,
-  };
-  if (replyToCommentId?.trim()) {
-    body.reply_to = replyToCommentId.trim();
+  const postId = String(mediaId ?? "").trim();
+  const commentId = replyToCommentId?.trim() ?? "";
+  if (!postId || !text.trim()) throw new Error("Missing reply target");
+
+  const targetIds = await buildThreadsReplyTargetIds(postId, commentId || undefined, accessToken);
+  const attempts: string[] = [];
+  let lastError: Error | null = null;
+
+  for (const targetId of targetIds) {
+    attempts.push(`POST /${targetId}/replies`);
+    try {
+      const direct = await tryDirectThreadsReplyPost(targetId, text, accessToken);
+      if (direct?.id) return direct;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
   }
-  const data = await threadsPost<{ id?: string }>(
-    threadsUrl(`${mediaId}/replies`),
+
+  for (const targetId of targetIds) {
+    attempts.push(`reply_to_id=${targetId} (container+publish)`);
+    try {
+      const published = await tryContainerThreadsReplyPost(targetId, text, accessToken, threadsUserId);
+      if (published?.id) return published;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      if (!isThreadsReplyRetryableError(lastError.message)) break;
+    }
+  }
+
+  const detail = attempts.length > 0 ? ` Attempts: ${attempts.join("; ")}.` : "";
+  const base = lastError?.message ?? "Failed to publish Threads reply";
+  throw new Error(`${base}${detail}`);
+}
+
+const THREADS_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+export function canEditThreadsComment(
+  publishedAt: string | null | undefined,
+  isOwner: boolean,
+): boolean {
+  if (!isOwner || !publishedAt) return false;
+  const ms = Date.parse(publishedAt);
+  if (!Number.isFinite(ms)) return false;
+  return Date.now() - ms <= THREADS_EDIT_WINDOW_MS;
+}
+
+export async function hideThreadsReply(
+  replyId: string,
+  accessToken: string,
+  hide = true,
+): Promise<void> {
+  const id = String(replyId ?? "").trim();
+  if (!id) throw new Error("Missing reply id");
+  await threadsPost(threadsUrl(`${id}/manage_reply`), accessToken, {
+    hide: hide ? "true" : "false",
+  });
+}
+
+export async function deleteThreadsMedia(
+  mediaId: string,
+  accessToken: string,
+): Promise<{ deleted_id?: string }> {
+  const id = String(mediaId ?? "").trim();
+  if (!id) throw new Error("Missing media id");
+  return threadsDelete<{ success?: boolean; deleted_id?: string }>(
+    threadsUrl(id),
     accessToken,
-    body,
   );
-  return { id: String(data.id ?? "") };
+}
+
+export async function editThreadsReply(
+  args: {
+    postMediaId: string;
+    replyId: string;
+    parentCommentId: string;
+    text: string;
+    accessToken: string;
+    threadsUserId?: string;
+    publishedAt?: string | null;
+    isOwner?: boolean;
+  },
+): Promise<{ id: string }> {
+  const postId = String(args.postMediaId ?? "").trim();
+  const replyId = String(args.replyId ?? "").trim();
+  const parentId = String(args.parentCommentId ?? "").trim();
+  const text = String(args.text ?? "").trim();
+  if (!postId || !replyId || !parentId || !text) {
+    throw new Error("Missing edit target");
+  }
+  if (!canEditThreadsComment(args.publishedAt, Boolean(args.isOwner))) {
+    throw new Error("Threads replies can only be edited within 15 minutes of posting.");
+  }
+  await deleteThreadsMedia(replyId, args.accessToken);
+  return replyThreadsComment(postId, text, args.accessToken, parentId, args.threadsUserId);
 }
 
 export function computeThreadsEngagementRate(
   likes: number,
   comments: number,
   views: number,
+  shares = 0,
 ): number | null {
   if (!Number.isFinite(views) || views <= 0) return null;
-  const rate = ((likes + comments) / views) * 100;
+  const rate = ((likes + comments + shares) / views) * 100;
   return Number.isFinite(rate) ? rate : null;
 }
 
@@ -569,6 +1120,7 @@ export async function buildThreadsMetricsPostRows(
     const likeCount = insights.likes;
     const commentCount = insights.replies;
     const viewCount = insights.views;
+    const shareCount = insights.reposts + insights.quotes;
     rows.push({
       platform: "threads" as const,
       account_id: accountId,
@@ -577,9 +1129,9 @@ export async function buildThreadsMetricsPostRows(
       view_count: viewCount,
       like_count: likeCount,
       comment_count: commentCount,
-      share_count: insights.reposts + insights.quotes,
+      share_count: shareCount,
       reach: viewCount,
-      engagement_rate: computeThreadsEngagementRate(likeCount, commentCount, viewCount),
+      engagement_rate: computeThreadsEngagementRate(likeCount, commentCount, viewCount, shareCount),
       caption: post.caption,
       media_url: post.media_url ?? post.thumbnail_url,
       permalink: post.permalink,

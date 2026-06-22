@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
-import { cn } from "@/shared/lib/utils";
 import { ClickDetailsDialog } from "@/6-0-traffic/components/ClickDetailsDialog";
+import { cn } from "@/shared/lib/utils";
 
 type UtmRow = {
+  row_kind?: "session" | "journey" | null;
+  parent_session_id?: string | null;
+  page_view_id?: string | null;
   visit_key?: string | null;
   visitor_id?: string | null;
   session_id?: string | null;
@@ -106,6 +109,10 @@ function compareUtmRows(a: UtmRow, b: UtmRow, key: SortableColumn, dir: "asc" | 
   const va = cellRaw(a[key]);
   const vb = cellRaw(b[key]);
   return va.localeCompare(vb, undefined, { sensitivity: "base", numeric: true }) * m;
+}
+
+function isSessionRow(r: UtmRow): boolean {
+  return (r.row_kind ?? "session") === "session";
 }
 
 function formatPct(v: unknown) {
@@ -229,16 +236,16 @@ export function UtmTrackingTable({
   rows,
   onUtmTableMetricsSliceChange,
   webId,
-  fromDate,
-  toDate,
-  rangeIsMaximum,
+  queryFromDate,
+  queryToDate,
+  queryDateReady,
 }: {
   rows: UtmRow[];
   onUtmTableMetricsSliceChange?: (slice: UtmTableMetricsSlice) => void;
   webId: string;
-  fromDate: string | null;
-  toDate: string | null;
-  rangeIsMaximum: boolean;
+  queryFromDate: string | null;
+  queryToDate: string | null;
+  queryDateReady: boolean;
 }) {
   const [filters, setFilters] = useState<UtmFilters>(allFilters);
   const [sortKey, setSortKey] = useState<SortableColumn | null>(null);
@@ -257,12 +264,13 @@ export function UtmTrackingTable({
     utm_term: string | null;
   } | null>(null);
 
-  const routeOptions = useMemo(() => distinctColumn(rows, "route"), [rows]);
-  const campaignOptions = useMemo(() => distinctColumn(rows, "utm_campaign"), [rows]);
-  const sourceOptions = useMemo(() => distinctColumn(rows, "utm_source"), [rows]);
-  const mediumOptions = useMemo(() => distinctColumn(rows, "utm_medium"), [rows]);
-  const contentOptions = useMemo(() => distinctColumn(rows, "utm_content"), [rows]);
-  const termOptions = useMemo(() => distinctColumn(rows, "utm_term"), [rows]);
+  const sessionRows = useMemo(() => rows.filter(isSessionRow), [rows]);
+  const routeOptions = useMemo(() => distinctColumn(sessionRows, "route"), [sessionRows]);
+  const campaignOptions = useMemo(() => distinctColumn(sessionRows, "utm_campaign"), [sessionRows]);
+  const sourceOptions = useMemo(() => distinctColumn(sessionRows, "utm_source"), [sessionRows]);
+  const mediumOptions = useMemo(() => distinctColumn(sessionRows, "utm_medium"), [sessionRows]);
+  const contentOptions = useMemo(() => distinctColumn(sessionRows, "utm_content"), [sessionRows]);
+  const termOptions = useMemo(() => distinctColumn(sessionRows, "utm_term"), [sessionRows]);
 
   useEffect(() => {
     setFilters((f) => ({
@@ -273,10 +281,10 @@ export function UtmTrackingTable({
       utm_content: sanitizeFilter(f.utm_content, contentOptions),
       utm_term: sanitizeFilter(f.utm_term, termOptions),
     }));
-  }, [rows, routeOptions, campaignOptions, sourceOptions, mediumOptions, contentOptions, termOptions]);
+  }, [sessionRows, routeOptions, campaignOptions, sourceOptions, mediumOptions, contentOptions, termOptions]);
 
   const filteredRows = useMemo(() => {
-    return rows.filter(
+    return sessionRows.filter(
       (r) =>
         matchesSelect(r.route, filters.route) &&
         matchesSelect(r.utm_campaign, filters.utm_campaign) &&
@@ -285,7 +293,7 @@ export function UtmTrackingTable({
         matchesSelect(r.utm_content, filters.utm_content) &&
         matchesSelect(r.utm_term, filters.utm_term),
     );
-  }, [rows, filters]);
+  }, [sessionRows, filters]);
 
   const sortedFilteredRows = useMemo(() => {
     if (!sortKey) return filteredRows;
@@ -331,9 +339,9 @@ export function UtmTrackingTable({
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 text-xs text-gray-500">
             <span className="whitespace-nowrap">
-              {sortedFilteredRows.length === rows.length
-                ? `${rows.length} rows`
-                : `${sortedFilteredRows.length} of ${rows.length} rows`}
+              {sortedFilteredRows.length === sessionRows.length
+                ? `${sessionRows.length} sessions`
+                : `${sortedFilteredRows.length} of ${sessionRows.length} sessions`}
             </span>
             {hasActiveFilters || sortKey !== null ? (
               <Button
@@ -508,7 +516,7 @@ export function UtmTrackingTable({
             </tr>
           </thead>
           <tbody className="text-sm">
-            {rows.length === 0 ? (
+            {sessionRows.length === 0 ? (
               <tr>
                 <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
                   Belum ada data UTM.
@@ -521,12 +529,9 @@ export function UtmTrackingTable({
                 </td>
               </tr>
             ) : (
-              sortedFilteredRows.map((r) => {
-                return (
+              sortedFilteredRows.map((r) => (
                   <tr
                     key={[
-                      r.visit_key ?? "",
-                      r.visitor_id ?? "",
                       r.session_id ?? "",
                       r.occurred_at ?? "",
                       r.day ?? "",
@@ -563,29 +568,34 @@ export function UtmTrackingTable({
                       {r.page_views.toLocaleString()}
                     </td>
                     <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums text-gray-700">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const path = cellRaw(r.route) || "/";
-                          setClickDetailsPath(path);
-                          setClickDetailsVisitorId(cellRaw(r.visitor_id) || null);
-                          setClickDetailsSessionId(cellRaw(r.session_id) || null);
-                          setClickDetailsSessionDay(cellRaw(r.day) || null);
-                          setClickDetailsUtm({
-                            route: r.route ?? null,
-                            utm_campaign: r.utm_campaign ?? null,
-                            utm_source: r.utm_source ?? null,
-                            utm_medium: r.utm_medium ?? null,
-                            utm_content: r.utm_content ?? null,
-                            utm_term: r.utm_term ?? null,
-                          });
-                          setClickDetailsOpen(true);
-                        }}
-                        className="w-full text-right font-semibold text-primary hover:underline"
-                        aria-label={`Lihat detail klik untuk ${show(r.route)}`}
-                      >
-                        {r.clicks.toLocaleString()}
-                      </button>
+                      {r.clicks > 0 ? (
+                        <button
+                          type="button"
+                          disabled={!queryDateReady}
+                          onClick={() => {
+                            const path = cellRaw(r.route) || "/";
+                            setClickDetailsPath(path);
+                            setClickDetailsVisitorId(cellRaw(r.visitor_id) || null);
+                            setClickDetailsSessionId(cellRaw(r.session_id) || null);
+                            setClickDetailsSessionDay(cellRaw(r.day) || null);
+                            setClickDetailsUtm({
+                              route: r.route ?? null,
+                              utm_campaign: r.utm_campaign ?? null,
+                              utm_source: r.utm_source ?? null,
+                              utm_medium: r.utm_medium ?? null,
+                              utm_content: r.utm_content ?? null,
+                              utm_term: r.utm_term ?? null,
+                            });
+                            setClickDetailsOpen(true);
+                          }}
+                          className="w-full text-right font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                          aria-label={`Lihat detail klik untuk ${show(r.route)}`}
+                        >
+                          {r.clicks.toLocaleString()}
+                        </button>
+                      ) : (
+                        r.clicks.toLocaleString()
+                      )}
                     </td>
                     <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums text-gray-700">
                       {formatPct(r.max_deep_scroll_pct)}
@@ -594,8 +604,7 @@ export function UtmTrackingTable({
                       {formatPct(r.avg_max_deep_scroll_pct)}
                     </td>
                   </tr>
-                );
-              })
+                ))
             )}
           </tbody>
         </table>
@@ -614,14 +623,15 @@ export function UtmTrackingTable({
           }
         }}
         webId={webId}
-        fromDate={fromDate}
-        toDate={toDate}
-        rangeIsMaximum={rangeIsMaximum}
+        queryFromDate={queryFromDate}
+        queryToDate={queryToDate}
+        queryDateReady={queryDateReady}
         path={clickDetailsPath}
         utm={clickDetailsUtm ?? undefined}
         visitorId={clickDetailsVisitorId}
         sessionId={clickDetailsSessionId}
         sessionDay={clickDetailsSessionDay}
+        rowKind="session"
       />
     </div>
   );

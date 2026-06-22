@@ -16,6 +16,10 @@ export type ThreadsContentPostRow = {
   caption: string | null;
   media_url: string | null;
   permalink: string | null;
+  plan_id: string | null;
+  service_name: string | null;
+  content_pillar: string | null;
+  match_type?: 'share_url' | 'post_id' | null;
 };
 
 export type ThreadsContentMetricsPayload = {

@@ -9,6 +9,7 @@ export type ApiErrorCode =
   | "CONFLICT"
   | "RATE_LIMITED"
   | "LEAD_NOT_MATCHED"
+  | "SESSION_NOT_READY"
   | "INTERNAL_ERROR";
 
 export function apiJson(

@@ -11,6 +11,11 @@ import { ManageCommentsPlatformBadge } from '@/6-0-social-media-manage-comments/
 import { ThreadsCommentThreadPanel } from '@/6-0-social-media-manage-comments/components/threads/ThreadsCommentThreadPanel';
 import { MetaManageCommentsPageSkeleton } from '@/6-0-social-media-manage-comments/skeletons/MetaManageCommentsPageSkeleton';
 import { useRefetchOnTabVisible } from '@/6-0-social-media-manage-comments/hooks/useRefetchOnTabVisible';
+import { useNewInboundPostHighlights } from '@/6-0-social-media-manage-comments/hooks/useNewInboundPostHighlights';
+import {
+  useSyncThreadsManageCommentsPostBaselines,
+  useThreadsManageCommentsInboxState,
+} from '@/6-0-social-media-manage-comments/hooks/useThreadsManageCommentsInboxState';
 import { filterManageCommentsPosts } from '@/6-0-social-media-manage-comments/lib/filterPostList';
 import { sortPostsForInbox } from '@/6-0-social-media-manage-comments/lib/sortPostsForInbox';
 import type {
@@ -85,36 +90,57 @@ function ThreadsManageCommentsPageContent() {
   useRefetchOnTabVisible(refetchPosts);
 
   const allPosts = postsQuery.posts;
+  const postsReady = postsQuery.isFetched && !postsQuery.isLoading;
 
-  const { pinnedPostIds, pinnedAtMs } = useMemo(() => {
-    const inboxPosts = postsQuery.inboxState?.posts ?? [];
-    const pinned = new Set<string>();
-    const pinnedAt = new Map<string, number>();
-    for (const row of inboxPosts) {
-      if (!row.is_highlighted) continue;
-      pinned.add(row.media_id);
-      if (row.pinned_at) {
-        const ms = Date.parse(row.pinned_at);
-        if (Number.isFinite(ms)) pinnedAt.set(row.media_id, ms);
-      }
-    }
-    return { pinnedPostIds: pinned, pinnedAtMs: pinnedAt };
-  }, [postsQuery.inboxState]);
+  const inboxEnabled = Boolean(organizationId && accountId && canManage && !gatePending);
+
+  const { syncPostBaselinesMutation, dismissPostHighlightMutation } =
+    useThreadsManageCommentsInboxState({
+      organizationId,
+      accountId,
+      activeMediaId: selectedPostId,
+      enabled: inboxEnabled,
+    });
+
+  useSyncThreadsManageCommentsPostBaselines({
+    organizationId,
+    accountId,
+    posts: allPosts,
+    postsReady,
+    enabled: inboxEnabled,
+    syncPostBaselines: syncPostBaselinesMutation,
+  });
+
+  const {
+    pinnedPostIds,
+    highlightedPostIds,
+    pinnedAtMs,
+    pinnedAtVersion,
+    markPostWithNewActivity,
+    dismissPostHighlight,
+  } = useNewInboundPostHighlights(selectedPostId, accountId);
 
   const visibleHighlightedPostIds = useMemo(() => {
     const countById = new Map(allPosts.map((p) => [p.id, p.commentCount]));
     const next = new Set<string>();
-    for (const row of postsQuery.inboxState?.posts ?? []) {
-      if (!row.is_highlighted) continue;
-      if ((countById.get(row.media_id) ?? 0) > 0) next.add(row.media_id);
+    for (const id of highlightedPostIds) {
+      if ((countById.get(id) ?? 0) > 0) next.add(id);
     }
     return next;
-  }, [postsQuery.inboxState, allPosts]);
+  }, [highlightedPostIds, allPosts]);
+
+  const handlePostHighlightResolved = useCallback(
+    (postId: string) => {
+      dismissPostHighlight(postId);
+      void dismissPostHighlightMutation.mutateAsync(postId).catch(() => {});
+    },
+    [dismissPostHighlight, dismissPostHighlightMutation],
+  );
 
   const filteredPosts = useMemo(() => {
     const filtered = filterManageCommentsPosts(allPosts, postFilter, '', visibleHighlightedPostIds);
     return sortPostsForInbox(filtered, pinnedPostIds, pinnedAtMs);
-  }, [allPosts, postFilter, pinnedPostIds, pinnedAtMs, visibleHighlightedPostIds]);
+  }, [allPosts, postFilter, pinnedPostIds, pinnedAtMs, visibleHighlightedPostIds, pinnedAtVersion]);
 
   const selectedPost = useMemo(
     () => filteredPosts.find((p) => String(p.id) === selectedPostId) ?? null,
@@ -234,6 +260,13 @@ function ThreadsManageCommentsPageContent() {
                         account={selectedAccount}
                         post={selectedPost}
                         connectPath={CONNECT_INSTAGRAM_PATH}
+                        postHighlightActive={
+                          selectedPost ? visibleHighlightedPostIds.has(selectedPost.id) : false
+                        }
+                        onNewInboundComments={() => {
+                          if (selectedPost) markPostWithNewActivity(selectedPost.id);
+                        }}
+                        onPostHighlightResolved={handlePostHighlightResolved}
                       />
                     ) : (
                       <ManageCommentsEmptyState />

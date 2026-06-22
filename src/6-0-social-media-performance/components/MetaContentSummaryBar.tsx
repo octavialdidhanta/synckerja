@@ -9,6 +9,7 @@ import type {
 } from '@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes';
 
 type MetaContentSummaryBarProps = {
+  account?: MetaContentMetricsPayload['account'] | null;
   posts?: MetaContentMetricsPayload['posts'];
   targetProgress?: InsightTargetProgress[];
   isLoading?: boolean;
@@ -38,7 +39,17 @@ function formatTargetRatio(
   return `${formatCount(progress.actual)} / ${formatCount(progress.target)}`;
 }
 
+function formatAudienceCount(
+  account: MetaContentMetricsPayload['account'] | null | undefined,
+): string {
+  if (account?.audience_hidden) return '—';
+  const count = account?.audience_count;
+  if (count == null || !Number.isFinite(count)) return '—';
+  return formatCount(count);
+}
+
 export function MetaContentSummaryBar({
+  account,
   posts = [],
   targetProgress = [],
   isLoading = false,
@@ -55,14 +66,23 @@ export function MetaContentSummaryBar({
   const engagement = totals.engagement;
   const postCount = totals.postCount;
   const avgEngagementRate =
-    engagement > 0 && views > 0 ? (engagement / views) * 100 : null;
+    account?.avg_engagement_rate ??
+    (engagement > 0 && views > 0 ? (engagement / views) * 100 : null);
 
   const cards: {
     key: string;
     label: string;
     value: string;
     metric?: InsightTargetMetric;
+    audienceHint?: boolean;
   }[] = [
+    {
+      key: 'audience',
+      metric: 'audience',
+      label: t('digitalMarketing.metaContent.summaryFollowers', 'Followers'),
+      value: formatAudienceCount(account),
+      audienceHint: true,
+    },
     {
       key: 'reach',
       label: t('metaPlatform.metrics.reach', 'Reach'),
@@ -94,7 +114,7 @@ export function MetaContentSummaryBar({
 
   return (
     <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {cards.map((card) => {
           const progress = card.metric ? progressByMetric.get(card.metric) : undefined;
           const ratioText = card.metric ? formatTargetRatio(card.metric, progress) : null;
@@ -132,6 +152,15 @@ export function MetaContentSummaryBar({
 
               {ratioText ? (
                 <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">{ratioText}</p>
+              ) : null}
+
+              {card.audienceHint && progress?.showProgress ? (
+                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                  {t(
+                    'digitalMarketing.socialMediaInsightReport.audienceSnapshotHint',
+                    'Audience uses current follower/subscriber totals from the API.',
+                  )}
+                </p>
               ) : null}
             </div>
           );

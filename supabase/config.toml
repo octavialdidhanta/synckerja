@@ -234,6 +234,9 @@ verify_jwt = false
 verify_jwt = false
 
 # Meta / Instagram: webhook has no JWT; app-called functions enforce auth inside (getUser).
+[functions.whatsapp-webhook]
+verify_jwt = false
+
 [functions.instagram-webhook]
 verify_jwt = false
 

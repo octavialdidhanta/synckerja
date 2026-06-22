@@ -10,6 +10,7 @@ export type OmnichannelApiTokenContext = {
   webId: string;
   allowedOrigins: string[];
   whatsappInvoiceTemplateName: string | null;
+  whatsappLeadTemplateName: string | null;
   tokenType: OmnichannelApiTokenType;
 };
 
@@ -153,7 +154,7 @@ export async function authenticateOmnichannelApiToken(
   const { data: row, error } = await admin
     .from("organization_omnichannel_api_tokens")
     .select(
-      "id, organization_id, web_id, allowed_origins, whatsapp_invoice_template_name, is_active, expires_at, token_type",
+      "id, organization_id, web_id, allowed_origins, whatsapp_invoice_template_name, whatsapp_lead_template_name, is_active, expires_at, token_type",
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -196,6 +197,7 @@ export async function authenticateOmnichannelApiToken(
       webId: row.web_id,
       allowedOrigins,
       whatsappInvoiceTemplateName: row.whatsapp_invoice_template_name ?? null,
+      whatsappLeadTemplateName: row.whatsapp_lead_template_name ?? null,
       tokenType: normalizeTokenType(row.token_type),
     },
     corsHeaders,

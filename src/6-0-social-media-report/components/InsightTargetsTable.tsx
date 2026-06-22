@@ -15,7 +15,7 @@ import {
   type InsightTargetMetric,
   type InsightTargetPlatform,
 } from "@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes";
-import { Input } from "@/shared/components/ui/input";
+import { SocialMediaInsightAccountAvatar } from "@/6-0-social-media-report/components/SocialMediaInsightAccountAvatar";
 import {
   Select,
   SelectContent,
@@ -377,17 +377,11 @@ export function InsightTargetsTable({
                 </TableCell>
                 <TableCell className="align-middle">
                   <div className="flex items-center gap-2">
-                    {account.avatarUrl ? (
-                      <img
-                        src={account.avatarUrl}
-                        alt=""
-                        className="h-7 w-7 shrink-0 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[10px] font-medium text-gray-600">
-                        {account.accountLabel.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <SocialMediaInsightAccountAvatar
+                      avatarUrl={account.avatarUrl}
+                      accountLabel={account.accountLabel}
+                      className="h-7 w-7"
+                    />
                     <span className="min-w-0 truncate text-sm font-medium text-gray-900">
                       {account.accountLabel}
                     </span>

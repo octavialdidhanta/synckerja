@@ -7,9 +7,15 @@ import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useInstagramAccounts } from '../hooks/useInstagramAccounts';
+import { useThreadsContentSettings } from '@/threads-content/hooks/useThreadsContentSettings';
 import { useThreadsOAuthConnect } from '@/meta-platform/hooks/useThreadsOAuthConnect';
 import { hasThreadsOAuthConfig, isThreadsRedirectHttps } from '@/meta-platform/constants/threadsAppEnv';
-import { hasThreadsScopes } from '@/meta-platform/constants/metaOAuthScopes';
+import {
+  hasThreadsScopes,
+  missingScopesForFeature,
+} from '@/meta-platform/constants/metaOAuthScopes';
+import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
+import { cn } from '@/shared/lib/utils';
 import { CONNECT_INSTAGRAM_PATH, CONNECT_THREADS_PATH } from '../constants/omnichannelIntegrationPaths';
 import { ThreadsConnectPageSkeleton } from '../skeletons/ThreadsConnectPageSkeleton';
 import { useThreadsConnectPageSkeletonGate } from '../hooks/useThreadsConnectPageSkeletonGate';
@@ -35,8 +41,11 @@ export function ThreadsConnectPage() {
   const { organizationId, loading: orgLoading } = useCurrentOrg();
   const hasOrg = Boolean(organizationId);
   const { accounts: connectedAccounts, isLoading: accountsLoading, refetch } = useInstagramAccounts();
+  const threadsSettingsQuery = useThreadsContentSettings(organizationId, { enabled: hasOrg });
+  const threadsSettingsAccount = threadsSettingsQuery.data?.accounts?.[0] ?? null;
 
-  const blockingPagePending = orgLoading || (hasOrg && accountsLoading);
+  const blockingPagePending =
+    orgLoading || (hasOrg && accountsLoading) || (hasOrg && threadsSettingsQuery.isLoading);
   const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
     blockingPagePending,
     CONNECT_THREADS_PATH,
@@ -46,14 +55,23 @@ export function ThreadsConnectPage() {
   const threadsHttpsOk = isThreadsRedirectHttps();
   const hasInstagramConnected = connectedAccounts.length > 0;
   const primaryGranted =
-    connectedAccounts.length > 0 ? parseGrantedScopes(connectedAccounts[0].granted_scopes) : [];
+    threadsSettingsAccount?.granted_scopes ??
+    (connectedAccounts.length > 0 ? parseGrantedScopes(connectedAccounts[0].granted_scopes) : []);
   const threadsScopesGranted = hasThreadsScopes(primaryGranted);
+  const missingReplyScopes = missingScopesForFeature(primaryGranted, 'threads_replies');
+  const lacksContentPublish = !primaryGranted.some(
+    (s) => s.toLowerCase() === 'threads_content_publish',
+  );
+  const repliesScopesComplete =
+    !lacksContentPublish &&
+    (threadsSettingsAccount?.feature_status?.threads_replies?.ok ?? missingReplyScopes.length === 0);
   const anyAccountHasThreads = connectedAccounts.some((a) => a.has_threads);
   const threadsReady = anyAccountHasThreads && threadsScopesGranted;
+  const threadsReplyReady = anyAccountHasThreads && repliesScopesComplete;
 
   const { startOAuth, oauthLoading } = useThreadsOAuthConnect({
     onExchangeComplete: async () => {
-      await refetch();
+      await Promise.all([refetch(), threadsSettingsQuery.refetch()]);
     },
   });
 
@@ -69,23 +87,21 @@ export function ThreadsConnectPage() {
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
+      <div
+        className={cn(
+          'flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3',
+          showPageSkeleton && 'pointer-events-none invisible',
+        )}
+        aria-hidden={showPageSkeleton}
+      >
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="relative flex min-h-full min-w-0 flex-1 flex-col">
-              <div
-                className={
-                  showPageSkeleton
-                    ? 'invisible pointer-events-none flex min-h-full min-w-0 flex-1 flex-col'
-                    : 'flex min-h-full min-w-0 flex-1 flex-col'
-                }
-                aria-hidden={showPageSkeleton}
-              >
-                <div className="mb-1 min-w-0 shrink-0">
-                  <HeaderAndTab />
-                </div>
+            <div className="flex min-h-full min-w-0 flex-1 flex-col">
+              <div className="mb-1 min-w-0 shrink-0">
+                <HeaderAndTab />
+              </div>
 
-                <ModuleShellContentGate pagePath={CONNECT_THREADS_PATH}>
+              <ModuleShellContentGate pagePath={CONNECT_THREADS_PATH}>
                   <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                     <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                       <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -119,10 +135,31 @@ export function ThreadsConnectPage() {
                                   </Button>
                                 </>
                               ) : threadsReady ? (
-                                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 text-sm text-emerald-800">
-                                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                                  {t('threadsConnect.alreadyConnected', 'Threads terhubung.')}
-                                </div>
+                                !threadsReplyReady ? (
+                                  <>
+                                    <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-900">
+                                      {t(
+                                        'threadsConnect.partialScopesShort',
+                                        'Threads terhubung sebagian. Hubungkan ulang untuk mengaktifkan balasan komentar.',
+                                      )}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      onClick={() => void startOAuth()}
+                                      disabled={!canConnect || oauthLoading}
+                                      className="w-full bg-black hover:bg-neutral-800 text-white"
+                                    >
+                                      {oauthLoading ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <AtSign className="mr-2 h-4 w-4" />
+                                      )}
+                                      {oauthLoading
+                                        ? t('threadsConnect.connecting', 'Menghubungkan…')
+                                        : t('threadsConnect.reconnect', 'Hubungkan ulang')}
+                                    </Button>
+                                  </>
+                                ) : null
                               ) : (
                                 <>
                                   <Button
@@ -149,20 +186,28 @@ export function ThreadsConnectPage() {
                               )}
 
                               {hasInstagramConnected && threadsReady ? (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => void startOAuth()}
-                                  disabled={!canConnect || oauthLoading}
-                                  className="w-full"
-                                >
-                                  {oauthLoading ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <AtSign className="mr-2 h-4 w-4" />
-                                  )}
-                                  {t('threadsConnect.reconnect', 'Hubungkan ulang')}
-                                </Button>
+                                <>
+                                  <MetaScopeStatusCards
+                                    accounts={connectedAccounts}
+                                    features={['threads_insights', 'threads_replies']}
+                                    compact
+                                    hideMissingDetails
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => void startOAuth()}
+                                    disabled={!canConnect || oauthLoading}
+                                    className="w-full"
+                                  >
+                                    {oauthLoading ? (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <AtSign className="mr-2 h-4 w-4" />
+                                    )}
+                                    {t('threadsConnect.reconnect', 'Hubungkan ulang')}
+                                  </Button>
+                                </>
                               ) : null}
 
                               {hasInstagramConnected && threadsReady ? (
@@ -255,23 +300,22 @@ export function ThreadsConnectPage() {
                       </div>
                     </div>
                   </div>
-                </ModuleShellContentGate>
-              </div>
-
-              {showPageSkeleton && (
-                <div
-                  className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-surface-muted"
-                  aria-busy
-                  aria-label={t('threadsConnect.loading', 'Memuat…')}
-                >
-                  <span className="sr-only">{t('threadsConnect.loading', 'Memuat…')}</span>
-                  <ThreadsConnectPageSkeleton mode="overlay" />
-                </div>
-              )}
+              </ModuleShellContentGate>
             </div>
           </div>
         </div>
       </div>
+
+      {showPageSkeleton ? (
+        <div
+          className="absolute inset-0 z-10 min-h-0 overflow-hidden"
+          aria-busy
+          aria-label={t('threadsConnect.loading', 'Memuat…')}
+        >
+          <ThreadsConnectPageSkeleton />
+          <span className="sr-only">{t('threadsConnect.loading', 'Memuat…')}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

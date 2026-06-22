@@ -70,9 +70,14 @@ export type MetaContentMetricsPayload = {
     comment_count: number;
     share_count: number;
     reach: number;
+    total_interactions: number;
     engagement_rate: number | null;
     caption: string | null;
     media_url: string | null;
     permalink: string | null;
+    plan_id: string | null;
+    service_name: string | null;
+    content_pillar: string | null;
+    match_type?: 'share_url' | 'media_id' | null;
   }>;
 };

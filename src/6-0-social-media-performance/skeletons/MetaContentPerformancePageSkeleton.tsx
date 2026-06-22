@@ -32,8 +32,8 @@ export function MetaContentPerformancePageSkeleton() {
                     </div>
                   </div>
                   <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1">
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                      {Array.from({ length: 5 }, (_, i) => (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                      {Array.from({ length: 6 }, (_, i) => (
                         <Skeleton key={i} className="h-16 w-full rounded-md" />
                       ))}
                     </div>

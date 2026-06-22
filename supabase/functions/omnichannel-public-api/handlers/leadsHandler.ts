@@ -10,8 +10,27 @@ import {
   normalizePhone,
 } from "../../_shared/omnichannelPublicApi/phoneNormalize.ts";
 import { apiError, apiSuccess } from "../../_shared/omnichannelPublicApi/response.ts";
-import { buildAttributionLabel, resolveSessionClickIds } from "../../_shared/omnichannelPublicApi/urlParams.ts";
+import { resolveSessionMarketingAttribution } from "../../_shared/omnichannelPublicApi/urlParams.ts";
+import {
+  findFloatingStubLead,
+} from "../../_shared/omnichannelPublicApi/syncFloatingWaClickToLead.ts";
 import { extractLeadFormPayload } from "../../_shared/omnichannelPublicApi/leadFormData.ts";
+import {
+  parseLeadConsent,
+  triggerLeadWhatsApp,
+} from "../../_shared/omnichannelPublicApi/triggerLeadWhatsApp.ts";
+import {
+  persistLeadWhatsAppThread,
+} from "../../_shared/omnichannelPublicApi/persistLeadWhatsAppThread.ts";
+import { buildLeadWhatsAppStoredBody } from "../../_shared/omnichannelPublicApi/leadWhatsAppTemplatePreview.ts";
+import { resolveOrganizationWhatsAppCredentials } from "../../_shared/omnichannelPublicApi/resolveOrganizationWhatsAppCredentials.ts";
+
+function resolveFormId(body: Record<string, unknown>, formData: Record<string, unknown> | null): string | null {
+  const top = body.form_id != null ? String(body.form_id).trim() : "";
+  if (top) return top;
+  const nested = formData?.form_id != null ? String(formData.form_id).trim() : "";
+  return nested || null;
+}
 
 export async function handleLeads(
   admin: SupabaseClient,
@@ -27,10 +46,11 @@ export async function handleLeads(
 
     const { core, formData } = extracted;
     const name = core.name;
-    const phoneRaw = core.phone_number;
-    const emailRaw = core.email;
+    const phoneRaw = core.phone_number ? normalizePhone(core.phone_number) : "";
+    const emailRaw = core.email ? normalizeEmail(core.email) : "";
     const notes = core.notes;
     const sessionId = core.session_id;
+    const formId = resolveFormId(body, formData);
 
     if (!name) {
       return apiError("name wajib diisi.", "VALIDATION_ERROR", 422, corsHeaders);
@@ -53,35 +73,11 @@ export async function handleLeads(
         .maybeSingle();
 
       if (session) {
-        const clickIds = resolveSessionClickIds(session);
-        const landingUrl = session.last_landing_url ?? session.landing_url ?? null;
-        attribution = {
-          session_id: sessionId,
-          web_id: ctx.webId,
-          utm_source: session.utm_source,
-          utm_medium: session.utm_medium,
-          utm_campaign: session.utm_campaign,
-          utm_content: session.utm_content,
-          utm_term: session.utm_term,
-          landing_url: landingUrl,
-          gclid: clickIds.gclid,
-          fbclid: clickIds.fbclid,
-        };
-        attributionLabel = buildAttributionLabel({
-          utm_source: session.utm_source,
-          utm_medium: session.utm_medium,
-          utm_campaign: session.utm_campaign,
-          utm_term: session.utm_term,
-          utm_content: session.utm_content,
-          gclid: clickIds.gclid,
-          fbclid: clickIds.fbclid,
-          msclkid: null,
-          gbraid: null,
-          wbraid: null,
-          path: "/",
-        });
-        gclid = clickIds.gclid;
-        fbclid = clickIds.fbclid;
+        const marketing = resolveSessionMarketingAttribution(sessionId, ctx.webId, session);
+        attribution = marketing.attribution;
+        attributionLabel = marketing.attributionLabel;
+        gclid = marketing.gclid;
+        fbclid = marketing.fbclid;
       }
     }
 
@@ -93,66 +89,265 @@ export async function handleLeads(
     );
 
     const now = new Date().toISOString();
-    const leadId = crypto.randomUUID();
+    let leadId: string;
 
-    const { error: leadErr } = await admin.from("leads").insert({
-      id: leadId,
-      client: name,
-      title: "Lead Website",
-      category: "Website API",
-      created_by: actor.userId,
-      created_by_name: actor.displayName,
-      assignee: "Unassigned",
-      organization_id: ctx.organizationId,
-      source: "Website",
-      status_id: statusId,
-      phone_number: phoneRaw || null,
-      email: emailRaw || null,
-      attribution,
-      attribution_label: attributionLabel,
-      web_id: ctx.webId,
-      analytics_session_id: sessionId && isUuid(sessionId) ? sessionId : null,
-      gclid,
-      fbclid,
-      created_at: now,
-      updated_at: now,
-    });
+    const floatingStub =
+      sessionId && isUuid(sessionId)
+        ? await findFloatingStubLead(admin, ctx.organizationId, ctx.webId, sessionId)
+        : null;
 
-    if (leadErr) {
-      console.error("handleLeads insert leads:", leadErr);
-      return apiError("Gagal menyimpan lead.", "INTERNAL_ERROR", 500, corsHeaders, leadErr.message);
+    if (floatingStub) {
+      leadId = floatingStub.leadId;
+
+      const leadPatch: Record<string, unknown> = {
+        client: name,
+        title: "Lead Website",
+        source: "Website",
+        phone_number: phoneRaw || null,
+        email: emailRaw || null,
+        status_id: statusId,
+        updated_at: now,
+      };
+      if (attribution) {
+        leadPatch.attribution = attribution;
+        leadPatch.attribution_label = attributionLabel;
+        leadPatch.gclid = gclid;
+        leadPatch.fbclid = fbclid;
+      }
+
+      const { error: leadUpdErr } = await admin
+        .from("leads")
+        .update(leadPatch)
+        .eq("id", leadId)
+        .eq("organization_id", ctx.organizationId);
+
+      if (leadUpdErr) {
+        console.error("handleLeads upgrade floating stub:", leadUpdErr);
+        return apiError("Gagal memperbarui lead.", "INTERNAL_ERROR", 500, corsHeaders, leadUpdErr.message);
+      }
+
+      if (floatingStub.submissionId) {
+        const { error: subUpdErr } = await admin
+          .from("lead_submissions")
+          .update({
+            form_id: formId,
+            name,
+            phone_number: phoneRaw || null,
+            email: emailRaw || null,
+            notes,
+            form_data: formData,
+            status: "submitted",
+            submitted_at: now,
+            updated_at: now,
+          })
+          .eq("id", floatingStub.submissionId)
+          .eq("organization_id", ctx.organizationId);
+
+        if (subUpdErr) {
+          console.error("handleLeads upgrade floating submission:", subUpdErr);
+          return apiError("Gagal memperbarui profil lead.", "INTERNAL_ERROR", 500, corsHeaders, subUpdErr.message);
+        }
+      } else {
+        const { error: subInsErr } = await admin.from("lead_submissions").insert({
+          organization_id: ctx.organizationId,
+          lead_id: leadId,
+          web_id: ctx.webId,
+          form_id: formId,
+          name,
+          phone_number: phoneRaw || null,
+          email: emailRaw || null,
+          notes,
+          form_data: formData,
+          status: "submitted",
+          is_active: true,
+          submitted_at: now,
+          updated_at: now,
+        });
+
+        if (subInsErr) {
+          console.error("handleLeads insert submission after stub:", subInsErr);
+          return apiError("Gagal menyimpan profil lead.", "INTERNAL_ERROR", 500, corsHeaders, subInsErr.message);
+        }
+      }
+    } else {
+      leadId = crypto.randomUUID();
+
+      const { error: leadErr } = await admin.from("leads").insert({
+        id: leadId,
+        client: name,
+        title: "Lead Website",
+        category: "Website API",
+        created_by: actor.userId,
+        created_by_name: actor.displayName,
+        assignee: "Unassigned",
+        organization_id: ctx.organizationId,
+        source: "Website",
+        status_id: statusId,
+        phone_number: phoneRaw || null,
+        email: emailRaw || null,
+        attribution,
+        attribution_label: attributionLabel,
+        web_id: ctx.webId,
+        analytics_session_id: sessionId && isUuid(sessionId) ? sessionId : null,
+        gclid,
+        fbclid,
+        created_at: now,
+        updated_at: now,
+      });
+
+      if (leadErr) {
+        console.error("handleLeads insert leads:", leadErr);
+        return apiError("Gagal menyimpan lead.", "INTERNAL_ERROR", 500, corsHeaders, leadErr.message);
+      }
+
+      const { error: subErr } = await admin.from("lead_submissions").insert({
+        organization_id: ctx.organizationId,
+        lead_id: leadId,
+        web_id: ctx.webId,
+        form_id: formId,
+        name,
+        phone_number: phoneRaw || null,
+        email: emailRaw || null,
+        notes,
+        form_data: formData,
+        status: "submitted",
+        is_active: true,
+        submitted_at: now,
+        updated_at: now,
+      });
+
+      if (subErr) {
+        console.error("handleLeads insert lead_submissions:", subErr);
+        await admin.from("leads").delete().eq("id", leadId);
+        return apiError("Gagal menyimpan profil lead.", "INTERNAL_ERROR", 500, corsHeaders, subErr.message);
+      }
     }
 
-    const { error: subErr } = await admin.from("lead_submissions").insert({
-      organization_id: ctx.organizationId,
-      lead_id: leadId,
-      web_id: ctx.webId,
-      form_id: null,
-      name,
-      phone_number: phoneRaw || null,
-      email: emailRaw || null,
-      notes,
-      form_data: formData,
-      status: "submitted",
-      is_active: true,
-      submitted_at: now,
-      updated_at: now,
-    });
+    let whatsappStatus: "pending" | "sent" | "failed" | "skipped" = "skipped";
+    let whatsappMessageId: string | null = null;
+    let whatsappSkipReason: string | null = null;
+    let whatsappConversationId: string | null = null;
 
-    if (subErr) {
-      console.error("handleLeads insert lead_submissions:", subErr);
-      await admin.from("leads").delete().eq("id", leadId);
-      return apiError("Gagal menyimpan profil lead.", "INTERNAL_ERROR", 500, corsHeaders, subErr.message);
+    const hasConsent = parseLeadConsent(body, formData);
+
+    const { data: orgSettings } = await admin
+      .from("organization_omnichannel_api_settings")
+      .select("default_whatsapp_lead_template_name, default_whatsapp_lead_template_language")
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+
+    const templateName =
+      ctx.whatsappLeadTemplateName ??
+      orgSettings?.default_whatsapp_lead_template_name ??
+      null;
+
+    const orgTemplateLanguage = orgSettings?.default_whatsapp_lead_template_language ?? null;
+
+    if (!hasConsent) {
+      whatsappStatus = "skipped";
+      whatsappSkipReason = "no_consent";
+    } else if (!phoneRaw) {
+      whatsappStatus = "skipped";
+      whatsappSkipReason = "no_phone";
+    } else if (!templateName) {
+      whatsappStatus = "skipped";
+      whatsappSkipReason = "no_template";
+    } else {
+      const waResult = await triggerLeadWhatsApp(admin, {
+        organizationId: ctx.organizationId,
+        webId: ctx.webId,
+        templateName,
+        orgTemplateLanguage,
+        phoneNumber: phoneRaw,
+        name,
+        email: emailRaw || null,
+        formData,
+      });
+      whatsappStatus = waResult.status;
+      whatsappMessageId = waResult.messageId;
+      whatsappSkipReason = waResult.skipReason ?? null;
+
+      if (waResult.status === "failed") {
+        console.error("handleLeads WhatsApp failed:", {
+          lead_id: leadId,
+          organization_id: ctx.organizationId,
+          web_id: ctx.webId,
+          template_name: templateName,
+          mapping_source: waResult.mappingSource,
+          param_count: waResult.paramCount,
+          meta_error_code: waResult.metaErrorCode,
+          error: waResult.error,
+        });
+      } else if (waResult.status === "sent" && waResult.messageId) {
+        const creds = await resolveOrganizationWhatsAppCredentials(admin, ctx.organizationId);
+        if (creds.ok) {
+          const templateLanguage = waResult.templateLanguage ?? orgTemplateLanguage ?? "id";
+          const bodyPreview = await buildLeadWhatsAppStoredBody(admin, {
+            organizationId: ctx.organizationId,
+            whatsappAccountId: creds.credentials.whatsappAccountId,
+            phoneNumberId: creds.credentials.phoneNumberId,
+            accessToken: creds.credentials.accessToken,
+            templateName,
+            templateLanguage,
+            bodyParams: waResult.bodyParams ?? [],
+          });
+          const persisted = await persistLeadWhatsAppThread(admin, {
+            organizationId: ctx.organizationId,
+            leadId,
+            webId: ctx.webId,
+            phoneNumber: phoneRaw,
+            customerName: name,
+            waMessageId: waResult.messageId,
+            templateName,
+            templateLanguage,
+            bodyPreview,
+            bodyParams: waResult.bodyParams ?? [],
+            rawMetadata: waResult.rawMetadata ?? null,
+            whatsappAccountId: creds.credentials.whatsappAccountId,
+            phoneNumberId: creds.credentials.phoneNumberId,
+          });
+          if (persisted.ok) {
+            whatsappConversationId = persisted.conversationId;
+          } else {
+            console.error("handleLeads persistLeadWhatsAppThread failed:", persisted.error);
+            whatsappSkipReason = `persist_failed:${persisted.error}`.slice(0, 500);
+          }
+        } else {
+          console.error("handleLeads persist skipped — WA credentials:", creds.error);
+          whatsappSkipReason = "persist_failed:wa_not_configured";
+        }
+      }
     }
+
+    const waSentAt = whatsappStatus === "sent" ? new Date().toISOString() : null;
+
+    await admin
+      .from("lead_submissions")
+      .update({
+        whatsapp_status: whatsappStatus,
+        whatsapp_message_id: whatsappMessageId,
+        whatsapp_skip_reason: whatsappSkipReason,
+        whatsapp_sent_at: waSentAt,
+        whatsapp_conversation_id: whatsappConversationId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("lead_id", leadId)
+      .eq("organization_id", ctx.organizationId);
 
     const { data: ticketRow } = await admin.from("leads").select("ticket_id").eq("id", leadId).single();
+    const finalTicketId = ticketRow?.ticket_id ?? null;
 
     return apiSuccess(
       {
         lead_id: leadId,
-        ticket_id: ticketRow?.ticket_id ?? null,
+        ticket_id: finalTicketId,
+        whatsapp_ticket_id: finalTicketId,
         session_id: sessionId,
         attribution,
+        whatsapp_status: whatsappStatus,
+        whatsapp_message_id: whatsappMessageId,
+        whatsapp_skip_reason: whatsappSkipReason,
+        whatsapp_conversation_id: whatsappConversationId,
       },
       201,
       corsHeaders,

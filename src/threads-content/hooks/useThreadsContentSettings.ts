@@ -17,6 +17,8 @@ type SettingsResponse = {
   accounts: ThreadsContentAccountRow[];
   oauthConnected: boolean;
   serverConfigured?: boolean;
+  threads_app_id?: string | null;
+  requested_oauth_scopes?: string[];
 };
 
 async function invokeThreadsApi(organizationId: string, action: string, extra?: Record<string, unknown>) {

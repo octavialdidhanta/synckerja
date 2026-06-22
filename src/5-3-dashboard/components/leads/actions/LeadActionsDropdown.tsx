@@ -8,7 +8,12 @@ import { NewLead } from '@/shared/types/leads';
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 interface LeadActionsDropdownProps {
-  lead: NewLead & { _fromWhatsApp?: boolean; _fromEmail?: boolean; _fromFacebook?: boolean };
+  lead: NewLead & {
+    _fromWhatsApp?: boolean;
+    _fromEmail?: boolean;
+    _fromFacebook?: boolean;
+    whatsapp_conversation_id?: string | null;
+  };
   onEdit: (lead: NewLead) => void;
   onViewDetail?: (lead: NewLead) => void;
   onDelete?: (leadId: string) => void;
@@ -24,13 +29,16 @@ export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete, onTe
   const hasConversationId = fromWhatsApp || fromEmail || fromFacebook;
   const ticketId = (lead.ticket_id ?? '').trim();
   const hasTicketId = /^(WA-|IG-|FB-|EMAIL-)/i.test(ticketId);
-  const canOpenChat = hasConversationId || hasTicketId;
+  const waConversationId = (lead.whatsapp_conversation_id ?? '').trim();
+  const canOpenChat = hasConversationId || hasTicketId || Boolean(waConversationId);
   const isManualLead = (lead.created_by ?? '').trim() !== '' && lead.created_by !== ZERO_UUID;
 
   if (canOpenChat) {
     const url = hasConversationId
       ? `/omnichannel/livechat?conversation=${String(lead.id).replace(/^wa-/, '').replace(/^fb-/, '').replace(/^email-/, '')}`
-      : `/omnichannel/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
+      : waConversationId
+        ? `/omnichannel/livechat?conversation=${encodeURIComponent(waConversationId)}`
+        : `/omnichannel/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
     return (
       <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-medium" asChild>
         <Link to={url}>

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { MetaContentMetricsPayload, MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
@@ -9,6 +9,7 @@ export async function fetchMetaContentMetrics(args: {
   accountId: string;
   dateStart?: string;
   dateEnd?: string;
+  allTime?: boolean;
 }): Promise<MetaContentMetricsPayload> {
   const { data, error } = await supabase.functions.invoke('meta-content-metrics', {
     body: {
@@ -18,6 +19,7 @@ export async function fetchMetaContentMetrics(args: {
       account_id: args.accountId,
       date_start: args.dateStart ?? '',
       date_end: args.dateEnd ?? '',
+      all_time: args.allTime === true,
       _client_ts: Date.now(),
     },
   });
@@ -33,11 +35,12 @@ export function useMetaContentMetricsQuery(args: {
   accountId: string;
   dateStart?: string;
   dateEnd?: string;
+  allTime?: boolean;
   enabled?: boolean;
 }) {
-  const { organizationId, platform, accountId, dateStart, dateEnd, enabled = true } = args;
-  const rangeKeyStart = dateStart ?? 'all_time';
-  const rangeKeyEnd = dateEnd ?? 'all_time';
+  const { organizationId, platform, accountId, dateStart, dateEnd, allTime, enabled = true } = args;
+  const rangeKeyStart = allTime ? 'all_time' : (dateStart ?? 'all_time');
+  const rangeKeyEnd = allTime ? 'all_time' : (dateEnd ?? 'all_time');
 
   return useQuery({
     queryKey: ['meta-content-metrics', organizationId, platform, accountId, rangeKeyStart, rangeKeyEnd],
@@ -49,9 +52,11 @@ export function useMetaContentMetricsQuery(args: {
         accountId,
         dateStart,
         dateEnd,
+        allTime,
       }),
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 }

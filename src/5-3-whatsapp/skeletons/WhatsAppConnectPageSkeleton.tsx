@@ -2,8 +2,8 @@ import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 
 /**
- * Layout mirror for `/omnichannel/integrations/whatsapp` — used by PageAccessGuard,
- * Suspense fallback, and in-page overlay (Loading Skeleton rule).
+ * Layout mirror for `/omnichannel/integrations/whatsapp` — same shell pattern as
+ * `ThreadsConnectPageSkeleton` / `FacebookConnectPageSkeleton`.
  */
 export function WhatsAppConnectPageSkeleton() {
   return (
@@ -14,17 +14,27 @@ export function WhatsAppConnectPageSkeleton() {
             <div className="flex min-h-full min-w-0 flex-1 flex-col">
               <div className="mb-1 min-w-0 shrink-0">
                 <div className="min-w-0 max-w-full px-1 py-3" aria-hidden>
-                  <Skeleton className="mb-0.5 h-7 w-14 max-w-[40%]" />
-                  <Skeleton className="mb-3 h-3 w-80 max-w-full" />
-                  <div className="-mb-3 flex min-w-0 flex-nowrap gap-x-6 overflow-x-hidden">
-                    {['w-36', 'w-40', 'w-28'].map((w, i) => (
-                      <Skeleton key={i} className={`h-8 shrink-0 ${w}`} />
-                    ))}
+                  <div className="mb-3 min-w-0">
+                    <Skeleton className="mb-0.5 h-7 w-36 max-w-[55%]" />
+                    <Skeleton className="h-3 w-full max-w-lg" />
+                  </div>
+                  <div className="-mb-3 min-w-0 overflow-x-auto seamless-scroll">
+                    <nav className="flex min-w-0 flex-nowrap gap-x-6">
+                      {['w-32', 'w-36', 'w-40', 'w-28', 'w-24'].map((w, i) => (
+                        <div
+                          key={i}
+                          className="flex shrink-0 items-center space-x-1.5 border-b-2 border-transparent py-1.5 px-1"
+                        >
+                          <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
+                          <Skeleton className={`h-3.5 shrink-0 rounded-sm ${w}`} />
+                        </div>
+                      ))}
+                    </nav>
                   </div>
                 </div>
               </div>
 
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+              <div className="mt-2 grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                     <div className="flex min-h-0 flex-1 flex-col gap-6">

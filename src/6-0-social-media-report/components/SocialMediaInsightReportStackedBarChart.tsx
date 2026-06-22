@@ -104,6 +104,7 @@ export function SocialMediaInsightReportStackedBarChart({
     tiktok: t("digitalMarketing.socialMediaPerformance.platformTikTok", "TikTok"),
     youtube: t("digitalMarketing.socialMediaPerformance.platformYouTube", "YouTube"),
     linkedin: t("digitalMarketing.socialMediaPerformance.platformLinkedIn", "LinkedIn"),
+    threads: t("digitalMarketing.socialMediaPerformance.platformThreads", "Threads"),
     instagram: t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram"),
     facebook: t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook"),
   };

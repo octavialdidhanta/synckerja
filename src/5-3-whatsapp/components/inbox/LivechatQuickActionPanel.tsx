@@ -863,6 +863,7 @@ export function LivechatQuickActionPanel({
     isOutboundBlockedForLivechat({
       statusName: currentStatus?.name ?? null,
       metaSessionExpiresAt: conversationStatusRow?.meta_session_expires_at ?? null,
+      lastInboundAt: conversationStatusRow?.last_inbound_at ?? null,
     });
   const assigneeQuickActionLocked = !canSendAsActiveAssignee(conversationAssigneeId, currentEmployeeId);
   const quickActionDropdownsDisabled = isUnreadStatus || sessionLocked || assigneeQuickActionLocked;

@@ -14,6 +14,7 @@ import { Button } from '@/shared/components/ui/button';
 import { devLog } from '@/shared/lib/logger';
 import { isResolvedStatus } from '../../constants/leadStatus';
 import { stripSurveyLinksFromText } from '@/features/customer-survey/utils/customerSurveyAgentVisibility';
+import { formatWhatsAppMediaPreviewLabel } from '../../utils/whatsappLivechatMedia';
 
 /** Ikon platform chat (akun terconnect). WhatsApp, Instagram, atau Email. */
 function ChannelIcon({ channel = 'whatsapp', className }: { channel?: string; className?: string }) {
@@ -692,7 +693,10 @@ export function ConversationList({
                     {(() => {
                       let preview = isEmail
                         ? getEmailPreviewSnippet(conv.last_message_body)
-                        : stripHtmlForPreview(conv.last_message_body);
+                        : formatWhatsAppMediaPreviewLabel(
+                            stripHtmlForPreview(conv.last_message_body),
+                            conv.last_message_body === '[sticker]' ? 'sticker' : null,
+                          );
                       if (!isEmail) {
                         preview = stripSurveyLinksFromText(preview);
                         if (

@@ -4,10 +4,13 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { TikTokTabIcon } from "@/6-0-traffic/container/TikTokTabIcon";
+import { ThreadsTabIcon } from "@/6-0-social-media-performance/components/ThreadsTabIcon";
+import { SocialMediaInsightAccountAvatar } from "@/6-0-social-media-report/components/SocialMediaInsightAccountAvatar";
 import type { SocialMediaInsightAccountRow } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
 
 type Props = {
   rows: SocialMediaInsightAccountRow[];
+  organizationId?: string | null;
   isLoading?: boolean;
 };
 
@@ -33,6 +36,8 @@ function PlatformIcon({ platform }: { platform: SocialMediaInsightAccountRow["pl
       return <Facebook className="h-4 w-4 shrink-0" />;
     case "linkedin":
       return <Linkedin className="h-4 w-4 shrink-0" />;
+    case "threads":
+      return <ThreadsTabIcon className="h-4 w-4 shrink-0" />;
   }
 }
 
@@ -51,6 +56,8 @@ function platformLabel(
       return t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram");
     case "facebook":
       return t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook");
+    case "threads":
+      return t("digitalMarketing.socialMediaPerformance.platformThreads", "Threads");
   }
 }
 
@@ -75,7 +82,7 @@ function audienceCell(
 const thClass =
   "h-10 whitespace-nowrap bg-gray-50 px-3 text-left align-middle text-sm font-medium text-muted-foreground";
 
-export function SocialMediaInsightReportAccountTable({ rows, isLoading = false }: Props) {
+export function SocialMediaInsightReportAccountTable({ rows, organizationId, isLoading = false }: Props) {
   const { t } = useAppTranslation();
 
   return (
@@ -143,13 +150,13 @@ export function SocialMediaInsightReportAccountTable({ rows, isLoading = false }
                       </td>
                       <td className="max-w-[12rem] px-3 py-3 align-middle text-sm">
                         <div className="flex min-w-0 items-center gap-2">
-                          {row.avatarUrl ? (
-                            <img
-                              src={row.avatarUrl}
-                              alt=""
-                              className="h-8 w-8 shrink-0 rounded-full object-cover"
-                            />
-                          ) : null}
+                          <SocialMediaInsightAccountAvatar
+                            avatarUrl={row.avatarUrl}
+                            accountLabel={label}
+                            organizationId={organizationId}
+                            platform={row.platform}
+                            accountId={row.accountId}
+                          />
                           <span className="truncate font-medium text-gray-900">{label}</span>
                         </div>
                       </td>

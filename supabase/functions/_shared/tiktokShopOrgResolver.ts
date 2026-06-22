@@ -10,6 +10,7 @@ import {
   tokenExpiresAtIsoFromTikTokField,
   type TikTokShopAuthorizedShop,
 } from "./tiktokShopApi.ts";
+import { isTikTokShopExpiredCredentialsError } from "./tiktokShopAuthErrors.ts";
 
 export type TikTokShopAccountRow = {
   id: string;
@@ -38,6 +39,7 @@ export async function getTikTokShopAccessToken(
   admin: SupabaseClient,
   organizationId: string,
   sellerOpenId: string,
+  options?: { forceRefresh?: boolean },
 ): Promise<string | null> {
   const { data: row } = await admin
     .from("organization_tiktok_shop_connection_tokens")
@@ -53,15 +55,18 @@ export async function getTikTokShopAccessToken(
   const expiresAtMs = tokenRow.access_token_expires_at
     ? new Date(String(tokenRow.access_token_expires_at)).getTime()
     : null;
-  const needsRefresh = expiresAtMs != null &&
+  const needsRefresh = options?.forceRefresh === true || (
+    expiresAtMs != null &&
     Number.isFinite(expiresAtMs) &&
-    expiresAtMs < Date.now() + 60_000;
+    expiresAtMs < Date.now() + 60_000
+  );
 
   if (!needsRefresh) {
     try {
       return await decryptTikTokShopToken(String(tokenRow.access_token_enc));
     } catch (e) {
       console.error("getTikTokShopAccessToken decrypt:", e);
+      return null;
     }
   }
 
@@ -77,11 +82,7 @@ export async function getTikTokShopAccessToken(
   const refreshed = oauth ? await refreshTikTokShopAccessToken(oauth, refreshToken) : null;
 
   if (!refreshed?.access_token) {
-    try {
-      return await decryptTikTokShopToken(String(tokenRow.access_token_enc));
-    } catch {
-      return null;
-    }
+    return null;
   }
 
   try {
@@ -266,6 +267,30 @@ export async function resolveOrgTikTokShopForOrders(
   if (!accessToken) return null;
 
   return { accessToken, account };
+}
+
+/** Retry once with a forced token refresh when TikTok returns expired-credentials errors. */
+export async function withTikTokShopAccessTokenRetry<T>(
+  admin: SupabaseClient,
+  organizationId: string,
+  sellerOpenId: string,
+  accessToken: string,
+  fn: (token: string) => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn(accessToken);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!isTikTokShopExpiredCredentialsError(msg)) throw e;
+    const freshToken = await getTikTokShopAccessToken(
+      admin,
+      organizationId,
+      sellerOpenId,
+      { forceRefresh: true },
+    );
+    if (!freshToken) throw e;
+    return await fn(freshToken);
+  }
 }
 
 export async function fetchAndSyncAuthorizedShops(

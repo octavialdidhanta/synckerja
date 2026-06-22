@@ -65,6 +65,7 @@ export function TikTokContentAccountNav({
               <img
                 src={acc.avatar_url}
                 alt=""
+                referrerPolicy="no-referrer"
                 className="h-4 w-4 shrink-0 rounded-full object-cover"
               />
             ) : (

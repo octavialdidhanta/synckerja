@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Shield, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
@@ -8,7 +8,12 @@ import { Label } from "@/shared/components/ui/label";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { routeAfterLogin } from "@/0-auth/lib/postLoginRouting";
-import { MfaOtpInput, useMfaChallenge } from "@/shared/auth/mfa";
+import {
+  abandonMfaChallengeAndReturnToLogin,
+  MfaOtpInput,
+  useMfaChallenge,
+} from "@/shared/auth/mfa";
+import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { mfaSecuritySettingsPath } from "@/shared/auth/mfa/mfaSettingsPaths";
 import { hashRecoveryCode } from "@/shared/auth/mfa/recoveryCodes";
 import { fetchVerifiedTotpFactor, hasAal2Session } from "@/shared/auth/mfa/mfaUtils";
@@ -39,6 +44,7 @@ export function MfaVerifyScreen({
 }: MfaVerifyScreenProps = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [searchParams] = useSearchParams();
   const { verifying, error, verifyTotpCode, clearError } = useMfaChallenge();
   const [resetTrigger, setResetTrigger] = useState(0);
@@ -46,6 +52,7 @@ export function MfaVerifyScreen({
   const [recoveryInput, setRecoveryInput] = useState("");
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [abandoning, setAbandoning] = useState(false);
   const checkedRef = useRef(false);
 
   useEffect(() => {
@@ -115,6 +122,18 @@ export function MfaVerifyScreen({
       setRecoveryError(err instanceof Error ? err.message : String(err));
     } finally {
       setRecoveryLoading(false);
+    }
+  };
+
+  const backToLoginDisabled = verifying || recoveryLoading || abandoning;
+
+  const handleBackToLogin = async () => {
+    if (backToLoginDisabled) return;
+    setAbandoning(true);
+    try {
+      await abandonMfaChallengeAndReturnToLogin(navigate, signOut);
+    } finally {
+      setAbandoning(false);
     }
   };
 
@@ -198,9 +217,17 @@ export function MfaVerifyScreen({
       )}
 
       <p className="mt-4 text-center text-sm text-muted-foreground">
-        <Link to="/login" className="font-medium text-primary hover:underline">
-          {t("settings.security.twoFactor.backToLogin")}
-        </Link>
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto p-0 text-sm font-medium"
+          disabled={backToLoginDisabled}
+          onClick={() => void handleBackToLogin()}
+        >
+          {abandoning
+            ? t("settings.security.twoFactor.returningToLogin")
+            : t("settings.security.twoFactor.backToLogin")}
+        </Button>
       </p>
       <div className={authFormBottomSpacerClass} aria-hidden />
     </div>

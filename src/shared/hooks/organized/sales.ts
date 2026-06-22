@@ -1917,6 +1917,25 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       const rawLeads = leadsData ?? [];
 
+      const leadIds = rawLeads.map((l: { id: string }) => l.id).filter(Boolean);
+      const waConversationByLeadId = new Map<string, string>();
+      if (leadIds.length > 0) {
+        const { data: submissionRows } = await supabase
+          .from('lead_submissions')
+          .select('lead_id, whatsapp_conversation_id, submitted_at, updated_at')
+          .eq('organization_id', organizationId)
+          .eq('is_active', true)
+          .in('lead_id', leadIds)
+          .not('whatsapp_conversation_id', 'is', null)
+          .order('submitted_at', { ascending: false, nullsFirst: false });
+        for (const row of submissionRows ?? []) {
+          const lid = String(row.lead_id ?? '');
+          const convId = row.whatsapp_conversation_id != null ? String(row.whatsapp_conversation_id) : '';
+          if (!lid || !convId || waConversationByLeadId.has(lid)) continue;
+          waConversationByLeadId.set(lid, convId);
+        }
+      }
+
       // Fetch all lead statuses for this organization + global (org_id null) so Resolve/Unread etc. resolve correctly
       let statusMap = new Map<string, { id: string; name: string; color: string }>();
       const { data: statusesData, error: statusesError } = await supabase
@@ -1953,9 +1972,11 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       // Merge leads with their status information
       let leadsWithStatus = rawLeads.map((lead: any) => {
         const status = statusMap.get(normId(lead.status_id));
+        const whatsappConversationId = waConversationByLeadId.get(String(lead.id)) ?? null;
         return {
           ...lead,
           lead_status: status || null,
+          ...(whatsappConversationId ? { whatsapp_conversation_id: whatsappConversationId } : {}),
         };
       });
 

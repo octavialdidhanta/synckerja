@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  ensureWaLeadWebsiteAttribution,
+  findMergeableFloatingStubLeadId,
+  resolveWebIdFromDisplayPhoneNumber,
+} from "../_shared/omnichannelPublicApi/mergeWaInboundAttribution.ts";
 
 /** Declare Deno global for IDE when edge-runtime.d.ts is not resolved */
 declare const Deno: {
@@ -177,6 +182,8 @@ function getMediaIdAndType(msg: Record<string, unknown>): { id: string; type: st
   if (doc?.id) return { id: doc.id, type: "document", mime: doc.mime_type, filename: doc.filename };
   const aud = msg.audio as { id?: string; mime_type?: string } | undefined;
   if (aud?.id) return { id: aud.id, type: "audio", mime: aud.mime_type };
+  const sticker = msg.sticker as { id?: string; mime_type?: string } | undefined;
+  if (sticker?.id) return { id: sticker.id, type: "sticker", mime: sticker.mime_type };
   return null;
 }
 
@@ -434,11 +441,12 @@ async function ensureLeadForNewConversation(
   client: string,
   title: string,
   customerWaId: string | null | undefined,
-  createdByDisplayName: string
-): Promise<void> {
+  createdByDisplayName: string,
+  displayPhoneNumber?: string | null,
+): Promise<string | null> {
   const ticketId = WA_TICKET_PREFIX + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
   const { data: existing } = await supabase.from("leads").select("id").eq("ticket_id", ticketId).maybeSingle();
-  if (existing) return;
+  if (existing?.id) return String(existing.id);
 
   const { data: unreadStatus } = await supabase
     .from("lead_statuses")
@@ -449,13 +457,15 @@ async function ensureLeadForNewConversation(
   const statusId = unreadStatus?.id ?? null;
   if (!statusId) {
     console.warn("ensureLeadForNewConversation: no Unread status in lead_statuses, skip lead insert");
-    return;
+    return null;
   }
 
   const source = "WhatsApp";
   const safeClient = (client && String(client).trim()) || source;
   const safeTitle = (title && String(title).trim().slice(0, 100)) || source;
   const phoneNumber = source === "WhatsApp" && customerWaId ? String(customerWaId).trim() || null : null;
+  const now = new Date().toISOString();
+  const webId = resolveWebIdFromDisplayPhoneNumber(displayPhoneNumber);
 
   if (phoneNumber) {
     const formLeadId = await findMergeableFormLeadId(supabase, orgId, {
@@ -463,7 +473,6 @@ async function ensureLeadForNewConversation(
       waProfileClientLabel: safeClient,
     });
     if (formLeadId) {
-      const now = new Date().toISOString();
       const { error: mergeErr } = await supabase
         .from("leads")
         .update({
@@ -480,11 +489,39 @@ async function ensureLeadForNewConversation(
           ticket_id: ticketId,
         });
       }
-      return;
+      return formLeadId;
     }
   }
 
+  if (webId) {
+    const floatingStubId = await findMergeableFloatingStubLeadId(supabase, orgId, webId);
+    if (floatingStubId) {
+      const { error: mergeErr } = await supabase
+        .from("leads")
+        .update({
+          ticket_id: ticketId,
+          client: safeClient,
+          title: safeTitle,
+          source,
+          phone_number: phoneNumber,
+          updated_at: now,
+        })
+        .eq("id", floatingStubId);
+      if (mergeErr) {
+        console.error("ensureLeadForNewConversation: merge into floating stub failed", mergeErr);
+      } else {
+        console.log("ensureLeadForNewConversation: merged WA ticket into floating stub", {
+          lead_id: floatingStubId,
+          ticket_id: ticketId,
+        });
+      }
+      return floatingStubId;
+    }
+  }
+
+  const newLeadId = crypto.randomUUID();
   const { error } = await supabase.from("leads").insert({
+    id: newLeadId,
     ticket_id: ticketId,
     client: safeClient,
     title: safeTitle,
@@ -501,38 +538,17 @@ async function ensureLeadForNewConversation(
   });
   if (error) {
     console.error("ensureLeadForNewConversation: insert error", error);
-    return;
+    return null;
   }
   console.log("ensureLeadForNewConversation: lead created", { ticket_id: ticketId, source });
+  return newLeadId;
 }
 
 function resolveVialdiWeddingWebIdFromDisplayPhoneNumber(
   displayPhoneNumber: string | null | undefined,
 ): "vialdi-wedding" | null {
-  const d = digitsOnly(displayPhoneNumber ?? null);
-  if (d === "6281281714855" || d === "6281118891308") return "vialdi-wedding";
-  return null;
-}
-
-function extractClickIdsFromAttributionJson(attribution: unknown): { gclid: string | null; fbclid: string | null } {
-  if (attribution == null) return { gclid: null, fbclid: null };
-  let obj: Record<string, unknown>;
-  if (typeof attribution === "string") {
-    try {
-      obj = JSON.parse(attribution) as Record<string, unknown>;
-    } catch {
-      return { gclid: null, fbclid: null };
-    }
-  } else if (typeof attribution === "object" && !Array.isArray(attribution)) {
-    obj = attribution as Record<string, unknown>;
-  } else {
-    return { gclid: null, fbclid: null };
-  }
-  const gclidRaw = obj.gclid ?? obj.GCLID;
-  const fbclidRaw = obj.fbclid ?? obj.FBCLID;
-  const gclid = gclidRaw != null ? String(gclidRaw).trim() || null : null;
-  const fbclid = fbclidRaw != null ? String(fbclidRaw).trim() || null : null;
-  return { gclid, fbclid };
+  const webId = resolveWebIdFromDisplayPhoneNumber(displayPhoneNumber);
+  return webId === "vialdi-wedding" ? "vialdi-wedding" : null;
 }
 
 async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
@@ -566,52 +582,21 @@ async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
     const leadId = leadRow?.id;
     if (!leadId) return;
 
-    const { data: waClick, error: waSelErr } = await supabase
-      .from("analytics_wa_clicks")
-      .select("id, session_id, attribution")
-      .eq("web_id", webId)
-      .is("phone_number", null)
-      .lte("created_at", timestampIso)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    await ensureWaLeadWebsiteAttribution({
+      supabase,
+      orgId,
+      leadId: String(leadId),
+      ticketId,
+      customerWaId,
+      displayPhoneNumber,
+      inboundTimestampIso: timestampIso,
+    });
 
-    if (waSelErr) {
-      console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: analytics_wa_clicks select error", waSelErr);
-      return;
-    }
-    const analyticsSessionId = waClick?.session_id;
-    if (!waClick?.id || !analyticsSessionId) return;
-
-    const { error: waUpdErr } = await supabase
-      .from("analytics_wa_clicks")
-      .update({ phone_number: customerWaId })
-      .eq("id", waClick.id);
-
-    if (waUpdErr) {
-      console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: analytics_wa_clicks update error", waUpdErr);
-    }
-
-    const attribution = waClick?.attribution ?? null;
-    const clickIds = extractClickIdsFromAttributionJson(attribution);
-
-    const { error: leadPatchErr } = await supabase
+    const { data: patchedLead } = await supabase
       .from("leads")
-      .update({
-        web_id: webId,
-        analytics_session_id: analyticsSessionId,
-        attribution,
-        ...(clickIds.gclid ? { gclid: clickIds.gclid } : {}),
-        ...(clickIds.fbclid ? { fbclid: clickIds.fbclid } : {}),
-        phone_number: customerWaId || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("organization_id", orgId)
-      .eq("ticket_id", ticketId);
-
-    if (leadPatchErr) {
-      console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: leads patch error", leadPatchErr);
-    }
+      .select("analytics_session_id, attribution, attribution_label")
+      .eq("id", leadId)
+      .maybeSingle();
 
     const safeName = (customerName ?? customerWaId ?? "WhatsApp").toString().trim().slice(0, 200);
     const { error: upsertErr } = await supabase.from("leads_vialdi_wedding").upsert(
@@ -627,9 +612,9 @@ async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
         event_address: null,
         step: 1,
         source: "WhatsApp",
-        analytics_session_id: analyticsSessionId,
-        attribution: waClick?.attribution ?? null,
-        attribution_label: null,
+        analytics_session_id: patchedLead?.analytics_session_id ?? null,
+        attribution: patchedLead?.attribution ?? null,
+        attribution_label: patchedLead?.attribution_label ?? null,
       },
       { onConflict: "organization_id,step1_dedupe_key" },
     );
@@ -1070,8 +1055,9 @@ Deno.serve(async (req: Request) => {
                 }
                 const customerWaId = String(msg.from ?? "");
                 const mediaCaption = getInboundMediaCaption(msg as Record<string, unknown>);
-                const bodyText =
-                  msg.text?.body ?? mediaCaption ?? (msg.type === "text" ? "" : `[${msg.type}]`);
+                const msgType = String(msg.type ?? "text");
+                let bodyText =
+                  msg.text?.body ?? mediaCaption ?? (msgType === "text" ? "" : `[${msgType}]`);
                 if (blockContactRequests && messageContainsContactRequest(bodyText)) {
                   continue;
                 }
@@ -1137,7 +1123,8 @@ Deno.serve(async (req: Request) => {
                     customerName ?? customerWaId ?? "WhatsApp",
                     lastBody ?? "WhatsApp",
                     customerWaId,
-                    account.created_by_display_name
+                    account.created_by_display_name,
+                    account.display_phone_number,
                   );
                 }
 
@@ -1181,6 +1168,14 @@ Deno.serve(async (req: Request) => {
                   }
                 }
 
+                if (msgType === "sticker" && mediaUrl) {
+                  bodyText = "Sticker";
+                  await supabase
+                    .from("whatsapp_conversations")
+                    .update({ last_message_body: "Sticker", updated_at: timestamp })
+                    .eq("id", conv.id);
+                }
+
                 const insertPayload: Record<string, unknown> = {
                   conversation_id: conv.id,
                   direction: "inbound",
@@ -1214,7 +1209,7 @@ Deno.serve(async (req: Request) => {
                       insertPayload.reply_to_body =
                         repliedBody != null && repliedBody !== ""
                           ? String(repliedBody).slice(0, 500)
-                          : ["image", "video", "document", "audio"].includes(repliedType.toLowerCase())
+                          : ["image", "video", "document", "audio", "sticker"].includes(repliedType.toLowerCase())
                             ? `[${repliedType}]`
                             : "[Pesan]";
                       insertPayload.reply_to_message_type = repliedType;
@@ -1234,6 +1229,16 @@ Deno.serve(async (req: Request) => {
                 await notifyLivechatInboundPush("whatsapp_messages", insertPayload);
                 // Sync last_message from actual latest message so preview is always correct
                 await supabase.rpc("sync_conversation_last_message", { p_conversation_id: conv.id });
+
+                // Customer inbound reopens Meta CSW — clear stale lock from prior failed/expired outbound.
+                await supabase
+                  .from("whatsapp_conversations")
+                  .update({
+                    meta_session_expires_at: null,
+                    last_inbound_at: timestamp,
+                    updated_at: timestamp,
+                  })
+                  .eq("id", conv.id);
 
                 // Template follow-up cycle: customer replied → reset followup, Set Status
                 const { data: convTemplateState } = await supabase

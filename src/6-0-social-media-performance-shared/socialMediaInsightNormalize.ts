@@ -187,7 +187,7 @@ export function normalizeMetaMetrics(
     commentCount: r.comment_count,
     shareCount: r.share_count,
     engagementRate: r.engagement_rate,
-    planId: null,
+    planId: r.plan_id ?? null,
   }));
 
   const performancePath =
@@ -216,7 +216,10 @@ export function normalizeMetaMetrics(
       matchedPlans: 0,
       totalContent: total,
       hasUnmappedContent: false,
-      settingsPath: "/omnichannel/integrations/instagram",
+      settingsPath:
+        acc.platform === "instagram"
+          ? "/omnichannel/integrations/instagram"
+          : "/omnichannel/integrations/facebook",
       performancePath,
       isPlatformPlaceholder: false,
     },
@@ -239,7 +242,7 @@ export function normalizeThreadsMetrics(
     commentCount: r.comment_count,
     shareCount: r.share_count,
     engagementRate: r.engagement_rate,
-    planId: null,
+    planId: r.plan_id,
   }));
 
   return {

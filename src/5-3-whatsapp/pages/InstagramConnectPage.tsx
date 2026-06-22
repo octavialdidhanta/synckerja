@@ -20,6 +20,7 @@ import { buildMetaOAuthDialogUrl } from '@/meta-platform/constants/buildMetaOAut
 import { META_BUSINESS_OAUTH_SCOPES } from '@/meta-platform/constants/metaOAuthScopes';
 import { getMetaInstagramOAuthConfigId } from '@/meta-platform/constants/metaOAuthEnv';
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
+import { cn } from '@/shared/lib/utils';
 
 const META_OAUTH_SCOPE = META_BUSINESS_OAUTH_SCOPES;
 const META_OAUTH_VERSION = META_GRAPH_VERSION;
@@ -419,18 +420,16 @@ export function InstagramConnectPage() {
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
+      <div
+        className={cn(
+          'flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3',
+          showPageSkeleton && 'pointer-events-none invisible',
+        )}
+        aria-hidden={showPageSkeleton}
+      >
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="relative flex min-h-full min-w-0 flex-1 flex-col">
-              <div
-                className={
-                  showPageSkeleton
-                    ? 'invisible pointer-events-none flex min-h-full min-w-0 flex-1 flex-col'
-                    : 'flex min-h-full min-w-0 flex-1 flex-col'
-                }
-                aria-hidden={showPageSkeleton}
-              >
+            <div className="flex min-h-full min-w-0 flex-1 flex-col">
               <div className="mb-1 min-w-0 shrink-0">
                 <HeaderAndTab />
               </div>
@@ -594,22 +593,21 @@ export function InstagramConnectPage() {
                 </div>
               </div>
               </ModuleShellContentGate>
-              </div>
-
-              {showPageSkeleton && (
-                <div
-                  className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-surface-muted"
-                  aria-busy
-                  aria-label={t('instagramConnect.loadingAccounts', 'Loading...')}
-                >
-                  <span className="sr-only">{t('instagramConnect.loadingAccounts', 'Loading...')}</span>
-                  <InstagramConnectPageSkeleton mode="overlay" />
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
+
+      {showPageSkeleton ? (
+        <div
+          className="absolute inset-0 z-10 min-h-0 overflow-hidden"
+          aria-busy
+          aria-label={t('instagramConnect.loadingAccounts', 'Loading...')}
+        >
+          <InstagramConnectPageSkeleton />
+          <span className="sr-only">{t('instagramConnect.loadingAccounts', 'Loading...')}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

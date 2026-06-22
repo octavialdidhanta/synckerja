@@ -35,6 +35,8 @@ function markOAuthCodeExchanged(code: string): boolean {
 export type ThreadsOAuthExchangeResult = {
   threads_accounts_synced?: number;
   threads_username?: string | null;
+  granted_scopes?: string[];
+  missing_scopes?: string[];
   error?: string;
 };
 
@@ -140,10 +142,41 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         setOauthLoading(false);
         return;
       }
-      toast.success(
-        t('threadsConnect.oauthSuccess', 'Threads connected.'),
-        { id: 'threads-oauth-success' },
-      );
+      const missingScopes = Array.isArray(resData.missing_scopes)
+        ? resData.missing_scopes.map(String).filter(Boolean)
+        : [];
+      const grantedScopes = Array.isArray(resData.granted_scopes)
+        ? resData.granted_scopes.map(String).filter(Boolean)
+        : [];
+      const lacksContentPublish =
+        missingScopes.includes('threads_content_publish') ||
+        (grantedScopes.length > 0 && !grantedScopes.includes('threads_content_publish'));
+
+      if (lacksContentPublish) {
+        toast.error(
+          t(
+            'threadsConnect.oauthMissingContentPublish',
+            'Threads connected partially — threads_content_publish was NOT granted. Reply will not work. Remove Synckerja under Threads → Settings → Website permissions, then reconnect and accept the publish permission.',
+          ),
+          { id: 'threads-oauth-error', duration: 20000 },
+        );
+        toast.dismiss('threads-oauth-success');
+      } else {
+        toast.success(
+          t('threadsConnect.oauthSuccess', 'Threads connected.'),
+          { id: 'threads-oauth-success' },
+        );
+        if (missingScopes.length > 0) {
+          toast.warning(
+            t(
+              'threadsConnect.oauthMissingScopes',
+              'Threads connected, but some permissions were not granted: {{scopes}}. Add them in Meta App → Use cases → Threads API → Permissions, then reconnect.',
+              { scopes: missingScopes.join(', ') },
+            ),
+            { id: 'threads-oauth-missing-scopes', duration: 16000 },
+          );
+        }
+      }
       toast.dismiss('threads-oauth-error');
       exchangeSucceededRef.current = true;
       try {
@@ -189,6 +222,9 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
       scope: THREADS_OAUTH_SCOPES,
       response_type: 'code',
       state,
+      // Force Meta to re-show consent so newly added app permissions (e.g. threads_content_publish)
+      // are actually granted on the token — reconnect alone reuses old grants otherwise.
+      auth_type: 'rerequest',
     });
     const url = `https://threads.net/oauth/authorize?${params.toString()}`;
     try {

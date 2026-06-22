@@ -1280,7 +1280,7 @@ function AppRoutes() {
                         aria-label="Loading Connect Instagram"
                       >
                         <span className="sr-only">Loading Connect Instagram</span>
-                        <InstagramConnectPageSkeleton mode="route" />
+                        <InstagramConnectPageSkeleton />
                       </div>
                     }
                   >
@@ -1303,7 +1303,7 @@ function AppRoutes() {
                         aria-label="Loading Connect Facebook Page"
                       >
                         <span className="sr-only">Loading Connect Facebook Page</span>
-                        <FacebookConnectPageSkeleton mode="route" />
+                        <FacebookConnectPageSkeleton />
                       </div>
                     }
                   >
@@ -1326,7 +1326,7 @@ function AppRoutes() {
                         aria-label="Loading Connect Threads"
                       >
                         <span className="sr-only">Loading Connect Threads</span>
-                        <ThreadsConnectPageSkeleton mode="route" />
+                        <ThreadsConnectPageSkeleton />
                       </div>
                     }
                   >
@@ -1478,7 +1478,7 @@ const InstagramConnectOperationsSuspense = ({ children }: { children: ReactNode 
         aria-label="Loading Connect Instagram"
       >
         <span className="sr-only">Loading Connect Instagram</span>
-        <InstagramConnectPageSkeleton mode="route" />
+        <InstagramConnectPageSkeleton />
       </div>
     }
   >
@@ -1495,7 +1495,7 @@ const ThreadsConnectOperationsSuspense = ({ children }: { children: ReactNode })
         aria-label="Loading Connect Threads"
       >
         <span className="sr-only">Loading Connect Threads</span>
-        <ThreadsConnectPageSkeleton mode="route" />
+        <ThreadsConnectPageSkeleton />
       </div>
     }
   >
@@ -1512,7 +1512,7 @@ const FacebookConnectOperationsSuspense = ({ children }: { children: ReactNode }
         aria-label="Loading Connect Facebook Page"
       >
         <span className="sr-only">Loading Connect Facebook Page</span>
-        <FacebookConnectPageSkeleton mode="route" />
+        <FacebookConnectPageSkeleton />
       </div>
     }
   >
@@ -3163,7 +3163,7 @@ const App = () => (
                                   aria-label="Loading Connect Instagram"
                                 >
                                   <span className="sr-only">Loading Connect Instagram</span>
-                                  <InstagramConnectPageSkeleton mode="route" />
+                                  <InstagramConnectPageSkeleton />
                                 </div>
                               }
                             >
@@ -3186,7 +3186,7 @@ const App = () => (
                                   aria-label="Loading Connect Facebook Page"
                                 >
                                   <span className="sr-only">Loading Connect Facebook Page</span>
-                                  <FacebookConnectPageSkeleton mode="route" />
+                                  <FacebookConnectPageSkeleton />
                                 </div>
                               }
                             >
@@ -3209,7 +3209,7 @@ const App = () => (
                                   aria-label="Loading Connect Threads"
                                 >
                                   <span className="sr-only">Loading Connect Threads</span>
-                                  <ThreadsConnectPageSkeleton mode="route" />
+                                  <ThreadsConnectPageSkeleton />
                                 </div>
                               }
                             >

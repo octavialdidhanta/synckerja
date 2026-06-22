@@ -183,6 +183,18 @@ export function buildMonthlyViewsByPlatformTotals(
   return CHART_PLATFORMS.map((platform) => ({ platform, views: totals[platform] }));
 }
 
+/** Sum account-level view totals so the platform bar chart matches the account table. */
+export function buildViewsByPlatformTotalsFromAccounts(
+  accounts: SocialMediaInsightAccountRow[],
+): { platform: SocialMediaPlatform; views: number }[] {
+  const totals = emptyPlatformCounts();
+  for (const account of accounts) {
+    if (!account.connected || account.isPlatformPlaceholder) continue;
+    totals[account.platform] += account.totalViews;
+  }
+  return CHART_PLATFORMS.map((platform) => ({ platform, views: totals[platform] }));
+}
+
 export function computeInsightSummary(
   accounts: SocialMediaInsightAccountRow[],
 ): import("@/6-0-social-media-performance-shared/socialMediaInsightTypes").SocialMediaInsightSummary {

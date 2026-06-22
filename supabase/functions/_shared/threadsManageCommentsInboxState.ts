@@ -134,6 +134,66 @@ export async function syncThreadsManageCommentsPostBaselines(
   return getThreadsManageCommentsInboxState(admin, organizationId, threadsUserId);
 }
 
+async function hasUnengagedThreadsInboundComments(
+  admin: SupabaseClient,
+  organizationId: string,
+  threadsUserId: string,
+  mediaId: string,
+): Promise<boolean> {
+  const [{ data: inbound }, { data: engaged }] = await Promise.all([
+    admin
+      .from("threads_manage_comments_inbound_comments")
+      .select("comment_id")
+      .eq("organization_id", organizationId)
+      .eq("threads_user_id", threadsUserId)
+      .eq("media_id", mediaId),
+    admin
+      .from("threads_manage_comments_comment_engagements")
+      .select("comment_id")
+      .eq("organization_id", organizationId)
+      .eq("threads_user_id", threadsUserId)
+      .eq("media_id", mediaId),
+  ]);
+
+  const engagedSet = new Set((engaged ?? []).map((r) => String(r.comment_id)));
+  return (inbound ?? []).some((r) => !engagedSet.has(String(r.comment_id)));
+}
+
+async function reconcileThreadsPostHighlight(
+  admin: SupabaseClient,
+  organizationId: string,
+  threadsUserId: string,
+  mediaId: string,
+  lastKnownCommentCount: number,
+): Promise<void> {
+  const hasUnengaged = await hasUnengagedThreadsInboundComments(
+    admin,
+    organizationId,
+    threadsUserId,
+    mediaId,
+  );
+  const shouldHighlight = hasUnengaged && lastKnownCommentCount > 0;
+  const now = new Date().toISOString();
+
+  const { data: postRow } = await admin
+    .from("threads_manage_comments_post_inbox_state")
+    .select("pinned_at")
+    .eq("organization_id", organizationId)
+    .eq("threads_user_id", threadsUserId)
+    .eq("media_id", mediaId)
+    .maybeSingle();
+
+  await admin.from("threads_manage_comments_post_inbox_state").upsert({
+    organization_id: organizationId,
+    threads_user_id: threadsUserId,
+    media_id: mediaId,
+    last_known_comment_count: lastKnownCommentCount,
+    is_highlighted: shouldHighlight,
+    pinned_at: shouldHighlight ? (postRow?.pinned_at ?? now) : null,
+    updated_at: now,
+  }, { onConflict: "organization_id,threads_user_id,media_id" });
+}
+
 export async function syncThreadsManageCommentsInboundComments(
   admin: SupabaseClient,
   organizationId: string,
@@ -144,20 +204,24 @@ export async function syncThreadsManageCommentsInboundComments(
   const uniqueIds = [...new Set(commentIds.map((id) => id.trim()).filter(Boolean))];
   const now = new Date().toISOString();
 
+  const { data: postRow, error: postErr } = await admin
+    .from("threads_manage_comments_post_inbox_state")
+    .select("last_known_comment_count, is_highlighted, pinned_at")
+    .eq("organization_id", organizationId)
+    .eq("threads_user_id", threadsUserId)
+    .eq("media_id", mediaId)
+    .maybeSingle();
+  if (postErr) throw new Error(postErr.message);
+
+  const lastKnownCount = Number(postRow?.last_known_comment_count ?? 0);
+
   if (uniqueIds.length === 0) {
     await clearInboundForMedia(admin, organizationId, threadsUserId, [mediaId]);
-    const { data: postRow } = await admin
-      .from("threads_manage_comments_post_inbox_state")
-      .select("last_known_comment_count")
-      .eq("organization_id", organizationId)
-      .eq("threads_user_id", threadsUserId)
-      .eq("media_id", mediaId)
-      .maybeSingle();
     await admin.from("threads_manage_comments_post_inbox_state").upsert({
       organization_id: organizationId,
       threads_user_id: threadsUserId,
       media_id: mediaId,
-      last_known_comment_count: Number(postRow?.last_known_comment_count ?? 0),
+      last_known_comment_count: lastKnownCount,
       is_highlighted: false,
       pinned_at: null,
       updated_at: now,
@@ -165,26 +229,111 @@ export async function syncThreadsManageCommentsInboundComments(
     return getThreadsManageCommentsInboxState(admin, organizationId, threadsUserId);
   }
 
-  const rows = uniqueIds.map((commentId) => ({
-    organization_id: organizationId,
-    threads_user_id: threadsUserId,
-    media_id: mediaId,
-    comment_id: commentId,
-    detected_at: now,
-  }));
-  const { error } = await admin
+  const { data: existingInbound, error: inboundErr } = await admin
     .from("threads_manage_comments_inbound_comments")
-    .upsert(rows, { onConflict: "organization_id,threads_user_id,media_id,comment_id", ignoreDuplicates: true });
-  if (error) throw new Error(error.message);
+    .select("comment_id")
+    .eq("organization_id", organizationId)
+    .eq("threads_user_id", threadsUserId)
+    .eq("media_id", mediaId);
+  if (inboundErr) throw new Error(inboundErr.message);
 
-  await admin.from("threads_manage_comments_post_inbox_state").upsert({
-    organization_id: organizationId,
-    threads_user_id: threadsUserId,
-    media_id: mediaId,
-    is_highlighted: true,
-    pinned_at: now,
-    updated_at: now,
-  }, { onConflict: "organization_id,threads_user_id,media_id" });
+  const currentIdSet = new Set(uniqueIds);
+  const staleInboundIds = (existingInbound ?? [])
+    .map((r) => String(r.comment_id))
+    .filter((id) => !currentIdSet.has(id));
+  if (staleInboundIds.length > 0) {
+    const { error: staleErr } = await admin
+      .from("threads_manage_comments_inbound_comments")
+      .delete()
+      .eq("organization_id", organizationId)
+      .eq("threads_user_id", threadsUserId)
+      .eq("media_id", mediaId)
+      .in("comment_id", staleInboundIds);
+    if (staleErr) throw new Error(staleErr.message);
+  }
+
+  const existingSet = new Set(
+    (existingInbound ?? [])
+      .map((r) => String(r.comment_id))
+      .filter((id) => currentIdSet.has(id)),
+  );
+
+  const { data: engagedRows, error: engagedErr } = await admin
+    .from("threads_manage_comments_comment_engagements")
+    .select("comment_id")
+    .eq("organization_id", organizationId)
+    .eq("threads_user_id", threadsUserId)
+    .eq("media_id", mediaId);
+  if (engagedErr) throw new Error(engagedErr.message);
+
+  const engagedSet = new Set((engagedRows ?? []).map((r) => String(r.comment_id)));
+  const threadSeeded = (existingInbound ?? []).length > 0;
+
+  if (!threadSeeded) {
+    const baselineIds = uniqueIds.filter((id) => !engagedSet.has(id));
+    if (baselineIds.length > 0) {
+      const { error: insertErr } = await admin
+        .from("threads_manage_comments_inbound_comments")
+        .upsert(
+          baselineIds.map((comment_id) => ({
+            organization_id: organizationId,
+            threads_user_id: threadsUserId,
+            media_id: mediaId,
+            comment_id,
+            detected_at: now,
+          })),
+          { onConflict: "organization_id,threads_user_id,media_id,comment_id", ignoreDuplicates: true },
+        );
+      if (insertErr) throw new Error(insertErr.message);
+    }
+
+    await admin.from("threads_manage_comments_post_inbox_state").upsert({
+      organization_id: organizationId,
+      threads_user_id: threadsUserId,
+      media_id: mediaId,
+      last_known_comment_count: lastKnownCount,
+      is_highlighted: false,
+      pinned_at: null,
+      updated_at: now,
+    }, { onConflict: "organization_id,threads_user_id,media_id" });
+
+    return getThreadsManageCommentsInboxState(admin, organizationId, threadsUserId);
+  }
+
+  const freshIds = uniqueIds.filter((id) => !existingSet.has(id) && !engagedSet.has(id));
+  if (freshIds.length > 0) {
+    const { error: insertErr } = await admin
+      .from("threads_manage_comments_inbound_comments")
+      .upsert(
+        freshIds.map((comment_id) => ({
+          organization_id: organizationId,
+          threads_user_id: threadsUserId,
+          media_id: mediaId,
+          comment_id,
+          detected_at: now,
+        })),
+        { onConflict: "organization_id,threads_user_id,media_id,comment_id", ignoreDuplicates: true },
+      );
+    if (insertErr) throw new Error(insertErr.message);
+
+    await admin.from("threads_manage_comments_post_inbox_state").upsert({
+      organization_id: organizationId,
+      threads_user_id: threadsUserId,
+      media_id: mediaId,
+      last_known_comment_count: lastKnownCount,
+      is_highlighted: true,
+      pinned_at: now,
+      updated_at: now,
+    }, { onConflict: "organization_id,threads_user_id,media_id" });
+  } else {
+    await reconcileThreadsPostHighlight(
+      admin,
+      organizationId,
+      threadsUserId,
+      mediaId,
+      lastKnownCount,
+    );
+  }
 
   return getThreadsManageCommentsInboxState(admin, organizationId, threadsUserId);
 }
@@ -242,6 +391,22 @@ export async function markThreadsManageCommentsCommentRead(
     .eq("threads_user_id", threadsUserId)
     .eq("media_id", mediaId)
     .eq("comment_id", commentId);
+
+  const { data: postRow } = await admin
+    .from("threads_manage_comments_post_inbox_state")
+    .select("last_known_comment_count")
+    .eq("organization_id", organizationId)
+    .eq("threads_user_id", threadsUserId)
+    .eq("media_id", mediaId)
+    .maybeSingle();
+
+  await reconcileThreadsPostHighlight(
+    admin,
+    organizationId,
+    threadsUserId,
+    mediaId,
+    Number(postRow?.last_known_comment_count ?? 0),
+  );
 
   return getThreadsManageCommentsInboxState(admin, organizationId, threadsUserId);
 }

@@ -11,6 +11,7 @@ export type OmnichannelApiTokenRow = {
   token_type: OmnichannelApiTokenType;
   allowed_origins: string[];
   whatsapp_invoice_template_name: string | null;
+  whatsapp_lead_template_name: string | null;
   is_active: boolean;
   expires_at: string | null;
   last_used_at: string | null;
@@ -23,6 +24,9 @@ export type OmnichannelTokenDisplayStatus = "active" | "expired" | "revoked";
 export type OmnichannelApiSettings = {
   organization_id: string;
   default_whatsapp_invoice_template_name: string | null;
+  default_whatsapp_invoice_template_language: string | null;
+  default_whatsapp_lead_template_name: string | null;
+  default_whatsapp_lead_template_language: string | null;
   offline_conversion_enabled: boolean;
 };
 
@@ -101,6 +105,173 @@ export function useUpdateOmnichannelApiSettings(organizationId: string | null | 
     onSuccess: () => {
       if (organizationId) void qc.invalidateQueries({ queryKey: queryKey(organizationId) });
     },
+  });
+}
+
+export type LeadTemplateMappingRow = {
+  id: string;
+  organization_id: string;
+  web_id: string;
+  purpose: string;
+  template_name: string;
+  template_language: string;
+  parameter_mapping: Record<string, string> | null;
+  body_keys: string | null;
+  is_active: boolean;
+  updated_at: string;
+};
+
+const leadMappingQueryKey = (orgId: string, webId: string, name: string, lang: string) =>
+  [...queryKey(orgId), "lead-mapping", webId, name, lang] as const;
+
+export function useLeadMappingWebIds(
+  organizationId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: [...queryKey(organizationId ?? ""), "lead-mapping-web-ids"],
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
+    queryFn: async () => {
+      const data = await invokeManage({ action: "listLeadMappingWebIds", organizationId });
+      return (data.web_ids ?? []) as string[];
+    },
+  });
+}
+
+export function useLeadTemplateMapping(
+  organizationId: string | null | undefined,
+  args: { web_id: string; template_name: string; template_language: string } | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: args
+      ? leadMappingQueryKey(
+          organizationId ?? "",
+          args.web_id,
+          args.template_name,
+          args.template_language,
+        )
+      : [...queryKey(organizationId ?? ""), "lead-mapping", "idle"],
+    enabled:
+      Boolean(organizationId) &&
+      Boolean(args?.web_id && args.template_name) &&
+      (options?.enabled ?? true),
+    queryFn: async () => {
+      const data = await invokeManage({
+        action: "getLeadTemplateMapping",
+        organizationId,
+        ...args!,
+      });
+      return (data.mapping ?? null) as LeadTemplateMappingRow | null;
+    },
+  });
+}
+
+export function useRecentLeadFormDataKeys(
+  organizationId: string | null | undefined,
+  webId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: [...queryKey(organizationId ?? ""), "lead-form-data-keys", webId ?? ""],
+    enabled: Boolean(organizationId && webId) && (options?.enabled ?? true),
+    queryFn: async () => {
+      const data = await invokeManage({
+        action: "getRecentLeadFormDataKeys",
+        organizationId,
+        web_id: webId,
+      });
+      return (data.keys ?? []) as string[];
+    },
+  });
+}
+
+export type LeadSubmissionPreviewRow = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone_number: string | null;
+  notes: string | null;
+  form_data: Record<string, unknown> | null;
+  submitted_at: string | null;
+};
+
+export type LeadSubmissionPreviewBundle = {
+  submission: LeadSubmissionPreviewRow | null;
+  formDataKeys: string[];
+};
+
+export function useLatestLeadSubmissionForPreview(
+  organizationId: string | null | undefined,
+  webId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: [...queryKey(organizationId ?? ""), "lead-submission-preview", webId ?? ""],
+    enabled: Boolean(organizationId && webId) && (options?.enabled ?? true),
+    queryFn: async (): Promise<LeadSubmissionPreviewBundle> => {
+      const empty: LeadSubmissionPreviewBundle = { submission: null, formDataKeys: [] };
+      try {
+        const data = await invokeManage({
+          action: "getLatestLeadSubmissionForPreview",
+          organizationId,
+          web_id: webId,
+        });
+        const submission = (data.submission ?? null) as LeadSubmissionPreviewRow | null;
+        const fromApi = (data.form_data_keys ?? []) as string[];
+        return {
+          submission,
+          formDataKeys: fromApi.length > 0 ? fromApi : [],
+        };
+      } catch {
+        return empty;
+      }
+    },
+  });
+}
+
+export function useUpsertLeadTemplateMapping(organizationId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      web_id: string;
+      template_name: string;
+      template_language: string;
+      parameter_mapping: Record<string, string>;
+    }) => invokeManage({ action: "upsertLeadTemplateMapping", organizationId, ...payload }),
+    onSuccess: (_data, variables) => {
+      if (!organizationId) return;
+      void qc.invalidateQueries({
+        queryKey: leadMappingQueryKey(
+          organizationId,
+          variables.web_id,
+          variables.template_name,
+          variables.template_language,
+        ),
+      });
+    },
+  });
+}
+
+export function usePreviewLeadTemplateMapping(organizationId: string | null | undefined) {
+  return useMutation({
+    mutationFn: (payload: {
+      web_id: string;
+      template_name: string;
+      template_language: string;
+      parameter_mapping: Record<string, string>;
+      lead_submission_id?: string;
+    }) => invokeManage({ action: "previewLeadTemplateMapping", organizationId, ...payload }),
+  });
+}
+
+export function useSuggestLeadTemplateMapping(organizationId: string | null | undefined) {
+  return useMutation({
+    mutationFn: (payload: {
+      web_id: string;
+      template_name: string;
+      template_language: string;
+    }) => invokeManage({ action: "suggestLeadTemplateMapping", organizationId, ...payload }),
   });
 }
 

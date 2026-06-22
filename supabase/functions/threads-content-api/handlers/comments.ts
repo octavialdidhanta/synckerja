@@ -2,9 +2,23 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   countThreadTopLevelReplies,
   enrichThreadsPostsWithCommentCounts,
+  canThreadsTokenPublishReplies,
+  buildThreadsReplyTargetIds,
+  buildTopLevelCommentsFromConversation,
+  enrichTopLevelReplyCountsFromConversation,
+  enrichReplyCountsFromConversation,
+  countConversationActivity,
+  filterNestedRepliesFromConversation,
+  fetchThreadConversation,
+  fetchThreadNestedReplies,
+  fetchThreadsGrantedPermissions,
   fetchThreadReplies,
   fetchThreadsList,
   replyThreadsComment,
+  hideThreadsReply,
+  deleteThreadsMedia,
+  editThreadsReply,
+  canEditThreadsComment,
   type ThreadsComment,
 } from "../../_shared/threadsContentApi.ts";
 import {
@@ -13,6 +27,8 @@ import {
   resolveOrgThreadsContent,
   threadsContentJson,
 } from "../../_shared/threadsContentAuth.ts";
+import { missingScopesForFeature } from "../../_shared/metaPlatformScopes.ts";
+import { threadsAppId, threadsAppSecret } from "../../_shared/threadsAppCredentials.ts";
 import {
   dismissThreadsManageCommentsPostHighlight,
   getThreadsManageCommentsInboxState,
@@ -40,12 +56,12 @@ function mapCommentRow(row: ThreadsComment) {
     text: row.text,
     author_display_name: row.author_name,
     author_avatar_url: null,
-    like_count: row.like_count,
     reply_count: row.reply_count,
     parent_comment_id: row.parent_comment_id,
     published_at: row.published_at,
     is_channel_owner: row.is_owner,
     can_reply: row.can_reply,
+    can_edit: canEditThreadsComment(row.published_at, row.is_owner),
   };
 }
 
@@ -225,21 +241,41 @@ export async function handleThreadsComments(
       const mediaId = String(body.media_id ?? body.post_id ?? "").trim();
       if (!mediaId) return threadsContentJson({ error: "Missing media_id" }, 400);
       const sort = String(body.sort ?? "newest");
+      const emptyCommentsPayload = {
+        comments: [] as ReturnType<typeof mapCommentRow>[],
+        comment_count: 0,
+        activity_count: 0,
+        threads_user_id: resolvedThreadsUserId,
+        account_id: resolvedAccountId,
+      };
       try {
-        const comments = await fetchThreadReplies(mediaId, accessToken);
-        const topLevel = comments.filter((c) => !c.parent_comment_id || c.parent_comment_id === mediaId);
-        const commentCount = topLevel.length;
-        await syncThreadsManageCommentsPostBaselines(admin, organizationId, resolvedThreadsUserId, [
-          { media_id: mediaId, comment_count: commentCount },
-        ]);
+        const conversation = await fetchThreadConversation(mediaId, accessToken);
+        const topLevel = buildTopLevelCommentsFromConversation(conversation, mediaId);
+        const withReplyCounts = enrichTopLevelReplyCountsFromConversation(topLevel, conversation);
+        const commentCount = withReplyCounts.length;
+        const activityCount = countConversationActivity(conversation, mediaId);
+        try {
+          await syncThreadsManageCommentsPostBaselines(admin, organizationId, resolvedThreadsUserId, [
+            { media_id: mediaId, comment_count: commentCount },
+          ]);
+        } catch (syncErr) {
+          console.warn("listComments inbox sync skipped:", mediaId, syncErr);
+        }
         return threadsContentJson({
-          comments: sortComments(topLevel.map(mapCommentRow), sort),
+          comments: sortComments(withReplyCounts.map(mapCommentRow), sort),
           comment_count: commentCount,
+          activity_count: activityCount,
           threads_user_id: resolvedThreadsUserId,
           account_id: resolvedAccountId,
         }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        if (
+          /does not exist|unsupported get request|nonexisting|\(#100\)/i.test(msg) ||
+          /missing permissions|\(#10\)|\(#200\)/i.test(msg)
+        ) {
+          return threadsContentJson(emptyCommentsPayload, 200);
+        }
         return threadsContentJson({ error: msg, code: "THREADS_CONTENT_API_ERROR", action }, 400);
       }
     }
@@ -252,9 +288,10 @@ export async function handleThreadsComments(
       }
       const sort = String(body.sort ?? "newest");
       try {
-        const comments = await fetchThreadReplies(mediaId, accessToken);
-        const replies = comments.filter((c) => c.parent_comment_id === commentId);
-        return threadsContentJson({ comments: sortComments(replies.map(mapCommentRow), sort) }, 200);
+        const conversation = await fetchThreadConversation(mediaId, accessToken);
+        const replies = filterNestedRepliesFromConversation(conversation, commentId);
+        const withCounts = enrichReplyCountsFromConversation(replies, conversation);
+        return threadsContentJson({ comments: sortComments(withCounts.map(mapCommentRow), sort) }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         return threadsContentJson({ error: msg, code: "THREADS_CONTENT_API_ERROR", action }, 400);
@@ -268,12 +305,50 @@ export async function handleThreadsComments(
       if (!mediaId || !text) {
         return threadsContentJson({ error: "Missing media_id or text" }, 400);
       }
+
+      const appId = threadsAppId();
+      const appSecret = threadsAppSecret();
+      const liveScopes = await fetchThreadsGrantedPermissions(accessToken, appId, appSecret);
+      const scopesToCheck = liveScopes.length > 0 ? liveScopes : account.grantedScopes;
+      const hasManageReplies = scopesToCheck.some((s) => s.toLowerCase() === "threads_manage_replies");
+      const hasContentPublish = scopesToCheck.some((s) => s.toLowerCase() === "threads_content_publish");
+
+      if (!hasContentPublish) {
+        return threadsContentJson({
+          error: "threads_content_publish is not granted on your Threads OAuth token. Reading comments works, but publishing replies requires this scope. Revoke Synckerja under Threads → Settings → Website permissions, then reconnect and accept the publish content permission.",
+          code: "THREADS_MISSING_CONTENT_PUBLISH",
+          missing_scopes: ["threads_content_publish"],
+          granted_scopes: scopesToCheck,
+          has_manage_replies: hasManageReplies,
+          has_content_publish: false,
+          threads_app_id: appId || null,
+          action,
+        }, 403);
+      }
+
+      const missingFromDebug = missingScopesForFeature(scopesToCheck, "threads_replies");
+      const canPublishReplies = await canThreadsTokenPublishReplies(resolvedThreadsUserId, accessToken);
+      if (missingFromDebug.length > 0 && !canPublishReplies) {
+        return threadsContentJson({
+          error: `Missing Threads permissions: ${missingFromDebug.join(", ")}. Token scopes: [${scopesToCheck.join(", ") || "unknown"}]. Reply needs threads_manage_replies + threads_content_publish. Verify Meta App ID ${appId || "?"} matches your Threads API app, revoke Synckerja under Threads → Website permissions, then reconnect and accept all permissions.`,
+          code: "THREADS_MISSING_SCOPES",
+          missing_scopes: missingFromDebug,
+          granted_scopes: scopesToCheck,
+          has_manage_replies: hasManageReplies,
+          has_content_publish: hasContentPublish,
+          can_publish_replies: false,
+          threads_app_id: appId || null,
+          action,
+        }, 403);
+      }
+
       try {
         const reply = await replyThreadsComment(
           mediaId,
           text,
           accessToken,
           commentId || undefined,
+          resolvedThreadsUserId,
         );
         const inboxState = commentId
           ? await markThreadsManageCommentsCommentRead(
@@ -285,6 +360,89 @@ export async function handleThreadsComments(
           comment_id: reply.id,
           ...inboxState,
         }, 200);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const liveScopesOnError = await fetchThreadsGrantedPermissions(accessToken, appId, appSecret);
+        const scopesForError = liveScopesOnError.length > 0 ? liveScopesOnError : scopesToCheck;
+        const replyTargetIds = await buildThreadsReplyTargetIds(
+          mediaId,
+          commentId || undefined,
+          accessToken,
+        ).catch(() => [] as string[]);
+        return threadsContentJson({
+          error: msg,
+          code: "THREADS_CONTENT_API_ERROR",
+          action,
+          media_id: mediaId,
+          comment_id: commentId || null,
+          reply_target_ids: replyTargetIds,
+          granted_scopes: scopesForError,
+          has_manage_replies: scopesForError.some((s) => s.toLowerCase() === "threads_manage_replies"),
+          has_content_publish: scopesForError.some((s) => s.toLowerCase() === "threads_content_publish"),
+          threads_app_id: appId || null,
+        }, 400);
+      }
+    }
+
+    if (action === "hideComment") {
+      const commentId = String(body.comment_id ?? "").trim();
+      if (!commentId) return threadsContentJson({ error: "Missing comment_id" }, 400);
+      const hide = String(body.hide ?? "true").trim().toLowerCase() !== "false";
+      try {
+        await hideThreadsReply(commentId, accessToken, hide);
+        return threadsContentJson({ ok: true }, 200);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return threadsContentJson({ error: msg, code: "THREADS_CONTENT_API_ERROR", action }, 400);
+      }
+    }
+
+    if (action === "deleteComment") {
+      const commentId = String(body.comment_id ?? "").trim();
+      const mediaId = String(body.media_id ?? body.post_id ?? "").trim();
+      if (!commentId) return threadsContentJson({ error: "Missing comment_id" }, 400);
+      const scopesToCheck = account.grantedScopes;
+      if (!scopesToCheck.some((s) => s.toLowerCase() === "threads_delete")) {
+        return threadsContentJson({
+          error: "threads_delete is not granted. Reconnect Threads and accept delete permission.",
+          code: "THREADS_MISSING_DELETE",
+          missing_scopes: ["threads_delete"],
+        }, 403);
+      }
+      try {
+        await deleteThreadsMedia(commentId, accessToken);
+        const inboxState = mediaId
+          ? await getThreadsManageCommentsInboxState(admin, organizationId, resolvedThreadsUserId)
+          : undefined;
+        return threadsContentJson({ ok: true, ...(inboxState ?? {}) }, 200);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return threadsContentJson({ error: msg, code: "THREADS_CONTENT_API_ERROR", action }, 400);
+      }
+    }
+
+    if (action === "editComment") {
+      const mediaId = String(body.media_id ?? body.post_id ?? "").trim();
+      const commentId = String(body.comment_id ?? "").trim();
+      const parentCommentId = String(body.parent_comment_id ?? body.reply_to_id ?? "").trim();
+      const text = String(body.text ?? "").trim();
+      if (!mediaId || !commentId || !parentCommentId || !text) {
+        return threadsContentJson({ error: "Missing media_id, comment_id, parent_comment_id, or text" }, 400);
+      }
+      const publishedAt = String(body.published_at ?? "").trim() || null;
+      const isOwner = body.is_channel_owner === true;
+      try {
+        const edited = await editThreadsReply({
+          postMediaId: mediaId,
+          replyId: commentId,
+          parentCommentId,
+          text,
+          accessToken,
+          threadsUserId: resolvedThreadsUserId,
+          publishedAt,
+          isOwner,
+        });
+        return threadsContentJson({ ok: true, comment_id: edited.id }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         return threadsContentJson({ error: msg, code: "THREADS_CONTENT_API_ERROR", action }, 400);

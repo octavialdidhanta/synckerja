@@ -8,22 +8,24 @@ export function ClickDetailsDialog({
   open,
   onOpenChange,
   webId,
-  fromDate,
-  toDate,
-  rangeIsMaximum,
+  queryFromDate,
+  queryToDate,
+  queryDateReady,
   path,
   utm,
   visitorId,
   sessionId,
   sessionDay,
   sourceKey,
+  rowKind = "session",
+  pageViewId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   webId: string;
-  fromDate: string | null;
-  toDate: string | null;
-  rangeIsMaximum: boolean;
+  queryFromDate: string | null;
+  queryToDate: string | null;
+  queryDateReady: boolean;
   path: string;
   utm?: {
     route: string | null;
@@ -37,6 +39,8 @@ export function ClickDetailsDialog({
   sessionId?: string | null;
   sessionDay?: string | null;
   sourceKey?: "utm" | "paid_click_ids" | "referral" | "direct";
+  rowKind?: "session" | "journey";
+  pageViewId?: string | null;
 }) {
   const hasPath = typeof path === "string" && path.trim() !== "";
   const canFetch = Boolean(utm) || Boolean(sourceKey) || hasPath;
@@ -47,21 +51,27 @@ export function ClickDetailsDialog({
       "click-details",
       "desktop",
       webId,
-      fromDate,
-      toDate,
+      queryFromDate,
+      queryToDate,
       path,
       utm ?? null,
       visitorId ?? null,
       sessionId ?? null,
       sessionDay ?? null,
       sourceKey ?? null,
+      rowKind,
+      pageViewId ?? null,
     ],
-    enabled: Boolean(webId) && open && canFetch,
+    enabled: Boolean(webId) && open && canFetch && queryDateReady,
     queryFn: async () => {
+      if (!queryFromDate || !queryToDate) {
+        return [];
+      }
+
       const common = {
         p_web_id: webId,
-        p_from: rangeIsMaximum ? null : fromDate,
-        p_to: rangeIsMaximum ? null : toDate,
+        p_from: queryFromDate,
+        p_to: queryToDate,
         p_limit: 50,
       } as const;
 
@@ -88,10 +98,11 @@ export function ClickDetailsDialog({
               p_visitor_id: visitorId ?? null,
               p_session_id: sessionId,
               p_session_day: visitorId ? null : (sessionDay ?? null),
+              p_row_kind: rowKind,
+              p_page_view_id: pageViewId ?? null,
             });
             if (!scoped.error) return scoped;
 
-            // Keeps the dialog usable while Supabase schema cache or older DBs still expose the previous RPC signature.
             return supabase.rpc("get_click_targets_for_utm_row", utmParams);
           })()
         : sourceKey
@@ -119,7 +130,9 @@ export function ClickDetailsDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          {detailsQuery.isLoading ? (
+          {!queryDateReady ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-gray-500">Loading…</div>
+          ) : detailsQuery.isLoading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-gray-500">Loading…</div>
           ) : detailsQuery.isError ? (
             <div className="flex flex-1 items-center justify-center text-sm text-red-600">
@@ -189,4 +202,3 @@ export function ClickDetailsDialog({
     </Dialog>
   );
 }
-

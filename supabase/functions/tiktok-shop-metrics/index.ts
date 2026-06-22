@@ -17,7 +17,8 @@ import {
   summarizeTikTokShopOrders,
   TIKTOK_SHOP_PERIOD_SUMMARY_CACHE_TOKEN,
 } from "../_shared/tiktokShopApi.ts";
-import { resolveOrgTikTokShopForOrders } from "../_shared/tiktokShopOrgResolver.ts";
+import { resolveOrgTikTokShopForOrders, withTikTokShopAccessTokenRetry } from "../_shared/tiktokShopOrgResolver.ts";
+import { isTikTokShopScopeOrAuthError } from "../_shared/tiktokShopAuthErrors.ts";
 
 const CACHE_TTL_MINUTES = 10;
 const MAX_LOOKBACK_DAYS = 365;
@@ -63,17 +64,6 @@ function ymdToUnixRange(dateStart: string, dateEnd: string): { ge: number; lt: n
   return { ge, lt };
 }
 
-function isScopeOrAuthError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("access denied") ||
-    lower.includes("scope") ||
-    lower.includes("permission") ||
-    lower.includes("unauthorized") ||
-    lower.includes("invalid access token")
-  );
-}
-
 function apiErrorResponse(
   e: unknown,
   shopId: string,
@@ -81,7 +71,7 @@ function apiErrorResponse(
 ): Response {
   const msg = e instanceof Error ? e.message : String(e);
   console.error("tiktok-shop-metrics api:", msg);
-  const code = isScopeOrAuthError(msg) ? "TIKTOK_SHOP_SCOPE_ERROR" : "TIKTOK_SHOP_API_ERROR";
+  const code = isTikTokShopScopeOrAuthError(msg) ? "TIKTOK_SHOP_SCOPE_ERROR" : "TIKTOK_SHOP_API_ERROR";
   return tiktokShopJson({ error: msg, code, shop_id: shopId, shop_account_id: shopAccountId }, 400);
 }
 
@@ -192,13 +182,20 @@ async function handleGetOrderDashboard(
   const { ge, lt } = ymdToUnixRange(dateStart, dateEnd);
 
   try {
-    const searchResult = await searchTikTokShopOrders(oauth, accessToken, account.shop_cipher, {
-      createTimeGe: ge,
-      createTimeLt: lt,
-      pageSize: 50,
-      pageToken: pageToken || undefined,
-      orderStatus: orderStatus || undefined,
-    });
+    const searchResult = await withTikTokShopAccessTokenRetry(
+      admin,
+      organizationId,
+      account.seller_open_id,
+      accessToken,
+      (token) =>
+        searchTikTokShopOrders(oauth, token, account.shop_cipher, {
+          createTimeGe: ge,
+          createTimeLt: lt,
+          pageSize: 50,
+          pageToken: pageToken || undefined,
+          orderStatus: orderStatus || undefined,
+        }),
+    );
 
     const pageSummary = summarizeTikTokShopOrders(searchResult.orders);
     const payload = {
@@ -291,11 +288,18 @@ async function handleGetOrderPeriodSummary(
   const { ge, lt } = ymdToUnixRange(dateStart, dateEnd);
 
   try {
-    const summary = await aggregateOrderSearchPages(oauth, accessToken, account.shop_cipher, {
-      createTimeGe: ge,
-      createTimeLt: lt,
-      orderStatus: orderStatus || undefined,
-    });
+    const summary = await withTikTokShopAccessTokenRetry(
+      admin,
+      organizationId,
+      account.seller_open_id,
+      accessToken,
+      (token) =>
+        aggregateOrderSearchPages(oauth, token, account.shop_cipher, {
+          createTimeGe: ge,
+          createTimeLt: lt,
+          orderStatus: orderStatus || undefined,
+        }),
+    );
 
     const payload = {
       summary: {
@@ -368,11 +372,15 @@ async function handleGetOrderDetail(
   const { accessToken, account } = resolved;
 
   try {
-    const { orders } = await getTikTokShopOrderDetails(
-      oauth,
+    const { orders } = await withTikTokShopAccessTokenRetry(
+      admin,
+      organizationId,
+      account.seller_open_id,
       accessToken,
-      account.shop_cipher,
-      orderIds,
+      (token) =>
+        getTikTokShopOrderDetails(oauth, token, account.shop_cipher, orderIds).then(
+          (result) => result,
+        ),
     );
     return tiktokShopJson({
       orders,

@@ -38,6 +38,10 @@ import {
   useTikTokShopPeriodSummaryQuery,
 } from "@/tiktok-shop/hooks/useTikTokShopPeriodSummaryQuery";
 import { exportTikTokShopOrdersCsv } from "@/tiktok-shop/lib/exportTikTokShopOrdersCsv";
+import {
+  isTikTokShopExpiredCredentialsError,
+  isTikTokShopReconnectError,
+} from "@/tiktok-shop/lib/tiktokShopAuthErrors";
 import { pollTikTokOrdersForStock } from "@/stock-management/lib/inventoryApi";
 import type { TikTokAdsEdgeError } from "@/tiktok-ads/lib/parseEdgeFunctionError";
 import {
@@ -226,12 +230,14 @@ function TikTokShopDashboardPageContent() {
     dashboardError && typeof dashboardError === "object" && "code" in dashboardError
       ? String((dashboardError as TikTokAdsEdgeError).code ?? "")
       : "";
-  const isScopeError =
-    errorCode === "TIKTOK_SHOP_SCOPE_ERROR" ||
-    errorMessage.toLowerCase().includes("access denied") ||
-    errorMessage.toLowerCase().includes("scope") ||
-    errorMessage.toLowerCase().includes("permission");
-  const displayErrorMessage = isScopeError
+  const isScopeError = isTikTokShopReconnectError(errorCode, errorMessage);
+  const isTokenExpired = isTikTokShopExpiredCredentialsError(errorMessage);
+  const displayErrorMessage = isTokenExpired
+    ? t(
+        "digitalMarketing.tiktokShop.dashboard.tokenExpiredBody",
+        "TikTok Shop access has expired. Open Settings, disconnect this seller, then connect again to refresh the token.",
+      )
+    : isScopeError
     ? t(
         "digitalMarketing.tiktokShop.dashboard.scopeErrorBody",
         "Order API scope is missing on this seller token. Enable Order information in Partner Center, then disconnect and re-authorize the seller in Settings.",

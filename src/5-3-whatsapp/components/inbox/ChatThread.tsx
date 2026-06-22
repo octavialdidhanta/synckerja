@@ -20,6 +20,7 @@ import type {
   FacebookMessage,
   EmailConversation,
 } from '../../types';
+import { isMediaMessageType, isStickerMessageType, formatWhatsAppMediaPreviewLabel, WHATSAPP_MEDIA_TYPES } from '../../utils/whatsappLivechatMedia';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -49,6 +50,7 @@ import {
   Music,
   Send,
   ExternalLink,
+  Smile,
 } from 'lucide-react';
 import { messageContainsContactRequest } from '../../constants/contactRequestBlockPhrases';
 import {
@@ -441,13 +443,14 @@ function getMediaType(file: File): 'image' | 'video' | 'document' {
 
 const ACCEPT_MEDIA = 'image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip';
 
-const MEDIA_TYPES = ['image', 'video', 'document', 'audio'];
+const MEDIA_TYPES = [...WHATSAPP_MEDIA_TYPES];
 
 const DEFAULT_EXT: Record<string, string> = {
   image: 'jpg',
   video: 'mp4',
   document: 'pdf',
   audio: 'mp3',
+  sticker: 'webp',
 };
 
 function isPdfMediaUrl(url: string): boolean {
@@ -469,6 +472,7 @@ function ReplyMediaIcon({ messageType, className }: { messageType?: string | nul
   if (t === 'video') return <Video className={className} />;
   if (t === 'audio') return <Music className={className} />;
   if (t === 'document') return <FileText className={className} />;
+  if (t === 'sticker') return <Smile className={className} />;
   return null;
 }
 
@@ -801,6 +805,14 @@ function getMessageCaptionForReply(msg: { body: string | null; raw_metadata?: un
   return msg.body ?? null;
 }
 
+/** Legacy lead-API rows stored `[Template: name]` only; strip prefix when badge already shows Template. */
+function getTemplateDisplayBody(body: string | null | undefined): string {
+  const raw = String(body ?? "").trim();
+  if (!raw) return "—";
+  const withoutPrefix = raw.replace(/^\[Template:\s*[^\]]+\]\s*/i, "").trim();
+  return withoutPrefix || raw;
+}
+
 function MediaPreview({
   messageType,
   mediaUrl,
@@ -845,7 +857,9 @@ function MediaPreview({
         >
           {t('whatsappInbox.templateMessageLabel', 'Template')}
         </span>
-        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{body || '—'}</p>
+        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>
+          {getTemplateDisplayBody(body)}
+        </p>
       </div>
     );
   }
@@ -871,7 +885,12 @@ function MediaPreview({
 
   if (!mediaUrl) {
     const fallbackCaption = direction === 'inbound' ? getCaptionFromRawMetadata(rawMetadata) : null;
-    const displayBody = (body && !MEDIA_TYPES.some((t) => body === `[${t}]`)) ? body : (fallbackCaption ?? (body || '[Media]'));
+    const placeholderBody =
+      body && isMediaMessageType(body.replace(/^\[|\]$/g, '')) ? formatWhatsAppMediaPreviewLabel(body, messageType) : null;
+    const displayBody =
+      (body && !MEDIA_TYPES.some((t) => body === `[${t}]`))
+        ? body
+        : (fallbackCaption ?? placeholderBody ?? (body || '[Media]'));
     if (messageType === 'document' || messageType === 'audio') {
       const docMeta = parseDocumentBubbleMeta(rawMetadata, null, body, fallbackCaption ?? displayBody);
       return (
@@ -906,7 +925,9 @@ function MediaPreview({
             disabled={isResolving}
             className="text-xs font-medium underline hover:no-underline disabled:opacity-50"
           >
-            {isResolving ? t('whatsappInbox.loading', 'Loading...') : t('whatsappInbox.showImage', 'Show image')}
+            {isResolving ? t('whatsappInbox.loading', 'Loading...') : messageType === 'sticker'
+              ? t('whatsappInbox.showSticker', 'Show sticker')
+              : t('whatsappInbox.showImage', 'Show image')}
             </button>
         </span>
       );
@@ -926,6 +947,29 @@ function MediaPreview({
     </div>
   ) : null;
 
+  if (messageType === 'sticker' || (mediaUrl && isStickerMessageType(messageType))) {
+    return (
+      <span className="block">
+        <span className="relative inline-block max-w-[180px]">
+          {onMediaClick ? (
+            <button type="button" onClick={() => onMediaClick(mediaUrl, 'sticker')} className="block w-full text-left">
+              <img
+                src={mediaUrl}
+                alt=""
+                className="max-w-[180px] max-h-[180px] object-contain cursor-pointer"
+                loading="lazy"
+              />
+            </button>
+          ) : (
+            <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="block">
+              <img src={mediaUrl} alt="" className="max-w-[180px] max-h-[180px] object-contain" loading="lazy" />
+            </a>
+          )}
+          {mediaActionOverlay}
+        </span>
+      </span>
+    );
+  }
   if (messageType === 'image') {
     return (
       <span className="block">
@@ -1260,6 +1304,24 @@ export function ChatThread({
   const isResolvingMedia = isInstagram ? isResolvingIgMedia : isFacebook ? isResolvingFbMedia : isResolvingWaMedia;
   const resolvingMessageId = isInstagram ? resolvingIgMessageId : isFacebook ? resolvingFbMessageId : resolvingWaMessageId;
 
+  const autoResolvedStickerIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (isMetaDm || !resolveMedia) return;
+    for (const m of waMessages) {
+      if (
+        m.direction === 'inbound' &&
+        isStickerMessageType(m.message_type) &&
+        !String(m.media_url ?? '').trim() &&
+        !autoResolvedStickerIdsRef.current.has(m.id)
+      ) {
+        autoResolvedStickerIdsRef.current.add(m.id);
+        void resolveMedia(m.id).catch(() => {
+          autoResolvedStickerIdsRef.current.delete(m.id);
+        });
+      }
+    }
+  }, [waMessages, isMetaDm, resolveMedia]);
+
   const hasConversationId = !!conversation?.id;
   const statusQueryKey = isInstagram
     ? ['instagram-conversation-status', conversation?.id]
@@ -1352,16 +1414,18 @@ export function ChatThread({
   const isWhatsAppConversation = conversation?.source === 'whatsapp';
   const isResolved = isResolvedStatus(effectiveStatusName);
   const metaSessionExpiresAt = conversationStatusRow?.meta_session_expires_at ?? null;
+  const lastInboundAt = conversationStatusRow?.last_inbound_at ?? null;
   const outboundSessionBlocked =
     (isWhatsAppConversation || isMetaDm) &&
     isOutboundBlockedForLivechat({
       statusName: effectiveStatusName,
       metaSessionExpiresAt,
+      lastInboundAt,
     });
   const blockReasonResolved = isResolved;
   const blockReasonExpiredOrMeta =
     isExpiredStatusName(effectiveStatusName) ||
-    (!blockReasonResolved && isMetaSessionExpired(metaSessionExpiresAt));
+    (!blockReasonResolved && isMetaSessionExpired(metaSessionExpiresAt, lastInboundAt));
   const sendDisabledByNoAccount = Boolean(hasNoConnectedWhatsAppAccount && isWhatsAppConversation);
   /** WA/IG outbound: block only after subscription + roster resolve and no paid seats / agents. */
   const sendDisabledByNoOmnichannelAddon =
@@ -2285,8 +2349,10 @@ export function ChatThread({
             ) : null;
 
             const isMediaBubble = Boolean(
-              msg.media_url && MEDIA_TYPES.includes((msg.message_type ?? '').toLowerCase()),
+              msg.media_url && isMediaMessageType(msg.message_type),
             );
+            const isStickerBubble =
+              isStickerMessageType(msg.message_type) && Boolean(String(msg.media_url ?? '').trim());
             const bodyIsPlaceholder =
               msg.body != null && MEDIA_TYPES.some((t) => msg.body === `[${t}]`);
             const hasVisibleTextBody = Boolean(
@@ -2302,7 +2368,7 @@ export function ChatThread({
             const timeOverMedia =
               isMediaBubble &&
               !hasMediaCaption &&
-              (msg.message_type === 'image' || msg.message_type === 'video');
+              (msg.message_type === 'image' || msg.message_type === 'video' || msg.message_type === 'sticker');
 
             return (
             <React.Fragment key={msg.id}>
@@ -2553,11 +2619,17 @@ export function ChatThread({
               >
                 <div
                   className={`relative max-w-full rounded-xl ${
-                    isMediaBubble ? 'block px-1 py-1' : 'inline-block px-2 pt-1.5 pb-1.5 pl-2 pr-1.5'
+                    isStickerBubble
+                      ? 'bg-transparent shadow-none px-0 py-0'
+                      : isMediaBubble
+                        ? 'block px-1 py-1'
+                        : 'inline-block px-2 pt-1.5 pb-1.5 pl-2 pr-1.5'
                   } ${
-                    msg.direction === 'outbound'
-                      ? 'bg-[#128C7E] text-white'
-                      : 'bg-white text-gray-900 shadow-sm'
+                    isStickerBubble
+                      ? ''
+                      : msg.direction === 'outbound'
+                        ? 'bg-[#128C7E] text-white'
+                        : 'bg-white text-gray-900 shadow-sm'
                   } ${timeOverMedia ? 'pb-5' : ''}`}
                 >
                   {isInboundText && inboundDropdown && (
@@ -2572,7 +2644,9 @@ export function ChatThread({
                   )}
                   {(msg.reply_to_body ?? msg.reply_to_wa_message_id ?? msg.reply_to_sender) && (() => {
                     const repliedToMsg = messages.find((m) => m.wa_message_id === msg.reply_to_wa_message_id);
-                    const replyThumbUrl = repliedToMsg?.media_url && (repliedToMsg.message_type === 'image' || repliedToMsg.message_type === 'video') ? repliedToMsg.media_url : null;
+                    const replyThumbUrl = repliedToMsg?.media_url && ['image', 'video', 'sticker'].includes(repliedToMsg.message_type ?? '')
+                      ? repliedToMsg.media_url
+                      : null;
                     const goToRepliedMessage = () => {
                       if (repliedToMsg?.id) setScrollToMessageIdLocal(repliedToMsg.id);
                     };
@@ -2843,7 +2917,7 @@ export function ChatThread({
           {replyTo && (
             <div className="flex items-start gap-2 px-2 pt-2 pb-1.5 border-b border-border bg-muted/50">
               <div className="flex items-start gap-2 min-w-0 flex-1">
-                {(replyTo.media_url && (replyTo.message_type === 'image' || replyTo.message_type === 'video')) ? (
+                {(replyTo.media_url && ['image', 'video', 'sticker'].includes(replyTo.message_type ?? '')) ? (
                   <img
                     src={replyTo.media_url}
                     alt=""

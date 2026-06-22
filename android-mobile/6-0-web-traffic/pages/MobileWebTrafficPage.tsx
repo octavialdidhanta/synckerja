@@ -488,11 +488,14 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
                 </div>
               ) : null}
 
-              {!ingestionQuery.isLoading && !ingestionQuery.isError && ingestionQuery.data?.data_status === "rollups_not_built" ? (
+              {!ingestionQuery.isLoading &&
+              !ingestionQuery.isError &&
+              (ingestionQuery.data?.data_status === "raw_pending_rollup" ||
+                ingestionQuery.data?.data_status === "rollups_not_built") ? (
                 <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 p-3 text-xs text-amber-950">
                   {t(
                     "traffic.mobile.hintRollups",
-                    "Event trafik ada di database, tetapi agregat belum. Tarik ke bawah refresh atau buka Sync/refresh rollup (owner/admin) dari desktop.",
+                    "Event trafik sudah masuk (HTTP 201). Rollup dashboard biasanya selesai dalam 45–90 detik; tarik refresh atau tunggu poll otomatis. Jika masih kosong setelah ~2 menit, sync rollup dari desktop (owner/admin).",
                   )}
                 </div>
               ) : null}

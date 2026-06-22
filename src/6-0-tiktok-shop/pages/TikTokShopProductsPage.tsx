@@ -26,6 +26,10 @@ import {
   TIKTOK_SHOP_PAGE_PATH,
   TIKTOK_SHOP_SETTINGS_PATH,
 } from "@/tiktok-shop/settings/tiktokShopSettingsPaths";
+import {
+  isTikTokShopExpiredCredentialsError,
+  isTikTokShopReconnectError,
+} from "@/tiktok-shop/lib/tiktokShopAuthErrors";
 import { TikTokShopProductsPageSkeleton } from "@/6-0-tiktok-shop/skeletons/TikTokShopProductsPageSkeleton";
 import type { TikTokAdsEdgeError } from "@/tiktok-ads/lib/parseEdgeFunctionError";
 
@@ -131,8 +135,14 @@ function TikTokShopProductsPageContent() {
     productsError && typeof productsError === "object" && "code" in productsError
       ? String((productsError as TikTokAdsEdgeError).code ?? "")
       : "";
-  const isScopeError = errorCode === "TIKTOK_SHOP_PRODUCT_SCOPE_ERROR";
-  const displayErrorMessage = isScopeError
+  const isScopeError = isTikTokShopReconnectError(errorCode, errorMessage);
+  const isTokenExpired = isTikTokShopExpiredCredentialsError(errorMessage);
+  const displayErrorMessage = isTokenExpired
+    ? t(
+        "digitalMarketing.tiktokShop.products.tokenExpiredBody",
+        "TikTok Shop access has expired. Open Settings, disconnect this seller, then connect again to refresh the token.",
+      )
+    : isScopeError
     ? t(
         "digitalMarketing.tiktokShop.products.scopeErrorBody",
         "Product API scope is missing on this seller token. Enable Product basic in Partner Center, then disconnect and re-authorize the seller in Settings.",

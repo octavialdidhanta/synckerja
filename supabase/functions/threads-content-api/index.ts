@@ -24,6 +24,9 @@ const COMMENT_ACTIONS = new Set([
   "listReplies",
   "reply",
   "replyComment",
+  "hideComment",
+  "deleteComment",
+  "editComment",
 ]);
 
 const CONFIG_ACTIONS = new Set(["getSettings"]);

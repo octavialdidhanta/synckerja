@@ -48,6 +48,8 @@ export function SocialMediaInsightReportPlatformBarChart({ data, height = 280 }:
         return t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram");
       case "facebook":
         return t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook");
+      case "threads":
+        return t("digitalMarketing.socialMediaPerformance.platformThreads", "Threads");
     }
   };
 

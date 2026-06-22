@@ -10,20 +10,14 @@ import {
   tiktokShopJson,
 } from "../_shared/tiktokShopAuth.ts";
 import { searchTikTokShopProducts } from "../_shared/tiktokShopApi.ts";
-import { resolveOrgTikTokShopForOrders } from "../_shared/tiktokShopOrgResolver.ts";
+import { resolveOrgTikTokShopForOrders, withTikTokShopAccessTokenRetry } from "../_shared/tiktokShopOrgResolver.ts";
+import { isTikTokShopScopeOrAuthError } from "../_shared/tiktokShopAuthErrors.ts";
 
 const CACHE_TTL_MINUTES = 10;
 
-function isScopeOrAuthError(message: string): boolean {
+function isProductScopeOrAuthError(message: string): boolean {
   const lower = message.toLowerCase();
-  return (
-    lower.includes("access denied") ||
-    lower.includes("scope") ||
-    lower.includes("permission") ||
-    lower.includes("unauthorized") ||
-    lower.includes("invalid access token") ||
-    lower.includes("product")
-  );
+  return isTikTokShopScopeOrAuthError(message) || lower.includes("product");
 }
 
 function buildProductCachePageToken(pageToken: string, status: string): string {
@@ -116,15 +110,17 @@ Deno.serve(async (req: Request) => {
     if (!oauth) return tiktokShopJson({ error: "Platform not configured" }, 503);
 
     try {
-      const searchResult = await searchTikTokShopProducts(
-        oauth,
+      const searchResult = await withTikTokShopAccessTokenRetry(
+        admin,
+        organizationId,
+        account.seller_open_id,
         accessToken,
-        account.shop_cipher,
-        {
-          pageSize: 50,
-          pageToken: pageToken || undefined,
-          status: status || undefined,
-        },
+        (token) =>
+          searchTikTokShopProducts(oauth, token, account.shop_cipher, {
+            pageSize: 50,
+            pageToken: pageToken || undefined,
+            status: status || undefined,
+          }),
       );
 
       const payload = {
@@ -160,7 +156,7 @@ Deno.serve(async (req: Request) => {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("tiktok-shop-catalog search:", msg);
-      const code = isScopeOrAuthError(msg)
+      const code = isProductScopeOrAuthError(msg)
         ? "TIKTOK_SHOP_PRODUCT_SCOPE_ERROR"
         : "TIKTOK_SHOP_API_ERROR";
       return tiktokShopJson({

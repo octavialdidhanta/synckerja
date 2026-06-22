@@ -11,6 +11,7 @@ import {
 import {
   exchangeThreadsAuthCode,
   exchangeThreadsLongLivedToken,
+  fetchThreadsGrantedPermissions,
   fetchThreadsProfile,
 } from "../_shared/threadsContentApi.ts";
 import { encryptThreadsContentToken } from "../_shared/threadsContentConfigCrypto.ts";
@@ -37,6 +38,13 @@ function parseGrantedScopes(raw: unknown): string[] {
 
 function mergeGrantedScopes(existing: unknown, extra: readonly string[]): string[] {
   return [...new Set([...parseGrantedScopes(existing), ...extra])];
+}
+
+/** Replace threads_* scopes with values from the token; keep IG/FB scopes from existing row. */
+function mergeThreadsScopesIntoGranted(existing: unknown, threadsScopes: string[]): string[] {
+  const parsed = parseGrantedScopes(existing);
+  const withoutThreads = parsed.filter((s) => !s.toLowerCase().startsWith("threads_"));
+  return [...new Set([...withoutThreads, ...threadsScopes])];
 }
 
 Deno.serve(async (req: Request) => {
@@ -122,6 +130,7 @@ Deno.serve(async (req: Request) => {
     const threadsExchanged = await exchangeThreadsLongLivedToken(shortLived.access_token, appSecret);
     const threadsToken = threadsExchanged.access_token;
     const threadsProfile = await fetchThreadsProfile(threadsToken);
+    const actualThreadsScopes = await fetchThreadsGrantedPermissions(threadsToken, appId, appSecret);
     const tokenEnc = await encryptThreadsContentToken(threadsToken);
     const tokenExpiresAt = threadsExchanged.expires_in
       ? new Date(Date.now() + threadsExchanged.expires_in * 1000).toISOString()
@@ -157,7 +166,9 @@ Deno.serve(async (req: Request) => {
     let threadsAccountsSynced = 0;
     const saveErrors: string[] = [];
     for (const row of rows) {
-      const mergedScopes = mergeGrantedScopes(row.granted_scopes, THREADS_OAUTH_SCOPE_LIST);
+      const mergedScopes = actualThreadsScopes.length > 0
+        ? mergeThreadsScopesIntoGranted(row.granted_scopes, actualThreadsScopes)
+        : mergeThreadsScopesIntoGranted(row.granted_scopes, []);
       const { error: updateErr } = await supabaseAdmin
         .from("organization_instagram_accounts")
         .update({
@@ -198,7 +209,13 @@ Deno.serve(async (req: Request) => {
         success: true,
         threads_accounts_synced: threadsAccountsSynced,
         threads_username: threadsProfile.username,
-        granted_scopes: [...THREADS_OAUTH_SCOPE_LIST],
+        granted_scopes: actualThreadsScopes.length > 0
+          ? actualThreadsScopes
+          : [...THREADS_OAUTH_SCOPE_LIST],
+        missing_scopes: actualThreadsScopes.length > 0
+          ? THREADS_OAUTH_SCOPE_LIST.filter((s) => !actualThreadsScopes.includes(s))
+          : [],
+        threads_app_id: appId || null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

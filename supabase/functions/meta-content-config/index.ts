@@ -8,6 +8,7 @@ import {
   metaContentJson,
   requireActiveOrg,
 } from "../_shared/metaContentAuth.ts";
+import { enrichMetaContentAccountsWithAvatars } from "../_shared/metaContentAccountProfile.ts";
 import {
   META_SCOPE_FEATURE_MAP,
   missingScopesForFeature,
@@ -45,7 +46,11 @@ Deno.serve(async (req: Request) => {
     const orgForbidden = await requireActiveOrg(admin, userRes.userId, organizationId);
     if (orgForbidden) return orgForbidden;
 
-    const accounts = await listMetaContentAccounts(admin, organizationId);
+    const accounts = await enrichMetaContentAccountsWithAvatars(
+      admin,
+      organizationId,
+      await listMetaContentAccounts(admin, organizationId),
+    );
     const enriched = accounts.map((acc) => {
       const features = Object.keys(META_SCOPE_FEATURE_MAP) as Array<keyof typeof META_SCOPE_FEATURE_MAP>;
       const featureStatus = Object.fromEntries(

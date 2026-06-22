@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrganizationWhatsAppCredentials } from "./resolveOrganizationWhatsAppCredentials.ts";
 
 const META_API_BASE = "https://graph.facebook.com/v21.0";
 
@@ -14,6 +15,7 @@ export async function triggerInvoiceWhatsApp(
   args: {
     organizationId: string;
     templateName: string;
+    templateLanguage?: string | null;
     phoneNumber: string;
     invoiceNumber: string;
     amount: number;
@@ -22,31 +24,9 @@ export async function triggerInvoiceWhatsApp(
   },
 ): Promise<InvoiceWhatsAppResult> {
   try {
-    const { data: waAccount } = await admin
-      .from("organization_whatsapp_accounts")
-      .select("id, phone_number_id, meta_access_token, is_active")
-      .eq("organization_id", args.organizationId)
-      .eq("is_active", true)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!waAccount?.phone_number_id) {
-      return { status: "failed", messageId: null, error: "WhatsApp belum dikonfigurasi." };
-    }
-
-    let accessToken = String(waAccount.meta_access_token ?? "").trim();
-    if (!accessToken) {
-      const { data: orgMeta } = await admin
-        .from("organization_meta_config")
-        .select("meta_access_token")
-        .eq("organization_id", args.organizationId)
-        .maybeSingle();
-      accessToken = String(orgMeta?.meta_access_token ?? "").trim();
-    }
-
-    if (!accessToken) {
-      return { status: "failed", messageId: null, error: "Token Meta WhatsApp tidak ditemukan." };
+    const creds = await resolveOrganizationWhatsAppCredentials(admin, args.organizationId);
+    if (!creds.ok) {
+      return { status: "failed", messageId: null, error: creds.error };
     }
 
     const toDigits = args.phoneNumber.replace(/\D/g, "");
@@ -77,13 +57,15 @@ export async function triggerInvoiceWhatsApp(
       itemSummary || "-",
     ];
 
+    const languageCode = (args.templateLanguage ?? "id").trim() || "id";
+
     const payload = {
       messaging_product: "whatsapp",
       to: toDigits,
       type: "template",
       template: {
         name: args.templateName,
-        language: { code: "id" },
+        language: { code: languageCode },
         components: [
           {
             type: "body",
@@ -93,11 +75,11 @@ export async function triggerInvoiceWhatsApp(
       },
     };
 
-    const url = `${META_API_BASE}/${waAccount.phone_number_id}/messages`;
+    const url = `${META_API_BASE}/${creds.credentials.phoneNumberId}/messages`;
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${creds.credentials.accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),

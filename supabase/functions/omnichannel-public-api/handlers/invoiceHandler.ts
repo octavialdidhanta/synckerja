@@ -143,7 +143,7 @@ export async function handleInvoiceTrigger(
 
     const { data: orgSettings } = await admin
       .from("organization_omnichannel_api_settings")
-      .select("default_whatsapp_invoice_template_name")
+      .select("default_whatsapp_invoice_template_name, default_whatsapp_invoice_template_language")
       .eq("organization_id", ctx.organizationId)
       .maybeSingle();
 
@@ -152,10 +152,13 @@ export async function handleInvoiceTrigger(
       orgSettings?.default_whatsapp_invoice_template_name ??
       null;
 
+    const templateLanguage = orgSettings?.default_whatsapp_invoice_template_language ?? null;
+
     if (templateName && phoneRaw) {
       const waResult = await triggerInvoiceWhatsApp(admin, {
         organizationId: ctx.organizationId,
         templateName,
+        templateLanguage,
         phoneNumber: phoneRaw,
         invoiceNumber,
         amount,

@@ -21,6 +21,8 @@ function getMediaIdAndType(msg: Record<string, unknown>): { id: string; type: st
   if (doc?.id) return { id: doc.id, type: "document", mime: doc.mime_type, filename: doc.filename };
   const aud = msg.audio as { id?: string; mime_type?: string } | undefined;
   if (aud?.id) return { id: aud.id, type: "audio", mime: aud.mime_type };
+  const sticker = msg.sticker as { id?: string; mime_type?: string } | undefined;
+  if (sticker?.id) return { id: sticker.id, type: "sticker", mime: sticker.mime_type };
   return null;
 }
 
@@ -170,7 +172,7 @@ Deno.serve(async (req: Request) => {
     if (message.media_url) {
       return ok({ media_url: message.media_url });
     }
-    const allowedTypes = ["image", "video", "document", "audio"];
+    const allowedTypes = ["image", "video", "document", "audio", "sticker"];
     if (!allowedTypes.includes(message.message_type ?? "")) {
       return ok({ error: "Message is not media type" });
     }

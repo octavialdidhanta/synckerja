@@ -39,19 +39,28 @@ export function pickTikTokAccountLabel(account: {
 
 export async function fetchTikTokAccountProfileFromApi(
   accessToken: string,
-): Promise<{ displayName: string; avatarUrl: string | null } | null> {
+): Promise<{ displayName: string | null; avatarUrl: string | null } | null> {
   try {
     const user = await fetchTikTokUserInfo(accessToken);
-    const displayName = user.display_name?.trim() ?? "";
-    if (!displayName) return null;
     return {
-      displayName,
+      displayName: user.display_name?.trim() || null,
       avatarUrl: user.avatar_url?.trim() || null,
     };
   } catch (e) {
     console.warn("fetchTikTokAccountProfileFromApi:", e instanceof Error ? e.message : e);
     return null;
   }
+}
+
+function isTikTokHostedAvatarUrl(url: string | null | undefined): boolean {
+  const u = url?.trim().toLowerCase() ?? "";
+  if (!u) return false;
+  return (
+    u.includes("tiktokcdn")
+    || u.includes("tiktokv.com")
+    || u.includes("muscdn.com")
+    || u.includes("byteoversea.com")
+  );
 }
 
 export async function syncTikTokContentAccountProfiles(
@@ -64,24 +73,31 @@ export async function syncTikTokContentAccountProfiles(
 
   for (const acc of accounts) {
     if (!acc.is_active) continue;
-    const needsSync = isPlaceholderTikTokAccountLabel(acc.label, acc.open_id)
+    const needsLabelSync = isPlaceholderTikTokAccountLabel(acc.label, acc.open_id)
       || isPlaceholderTikTokAccountLabel(acc.display_name, acc.open_id);
-    if (!needsSync) continue;
+    const needsAvatarSync = !acc.avatar_url?.trim() || isTikTokHostedAvatarUrl(acc.avatar_url);
+    if (!needsLabelSync && !needsAvatarSync) continue;
 
     const tokenResult = await getTikTokContentAccessToken(admin, organizationId, acc.open_id);
     if (!tokenResult) continue;
 
     const profile = await fetchTikTokAccountProfileFromApi(tokenResult.accessToken);
-    if (!profile?.displayName) continue;
+    if (!profile) continue;
+    if (!needsLabelSync && !profile.avatarUrl) continue;
+
+    const updatePayload: Record<string, string | null> = { updated_at: now };
+    if (needsLabelSync && profile.displayName) {
+      updatePayload.label = profile.displayName;
+      updatePayload.display_name = profile.displayName;
+    }
+    if (needsAvatarSync && profile.avatarUrl) {
+      updatePayload.avatar_url = profile.avatarUrl;
+    }
+    if (Object.keys(updatePayload).length <= 1) continue;
 
     const { error } = await admin
       .from("organization_tiktok_content_accounts")
-      .update({
-        label: profile.displayName,
-        display_name: profile.displayName,
-        avatar_url: profile.avatarUrl ?? acc.avatar_url ?? null,
-        updated_at: now,
-      })
+      .update(updatePayload)
       .eq("id", acc.id)
       .eq("organization_id", organizationId);
 

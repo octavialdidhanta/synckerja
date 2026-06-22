@@ -9,13 +9,13 @@ export type MetaPostDateRangePayload = {
   start?: string;
   end?: string;
   wasStartClamped: boolean;
-  /** All time = up to 50 most recent posts; no publish-date filter (IG + FB). */
+  /** All time = paginate all published posts (no publish-date filter). */
   isAllTime: boolean;
 };
 
 /**
  * Meta content post listing (Instagram + Facebook).
- * `all_time` skips publish-date filtering and loads recent posts (API cap 50).
+ * `all_time` paginates through publish history; dated presets filter by publish date.
  */
 export function toMetaPostDateRangePayload(
   selection: GoogleAdsDateRangeSelection,
@@ -36,12 +36,12 @@ export function toMetaPostDateRangePayload(
   return { start, end, wasStartClamped: false, isAllTime: false };
 }
 
-/** Edge function args: all_time omits dates (50 most recent posts). */
+/** Edge function args: all_time sends flag; dated presets send start/end YMD. */
 export function metaContentMetricsFetchArgs(
   selection: GoogleAdsDateRangeSelection,
-): { dateStart?: string; dateEnd?: string } {
+): { dateStart?: string; dateEnd?: string; allTime?: boolean } {
   const range = toMetaPostDateRangePayload(selection);
-  if (range.isAllTime) return {};
+  if (range.isAllTime) return { allTime: true };
   return { dateStart: range.start, dateEnd: range.end };
 }
 

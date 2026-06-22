@@ -20,7 +20,12 @@ export const META_SCOPE_FEATURE_MAP = {
   insights: ["instagram_manage_insights", "pages_read_engagement"],
   pages: ["pages_show_list", "pages_manage_metadata"],
   threads_insights: ["threads_basic", "threads_manage_insights"],
-  threads_replies: ["threads_basic", "threads_read_replies", "threads_manage_replies"],
+  threads_replies: [
+    "threads_basic",
+    "threads_read_replies",
+    "threads_manage_replies",
+    "threads_content_publish",
+  ],
 } as const;
 
 export const THREADS_OAUTH_SCOPE_LIST = [
@@ -28,6 +33,7 @@ export const THREADS_OAUTH_SCOPE_LIST = [
   "threads_manage_insights",
   "threads_read_replies",
   "threads_manage_replies",
+  "threads_content_publish",
 ] as const;
 
 export function hasThreadsScopes(granted: string[]): boolean {

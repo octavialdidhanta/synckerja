@@ -5,6 +5,8 @@ import {
   requireActiveOrg,
   threadsContentJson,
 } from "../../_shared/threadsContentAuth.ts";
+import { threadsAppId } from "../../_shared/threadsAppCredentials.ts";
+import { THREADS_OAUTH_SCOPE_LIST } from "../../_shared/metaPlatformScopes.ts";
 
 export async function handleThreadsConfig(
   admin: SupabaseClient,
@@ -24,6 +26,8 @@ export async function handleThreadsConfig(
       accounts,
       serverConfigured: isThreadsPlatformConfigured(),
       oauthConnected: accounts.length > 0,
+      threads_app_id: threadsAppId() || null,
+      requested_oauth_scopes: [...THREADS_OAUTH_SCOPE_LIST],
     }, 200);
   }
 

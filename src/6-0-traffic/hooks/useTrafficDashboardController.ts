@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import { resolveTrafficDateRangeFromSelection } from "@/6-0-digital-marketing-shared/lib/resolveTrafficDateRange";
 import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { resolveTrafficQueryDateBounds } from "@/6-0-traffic/lib/resolveTrafficQueryDateBounds";
+
+/** Background poll while Traffic overview tab is visible (rollup debounce ~45s). */
+export const TRAFFIC_LIVE_POLL_MS = 45_000;
+
+function trafficLivePollInterval(): number | false {
+  if (typeof document !== "undefined" && document.hidden) return false;
+  return TRAFFIC_LIVE_POLL_MS;
+}
 
 export type TrafficDashboardPayload = {
   web_id: string;
@@ -44,6 +53,9 @@ export type TrafficDashboardPayload = {
     clicks: number;
   }>;
   utm_table: Array<{
+    row_kind?: "session" | "journey" | null;
+    parent_session_id?: string | null;
+    page_view_id?: string | null;
     visit_key?: string | null;
     visitor_id?: string | null;
     session_id?: string | null;
@@ -82,7 +94,10 @@ export type TrafficIngestionStatus = {
   /** YYYY-MM-DD; null jika belum ada baris agregat untuk web_id */
   aggregate_day_min?: string | null;
   aggregate_day_max?: string | null;
-  data_status: "ok" | "no_ingested_data" | "rollups_not_built";
+  /** YYYY-MM-DD; bounds dari tabel mentah (WIB) */
+  raw_day_min?: string | null;
+  raw_day_max?: string | null;
+  data_status: "ok" | "no_ingested_data" | "raw_pending_rollup" | "rollups_not_built";
 };
 
 export type TrafficWebAccessRequest = {
@@ -211,8 +226,10 @@ export function useTrafficDashboardController() {
         });
         if (ingErr) throw ingErr;
         const ingRow = ing as TrafficIngestionStatus;
-        const bmin = ymdOnly(ingRow.aggregate_day_min ?? null);
-        const bmax = ymdOnly(ingRow.aggregate_day_max ?? null);
+        const bmin =
+          ymdOnly(ingRow.aggregate_day_min ?? null) ?? ymdOnly(ingRow.raw_day_min ?? null);
+        const bmax =
+          ymdOnly(ingRow.aggregate_day_max ?? null) ?? ymdOnly(ingRow.raw_day_max ?? null);
         if (bmin && bmax) {
           rpcFrom = bmin;
           rpcTo = bmax;
@@ -245,11 +262,19 @@ export function useTrafficDashboardController() {
       });
       return { ...raw, top_pages: topPages } as TrafficDashboardPayload;
     },
+    staleTime: 0,
+    placeholderData: keepPreviousData,
+    refetchInterval: trafficLivePollInterval,
+    refetchIntervalInBackground: false,
   });
 
   const ingestionQuery = useQuery({
     queryKey: ["traffic", "ingestion", organizationId, effectiveWebId],
     enabled: Boolean(organizationId) && Boolean(effectiveWebId),
+    staleTime: 0,
+    placeholderData: keepPreviousData,
+    refetchInterval: trafficLivePollInterval,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_traffic_ingestion_status", {
         p_web_id: effectiveWebId,
@@ -258,6 +283,11 @@ export function useTrafficDashboardController() {
       return data as TrafficIngestionStatus;
     },
   });
+
+  const { queryFromDate, queryToDate, queryDateReady } = useMemo(
+    () => resolveTrafficQueryDateBounds(rangeIsMaximum, fromDate, toDate, ingestionQuery.data),
+    [rangeIsMaximum, fromDate, toDate, ingestionQuery.data],
+  );
 
   return {
     organizationId,
@@ -273,6 +303,9 @@ export function useTrafficDashboardController() {
     fromDate,
     toDate,
     rangeIsMaximum,
+    queryFromDate,
+    queryToDate,
+    queryDateReady,
     dashboardQuery,
     ingestionQuery,
   };

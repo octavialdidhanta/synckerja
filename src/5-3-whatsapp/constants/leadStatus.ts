@@ -48,11 +48,25 @@ export function isExpiredStatusName(name: string | null | undefined): boolean {
   return name.trim().toLowerCase() === 'expired';
 }
 
+/** Meta customer-care window after last inbound (fallback when webhook timestamp is stale). */
+const META_CS_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function isWithinMetaCustomerCareWindow(lastInboundAt: string | null | undefined): boolean {
+  if (lastInboundAt == null || String(lastInboundAt).trim() === '') return false;
+  const ms = new Date(lastInboundAt).getTime();
+  if (Number.isNaN(ms)) return false;
+  return Date.now() - ms < META_CS_WINDOW_MS;
+}
+
 /**
  * True when `meta_session_expires_at` from Meta webhook is in the past.
- * This is Meta-provided wall time, not a server-side "last inbound + 24h" calculation.
+ * Inbound within 24h reopens the CS window even if an older expiry timestamp remains in DB.
  */
-export function isMetaSessionExpired(metaSessionExpiresAt: string | null | undefined): boolean {
+export function isMetaSessionExpired(
+  metaSessionExpiresAt: string | null | undefined,
+  lastInboundAt?: string | null,
+): boolean {
+  if (isWithinMetaCustomerCareWindow(lastInboundAt)) return false;
   if (metaSessionExpiresAt == null || String(metaSessionExpiresAt).trim() === '') return false;
   const ms = new Date(metaSessionExpiresAt).getTime();
   if (Number.isNaN(ms)) return false;
@@ -63,9 +77,11 @@ export function isMetaSessionExpired(metaSessionExpiresAt: string | null | undef
 export function isOutboundBlockedForLivechat(args: {
   statusName: string | null | undefined;
   metaSessionExpiresAt: string | null | undefined;
+  lastInboundAt?: string | null;
 }): boolean {
-  if (isResolvedStatus(args.statusName)) return true;
-  if (isExpiredStatusName(args.statusName)) return true;
-  if (isMetaSessionExpired(args.metaSessionExpiresAt)) return true;
+  const recentInbound = isWithinMetaCustomerCareWindow(args.lastInboundAt);
+  if (isResolvedStatus(args.statusName) && !recentInbound) return true;
+  if (isExpiredStatusName(args.statusName) && !recentInbound) return true;
+  if (isMetaSessionExpired(args.metaSessionExpiresAt, args.lastInboundAt)) return true;
   return false;
 }

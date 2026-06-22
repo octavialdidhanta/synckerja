@@ -69,6 +69,9 @@ type TrafficDashboardPayload = {
     clicks: number;
   }>;
   utm_table: Array<{
+    row_kind?: "session" | "journey" | null;
+    parent_session_id?: string | null;
+    page_view_id?: string | null;
     visit_key?: string | null;
     visitor_id?: string | null;
     session_id?: string | null;
@@ -203,6 +206,9 @@ export default function TrafficPage() {
     fromDate,
     toDate,
     rangeIsMaximum,
+    queryFromDate,
+    queryToDate,
+    queryDateReady,
     dashboardQuery,
     ingestionQuery,
     webAccessQuery,
@@ -582,14 +588,19 @@ export default function TrafficPage() {
                           </Alert>
                         </div>
                       ) : null}
-                      {!ingestionQuery.isLoading && !ingestionQuery.isError && ingestionQuery.data?.data_status === "rollups_not_built" && (
+                      {!ingestionQuery.isLoading &&
+                        !ingestionQuery.isError &&
+                        (ingestionQuery.data?.data_status === "raw_pending_rollup" ||
+                          ingestionQuery.data?.data_status === "rollups_not_built") && (
                         <div className="col-span-12">
                           <Alert className="border-amber-200 bg-amber-50/90 text-amber-950">
-                            <AlertTitle className="text-amber-950">Perlu &quot;Sync data&quot;</AlertTitle>
+                            <AlertTitle className="text-amber-950">Agregat dashboard sedang disiapkan</AlertTitle>
                             <AlertDescription className="text-sm text-amber-900/90">
-                              Event trafik sudah masuk ke tabel mentah, tetapi agregat harian belum dibuat—karena itulah grafik
-                              memuat nol. Klik <strong>Sync data</strong> (akun <strong>owner</strong> atau <strong>admin</strong>).
-                              Setelah selesai, data akan tampil untuk rentang tanggal yang dipilih.
+                              Event trafik sudah masuk (API mengembalikan HTTP 201), tetapi rollup harian belum selesai.
+                              Dashboard biasanya memperbarui otomatis dalam <strong>45–90 detik</strong>. Grafik harian bisa
+                              sementara nol sampai rollup selesai. Jika setelah ~2 menit masih kosong, klik{" "}
+                              <strong>Sync data</strong> (akun <strong>owner</strong> atau <strong>admin</strong>) untuk
+                              refresh rollup manual—bukan mengirim ulang data dari website.
                             </AlertDescription>
                           </Alert>
                         </div>
@@ -710,6 +721,7 @@ export default function TrafficPage() {
                                     <td className="px-4 py-2.5 text-right tabular-nums text-gray-800">
                                       <button
                                         type="button"
+                                        disabled={!queryDateReady || row.clicks <= 0}
                                         onClick={() => {
                                           const key =
                                             row.key === "utm" || row.key === "paid_click_ids" || row.key === "referral" || row.key === "direct"
@@ -727,7 +739,7 @@ export default function TrafficPage() {
                                                     : row.label || row.key;
                                           setClickDetails({ kind: "source", key, label });
                                         }}
-                                        className="w-full text-right font-semibold text-primary hover:underline"
+                                        className="w-full text-right font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
                                         aria-label={`Lihat detail klik untuk ${row.label || row.key}`}
                                       >
                                         {row.clicks.toLocaleString()}
@@ -823,9 +835,9 @@ export default function TrafficPage() {
                           rows={utmRows}
                           onUtmTableMetricsSliceChange={setUtmTableMetrics}
                           webId={effectiveWebId}
-                          fromDate={fromDate}
-                          toDate={toDate}
-                          rangeIsMaximum={rangeIsMaximum}
+                          queryFromDate={queryFromDate}
+                          queryToDate={queryToDate}
+                          queryDateReady={queryDateReady}
                         />
                       </div>
                     </div>
@@ -875,7 +887,8 @@ export default function TrafficPage() {
                                       {Number(p.clicks ?? 0) > 0 ? (
                                         <button
                                           type="button"
-                                          className="tabular-nums text-blue-600 hover:underline"
+                                          className="tabular-nums text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                                          disabled={!queryDateReady}
                                           onClick={() => {
                                             const raw = String(p.path ?? "").trim();
                                             setClickDetails({ kind: "path", path: raw || "/" });
@@ -954,7 +967,8 @@ export default function TrafficPage() {
                                       {Number(p.clicks ?? 0) > 0 ? (
                                         <button
                                           type="button"
-                                          className="tabular-nums text-blue-600 hover:underline"
+                                          className="tabular-nums text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                                          disabled={!queryDateReady}
                                           onClick={() => {
                                             const raw = String(p.path ?? "").trim();
                                             setClickDetails({ kind: "path", path: raw || "/" });
@@ -1072,9 +1086,9 @@ export default function TrafficPage() {
           if (!open) setClickDetails(null);
         }}
         webId={effectiveWebId}
-        fromDate={fromDate}
-        toDate={toDate}
-        rangeIsMaximum={rangeIsMaximum}
+        queryFromDate={queryFromDate}
+        queryToDate={queryToDate}
+        queryDateReady={queryDateReady}
         path={clickDetails?.kind === "path" ? clickDetails.path : clickDetails?.kind === "source" ? clickDetails.label : ""}
         sourceKey={clickDetails?.kind === "source" ? clickDetails.key : undefined}
       />

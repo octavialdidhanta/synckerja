@@ -1,3 +1,4 @@
+export { abandonMfaChallengeAndReturnToLogin, logMfaChallengeAbandoned } from "./abandonMfaChallenge";
 export { checkAal2 } from "./requireAal2";
 export { MfaChallengeDialog } from "./MfaChallengeDialog";
 export { MfaEnrollDialog } from "./MfaEnrollDialog";

@@ -1,13 +1,44 @@
 openapi: 3.1.0
 info:
   title: Synckerja Omnichannel Public API
-  version: 1.4.0
+  version: 1.4.10
   description: |
     API integrasi untuk website eksternal — traffic analytics, leads, dan invoice trigger.
     Token tipe `sdk` (analytics + leads) dan `server` (invoice-trigger saja).
     Invoice-trigger ditolak dari browser (header `Origin` atau `Sec-Fetch-Site`) — kode `BROWSER_REQUEST_REJECTED`.
     Single source of truth untuk tab Docs di Synckerja Office (`/omnichannel/settings/api-integration?tab=docs`).
     Markdown dihasilkan otomatis saat `npm run dev` / `npm run build` (lihat `scripts/sync-omnichannel-api-docs.mjs`).
+
+    **Sesi analytics (parent FK):** `POST /traffic-logs` membuat/memperbarui baris `analytics_sessions.id = session_id`
+    sebelum `page_view_id` dikembalikan (HTTP 201). `POST /click-events` dan `POST /wa-link-clicks` memastikan
+    parent session ada (upsert defensif) sebelum insert child. Jika session tidak siap: **422** `SESSION_NOT_READY`
+    (bukan error FK mentah).
+
+    **Atribusi path klik:** `path` pada `POST /click-events` dan `POST /wa-link-clicks` adalah halaman **tempat klik terjadi**
+    (bukan `target_url` tujuan). Server dapat mengoreksi `path` jika tidak selaras dengan page_view aktif di `session_id`
+    yang sama; nilai asli klien disimpan internal (`path_client`) untuk audit.
+
+    **UTM Tracking hybrid:** Dashboard menampilkan baris ringkasan sesi (landing iklan) plus baris journey per halaman
+    dalam sesi yang sama; klik dijumlahkan per halaman via `analytics_click_events.path`.
+
+    **Dashboard traffic:** HTTP 201 pada ingest hanya berarti data mentah diterima. Angka di Synckerja Office
+    `/digital-marketing/traffic` diperbarui setelah rollup harian + poll UI (~45–90 detik). Tombol Sync data
+    refresh rollup di platform, bukan re-ingest dari website.
+
+    **Klik floating WhatsApp:** `POST /api/v1/wa-link-clicks` mencatat analytics **dan** membuat/update stub lead
+    di CRM (`source: WhatsApp floating click`) dengan atribusi UTM first-touch dari `session_id` yang sama dengan
+    `traffic-logs`. Satu stub per session per web_id; klik berikutnya hanya menambah event analytics.
+
+    **WhatsApp lead:** `POST /api/v1/leads` dapat memicu template konfirmasi ke visitor jika `consent=true`,
+    `phone_number` terisi, dan template lead diset di Organization settings (`default_whatsapp_lead_template_name`
+    + `default_whatsapp_lead_template_language`). Cek `whatsapp_status` di respons 201. Jika `whatsapp_status=sent`,
+    Synckerja membuat/update thread di Livechat (`whatsapp_conversations`) dan mengembalikan `whatsapp_conversation_id`;
+    `ticket_id` lead di-merge ke format `WA-*` agar Open Chat di CRM aktif.
+
+    **Bahasa template org:** Invoice memakai `default_whatsapp_invoice_template_language` (fallback `id`).
+    Lead: bahasa baris mapping aktif `organization_whatsapp_templates` menang per web_id; jika tidak ada,
+    pakai `default_whatsapp_lead_template_language` (fallback `id`). Atur mapping variabel di Synckerja Office
+    (API Integration → Mapping variabel lead). Override per-token hanya nama template; bahasa mengikuti baris mapping atau setting org.
 servers:
   - url: https://{project_ref}.supabase.co/functions/v1/omnichannel-public-api
     variables:
@@ -19,6 +50,14 @@ paths:
   /api/v1/traffic-logs:
     post:
       summary: Catat kunjungan halaman (page load)
+      description: |
+        Wajib kirim `session_id` stabil per tab browser (`sessionStorage`).
+        Server **merge atribusi first-touch per session_id**: UTM / click ID dari landing pertama
+        tetap terikat meski navigasi SPA berikutnya tanpa query string.
+        Field UTM opsional di body; juga diekstrak dari query `page_url`.
+        Client SPA **disarankan** (bukan wajib) persist + kirim UTM tiap `traffic-logs` sebagai redundansi.
+        HTTP **201** hanya dikembalikan setelah baris `analytics_sessions` dengan `id = session_id` terverifikasi ada;
+        `page_view_id` selalu merujuk `session_id` yang sama di respons.
       tags: [Analytics]
       requestBody:
         required: true
@@ -53,6 +92,13 @@ paths:
   /api/v1/click-events:
     post:
       summary: Catat klik elemen dengan data-syn-track
+      description: |
+        Server memastikan baris parent `analytics_sessions` untuk `session_id` ada (upsert defensif)
+        sebelum insert `analytics_click_events`. Urutan disarankan: `traffic-logs` lalu `click-events`
+        agar atribusi UTM lengkap dan page_view aktif tersedia untuk koreksi `path`.
+        Field `path` = halaman tempat klik terjadi (bukan `target_url`). Server mengoreksi `path` bila mismatch
+        dengan page_view aktif. Opsional: `page_view_id` dari respons `traffic-logs` untuk atribusi exact.
+        Jika session tidak dapat dibuat/ditemukan: **422** `SESSION_NOT_READY`.
       tags: [Analytics]
       requestBody:
         required: true
@@ -63,10 +109,26 @@ paths:
       responses:
         '201':
           description: Click event tercatat
+        '422':
+          description: Session belum siap (SESSION_NOT_READY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/wa-link-clicks:
     post:
-      summary: Catat klik link WhatsApp
-      tags: [Analytics]
+      summary: Catat klik link WhatsApp dan sinkron stub lead CRM
+      description: |
+        Mencatat event di `analytics_wa_clicks` dan membuat/update **stub lead** di CRM
+        (`source: WhatsApp floating click`, `lead_submissions` status `draft`).
+        Atribusi UTM / gclid / fbclid di-merge server-side dari `analytics_sessions` via `session_id`
+        — client **tidak** perlu mengirim UTM di body.
+        Dedupe: satu stub lead per `session_id` + `web_id`; klik berikutnya mengembalikan `lead_created: false`.
+        Jika sinkron CRM gagal, HTTP tetap **201** (analytics tersimpan); cek `lead_sync_status` dan `lead_sync_error`.
+        Urutan disarankan: `traffic-logs` (landing UTM) lalu `wa-link-clicks`.
+        Server memastikan parent `analytics_sessions` ada sebelum insert `analytics_wa_clicks`.
+        Jika session tidak siap: **422** `SESSION_NOT_READY`.
+      tags: [Analytics, Leads]
       requestBody:
         required: true
         content:
@@ -75,10 +137,28 @@ paths:
               $ref: '#/components/schemas/WaLinkClickRequest'
       responses:
         '201':
-          description: WA click tercatat
+          description: WA click tercatat; stub lead disinkronkan bila memungkinkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaLinkClickSuccess'
+        '422':
+          description: Session belum siap (SESSION_NOT_READY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/leads:
     post:
       summary: Kirim data formulir prospek
+      description: |
+        Menyimpan lead ke CRM. Jika `session_id` cocok dengan stub dari klik floating WhatsApp,
+        lead yang ada di-upgrade (bukan duplikat) — `source` berubah ke `Website`, submission `draft` → `submitted`.
+        Jika `consent=true`, `phone_number` terisi, dan template lead
+        (`default_whatsapp_lead_template_name`) diset di Organization settings, Synckerja mengirim
+        WhatsApp konfirmasi ke visitor. Mapping variabel body: prioritas `parameter_mapping` (UI),
+        legacy `body_keys`, lalu fallback fixed 7 variabel — per `web_id` + template org.
+        Lead tetap HTTP 201 meski WA gagal — cek `whatsapp_status` dan `whatsapp_skip_reason`.
       tags: [Leads]
       requestBody:
         required: true
@@ -166,8 +246,8 @@ components:
         code:
           type: string
           description: |
-            UNAUTHORIZED, FORBIDDEN, BROWSER_REQUEST_REJECTED, VALIDATION_ERROR, NOT_FOUND,
-            CONFLICT, RATE_LIMITED, INTERNAL_ERROR
+            UNAUTHORIZED, FORBIDDEN, BROWSER_REQUEST_REJECTED, VALIDATION_ERROR, SESSION_NOT_READY,
+            NOT_FOUND, CONFLICT, RATE_LIMITED, INTERNAL_ERROR
         details:
           nullable: true
     TrafficLogRequest:
@@ -177,14 +257,18 @@ components:
         session_id:
           type: string
           format: uuid
+          description: UUID stabil per tab browser; mengikat atribusi first-touch ke sesi traffic dan lead.
         visitor_id:
           type: string
           format: uuid
+          description: UUID stabil per browser/device (localStorage).
         page_url:
           type: string
+          description: URL lengkap halaman saat ini; query UTM/gclid diekstrak otomatis bila body kosong.
         utm_source:
           type: string
           nullable: true
+          description: Opsional; disarankan di SPA dari sessionStorage first-touch landing.
         utm_medium:
           type: string
           nullable: true
@@ -244,6 +328,11 @@ components:
           type: string
         path:
           type: string
+          description: Halaman tempat klik terjadi (bukan target_url). SDK kirim pathname saat capture phase.
+        page_view_id:
+          type: string
+          format: uuid
+          description: Opsional; dari respons traffic-logs untuk atribusi exact.
         track_key:
           type: string
         element_type:
@@ -266,7 +355,11 @@ components:
           format: uuid
         path:
           type: string
-          description: Halaman saat klik (SDK mengirim pathname; default "/")
+          description: Halaman tempat klik terjadi (SDK pathname; default "/")
+        page_view_id:
+          type: string
+          format: uuid
+          description: Opsional; dari respons traffic-logs
         target_phone:
           type: string
           nullable: true
@@ -274,6 +367,37 @@ components:
           type: string
           nullable: true
           description: URL wa.me / api.whatsapp.com
+    WaLinkClickSuccess:
+      type: object
+      properties:
+        success:
+          type: boolean
+        wa_click_id:
+          type: string
+          format: uuid
+        lead_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID stub lead CRM (satu per session_id + web_id).
+        lead_created:
+          type: boolean
+          description: true jika stub lead baru dibuat; false jika session sudah punya stub.
+        lead_sync_status:
+          type: string
+          enum: [synced, failed]
+          description: Hasil sinkron ke CRM; analytics tetap 201 meski failed.
+        lead_sync_error:
+          type: string
+          nullable: true
+          description: Pesan error saat lead_sync_status=failed.
+      example:
+        success: true
+        wa_click_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        lead_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+        lead_created: true
+        lead_sync_status: synced
+        lead_sync_error: null
     LeadRequest:
       type: object
       required: [name]
@@ -322,6 +446,19 @@ components:
           nullable: true
           description: |
             UTM + gclid/fbclid (string) dari analytics_sessions bila session_id dikirim.
+        whatsapp_status:
+          type: string
+          enum: [pending, sent, failed, skipped]
+          description: Hasil kirim template konfirmasi lead ke visitor.
+        whatsapp_message_id:
+          type: string
+          nullable: true
+        whatsapp_skip_reason:
+          type: string
+          nullable: true
+          description: |
+            Saat skipped: no_consent, no_phone, no_template, wa_not_configured.
+            Saat failed: diawali meta: (pesan error Graph API Meta, mis. jumlah variabel template tidak cocok).
     InvoiceTriggerRequest:
       type: object
       required: [invoice_number, amount, items, phone_number, email]

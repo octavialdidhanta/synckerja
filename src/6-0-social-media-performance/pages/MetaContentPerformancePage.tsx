@@ -33,7 +33,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/aler
 import { Button } from '@/shared/components/ui/button';
 import { MetaContentDateRangePicker } from '@/6-0-meta-ads/components/MetaContentDateRangePicker';
 import { buildMetaContentCalendarYearPresetYears } from '@/meta-content/lib/clampMetaContentDateRange';
-import { toMetaPostDateRangePayload } from '@/meta-content/lib/toMetaContentMetricsDateRangePayload';
+import { toMetaPostDateRangePayload, metaContentMetricsFetchArgs } from '@/meta-content/lib/toMetaContentMetricsDateRangePayload';
 
 const SOCIAL_MEDIA_PERFORMANCE_PATH = '/digital-marketing/social-media-performance';
 
@@ -71,8 +71,11 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
     () => toMetaPostDateRangePayload(dateSelection),
     [dateSelection],
   );
-  const dateStart = postDateFilter.isAllTime ? undefined : postDateFilter.start;
-  const dateEnd = postDateFilter.isAllTime ? undefined : postDateFilter.end;
+  const metricsFetchArgs = useMemo(
+    () => metaContentMetricsFetchArgs(dateSelection),
+    [dateSelection],
+  );
+  const { dateStart, dateEnd, allTime } = metricsFetchArgs;
 
   const platformAccounts = useMemo(
     () => (configQuery.data?.accounts ?? []).filter((a) => a.platform === platform),
@@ -111,13 +114,14 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
     accountId,
     dateStart,
     dateEnd,
+    allTime,
     enabled: Boolean(organizationId && accountId && !gatePending && showMetricsView),
   });
 
   const handleRefresh = useCallback(async () => {
     if (!organizationId || !accountId) return;
-    const rangeKeyStart = dateStart ?? 'all_time';
-    const rangeKeyEnd = dateEnd ?? 'all_time';
+    const rangeKeyStart = allTime ? 'all_time' : (dateStart ?? 'all_time');
+    const rangeKeyEnd = allTime ? 'all_time' : (dateEnd ?? 'all_time');
     const queryKey = ['meta-content-metrics', organizationId, platform, accountId, rangeKeyStart, rangeKeyEnd] as const;
     try {
       await queryClient.invalidateQueries({ queryKey });
@@ -127,13 +131,14 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
         accountId,
         dateStart,
         dateEnd,
+        allTime,
       });
       queryClient.setQueryData(queryKey, fresh);
     } catch (e) {
       toast.error((e as Error).message);
       await metricsQuery.refetch();
     }
-  }, [organizationId, accountId, platform, dateStart, dateEnd, queryClient, metricsQuery]);
+  }, [organizationId, accountId, platform, dateStart, dateEnd, allTime, queryClient, metricsQuery]);
 
   const { progressList, targetsLoading } = useMetaContentTargetProgress({
     platform,
@@ -148,6 +153,12 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
     !postDateFilter.isAllTime &&
     metricsQuery.data != null &&
     (metricsQuery.data.posts?.length ?? 0) === 0;
+
+  const showEmptyAllTime =
+    postDateFilter.isAllTime &&
+    metricsQuery.data != null &&
+    (metricsQuery.data.posts?.length ?? 0) === 0 &&
+    !metricsQuery.isFetching;
 
   const showFacebookMetricsEmpty = useMemo(() => {
     if (platform !== 'facebook' || !metricsQuery.data?.posts?.length) return false;
@@ -270,6 +281,29 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
                                         )}
                                   </AlertDescription>
                                 </Alert>
+                              ) : showEmptyAllTime ? (
+                                <Alert>
+                                  <AlertTitle>
+                                    {t(
+                                      'digitalMarketing.metaContent.emptyAllTimeTitle',
+                                      'No posts found',
+                                    )}
+                                  </AlertTitle>
+                                  <AlertDescription>
+                                    {platform === 'facebook'
+                                      ? t(
+                                          'digitalMarketing.metaContent.facebookEmptyAllTimeHint',
+                                          'Meta returned no page posts. Reconnect Facebook in Settings and grant pages_read_engagement, then refresh.',
+                                        )
+                                      : t(
+                                          'digitalMarketing.metaContent.instagramEmptyAllTimeHint',
+                                          'Meta returned no media for this account. Check the connection in Settings, then refresh.',
+                                        )}{' '}
+                                    <Link to={settingsPath} className="underline">
+                                      {t('metaPlatform.insights.openConnect', 'Reconnect')}
+                                    </Link>
+                                  </AlertDescription>
+                                </Alert>
                               ) : showFacebookMetricsEmpty ? (
                                 <Alert>
                                   <AlertTitle>
@@ -313,7 +347,7 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
                                 {postDateFilter.isAllTime
                                   ? t(
                                       'digitalMarketing.metaContent.metaAllTimeHint',
-                                      'All time shows up to 50 most recent posts. Per-post metrics are lifetime totals from Meta.',
+                                      'All time paginates through all published posts. Per-post metrics are lifetime totals from Meta.',
                                     )
                                   : t(
                                       'digitalMarketing.metaContent.metaDateHint',
@@ -340,6 +374,7 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
                             ) : (
                               <>
                                 <MetaContentSummaryBar
+                                  account={metricsQuery.data?.account}
                                   posts={metricsQuery.data?.posts ?? []}
                                   targetProgress={progressList}
                                   isLoading={metricsLoading}

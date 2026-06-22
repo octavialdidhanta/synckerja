@@ -5,7 +5,10 @@ import { Copy, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
-import { Input } from "@/shared/components/ui/input";
+import {
+  WhatsAppTemplatePicker,
+  type WhatsAppTemplateSelection,
+} from "@/5-3-dashboard/omnichannel-settings/components/api-integration/WhatsAppTemplatePicker";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
@@ -18,9 +21,10 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { ApiTokenCreateDialog } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiTokenCreateDialog";
+import { ApiIntegrationDocsPanel } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiIntegrationDocsPanel";
 import { ApiTokenRevokeDialog } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiTokenRevokeDialog";
 import { ClickInfoHint } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ClickInfoHint";
-import { ApiIntegrationDocsPanel } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiIntegrationDocsPanel";
+import { LeadTemplateVariableMapper } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/LeadTemplateVariableMapper";
 import {
   getDefaultApiBaseUrl,
   getOmnichannelTokenDisplayStatus,
@@ -33,6 +37,7 @@ import {
   useOmnichannelApiTokens,
   useRevokeOmnichannelApiToken,
   useUpdateOmnichannelApiSettings,
+  useUpsertLeadTemplateMapping,
   type OmnichannelApiTokenRow,
   type OmnichannelApiTokenType,
 } from "@/5-3-dashboard/omnichannel-settings/hooks/useOmnichannelApiIntegration";
@@ -56,6 +61,18 @@ function mutationErrorMessage(error: unknown): string | undefined {
   return undefined;
 }
 
+function selectionFromSettings(
+  name: string | null | undefined,
+  language: string | null | undefined,
+): WhatsAppTemplateSelection | null {
+  const trimmedName = (name ?? "").trim();
+  if (!trimmedName) return null;
+  return {
+    name: trimmedName,
+    language: (language ?? "id").trim() || "id",
+  };
+}
+
 export function ApiIntegrationSection() {
   const { t } = useTranslation();
   const { organizationId } = useActiveOrganization();
@@ -66,8 +83,15 @@ export function ApiIntegrationSection() {
   const [plaintextToken, setPlaintextToken] = useState<string | null>(null);
   const [plaintextTokenType, setPlaintextTokenType] = useState<OmnichannelApiTokenType | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<OmnichannelApiTokenRow | null>(null);
-  const [waTemplate, setWaTemplate] = useState("");
-  const [waTemplateDirty, setWaTemplateDirty] = useState(false);
+  const [waInvoiceTemplate, setWaInvoiceTemplate] = useState<WhatsAppTemplateSelection | null>(null);
+  const [waLeadTemplate, setWaLeadTemplate] = useState<WhatsAppTemplateSelection | null>(null);
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const [leadMappingComplete, setLeadMappingComplete] = useState(false);
+  const [leadMappingDirty, setLeadMappingDirty] = useState(false);
+  const [pendingLeadMapping, setPendingLeadMapping] = useState<Record<string, string> | null>(
+    null,
+  );
+  const [leadMappingWebId, setLeadMappingWebId] = useState<string | null>(null);
 
   const tokensTabEnabled = tab === "tokens";
 
@@ -82,6 +106,7 @@ export function ApiIntegrationSection() {
   const createToken = useCreateOmnichannelApiToken(organizationId);
   const revokeToken = useRevokeOmnichannelApiToken(organizationId);
   const updateSettings = useUpdateOmnichannelApiSettings(organizationId);
+  const upsertLeadMapping = useUpsertLeadTemplateMapping(organizationId);
 
   const apiBase = useMemo(() => getDefaultApiBaseUrl(), []);
 
@@ -98,15 +123,37 @@ export function ApiIntegrationSection() {
   }, [tokens]);
 
   useEffect(() => {
-    setWaTemplate("");
-    setWaTemplateDirty(false);
+    setWaInvoiceTemplate(null);
+    setWaLeadTemplate(null);
+    setSettingsDirty(false);
+    setLeadMappingComplete(false);
+    setLeadMappingDirty(false);
+    setPendingLeadMapping(null);
+    setLeadMappingWebId(null);
   }, [organizationId]);
 
   useEffect(() => {
-    if (!waTemplateDirty) {
-      setWaTemplate(settings?.default_whatsapp_invoice_template_name ?? "");
+    if (!settingsDirty) {
+      setWaInvoiceTemplate(
+        selectionFromSettings(
+          settings?.default_whatsapp_invoice_template_name,
+          settings?.default_whatsapp_invoice_template_language,
+        ),
+      );
+      setWaLeadTemplate(
+        selectionFromSettings(
+          settings?.default_whatsapp_lead_template_name,
+          settings?.default_whatsapp_lead_template_language,
+        ),
+      );
     }
-  }, [settings?.default_whatsapp_invoice_template_name, waTemplateDirty]);
+  }, [
+    settings?.default_whatsapp_invoice_template_name,
+    settings?.default_whatsapp_invoice_template_language,
+    settings?.default_whatsapp_lead_template_name,
+    settings?.default_whatsapp_lead_template_language,
+    settingsDirty,
+  ]);
 
   const setTab = (value: string) => {
     if (value === "docs") {
@@ -128,9 +175,23 @@ export function ApiIntegrationSection() {
   async function handleSaveSettings() {
     try {
       await updateSettings.mutateAsync({
-        default_whatsapp_invoice_template_name: waTemplate.trim() || null,
+        default_whatsapp_invoice_template_name: waInvoiceTemplate?.name.trim() || null,
+        default_whatsapp_invoice_template_language: waInvoiceTemplate?.language.trim() || null,
+        default_whatsapp_lead_template_name: waLeadTemplate?.name.trim() || null,
+        default_whatsapp_lead_template_language: waLeadTemplate?.language.trim() || null,
       });
-      setWaTemplateDirty(false);
+
+      if (leadMappingDirty && pendingLeadMapping && leadMappingWebId && waLeadTemplate?.name.trim()) {
+        await upsertLeadMapping.mutateAsync({
+          web_id: leadMappingWebId,
+          template_name: waLeadTemplate.name.trim(),
+          template_language: (waLeadTemplate.language ?? "id").trim() || "id",
+          parameter_mapping: pendingLeadMapping,
+        });
+        setLeadMappingDirty(false);
+      }
+
+      setSettingsDirty(false);
       toast.success(t("omnichannel.settings.apiIntegration.settingsSaved"));
     } catch (error) {
       toast.error(
@@ -253,18 +314,34 @@ export function ApiIntegrationSection() {
                       content={t("omnichannel.settings.apiIntegration.waTemplateHint")}
                     />
                   </div>
-                  <Input
+                  <WhatsAppTemplatePicker
                     id="wa-template"
-                    value={waTemplate}
-                    onChange={(e) => {
-                      setWaTemplateDirty(true);
-                      setWaTemplate(e.target.value);
+                    purpose="invoice"
+                    value={waInvoiceTemplate}
+                    onChange={(next) => {
+                      setSettingsDirty(true);
+                      setWaInvoiceTemplate(next);
                     }}
-                    placeholder="invoice_receipt"
                     disabled={settingsLoading || updateSettings.isPending}
-                    className="font-mono text-sm"
+                    queryEnabled={tokensTabEnabled}
                   />
                 </div>
+
+                <LeadTemplateVariableMapper
+                  organizationId={organizationId}
+                  template={waLeadTemplate}
+                  onTemplateChange={(next) => {
+                    setSettingsDirty(true);
+                    setWaLeadTemplate(next);
+                  }}
+                  leadMappingComplete={leadMappingComplete}
+                  disabled={settingsLoading || updateSettings.isPending || upsertLeadMapping.isPending}
+                  queryEnabled={tokensTabEnabled}
+                  onMappingChange={setPendingLeadMapping}
+                  onWebIdChange={setLeadMappingWebId}
+                  onCompleteChange={setLeadMappingComplete}
+                  onDirtyChange={setLeadMappingDirty}
+                />
 
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-1">
@@ -290,8 +367,13 @@ export function ApiIntegrationSection() {
               <div className="flex justify-end border-t border-border/60 bg-muted/10 px-4 py-3">
                 <Button
                   size="sm"
-                  variant={waTemplateDirty ? "default" : "secondary"}
-                  disabled={!waTemplateDirty || settingsLoading || updateSettings.isPending}
+                  variant={settingsDirty || leadMappingDirty ? "default" : "secondary"}
+                  disabled={
+                    (!settingsDirty && !leadMappingDirty) ||
+                    settingsLoading ||
+                    updateSettings.isPending ||
+                    upsertLeadMapping.isPending
+                  }
                   onClick={() => {
                     void handleSaveSettings();
                   }}
@@ -469,7 +551,8 @@ export function ApiIntegrationSection() {
         existingTokens={tokens}
         orgDefaultWaTemplate={
           settings?.default_whatsapp_invoice_template_name ??
-          (waTemplate.trim() || null)
+          waInvoiceTemplate?.name ??
+          null
         }
         onSubmit={async (payload) => {
           try {

@@ -32,6 +32,8 @@ export const THREADS_OAUTH_SCOPE_LIST = [
   'threads_manage_insights',
   'threads_read_replies',
   'threads_manage_replies',
+  'threads_content_publish',
+  'threads_delete',
 ] as const;
 
 export const THREADS_OAUTH_SCOPES = THREADS_OAUTH_SCOPE_LIST.join(',');
@@ -54,7 +56,12 @@ export const META_SCOPE_FEATURE_MAP = {
   insights: ['instagram_manage_insights', 'pages_read_engagement'] as const,
   pages: ['pages_show_list', 'pages_manage_metadata'] as const,
   threads_insights: ['threads_basic', 'threads_manage_insights'] as const,
-  threads_replies: ['threads_basic', 'threads_read_replies', 'threads_manage_replies'] as const,
+  threads_replies: [
+    'threads_basic',
+    'threads_read_replies',
+    'threads_manage_replies',
+    'threads_content_publish',
+  ] as const,
 } as const;
 
 export function missingScopesForFeature(

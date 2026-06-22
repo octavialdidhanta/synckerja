@@ -3,7 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { ManageCommentsPostListItem } from '@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes';
-import { MANAGE_COMMENTS_POSTS_POLL_MS } from '@/6-0-social-media-manage-comments/lib/manageCommentsPolling';
+import {
+  MANAGE_COMMENTS_POSTS_POLL_MS,
+  MANAGE_COMMENTS_THREAD_POLL_MS,
+} from '@/6-0-social-media-manage-comments/lib/manageCommentsPolling';
 
 export type ThreadsCommentPostRow = {
   id: string;
@@ -62,12 +65,12 @@ export type ThreadsContentCommentRow = {
   text: string;
   author_display_name: string | null;
   author_avatar_url: string | null;
-  like_count: number;
   reply_count: number;
   parent_comment_id: string | null;
   published_at: string | null;
   is_channel_owner: boolean;
   can_reply: boolean;
+  can_edit?: boolean;
 };
 
 async function invokeThreadsComments(args: Record<string, unknown>) {
@@ -76,6 +79,15 @@ async function invokeThreadsComments(args: Record<string, unknown>) {
   const payload = data as { error?: string };
   if (payload?.error) throw await parseEdgeFunctionError(null, payload);
   return data;
+}
+
+function threadsCommentsPollInterval(
+  query: { state: { status: string } },
+  intervalMs: number | false | undefined,
+): number | false {
+  if (!intervalMs) return false;
+  if (query.state.status === 'error') return false;
+  return intervalMs;
 }
 
 function toPostListItem(
@@ -138,7 +150,10 @@ export function useThreadsContentCommentPostsQuery(args: {
         inbox?: ThreadsContentCommentInboxState;
       };
     },
-    refetchInterval: liveRefresh ? MANAGE_COMMENTS_POSTS_POLL_MS : false,
+    refetchInterval: liveRefresh
+      ? (query) => threadsCommentsPollInterval(query, MANAGE_COMMENTS_POSTS_POLL_MS)
+      : false,
+    retry: 1,
   });
 
   const posts = useMemo(
@@ -174,9 +189,14 @@ export function useThreadsContentCommentsQuery(args: {
         post_id: mediaId,
         sort: 'newest',
       });
-      return data as { comments: ThreadsContentCommentRow[]; comment_count?: number };
+      return data as {
+        comments: ThreadsContentCommentRow[];
+        comment_count?: number;
+        activity_count?: number;
+      };
     },
-    refetchInterval: refetchIntervalMs ?? false,
+    refetchInterval: (query) => threadsCommentsPollInterval(query, refetchIntervalMs),
+    retry: 1,
   });
 }
 
@@ -186,8 +206,9 @@ export function useThreadsContentCommentRepliesQuery(args: {
   mediaId: string;
   commentId: string;
   enabled?: boolean;
+  refetchIntervalMs?: number;
 }) {
-  const { organizationId, accountId, mediaId, commentId, enabled = true } = args;
+  const { organizationId, accountId, mediaId, commentId, enabled = true, refetchIntervalMs } = args;
   return useQuery({
     queryKey: ['threads-content-comment-replies', organizationId, accountId, mediaId, commentId],
     enabled: Boolean(organizationId && accountId && mediaId && commentId && enabled),
@@ -203,6 +224,8 @@ export function useThreadsContentCommentRepliesQuery(args: {
       });
       return data as { comments: ThreadsContentCommentRow[]; comment_count?: number };
     },
+    refetchInterval: (query) => threadsCommentsPollInterval(query, refetchIntervalMs),
+    retry: 1,
   });
 }
 
@@ -225,17 +248,103 @@ export function useThreadsContentCommentMutations(args: {
         post_id: mediaId,
         comment_id: input.commentId,
         text: input.text,
+      }) as Promise<{ ok?: boolean; comment_id?: string }>;
+    },
+    onSuccess: () => {
+      // Meta Threads reply list is eventually consistent — keep client-side rows until server catches up.
+      void queryClient.invalidateQueries({
+        queryKey: ['threads-content-comment-posts', organizationId, accountId],
+      });
+      if (mediaId) {
+        void queryClient.invalidateQueries({
+          queryKey: ['threads-content-comments', organizationId, accountId, mediaId],
+        });
+      }
+    },
+  });
+
+  const hideMutation = useMutation({
+    mutationFn: async (input: { commentId: string }) => {
+      if (!mediaId) throw new Error('No post selected');
+      return invokeThreadsComments({
+        action: 'hideComment',
+        organization_id: organizationId,
+        account_id: accountId,
+        media_id: mediaId,
+        comment_id: input.commentId,
+        hide: true,
+      });
+    },
+    onSuccess: () => {
+      if (mediaId) {
+        void queryClient.invalidateQueries({
+          queryKey: ['threads-content-comments', organizationId, accountId, mediaId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ['threads-content-comment-replies', organizationId, accountId, mediaId],
+        });
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (input: { commentId: string }) => {
+      if (!mediaId) throw new Error('No post selected');
+      return invokeThreadsComments({
+        action: 'deleteComment',
+        organization_id: organizationId,
+        account_id: accountId,
+        media_id: mediaId,
+        comment_id: input.commentId,
       });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ['threads-content-comments', organizationId, accountId, mediaId],
-      });
-      void queryClient.invalidateQueries({
         queryKey: ['threads-content-comment-posts', organizationId, accountId],
       });
+      if (mediaId) {
+        void queryClient.invalidateQueries({
+          queryKey: ['threads-content-comments', organizationId, accountId, mediaId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ['threads-content-comment-replies', organizationId, accountId, mediaId],
+        });
+      }
     },
   });
 
-  return { replyMutation };
+  const editMutation = useMutation({
+    mutationFn: async (input: {
+      commentId: string;
+      parentCommentId: string;
+      text: string;
+      publishedAt?: string | null;
+      isChannelOwner?: boolean;
+    }) => {
+      if (!mediaId) throw new Error('No post selected');
+      return invokeThreadsComments({
+        action: 'editComment',
+        organization_id: organizationId,
+        account_id: accountId,
+        media_id: mediaId,
+        comment_id: input.commentId,
+        parent_comment_id: input.parentCommentId,
+        text: input.text,
+        published_at: input.publishedAt ?? null,
+        is_channel_owner: input.isChannelOwner ?? false,
+      }) as Promise<{ ok?: boolean; comment_id?: string }>;
+    },
+    onSuccess: () => {
+      if (mediaId) {
+        void queryClient.invalidateQueries({
+          queryKey: ['threads-content-comments', organizationId, accountId, mediaId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ['threads-content-comment-replies', organizationId, accountId, mediaId],
+        });
+      }
+    },
+  });
+
+  return { replyMutation, hideMutation, deleteMutation, editMutation };
 }

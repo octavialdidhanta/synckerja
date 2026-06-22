@@ -23,6 +23,8 @@ const sdkSnippet = `(function (window, document) {
   var TOKEN = CFG.token || '';
   var VISITOR_KEY = 'synckerja_visitor_id';
   var SESSION_KEY = 'synckerja_session_id';
+  var ATTRIBUTION_KEY = 'synckerja_first_touch_attribution';
+  var ATTRIBUTION_KEYS = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid','msclkid','gbraid','wbraid'];
   var pageViewId = null;
   var activeMs = 0;
   var scrollMax = 0;
@@ -62,13 +64,41 @@ const sdkSnippet = `(function (window, document) {
 
   function parseParams() {
     var sp = new URLSearchParams(window.location.search);
-    var keys = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid','msclkid','gbraid','wbraid'];
     var out = {};
-    keys.forEach(function (k) {
+    ATTRIBUTION_KEYS.forEach(function (k) {
       var v = sp.get(k);
       if (v) out[k] = v;
     });
     return out;
+  }
+
+  function readStoredAttribution() {
+    try {
+      var raw = sessionStorage.getItem(ATTRIBUTION_KEY);
+      if (!raw) return {};
+      var parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function persistAttribution(params) {
+    if (!params || !Object.keys(params).length) return;
+    try {
+      var existing = readStoredAttribution();
+      var next = Object.assign({}, existing);
+      ATTRIBUTION_KEYS.forEach(function (k) {
+        if (params[k]) next[k] = params[k];
+      });
+      sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(next));
+    } catch (e) {}
+  }
+
+  function getAttributionPayload() {
+    var fromUrl = parseParams();
+    if (Object.keys(fromUrl).length) persistAttribution(fromUrl);
+    return Object.assign({}, readStoredAttribution(), fromUrl);
   }
 
   function apiPost(path, body, beacon) {
@@ -92,7 +122,7 @@ const sdkSnippet = `(function (window, document) {
   }
 
   function trackPageLoad() {
-    var params = parseParams();
+    var params = getAttributionPayload();
     return apiPost('/api/v1/traffic-logs', Object.assign({
       session_id: getSessionId(),
       visitor_id: getVisitorId(),
@@ -125,29 +155,35 @@ const sdkSnippet = `(function (window, document) {
   function onClick(ev) {
     var el = ev.target && ev.target.closest ? ev.target.closest('[data-syn-track]') : null;
     if (!el) return;
-    apiPost('/api/v1/click-events', {
+    // path = halaman tempat klik terjadi (capture phase, sebelum navigasi SPA)
+    var originPath = window.location.pathname || '/';
+    var body = {
       session_id: getSessionId(),
       visitor_id: getVisitorId(),
-      path: window.location.pathname || '/',
+      path: originPath,
       track_key: el.getAttribute('data-syn-track') || 'unknown',
       element_type: el.tagName,
       element_label: el.getAttribute('data-syn-label') || (el.textContent || '').trim().slice(0, 120),
       target_url: el.href || null,
       is_internal: !!(el.href && el.href.indexOf(window.location.origin) === 0),
-    });
+    };
+    if (pageViewId) body.page_view_id = pageViewId;
+    apiPost('/api/v1/click-events', body);
   }
 
   function onWaClick(ev) {
     var el = ev.target && ev.target.closest ? ev.target.closest('[data-syn-wa-track], a[href*="wa.me"], a[href*="api.whatsapp.com"]') : null;
     if (!el) return;
     var href = el.href || '';
-    apiPost('/api/v1/wa-link-clicks', {
+    var waBody = {
       session_id: getSessionId(),
       visitor_id: getVisitorId(),
       path: window.location.pathname || '/',
       target_url: href,
       target_phone: (href.match(/\\d{8,15}/) || [])[0] || null,
-    });
+    };
+    if (pageViewId) waBody.page_view_id = pageViewId;
+    apiPost('/api/v1/wa-link-clicks', waBody);
   }
 
   window.SynckerjaTrackLead = function (a, b, c, d) {
@@ -195,8 +231,11 @@ Integrasikan website eksternal untuk **traffic**, **leads**, dan **invoice + not
 4. [Kebijakan token](#kebijakan-token)
 5. [Integrasi Supabase (developer eksternal)](#integrasi-supabase-developer-eksternal)
 6. [JavaScript SDK](#javascript-sdk)
-7. [Referensi API](#referensi-api)
-8. [Kode HTTP & checklist](#kode-http--checklist)
+7. [Website SPA (React/Vite)](#website-spa-reactvite)
+8. [Dashboard traffic & sinkronisasi data](#dashboard-traffic--sinkronisasi-data)
+9. [WhatsApp otomatis (leads vs invoice)](#whatsapp-otomatis-leads-vs-invoice)
+10. [Referensi API](#referensi-api)
+11. [Kode HTTP & checklist](#kode-http--checklist)
 
 ---
 
@@ -206,7 +245,7 @@ Integrasikan website eksternal untuk **traffic**, **leads**, dan **invoice + not
 |---|---------|
 | 1a | Buat token **SDK** — pasang di \`SynckerjaConfig\` di website; isi **allowed origins** |
 | 1b | Buat token **Server** — simpan di backend secrets (Supabase Edge Function, dll.) |
-| 2 | Di **Organization settings**: **template WhatsApp invoice** + offline conversion |
+| 2 | Di **Organization settings**: **template WhatsApp lead** + **template invoice** + offline conversion |
 | 3 | Pasang SDK (konfigurasi + skrip) sebelum \`</body>\` — **hanya token SDK** |
 | 4 | Tambah \`data-syn-track\` pada CTA, \`data-syn-wa-track\` pada link WA |
 | 5 | Form → \`SynckerjaTrackLead({ ...semuaFieldForm })\` — field tambahan masuk \`form_data\` |
@@ -214,7 +253,7 @@ Integrasikan website eksternal untuk **traffic**, **leads**, dan **invoice + not
 
 \`\`\`text
 Page load → traffic-logs │ 15s / tutup tab → heartbeat │ Klik CTA → click-events
-Klik WA → wa-link-clicks │ Form → leads │ Order (server) → invoice-trigger → Converted + Sales Activity
+Klik WA → wa-link-clicks → stub lead + analytics │ Form → leads (upgrade stub jika session sama) │ Order (server) → invoice-trigger → Converted + Sales Activity
 \`\`\`
 
 SDK menangani baris pertama otomatis. Data tampil di \`/digital-marketing/traffic\`, \`/omnichannel/leads\`, dan \`/operations/sales/activities\` (setelah invoice).
@@ -233,11 +272,11 @@ Content-Type: application/json
 | ID | Fungsi |
 |----|--------|
 | \`web_id\` | Pisahkan traffic per website |
-| \`session_id\` | UUID per tab — ikat UTM ke lead |
-| \`visitor_id\` | UUID per pengunjung |
+| \`session_id\` | UUID per tab (\`sessionStorage\`) — mengikat atribusi first-touch ke lead & dashboard traffic |
+| \`visitor_id\` | UUID per pengunjung (\`localStorage\`) |
 | \`page_view_id\` | Dari respons \`traffic-logs\`, untuk heartbeat |
 
-**Atribusi UTM & click ID:** Kirim \`session_id\` di \`POST /leads\` agar UTM, \`gclid\` (Google), dan \`fbclid\` (Meta) dari kunjungan pertama otomatis melekat ke lead. Nilai disimpan sebagai **string** di kolom lead dan JSON \`attribution\` (bukan boolean).
+**Atribusi UTM & click ID:** Server merge **first-touch per \`session_id\`** saat \`POST /traffic-logs\`. Navigasi SPA tanpa query UTM tidak menghapus atribusi landing. \`POST /wa-link-clicks\` juga merge atribusi dari session yang sama ke stub lead CRM (tanpa kirim UTM di body). Kirim \`session_id\` di \`POST /leads\` agar UTM, \`gclid\` (Google), dan \`fbclid\` (Meta) dari kunjungan pertama otomatis melekat ke lead; jika sudah ada stub floating WA, lead di-upgrade bukan duplikat. Nilai disimpan sebagai **string** di kolom lead dan JSON \`attribution\` (bukan boolean).
 
 ---
 
@@ -381,6 +420,163 @@ Field reserved (tidak masuk \`form_data\`): \`name\`, \`phone_number\`, \`email\
 
 ---
 
+## Website SPA (React/Vite)
+
+Untuk SPA (React Router, Vue Router, dll.):
+
+1. **\`session_id\` wajib stabil** per tab — simpan di \`sessionStorage\` (\`synckerja_session_id\`), jangan buat UUID baru tiap route change.
+2. **Server merge first-touch** — meski page view internal tanpa \`?utm_*\`, atribusi landing tetap terikat ke \`session_id\` yang sama.
+3. **Best practice client:** persist UTM + click ID first-touch ke \`sessionStorage\` saat landing, lalu kirim field tersebut di **setiap** \`POST /traffic-logs\` (SDK resmi sudah melakukan ini).
+4. **\`page_url\`:** kirim \`window.location.href\` lengkap; UTM di query tetap diekstrak otomatis bila body kosong.
+
+Integrasi manual (React):
+
+\`\`\`javascript
+// Panggil di router afterEach / useEffect route
+await fetch(apiBase + '/api/v1/traffic-logs', {
+  method: 'POST',
+  headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    session_id: getSessionId(),       // sessionStorage — stabil per tab
+    visitor_id: getVisitorId(),       // localStorage
+    page_url: window.location.href,
+    referrer: document.referrer || null,
+    ...getAttributionPayload(),       // UTM first-touch dari sessionStorage (opsional tapi disarankan)
+  }),
+});
+\`\`\`
+
+Dashboard Synckerja (\`/digital-marketing/traffic\`) menampilkan UTM Tracking per **sesi** dengan atribusi first-touch landing, bukan hanya page view yang masih membawa query UTM.
+
+---
+
+## Dashboard traffic & sinkronisasi data
+
+Integrasi website dan tampilan dashboard Synckerja Office adalah **dua tahap terpisah**. Developer eksternal sering salah diagnosa “website tidak kirim data” padahal ingest sudah sukses.
+
+### Alur data
+
+\`\`\`
+Website SDK/API
+  → POST /traffic-logs, /click-events, …  (HTTP 201 = diterima)
+  → Tabel mentah (analytics_sessions, analytics_page_views, analytics_click_events)
+  → Rollup harian (debounce ~45 detik setelah ingest)
+  → RPC get_traffic_dashboard
+  → UI /digital-marketing/traffic (poll otomatis ~45 detik)
+\`\`\`
+
+| Tahap | Arti untuk developer |
+|-------|----------------------|
+| **HTTP 201** | Payload valid; baris mentah tersimpan atau di-update. **Bukan** jaminan angka dashboard langsung naik. |
+| **Rollup harian** | Agregasi per hari (grafik series, sebagian KPI/top pages). Dijalankan otomatis setelah ingest (debounce) atau manual via Sync data. |
+| **Dashboard UI** | Membaca rollup + raw (UTM Tracking / Sumber Traffic memakai atribusi sesi first-touch). UI mem-poll ~45 detik saat halaman Traffic terbuka. |
+
+### Latensi wajar (setelah v1.4.2)
+
+- **Ingest → raw DB:** hampir seketika (201).
+- **Rollup otomatis:** debounce ~45 detik per \`web_id\` (today + yesterday WIB).
+- **Dashboard tanpa klik Sync:** poll UI ~45 detik → worst case ~**90 detik** sampai KPI/UTM terlihat naik.
+- **Grafik harian (series):** bergantung rollup; tunggu rollup selesai (sama ~45–90 detik) atau klik Sync data.
+
+### Tombol Sync data (Synckerja Office)
+
+- Hanya di dashboard **Traffic overview** (role owner/admin).
+- **Refresh rollup** untuk rentang tanggal yang dipilih — **bukan** meminta website mengirim ulang event.
+- Berguna untuk: instalasi pertama, backfill range lama, atau jika rollup otomatis gagal.
+
+### SPA & atribusi
+
+Lihat [Website SPA (React/Vite)](#website-spa-reactvite): navigasi internal tetap kirim \`traffic-logs\` dengan \`session_id\` stabil; UTM first-touch di-merge server-side; lead pakai \`session_id\` yang sama untuk atribusi.
+
+### Troubleshooting cepat
+
+1. Network browser: POST \`/traffic-logs\` → **201**? → ingest OK; lanjut cek dashboard Synckerja (bukan bug website).
+2. Tunggu **1–2 menit** dengan halaman Traffic overview terbuka (poll otomatis).
+3. Masih kosong / grafik nol? Owner/admin: **Sync data** sekali untuk bootstrap rollup.
+4. Masih 201 tapi dashboard kosong setelah sync? Cek \`web_id\` token SDK = properti di Synckerja Office.
+
+---
+
+## WhatsApp otomatis (leads vs invoice)
+
+HTTP **201** pada lead **bukan** jaminan WA terkirim — selalu cek \`whatsapp_status\` di respons.
+
+| Trigger | Endpoint | Token | Setting template | Syarat kirim |
+|---------|----------|-------|------------------|--------------|
+| Konfirmasi lead | \`POST /api/v1/leads\` | SDK | \`default_whatsapp_lead_template_name\` + \`default_whatsapp_lead_template_language\` | \`consent=true\` + \`phone_number\` + WA terhubung |
+| Nota invoice | \`POST /api/v1/orders/invoice-trigger\` | Server | \`default_whatsapp_invoice_template_name\` + \`default_whatsapp_invoice_template_language\` | \`phone_number\` + template diset |
+
+**Prasyarat org:** WhatsApp Business terhubung (\`/omnichannel/integrations/whatsapp\`) + template Meta **APPROVED**. Atur template di **Omnichannel → Settings → API Integration → Tokens & SDK** (combobox dari daftar Meta atau nama custom). Field bahasa Meta (mis. \`id\`, \`en_US\`) ikut tersimpan; null → fallback \`id\`. Override per-token via API hanya **nama** template — bahasa mengikuti setting org.
+
+### Prioritas bahasa template lead
+
+1. **Baris mapping aktif** — \`organization_whatsapp_templates.template_language\` (per \`web_id\` + \`template_name\`).
+2. **Org setting** — \`default_whatsapp_lead_template_language\`.
+3. **Fallback** — \`id\`.
+
+### Mapping variabel template lead
+
+Atur mapping di **Omnichannel → Settings → API Integration → Mapping variabel lead** (per \`web_id\` + template lead org). Website tetap mengirim field di \`POST /api/v1/leads\`; nama key custom harus **sama** dengan yang dipilih di mapper.
+
+Synckerja memilih mapping **otomatis** saat runtime:
+
+1. **UI mapping (\`parameter_mapping\`)** — baris aktif di \`organization_whatsapp_templates\` dengan JSON slot \`"1"\`…\`"n"\` → field key.
+2. **Legacy \`body_keys\`** — comma-separated (backward compatible).
+3. **Default (fallback)** — jika tidak ada baris / mapping kosong → **7 variabel body** tetap (urutan di bawah).
+
+**Contoh \`new_leads_vialdi_id\` (7 slot, \`web_id=vialdi-wedding\`):**
+
+| Slot | Field key | Sumber payload |
+|------|-----------|----------------|
+| {{1}} | \`name\` | \`name\` |
+| {{2}} | \`email\` | \`email\` |
+| {{3}} | \`phone_number\` | \`phone_number\` |
+| {{4}} | \`package_label\` | \`form_data.package_label\` |
+| {{5}} | \`event_date\` | \`form_data.event_date\` |
+| {{6}} | \`event_time\` | \`form_data.event_time\` |
+| {{7}} | \`event_address\` | \`form_data.event_address\` |
+
+**Contoh legacy \`elementorform\` (5 slot):**
+
+| body_keys (5 slot) | Sumber payload |
+|--------------------|----------------|
+| \`name\` | \`name\` |
+| \`name\` | \`name\` (duplikat — sesuai template Meta lama) |
+| \`event_date\` | \`form_data.event_date\` |
+| \`event_time\` | \`form_data.event_time\` |
+| \`package_label\` | \`form_data.package_label\` |
+
+**Field \`form_data\` yang disarankan:** \`package_label\`, \`event_date\`, \`event_time\`, \`event_address\`, \`industry\`, \`consent\`. Reserved keys (\`name\`, \`phone_number\`, \`email\`, \`notes\`, \`session_id\`, \`status\`) tidak masuk \`form_data\`.
+
+**Fallback fixed 7 variabel** (org tanpa mapping UI / legacy):
+
+1. \`name\` · 2. \`email\` · 3. \`phone_number\` · 4. \`package_label\` · 5. \`event_date\` · 6. \`event_time\` · 7. \`event_address\`
+
+Field 4–7 dari \`form_data\` / body JSON. Kosong → \`-\`.
+
+### \`whatsapp_status\` / \`whatsapp_skip_reason\` (leads)
+
+| Status | Arti |
+|--------|------|
+| \`sent\` | Template diterima Meta; \`whatsapp_message_id\` terisi (\`wamid....\`) |
+| \`failed\` | Graph API menolak (cek \`whatsapp_skip_reason\` prefix \`meta:\`) |
+| \`skipped\` | Tidak ada attempt kirim — lihat \`whatsapp_skip_reason\` |
+
+| skip_reason | Penyebab |
+|-------------|----------|
+| \`no_consent\` | \`consent\` bukan \`true\` |
+| \`no_phone\` | \`phone_number\` kosong |
+| \`no_template\` | \`default_whatsapp_lead_template_name\` belum diset |
+| \`wa_not_configured\` | Akun WA / token Meta belum ada |
+| \`meta:...\` | Error Meta saat \`failed\` (mis. jumlah variabel body tidak cocok dengan template) |
+| \`persist_failed:...\` | Meta \`sent\` tapi gagal simpan thread livechat (lead tetap 201; cek log server) |
+
+**Livechat setelah \`sent\`:** Synckerja membuat/update baris \`whatsapp_conversations\` + pesan outbound \`whatsapp_messages\`, merge \`ticket_id\` lead dari \`LEAD-*\` ke \`WA-*\`, dan mengembalikan \`whatsapp_conversation_id\`. Thread langsung muncul di **Omnichannel → Livechat**; tombol **Open Chat** di halaman Leads aktif.
+
+**Troubleshooting \`failed\`:** pastikan jumlah variabel template Meta = jumlah \`body_keys\` legacy **atau** 7 (fallback). Kesalahan umum: setting org pakai template 5-slot tapi baris legacy kosong → API mengirim 7 variabel → Meta error #132000.
+
+---
+
 ## Referensi API
 
 Semua endpoint **POST**, respons JSON. Pakai SDK → analytics otomatis; referensi di bawah untuk integrasi manual.
@@ -388,33 +584,49 @@ Semua endpoint **POST**, respons JSON. Pakai SDK → analytics otomatis; referen
 ### Analytics
 
 #### POST /api/v1/traffic-logs
-Catat kunjungan halaman. Wajib: \`session_id\`, \`visitor_id\`, \`page_url\`. Opsional: UTM, \`gclid\`/\`fbclid\`, \`referrer\`.
+Catat kunjungan halaman. Wajib: \`session_id\` (stabil per tab), \`visitor_id\`, \`page_url\`. Opsional: UTM, \`gclid\`/\`fbclid\`, \`referrer\`. Server merge atribusi first-touch per \`session_id\` — navigasi SPA tanpa UTM tidak menghapus baris UTM Tracking. HTTP **201** hanya setelah baris \`analytics_sessions.id = session_id\` terverifikasi; \`page_view_id\` memakai \`session_id\` yang sama.
 
 \`\`\`json
 // Request
 { "session_id": "...", "visitor_id": "...", "page_url": "https://toko.com/?utm_source=google", "gclid": "..." }
 
 // Response 201 — simpan page_view_id
-{ "success": true, "page_view_id": "...", "web_id": "toko-anda" }
+{ "success": true, "session_id": "...", "page_view_id": "...", "visitor_id": "...", "web_id": "toko-anda" }
 \`\`\`
 
 #### POST /api/v1/page-views/heartbeat
 Wajib: \`page_view_id\`, \`active_ms\`, \`scroll_max_pct\`. Opsional: \`ended_at\` (saat tutup tab). → **SDK otomatis**
 
 #### POST /api/v1/click-events
-Wajib: \`session_id\`, \`visitor_id\`, \`path\`, \`track_key\`. → **SDK otomatis** via \`data-syn-track\`
+Wajib: \`session_id\`, \`visitor_id\`, \`path\`, \`track_key\`. \`path\` = halaman **tempat klik terjadi** (bukan \`target_url\`). Server dapat mengoreksi \`path\` dari page_view aktif; opsional \`page_view_id\` dari respons \`traffic-logs\`. Urutan: \`traffic-logs\` lalu \`click-events\`. Error **422** \`SESSION_NOT_READY\`. → **SDK otomatis** via \`data-syn-track\` (capture phase)
 
 #### POST /api/v1/wa-link-clicks
-Wajib: \`session_id\`, \`visitor_id\`. Disarankan: \`path\` (default \`/\`), \`target_url\`, \`target_phone\`. → **SDK otomatis** via link wa.me / \`data-syn-wa-track\`
+Wajib: \`session_id\`, \`visitor_id\`. Disarankan: \`path\` (default \`/\`), \`target_url\`, \`target_phone\`. UTM **tidak** dikirim di body — server merge dari \`analytics_sessions\`. Mencatat analytics **dan** stub lead CRM (\`source: WhatsApp floating click\`, submission \`draft\`). Satu stub per session + web_id. → **SDK otomatis** via link wa.me / \`data-syn-wa-track\`
 
 \`\`\`json
 { "session_id": "...", "visitor_id": "...", "path": "/konsultasi", "target_url": "https://wa.me/628...", "target_phone": "628..." }
 \`\`\`
 
+\`\`\`json
+// Response 201
+{
+  "success": true,
+  "wa_click_id": "...",
+  "lead_id": "...",
+  "lead_created": true,
+  "lead_sync_status": "synced",
+  "lead_sync_error": null
+}
+\`\`\`
+
+Urutan disarankan: \`traffic-logs\` (landing UTM) lalu \`wa-link-clicks\`. Server upsert parent \`analytics_sessions\` sebelum insert. Error **422** \`SESSION_NOT_READY\` jika session tidak siap. Jika \`lead_sync_status=failed\`, analytics tetap tersimpan — cek \`lead_sync_error\`.
+
 ### Leads
 
 #### POST /api/v1/leads
-Wajib: \`name\`. Minimal salah satu \`phone_number\` atau \`email\`. Opsional: \`session_id\` (atribusi UTM + gclid/fbclid), \`notes\`. **Field lain** → \`lead_submissions.form_data\` (maks. 64 key, 32 KB, flat JSON).
+Wajib: \`name\`. Minimal salah satu \`phone_number\` atau \`email\`. Opsional: \`session_id\` (atribusi UTM + gclid/fbclid; **upgrade stub** jika session sama dengan klik floating WA), \`notes\`, \`consent\`, \`form_id\`. **Field lain** → \`lead_submissions.form_data\` (maks. 64 key, 32 KB, flat JSON).
+
+Jika \`consent=true\` + \`phone_number\` + template lead diset → WA konfirmasi otomatis (biasanya ≤ 1 menit). Lead **tetap 201** meski WA gagal. Cek \`whatsapp_status\`; jika \`failed\`, baca \`whatsapp_skip_reason\` (\`meta:...\` = error Meta).
 
 \`\`\`json
 {
@@ -423,6 +635,8 @@ Wajib: \`name\`. Minimal salah satu \`phone_number\` atau \`email\`. Opsional: \
   "email": "john.doe@example.com",
   "phone_number": "+6281234567890",
   "consent": true,
+  "form_id": "contact-main",
+  "package_label": "Konsultasi umum",
   "event_date": "2026-06-09",
   "event_time": "14:30",
   "event_address": "Jl. Contoh No. 10, Jakarta"
@@ -430,17 +644,17 @@ Wajib: \`name\`. Minimal salah satu \`phone_number\` atau \`email\`. Opsional: \
 \`\`\`
 
 \`\`\`json
-// Response 201 — contoh atribusi dari session
+// Response 201 — sukses WA + thread livechat (contoh production vialdi-wedding / elementorform)
 {
   "success": true,
   "lead_id": "...",
-  "ticket_id": "LEAD-...",
-  "attribution": {
-    "utm_source": "google",
-    "utm_medium": "cpc",
-    "gclid": "CjwK...",
-    "fbclid": null
-  }
+  "ticket_id": "WA-F8B0674B",
+  "whatsapp_ticket_id": "WA-F8B0674B",
+  "whatsapp_status": "sent",
+  "whatsapp_message_id": "wamid.HBgNNjI4MTM4NDA1NjExOBUCABEYEkU1MDJFQTVFMUI0QTUwMjVDNwA=",
+  "whatsapp_conversation_id": "uuid-conversation",
+  "whatsapp_skip_reason": null,
+  "attribution": { "utm_source": "test_dev", "web_id": "vialdi-wedding" }
 }
 \`\`\`
 

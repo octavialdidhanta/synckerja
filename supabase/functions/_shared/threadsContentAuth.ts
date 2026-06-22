@@ -3,11 +3,13 @@ import {
   decryptThreadsContentToken,
   encryptThreadsContentToken,
 } from "./threadsContentConfigCrypto.ts";
-import { refreshThreadsAccessToken } from "./threadsContentApi.ts";
+import { refreshThreadsAccessToken, fetchThreadsGrantedPermissions, canThreadsTokenPublishReplies } from "./threadsContentApi.ts";
 import { missingScopesForFeature, META_SCOPE_FEATURE_MAP } from "./metaPlatformScopes.ts";
 import {
   isThreadsAppConfigured,
   threadsAppConfigErrorMessage,
+  threadsAppId,
+  threadsAppSecret,
 } from "./threadsAppCredentials.ts";
 
 export const threadsContentCorsHeaders: Record<string, string> = {
@@ -32,6 +34,47 @@ export function threadsContentJson(body: object, status: number): Response {
 export function parseThreadsGrantedScopes(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String);
   return [];
+}
+
+function mergeThreadsScopesIntoGranted(existing: unknown, threadsScopes: string[]): string[] {
+  const parsed = parseThreadsGrantedScopes(existing);
+  const withoutThreads = parsed.filter((s) => !s.toLowerCase().startsWith("threads_"));
+  return [...new Set([...withoutThreads, ...threadsScopes])];
+}
+
+async function resolveLiveThreadsGrantedScopes(
+  admin: SupabaseClient,
+  organizationId: string,
+  threadsUserId: string,
+  storedGranted: string[],
+): Promise<{ grantedScopes: string[]; canPublishReplies: boolean }> {
+  const accessToken = await getThreadsAccessToken(admin, organizationId, threadsUserId);
+  if (!accessToken) return { grantedScopes: storedGranted, canPublishReplies: false };
+
+  const liveScopes = await fetchThreadsGrantedPermissions(
+    accessToken,
+    threadsAppId(),
+    threadsAppSecret(),
+  );
+  const canPublishReplies = await canThreadsTokenPublishReplies(threadsUserId, accessToken);
+  const effectiveLive = liveScopes;
+
+  if (effectiveLive.length === 0) {
+    return { grantedScopes: storedGranted, canPublishReplies };
+  }
+
+  const merged = mergeThreadsScopesIntoGranted(storedGranted, effectiveLive);
+  const storedThreads = storedGranted.filter((s) => s.toLowerCase().startsWith("threads_")).sort().join(",");
+  const mergedThreads = merged.filter((s) => s.toLowerCase().startsWith("threads_")).sort().join(",");
+  if (storedThreads !== mergedThreads) {
+    await admin
+      .from("organization_instagram_accounts")
+      .update({ granted_scopes: merged, updated_at: new Date().toISOString() })
+      .eq("organization_id", organizationId)
+      .eq("threads_user_id", threadsUserId)
+      .eq("has_threads", true);
+  }
+  return { grantedScopes: merged, canPublishReplies };
 }
 
 export function isThreadsPlatformConfigured(): boolean {
@@ -263,6 +306,7 @@ export async function listThreadsContentAccounts(
   const features = Object.keys(THREADS_SCOPE_FEATURE_MAP) as Array<keyof typeof THREADS_SCOPE_FEATURE_MAP>;
 
   const seenThreadsUserIds = new Set<string>();
+  const liveScopesByThreadsUser = new Map<string, { grantedScopes: string[]; canPublishReplies: boolean }>();
   const out: Array<{
     platform: "threads";
     account_id: string;
@@ -281,12 +325,35 @@ export async function listThreadsContentAccounts(
     seenThreadsUserIds.add(threadsUserId);
 
     const igId = String(r.instagram_business_account_id ?? "");
-    const grantedScopes = parseThreadsGrantedScopes(r.granted_scopes);
+    let grantedScopes = parseThreadsGrantedScopes(r.granted_scopes);
+    let canPublishReplies = false;
+    if (!liveScopesByThreadsUser.has(threadsUserId)) {
+      const resolved = await resolveLiveThreadsGrantedScopes(
+        admin,
+        organizationId,
+        threadsUserId,
+        grantedScopes,
+      );
+      grantedScopes = resolved.grantedScopes;
+      canPublishReplies = resolved.canPublishReplies;
+      liveScopesByThreadsUser.set(threadsUserId, resolved);
+    } else {
+      const cached = liveScopesByThreadsUser.get(threadsUserId)!;
+      grantedScopes = cached.grantedScopes;
+      canPublishReplies = cached.canPublishReplies;
+    }
     const featureStatus = Object.fromEntries(
-      features.map((f) => [f, {
-        ok: missingScopesForFeature(grantedScopes, f).length === 0,
-        missing: missingScopesForFeature(grantedScopes, f),
-      }]),
+      features.map((f) => {
+        if (f === "threads_replies" && canPublishReplies) {
+          const missing = missingScopesForFeature(grantedScopes, f)
+            .filter((scope) => scope !== "threads_content_publish");
+          return [f, { ok: missing.length === 0, missing }];
+        }
+        return [f, {
+          ok: missingScopesForFeature(grantedScopes, f).length === 0,
+          missing: missingScopesForFeature(grantedScopes, f),
+        }];
+      }),
     );
     out.push({
       platform: "threads" as const,

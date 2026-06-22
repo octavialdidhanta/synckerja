@@ -16,6 +16,13 @@ import {
   parseThreadsPostDateRange,
   THREADS_ALL_TIME_START_YMD,
 } from "../../_shared/threadsContentDateRange.ts";
+import {
+  backfillLinkPostIds,
+  buildPlanMatchIndex,
+  loadPlanDetails,
+  loadThreadsPlanLinks,
+  matchPostToPlan,
+} from "../../_shared/threadsContentPlanMatcher.ts";
 
 export async function handleThreadsMetrics(
   admin: SupabaseClient,
@@ -74,7 +81,37 @@ export async function handleThreadsMetrics(
     }
 
     const postRows = await buildThreadsMetricsPostRows(posts, accessToken, accountId);
-    const summary = buildThreadsSummaryFromPosts(postRows);
+
+    const links = await loadThreadsPlanLinks(admin, organizationId);
+    const matchIndex = buildPlanMatchIndex(links);
+    const planIds = [...new Set(links.map((l) => l.social_media_plan_id))];
+    const planMap = await loadPlanDetails(admin, planIds);
+    const backfillMatches: Array<{ link_id: string; post_id: string }> = [];
+
+    const enrichedPosts = postRows.map((row) => {
+      const match = matchPostToPlan(
+        { id: row.content_id, permalink: row.permalink },
+        matchIndex,
+        planMap,
+      );
+      if (match.link_id && row.content_id && match.match_type) {
+        backfillMatches.push({ link_id: match.link_id, post_id: row.content_id });
+      }
+      return {
+        ...row,
+        plan_id: match.plan_id,
+        service_name: match.service_name,
+        content_pillar: match.content_pillar,
+        match_type: match.match_type,
+      };
+    });
+
+    if (backfillMatches.length > 0) {
+      await backfillLinkPostIds(admin, account.threadsUserId, backfillMatches);
+    }
+
+    const summary = buildThreadsSummaryFromPosts(enrichedPosts);
+    const totalShares = enrichedPosts.reduce((s, r) => s + r.share_count, 0);
 
     const payload = {
       metrics_schema_version: 1,
@@ -91,21 +128,22 @@ export async function handleThreadsMetrics(
         audience_count: audienceCount,
         audience_hidden: false,
         audience_label: "followers",
-        content_count: postRows.length,
+        content_count: enrichedPosts.length,
         total_views: summary.views,
         total_likes: summary.totalLikes,
         total_comments: summary.totalComments,
-        total_shares: postRows.reduce((s, r) => s + r.share_count, 0),
+        total_shares: totalShares,
         avg_engagement_rate: computeThreadsEngagementRate(
           summary.totalLikes,
           summary.totalComments,
           summary.views,
+          totalShares,
         ),
         reach: summary.reach,
         impressions: summary.views,
         engagement: summary.engagement,
       },
-      posts: postRows,
+      posts: enrichedPosts,
       fetched_at: now.toISOString(),
     };
 

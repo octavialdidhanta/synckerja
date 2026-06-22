@@ -122,6 +122,7 @@ function SocialMediaInsightReportPageBody({
     filtersHydrated,
   } = useDigitalMarketingPaidAdsFilters();
   const {
+    organizationId,
     pageLoading,
     isFetching,
     accounts,
@@ -387,6 +388,7 @@ function SocialMediaInsightReportPageBody({
 
                       <SocialMediaInsightReportAccountTable
                         rows={accounts}
+                        organizationId={organizationId}
                         isLoading={showTableSkeletonOverlay}
                       />
 

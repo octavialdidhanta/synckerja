@@ -1,5 +1,6 @@
 import type { MetaContentPlatform } from "./metaContentAuth.ts";
 import { graphUrl } from "./metaContentAuth.ts";
+import { metaGraphVersion } from "./metaPlatformScopes.ts";
 
 /** Accepts YYYY-MM-DD or unix timestamp strings for Graph API since/until. */
 export function toMetaGraphSinceUntil(
@@ -59,6 +60,7 @@ export type MetaContentPost = {
   timestamp: string | null;
   comment_count: number;
   like_count: number;
+  shares_count?: number;
   /** Populated when Facebook post list includes inline insights field expansion. */
   insight_views?: number;
   insight_reach?: number;
@@ -103,19 +105,354 @@ async function graphPost<T>(url: string, accessToken: string, body: Record<strin
   return data;
 }
 
+const GRAPH_BATCH_LIMIT = 50;
+const GRAPH_BATCH_RETRY_CHUNK = 8;
+const GRAPH_BATCH_INTER_CHUNK_DELAY_MS = 300;
+
+type GraphBatchItemResult = { code: number; body: string };
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isGraphBatchItemSuccess(item: GraphBatchItemResult | undefined): boolean {
+  return Boolean(item && item.code >= 200 && item.code < 300);
+}
+
+async function graphBatchGet(
+  accessToken: string,
+  relativeUrls: string[],
+): Promise<GraphBatchItemResult[]> {
+  if (relativeUrls.length === 0) return [];
+  const version = metaGraphVersion();
+  const url = `https://graph.facebook.com/${version}/`;
+  const batchPayload = relativeUrls.map((relative_url) => ({
+    method: "GET",
+    relative_url,
+  }));
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      access_token: accessToken,
+      batch: JSON.stringify(batchPayload),
+    }).toString(),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(`Graph batch error ${res.status}`);
+  }
+  return Array.isArray(data) ? (data as GraphBatchItemResult[]) : [];
+}
+
+async function graphBatchGetResilient(
+  accessToken: string,
+  relativeUrls: string[],
+): Promise<GraphBatchItemResult[]> {
+  const attempts = 3;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const results = await graphBatchGet(accessToken, relativeUrls);
+      if (results.length === relativeUrls.length) return results;
+    } catch (err) {
+      if (attempt === attempts - 1) {
+        console.warn(
+          "graphBatchGetResilient failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+    await sleepMs(GRAPH_BATCH_INTER_CHUNK_DELAY_MS * (attempt + 1));
+  }
+  return relativeUrls.map(() => ({ code: 0, body: "" }));
+}
+
+function igInsightsRelativeUrl(mediaId: string, params: Record<string, string>): string {
+  return `${mediaId}/insights?${new URLSearchParams(params).toString()}`;
+}
+
+function isInstagramReelsMediaType(mediaType: string | null | undefined): boolean {
+  return String(mediaType ?? "").toUpperCase() === "REELS";
+}
+
+function parseBatchInsightBody(body: string): Record<string, number> {
+  try {
+    const parsed = JSON.parse(body) as { data?: IgInsightMetricRow[] };
+    return parseIgInsightMetrics(parsed.data);
+  } catch {
+    return {};
+  }
+}
+
+function parseBatchMediaViewFieldsBody(body: string): number {
+  try {
+    const parsed = JSON.parse(body) as {
+      view_count?: number;
+      views_count?: number;
+      total_views_count?: number;
+    };
+    return Number(parsed.total_views_count ?? parsed.views_count ?? parsed.view_count ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function mergeIgInsightBatchPass(
+  posts: MetaContentPost[],
+  accessToken: string,
+  mergedById: Map<string, Record<string, number>>,
+  relativeUrlForPost: (post: MetaContentPost) => string,
+): Promise<void> {
+  const failedPosts: MetaContentPost[] = [];
+
+  for (let i = 0; i < posts.length; i += GRAPH_BATCH_LIMIT) {
+    if (i > 0) await sleepMs(GRAPH_BATCH_INTER_CHUNK_DELAY_MS);
+    const chunk = posts.slice(i, i + GRAPH_BATCH_LIMIT);
+    const batchResults = await graphBatchGetResilient(
+      accessToken,
+      chunk.map(relativeUrlForPost),
+    );
+    chunk.forEach((post, idx) => {
+      const item = batchResults[idx];
+      if (!isGraphBatchItemSuccess(item)) {
+        failedPosts.push(post);
+        return;
+      }
+      const parsed = parseBatchInsightBody(item.body);
+      mergedById.set(post.id, { ...(mergedById.get(post.id) ?? {}), ...parsed });
+    });
+  }
+
+  for (let i = 0; i < failedPosts.length; i += GRAPH_BATCH_RETRY_CHUNK) {
+    await sleepMs(GRAPH_BATCH_INTER_CHUNK_DELAY_MS);
+    const chunk = failedPosts.slice(i, i + GRAPH_BATCH_RETRY_CHUNK);
+    const batchResults = await graphBatchGetResilient(
+      accessToken,
+      chunk.map(relativeUrlForPost),
+    );
+    chunk.forEach((post, idx) => {
+      const item = batchResults[idx];
+      if (!isGraphBatchItemSuccess(item)) return;
+      const parsed = parseBatchInsightBody(item.body);
+      mergedById.set(post.id, { ...(mergedById.get(post.id) ?? {}), ...parsed });
+    });
+  }
+}
+
+async function mergeIgMediaViewFieldsBatchPass(
+  posts: MetaContentPost[],
+  accessToken: string,
+  viewCountById: Map<string, number>,
+): Promise<void> {
+  for (let i = 0; i < posts.length; i += GRAPH_BATCH_LIMIT) {
+    if (i > 0) await sleepMs(GRAPH_BATCH_INTER_CHUNK_DELAY_MS);
+    const chunk = posts.slice(i, i + GRAPH_BATCH_LIMIT);
+    const batchResults = await graphBatchGetResilient(
+      accessToken,
+      chunk.map((post) => `${post.id}?fields=view_count,views_count,total_views_count`),
+    );
+    chunk.forEach((post, idx) => {
+      const item = batchResults[idx];
+      if (!isGraphBatchItemSuccess(item)) return;
+      const views = parseBatchMediaViewFieldsBody(item.body);
+      if (views > 0) viewCountById.set(post.id, views);
+    });
+  }
+}
+
+async function fetchInstagramMediaInsightsSingleMerged(
+  mediaId: string,
+  accessToken: string,
+  mediaType?: string | null,
+): Promise<Record<string, number>> {
+  const merged: Record<string, number> = {};
+  const isReels = isInstagramReelsMediaType(mediaType);
+
+  Object.assign(
+    merged,
+    await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+      metric: "reach,views,total_interactions,shares",
+      metric_type: "total_value",
+    }),
+  );
+
+  if (!isReels || (merged.views ?? 0) === 0) {
+    Object.assign(
+      merged,
+      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+        metric: "impressions",
+        period: "lifetime",
+      }),
+    );
+  }
+
+  if ((merged.views ?? 0) === 0 && !isReels) {
+    Object.assign(
+      merged,
+      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+        metric: "impressions,reach,engagement",
+        period: "lifetime",
+      }),
+    );
+  }
+
+  if ((merged.reach ?? 0) === 0) {
+    Object.assign(
+      merged,
+      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+        metric: "reach",
+        period: "lifetime",
+      }),
+    );
+  }
+
+  if ((merged.total_interactions ?? 0) === 0 && (merged.engagement ?? 0) === 0) {
+    Object.assign(
+      merged,
+      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+        metric: "engagement",
+        period: "lifetime",
+      }),
+    );
+  }
+
+  if ((merged.shares ?? 0) === 0) {
+    Object.assign(
+      merged,
+      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+        metric: "shares",
+        metric_type: "total_value",
+      }),
+    );
+  }
+
+  if (Math.max(merged.views ?? 0, merged.impressions ?? 0) === 0) {
+    const fieldViews = await fetchInstagramMediaViewCountFromFields(mediaId, accessToken);
+    if (fieldViews > 0) merged.views = fieldViews;
+  }
+
+  return merged;
+}
+
+async function fetchInstagramMediaInsightsMap(
+  posts: MetaContentPost[],
+  accessToken: string,
+): Promise<Map<string, InstagramMediaInsights>> {
+  const mergedById = new Map<string, Record<string, number>>();
+  for (const post of posts) mergedById.set(post.id, {});
+
+  if (posts.length === 0) return new Map();
+
+  const nonReels = posts.filter((post) => !isInstagramReelsMediaType(post.media_type));
+  const reels = posts.filter((post) => isInstagramReelsMediaType(post.media_type));
+
+  await mergeIgInsightBatchPass(posts, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, {
+      metric: "reach,views,total_interactions,shares",
+      metric_type: "total_value",
+    }));
+
+  await mergeIgInsightBatchPass(nonReels, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, { metric: "impressions", period: "lifetime" }));
+
+  const reelsNeedImpressions = reels.filter(
+    (post) => (mergedById.get(post.id)?.views ?? 0) === 0,
+  );
+  await mergeIgInsightBatchPass(reelsNeedImpressions, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, { metric: "impressions", period: "lifetime" }));
+
+  const needLegacyBundle = nonReels.filter((post) => {
+    const merged = mergedById.get(post.id) ?? {};
+    return Math.max(merged.views ?? 0, merged.impressions ?? 0) === 0;
+  });
+  await mergeIgInsightBatchPass(needLegacyBundle, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, {
+      metric: "impressions,reach,engagement",
+      period: "lifetime",
+    }));
+
+  const needReach = posts.filter((post) => (mergedById.get(post.id)?.reach ?? 0) === 0);
+  await mergeIgInsightBatchPass(needReach, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, { metric: "reach", period: "lifetime" }));
+
+  const needEngagement = posts.filter((post) => {
+    const merged = mergedById.get(post.id) ?? {};
+    return (merged.total_interactions ?? 0) === 0 && (merged.engagement ?? 0) === 0;
+  });
+  await mergeIgInsightBatchPass(needEngagement, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, { metric: "engagement", period: "lifetime" }));
+
+  const needShares = posts.filter((post) => (mergedById.get(post.id)?.shares ?? 0) === 0);
+  await mergeIgInsightBatchPass(needShares, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, { metric: "shares", metric_type: "total_value" }));
+
+  const viewCountById = new Map<string, number>();
+  const needViewFields = posts.filter((post) => {
+    const merged = mergedById.get(post.id) ?? {};
+    return Math.max(merged.views ?? 0, merged.impressions ?? 0) === 0;
+  });
+  await mergeIgMediaViewFieldsBatchPass(needViewFields, accessToken, viewCountById);
+
+  const needIndividual = posts.filter((post) => {
+    const merged = mergedById.get(post.id) ?? {};
+    return Math.max(
+      merged.views ?? 0,
+      merged.impressions ?? 0,
+      viewCountById.get(post.id) ?? 0,
+    ) === 0;
+  });
+  await mapWithConcurrency(needIndividual, 4, async (post) => {
+    const merged = await fetchInstagramMediaInsightsSingleMerged(
+      post.id,
+      accessToken,
+      post.media_type,
+    );
+    mergedById.set(post.id, { ...(mergedById.get(post.id) ?? {}), ...merged });
+  });
+
+  const out = new Map<string, InstagramMediaInsights>();
+  for (const post of posts) {
+    const merged = mergedById.get(post.id) ?? {};
+    const views = Math.max(
+      merged.views ?? 0,
+      merged.impressions ?? 0,
+      viewCountById.get(post.id) ?? 0,
+    );
+    out.set(post.id, {
+      reach: merged.reach ?? 0,
+      views,
+      total_interactions: merged.total_interactions ?? merged.engagement ?? 0,
+      shares: merged.shares ?? 0,
+    });
+  }
+  return out;
+}
+
+/** Max posts returned when paginating all-time (IG/FB publish list). */
+export const META_CONTENT_ALL_TIME_MAX_POSTS = 500;
+export const META_CONTENT_ALL_TIME_MAX_PAGES = 40;
+export const META_CONTENT_DATED_MAX_POSTS = 50;
+
+const IG_MEDIA_LIST_FIELDS =
+  "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count,shares_count";
+
 export async function fetchInstagramMedia(
   igUserId: string,
   accessToken: string,
   limit = 25,
 ): Promise<MetaContentPost[]> {
-  const fields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count";
   const url = graphUrl(`${igUserId}/media`, {
-    fields,
+    fields: IG_MEDIA_LIST_FIELDS,
     limit: String(Math.min(Math.max(limit, 1), 100)),
   });
   const data = await graphGet<{ data?: Array<Record<string, unknown>> }>(url, accessToken);
   return (data.data ?? []).map(mapIgMedia);
 }
+
+export type ResolveInstagramPostsOptions = {
+  /** Paginate through entire publish history (no publish-date filter). */
+  allTime?: boolean;
+};
 
 function timestampToUtcYmd(iso: string): string {
   const d = new Date(iso);
@@ -158,28 +495,35 @@ export function filterPostsByUnixRange(
 }
 
 /**
- * Fetches recent IG media pages until we collect posts published in the date range
- * (matches date picker YMD). Never returns media outside the range.
+ * Fetches IG media with cursor pagination.
+ * - `allTime`: all published posts up to {@link META_CONTENT_ALL_TIME_MAX_POSTS}.
+ * - `dateRange`: posts whose publish date falls in [startYmd, endYmd] up to `limit`.
  */
 export async function resolveInstagramPostsForMetrics(
   igUserId: string,
   accessToken: string,
   limit: number,
   dateRange?: { startYmd: string; endYmd: string },
+  options?: ResolveInstagramPostsOptions,
 ): Promise<MetaContentPost[]> {
-  if (!dateRange?.startYmd || !dateRange?.endYmd) {
+  const filterByDate = Boolean(
+    dateRange?.startYmd && dateRange?.endYmd && !options?.allTime,
+  );
+  const paginate = filterByDate || options?.allTime === true;
+
+  if (!paginate) {
     return fetchInstagramMedia(igUserId, accessToken, limit);
   }
 
-  const { startYmd, endYmd } = dateRange;
+  const { startYmd, endYmd } = dateRange ?? { startYmd: "", endYmd: "" };
   const inRange: MetaContentPost[] = [];
   let after: string | undefined;
-  const maxPages = 25;
+  const maxPages = options?.allTime ? META_CONTENT_ALL_TIME_MAX_PAGES : 25;
+  const cap = options?.allTime ? META_CONTENT_ALL_TIME_MAX_POSTS : limit;
 
-  for (let page = 0; page < maxPages && inRange.length < limit; page++) {
-    const fields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count";
+  for (let page = 0; page < maxPages && inRange.length < cap; page++) {
     const params: Record<string, string> = {
-      fields,
+      fields: IG_MEDIA_LIST_FIELDS,
       limit: "50",
     };
     if (after) params.after = after;
@@ -193,17 +537,20 @@ export async function resolveInstagramPostsForMetrics(
     if (batch.length === 0) break;
 
     for (const post of batch) {
-      if (!post.timestamp) continue;
-      const ymd = timestampToUtcYmd(post.timestamp);
-      if (ymd >= startYmd && ymd <= endYmd) {
-        inRange.push(post);
-        if (inRange.length >= limit) break;
+      if (filterByDate) {
+        if (!post.timestamp) continue;
+        const ymd = timestampToUtcYmd(post.timestamp);
+        if (!ymd || ymd < startYmd || ymd > endYmd) continue;
       }
+      inRange.push(post);
+      if (inRange.length >= cap) break;
     }
 
-    const oldest = batch[batch.length - 1];
-    const oldestYmd = oldest?.timestamp ? timestampToUtcYmd(oldest.timestamp) : "";
-    if (oldestYmd && oldestYmd < startYmd) break;
+    if (filterByDate && startYmd) {
+      const oldest = batch[batch.length - 1];
+      const oldestYmd = oldest?.timestamp ? timestampToUtcYmd(oldest.timestamp) : "";
+      if (oldestYmd && oldestYmd < startYmd) break;
+    }
 
     after = data.paging?.cursors?.after;
     if (!after) break;
@@ -267,50 +614,187 @@ async function fetchFacebookPostCommentCount(postId: string, accessToken: string
   }
 }
 
+async function fetchFacebookPostShareCount(postId: string, accessToken: string): Promise<number> {
+  try {
+    const row = await graphGet<{ shares?: { count?: number } }>(
+      graphUrl(postId, { fields: "shares" }),
+      accessToken,
+    );
+    return Number(row.shares?.count ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+type FbPostHydratedMetrics = {
+  like_count: number;
+  comment_count: number;
+  view_count: number;
+  reach: number;
+  share_count: number;
+  total_interactions: number;
+};
+
+function parseBatchFbPostFieldsBody(body: string): Pick<
+  FbPostHydratedMetrics,
+  "like_count" | "comment_count" | "share_count"
+> {
+  try {
+    const row = JSON.parse(body) as Record<string, unknown>;
+    const mapped = mapFbPost({ ...row, id: String(row.id ?? "") });
+    return {
+      like_count: mapped.like_count,
+      comment_count: mapped.comment_count,
+      share_count: mapped.shares_count ?? 0,
+    };
+  } catch {
+    return { like_count: 0, comment_count: 0, share_count: 0 };
+  }
+}
+
+function parseBatchFbInsightBody(body: string): Record<string, number> {
+  try {
+    const parsed = JSON.parse(body) as { data?: FbInsightMetricRow[] };
+    const out: Record<string, number> = {};
+    for (const metric of parsed.data ?? []) {
+      out[String(metric.name ?? "")] = parseFbInsightMetricValue(metric);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function applyFbInsightMetrics(
+  metrics: FbPostHydratedMetrics,
+  insight: Record<string, number>,
+): void {
+  const views = insight.post_media_view ?? insight.post_impressions ?? 0;
+  const reach = insight.post_total_media_view_unique ?? insight.post_impressions_unique ?? 0;
+  if (views > 0) metrics.view_count = Math.max(metrics.view_count, views);
+  if (reach > 0) metrics.reach = Math.max(metrics.reach, reach);
+  const engaged = insight.post_engaged_users ?? 0;
+  if (engaged > 0) metrics.total_interactions = Math.max(metrics.total_interactions, engaged);
+}
+
+async function mergeFbPostFieldsBatchPass(
+  posts: MetaContentPost[],
+  accessToken: string,
+  metricsById: Map<string, FbPostHydratedMetrics>,
+): Promise<void> {
+  for (let i = 0; i < posts.length; i += GRAPH_BATCH_LIMIT) {
+    if (i > 0) await sleepMs(GRAPH_BATCH_INTER_CHUNK_DELAY_MS);
+    const chunk = posts.slice(i, i + GRAPH_BATCH_LIMIT);
+    const batchResults = await graphBatchGetResilient(
+      accessToken,
+      chunk.map((post) => `${post.id}?fields=reactions.summary(true),comments.summary(true),shares`),
+    );
+    chunk.forEach((post, idx) => {
+      const item = batchResults[idx];
+      if (!isGraphBatchItemSuccess(item)) return;
+      const parsed = parseBatchFbPostFieldsBody(item.body);
+      const current = metricsById.get(post.id);
+      if (!current) return;
+      current.like_count = Math.max(current.like_count, parsed.like_count);
+      current.comment_count = Math.max(current.comment_count, parsed.comment_count);
+      current.share_count = Math.max(current.share_count, parsed.share_count);
+    });
+  }
+}
+
+async function mergeFbInsightsBatchPass(
+  posts: MetaContentPost[],
+  accessToken: string,
+  metricsById: Map<string, FbPostHydratedMetrics>,
+  params: Record<string, string>,
+): Promise<void> {
+  for (let i = 0; i < posts.length; i += GRAPH_BATCH_LIMIT) {
+    if (i > 0) await sleepMs(GRAPH_BATCH_INTER_CHUNK_DELAY_MS);
+    const chunk = posts.slice(i, i + GRAPH_BATCH_LIMIT);
+    const batchResults = await graphBatchGetResilient(
+      accessToken,
+      chunk.map((post) => `${post.id}/insights?${new URLSearchParams(params).toString()}`),
+    );
+    chunk.forEach((post, idx) => {
+      const item = batchResults[idx];
+      if (!isGraphBatchItemSuccess(item)) return;
+      const current = metricsById.get(post.id);
+      if (!current) return;
+      applyFbInsightMetrics(current, parseBatchFbInsightBody(item.body));
+    });
+  }
+}
+
+async function fetchFacebookPostMetricsMap(
+  posts: MetaContentPost[],
+  accessToken: string,
+): Promise<Map<string, FbPostHydratedMetrics>> {
+  const metricsById = new Map<string, FbPostHydratedMetrics>();
+  for (const post of posts) {
+    metricsById.set(post.id, {
+      like_count: post.like_count,
+      comment_count: post.comment_count,
+      view_count: post.insight_views ?? 0,
+      reach: post.insight_reach ?? 0,
+      share_count: post.shares_count ?? 0,
+      total_interactions: 0,
+    });
+  }
+  if (posts.length === 0) return metricsById;
+
+  await mergeFbPostFieldsBatchPass(posts, accessToken, metricsById);
+
+  const needInsights = () => posts.filter((post) => {
+    const metrics = metricsById.get(post.id);
+    return !metrics || metrics.view_count === 0 || metrics.reach === 0;
+  });
+
+  await mergeFbInsightsBatchPass(needInsights(), accessToken, metricsById, {
+    metric: "post_media_view,post_total_media_view_unique,post_engaged_users",
+    period: "lifetime",
+  });
+  await mergeFbInsightsBatchPass(needInsights(), accessToken, metricsById, {
+    metric: "post_impressions,post_impressions_unique,post_engaged_users",
+    period: "lifetime",
+  });
+  await mergeFbInsightsBatchPass(needInsights(), accessToken, metricsById, {
+    metric: "post_media_view,post_total_media_view_unique",
+    date_preset: "maximum",
+  });
+
+  for (const post of posts) {
+    const metrics = metricsById.get(post.id);
+    if (!metrics) continue;
+    if (metrics.reach > 0 && metrics.view_count < metrics.reach) {
+      metrics.view_count = metrics.reach;
+    }
+    if (metrics.total_interactions === 0) {
+      metrics.total_interactions = metrics.like_count + metrics.comment_count + metrics.share_count;
+    }
+  }
+
+  return metricsById;
+}
+
 export async function hydrateFacebookPostMetrics(
   post: MetaContentPost,
   accessToken: string,
-): Promise<{ like_count: number; comment_count: number; view_count: number; reach: number }> {
-  let likeCount = post.like_count;
-  let commentCount = post.comment_count;
-  let viewCount = post.insight_views ?? 0;
-  let reach = post.insight_reach ?? 0;
-
-  try {
-    const row = await graphGet<Record<string, unknown>>(
-      graphUrl(post.id, { fields: "reactions.summary(true),comments.summary(true),likes.summary(true)" }),
-      accessToken,
-    );
-    const mapped = mapFbPost({ ...row, id: post.id });
-    likeCount = Math.max(likeCount, mapped.like_count);
-    commentCount = Math.max(commentCount, mapped.comment_count);
-  } catch {
-    // fall through to edge endpoints
-  }
-
-  if (likeCount === 0) {
-    likeCount = await fetchFacebookPostReactionCount(post.id, accessToken);
-  }
-  if (commentCount === 0) {
-    commentCount = await fetchFacebookPostCommentCount(post.id, accessToken);
-  }
-
-  if (viewCount === 0 || reach === 0) {
-    const insights = await fetchFacebookPostInsights(post.id, accessToken, {
-      insight_views: post.insight_views,
-      insight_reach: post.insight_reach,
-    });
-    viewCount = Math.max(viewCount, insights.impressions);
-    reach = Math.max(reach, insights.reach);
-  }
-
-  if (reach > 0 && viewCount < reach) viewCount = reach;
-
+): Promise<{ like_count: number; comment_count: number; view_count: number; reach: number; share_count: number }> {
+  const map = await fetchFacebookPostMetricsMap([post], accessToken);
+  const metrics = map.get(post.id) ?? {
+    like_count: post.like_count,
+    comment_count: post.comment_count,
+    view_count: post.insight_views ?? 0,
+    reach: post.insight_reach ?? 0,
+    share_count: post.shares_count ?? 0,
+    total_interactions: 0,
+  };
   return {
-    like_count: likeCount,
-    comment_count: commentCount,
-    view_count: viewCount,
-    reach,
+    like_count: metrics.like_count,
+    comment_count: metrics.comment_count,
+    view_count: metrics.view_count,
+    reach: metrics.reach,
+    share_count: metrics.share_count,
   };
 }
 
@@ -324,6 +808,8 @@ export type FacebookMetricsPostRow = {
   comment_count: number;
   share_count: number;
   reach: number;
+  /** Meta insights `total_interactions` (or legacy `engagement`) — not derived from likes/comments. */
+  total_interactions: number;
   engagement_rate: number | null;
   caption: string | null;
   media_url: string | null;
@@ -335,8 +821,16 @@ export async function buildFacebookMetricsPostRows(
   accessToken: string,
   accountId: string,
 ): Promise<FacebookMetricsPostRow[]> {
-  return mapWithConcurrency(posts, 6, async (p) => {
-    const m = await hydrateFacebookPostMetrics(p, accessToken);
+  const metricsMap = await fetchFacebookPostMetricsMap(posts, accessToken);
+  return posts.map((p) => {
+    const m = metricsMap.get(p.id) ?? {
+      like_count: p.like_count,
+      comment_count: p.comment_count,
+      view_count: p.insight_views ?? 0,
+      reach: p.insight_reach ?? 0,
+      share_count: p.shares_count ?? 0,
+      total_interactions: 0,
+    };
     return {
       platform: "facebook",
       account_id: accountId,
@@ -345,9 +839,11 @@ export async function buildFacebookMetricsPostRows(
       view_count: m.view_count,
       like_count: m.like_count,
       comment_count: m.comment_count,
-      share_count: 0,
+      share_count: m.share_count,
       reach: m.reach,
-      engagement_rate: computeMetaEngagementRate(m.like_count, m.comment_count, m.view_count),
+      total_interactions: m.total_interactions,
+      engagement_rate: computeInstagramEngagementRateFromApi(m.total_interactions, m.view_count)
+        ?? computeMetaEngagementRate(m.like_count, m.comment_count, m.view_count, m.share_count),
       caption: p.caption,
       media_url: p.media_url ?? p.thumbnail_url,
       permalink: p.permalink,
@@ -362,11 +858,19 @@ export async function buildInstagramMetricsPostRows(
   accessToken: string,
   accountId: string,
 ): Promise<InstagramMetricsPostRow[]> {
-  return mapWithConcurrency(posts, 6, async (p) => {
-    const mediaInsights = await fetchInstagramMediaInsights(p.id, accessToken);
-    const viewCount = mediaInsights.impressions;
+  const insightsMap = await fetchInstagramMediaInsightsMap(posts, accessToken);
+  return posts.map((p) => {
+    const mediaInsights = insightsMap.get(p.id) ?? {
+      reach: 0,
+      views: 0,
+      total_interactions: 0,
+      shares: 0,
+    };
+    const viewCount = mediaInsights.views;
     const likeCount = p.like_count;
     const commentCount = p.comment_count;
+    const shareCount = Math.max(p.shares_count ?? 0, mediaInsights.shares);
+    const totalInteractions = mediaInsights.total_interactions;
     return {
       platform: "instagram",
       account_id: accountId,
@@ -375,9 +879,10 @@ export async function buildInstagramMetricsPostRows(
       view_count: viewCount,
       like_count: likeCount,
       comment_count: commentCount,
-      share_count: 0,
+      share_count: shareCount,
       reach: mediaInsights.reach,
-      engagement_rate: computeMetaEngagementRate(likeCount, commentCount, viewCount),
+      total_interactions: totalInteractions,
+      engagement_rate: computeInstagramEngagementRateFromApi(totalInteractions, viewCount),
       caption: p.caption,
       media_url: p.media_url ?? p.thumbnail_url,
       permalink: p.permalink,
@@ -391,9 +896,9 @@ const FB_POST_LIST_FIELDS = [
   "created_time",
   "permalink_url",
   "full_picture",
+  "shares",
   "comments.summary(true)",
   "reactions.summary(true)",
-  "likes.summary(true)",
 ].join(",");
 
 async function fetchFacebookPostsFromEndpoint(
@@ -401,18 +906,22 @@ async function fetchFacebookPostsFromEndpoint(
   accessToken: string,
   limit: number,
   dateRange?: { startYmd: string; endYmd: string },
+  options?: { allTime?: boolean },
 ): Promise<{ posts: MetaContentPost[]; sawAnyBatch: boolean }> {
+  const filterByDate = Boolean(
+    dateRange?.startYmd && dateRange?.endYmd && !options?.allTime,
+  );
+  const paginate = filterByDate || options?.allTime === true;
   const inRange: MetaContentPost[] = [];
   let after: string | undefined;
-  const maxPages = dateRange?.startYmd && dateRange?.endYmd ? 25 : 1;
+  const maxPages = options?.allTime ? META_CONTENT_ALL_TIME_MAX_PAGES : filterByDate ? 25 : 1;
+  const cap = options?.allTime ? META_CONTENT_ALL_TIME_MAX_POSTS : limit;
   let sawAnyBatch = false;
 
-  for (let page = 0; page < maxPages && inRange.length < limit; page++) {
+  for (let page = 0; page < maxPages && inRange.length < cap; page++) {
     const params: Record<string, string> = {
       fields: FB_POST_LIST_FIELDS,
-      limit: dateRange?.startYmd && dateRange?.endYmd
-        ? "50"
-        : String(Math.min(Math.max(limit, 1), 100)),
+      limit: paginate ? "50" : String(Math.min(Math.max(limit, 1), 100)),
     };
     if (after) params.after = after;
 
@@ -425,22 +934,26 @@ async function fetchFacebookPostsFromEndpoint(
     if (batch.length === 0) break;
     sawAnyBatch = true;
 
-    if (!dateRange?.startYmd || !dateRange?.endYmd) {
+    if (!paginate) {
       return { posts: batch.slice(0, limit), sawAnyBatch: true };
     }
 
+    const { startYmd = "", endYmd = "" } = dateRange ?? {};
     for (const post of batch) {
-      if (!post.timestamp) continue;
-      const ymd = timestampToUtcYmd(post.timestamp);
-      if (ymd >= dateRange.startYmd && ymd <= dateRange.endYmd) {
-        inRange.push(post);
-        if (inRange.length >= limit) break;
+      if (filterByDate) {
+        if (!post.timestamp) continue;
+        const ymd = timestampToUtcYmd(post.timestamp);
+        if (!ymd || ymd < startYmd || ymd > endYmd) continue;
       }
+      inRange.push(post);
+      if (inRange.length >= cap) break;
     }
 
-    const oldest = batch[batch.length - 1];
-    const oldestYmd = oldest?.timestamp ? timestampToUtcYmd(oldest.timestamp) : "";
-    if (oldestYmd && oldestYmd < dateRange.startYmd) break;
+    if (filterByDate && startYmd) {
+      const oldest = batch[batch.length - 1];
+      const oldestYmd = oldest?.timestamp ? timestampToUtcYmd(oldest.timestamp) : "";
+      if (oldestYmd && oldestYmd < startYmd) break;
+    }
 
     after = data.paging?.cursors?.after;
     if (!after) break;
@@ -448,6 +961,10 @@ async function fetchFacebookPostsFromEndpoint(
 
   return { posts: inRange, sawAnyBatch };
 }
+
+export type ResolveFacebookPostsOptions = {
+  allTime?: boolean;
+};
 
 /**
  * Fetches Facebook page posts, optionally paginating until enough posts fall in the YMD range.
@@ -457,10 +974,12 @@ export async function resolveFacebookPostsForMetrics(
   accessToken: string,
   limit: number,
   dateRange?: { startYmd: string; endYmd: string },
+  options?: ResolveFacebookPostsOptions,
 ): Promise<MetaContentPost[]> {
   const listEndpoints = [
     `${pageId}/published_posts`,
     `${pageId}/posts`,
+    `${pageId}/feed`,
   ];
 
   for (const endpoint of listEndpoints) {
@@ -470,11 +989,12 @@ export async function resolveFacebookPostsForMetrics(
         accessToken,
         limit,
         dateRange,
+        options,
       );
       if (posts.length > 0) return posts;
       if (sawAnyBatch) return [];
-    } catch {
-      // try next endpoint
+    } catch (err) {
+      console.warn(`resolveFacebookPostsForMetrics ${endpoint}:`, err instanceof Error ? err.message : err);
     }
   }
 
@@ -500,6 +1020,7 @@ function mapIgMedia(row: Record<string, unknown>): MetaContentPost {
     timestamp: typeof row.timestamp === "string" ? row.timestamp : null,
     comment_count: Number(row.comments_count ?? 0),
     like_count: Number(row.like_count ?? 0),
+    shares_count: Number(row.shares_count ?? 0) || 0,
   };
 }
 
@@ -520,6 +1041,7 @@ function mapFbPost(row: Record<string, unknown>): MetaContentPost {
   const reactions = row.reactions as { summary?: { total_count?: number } } | undefined;
   const likes = row.likes as { summary?: { total_count?: number } } | undefined;
   const inline = parseFbInlineInsights(row);
+  const shares = row.shares as { count?: number } | undefined;
   return {
     id: String(row.id ?? ""),
     caption: typeof row.message === "string" ? row.message : null,
@@ -532,6 +1054,7 @@ function mapFbPost(row: Record<string, unknown>): MetaContentPost {
     like_count: Number(
       reactions?.summary?.total_count ?? likes?.summary?.total_count ?? 0,
     ),
+    shares_count: Number(shares?.count ?? 0) || 0,
     insight_views: inline.views > 0 ? inline.views : undefined,
     insight_reach: inline.reach > 0 ? inline.reach : undefined,
   };
@@ -717,30 +1240,75 @@ export async function fetchInstagramAccountInsights(
   };
 }
 
+function parseIgInsightMetrics(data: IgInsightMetricRow[] | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const metric of data ?? []) {
+    out[String(metric.name ?? "")] = parseIgInsightMetricValue(metric);
+  }
+  return out;
+}
+
+export type InstagramMediaInsights = {
+  reach: number;
+  /** Play/impression count from Meta (`views`, legacy `impressions`, or media `view_count`). */
+  views: number;
+  total_interactions: number;
+  shares: number;
+};
+
+async function fetchInstagramMediaViewCountFromFields(
+  mediaId: string,
+  accessToken: string,
+): Promise<number> {
+  try {
+    const data = await graphGet<{
+      view_count?: number;
+      views_count?: number;
+      total_views_count?: number;
+    }>(
+      graphUrl(mediaId, { fields: "view_count,views_count,total_views_count" }),
+      accessToken,
+    );
+    return Number(data.total_views_count ?? data.views_count ?? data.view_count ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function fetchIgMediaInsightMetrics(
+  mediaId: string,
+  accessToken: string,
+  params: Record<string, string>,
+): Promise<Record<string, number>> {
+  try {
+    const data = await graphGet<{ data?: IgInsightMetricRow[] }>(
+      graphUrl(`${mediaId}/insights`, params),
+      accessToken,
+    );
+    return parseIgInsightMetrics(data.data);
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Instagram media insights — `views` vs `reach`:
+ * - views/impressions: how many times the media was seen (can exceed reach).
+ * - reach: unique accounts that saw the media at least once.
+ *
+ * Requests are split because mixing legacy (`impressions`, `engagement` + period)
+ * with modern (`metric_type=total_value`) metrics in one call fails the whole batch.
+ */
 export async function fetchInstagramMediaInsights(
   mediaId: string,
   accessToken: string,
-): Promise<{ reach: number; impressions: number; engagement: number }> {
-  try {
-    const data = await graphGet<{ data?: IgInsightMetricRow[] }>(
-      graphUrl(`${mediaId}/insights`, {
-        metric: "reach,views,total_interactions",
-        metric_type: "total_value",
-      }),
-      accessToken,
-    );
-    const out: Record<string, number> = {};
-    for (const metric of data.data ?? []) {
-      out[String(metric.name ?? "")] = parseIgInsightMetricValue(metric);
-    }
-    return {
-      reach: out.reach ?? 0,
-      impressions: out.views ?? out.impressions ?? 0,
-      engagement: out.total_interactions ?? out.engagement ?? 0,
-    };
-  } catch {
-    return { reach: 0, impressions: 0, engagement: 0 };
-  }
+  mediaType?: string | null,
+): Promise<InstagramMediaInsights> {
+  const map = await fetchInstagramMediaInsightsMap(
+    [{ id: mediaId, media_type: mediaType ?? null } as MetaContentPost],
+    accessToken,
+  );
+  return map.get(mediaId) ?? { reach: 0, views: 0, total_interactions: 0, shares: 0 };
 }
 
 export async function fetchFacebookPageInsights(
@@ -824,6 +1392,7 @@ export function buildMetaContentSummaryFromPosts(
     like_count: number;
     comment_count: number;
     reach: number;
+    total_interactions?: number;
   }>,
 ): {
   reach: number;
@@ -831,16 +1400,21 @@ export function buildMetaContentSummaryFromPosts(
   engagement: number;
   totalLikes: number;
   totalComments: number;
+  totalInteractions: number;
 } {
   const totalLikes = postRows.reduce((s, p) => s + p.like_count, 0);
   const totalComments = postRows.reduce((s, p) => s + p.comment_count, 0);
-  let views = postRows.reduce((s, p) => s + p.view_count, 0);
-  let reach = postRows.reduce((s, p) => s + p.reach, 0);
-  const engagement = totalLikes + totalComments;
+  const views = postRows.reduce((s, p) => s + p.view_count, 0);
+  const reach = postRows.reduce((s, p) => s + p.reach, 0);
+  const totalInteractions = postRows.reduce(
+    (s, p) => s + (p.total_interactions ?? 0),
+    0,
+  );
+  const engagement = totalInteractions > 0
+    ? totalInteractions
+    : totalLikes + totalComments;
 
-  if (reach > 0 && views < reach) views = reach;
-
-  return { reach, views, engagement, totalLikes, totalComments };
+  return { reach, views, engagement, totalLikes, totalComments, totalInteractions };
 }
 
 /** @deprecated Use buildMetaContentSummaryFromPosts */
@@ -850,11 +1424,23 @@ export function computeMetaEngagementRate(
   likes: number,
   comments: number,
   views: number,
+  shares = 0,
 ): number | null {
   if (!Number.isFinite(views) || views <= 0) return null;
-  const rate = ((likes + comments) / views) * 100;
+  const rate = ((likes + comments + shares) / views) * 100;
   if (!Number.isFinite(rate)) return null;
   return rate;
+}
+
+/** Engagement % from Meta insights: total_interactions ÷ views (both API-sourced). */
+export function computeInstagramEngagementRateFromApi(
+  totalInteractions: number,
+  views: number,
+): number | null {
+  if (!Number.isFinite(views) || views <= 0) return null;
+  if (!Number.isFinite(totalInteractions) || totalInteractions < 0) return null;
+  const rate = (totalInteractions / views) * 100;
+  return Number.isFinite(rate) ? rate : null;
 }
 
 export async function fetchMetaPosts(

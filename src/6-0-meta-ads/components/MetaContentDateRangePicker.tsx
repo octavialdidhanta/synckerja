@@ -21,7 +21,7 @@ function resolveInstagramPresetRange(
 
 function formatMetaContentPickerButtonLabel(selection: GoogleAdsDateRangeSelection): string {
   if (selection.preset === 'all_time') {
-    return 'All time · 50 recent posts';
+    return 'All time · all posts';
   }
   return formatGoogleAdsPickerButtonLabel(selection);
 }
@@ -48,7 +48,7 @@ export function MetaContentDateRangePicker({
       resolvePresetRange={resolveInstagramPresetRange}
       calendarYearPresetYears={calendarYearPresetYears ?? buildMetaContentCalendarYearPresetYears()}
       calendarYearFilterHint="Quarters: use Q1–Q4 per year."
-      allTimePopoverHint="All time: up to 50 most recent posts (no publish-date filter). Per-post metrics are lifetime totals from Meta."
+      allTimePopoverHint="All time: paginate through all published posts (no publish-date filter). Per-post metrics are lifetime totals from Meta."
     />
   );
 }

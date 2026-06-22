@@ -8,6 +8,7 @@ import {
   isOmnichannelApiTokenExpired,
 } from "../_shared/omnichannelPublicApi/auth.ts";
 import { isValidWebId, normalizeWebId } from "../_shared/omnichannelPublicApi/urlParams.ts";
+import { handleLeadTemplateMappingAction } from "../_shared/omnichannelPublicApi/leadTemplateMappingManage.ts";
 
 const MAX_ACTIVE_TOKENS_PER_ORG = 50;
 
@@ -85,13 +86,16 @@ Deno.serve(async (req) => {
   const adminErr = await requireOrgAdmin(admin, userRes.user.id, organizationId);
   if (adminErr) return adminErr;
 
+  const mappingResponse = await handleLeadTemplateMappingAction(admin, body, organizationId, json);
+  if (mappingResponse) return mappingResponse;
+
   const action = String(body.action ?? "").trim();
 
   if (action === "listTokens") {
     const { data, error } = await admin
       .from("organization_omnichannel_api_tokens")
       .select(
-        "id, label, web_id, token_prefix, token_type, allowed_origins, whatsapp_invoice_template_name, is_active, expires_at, last_used_at, revoked_at, created_at",
+        "id, label, web_id, token_prefix, token_type, allowed_origins, whatsapp_invoice_template_name, whatsapp_lead_template_name, is_active, expires_at, last_used_at, revoked_at, created_at",
       )
       .eq("organization_id", organizationId)
       .order("is_active", { ascending: false })
@@ -146,19 +150,70 @@ Deno.serve(async (req) => {
       settings: data ?? {
         organization_id: organizationId,
         default_whatsapp_invoice_template_name: null,
+        default_whatsapp_invoice_template_language: null,
+        default_whatsapp_lead_template_name: null,
+        default_whatsapp_lead_template_language: null,
         offline_conversion_enabled: true,
       },
     });
   }
 
   if (action === "updateSettings") {
+    const { data: existingSettings } = await admin
+      .from("organization_omnichannel_api_settings")
+      .select(
+        "default_whatsapp_invoice_template_name, default_whatsapp_invoice_template_language, default_whatsapp_lead_template_name, default_whatsapp_lead_template_language, offline_conversion_enabled",
+      )
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    const normalizeTemplateLanguage = (value: unknown): string | null => {
+      if (value == null) return null;
+      const trimmed = String(value).trim();
+      return trimmed || null;
+    };
+
+    const invoiceTemplateName =
+      body.default_whatsapp_invoice_template_name !== undefined
+        ? body.default_whatsapp_invoice_template_name != null
+          ? String(body.default_whatsapp_invoice_template_name).trim() || null
+          : null
+        : existingSettings?.default_whatsapp_invoice_template_name ?? null;
+
+    const leadTemplateName =
+      body.default_whatsapp_lead_template_name !== undefined
+        ? body.default_whatsapp_lead_template_name != null
+          ? String(body.default_whatsapp_lead_template_name).trim() || null
+          : null
+        : existingSettings?.default_whatsapp_lead_template_name ?? null;
+
+    let invoiceTemplateLanguage =
+      body.default_whatsapp_invoice_template_language !== undefined
+        ? normalizeTemplateLanguage(body.default_whatsapp_invoice_template_language)
+        : existingSettings?.default_whatsapp_invoice_template_language ?? null;
+
+    let leadTemplateLanguage =
+      body.default_whatsapp_lead_template_language !== undefined
+        ? normalizeTemplateLanguage(body.default_whatsapp_lead_template_language)
+        : existingSettings?.default_whatsapp_lead_template_language ?? null;
+
+    if (invoiceTemplateName && !invoiceTemplateLanguage) {
+      invoiceTemplateLanguage = "id";
+    }
+    if (leadTemplateName && !leadTemplateLanguage) {
+      leadTemplateLanguage = "id";
+    }
+
     const patch = {
       organization_id: organizationId,
-      default_whatsapp_invoice_template_name:
-        body.default_whatsapp_invoice_template_name != null
-          ? String(body.default_whatsapp_invoice_template_name).trim() || null
-          : null,
-      offline_conversion_enabled: body.offline_conversion_enabled !== false,
+      default_whatsapp_invoice_template_name: invoiceTemplateName,
+      default_whatsapp_invoice_template_language: invoiceTemplateLanguage,
+      default_whatsapp_lead_template_name: leadTemplateName,
+      default_whatsapp_lead_template_language: leadTemplateLanguage,
+      offline_conversion_enabled:
+        body.offline_conversion_enabled !== undefined
+          ? body.offline_conversion_enabled !== false
+          : existingSettings?.offline_conversion_enabled !== false,
       updated_at: new Date().toISOString(),
     };
 
@@ -268,6 +323,10 @@ Deno.serve(async (req) => {
         whatsapp_invoice_template_name:
           body.whatsapp_invoice_template_name != null
             ? String(body.whatsapp_invoice_template_name).trim() || null
+            : null,
+        whatsapp_lead_template_name:
+          body.whatsapp_lead_template_name != null
+            ? String(body.whatsapp_lead_template_name).trim() || null
             : null,
         expires_at: expiresAt,
         created_by: userRes.user.id,

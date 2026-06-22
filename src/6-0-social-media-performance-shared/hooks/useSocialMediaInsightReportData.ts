@@ -12,8 +12,8 @@ import {
 import {
   buildMonthlyContentChartPoints,
   buildMonthlyEngagementChartPoints,
-  buildMonthlyViewsByPlatformTotals,
   buildMonthlyViewsChartPoints,
+  buildViewsByPlatformTotalsFromAccounts,
   computeInsightSummary,
 } from "@/6-0-social-media-performance-shared/socialMediaInsightMonthlyTrend";
 import { socialMediaInsightQueryKeys } from "@/6-0-social-media-performance-shared/socialMediaInsightQueryKeys";
@@ -61,12 +61,12 @@ async function mapWithConcurrency<T, R>(
 }
 
 type FetchTarget =
-  | { platform: "tiktok"; accountId: string; avatarUrl: string | null }
-  | { platform: "youtube"; accountId: string; avatarUrl: string | null }
-  | { platform: "linkedin"; accountId: string; avatarUrl: string | null }
-  | { platform: "instagram"; accountId: string; avatarUrl: string | null }
-  | { platform: "facebook"; accountId: string; avatarUrl: string | null }
-  | { platform: "threads"; accountId: string; avatarUrl: string | null };
+  | { platform: "tiktok"; accountId: string; accountLabel: string; avatarUrl: string | null }
+  | { platform: "youtube"; accountId: string; accountLabel: string; avatarUrl: string | null }
+  | { platform: "linkedin"; accountId: string; accountLabel: string; avatarUrl: string | null }
+  | { platform: "instagram"; accountId: string; accountLabel: string; avatarUrl: string | null }
+  | { platform: "facebook"; accountId: string; accountLabel: string; avatarUrl: string | null }
+  | { platform: "threads"; accountId: string; accountLabel: string; avatarUrl: string | null };
 
 async function fetchAccountMetrics(
   organizationId: string,
@@ -134,6 +134,7 @@ async function fetchAccountMetrics(
       account: {
         ...placeholder,
         accountId: target.accountId,
+        accountLabel: target.accountLabel || target.accountId,
         connected: true,
         loading: false,
         error: msg,
@@ -192,6 +193,7 @@ export function useSocialMediaInsightReportData(args: {
         targets.push({
           platform: "tiktok",
           accountId: acc.open_id,
+          accountLabel: acc.display_name ?? acc.open_id,
           avatarUrl: acc.avatar_url,
         });
       }
@@ -201,6 +203,7 @@ export function useSocialMediaInsightReportData(args: {
         targets.push({
           platform: "youtube",
           accountId: acc.channel_id,
+          accountLabel: acc.display_name ?? acc.label ?? acc.channel_id,
           avatarUrl: acc.thumbnail_url,
         });
       }
@@ -210,6 +213,7 @@ export function useSocialMediaInsightReportData(args: {
         targets.push({
           platform: "linkedin",
           accountId: acc.page_id,
+          accountLabel: acc.display_name ?? acc.label ?? acc.page_id,
           avatarUrl: acc.thumbnail_url,
         });
       }
@@ -218,6 +222,7 @@ export function useSocialMediaInsightReportData(args: {
       targets.push({
         platform: acc.platform,
         accountId: acc.account_id,
+        accountLabel: acc.account_label ?? acc.account_id,
         avatarUrl: acc.avatar_url,
       });
     }
@@ -226,6 +231,7 @@ export function useSocialMediaInsightReportData(args: {
         targets.push({
           platform: "threads",
           accountId: acc.account_id,
+          accountLabel: acc.account_label ?? acc.account_id,
           avatarUrl: acc.avatar_url,
         });
       }
@@ -347,8 +353,8 @@ export function useSocialMediaInsightReportData(args: {
 
   const viewsByPlatform = useMemo(() => {
     if (!chartsEnabled) return [];
-    return buildMonthlyViewsByPlatformTotals(filteredContentRows);
-  }, [chartsEnabled, filteredContentRows]);
+    return buildViewsByPlatformTotalsFromAccounts(filteredAccounts);
+  }, [chartsEnabled, filteredAccounts]);
 
   const pageLoading = settingsLoading || metricsQuery.isLoading;
 
