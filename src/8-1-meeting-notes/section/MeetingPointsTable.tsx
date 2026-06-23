@@ -137,8 +137,8 @@ const MeetingPointsTable = () => {
   return (
     <>
       <TooltipProvider>
-        <div className="bg-white rounded-lg border border-brand-blue/20 ring-1 ring-brand-blue/10 overflow-hidden h-full flex flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto seamless-scroll nested-scroll-touch-chain">
+        <div className="flex h-full min-h-0 min-w-0 flex-col">
+          <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain">
             <Table className="meeting-points-table">
               <TableHeader className="bg-brand-blue/5 sticky top-0 z-20 shadow-sm">
                 <TableRow className="hover:bg-transparent">

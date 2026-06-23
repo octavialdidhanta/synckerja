@@ -103,21 +103,21 @@ export const HandoverAssetModal = ({ isOpen, onClose, asset, onSuccess }: Handov
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ArrowRightLeft className="h-5 w-5" />
+            <ArrowRightLeft className="h-5 w-5 shrink-0" />
             {t('companyAssets.handoverAsset', 'Handover')}
           </DialogTitle>
           <DialogDescription>
             {asset.name} — {t('companyAssets.handoverDescription', 'Select new recipient or leave empty to return to company, then upload handover document.')}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
+        <div className="min-w-0 space-y-4 py-2">
+          <div className="min-w-0 space-y-1">
             <Label>{t('companyAssets.handoverType', 'Handover type')} *</Label>
             <Select value={handoverType} onValueChange={(v: 'transfer' | 'resignation') => setHandoverType(v)}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full min-w-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -126,14 +126,14 @@ export const HandoverAssetModal = ({ isOpen, onClose, asset, onSuccess }: Handov
               </SelectContent>
             </Select>
           </div>
-          <div>
+          <div className="min-w-0 space-y-1">
             <Label>
               {t('companyAssets.recipientNewEmployee', 'Recipient (new employee)')}
               {handoverType === 'transfer' ? ' *' : ` (${t('companyAssets.optionalReturnToCompany', 'optional, leave empty = return to company')})`}
             </Label>
             <Select value={newEmployeeId} onValueChange={setNewEmployeeId} disabled={employeesLoading}>
-              <SelectTrigger>
-                <SelectValue placeholder={employeesLoading ? t('common.loading', 'Loading...') : t('companyAssets.selectEmployee', 'Select employee')} />
+              <SelectTrigger className="w-full min-w-0">
+                <SelectValue placeholder={employeesLoading ? t('companyAssets.loading', 'Loading...') : t('companyAssets.selectEmployee', 'Select employee')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={RETURN_TO_COMPANY_VALUE}>{t('companyAssets.returnToCompanyNoRecipient', 'Return to company (no recipient)')}</SelectItem>
@@ -145,31 +145,37 @@ export const HandoverAssetModal = ({ isOpen, onClose, asset, onSuccess }: Handov
               </SelectContent>
             </Select>
           </div>
-          <div>
+          <div className="min-w-0 space-y-1">
             <Label>{t('companyAssets.handoverDocumentLabel', 'Handover document')} *</Label>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="mt-1 flex min-w-0 items-center gap-2">
               <Input
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
                 onChange={handleFileChange}
-                className="flex-1"
+                className="min-w-0 w-full overflow-hidden"
               />
               {file && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
+                <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
                   <X className="h-4 w-4" />
                 </Button>
               )}
             </div>
-            {file && <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><FileText className="h-3 w-3" /> {file.name}</p>}
+            {file && (
+              <p className="mt-1 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                <FileText className="h-3 w-3 shrink-0" />
+                <span className="truncate">{file.name}</span>
+              </p>
+            )}
           </div>
-          <div>
+          <div className="min-w-0 space-y-1">
             <Label>{t('companyAssets.notesOptional', 'Notes (optional)')}</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="mt-1" />
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="mt-1 min-h-0 w-full min-w-0 resize-y" />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={handleClose}>{t('common.cancel', 'Cancel')}</Button>
+          <div className="flex shrink-0 justify-end gap-2 pt-2">
+            <Button variant="outline" className="shrink-0" onClick={handleClose}>{t('common.cancel', 'Cancel')}</Button>
             <Button
+              className="shrink-0"
               onClick={handleSubmit}
               disabled={
                 handoverMutation.isPending ||
@@ -177,7 +183,7 @@ export const HandoverAssetModal = ({ isOpen, onClose, asset, onSuccess }: Handov
                 (handoverType === 'transfer' && (!newEmployeeId || newEmployeeId === RETURN_TO_COMPANY_VALUE))
               }
             >
-              {handoverMutation.isPending ? t('common.loading', 'Loading...') : t('companyAssets.handoverButton', 'Handover')}
+              {handoverMutation.isPending ? t('companyAssets.loading', 'Loading...') : t('companyAssets.handoverButton', 'Handover')}
             </Button>
           </div>
         </div>

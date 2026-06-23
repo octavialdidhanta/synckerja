@@ -1,11 +1,15 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useLocationServices, type LocationData } from './useLocationServices';
 import { findNearestOfficeLocation } from '../utils/officeLocationUtils';
 import { hasOfficeLocations } from '../utils/officeLocationValidation';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
+import {
+  invalidateTodayAttendanceRecord,
+  useTodayAttendanceRecord,
+} from '@/1-home/hooks/useTodayAttendanceRecord';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { logger } from '@/shared/lib/logger';
 import { attendanceInstantToIso, dateToPostgresTimeUtc } from '@/1-home/utils/attendanceDateTime';
 import { parseAttendanceValidationRow } from '@/shared/attendance/resolveEffectiveSchedule';
 import { uploadAttendancePhoto, type AttendancePhotoUploadResult } from '@/shared/lib/attendance/uploadAttendancePhoto';
@@ -45,55 +49,41 @@ function formatLocalCheckinTimeString(d: Date): string {
 
 export const useSimpleAttendance = () => {
   const [loading, setLoading] = useState(false);
-  const [hasCheckedIn, setHasCheckedIn] = useState(false);
-  const [hasCheckedOut, setHasCheckedOut] = useState(false);
-  const [lastCheckIn, setLastCheckIn] = useState<string | null>(null);
-  const [lastCheckOut, setLastCheckOut] = useState<string | null>(null);
   const [showLateReasonModal, setShowLateReasonModal] = useState(false);
   const [lateMinutes, setLateMinutes] = useState<number>(0);
   const pendingLateCheckInRef = useRef<PendingLateCheckIn | null>(null);
 
+  const queryClient = useQueryClient();
   const { getCurrentLocation } = useLocationServices();
   const { data: employee } = useCurrentEmployee();
+  const { data: todayRecord } = useTodayAttendanceRecord();
   const { toast } = useToast();
 
-  const checkTodayStatus = useCallback(async () => {
-    if (!employee?.id) return;
+  const hasCheckedIn = !!(todayRecord?.check_in_at || todayRecord?.check_in_time);
+  const hasCheckedOut = !!(todayRecord?.check_out_at || todayRecord?.check_out_time);
+  const lastCheckIn = useMemo(
+    () =>
+      attendanceInstantToIso(
+        todayRecord?.attendance_date,
+        todayRecord?.check_in_time,
+        todayRecord?.check_in_at,
+      ),
+    [todayRecord],
+  );
+  const lastCheckOut = useMemo(
+    () =>
+      attendanceInstantToIso(
+        todayRecord?.attendance_date,
+        todayRecord?.check_out_time,
+        todayRecord?.check_out_at,
+      ),
+    [todayRecord],
+  );
 
-    const today = new Date().toISOString().split('T')[0];
-    logger.debug('🔍 Checking today attendance for date:', today);
-
-    const { data: record, error } = await supabase
-      .from('attendance_records')
-      .select('check_in_time, check_out_time, check_in_at, check_out_at, id, attendance_date')
-      .eq('employee_id', employee.id)
-      .eq('attendance_date', today)
-      .maybeSingle();
-
-    logger.debug('📋 Today attendance status:', { record, error });
-
-    if (!error && record) {
-      const hasIn = !!(record.check_in_at || record.check_in_time);
-      const hasOut = !!(record.check_out_at || record.check_out_time);
-      setHasCheckedIn(hasIn);
-      setHasCheckedOut(hasOut);
-      setLastCheckIn(
-        attendanceInstantToIso(record.attendance_date, record.check_in_time, record.check_in_at),
-      );
-      setLastCheckOut(
-        attendanceInstantToIso(record.attendance_date, record.check_out_time, record.check_out_at),
-      );
-    } else {
-      setHasCheckedIn(false);
-      setHasCheckedOut(false);
-      setLastCheckIn(null);
-      setLastCheckOut(null);
-    }
-  }, [employee?.id]);
-
-  useEffect(() => {
-    checkTodayStatus();
-  }, [checkTodayStatus]);
+  const refreshTodayRecord = useCallback(async () => {
+    if (!employee?.id || !employee.organization_id) return;
+    await invalidateTodayAttendanceRecord(queryClient, employee.id, employee.organization_id);
+  }, [employee?.id, employee?.organization_id, queryClient]);
 
   const finalizeCheckIn = useCallback(
     async (
@@ -204,12 +194,11 @@ export const useSimpleAttendance = () => {
         console.error('⚠️ Warning: Failed to save validation records:', validationInsertError);
       }
 
-      setHasCheckedIn(true);
-      await checkTodayStatus();
+      await refreshTodayRecord();
 
       return attendanceData;
     },
-    [employee, checkTodayStatus],
+    [employee, refreshTodayRecord],
   );
 
   const checkIn = useCallback(
@@ -449,8 +438,7 @@ export const useSimpleAttendance = () => {
           throw new Error(`Failed to save check-out: ${error.message}`);
         }
 
-        setHasCheckedOut(true);
-        setLastCheckOut(checkOutTime.toISOString());
+        await refreshTodayRecord();
 
         toast({
           title: 'Clock Out Berhasil',
@@ -470,7 +458,7 @@ export const useSimpleAttendance = () => {
         setLoading(false);
       }
     },
-    [employee, getCurrentLocation, toast],
+    [employee, getCurrentLocation, toast, refreshTodayRecord],
   );
 
   const handleSimpleAttendance = useCallback(

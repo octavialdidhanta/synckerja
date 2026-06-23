@@ -7,7 +7,6 @@ import { useEmployeeLeaveBalance } from '@/2-1-employees/MyInfo/LeavePermit/hook
 import { EmployeeProfilePhoto } from '@/shared/components/EmployeeProfilePhoto';
 import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
-import { useTeamAvailability } from './useTeamAvailability';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from 'date-fns';
@@ -60,24 +59,15 @@ export const SectionProfile = () => {
   } = useEmployeeLeaveBalance();
   const { userData, userRole, loading: userDataLoading, forceRefreshUserData, employee: centralizedEmployee } = useCentralizedUserData();
   const { syncAvatarAcrossApp } = useAvatarSync();
-  const {
-    data: teamAvailability,
-    isLoading: isTeamLoading,
-    error: teamAvailabilityError,
-  } = useTeamAvailability();
-
   const hasEmployee = employeeData != null;
   const hasProfileContent = userData != null || hasEmployee;
   const hasLeaveBalance = leaveBalance != null;
-  const hasTeamAvailability = teamAvailability != null;
   const profileSectionLoading =
     isBootstrapPending(isLoading, hasEmployee) ||
     (userDataLoading && !hasProfileContent) ||
-    isBootstrapPending(leaveBalanceLoading, hasLeaveBalance) ||
-    isBootstrapPending(isTeamLoading, hasTeamAvailability);
+    isBootstrapPending(leaveBalanceLoading, hasLeaveBalance);
   const profileSectionError =
     (employeeError as Error | null | undefined) ||
-    (teamAvailabilityError as Error | null | undefined) ||
     (leaveBalanceError as Error | null | undefined) ||
     null;
   useReportHomeSectionStatus(
@@ -239,10 +229,7 @@ export const SectionProfile = () => {
         {/* Absensi Online - Flex Grow untuk mengisi sisa space */}
         <div className="flex-1 min-h-0">
           <Suspense fallback={<QuickMenuPlaceholder />}>
-            <SectionQuickMenu
-              isTeamLoading={isTeamLoading}
-              displayTeamData={teamAvailability || []}
-            />
+            <SectionQuickMenu />
           </Suspense>
         </div>
 

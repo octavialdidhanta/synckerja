@@ -1,0 +1,6 @@
+/** Grid full-width — selaras `/tools/daily-task-report` & `/expenses/reminder-bills`. */
+export const HABIT_TRACKER_MAIN_GRID =
+  'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]';
+
+export const HABIT_TRACKER_TABLE_CARD =
+  'flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';

@@ -5,7 +5,8 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { logger } from '@/shared/lib/logger';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
 
-export const useEmployeeAttendanceStats = () => {
+export const useEmployeeAttendanceStats = (options: { enabled?: boolean } = {}) => {
+  const { enabled = true } = options;
   const { currentOrg } = useCurrentOrg();
 
   return useQuery({
@@ -149,7 +150,7 @@ export const useEmployeeAttendanceStats = () => {
       logger.query('✅ Employee attendance stats calculated:', stats);
       return stats;
     },
-    enabled: !!currentOrg?.id,
+    enabled: enabled && !!currentOrg?.id,
     ...attendanceHRQueryDefaults,
   });
 };

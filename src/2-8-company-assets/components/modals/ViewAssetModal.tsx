@@ -277,7 +277,7 @@ export const ViewAssetModal = ({ isOpen, onClose, asset, onRefresh }: ViewAssetM
                   className="mt-4 w-full bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   {isConfirming ? (
-                    t('common.loading', 'Loading...')
+                    t('companyAssets.loading', 'Loading...')
                   ) : (
                     <>
                       <CheckCircle className="mr-2 h-4 w-4" />

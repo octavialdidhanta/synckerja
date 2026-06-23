@@ -13,6 +13,12 @@ import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { useShowToast } from '@/shared/hooks/useShowToast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
+import {
+  COMPANY_MAIN_COLUMN,
+  COMPANY_MAIN_GRID,
+  COMPANY_SIDEBAR_COLUMN,
+  COMPANY_TABLE_SECTION,
+} from '@/2-8-dashboard/layout/companyModuleLayout';
 
 export const CompanyCompanyAssetsPage = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -174,11 +180,12 @@ export const CompanyCompanyAssetsPage = () => {
               showShellSkeleton && 'pointer-events-none invisible'
             )}
           >
-            <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]">
-              <div className="col-span-9 flex h-full min-h-0 min-w-0 w-full flex-1 flex-col self-stretch">
-                <div className="mb-2 shrink-0">
-                  <div className="rounded-md border border-border bg-card p-2">
-                    <AssetsFilters
+            <div className={COMPANY_MAIN_GRID}>
+              <div className={COMPANY_MAIN_COLUMN}>
+                <div className="flex h-full min-h-0 min-w-0 flex-col">
+                  <div className="mb-2 flex-shrink-0">
+                    <div className="rounded-md border border-border bg-card p-2">
+                      <AssetsFilters
                         selectedCategory={selectedCategory}
                         selectedStatus={selectedStatus}
                         selectedCondition={selectedCondition}
@@ -195,13 +202,13 @@ export const CompanyCompanyAssetsPage = () => {
                     </div>
                   </div>
 
-                  <div className="mb-2 shrink-0">
+                  <div className="mb-2 flex-shrink-0">
                     <CompanyAssetsMetricsCards assets={assets} />
                   </div>
 
-                  <div className="min-h-0 flex-1">
-                    <div className="flex h-full min-h-0 flex-col seamless-scroll rounded-lg border border-border bg-card shadow-sm">
-                      <AssetsTable 
+                  <div className={COMPANY_TABLE_SECTION}>
+                    <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                      <AssetsTable
                         assets={assets}
                         searchTerm={searchTerm}
                         selectedCategory={selectedCategory}
@@ -213,62 +220,70 @@ export const CompanyCompanyAssetsPage = () => {
                       />
                     </div>
                   </div>
+                </div>
               </div>
 
-              <div className="col-span-3 flex h-full min-h-0 min-w-0 w-full flex-1 flex-col self-stretch">
-                <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card">
-                  <div className="shrink-0 border-b border-border px-4 py-1.5">
-                    <div className="flex flex-col">
-                      <h3 className="text-sm font-semibold text-foreground">Assets Overview</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">Latest asset activities and status</p>
+              <div className={COMPANY_SIDEBAR_COLUMN}>
+                <div className="flex h-full min-h-0 min-w-0 flex-col">
+                  <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                    <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground">Assets Overview</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Latest asset activities and status
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex min-h-0 flex-1 flex-col">
-                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4">
-                      <div className="grid grid-cols-1 gap-3">
-                        <div className="rounded-lg border border-border bg-info-muted p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-medium text-info-foreground">Total Assets</p>
-                              <p className="text-lg font-bold text-foreground">{assets.length}</p>
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        <div className="grid grid-cols-1 gap-3">
+                          <div className="rounded-lg border border-border bg-info-muted p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-medium text-info-foreground">Total Assets</p>
+                                <p className="text-lg font-bold text-foreground">{assets.length}</p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="rounded-lg border border-border bg-success-muted p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-medium text-success-foreground">Available</p>
-                              <p className="text-lg font-bold text-foreground">
-                                {assets.filter((a: { status: string }) => a.status === 'available').length}
-                              </p>
+                          <div className="rounded-lg border border-border bg-success-muted p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-medium text-success-foreground">Available</p>
+                                <p className="text-lg font-bold text-foreground">
+                                  {assets.filter((a: { status: string }) => a.status === 'available').length}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="rounded-lg border border-border bg-accent p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-medium text-accent-foreground">In Use</p>
-                              <p className="text-lg font-bold text-foreground">
-                                {assets.filter((a: { status: string }) => a.status === 'in-use').length}
-                              </p>
+                          <div className="rounded-lg border border-border bg-accent p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-medium text-accent-foreground">In Use</p>
+                                <p className="text-lg font-bold text-foreground">
+                                  {assets.filter((a: { status: string }) => a.status === 'in-use').length}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="rounded-lg border border-border bg-warning-muted p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-medium text-warning-foreground">Maintenance</p>
-                              <p className="text-lg font-bold text-foreground">
-                                {assets.filter((a: { status: string }) => a.status === 'maintenance').length}
-                              </p>
+                          <div className="rounded-lg border border-border bg-warning-muted p-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-medium text-warning-foreground">Maintenance</p>
+                                <p className="text-lg font-bold text-foreground">
+                                  {assets.filter((a: { status: string }) => a.status === 'maintenance').length}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <CompanyAssetsOverviewFooter lastUpdated={lastUpdated} />
+                    <CompanyAssetsOverviewFooter
+                      lastUpdated={lastUpdated}
+                      totalAssets={assets.length}
+                    />
                   </div>
                 </div>
               </div>

@@ -86,13 +86,7 @@ function AttendancePageContent() {
                   <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
                 </div>
                 <ModuleShellContentGate pagePath={location.pathname}>
-                <div
-                  className={cn(
-                    "grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch",
-                    "[@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none",
-                    "[@media(max-height:760px)]:min-h-[700px]",
-                  )}
-                >
+                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
                     {activeTab === "dashboard" && (
                       <div className="border-border bg-card flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border p-4 shadow-sm">
@@ -106,11 +100,7 @@ function AttendancePageContent() {
                       </div>
                     )}
 
-                    {activeTab === "settings" && (
-                      <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
-                        <AttendanceSettings />
-                      </div>
-                    )}
+                    {activeTab === "settings" && <AttendanceSettings />}
                   </div>
                 </div>
                 </ModuleShellContentGate>

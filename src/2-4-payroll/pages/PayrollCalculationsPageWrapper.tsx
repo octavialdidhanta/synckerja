@@ -30,12 +30,15 @@ import { formatPayrollDataError } from "../lib/payrollQueryErrors";
 import { payrollCalculationsQueryKey } from "../hooks/payrollCalculationsQueryKey";
 import { usePayrollPeriodsOverview } from "../hooks/usePayrollPeriodsOverview";
 import { useDefaultTaxConfiguration } from "../hooks/useDefaultTaxConfiguration";
+import {
+  PAYROLL_MAIN_COLUMN,
+  PAYROLL_MAIN_GRID,
+  PAYROLL_SIDEBAR_COLUMN,
+  PAYROLL_TABLE_SHELL_HEIGHT,
+} from "../layout/payrollCalculationsLayout";
 
 const SEAMLESS_SCROLL =
   "scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
-
-const PAYROLL_TABLE_SHELL_HEIGHT =
-  "flex h-[calc(100dvh-280px)] min-h-[560px] min-w-0 flex-col [@media(max-height:900px)]:h-[calc(100dvh-300px)] [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:h-[calc(100dvh-320px)] [@media(max-height:760px)]:min-h-[680px]";
 
 /** Columns + joins required by list, filters, metrics, detail, and delete. */
 const PAYROLL_CALCULATIONS_LIST_SELECT = `
@@ -336,144 +339,147 @@ export default function PayrollCalculationsPage() {
                   />
                 </div>
               ) : (
-                <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-12 xl:items-stretch">
-                  <div className="flex min-w-0 flex-col gap-2 xl:col-span-9">
-                    <div className="rounded-md border border-border bg-card p-2">
-                      <PayrollFilters
-                        searchTerm={searchTerm}
-                        setSearchTerm={setSearchTerm}
-                        statusFilter={statusFilter}
-                        setStatusFilter={setStatusFilter}
-                        paymentFilter={paymentFilter}
-                        setPaymentFilter={setPaymentFilter}
-                      />
-                    </div>
-
-                    {!disbursePanelOpen ? (
-                      <PayrollMetricsCards
-                        calculations={filteredCalculations}
-                        selectedPayrollRunId={selectedPayrollRunId}
-                        disburseMode={
-                          disbursePanelOpen && selectedPayrollRunId && organizationId
-                            ? { organizationId, runId: selectedPayrollRunId }
-                            : null
-                        }
-                      />
-                    ) : null}
-
-                    {selectedPayrollRunId || disbursePanelOpen ? (
-                      <div
-                        className={cn(disbursePanelOpen && "flex min-h-0 flex-1 flex-col")}
-                      >
-                        <PayrollRunActions
-                          runId={selectedPayrollRunId}
-                          runName={selectedRunMeta.name}
-                          runStatus={selectedRunMeta.status}
-                          hasActiveDisbursement={runPaymentState.hasActiveDisbursement}
-                          onActionComplete={handleRunActionComplete}
-                          onDisbursePanelOpenChange={setDisbursePanelOpen}
-                        />
-                      </div>
-                    ) : null}
-
-                    {!disbursePanelOpen &&
-                    (selectedPayrollRunId ||
-                      runBlockedMessage ||
-                      runPaymentState.hasActiveDisbursement ||
-                      runPaymentState.failedCount > 0) ? (
-                      <div
-                        className={cn(
-                          SEAMLESS_SCROLL,
-                          "max-h-[min(220px,28vh)] space-y-2 overflow-y-auto overflow-x-hidden",
-                        )}
-                      >
-                        <PayrollEscrowStatusBanner
-                          runId={selectedPayrollRunId}
-                          runStatus={selectedRunMeta.status}
-                        />
-
-                        <PayrollExpenseStatusBanner
-                          runId={selectedPayrollRunId}
-                          runStatus={selectedRunMeta.status}
-                        />
-
-                        {runPaymentState.hasActiveDisbursement ? (
-                          <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
-                            {t(
-                              "payroll.xendit.disbursingBanner",
-                              "Disburse Xendit sedang berjalan ({{count}} karyawan). Mark as Paid dinonaktifkan sampai selesai.",
-                              { count: runPaymentState.processingCount },
-                            )}
-                          </div>
-                        ) : null}
-
-                        {!runPaymentState.hasActiveDisbursement &&
-                        runPaymentState.failedCount > 0 ? (
-                          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                            {t(
-                              "payroll.xendit.failedBanner",
-                              "{{count}} disburse gagal. Gunakan tombol Retry pada baris yang gagal.",
-                              { count: runPaymentState.failedCount },
-                            )}
-                          </div>
-                        ) : null}
-
-                        {runBlockedMessage ? (
-                          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/30">
-                            <div className="flex items-start gap-2">
-                              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                              <pre className="font-sans text-xs whitespace-pre-wrap text-amber-900 dark:text-amber-100">
-                                {runBlockedMessage}
-                              </pre>
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {selectedPayrollRunId ? (
-                          <PayrollEscrowHistoryPanel
-                            runId={selectedPayrollRunId}
-                            runStatus={selectedRunMeta.status}
-                          />
-                        ) : null}
-                      </div>
-                    ) : null}
-
-                    {!disbursePanelOpen ? (
-                      <div className={PAYROLL_TABLE_SHELL_HEIGHT}>
-                        <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-                          <PayrollCalculationsTable
-                            calculations={filteredCalculations}
-                            totalUnfiltered={calculations.length}
-                            isLoading={isLoading}
-                            onEmployeeSelect={setSelectedEmployee}
-                            onRefresh={() => refetch()}
-                            onDeleteCalculation={handleDeleteCalculation}
-                            deletingCalculationId={deletingCalculationId}
-                            onRetryComplete={() => void refetch()}
+                <div className={PAYROLL_MAIN_GRID}>
+                  <div className={PAYROLL_MAIN_COLUMN}>
+                    <div className="flex h-full min-h-0 min-w-0 flex-col">
+                      <div className="mb-2 flex-shrink-0">
+                        <div className="rounded-md border border-border bg-card p-2">
+                          <PayrollFilters
+                            searchTerm={searchTerm}
+                            setSearchTerm={setSearchTerm}
+                            statusFilter={statusFilter}
+                            setStatusFilter={setStatusFilter}
+                            paymentFilter={paymentFilter}
+                            setPaymentFilter={setPaymentFilter}
                           />
                         </div>
                       </div>
-                    ) : null}
+
+                      {!disbursePanelOpen ? (
+                        <div className="mb-2 flex-shrink-0">
+                          <PayrollMetricsCards
+                            calculations={filteredCalculations}
+                            selectedPayrollRunId={selectedPayrollRunId}
+                            disburseMode={
+                              disbursePanelOpen && selectedPayrollRunId && organizationId
+                                ? { organizationId, runId: selectedPayrollRunId }
+                                : null
+                            }
+                          />
+                        </div>
+                      ) : null}
+
+                      {selectedPayrollRunId || disbursePanelOpen ? (
+                        <div className="mb-2 flex-shrink-0">
+                          <PayrollRunActions
+                            runId={selectedPayrollRunId}
+                            runName={selectedRunMeta.name}
+                            runStatus={selectedRunMeta.status}
+                            hasActiveDisbursement={runPaymentState.hasActiveDisbursement}
+                            onActionComplete={handleRunActionComplete}
+                            onDisbursePanelOpenChange={setDisbursePanelOpen}
+                          />
+                        </div>
+                      ) : null}
+
+                      {!disbursePanelOpen &&
+                      (selectedPayrollRunId ||
+                        runBlockedMessage ||
+                        runPaymentState.hasActiveDisbursement ||
+                        runPaymentState.failedCount > 0) ? (
+                        <div className="mb-2 flex-shrink-0">
+                          <div
+                            className={cn(
+                              SEAMLESS_SCROLL,
+                              "max-h-[min(220px,28vh)] space-y-2 overflow-y-auto overflow-x-hidden",
+                            )}
+                          >
+                            <PayrollEscrowStatusBanner
+                              runId={selectedPayrollRunId}
+                              runStatus={selectedRunMeta.status}
+                            />
+
+                            <PayrollExpenseStatusBanner
+                              runId={selectedPayrollRunId}
+                              runStatus={selectedRunMeta.status}
+                            />
+
+                            {runPaymentState.hasActiveDisbursement ? (
+                              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+                                {t(
+                                  "payroll.xendit.disbursingBanner",
+                                  "Disburse Xendit sedang berjalan ({{count}} karyawan). Mark as Paid dinonaktifkan sampai selesai.",
+                                  { count: runPaymentState.processingCount },
+                                )}
+                              </div>
+                            ) : null}
+
+                            {!runPaymentState.hasActiveDisbursement &&
+                            runPaymentState.failedCount > 0 ? (
+                              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                                {t(
+                                  "payroll.xendit.failedBanner",
+                                  "{{count}} disburse gagal. Gunakan tombol Retry pada baris yang gagal.",
+                                  { count: runPaymentState.failedCount },
+                                )}
+                              </div>
+                            ) : null}
+
+                            {runBlockedMessage ? (
+                              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/30">
+                                <div className="flex items-start gap-2">
+                                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                                  <pre className="whitespace-pre-wrap font-sans text-xs text-amber-900 dark:text-amber-100">
+                                    {runBlockedMessage}
+                                  </pre>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {selectedPayrollRunId ? (
+                              <PayrollEscrowHistoryPanel
+                                runId={selectedPayrollRunId}
+                                runStatus={selectedRunMeta.status}
+                              />
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {!disbursePanelOpen ? (
+                        <div className={PAYROLL_TABLE_SHELL_HEIGHT}>
+                          <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                            <PayrollCalculationsTable
+                              calculations={filteredCalculations}
+                              totalUnfiltered={calculations.length}
+                              isLoading={isLoading}
+                              onEmployeeSelect={setSelectedEmployee}
+                              onRefresh={() => refetch()}
+                              onDeleteCalculation={handleDeleteCalculation}
+                              deletingCalculationId={deletingCalculationId}
+                              onRetryComplete={() => void refetch()}
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden xl:col-span-3 xl:h-full xl:max-h-full">
-                    <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-                      <PayrollSidebar
-                        selectedPayrollRunId={selectedPayrollRunId}
-                        onPayrollRunSelect={setSelectedPayrollRunId}
-                        onRunBlocked={setRunBlockedMessage}
-                      />
+                  <div className={PAYROLL_SIDEBAR_COLUMN}>
+                    <div className="flex h-full min-h-0 min-w-0 flex-col">
+                      <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                        <PayrollSidebar
+                          selectedPayrollRunId={selectedPayrollRunId}
+                          onPayrollRunSelect={setSelectedPayrollRunId}
+                          onRunBlocked={setRunBlockedMessage}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
             </div>
                 </ModuleShellContentGate>
-
-                <div
-                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                  aria-hidden
-                />
               </div>
             </div>
           </div>

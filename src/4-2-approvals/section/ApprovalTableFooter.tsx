@@ -7,24 +7,24 @@ interface ApprovalTableFooterProps {
   selectedStatus?: string;
 }
 
-export const ApprovalTableFooter = ({ 
-  totalRequests, 
+export const ApprovalTableFooter = ({
+  totalRequests,
   filteredRequests = totalRequests,
   totalAmount,
-  selectedStatus 
+  selectedStatus,
 }: ApprovalTableFooterProps) => {
-  const statusText = selectedStatus && selectedStatus !== 'all' 
-    ? ` in ${selectedStatus}` 
-    : '';
-    
+  const statusText =
+    selectedStatus && selectedStatus !== 'all' ? ` in ${selectedStatus}` : '';
+
   return (
-    <div className="flex-shrink-0 px-4 py-0.5 border-t border-gray-200 bg-gray-50">
-      <div className="flex items-center justify-between text-xs text-gray-500">
-        <span>Showing {filteredRequests} of {totalRequests} requests{statusText}</span>
-        <div className="flex flex-col items-end gap-0">
-          <span className="text-xs text-gray-400 leading-tight">Total: {formatToRupiah(totalAmount)}</span>
-          <span className="text-xs text-gray-400 leading-tight">{totalRequests} requests</span>
-        </div>
+    <div className="flex-shrink-0 border-t border-border bg-muted/30 px-4 py-0.5">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          Showing {filteredRequests} of {totalRequests} requests{statusText}
+        </span>
+        <span className="text-xs text-muted-foreground/70">
+          Total: {formatToRupiah(totalAmount)}
+        </span>
       </div>
     </div>
   );

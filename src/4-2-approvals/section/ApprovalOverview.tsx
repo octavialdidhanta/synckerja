@@ -10,9 +10,8 @@ interface ApprovalOverviewProps {
 
 export const ApprovalOverview = ({ requests: providedRequests }: ApprovalOverviewProps) => {
   const { data: allRequests = [] } = usePurchaseRequests();
-  
-  // Use provided requests or fallback to all requests
-  const requests = providedRequests && providedRequests.length > 0 ? providedRequests : allRequests;
+
+  const requests = providedRequests ?? allRequests;
 
   // Calculate metrics
   const totalAmount = requests.reduce((sum, req) => sum + (req.amount_idr || 0), 0);

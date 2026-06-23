@@ -186,7 +186,7 @@ export const PerformanceTable = () => {
   const dateRangeDisplay = formatDateRangeDisplay();
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white ring-1 ring-brand-blue/10">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white ring-1 ring-brand-blue/10">
       <div className="flex-shrink-0 border-b border-brand-blue/15 bg-brand-blue/[0.06] px-3 py-2">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">{viewMode === "performance" ? "Assignments Performance" : "Blocker Resolved"}</span>

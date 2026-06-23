@@ -1,73 +1,74 @@
-import { usePurchaseRequests } from '@/9-request-form/hooks/usePurchaseRequests';
+import type { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { TrendingUp, Clock, CheckCircle, RotateCcw } from 'lucide-react';
-import { computeApprovalsMetricAmounts, computeApprovalsMetricCounts } from '../utils/approvalUtils';
+import {
+  computeApprovalsMetricAmounts,
+  computeApprovalsMetricCounts,
+} from '../utils/approvalUtils';
 
-export const ApprovalMetricsCards = () => {
-  const { data: requests = [] } = usePurchaseRequests();
-  const { totalRequests, pendingReview, approved, recurring } = computeApprovalsMetricCounts(requests);
+type ApprovalMetricsCardsProps = {
+  requests?: PurchaseRequest[];
+};
+
+export const ApprovalMetricsCards = ({ requests = [] }: ApprovalMetricsCardsProps) => {
+  const { totalRequests, pendingReview, approved, recurring } =
+    computeApprovalsMetricCounts(requests);
   const { totalAmount, pendingAmount, approvedAmount, recurringAmount } =
     computeApprovalsMetricAmounts(requests);
 
-  const metrics = {
-    total: {
-      count: totalRequests,
-      amount: totalAmount,
+  const metrics = [
+    {
+      key: 'total',
+      title: 'Total Requests',
+      value: totalRequests.toString(),
+      subtitle: formatToRupiah(totalAmount),
       icon: TrendingUp,
-      color: 'text-brand-blue',
+      iconColor: 'text-brand-blue',
       bgColor: 'bg-brand-blue/10',
-      accentColor: 'bg-brand-blue/50',
-      label: 'Total Requests'
     },
-    pending: {
-      count: pendingReview,
-      amount: pendingAmount,
+    {
+      key: 'pending',
+      title: 'Pending Review',
+      value: pendingReview.toString(),
+      subtitle: formatToRupiah(pendingAmount),
       icon: Clock,
-      color: 'text-amber-600',
+      iconColor: 'text-amber-600',
       bgColor: 'bg-amber-50',
-      accentColor: 'bg-amber-500',
-      label: 'Pending Review'
     },
-    approved: {
-      count: approved,
-      amount: approvedAmount,
+    {
+      key: 'approved',
+      title: 'Approved',
+      value: approved.toString(),
+      subtitle: formatToRupiah(approvedAmount),
       icon: CheckCircle,
-      color: 'text-green-600',
+      iconColor: 'text-green-600',
       bgColor: 'bg-green-50',
-      accentColor: 'bg-green-500',
-      label: 'Approved'
     },
-    recurring: {
-      count: recurring,
-      amount: recurringAmount,
+    {
+      key: 'recurring',
+      title: 'Recurring',
+      value: recurring.toString(),
+      subtitle: formatToRupiah(recurringAmount),
       icon: RotateCcw,
-      color: 'text-purple-600',
+      iconColor: 'text-purple-600',
       bgColor: 'bg-purple-50',
-      accentColor: 'bg-purple-500',
-      label: 'Recurring'
-    }
-  };
-
-  const cards = ['total', 'pending', 'approved', 'recurring'] as const;
+    },
+  ];
 
   return (
     <>
-      {cards.map((key) => {
-        const metric = metrics[key];
+      {metrics.map((metric) => {
         const Icon = metric.icon;
-        
         return (
-          <div key={key} className="bg-white rounded-md border border-gray-200 p-3 shadow-sm">
+          <div key={metric.key} className="rounded-md border border-border bg-card p-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <div className="text-xs font-medium text-gray-500 mb-1">{metric.label}</div>
-                <div className="text-lg font-bold text-gray-900">{metric.count}</div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  {formatToRupiah(metric.amount)}
-                </div>
+                <div className="mb-1 text-xs font-medium text-muted-foreground">{metric.title}</div>
+                <div className="text-lg font-bold text-foreground">{metric.value}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{metric.subtitle}</div>
               </div>
-              <div className={`p-2 rounded-md ${metric.bgColor}`}>
-                <Icon className={`h-4 w-4 ${metric.color}`} />
+              <div className={`rounded-md p-2 ${metric.bgColor}`}>
+                <Icon className={`h-4 w-4 ${metric.iconColor}`} />
               </div>
             </div>
           </div>

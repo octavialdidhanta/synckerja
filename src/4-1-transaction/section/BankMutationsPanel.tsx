@@ -33,6 +33,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { BANK_MUTATIONS_BASE_PATH } from '@/4-1-bank-mutations/lib/bankMutationsPaths';
+import { BANK_MUTATIONS_TABLE_BODY_SCROLL } from '@/4-1-bank-mutations/layout/bankMutationsLayout';
 import { cn } from '@/shared/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { RefreshBankMutationsButton } from './RefreshBankMutationsButton';
@@ -514,7 +515,9 @@ export function BankMutationsPanel({
   return (
     <div
       className={cn(
-        isPage ? 'flex flex-col' : 'flex min-h-0 flex-col gap-3 border-t border-gray-200 pt-3',
+        isPage
+          ? 'flex h-full min-h-0 min-w-0 flex-col overflow-hidden'
+          : 'flex min-h-0 flex-col gap-3 border-t border-gray-200 pt-3',
       )}
     >
       {!isPage ? (
@@ -552,46 +555,53 @@ export function BankMutationsPanel({
           {error instanceof Error ? ` ${error.message}` : ''}
         </div>
       ) : (
-        <>
-          {isPage ? (
-            <Table className="min-w-[960px]">
-              <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="whitespace-nowrap bg-card text-xs">
-                    {copy.colDate}
-                  </TableHead>
-                  <TableHead className="bg-card text-xs">{copy.colAccount}</TableHead>
-                  <TableHead className="whitespace-nowrap bg-card text-xs">
-                    {copy.colAmount}
-                  </TableHead>
-                  <TableHead className="min-w-[200px] bg-card text-xs">
-                    {copy.colDescription}
-                  </TableHead>
-                  <TableHead className="min-w-[180px] bg-card text-xs">
-                    {copy.colStatus}
-                  </TableHead>
-                  {canAllocateIncome ? (
-                    <TableHead className="w-[112px] whitespace-nowrap bg-card text-xs">
-                      {copy.colAction}
+        isPage ? (
+          <>
+            <div className={BANK_MUTATIONS_TABLE_BODY_SCROLL}>
+              <Table
+                className="min-w-[960px]"
+                containerClassName="h-full w-full overflow-visible"
+              >
+                <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="whitespace-nowrap bg-card text-xs">
+                      {copy.colDate}
                     </TableHead>
-                  ) : null}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {renderTableBodyRows()}
-                {lines.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={canAllocateIncome ? 6 : 5}
-                      className="py-10 text-center text-sm text-muted-foreground"
-                    >
-                      {copy.empty}
-                    </TableCell>
+                    <TableHead className="bg-card text-xs">{copy.colAccount}</TableHead>
+                    <TableHead className="whitespace-nowrap bg-card text-xs">
+                      {copy.colAmount}
+                    </TableHead>
+                    <TableHead className="min-w-[200px] bg-card text-xs">
+                      {copy.colDescription}
+                    </TableHead>
+                    <TableHead className="min-w-[180px] bg-card text-xs">
+                      {copy.colStatus}
+                    </TableHead>
+                    {canAllocateIncome ? (
+                      <TableHead className="w-[112px] whitespace-nowrap bg-card text-xs">
+                        {copy.colAction}
+                      </TableHead>
+                    ) : null}
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          ) : (
+                </TableHeader>
+                <TableBody>
+                  {renderTableBodyRows()}
+                  {lines.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={canAllocateIncome ? 6 : 5}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
+                        {copy.empty}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <BankMutationsTableFooter filteredCount={lines.length} suggestedCount={suggestedCount} />
+          </>
+        ) : (
             <div className="max-h-[360px] min-h-[200px] overflow-y-auto rounded-lg border">
               <Table className="min-w-[880px]">
                 <TableHeader>
@@ -621,11 +631,7 @@ export function BankMutationsPanel({
                 </TableBody>
               </Table>
             </div>
-          )}
-          {isPage ? (
-            <BankMutationsTableFooter filteredCount={lines.length} suggestedCount={suggestedCount} />
-          ) : null}
-        </>
+        )
       )}
     </div>
   );

@@ -1,43 +1,25 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentUser } from './useCurrentUser';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { CURRENT_EMPLOYEE_QUERY_KEY, fetchCurrentEmployee } from './currentEmployeeQuery';
 
 export const useCurrentEmployee = () => {
   const { user } = useCurrentUser();
   const { organizationId } = useCurrentOrg();
 
   return useQuery({
-    queryKey: ['current-employee', user?.id, organizationId],
+    queryKey: [CURRENT_EMPLOYEE_QUERY_KEY, user?.id, organizationId],
     queryFn: async () => {
       if (!user?.id || !organizationId) {
         return null;
       }
-
-      const { data, error } = await supabase
-        .from('employees')
-        .select(`
-          *,
-          departments(id, name),
-          job_positions(id, name),
-          job_levels(id, name)
-        `)
-        .eq('user_id', user.id)
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error('useCurrentEmployee: Error fetching employee:', error);
-        return null;
-      }
-
-      return data;
+      return fetchCurrentEmployee(user.id, organizationId);
     },
     enabled: !!user?.id && !!organizationId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     retry: 1,
+    refetchOnWindowFocus: false,
   });
 };

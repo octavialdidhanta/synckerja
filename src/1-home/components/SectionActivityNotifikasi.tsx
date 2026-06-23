@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useMemo, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
@@ -66,22 +66,46 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
   });
   const [selectedType, setSelectedType] = useState<'all' | 'task' | 'step' | 'subStep'>('all');
   const [showCompleted, setShowCompleted] = useState(false);
-  
+  const [assignmentsFetchReady, setAssignmentsFetchReady] = useState(false);
+
+  useEffect(() => {
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const id =
+      win.requestIdleCallback?.(() => setAssignmentsFetchReady(true), { timeout: 1400 }) ??
+      window.setTimeout(() => setAssignmentsFetchReady(true), 500);
+    return () => {
+      if (typeof id === 'number' && win.cancelIdleCallback) {
+        win.cancelIdleCallback(id);
+      } else {
+        window.clearTimeout(id as number);
+      }
+    };
+  }, []);
+
+  const assignmentsEnabled =
+    assignmentsFetchReady && activeTab === 'activities';
+
   const { orgBootstrapPending } = useOrgBootstrapPending();
   const { data: employeeData, isPending: employeePending } = useCurrentEmployee();
   const { data: summary, isPending: assignmentsPending, error } = useEmployeeAssignments({
     timeframe,
     customRange,
     includeOverdue: true,
+    enabled: assignmentsEnabled,
   });
 
   const activitySectionLoading =
-    orgBootstrapPending ||
-    isBootstrapPending(employeePending, employeeData != null) ||
-    isBootstrapPending(assignmentsPending, summary !== undefined);
+    orgBootstrapPending || isBootstrapPending(employeePending, employeeData != null);
 
   const activityError =
-    error instanceof Error ? error : error ? new Error(String(error)) : null;
+    assignmentsEnabled && error instanceof Error
+      ? error
+      : assignmentsEnabled && error
+        ? new Error(String(error))
+        : null;
   useReportHomeSectionStatus('activity', activitySectionLoading, activityError);
     
   const useNavigateOnly = standalone || !dailyTask;
@@ -381,7 +405,13 @@ export const SectionActivityNotifikasi = ({ standalone }: SectionActivityNotifik
         <div className="flex-1 min-h-0 overflow-x-hidden px-4">
           {activeTab === 'activities' ? (
             <>
-          {error ? (
+          {assignmentsEnabled && assignmentsPending ? (
+                <div className="space-y-2 py-2" aria-busy>
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                </div>
+              ) : error ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="text-sm text-red-500 leading-relaxed">
                     {t('activity.error', 'Error loading activities')}

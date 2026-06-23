@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { Badge } from '@/shared/components/ui/badge';
@@ -10,9 +9,7 @@ import { format } from 'date-fns';
 import { ApprovalActionsDropdown } from '../components/ApprovalActionsDropdown';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
-
-const SCROLL_HIDE =
-  'scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+import { APPROVALS_TABLE_BODY_SCROLL } from '../layout/approvalsLayout';
 
 export type ApprovalTableVariant = 'module' | 'mobileCard';
 
@@ -255,53 +252,53 @@ export const ApprovalTable = ({
 
   const tableBody = isLoading && isMobileCard ? skeletonRows : dataRows;
 
-  const tableEl = (
-    <table className="caption-bottom w-full min-w-[1300px] text-sm">
-      <TableHeader
-        className={cn(
-          'sticky top-0 z-10',
-          isMobileCard ? 'border-b border-white/20 bg-brand-blue' : 'bg-gray-50 shadow-sm',
-        )}
-      >
-        {headerCells}
-      </TableHeader>
-      <TableBody>{tableBody}</TableBody>
-    </table>
-  );
-
   const scrollWrapClass = cn(
-    'scrollbar-hide seamless-scroll min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+    'min-w-0 overflow-x-auto',
     isMobileCard
       ? fixedMobileViewport
         ? cn(
-            'nested-scroll-touch-chain min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y]',
+            'nested-scroll-touch-chain scrollbar-hide seamless-scroll min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             'h-[min(28rem,calc(100dvh-14rem))] max-h-[28rem] min-h-[11rem] shrink-0',
-            SCROLL_HIDE,
           )
         : cn(
-            'nested-scroll-touch-chain min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y]',
+            'nested-scroll-touch-chain scrollbar-hide seamless-scroll min-h-0 min-w-0 overflow-y-auto [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             fillScrollHeight && 'flex-1',
             !fillScrollHeight && 'max-h-[50vh]',
-            SCROLL_HIDE,
           )
-      : 'min-h-0 flex-1',
+      : APPROVALS_TABLE_BODY_SCROLL,
   );
 
   if (isLoading && !isMobileCard) {
     return (
       <div className="p-4">
         <div className="animate-pulse space-y-2">
-          <div className="h-4 w-1/4 rounded bg-gray-200" />
-          <div className="h-10 rounded bg-gray-200" />
+          <div className="h-4 w-1/4 rounded bg-muted" />
+          <div className="h-10 rounded bg-muted" />
           <div className="space-y-2">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-12 rounded bg-gray-200" />
+              <div key={i} className="h-12 rounded bg-muted" />
             ))}
           </div>
         </div>
       </div>
     );
   }
+
+  const tableSection = (
+    <div className={scrollWrapClass}>
+      <table className="caption-bottom w-full min-w-[1300px] text-sm">
+        <TableHeader
+          className={cn(
+            'sticky top-0 z-10',
+            isMobileCard ? 'border-b border-white/20 bg-brand-blue' : 'bg-muted/30 shadow-sm',
+          )}
+        >
+          {headerCells}
+        </TableHeader>
+        <TableBody>{tableBody}</TableBody>
+      </table>
+    </div>
+  );
 
   if (isMobileCard) {
     return (
@@ -311,7 +308,7 @@ export const ApprovalTable = ({
           fillScrollHeight && !fixedMobileViewport && 'flex min-h-0 min-w-0 flex-1 flex-col',
         )}
       >
-        <div className={scrollWrapClass}>{tableEl}</div>
+        {tableSection}
       </div>
     );
   }
@@ -319,11 +316,11 @@ export const ApprovalTable = ({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex flex-shrink-0 items-center justify-between border-b px-4 py-2">
-        <h2 className="text-sm font-semibold text-gray-900">
+        <h2 className="text-sm font-semibold text-foreground">
           {t('approvals.table.sectionTitle', 'Approval Requests')}
         </h2>
       </div>
-      <div className={scrollWrapClass}>{tableEl}</div>
+      {tableSection}
     </div>
   );
 };

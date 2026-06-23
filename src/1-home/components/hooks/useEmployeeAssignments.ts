@@ -544,10 +544,12 @@ export const useEmployeeAssignments = ({
   timeframe,
   customRange,
   includeOverdue = true,
+  enabled = true,
 }: {
   timeframe: JobDescTimeframe;
   customRange: DateRangeValue;
   includeOverdue?: boolean;
+  enabled?: boolean;
 }) => {
   const { organizationId } = useCurrentOrg();
   const { data: employeeData } = useCurrentEmployee();
@@ -572,7 +574,7 @@ export const useEmployeeAssignments = ({
       organizationId && employeeId
         ? fetchEmployeeAssignments(organizationId, employeeId, range, includeOverdue)
         : Promise.resolve(createEmptySummary()),
-    enabled: Boolean(organizationId && employeeId),
+    enabled: enabled && Boolean(organizationId && employeeId),
     staleTime: 60 * 1000,
   });
 

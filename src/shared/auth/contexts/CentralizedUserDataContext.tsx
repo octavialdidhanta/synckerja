@@ -22,6 +22,7 @@ interface UserData {
   active_organization_id?: string;
   department_id?: string;
   email_verified?: boolean; // Add email_verified field
+  preferred_locale?: string | null;
 }
 
 interface Organization {
@@ -296,7 +297,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       }> => {
         const profilePromise = supabase
           .from('profiles')
-          .select('user_id, full_name, email, active_organization_id')
+          .select('user_id, full_name, email, active_organization_id, preferred_locale')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -445,6 +446,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         active_organization_id: organizationId,
         department_id: undefined, // Will be set from employee data
         email_verified: verificationStatus, // Use proper verification status from database function
+        preferred_locale: profileData?.preferred_locale ?? null,
       };
       
       setUserData(fetchedUserData);

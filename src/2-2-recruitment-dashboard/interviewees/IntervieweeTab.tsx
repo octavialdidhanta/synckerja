@@ -53,6 +53,16 @@ function IntervieweeRowAvatar({
 }
 import { fetchCandidateApplicationData } from './services/candidateApplicationPdfService';
 import { generateCandidateApplicationPDF } from './utils/candidateApplicationPdfGenerator';
+import { IntervieweesMetricsCards } from './components/IntervieweesMetricsCards';
+import { IntervieweesOverview } from './components/IntervieweesOverview';
+import { IntervieweesSidebarFooter } from './components/IntervieweesSidebarFooter';
+import { IntervieweesTableFooter } from './components/IntervieweesTableFooter';
+import {
+  RECRUITMENT_MAIN_COLUMN,
+  RECRUITMENT_MAIN_GRID,
+  RECRUITMENT_SIDEBAR_COLUMN,
+  RECRUITMENT_TABLE_SECTION,
+} from '../layout/recruitmentIntervieweesLayout';
 
 interface InterviewCandidate {
   id: string;
@@ -190,7 +200,7 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
     const l = scores.score_logical ?? 0;
     const hasBreakdown = v > 0 || n > 0 || l > 0;
     if (hasBreakdown) {
-      return t('interviewees.cognitiveScoreShort', 'Skor {{total}}/30 — Verbal {{v}} benar, Numerical {{n}} benar, Logical {{l}} benar', { total, v, n, l });
+      return t('interviewees.cognitiveScoreShort', 'Skor {{total}}/30 � Verbal {{v}} benar, Numerical {{n}} benar, Logical {{l}} benar', { total, v, n, l });
     }
     return t('interviewees.cognitiveScoreTotalOnly', 'Skor {{total}}/30', { total });
   };
@@ -202,7 +212,7 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
   const fetchInterviewees = async () => {
     setLoading(true);
     try {
-      console.log('🔍 Fetching interviewees...');
+      console.log('?? Fetching interviewees...');
       
       if (!organizationId) {
         setCandidates([]);
@@ -219,11 +229,11 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
         .not('recruitment_token', 'is', null);
 
       if (profileError) {
-        console.error('❌ Error fetching candidate profiles:', profileError);
+        console.error('? Error fetching candidate profiles:', profileError);
         throw profileError;
       }
 
-      console.log('✅ Found completed candidate profiles:', candidateProfiles);
+      console.log('? Found completed candidate profiles:', candidateProfiles);
 
       if (!candidateProfiles || candidateProfiles.length === 0) {
         console.log('No completed candidate profiles found');
@@ -249,11 +259,11 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
         .order('created_at', { ascending: false });
 
       if (applicationError) {
-        console.error('❌ Error fetching job applications:', applicationError);
+        console.error('? Error fetching job applications:', applicationError);
         throw applicationError;
       }
 
-      console.log('✅ Found job applications:', jobApplications);
+      console.log('? Found job applications:', jobApplications);
 
       // Get candidate profile IDs for reviews
       const candidateProfileIds = candidateProfiles.map(p => (p as any).id);
@@ -265,10 +275,10 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
         .in('candidate_profile_id', candidateProfileIds);
 
       if (reviewsError) {
-        console.error('❌ Error fetching reviews:', reviewsError);
+        console.error('? Error fetching reviews:', reviewsError);
       }
 
-      console.log('✅ Found reviews:', reviews);
+      console.log('? Found reviews:', reviews);
 
       // Calculate average scores for each candidate
       const candidateScores = candidateProfileIds.reduce((acc, profileId) => {
@@ -379,9 +389,9 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
       }) || [];
       
       setCandidates(mergedData as unknown as InterviewCandidate[]);
-      console.log('✅ Processed candidate data with scores:', mergedData);
+      console.log('? Processed candidate data with scores:', mergedData);
     } catch (error) {
-      console.error('💥 Error in fetchInterviewees:', error);
+      console.error('?? Error in fetchInterviewees:', error);
       toast({
         title: "Error fetching interviewees",
         description: "Could not load interview candidates. Please try again.",
@@ -480,7 +490,7 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
         console.log('[FRONTEND] Migration successful:', data);
         
         toast({
-          title: 'Migration Successful! ✅',
+          title: 'Migration Successful! ?',
           description: `${selectedCandidate.applicant_name} has been successfully converted to an employee.`
         });
 
@@ -492,7 +502,7 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
     } catch (error: any) {
       console.error('[FRONTEND] Error migrating candidate:', error);
       toast({
-        title: 'Migration Failed ❌',
+        title: 'Migration Failed ?',
         description: error.message || 'Failed to migrate candidate to employee',
         variant: 'destructive'
       });
@@ -614,7 +624,7 @@ export const IntervieweeTab = ({ onLoadingChange }: IntervieweeTabProps) => {
   const handleWhatsApp = (candidate: InterviewCandidate) => {
     const positionTitle = candidate.job_openings?.job_title || 'the position';
     const message = `*INTERVIEW INVITATION*
-━━━━━━━━━━━━━━━━━━━━━━━━━
+?????????????????????????
 
 Dear *${candidate.applicant_name}*,
 
@@ -623,14 +633,14 @@ Thank you for your interest in the *${positionTitle}* position with our organiza
 We have reviewed your application and would like to invite you for an interview to discuss your qualifications further.
 
 **Next Steps:**
-• Please confirm your availability for the interview
-• We will schedule a convenient time for both parties
-• Additional details will be provided upon confirmation
+� Please confirm your availability for the interview
+� We will schedule a convenient time for both parties
+� Additional details will be provided upon confirmation
 
 Best regards,
 *HR Recruitment Team*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━
+?????????????????????????
 *Please reply to confirm your availability*`;
 
     const phoneNumber = candidate.applicant_phone?.replace(/[^\d]/g, '');
@@ -698,14 +708,33 @@ Best regards,
     return stars;
   };
 
+  const scheduledInterviews = candidates.filter((c) => c.interview_status === 'scheduled').length;
+  const metricsInterviewees = candidates.map((c) => ({
+    id: c.id,
+    interview_status: c.interview_status,
+    interview_date: c.interview_date,
+    total_reviews: c.total_reviews,
+    average_score: c.average_score,
+  }));
+  const overviewCandidates = candidates.map((c) => ({
+    id: c.id,
+    name: c.applicant_name,
+    position: c.job_openings?.job_title,
+    average_score: c.average_score ?? 0,
+    total_reviews: c.total_reviews ?? 0,
+  }));
+
   if (loading) {
     return null;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Filters */}
-      <div className="bg-white border rounded-md p-2">
+    <>
+      <div className={RECRUITMENT_MAIN_GRID}>
+        <div className={RECRUITMENT_MAIN_COLUMN}>
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className="mb-2 flex-shrink-0">
+              <div className="rounded-md border border-border bg-card p-2">
         <div className="flex flex-col sm:flex-row gap-2 w-full">
           <div className="relative flex-1 min-w-[150px]">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -739,9 +768,9 @@ Best regards,
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Scores</SelectItem>
-              <SelectItem value="high">High (4-5★)</SelectItem>
-              <SelectItem value="medium">Medium (2.5-4★)</SelectItem>
-              <SelectItem value="low">Low (&lt;2.5★)</SelectItem>
+              <SelectItem value="high">High (4-5?)</SelectItem>
+              <SelectItem value="medium">Medium (2.5-4?)</SelectItem>
+              <SelectItem value="low">Low (&lt;2.5?)</SelectItem>
               <SelectItem value="no_reviews">No Reviews</SelectItem>
             </SelectContent>
           </Select>
@@ -758,26 +787,34 @@ Best regards,
             </SelectContent>
           </Select>
         </div>
-      </div>
+              </div>
+            </div>
 
-      {filteredCandidates.length === 0 ? (
-        <div className="text-center py-12">
-          <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <div className="text-gray-500">
-            <p className="text-lg font-medium">Tidak ada kandidat interview</p>
-            <p className="text-sm mt-1">
-              {candidates.length === 0 
-                ? "Belum ada kandidat yang sudah melengkapi profile dan siap untuk interview." 
-                : "Tidak ada kandidat yang cocok dengan filter pencarian."}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="w-full max-w-full min-w-0 overflow-hidden rounded-lg border bg-white">
-          <div className="w-full max-w-full min-w-0 overflow-x-auto seamless-scroll nested-scroll-touch-chain">
-            <Table className="min-w-[1280px]">
-              <TableHeader>
-                <TableRow className="bg-gray-50">
+            <div className="mb-2 flex-shrink-0">
+              <IntervieweesMetricsCards interviewees={metricsInterviewees} />
+            </div>
+
+            <div className={RECRUITMENT_TABLE_SECTION}>
+              <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                {filteredCandidates.length === 0 ? (
+                  <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-12 text-center">
+                    <User className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
+                    <div className="text-muted-foreground">
+                      <p className="text-lg font-medium">Tidak ada kandidat interview</p>
+                      <p className="mt-1 text-sm">
+                        {candidates.length === 0
+                          ? 'Belum ada kandidat yang sudah melengkapi profile dan siap untuk interview.'
+                          : 'Tidak ada kandidat yang cocok dengan filter pencarian.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <Table
+                    className="min-w-[1280px] w-full caption-bottom text-sm"
+                    containerClassName="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto"
+                  >
+              <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
+                <TableRow className="bg-gray-50 hover:bg-transparent">
                   <TableHead className="font-semibold whitespace-nowrap min-w-[160px] px-4 py-3">Name</TableHead>
                   <TableHead className="font-semibold whitespace-nowrap min-w-[180px] px-4 py-3">Email</TableHead>
                   <TableHead className="font-semibold whitespace-nowrap min-w-[120px] px-4 py-3">Phone</TableHead>
@@ -809,17 +846,17 @@ Best regards,
                       </div>
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                      <span className="truncate block max-w-[180px]" title={candidate.applicant_email}>{candidate.applicant_email || '—'}</span>
+                      <span className="truncate block max-w-[180px]" title={candidate.applicant_email}>{candidate.applicant_email || '�'}</span>
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                      {candidate.applicant_phone || '—'}
+                      {candidate.applicant_phone || '�'}
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap">
-                      <span className="text-xs text-green-600 font-medium">✅ Completed</span>
+                      <span className="text-xs text-green-600 font-medium">? Completed</span>
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap">
                       <span className="font-medium text-gray-900 text-sm">
-                        {candidate.job_openings?.job_title || '—'}
+                        {candidate.job_openings?.job_title || '�'}
                       </span>
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
@@ -847,7 +884,7 @@ Best regards,
                           )}
                         </span>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-gray-400">�</span>
                       )}
                     </TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-600" title={candidate.sjt_scores != null && candidate.sjt_scores.sjt_dimension_scores ? getSjtResultFromScores(candidate.sjt_scores.sjt_dimension_scores).description : candidate.sjt_scores != null ? `Skor Situasi Kerja: ${candidate.sjt_scores.score_sjt}/12` : undefined}>
@@ -861,7 +898,7 @@ Best regards,
                           {candidate.sjt_scores.score_sjt}/12
                         </button>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-gray-400">�</span>
                       )}
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap">
@@ -882,7 +919,7 @@ Best regards,
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap">
                       <Badge variant="outline" className="text-xs capitalize">
-                        {candidate.status || '—'}
+                        {candidate.status || '�'}
                       </Badge>
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap">
@@ -891,18 +928,18 @@ Best regards,
                     <TableCell className="px-4 py-3 whitespace-nowrap text-sm">
                       {candidate.interview_date
                         ? new Date(candidate.interview_date).toLocaleDateString()
-                        : '—'}
+                        : '�'}
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap text-sm">
-                      {candidate.interview_time || '—'}
+                      {candidate.interview_time || '�'}
                     </TableCell>
                     <TableCell className="px-4 py-3 min-w-[160px] max-w-[200px]">
                       <span className="text-sm text-gray-700 truncate block" title={candidate.interview_location || ''}>
-                        {candidate.interview_location || '—'}
+                        {candidate.interview_location || '�'}
                       </span>
                     </TableCell>
                     <TableCell className="px-4 py-3 whitespace-nowrap text-sm">
-                      {candidate.interviewer_name || '—'}
+                      {candidate.interviewer_name || '�'}
                     </TableCell>
                     <TableCell className="px-4 py-3 text-center sticky right-0 bg-white hover:bg-gray-50">
                       <CandidateActionsDropdown
@@ -921,9 +958,43 @@ Best regards,
                 ))}
               </TableBody>
             </Table>
+                )}
+                <IntervieweesTableFooter
+                  totalInterviews={candidates.length}
+                  scheduledInterviews={scheduledInterviews}
+                  filteredInterviews={filteredCandidates.length}
+                />
+              </div>
+            </div>
           </div>
         </div>
-      )}
+
+        <div className={RECRUITMENT_SIDEBAR_COLUMN}>
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+              <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
+                        <h3 className="text-sm font-semibold text-foreground">Interview Overview</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {t(
+                            'interviewees.overview.sidebarSubtitle',
+                            'Summary and top candidates by score',
+                          )}
+                        </p>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <IntervieweesOverview interviewees={overviewCandidates} />
+                </div>
+              </div>
+              <IntervieweesSidebarFooter
+                totalInterviews={candidates.length}
+                selectedStatus={statusFilter !== 'all' ? statusFilter : undefined}
+                totalCandidates={filteredCandidates.length}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Delete confirmation dialog - owner only */}
       <AlertDialog open={!!candidateToDelete} onOpenChange={(open) => !open && setCandidateToDelete(null)}>
@@ -955,7 +1026,7 @@ Best regards,
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Hasil DISC — {discModalCandidate?.applicant_name ?? ''}
+              Hasil DISC � {discModalCandidate?.applicant_name ?? ''}
             </DialogTitle>
           </DialogHeader>
           {discModalCandidate?.disc_scores && (
@@ -1001,7 +1072,7 @@ Best regards,
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Hasil Tes Situasi Kerja — {sjtModalCandidate?.applicant_name ?? ''}
+              Hasil Tes Situasi Kerja � {sjtModalCandidate?.applicant_name ?? ''}
             </DialogTitle>
           </DialogHeader>
           {sjtModalCandidate?.sjt_scores && (
@@ -1059,6 +1130,6 @@ Best regards,
           isProcessing={isProcessing}
         />
       )}
-    </div>
+    </>
   );
 };

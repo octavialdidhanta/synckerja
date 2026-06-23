@@ -1,5 +1,12 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import {
+  RECRUITMENT_CARD_FOOTER,
+  RECRUITMENT_MAIN_COLUMN,
+  RECRUITMENT_MAIN_GRID,
+  RECRUITMENT_SIDEBAR_COLUMN,
+  RECRUITMENT_TABLE_SECTION,
+} from "../layout/recruitmentIntervieweesLayout";
 
 function useRecruitmentLoadingAria() {
   const { t } = useAppTranslation();
@@ -398,66 +405,127 @@ export function RecruitmentIntervieweesSkeleton() {
                   </div>
                 </div>
 
-                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-                    <div className="space-y-6">
-                      <div className="rounded-md border bg-white p-2">
-                        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
-                          <Skeleton className="h-9 min-w-[150px] flex-1" />
-                          <Skeleton className="h-9 w-full sm:w-[130px]" />
-                          <Skeleton className="h-9 w-full sm:w-[130px]" />
-                          <Skeleton className="h-9 w-full sm:w-[130px]" />
+                <div className={RECRUITMENT_MAIN_GRID}>
+                    <div className={RECRUITMENT_MAIN_COLUMN}>
+                      <div className="flex h-full min-h-0 min-w-0 flex-col">
+                        <div className="mb-2 flex-shrink-0">
+                          <div className="rounded-md border border-border bg-card p-2">
+                            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+                              <Skeleton className="h-9 min-w-[150px] flex-1" />
+                              <Skeleton className="h-9 w-full sm:w-[130px]" />
+                              <Skeleton className="h-9 w-full sm:w-[130px]" />
+                              <Skeleton className="h-9 w-full sm:w-[130px]" />
+                            </div>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="w-full max-w-full min-w-0 overflow-hidden rounded-lg border bg-white">
-                        <div className="w-full max-w-full min-w-0 overflow-x-auto seamless-scroll nested-scroll-touch-chain">
-                          <div className="min-w-[1280px]">
-                            <div className="border-b border-gray-200 bg-gray-50">
-                              <div className="flex flex-nowrap items-center gap-2 px-4 py-3">
-                                {headerCols.map((w, i) => (
-                                  <Skeleton
-                                    key={i}
-                                    className="h-3 shrink-0"
-                                    style={{ width: `${w}px` }}
-                                  />
-                                ))}
+                        <div className="mb-2 flex-shrink-0">
+                          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                              <div
+                                key={i}
+                                className="rounded-md border border-brand-blue/30 bg-brand-blue/10 p-4"
+                              >
+                                <div className="mb-3 flex items-center justify-between">
+                                  <Skeleton className="h-4 w-24" />
+                                  <Skeleton className="h-5 w-5 rounded" />
+                                </div>
+                                <Skeleton className="h-8 w-14" />
+                                <Skeleton className="mt-1 h-3 w-28" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className={RECRUITMENT_TABLE_SECTION}>
+                          <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                            <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto">
+                              <div className="min-w-[1280px]">
+                                <div className="sticky top-0 z-20 flex h-10 items-center gap-2 border-b border-border bg-gray-50 px-3 shadow-sm">
+                                  {headerCols.map((w, i) => (
+                                    <Skeleton
+                                      key={i}
+                                      className="h-3 shrink-0"
+                                      style={{ width: `${w}px` }}
+                                    />
+                                  ))}
+                                </div>
+                                <div className="divide-y divide-border">
+                                  {Array.from({ length: 6 }).map((_, ri) => (
+                                    <div
+                                      key={ri}
+                                      className="flex flex-nowrap items-center gap-2 px-4 py-3"
+                                    >
+                                      <div className="flex w-[160px] shrink-0 items-center gap-2">
+                                        <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                                        <Skeleton className="h-4 w-24 min-w-0 flex-1" />
+                                      </div>
+                                      <Skeleton className="h-3 w-[180px] shrink-0" />
+                                      <Skeleton className="h-3 w-[100px] shrink-0" />
+                                      <Skeleton className="h-3 w-[72px] shrink-0" />
+                                      <Skeleton className="h-3 w-[140px] shrink-0" />
+                                      <Skeleton className="h-3 w-[100px] shrink-0" />
+                                      <Skeleton className="h-3 w-[72px] shrink-0" />
+                                      <Skeleton className="h-3 w-[56px] shrink-0" />
+                                      <Skeleton className="h-3 w-[88px] shrink-0" />
+                                      <Skeleton className="h-5 w-[88px] shrink-0 rounded-full" />
+                                      <Skeleton className="h-5 w-[88px] shrink-0 rounded-full" />
+                                      <Skeleton className="h-3 w-[96px] shrink-0" />
+                                      <Skeleton className="h-3 w-[56px] shrink-0" />
+                                      <Skeleton className="h-3 w-[88px] shrink-0" />
+                                      <Skeleton className="h-3 w-[140px] shrink-0" />
+                                      <Skeleton className="sticky right-0 h-8 w-8 shrink-0 rounded-md bg-card shadow-sm ring-1 ring-border" />
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             </div>
-                            <div className="divide-y divide-gray-100 bg-white">
-                              {Array.from({ length: 6 }).map((_, ri) => (
+                            <div className={RECRUITMENT_CARD_FOOTER}>
+                              <div className="flex items-center justify-between gap-2">
+                                <Skeleton className="h-3 w-52 max-w-[55%]" />
+                                <Skeleton className="h-3 w-28 max-w-[40%]" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={RECRUITMENT_SIDEBAR_COLUMN}>
+                      <div className="flex h-full min-h-0 min-w-0 flex-col">
+                        <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                          <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
+                            <Skeleton className="h-4 w-40" />
+                            <Skeleton className="mt-1 h-3 w-full max-w-[200px]" />
+                          </div>
+                          <div className="min-h-0 flex-1 overflow-hidden p-4">
+                            <Skeleton className="mb-3 h-3 w-36" />
+                            <div className="space-y-2">
+                              {Array.from({ length: 6 }).map((_, i) => (
                                 <div
-                                  key={ri}
-                                  className="flex flex-nowrap items-center gap-2 px-4 py-3"
+                                  key={i}
+                                  className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-2"
                                 >
-                                  <div className="flex w-[160px] shrink-0 items-center gap-2">
-                                    <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
-                                    <Skeleton className="h-4 w-24 min-w-0 flex-1" />
+                                  <Skeleton className="h-6 w-6 shrink-0 rounded-full" />
+                                  <div className="min-w-0 flex-1 space-y-1">
+                                    <Skeleton className="h-3 w-28 max-w-full" />
+                                    <Skeleton className="h-3 w-20 max-w-full" />
+                                    <Skeleton className="h-3 w-24 max-w-full" />
                                   </div>
-                                  <Skeleton className="h-3 w-[180px] shrink-0" />
-                                  <Skeleton className="h-3 w-[100px] shrink-0" />
-                                  <Skeleton className="h-3 w-[72px] shrink-0" />
-                                  <Skeleton className="h-3 w-[140px] shrink-0" />
-                                  <Skeleton className="h-3 w-[100px] shrink-0" />
-                                  <Skeleton className="h-3 w-[72px] shrink-0" />
-                                  <Skeleton className="h-3 w-[56px] shrink-0" />
-                                  <Skeleton className="h-3 w-[88px] shrink-0" />
-                                  <Skeleton className="h-5 w-[88px] shrink-0 rounded-full" />
-                                  <Skeleton className="h-5 w-[88px] shrink-0 rounded-full" />
-                                  <Skeleton className="h-3 w-[96px] shrink-0" />
-                                  <Skeleton className="h-3 w-[56px] shrink-0" />
-                                  <Skeleton className="h-3 w-[88px] shrink-0" />
-                                  <Skeleton className="h-3 w-[140px] shrink-0" />
-                                  <Skeleton className="sticky right-0 h-8 w-8 shrink-0 rounded-md bg-white shadow-sm ring-1 ring-gray-100" />
                                 </div>
                               ))}
+                            </div>
+                          </div>
+                          <div className={RECRUITMENT_CARD_FOOTER}>
+                            <div className="flex items-center justify-between gap-2">
+                              <Skeleton className="h-3 w-28" />
+                              <Skeleton className="h-3 w-20" />
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
               </div>
             </div>

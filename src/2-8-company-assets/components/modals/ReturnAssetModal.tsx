@@ -84,7 +84,7 @@ export const ReturnAssetModal = ({ isOpen, onClose, asset, onSuccess }: ReturnAs
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
@@ -94,40 +94,46 @@ export const ReturnAssetModal = ({ isOpen, onClose, asset, onSuccess }: ReturnAs
             {asset.name} — {documentOptional ? t('companyAssets.returnDocumentOptionalHint', 'Return document optional if asset has only been assigned once.') : t('companyAssets.returnDocumentRequired', 'Return document required')}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
+        <div className="min-w-0 space-y-4 py-2">
+          <div className="min-w-0 space-y-1">
             <Label>
               {t('companyAssets.returnDocumentLabel', 'Return document')}
               {documentOptional ? ` (${t('companyAssets.optional', 'optional')})` : ' *'}
             </Label>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="mt-1 flex min-w-0 items-center gap-2">
               <Input
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
                 onChange={handleFileChange}
-                className="flex-1"
+                className="min-w-0 w-full overflow-hidden"
               />
               {file && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
+                <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
                   <X className="h-4 w-4" />
                 </Button>
               )}
             </div>
-            {file && <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><FileText className="h-3 w-3" /> {file.name}</p>}
-            {documentOptional && <p className="text-xs text-muted-foreground mt-1">{t('companyAssets.returnDocumentOptionalSingleAssignment', 'This asset has only one assignment; return document is optional.')}</p>}
+            {file && (
+              <p className="mt-1 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                <FileText className="h-3 w-3 shrink-0" />
+                <span className="truncate">{file.name}</span>
+              </p>
+            )}
+            {documentOptional && <p className="mt-1 text-xs text-muted-foreground">{t('companyAssets.returnDocumentOptionalSingleAssignment', 'This asset has only one assignment; return document is optional.')}</p>}
           </div>
-          <div>
+          <div className="min-w-0 space-y-1">
             <Label>{t('companyAssets.notesOptional', 'Notes (optional)')}</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="mt-1" />
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="mt-1 min-h-0 w-full min-w-0 resize-y" />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={handleClose}>{t('common.cancel', 'Cancel')}</Button>
+          <div className="flex shrink-0 justify-end gap-2 pt-2">
+            <Button variant="outline" className="shrink-0" onClick={handleClose}>{t('common.cancel', 'Cancel')}</Button>
             <Button
+              className="shrink-0"
               onClick={handleSubmit}
               disabled={returnMutation.isPending || (!documentOptional && !file)}
             >
-              {returnMutation.isPending ? t('common.loading', 'Loading...') : t('companyAssets.returnButton', 'Return')}
+              {returnMutation.isPending ? t('companyAssets.loading', 'Loading...') : t('companyAssets.returnButton', 'Return')}
             </Button>
           </div>
         </div>

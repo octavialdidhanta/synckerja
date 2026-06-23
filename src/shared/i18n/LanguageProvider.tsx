@@ -1,4 +1,4 @@
-﻿import {
+import {
   createContext,
   useCallback,
   useContext,
@@ -12,7 +12,7 @@ import { AppLanguage, APP_LANGUAGE_DEVICE_OVERRIDE_KEY, DEFAULT_LANGUAGE, LANGUA
 import i18n, { setAppLanguage as applyAppLanguage } from "@/shared/i18n";
 import { resolveUiLanguage } from "@/shared/i18n/resolveUiLanguage";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { logger } from "@/shared/lib/logger";
 
 export interface SetLanguageOptions {
@@ -39,63 +39,38 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const { pathname } = useLocation();
   const isPublicAuthRoute = PUBLIC_AUTH_PATH.test(pathname);
   const [language, setLanguageState] = useState<AppLanguage>(loadInitialLanguage);
-  const { organizationId } = useCurrentOrg();
-  const [isLoadingFromDb, setIsLoadingFromDb] = useState(true);
+  const { user, userData, organization, centralProfileHydrated } = useCentralizedUserData();
+  const organizationId = organization?.id ?? userData?.active_organization_id ?? null;
 
-  // Load language from database when organizationId is available (skip if device override is set)
+  // Load language from centralized profile (no extra `profiles` fetch)
   useEffect(() => {
-    const loadLanguageFromDatabase = async () => {
-      if (isPublicAuthRoute) {
-        setIsLoadingFromDb(false);
+    if (isPublicAuthRoute) {
+      return;
+    }
+
+    if (!centralProfileHydrated) {
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const deviceOverride = window.localStorage.getItem(APP_LANGUAGE_DEVICE_OVERRIDE_KEY);
+      if (deviceOverride === "true") {
         return;
       }
+    }
 
-      if (!organizationId) {
-        setIsLoadingFromDb(false);
-        return;
-      }
+    const personal = userData?.preferred_locale;
+    if (personal === "en" || personal === "id") {
+      setLanguageState(personal);
+      void applyAppLanguage(personal);
+      return;
+    }
 
-      if (typeof window !== "undefined") {
-        const deviceOverride = window.localStorage.getItem(APP_LANGUAGE_DEVICE_OVERRIDE_KEY);
-        if (deviceOverride === "true") {
-          setIsLoadingFromDb(false);
-          return;
-        }
-      }
-
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profileRow } = await supabase
-            .from("profiles")
-            .select("preferred_locale")
-            .eq("user_id", user.id)
-            .maybeSingle();
-          const personal = profileRow?.preferred_locale;
-          if (personal === "en" || personal === "id") {
-            setLanguageState(personal);
-            void applyAppLanguage(personal);
-            setIsLoadingFromDb(false);
-            return;
-          }
-
-          // No `profiles.preferred_locale` — English baseline (matches Settings default)
-          setLanguageState(DEFAULT_LANGUAGE);
-          void applyAppLanguage(DEFAULT_LANGUAGE);
-          setIsLoadingFromDb(false);
-          return;
-        }
-
-        // Not signed in: keep localStorage / init default (English)
-      } catch (error: any) {
-        console.error('Error loading language from database:', error);
-      } finally {
-        setIsLoadingFromDb(false);
-      }
-    };
-
-    loadLanguageFromDatabase();
-  }, [organizationId, isPublicAuthRoute]);
+    if (user) {
+      setLanguageState(DEFAULT_LANGUAGE);
+      void applyAppLanguage(DEFAULT_LANGUAGE);
+    }
+  }, [isPublicAuthRoute, centralProfileHydrated, user, userData?.preferred_locale]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -141,11 +116,9 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Save to database if organizationId is available
-    if (organizationId && !isLoadingFromDb) {
+    if (organizationId && centralProfileHydrated) {
       const saveLanguageToDatabase = async () => {
         try {
-          const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
             console.warn('No authenticated user, language saved to localStorage only');
             return;
@@ -166,19 +139,17 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
           if (langError) {
             console.error('Failed to save language to database:', langError);
-          } else {
-            if (import.meta.env.DEV) {
-              logger.debug('âœ… Language saved to database:', { organizationId, isIndonesian, language: nextLanguage });
-            }
+          } else if (import.meta.env.DEV) {
+            logger.debug('Language saved to database:', { organizationId, isIndonesian, language: nextLanguage });
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Error saving language to database:', error);
         }
       };
 
-      saveLanguageToDatabase();
+      void saveLanguageToDatabase();
     }
-  }, [organizationId, isLoadingFromDb]);
+  }, [organizationId, centralProfileHydrated, user]);
 
   const value = useMemo(
     () => ({
@@ -193,7 +164,6 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
 export const useLanguage = (): LanguageContextValue => {
   const context = useContext(LanguageContext);
-  // Always call useMemo so hook order is stable (Rules of Hooks). Never return before all hooks run.
   const fallback = useMemo<LanguageContextValue>(
     () => ({
       language: loadInitialLanguage(),
@@ -203,21 +173,3 @@ export const useLanguage = (): LanguageContextValue => {
   );
   return context ?? fallback;
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

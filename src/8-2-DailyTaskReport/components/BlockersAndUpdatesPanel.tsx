@@ -61,7 +61,7 @@ export const BlockersAndUpdatesPanel = () => {
   }, [unresolvedBlockers]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white ring-1 ring-brand-blue/10">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white ring-1 ring-brand-blue/10">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "blockers" | "updates")} className="flex flex-col flex-1 min-h-0">
         <div className="border-b border-brand-blue/15 bg-brand-blue/[0.06]">
           <TabsList className="w-full h-auto bg-transparent p-0 rounded-none border-none">

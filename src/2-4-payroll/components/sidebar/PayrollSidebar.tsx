@@ -31,11 +31,11 @@ export function PayrollSidebar({
 
   return (
     <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden">
-      <div className="border-border shrink-0 border-b px-4 py-1.5">
+      <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h3 className="text-foreground text-sm font-semibold">Payroll Overview</h3>
-            <p className="text-muted-foreground mt-1 text-xs">Latest payroll periods and runs</p>
+            <h3 className="text-sm font-semibold text-foreground">Payroll Overview</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Latest payroll periods and runs</p>
           </div>
           {activeTab === "periods" && (
             <Button

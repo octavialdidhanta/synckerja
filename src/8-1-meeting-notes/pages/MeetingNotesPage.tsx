@@ -11,12 +11,17 @@ import { MeetingNotesProvider, useMeetingNotes } from '../context/MeetingNotesCo
 import { matchesTimeFilter } from '../utils/meetingNotesFilters';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { MeetingNotesModuleShell } from '../layout/MeetingNotesModuleShell';
+import {
+  MEETING_NOTES_MAIN_GRID,
+  MEETING_NOTES_SIDEBAR_CARD,
+  MEETING_NOTES_TABLE_CARD,
+  MEETING_NOTES_TABLE_SECTION,
+} from '../layout/meetingNotesLayout';
 
 const MeetingNotesContent = () => {
   const { meetingPoints, filters, initialLoading } = useMeetingNotes();
   const showContent = useDebouncedReady(!initialLoading, 250);
 
-  // Filter meeting points based on filters
   const filteredPoints = meetingPoints.filter(point => {
     if (filters.search && !(point.discussion_point ?? '').toLowerCase().includes(filters.search.toLowerCase())) {
       return false;
@@ -33,7 +38,6 @@ const MeetingNotesContent = () => {
     return true;
   });
 
-  // Calculate statistics
   const thisMonthPoints = meetingPoints.filter(point => {
     const pointDate = new Date(point.meeting_date);
     const now = new Date();
@@ -45,54 +49,54 @@ const MeetingNotesContent = () => {
 
   return (
     <MeetingNotesModuleShell showContent={showContent}>
-      {/* Main Content - 9 columns */}
-      <div className="col-span-9 flex flex-col min-h-0">
-        <div className="flex-1 min-h-0">
-          <div className="h-full rounded-lg border border-brand-blue/20 bg-white shadow-sm ring-1 ring-brand-blue/10 flex flex-col">
-            {/* Filters Section */}
-            <div className="flex-shrink-0 px-4 py-2 border-b border-brand-blue/15 bg-brand-blue/5 flex items-center">
-              <MeetingFilters />
+      <div className={MEETING_NOTES_MAIN_GRID}>
+        <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className="mb-2 flex-shrink-0">
+              <div className="flex shrink-0 items-center rounded-md border border-brand-blue/20 bg-white px-4 py-2 ring-1 ring-brand-blue/10">
+                <MeetingFilters />
+              </div>
             </div>
 
-            {/* Input Section */}
-            <div className="flex-shrink-0 p-3 border-b border-brand-blue/15 bg-gradient-to-r from-brand-blue/[0.04] to-transparent">
-              <MeetingNotesInput />
+            <div className="mb-2 flex-shrink-0">
+              <div className="shrink-0 rounded-md border border-brand-blue/20 bg-white p-3 ring-1 ring-brand-blue/10">
+                <MeetingNotesInput />
+              </div>
             </div>
 
-            {/* Single scroll container: inside MeetingPointsTable */}
-            <div className="flex-1 min-h-0 p-4">
-              <MeetingPointsTable />
+            <div className={MEETING_NOTES_TABLE_SECTION}>
+              <div className={MEETING_NOTES_TABLE_CARD}>
+                <MeetingPointsTable />
+                <MeetingTableFooter
+                  totalMeetingPoints={meetingPoints.length}
+                  filteredPoints={filteredPoints.length}
+                />
+              </div>
             </div>
-
-            {/* Table Footer */}
-            <MeetingTableFooter
-              totalMeetingPoints={meetingPoints.length}
-              filteredPoints={filteredPoints.length}
-            />
           </div>
         </div>
-      </div>
 
-      {/* Sidebar - 3 columns */}
-      <div className="col-span-3 h-full flex flex-col min-h-0">
-        <div className="bg-white border border-brand-blue/20 ring-1 ring-brand-blue/10 rounded-lg h-full flex flex-col min-h-0">
-          {/* Sidebar Header */}
-          <div className="px-4 py-1.5 border-b border-brand-blue/15 bg-brand-blue/5 flex-shrink-0">
-            <h3 className="text-sm font-semibold text-brand-blue">Meeting Summary</h3>
-            <p className="text-xs text-gray-600 mt-1">Overview of meeting points</p>
+        <div className="col-span-3 flex h-full min-h-0 min-w-0 flex-col self-stretch">
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className={MEETING_NOTES_SIDEBAR_CARD}>
+              <div className="flex-shrink-0 border-b border-brand-blue/15 bg-brand-blue/5 px-4 py-1.5">
+                <h3 className="text-sm font-semibold text-brand-blue">Meeting Summary</h3>
+                <p className="mt-1 text-xs text-gray-600">Overview of meeting points</p>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 seamless-scroll nested-scroll-touch-chain">
+                  <MeetingSummaryCards />
+                </div>
+              </div>
+
+              <MeetingSidebarFooter
+                totalMeetings={meetingPoints.length}
+                thisMonth={thisMonthPoints}
+                completionRate={completionRate}
+              />
+            </div>
           </div>
-
-          {/* Scrollable Sidebar Content */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain p-4">
-            <MeetingSummaryCards />
-          </div>
-
-          {/* Sidebar Footer */}
-          <MeetingSidebarFooter
-            totalMeetings={meetingPoints.length}
-            thisMonth={thisMonthPoints}
-            completionRate={completionRate}
-          />
         </div>
       </div>
     </MeetingNotesModuleShell>
@@ -108,7 +112,3 @@ const MeetingNotesPage = () => {
 };
 
 export default MeetingNotesPage;
-
-
-
-

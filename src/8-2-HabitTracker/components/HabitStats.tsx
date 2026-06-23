@@ -18,7 +18,7 @@ export const HabitStats = () => {
     { label: "Total Streak", value: totalStreak, icon: Flame, color: "text-primary", bgColor: "bg-primary/10" },
   ];
   return (
-    <div className="grid grid-cols-4 gap-1.5">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {statCards.map((stat) => {
         const Icon = stat.icon;
         return (

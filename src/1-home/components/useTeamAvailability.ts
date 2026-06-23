@@ -11,7 +11,8 @@ export interface TeamAvailabilityData {
   total: number;
 }
 
-export const useTeamAvailability = () => {
+export const useTeamAvailability = (options: { enabled?: boolean } = {}) => {
+  const { enabled = true } = options;
   const { currentOrg } = useCurrentOrg();
 
   return useQuery({
@@ -115,7 +116,7 @@ export const useTeamAvailability = () => {
       logger.query('✅ Team availability calculated:', teamAvailability);
       return teamAvailability;
     },
-    enabled: !!currentOrg?.id,
+    enabled: enabled && !!currentOrg?.id,
     staleTime: 1 * 60 * 1000, // 1 minute 
     gcTime: 5 * 60 * 1000, // 5 minutes
     retry: 1, // Reduce retries

@@ -34,7 +34,7 @@ import type { OkrFilterState } from './types/okr-filter';
 import type { YearQuarterSelection } from './component/FiturTimePeriod';
 import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
-import { useObjectiveStats } from './hooks/useObjectiveStats';
+import { useHomeOkrObjectiveStats } from './hooks/useObjectiveStats';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import {
   filterCyclesByYearQuarter,
@@ -112,10 +112,15 @@ const HomeOKRDashboardContent = () => {
       : undefined;
   };
 
-  // Get real stats for each objective type (lazy: company first, then department, then individual)
-  const companyStats = useObjectiveStats(organizationId, 'company', getFilteredCycleIds(yearQuarterSelection), true);
-  const departmentStats = useObjectiveStats(organizationId, 'department', getFilteredCycleIds(yearQuarterSelection), readyDepartmentStats);
-  const individualStats = useObjectiveStats(organizationId, 'individual', getFilteredCycleIds(yearQuarterSelection), readyIndividualStats);
+  const filteredCycleIds = getFilteredCycleIds(yearQuarterSelection);
+  const { company: companyStats, department: departmentStats, individual: individualStats } =
+    useHomeOkrObjectiveStats({
+      organizationId,
+      cycleIds: filteredCycleIds,
+      loadCompany: true,
+      loadDepartment: readyDepartmentStats,
+      loadIndividual: readyIndividualStats,
+    });
 
   const departmentStatsPending =
     readyDepartmentStats && departmentStats.isPending;

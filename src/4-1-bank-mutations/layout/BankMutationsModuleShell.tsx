@@ -14,7 +14,7 @@ const MAIN_SCROLL =
   'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 /**
- * Shell `/finance/bank-mutations` — satu scroll container (header ikut scroll), selaras `/expenses/debt`.
+ * Shell `/finance/bank-mutations` — satu scroll container (header ikut scroll), selaras `/employees`: `px-4 pb-2`; tanpa safe spacer tambahan di bawah konten.
  */
 export function BankMutationsModuleShell({
   children,
@@ -32,7 +32,7 @@ export function BankMutationsModuleShell({
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
             <div className={cn(MAIN_SCROLL, 'min-w-0')}>
-              <div className="flex min-h-full min-w-0 flex-col">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <div className="mb-1 min-w-0 flex-shrink-0">
                   <BankMutationsPageHeader />
                 </div>
@@ -40,11 +40,6 @@ export function BankMutationsModuleShell({
                 <ModuleShellContentGate pagePath={BANK_MUTATIONS_BASE_PATH}>
                   {children}
                 </ModuleShellContentGate>
-
-                <div
-                  className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                  aria-hidden
-                />
               </div>
             </div>
           </div>

@@ -10,8 +10,11 @@ type HabitTrackerModuleShellProps = {
 };
 
 const MAIN_SCROLL =
-  "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+  "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
+/**
+ * Shell `/tools/habits-tracker` — header ikut scroll; grid di dalam children (bukan di gate flex-col).
+ */
 export function HabitTrackerModuleShell({
   children,
   showContent,
@@ -28,13 +31,14 @@ export function HabitTrackerModuleShell({
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
             <div className={cn(MAIN_SCROLL, "min-w-0")}>
-              <div className="flex min-h-full flex-col bg-muted/40">
+              <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
                 <div className="mb-1 min-w-0 shrink-0">
                   <ToolsHeaderAndTab activeTab="habits-tracker" onTabChange={() => {}} />
                 </div>
-                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  <ModuleShellContentGate>{children}</ModuleShellContentGate>
-                </div>
+
+                <ModuleShellContentGate pagePath="/tools/habits-tracker">
+                  {children}
+                </ModuleShellContentGate>
               </div>
             </div>
           </div>
@@ -43,7 +47,7 @@ export function HabitTrackerModuleShell({
 
       {!showContent ? (
         <div
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-auto bg-gray-100"
+          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-gray-100"
           aria-busy
         >
           <HabitTrackerPageSkeleton />
@@ -52,4 +56,3 @@ export function HabitTrackerModuleShell({
     </div>
   );
 }
-

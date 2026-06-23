@@ -16,7 +16,7 @@ export const PasswordStats: React.FC<PasswordStatsProps> = ({
   favorites,
 }) => {
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Card className="rounded-md border border-brand-blue/20 p-3 shadow-sm ring-1 ring-brand-blue/10">
         <div className="flex items-center justify-between">
           <div>

@@ -62,11 +62,10 @@ export const CompanyFilesTable = ({ onUploadFile }: CompanyFilesTableProps) => {
 
   return (
     <>
-      <div className="flex flex-col h-full">
-        {/* Scrollable Table Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
-          <div className="border rounded-t-lg overflow-hidden">
-            <Table>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="overflow-hidden rounded-t-lg border border-border">
+            <Table className="w-full caption-bottom text-sm">
               <CompanyFilesTableHeader />
               <TableBody>
                 {files.map((file) => (
@@ -82,8 +81,7 @@ export const CompanyFilesTable = ({ onUploadFile }: CompanyFilesTableProps) => {
             </Table>
           </div>
         </div>
-        
-        {/* Fixed Footer */}
+
         <CompanyFilesTableFooter
           totalFiles={files.length}
           totalSize={totalSize}

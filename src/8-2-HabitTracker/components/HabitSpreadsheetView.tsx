@@ -210,7 +210,7 @@ export const HabitSpreadsheetView = () => {
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <div className="h-full flex flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white shadow-sm ring-1 ring-brand-blue/10">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white shadow-sm ring-1 ring-brand-blue/10">
       <div className="flex-shrink-0 border-b border-brand-blue/20 bg-brand-blue/[0.06] px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">

@@ -2,6 +2,14 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useLocation } from "react-router-dom";
 import { cn } from "@/shared/lib/utils";
+import {
+  ATTENDANCE_SETTINGS_CARD_FOOTER,
+  ATTENDANCE_SETTINGS_CARD_HEADER,
+  ATTENDANCE_SETTINGS_GRID,
+  ATTENDANCE_SETTINGS_MAIN_COLUMN,
+  ATTENDANCE_SETTINGS_NAV_COLUMN,
+  ATTENDANCE_SETTINGS_SCROLL_PANE,
+} from "../layout/attendanceSettingsLayout";
 
 export type AttendanceSkeletonVariant = "dashboard" | "attendance" | "settings";
 
@@ -275,80 +283,69 @@ function RecordsBody() {
   );
 }
 
-/** Mirrors `AttendanceSettingsLayout` after social-media settings shell (grid 3+9, dual cards). */
+/** Mirrors `AttendanceSettingsLayout` (grid 3+9, dual cards). */
 function SettingsBody() {
-  const scrollPane =
-    "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
   return (
-    <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-muted/40 font-sans">
-      <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
-        <div className="col-span-12 flex min-h-0 flex-col overflow-hidden md:col-span-3 lg:h-full">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[5px] border border-border bg-card shadow-sm lg:h-full">
-            <div className="flex min-h-16 flex-shrink-0 flex-col justify-center border-b border-border bg-primary/5 px-4 py-2.5">
-              <Skeleton className="h-4 w-44 max-w-full" />
-              <Skeleton className="mt-1 h-3 w-full max-w-[220px]" />
-            </div>
-            <div className={cn(scrollPane, "p-3")}>
-              <div className="space-y-2">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "w-full rounded-[5px] p-3",
-                      i === 0
-                        ? "border-2 border-primary/50 bg-accent shadow-sm"
-                        : "border border-border bg-card",
-                    )}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <Skeleton
-                        className={cn(
-                          "h-9 w-9 shrink-0 rounded-[5px]",
-                          i === 0 ? "bg-primary/15" : "bg-muted",
-                        )}
-                      />
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <Skeleton className="h-4 w-36 max-w-[85%]" />
-                          <Skeleton className="h-5 w-12 shrink-0 rounded-full" />
+    <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
+      <div className={ATTENDANCE_SETTINGS_GRID}>
+        <div className={ATTENDANCE_SETTINGS_NAV_COLUMN}>
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:h-full">
+              <div className={ATTENDANCE_SETTINGS_CARD_HEADER}>
+                <Skeleton className="h-4 w-44 max-w-full" />
+                <Skeleton className="mt-1 h-3 w-full max-w-[220px]" />
+              </div>
+              <div className={cn(ATTENDANCE_SETTINGS_SCROLL_PANE, "p-3")}>
+                <div className="space-y-2">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "w-full rounded-md p-3",
+                        i === 0
+                          ? "border-2 border-primary/50 bg-accent shadow-sm"
+                          : "border border-border bg-card",
+                      )}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <Skeleton
+                          className={cn(
+                            "h-9 w-9 shrink-0 rounded-md",
+                            i === 0 ? "bg-primary/15" : "bg-muted",
+                          )}
+                        />
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Skeleton className="h-4 w-36 max-w-[85%]" />
+                            <Skeleton className="h-5 w-12 shrink-0 rounded-full" />
+                          </div>
+                          <Skeleton className="h-3 w-full max-w-[200px]" />
                         </div>
-                        <Skeleton className="h-3 w-full max-w-[200px]" />
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 rounded-[5px] border border-primary/30 bg-primary/10 p-3">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-2 w-2 shrink-0 rounded-full bg-primary/80" />
-                  <Skeleton className="h-3 w-32" />
+                  ))}
                 </div>
-                <Skeleton className="mt-2 h-3 w-full max-w-xs" />
               </div>
-            </div>
-            <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-3 w-28" />
-                <Skeleton className="h-3 w-16" />
+              <div className={ATTENDANCE_SETTINGS_CARD_FOOTER}>
+                <div className="flex items-center justify-between gap-2">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="col-span-12 flex min-h-0 min-w-0 flex-col overflow-hidden md:col-span-9 lg:h-full">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full">
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[5px] border border-border bg-card shadow-sm lg:h-full">
-              <div className="flex min-h-16 flex-shrink-0 items-start justify-between gap-3 border-b border-border bg-primary/5 px-4 py-2.5">
+        <div className={ATTENDANCE_SETTINGS_MAIN_COLUMN}>
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:h-full">
+              <div className={ATTENDANCE_SETTINGS_CARD_HEADER}>
                 <div className="min-w-0 flex-1 space-y-2">
                   <Skeleton className="h-4 w-48 max-w-full" />
                   <Skeleton className="h-3 w-full max-w-lg" />
                 </div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-2 pt-0.5">
-                    <Skeleton className="h-6 w-28 rounded-full" />
-                    <Skeleton className="h-6 w-24 rounded-full" />
-                </div>
               </div>
-              <div className={scrollPane}>
+              <div className={ATTENDANCE_SETTINGS_SCROLL_PANE}>
                 <div className="min-w-0 space-y-4 p-4">
                   <Skeleton className="h-10 w-full max-w-full rounded-md" />
                   <Skeleton className="h-10 w-full max-w-full rounded-md" />
@@ -361,8 +358,8 @@ function SettingsBody() {
                   <Skeleton className="h-10 w-40 max-w-full rounded-md" />
                 </div>
               </div>
-              <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
-                <div className="flex items-center justify-between">
+              <div className={ATTENDANCE_SETTINGS_CARD_FOOTER}>
+                <div className="flex items-center justify-between gap-2">
                   <Skeleton className="h-3 w-32" />
                   <Skeleton className="h-3 w-24" />
                 </div>
@@ -395,21 +392,11 @@ export function AttendanceModuleSkeleton({
                 <div className="mb-1 flex-shrink-0">
                   <AttendanceHeaderSkeleton />
                 </div>
-                <div
-                  className={cn(
-                    "grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch",
-                    "[@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none",
-                    "[@media(max-height:760px)]:min-h-[700px]",
-                  )}
-                >
+                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
                     {variant === "dashboard" ? <DashboardBody /> : null}
                     {variant === "attendance" ? <RecordsBody /> : null}
-                    {variant === "settings" ? (
-                      <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
-                        <SettingsBody />
-                      </div>
-                    ) : null}
+                    {variant === "settings" ? <SettingsBody /> : null}
                   </div>
                 </div>
               </div>

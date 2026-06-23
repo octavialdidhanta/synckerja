@@ -8,11 +8,18 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface AttendanceStatsProps {
   workingHoursToday: string;
+  /** Defer heavy monthly org stats until Quick Menu panel is shown (not while camera open). */
+  loadMonthlyStats?: boolean;
 }
 
-export const AttendanceStats = ({ workingHoursToday }: AttendanceStatsProps) => {
+export const AttendanceStats = ({
+  workingHoursToday,
+  loadMonthlyStats = true,
+}: AttendanceStatsProps) => {
   const { t } = useAppTranslation();
-  const { data: realStats, isLoading } = useEmployeeAttendanceStats();
+  const { data: realStats, isLoading } = useEmployeeAttendanceStats({
+    enabled: loadMonthlyStats,
+  });
   
   // Use real data if available, otherwise show loading or default
   const stats = realStats || {

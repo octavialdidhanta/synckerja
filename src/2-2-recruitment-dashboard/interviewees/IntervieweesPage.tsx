@@ -37,11 +37,7 @@ export const IntervieweesPage = () => {
                   <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
                 </div>
                 <ModuleShellContentGate>
-                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-                    <IntervieweeTab onLoadingChange={setTabLoading} />
-                  </div>
-                </div>
+                  <IntervieweeTab onLoadingChange={setTabLoading} />
                 </ModuleShellContentGate>
               </div>
             </div>

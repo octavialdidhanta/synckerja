@@ -1,12 +1,16 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import {
+  PAYROLL_CARD_FOOTER,
+  PAYROLL_MAIN_COLUMN,
+  PAYROLL_MAIN_GRID,
+  PAYROLL_SIDEBAR_COLUMN,
+  PAYROLL_TABLE_SHELL_HEIGHT,
+} from "../layout/payrollCalculationsLayout";
 
 const SEAMLESS_SCROLL =
   "scrollbar-hide seamless-scroll nested-scroll-touch-chain overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
-
-const PAYROLL_TABLE_SHELL_HEIGHT =
-  "flex h-[calc(100dvh-280px)] min-h-[560px] min-w-0 flex-col [@media(max-height:900px)]:h-[calc(100dvh-300px)] [@media(max-height:900px)]:min-h-[620px]";
 
 /** Mirrors `PayrollCalculationsPage`: header + tab, filters, metrics, table card, sidebar. */
 export function PayrollRouteSkeleton({ embedded = false }: { embedded?: boolean }) {
@@ -34,67 +38,79 @@ export function PayrollRouteSkeleton({ embedded = false }: { embedded?: boolean 
               </div>
 
               <div className="min-h-0 min-w-0 w-full">
-                <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-12 xl:items-stretch">
-                  <div className="flex min-w-0 flex-col gap-2 xl:col-span-9">
-                    <div className="rounded-md border border-border bg-card p-2">
-                      <div className="flex flex-wrap gap-2">
-                        <Skeleton className="h-9 w-full max-w-[200px]" />
-                        <Skeleton className="h-9 w-32" />
-                        <Skeleton className="h-9 w-32" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
-                      {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="rounded-md border border-brand-blue/30 bg-brand-blue/10 p-4">
-                          <div className="mb-3 flex items-center justify-between">
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="h-5 w-5 rounded" />
+                <div className={PAYROLL_MAIN_GRID}>
+                  <div className={PAYROLL_MAIN_COLUMN}>
+                    <div className="flex h-full min-h-0 min-w-0 flex-col">
+                      <div className="mb-2 flex-shrink-0">
+                        <div className="rounded-md border border-border bg-card p-2">
+                          <div className="flex flex-wrap gap-2">
+                            <Skeleton className="h-9 w-full max-w-[200px]" />
+                            <Skeleton className="h-9 w-32" />
+                            <Skeleton className="h-9 w-32" />
                           </div>
-                          <Skeleton className="h-8 w-20" />
-                          <Skeleton className="mt-1 h-3 w-28" />
                         </div>
-                      ))}
-                    </div>
+                      </div>
 
-                    <div className={PAYROLL_TABLE_SHELL_HEIGHT}>
-                      <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-                        <div className={cn(SEAMLESS_SCROLL, "min-h-0 flex-1 space-y-2 p-3")}>
-                          <Skeleton className="h-8 w-full" />
-                          {Array.from({ length: 8 }).map((_, i) => (
-                            <Skeleton key={i} className="h-12 w-full" />
+                      <div className="mb-2 flex-shrink-0">
+                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+                          {Array.from({ length: 4 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className="rounded-md border border-brand-blue/30 bg-brand-blue/10 p-4"
+                            >
+                              <div className="mb-3 flex items-center justify-between">
+                                <Skeleton className="h-4 w-24" />
+                                <Skeleton className="h-5 w-5 rounded" />
+                              </div>
+                              <Skeleton className="h-8 w-20" />
+                              <Skeleton className="mt-1 h-3 w-28" />
+                            </div>
                           ))}
                         </div>
-                        <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
-                          <Skeleton className="h-3 w-48" />
+                      </div>
+
+                      <div className={PAYROLL_TABLE_SHELL_HEIGHT}>
+                        <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                          <div className={cn(SEAMLESS_SCROLL, "min-h-0 min-w-0 flex-1 space-y-2 p-3")}>
+                            <Skeleton className="h-8 w-full" />
+                            {Array.from({ length: 8 }).map((_, i) => (
+                              <Skeleton key={i} className="h-12 w-full" />
+                            ))}
+                          </div>
+                          <div className={PAYROLL_CARD_FOOTER}>
+                            <div className="flex items-center justify-between gap-2">
+                              <Skeleton className="h-3 w-52 max-w-[55%]" />
+                              <Skeleton className="h-3 w-36 max-w-[40%]" />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden xl:col-span-3 xl:h-full xl:max-h-full">
-                    <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-                      <div className="flex-shrink-0 border-b border-border px-4 py-3">
-                        <Skeleton className="h-5 w-40" />
-                        <Skeleton className="mt-1 h-3 w-full max-w-xs" />
-                      </div>
-                      <div className={cn(SEAMLESS_SCROLL, "min-h-0 flex-1 space-y-3 p-4")}>
-                        <Skeleton className="h-10 w-full rounded-md" />
-                        <Skeleton className="h-24 w-full rounded-md" />
-                        <Skeleton className="h-32 w-full rounded-md" />
-                      </div>
-                      <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
-                        <Skeleton className="h-3 w-40" />
+                  <div className={PAYROLL_SIDEBAR_COLUMN}>
+                    <div className="flex h-full min-h-0 min-w-0 flex-col">
+                      <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                        <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="mt-1 h-3 w-full max-w-xs" />
+                        </div>
+                        <div className={cn(SEAMLESS_SCROLL, "min-h-0 flex-1 space-y-3 p-4")}>
+                          <Skeleton className="h-10 w-full rounded-md" />
+                          <Skeleton className="h-24 w-full rounded-md" />
+                          <Skeleton className="h-32 w-full rounded-md" />
+                        </div>
+                        <div className={PAYROLL_CARD_FOOTER}>
+                          <div className="flex items-center justify-between gap-2">
+                            <Skeleton className="h-3 w-28" />
+                            <Skeleton className="h-3 w-20" />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <div
-                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
             </div>
           </div>
         </div>

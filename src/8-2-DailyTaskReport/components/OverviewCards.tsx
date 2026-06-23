@@ -101,8 +101,8 @@ export const OverviewCards = () => {
   };
 
   return (
-    <div className="w-full mb-2">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
+    <div className="w-full">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
         <Card title={t("dailyTaskReport.overview.totalAssignments", "Total Assignments")} value={total} color="border-brand-blue/20 bg-gradient-to-br from-brand-blue/[0.06] to-white" />
         <Card
           title={t("dailyTaskReport.overview.completed", "Completed")}

@@ -11,8 +11,7 @@ const MAIN_SCROLL =
   'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 /**
- * Shared shell for `/incomes/transaction` and `/incomes/piutang`.
- * Selaras `/expenses/*`: `px-4 pb-2` di luar scroll; jarak bawah hanya dari `pb-2`.
+ * Shell `/incomes/transaction` — selaras `/employees`: `px-4 pb-2` di luar scroll; tanpa safe spacer tambahan di bawah konten.
  */
 export function IncomeTransactionModuleShell({ children }: IncomeTransactionModuleShellProps) {
   return (
@@ -26,11 +25,6 @@ export function IncomeTransactionModuleShell({ children }: IncomeTransactionModu
               </div>
 
               <ModuleShellContentGate>{children}</ModuleShellContentGate>
-
-              <div
-                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                aria-hidden
-              />
             </div>
           </div>
         </div>
