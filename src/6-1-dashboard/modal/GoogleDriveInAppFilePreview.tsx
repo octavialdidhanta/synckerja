@@ -5,6 +5,8 @@ import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import {
   getDirectVideoUrl,
+  getEmbedUrl,
+  getGoogleDriveUcDownloadUrl,
   isFileLink,
   extractGoogleDriveFileId,
   upscaleGoogleDriveThumbnailUrl,
@@ -16,9 +18,15 @@ import { supabase, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 /**
  * Google Drive file preview in-app: video or image scaled to fill the available box (object-contain).
  */
-export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string }> = ({
+export const GoogleDriveFilePreview: React.FC<{
+  link: string;
+  className?: string;
+  /** TikTok / Reel previews: always try HTML5 video + Drive embed fallback. */
+  forceVideo?: boolean;
+}> = ({
   link,
   className,
+  forceVideo = false,
 }) => {
   const { t } = useAppTranslation();
   const fileId = useMemo(() => (isFileLink(link) ? extractGoogleDriveFileId(link) : null), [link]);
@@ -37,17 +45,21 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
     [thumbStripSrc],
   );
 
-  /** After metadata loads: treat as video for HTML5 player (private files need Edge proxy). */
+  /** Prefer filename extension over mimeType (Drive metadata can be wrong for generated videos). */
   const isVideoTarget = useMemo(() => {
-    const m = thumbMeta.mimeType?.toLowerCase() ?? "";
-    if (m.startsWith("video/")) return true;
-    if (m.startsWith("image/")) return false;
-    if (m.startsWith("application/vnd.google-apps.")) return false;
     const n = (thumbMeta.name ?? "").toLowerCase();
-    if (/\.(mp4|webm|ogg|mov|m4v|mkv|avi)(\?|$)/i.test(n)) return true;
-    if (/\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(n)) return false;
+    const hasVideoExt = /\.(mp4|webm|ogg|mov|m4v|mkv|avi)(\?|$)/i.test(n);
+    const hasImageExt = /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(n);
+    if (forceVideo || hasVideoExt) return true;
+    if (hasImageExt) return false;
+    const m = thumbMeta.mimeType?.toLowerCase() ?? "";
+    if (m.startsWith("image/")) return false;
+    if (m.startsWith("video/")) return true;
+    if (m.startsWith("application/vnd.google-apps.")) return false;
     return false;
-  }, [thumbMeta.mimeType, thumbMeta.name]);
+  }, [thumbMeta.mimeType, thumbMeta.name, forceVideo]);
+
+  const embedUrl = useMemo(() => getEmbedUrl(link), [link]);
 
   const [streamTick, setStreamTick] = useState(0);
   const [googleStreamUrl, setGoogleStreamUrl] = useState<string | null>(null);
@@ -98,19 +110,45 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
   }, [fileId, streamTick]);
 
   const directVideoUrl = isFileLink(link) ? getDirectVideoUrl(link) : "";
-  const videoSrc = useMemo(() => {
-    if (!isVideoTarget) return "";
-    if (!sessionChecked) return "";
-    if (googleStreamUrl) return googleStreamUrl;
-    return directVideoUrl;
-  }, [isVideoTarget, sessionChecked, googleStreamUrl, directVideoUrl]);
+  const ucVideoUrl = isFileLink(link) ? getGoogleDriveUcDownloadUrl(link) : "";
 
-  const [videoFailed, setVideoFailed] = useState(false);
-  const canTryVideo = Boolean(videoSrc) && !videoFailed;
+  const videoSources = useMemo(() => {
+    if (!isVideoTarget || !sessionChecked) return [];
+    const list: string[] = [];
+    const seen = new Set<string>();
+    const push = (url: string) => {
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      list.push(url);
+    };
+    push(directVideoUrl);
+    push(ucVideoUrl);
+    if (googleStreamUrl) push(googleStreamUrl);
+    return list;
+  }, [isVideoTarget, sessionChecked, directVideoUrl, ucVideoUrl, googleStreamUrl]);
+
+  const [videoIndex, setVideoIndex] = useState(0);
+  const [useDriveEmbed, setUseDriveEmbed] = useState(false);
 
   useEffect(() => {
-    setVideoFailed(false);
-  }, [link, videoSrc, isVideoTarget]);
+    setVideoIndex(0);
+    setUseDriveEmbed(false);
+  }, [link, isVideoTarget]);
+
+  useEffect(() => {
+    if (!sessionChecked) return;
+    setVideoIndex(0);
+  }, [sessionChecked, videoSources.length]);
+
+  const currentVideoUrl = videoSources[videoIndex] ?? null;
+  const videoExhausted =
+    sessionChecked && isVideoTarget && videoSources.length > 0 && videoIndex >= videoSources.length;
+  const noVideoSources = sessionChecked && isVideoTarget && videoSources.length === 0;
+
+  const resetVideoPreview = useCallback(() => {
+    setUseDriveEmbed(false);
+    setVideoIndex(0);
+  }, []);
 
   /**
    * High-res poster for <video> only (no <img> overlay — overlay sat above native controls and hid the progress bar).
@@ -151,9 +189,134 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
     thumbStripSrc,
   ]);
 
+  const driveEmbedPlayer = embedUrl ? (
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-black">
+      <iframe
+        title={t("googleDrivePreview.driveEmbedTitle", "Pratinjau Google Drive")}
+        src={embedUrl}
+        className="absolute inset-0 h-full w-full border-0"
+        allow="autoplay; fullscreen"
+        referrerPolicy="strict-origin-when-cross-origin"
+      />
+      {currentVideoUrl || videoExhausted ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="absolute bottom-2 left-1/2 z-10 h-8 -translate-x-1/2 gap-1 px-2 text-xs shadow-md"
+          onClick={resetVideoPreview}
+        >
+          {t("digitalMarketing.scheduledPosts.videoPreviewNativePlayer", "Video player")}
+        </Button>
+      ) : null}
+    </div>
+  ) : null;
+
+  const grantOrOpenFallback = (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-3">
+      {fileId && thumbMeta.grantRequired && googleStreamUrl ? (
+        <Button
+          type="button"
+          variant="default"
+          size="sm"
+          className="h-8"
+          disabled={granting}
+          onClick={() =>
+            void grantDriveResource(fileId, {
+              isFolder: false,
+              onGranted: () => {
+                thumbMeta.reload();
+                resetVideoPreview();
+                setStreamTick((n) => n + 1);
+              },
+            })
+          }
+        >
+          {granting
+            ? t("googleDrivePreview.grantInProgress", "Membuka Google Picker…")
+            : t("googleDrivePreview.grantFileAccess", "Izinkan akses file")}
+        </Button>
+      ) : null}
+      <p className="max-w-sm text-center text-xs text-gray-600">
+        {t(
+          "digitalMarketing.scheduledPosts.videoPreviewPlayFailed",
+          "Pratinjau tidak tersedia. Buka di Google Drive atau set sharing ke Siapa saja dengan tautan dapat melihat.",
+        )}
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8"
+        onClick={() => window.open(link, "_blank", "noopener,noreferrer")}
+      >
+        <ExternalLink className="mr-2 h-4 w-4" />
+        {t("googleDrivePreview.openInGoogleDrive")}
+      </Button>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={resetVideoPreview}>
+          {t("digitalMarketing.scheduledPosts.videoPreviewRetry", "Coba lagi")}
+        </Button>
+        {embedUrl ? (
+          <Button type="button" variant="ghost" size="sm" onClick={() => setUseDriveEmbed(true)}>
+            {t("digitalMarketing.scheduledPosts.videoPreviewDriveEmbed", "Pemutar Drive")}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+
   let body: React.ReactNode;
 
-  if (fileId && (thumbMeta.loading || (isVideoTarget && !sessionChecked))) {
+  if (fileId && isVideoTarget) {
+    if (!sessionChecked) {
+      body = (
+        <div
+          className="min-h-0 flex-1 w-full animate-pulse rounded-lg bg-gray-200"
+          aria-busy
+          aria-label={t("googleDriveFolder.loading", "Memuat…")}
+        />
+      );
+    } else if ((useDriveEmbed || videoExhausted || noVideoSources) && embedUrl) {
+      body = driveEmbedPlayer;
+    } else if (currentVideoUrl) {
+      body = (
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-black">
+          <video
+            key={currentVideoUrl}
+            src={currentVideoUrl}
+            poster={videoPosterSrc ?? undefined}
+            className="absolute inset-0 h-full w-full bg-transparent object-contain [image-rendering:auto]"
+            controls
+            playsInline
+            preload="metadata"
+            onError={() => setVideoIndex((idx) => idx + 1)}
+          />
+          {embedUrl ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="absolute bottom-2 right-2 z-10 h-8 gap-1 px-2 text-xs shadow-md"
+              onClick={() => setUseDriveEmbed(true)}
+            >
+              {t("digitalMarketing.scheduledPosts.videoPreviewDriveEmbed", "Pemutar Drive")}
+            </Button>
+          ) : null}
+        </div>
+      );
+    } else if (videoExhausted || noVideoSources) {
+      body = grantOrOpenFallback;
+    } else {
+      body = (
+        <div
+          className="min-h-0 flex-1 w-full animate-pulse rounded-lg bg-gray-200"
+          aria-busy
+          aria-label={t("googleDriveFolder.loading", "Memuat…")}
+        />
+      );
+    }
+  } else if (fileId && !forceVideo && thumbMeta.loading) {
     body = (
       <div
         className="min-h-0 flex-1 w-full animate-pulse rounded-lg bg-gray-200"
@@ -161,21 +324,8 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
         aria-label={t("googleDriveFolder.loading", "Memuat…")}
       />
     );
-  } else if (canTryVideo) {
-    body = (
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-black">
-        <video
-          key={videoSrc}
-          src={videoSrc}
-          poster={videoPosterSrc ?? undefined}
-          className="absolute inset-0 h-full w-full bg-transparent object-contain [image-rendering:auto]"
-          controls
-          playsInline
-          preload="auto"
-          onError={() => setVideoFailed(true)}
-        />
-      </div>
-    );
+  } else if (forceVideo && embedUrl) {
+    body = driveEmbedPlayer;
   } else if (displayImageSrc) {
     body = (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-100 bg-neutral-950/5">
@@ -206,54 +356,7 @@ export const GoogleDriveFilePreview: React.FC<{ link: string; className?: string
       </div>
     );
   } else {
-    body = (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-3">
-        {fileId && thumbMeta.grantRequired && googleStreamUrl ? (
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            className="h-8"
-            disabled={granting}
-            onClick={() =>
-              void grantDriveResource(fileId, {
-                isFolder: false,
-                onGranted: () => {
-                  thumbMeta.reload();
-                  setVideoFailed(false);
-                  setStreamTick((n) => n + 1);
-                },
-              })
-            }
-          >
-            {granting
-              ? t("googleDrivePreview.grantInProgress", "Membuka Google Picker…")
-              : t("googleDrivePreview.grantFileAccess", "Izinkan akses file")}
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8"
-          onClick={() => window.open(link, "_blank", "noopener,noreferrer")}
-        >
-          <ExternalLink className="mr-2 h-4 w-4" />
-          {t("googleDrivePreview.openInGoogleDrive")}
-        </Button>
-        <p className="max-w-sm text-center text-xs text-gray-600">
-          {thumbMeta.grantRequired && googleStreamUrl
-            ? t(
-                "googleDrivePreview.grantRequiredFile",
-                "File ini belum diizinkan untuk aplikasi. Gunakan Google Picker atau set sharing publik di Drive.",
-              )
-            : t(
-                "googleDrivePreview.useConnectInPreviewHeader",
-                "Untuk pratinjau di aplikasi, gunakan tombol Hubungkan Google di baris judul Preview di atas.",
-              )}
-        </p>
-      </div>
-    );
+    body = grantOrOpenFallback;
   }
 
   return (

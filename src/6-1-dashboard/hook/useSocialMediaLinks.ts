@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
+import { syncPlanDoneStateClient } from '@/6-1-scheduled-posts/lib/syncPlanDoneStateClient';
 import { SocialMediaLink, CreateSocialMediaLinkData, UpdateSocialMediaLinkData } from '@/shared/types/social-media-links';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 
@@ -138,6 +139,7 @@ export const useSocialMediaLinks = (planId?: string) => {
       
       // Update actual post date when first link is created
       await updateActualPostDate(newLink.social_media_plan_id);
+      await syncPlanDoneStateClient(newLink.social_media_plan_id);
       
       // If this is the first link and post_link_created_by is not set, set it
       if (needsUpdate) {
@@ -190,12 +192,13 @@ export const useSocialMediaLinks = (planId?: string) => {
       if (error) throw error;
       return data as SocialMediaLink;
     },
-    onSuccess: (updatedLink) => {
+    onSuccess: async (updatedLink) => {
       queryClient.setQueryData(
         [SOCIAL_MEDIA_LINKS_QUERY_KEY, updatedLink.social_media_plan_id],
         (old: SocialMediaLink[] = []) =>
           old.map(link => link.id === updatedLink.id ? updatedLink : link)
       );
+      await syncPlanDoneStateClient(updatedLink.social_media_plan_id);
       // Invalidate all-social-media-links query to refresh ContentPostTab immediately
       queryClient.invalidateQueries({ 
         queryKey: ['all-social-media-links'],
@@ -246,6 +249,8 @@ export const useSocialMediaLinks = (planId?: string) => {
             console.error('Failed to clear post_link_created_by:', updateError);
           }
         }
+        
+        await syncPlanDoneStateClient(planId);
         
         // Invalidate content plans to refresh the table
         queryClient.invalidateQueries({ queryKey: ['content-plans'] });
@@ -453,6 +458,7 @@ export const useSocialMediaLinks = (planId?: string) => {
         
         // Update actual post date when links are created
         await updateActualPostDate(planIdForCheck);
+        await syncPlanDoneStateClient(planIdForCheck);
         
         // If these are the first links and post_link_created_by is not set, set it
         if (needsUpdate) {

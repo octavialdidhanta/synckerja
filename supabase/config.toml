@@ -176,6 +176,12 @@ verify_jwt = false
 [functions.tiktok-content-metrics]
 verify_jwt = false
 
+[functions.tiktok-content-publish]
+verify_jwt = false
+
+[functions.tiktok-content-scheduler]
+verify_jwt = false
+
 # TikTok Shop: user JWT validated inside; OAuth callback has no JWT.
 [functions.tiktok-shop-oauth-start]
 verify_jwt = false

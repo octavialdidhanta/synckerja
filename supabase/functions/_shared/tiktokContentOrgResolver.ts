@@ -33,6 +33,10 @@ type TokenRow = {
   access_token_expires_at: string | null;
   oauth_scopes: string | null;
   oauth_token_kind: string | null;
+  publish_access_token_enc?: string | null;
+  publish_refresh_token_enc?: string | null;
+  publish_access_token_expires_at?: string | null;
+  publish_oauth_scopes?: string | null;
 };
 
 function normalizeTokenKind(raw: string | null | undefined): TikTokContentOAuthTokenKind {
@@ -128,6 +132,95 @@ export async function getTikTokContentAccessToken(
   }
 
   return { accessToken: refreshed.access_token, tokenKind };
+}
+
+export async function getTikTokPublishAccessToken(
+  admin: SupabaseClient,
+  organizationId: string,
+  openId: string,
+): Promise<string | null> {
+  const { data: row } = await admin
+    .from("organization_tiktok_content_connection_tokens")
+    .select(
+      "access_token_enc, refresh_token_enc, access_token_expires_at, oauth_token_kind, publish_access_token_enc, publish_refresh_token_enc, publish_access_token_expires_at, publish_oauth_scopes, oauth_scopes",
+    )
+    .eq("organization_id", organizationId)
+    .eq("open_id", openId)
+    .maybeSingle();
+  if (!row) return null;
+
+  const tokenRow = row as TokenRow;
+  const tokenKind = normalizeTokenKind(tokenRow.oauth_token_kind);
+  const hasPublishVault = Boolean(tokenRow.publish_access_token_enc && tokenRow.publish_refresh_token_enc);
+
+  const publishExpiresAtMs = tokenRow.publish_access_token_expires_at
+    ? new Date(String(tokenRow.publish_access_token_expires_at)).getTime()
+    : null;
+  const publishNeedsRefresh = hasPublishVault &&
+    publishExpiresAtMs != null &&
+    Number.isFinite(publishExpiresAtMs) &&
+    publishExpiresAtMs < Date.now() + 60_000;
+
+  if (hasPublishVault && !publishNeedsRefresh) {
+    try {
+      return await decryptTikTokContentToken(String(tokenRow.publish_access_token_enc));
+    } catch (e) {
+      console.error("getTikTokPublishAccessToken decrypt publish:", e);
+    }
+  }
+
+  if (hasPublishVault && publishNeedsRefresh) {
+    const oauth = readPlatformTikTokContentOAuth();
+    if (oauth) {
+      try {
+        const refreshToken = await decryptTikTokContentToken(
+          String(tokenRow.publish_refresh_token_enc),
+        );
+        const refreshed = await refreshTikTokContentAccessToken(
+          oauth.clientKey,
+          oauth.clientSecret,
+          refreshToken,
+        );
+        if (refreshed?.access_token) {
+          const now = new Date().toISOString();
+          const accessEnc = await encryptTikTokContentToken(refreshed.access_token);
+          const refreshEnc = refreshed.refresh_token
+            ? await encryptTikTokContentToken(refreshed.refresh_token)
+            : String(tokenRow.publish_refresh_token_enc);
+          const accessExpires = refreshed.expires_in
+            ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
+            : tokenRow.publish_access_token_expires_at;
+          const publishScopes = mergeTikTokContentOAuthScopes(
+            tokenRow.publish_oauth_scopes,
+            refreshed.scope,
+            TIKTOK_CONTENT_OAUTH_SCOPES,
+          );
+          await admin.from("organization_tiktok_content_connection_tokens").update({
+            publish_access_token_enc: accessEnc,
+            publish_refresh_token_enc: refreshEnc,
+            publish_access_token_expires_at: accessExpires,
+            publish_oauth_scopes: publishScopes,
+            updated_at: now,
+          }).eq("organization_id", organizationId).eq("open_id", openId);
+          return refreshed.access_token;
+        }
+      } catch (e) {
+        console.error("getTikTokPublishAccessToken refresh publish:", e);
+      }
+    }
+    try {
+      return await decryptTikTokContentToken(String(tokenRow.publish_access_token_enc));
+    } catch {
+      /* fall through */
+    }
+  }
+
+  if (tokenKind === TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.loginKit) {
+    const primary = await getTikTokContentAccessToken(admin, organizationId, openId);
+    return primary?.accessToken ?? null;
+  }
+
+  return null;
 }
 
 export async function resolveOrgTikTokContentForMetrics(

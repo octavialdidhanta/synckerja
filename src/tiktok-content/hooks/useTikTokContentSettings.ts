@@ -15,6 +15,8 @@ export type TikTokContentAccountRow = {
   oauth_scopes?: string | null;
   oauth_token_kind?: string | null;
   comments_scopes_granted?: boolean;
+  publish_scopes_granted?: boolean;
+  publish_token_granted?: boolean;
 };
 
 type SettingsResponse = {
@@ -65,7 +67,26 @@ export function useTikTokContentSettings(
       const { data, error } = await supabase.functions.invoke("tiktok-content-oauth-start", {
         body: {
           organization_id: organizationId,
+          oauth_purpose: "full",
           ...(returnPath ? { return_path: returnPath } : {}),
+        },
+      });
+      if (error) throw error;
+      const url = (data as { url?: string })?.url;
+      if (!url) throw new Error((data as { error?: string })?.error ?? "No OAuth URL");
+      window.location.href = url;
+    },
+  });
+
+  const startPublishOAuth = useMutation({
+    mutationFn: async (params: { openId: string; returnPath?: TikTokContentOAuthReturnPath }) => {
+      if (!organizationId) throw new Error("No organization");
+      const { data, error } = await supabase.functions.invoke("tiktok-content-oauth-start", {
+        body: {
+          organization_id: organizationId,
+          oauth_purpose: "publish",
+          open_id: params.openId,
+          ...(params.returnPath ? { return_path: params.returnPath } : {}),
         },
       });
       if (error) throw error;
@@ -102,6 +123,7 @@ export function useTikTokContentSettings(
   return {
     ...query,
     startOAuth,
+    startPublishOAuth,
     disconnect,
     setDefaultAccount,
     deleteAccount,

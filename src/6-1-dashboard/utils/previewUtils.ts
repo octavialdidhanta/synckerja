@@ -1,14 +1,14 @@
 export function getEmbedUrl(url: string): string {
   if (!url) return '';
   const fileId = extractGoogleDriveFileId(url);
-  if (fileId && url.toLowerCase().includes('drive.google.com')) {
+  if (fileId) {
     return `https://drive.google.com/file/d/${fileId}/preview`;
   }
   if (url.includes('youtube.com') || url.includes('youtu.be')) return '';
   return url;
 }
 
-/** Direct stream URL for HTML5 video (one-click play). Uses usercontent endpoint to avoid virus-scan redirect; fallback to iframe on error. */
+/** Direct stream URL for HTML5 video (public Drive files). */
 export function getDirectVideoUrl(url: string): string {
   if (!url) return '';
   const fileId = extractGoogleDriveFileId(url);
@@ -16,6 +16,13 @@ export function getDirectVideoUrl(url: string): string {
     return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
   }
   return '';
+}
+
+/** Alternate public download URL when usercontent endpoint fails in-browser. */
+export function getGoogleDriveUcDownloadUrl(url: string): string {
+  const fileId = extractGoogleDriveFileId(url);
+  if (!fileId) return '';
+  return `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
 }
 
 /** Google Drive folder grid embed (works for guests when folder is shared with link). */
@@ -53,12 +60,14 @@ export function isYouTubeLink(url: string): boolean {
   return url.includes('youtube.com') || url.includes('youtu.be');
 }
 
-/** Google Drive file id from /file/d/{id}/ or open?id= (and similar). */
+/** Google Drive file id from /file/d/{id}/, /d/{id}/, or open?id= (and similar). */
 export function extractGoogleDriveFileId(url: string): string | null {
   if (!url?.trim()) return null;
   const fileMatch = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/i);
   if (fileMatch) return fileMatch[1];
-  if (url.includes('drive.google.com') && /[?&]id=([a-zA-Z0-9-_]+)/i.test(url)) {
+  const shortMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/i);
+  if (shortMatch) return shortMatch[1];
+  if (/[?&]id=([a-zA-Z0-9-_]+)/i.test(url)) {
     const openMatch = url.match(/[?&]id=([a-zA-Z0-9-_]+)/i);
     if (openMatch) return openMatch[1];
   }

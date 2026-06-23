@@ -6,7 +6,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
-import { Save, X, Plus, Trash2, ExternalLink, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Save, X, Plus, Trash2, ExternalLink, AlertCircle } from 'lucide-react';
 import { useSocialMediaLinks } from '@/6-1-dashboard/hook/useSocialMediaLinks';
 import { useSocialMediaNames } from '../hook/useSocialMediaNames';
 import { useServiceRequiredPlatforms } from '../hook/useServiceRequiredPlatforms';
@@ -14,8 +14,13 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { CreateSocialMediaLinkData } from '@/shared/types/social-media-links';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { Progress } from '@/shared/components/ui/progress';
-import { Badge } from '@/shared/components/ui/badge';
+import { TikTokAutoScheduleSection } from '@/6-1-scheduled-posts/components/TikTokAutoScheduleSection';
+import { RequiredPlatformsProgress } from '@/6-1-scheduled-posts/components/RequiredPlatformsProgress';
+import { buildTikTokCaption } from '@/6-1-scheduled-posts/lib/buildTikTokCaption';
+import { syncPlanDoneStateClient } from '@/6-1-scheduled-posts/lib/syncPlanDoneStateClient';
+import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
+import { useBriefExtended } from '../hook/useBriefExtended';
+import { Check } from 'lucide-react';
 
 interface SocialMediaLinksDialogProps {
   isOpen: boolean;
@@ -103,6 +108,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
   planTitle
 }) => {
   const { organizationId } = useCurrentOrg();
+  const { data: currentEmployee } = useCurrentEmployee();
   const [formLinks, setFormLinks] = useState<SocialMediaLinkForm[]>([]);
   const { 
     links, 
@@ -125,7 +131,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
       if (!socialMediaPlanId) return null;
       const { data, error } = await supabase
         .from('social_media_plans')
-        .select('service_id, done, organization_id, content_type:content_types(id, name)')
+        .select('service_id, done, organization_id, post_date, approved, production_approved, google_drive_link, content_type:content_types(id, name)')
         .eq('id', socialMediaPlanId)
         .single();
       if (error) throw error;
@@ -138,120 +144,25 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
     retry: 1,
   });
 
-  // Fetch required platforms for the service
+  const { caption: briefCaption } = useBriefExtended(socialMediaPlanId, isOpen);
+  const [tiktokCaption, setTiktokCaption] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setTiktokCaption(buildTikTokCaption(planTitle ?? '', briefCaption ?? ''));
+  }, [isOpen, planTitle, briefCaption]);
+
+  const contentTypeName = planData?.content_type?.name ?? null;
+  const tiktokEligible = Boolean(
+    planData?.post_date &&
+    planData?.approved &&
+    planData?.production_approved &&
+    planData?.google_drive_link?.trim() &&
+    contentTypeName === 'Reel',
+  );
   const { requiredPlatforms, isLoading: isLoadingRequiredPlatforms } = useServiceRequiredPlatforms(
     planData?.service_id || undefined
   );
-
-  // Calculate validation status
-  const validationStatus = React.useMemo(() => {
-    // If still loading required platforms, return default state
-    if (isLoadingRequiredPlatforms) {
-      return {
-        isValid: false,
-        progress: 0,
-        missingPlatforms: [],
-        totalRequired: 0,
-        filledRequired: 0
-      };
-    }
-
-    if (!planData?.service_id || planData.done === true) {
-      // If plan is already done, no validation needed
-      return {
-        isValid: true,
-        progress: 100,
-        missingPlatforms: [],
-        totalRequired: 0,
-        filledRequired: 0
-      };
-    }
-
-    const activeRequiredPlatforms = requiredPlatforms.filter(rp => rp.is_active === true);
-    
-    if (activeRequiredPlatforms.length === 0) {
-      // No required platforms configured
-      return {
-        isValid: true,
-        progress: 100,
-        missingPlatforms: [],
-        totalRequired: 0,
-        filledRequired: 0
-      };
-    }
-
-    // Get content type name from planData
-    const contentTypeName = planData?.content_type?.name || null;
-    
-    // Filter out YouTube and Shopee from required platforms if content type is "Carousel" or "Post"
-    const filteredRequiredPlatforms = activeRequiredPlatforms.filter(rp => {
-      if ((contentTypeName === 'Carousel' || contentTypeName === 'Post') && 
-          (rp.platform === 'YouTube' || rp.platform === 'Shopee')) {
-        return false; // Exclude YouTube and Shopee for Carousel and Post
-      }
-      return true;
-    });
-
-    if (filteredRequiredPlatforms.length === 0) {
-      // All required platforms were filtered out
-      return {
-        isValid: true,
-        progress: 100,
-        missingPlatforms: [],
-        totalRequired: 0,
-        filledRequired: 0
-      };
-    }
-
-    // Create a set of filled platforms (only platform, not platform + name)
-    // Required platforms only require the platform to be filled, not a specific social_media_name
-    const filledPlatformsSet = new Set<string>();
-    
-    formLinks.forEach(link => {
-      if (
-        link.platform && 
-        link.platform.trim() !== '' &&
-        link.social_media_name && 
-        link.social_media_name.trim() !== '' &&
-        link.url && 
-        link.url.trim() !== '' &&
-        !link.urlError // URL must be valid (no validation errors)
-      ) {
-        const platform = link.platform.trim();
-        filledPlatformsSet.add(platform);
-      }
-    });
-
-    // Check which required platforms are missing
-    // Required platforms only require the platform to be filled, regardless of social_media_name
-    const missingPlatforms: string[] = [];
-    filteredRequiredPlatforms.forEach(rp => {
-      const platform = rp.platform.trim();
-      
-      if (!filledPlatformsSet.has(platform)) {
-        // Display name for missing platform
-        const displayName = rp.social_media_name
-          ? `${rp.platform} - ${rp.social_media_name.name}`
-          : rp.custom_platform_name
-          ? `${rp.platform} - ${rp.custom_platform_name}`
-          : rp.platform;
-        missingPlatforms.push(displayName);
-      }
-    });
-
-    const filledRequired = filteredRequiredPlatforms.length - missingPlatforms.length;
-    const progress = filteredRequiredPlatforms.length > 0
-      ? Math.round((filledRequired / filteredRequiredPlatforms.length) * 100)
-      : 100;
-
-    return {
-      isValid: missingPlatforms.length === 0,
-      progress,
-      missingPlatforms,
-      totalRequired: filteredRequiredPlatforms.length,
-      filledRequired
-    };
-  }, [formLinks, requiredPlatforms, planData, isLoadingRequiredPlatforms]);
 
   // Track if form has been initialized to prevent reset on refetch
   const formInitializedRef = useRef(false);
@@ -469,6 +380,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
       }
 
       onClose();
+      await syncPlanDoneStateClient(socialMediaPlanId);
     } catch (error) {
       console.error('Error saving social media links:', error);
     }
@@ -496,7 +408,10 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
         if (!open) handleClose();
       }}
     >
-      <DialogContent className="flex h-[min(640px,calc(100vh-2rem))] max-h-[90vh] w-full max-w-[min(720px,95vw)] flex-col gap-0 overflow-hidden p-0">
+      <DialogContent
+        fullscreenAnimation
+        className="fixed left-0 right-0 top-0 z-50 flex h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-none sm:rounded-none dark:bg-background"
+      >
         <DialogHeader className="shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-6 pb-4 pr-14 pt-6 dark:from-blue-950/20 dark:to-indigo-950/20">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
@@ -504,10 +419,10 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
             </div>
             <div className="min-w-0 flex-1">
               <DialogTitle className="truncate text-xl font-semibold">
-                Social Media Links
+                Social Media Publish Setup
               </DialogTitle>
               <DialogDescription className="mt-1 truncate text-sm text-muted-foreground">
-                Manage social media links for this content.
+                Schedule TikTok posts and manage social media links for this content.
               </DialogDescription>
               {planTitle && (
                 <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -518,10 +433,43 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
           </div>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-4 pt-4">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6 pb-4 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="shrink-0 space-y-4 overflow-x-hidden">
-            {/* Required Platforms Progress Indicator */}
-            {!isLoadingPlanData && planData?.service_id && !planData.done && (
+            {tiktokEligible && (
+              <div className="flex flex-wrap gap-2 text-xs">
+                {[
+                  ['Post date', Boolean(planData?.post_date)],
+                  ['Reel', contentTypeName === 'Reel'],
+                  ['Approved', planData?.approved],
+                  ['Drive link', Boolean(planData?.google_drive_link?.trim())],
+                  ['Prod approved', planData?.production_approved],
+                ].map(([label, ok]) => (
+                  <span
+                    key={label}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${ok ? 'bg-green-100 text-green-800' : 'bg-muted text-muted-foreground'}`}
+                  >
+                    {ok && <Check className="h-3 w-3" />}
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {organizationId && (
+              <TikTokAutoScheduleSection
+                organizationId={organizationId}
+                planId={socialMediaPlanId}
+                planTitle={planTitle ?? null}
+                postDate={planData?.post_date ?? null}
+                caption={tiktokCaption}
+                onCaptionChange={setTiktokCaption}
+                googleDriveLink={planData?.google_drive_link ?? null}
+                employeeId={currentEmployee?.id}
+                eligible={tiktokEligible}
+              />
+            )}
+
+            {!isLoadingPlanData && planData?.service_id && (
               isLoadingRequiredPlatforms ? (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
                   <div className="flex items-center gap-2">
@@ -529,40 +477,22 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                     <Label className="text-sm text-muted-foreground">Loading required platforms...</Label>
                   </div>
                 </div>
-              ) : validationStatus.totalRequired > 0 ? (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      {validationStatus.isValid ? (
-                        <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-                      ) : (
-                        <AlertCircle className="h-5 w-5 shrink-0 text-orange-600" />
-                      )}
-                      <Label className="text-sm font-semibold">Required Platforms Progress</Label>
-                    </div>
-                    <Badge variant={validationStatus.isValid ? 'default' : 'secondary'} className="shrink-0">
-                      {validationStatus.filledRequired} / {validationStatus.totalRequired}
-                    </Badge>
-                  </div>
-                  <Progress value={validationStatus.progress} className="mb-2 h-2 [&>div]:bg-blue-600" />
-                  {validationStatus.missingPlatforms.length > 0 && (
-                    <div className="mt-2 max-h-24 overflow-y-auto pr-1">
-                      <p className="mb-1 text-xs font-medium text-orange-700 dark:text-orange-400">
-                        Missing required platforms:
-                      </p>
-                      <ul className="list-inside list-disc space-y-0.5 text-xs text-orange-600 dark:text-orange-500">
-                        {validationStatus.missingPlatforms.map((platform, idx) => (
-                          <li key={idx}>{platform}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              ) : null
+              ) : (
+                <RequiredPlatformsProgress
+                  requiredPlatforms={requiredPlatforms}
+                  links={formLinks.map((l) => ({
+                    platform: l.platform,
+                    url: l.url,
+                    social_media_name: l.social_media_name,
+                  }))}
+                  contentTypeName={contentTypeName}
+                  planDone={planData?.done === true}
+                />
+              )
             )}
 
             <div className="flex shrink-0 items-center justify-between gap-2">
-              <Label className="text-sm font-medium">Add social media links</Label>
+              <Label className="text-sm font-medium">Manual social media links</Label>
               <Button
                 onClick={handleAddLink}
                 variant="outline"
@@ -576,7 +506,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
             </div>
           </div>
 
-          <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div className="min-h-0 flex-1 py-2">
             {isLoading || isLoadingPlanData || isLoadingRequiredPlatforms ? (
               <div className="py-8 text-center text-gray-500">
                 <div className="mx-auto mb-2 h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600" />
@@ -734,7 +664,8 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                 )}
               </div>
             )}
-          </ScrollArea>
+          </div>
+          <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
         </div>
 
         <DialogFooter className="flex shrink-0 flex-wrap gap-2 border-t bg-muted/30 px-6 pb-6 pt-4 sm:flex-nowrap sm:justify-end">
@@ -750,12 +681,10 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
           <Button
             onClick={handleSave}
             className="flex items-center gap-2"
-            disabled={!hasValidLinks || isSaving || !validationStatus.isValid || hasUrlErrors}
+            disabled={!hasValidLinks || isSaving || hasUrlErrors}
             title={
-              hasUrlErrors 
-                ? 'Please fix URL validation errors before saving' 
-                : !validationStatus.isValid 
-                ? 'Please fill all required platforms before saving' 
+              hasUrlErrors
+                ? 'Please fix URL validation errors before saving'
                 : undefined
             }
           >

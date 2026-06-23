@@ -14,6 +14,7 @@ import {
   TIKTOK_CONTENT_OAUTH_SCOPES,
   TIKTOK_CONTENT_OAUTH_TOKEN_KINDS,
   tiktokContentScopesIncludeComments,
+  tiktokContentScopesIncludePublish,
 } from "../_shared/tiktokContentAuth.ts";
 import {
   pickTikTokAccountLabel,
@@ -67,15 +68,25 @@ Deno.serve(async (req: Request) => {
 
     const { data: tokenRows } = await admin
       .from("organization_tiktok_content_connection_tokens")
-      .select("open_id, oauth_scopes, oauth_token_kind")
+      .select("open_id, oauth_scopes, oauth_token_kind, publish_oauth_scopes, publish_access_token_enc")
       .eq("organization_id", organizationId);
 
     const scopesByOpenId = new Map<string, string | null>();
+    const publishScopesByOpenId = new Map<string, string | null>();
+    const publishTokenByOpenId = new Map<string, boolean>();
     const tokenKindByOpenId = new Map<string, string | null>();
     for (const row of tokenRows ?? []) {
-      const r = row as { open_id?: string; oauth_scopes?: string | null; oauth_token_kind?: string | null };
+      const r = row as {
+        open_id?: string;
+        oauth_scopes?: string | null;
+        oauth_token_kind?: string | null;
+        publish_oauth_scopes?: string | null;
+        publish_access_token_enc?: string | null;
+      };
       if (r.open_id) {
         scopesByOpenId.set(String(r.open_id), r.oauth_scopes ?? null);
+        publishScopesByOpenId.set(String(r.open_id), r.publish_oauth_scopes ?? null);
+        publishTokenByOpenId.set(String(r.open_id), Boolean(r.publish_access_token_enc));
         tokenKindByOpenId.set(String(r.open_id), r.oauth_token_kind ?? null);
       }
     }
@@ -126,15 +137,25 @@ Deno.serve(async (req: Request) => {
 
     const accountsWithScopes = accountRows.map((acc) => {
       const scope = scopesByOpenId.get(acc.open_id) ?? null;
+      const publishScope = publishScopesByOpenId.get(acc.open_id) ?? null;
+      const hasPublishToken = publishTokenByOpenId.get(acc.open_id) ?? false;
       const tokenKind = tokenKindByOpenId.get(acc.open_id) ?? TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.loginKit;
       const resolvedLabel = pickTikTokAccountLabel(acc);
+      const resolvedScope = resolveTikTokContentOAuthScopes(scope);
+      const resolvedPublishScope = publishScope
+        ? resolveTikTokContentOAuthScopes(publishScope)
+        : (tokenKind === TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.loginKit ? resolvedScope : null);
+      const publishScopesGranted = hasPublishToken &&
+        tiktokContentScopesIncludePublish(resolvedPublishScope);
       return {
         ...acc,
         label: resolvedLabel,
         display_name: resolvedLabel,
-        oauth_scopes: scope,
+        oauth_scopes: resolvedScope,
         oauth_token_kind: tokenKind,
-        comments_scopes_granted: tokenKind === TIKTOK_CONTENT_OAUTH_TOKEN_KINDS.ttUser,
+        comments_scopes_granted: tiktokContentScopesIncludeComments(resolvedScope),
+        publish_scopes_granted: publishScopesGranted,
+        publish_token_granted: hasPublishToken,
       };
     });
 

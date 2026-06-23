@@ -21,6 +21,7 @@ import { SidebarContainer } from '../container/RightSection/SidebarContainer';
 import { DashboardDataPreloader } from '../container/DashboardDataPreloader';
 import { SocialMediaDashboardSkeleton } from '../skeletons/SocialMediaDashboardSkeleton';
 import { getDailyTasksRemindersQueryOptions, getAllSocialMediaLinksQueryOptions, buildLinksByPlanId } from '../data/dashboardQueryOptions';
+import { buildScheduleByPlanId, useOrgActiveSchedules } from '@/6-1-scheduled-posts/hooks/useOrgActiveSchedules';
 import { useSocialMediaDashboardSkeletonGate } from '../hook/useSocialMediaDashboardSkeletonGate';
 import { useEmployeeTargets } from '../hook/useEmployeeTargets';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
@@ -141,6 +142,12 @@ const SocialMediaContent = () => {
   const linksByPlanId = useMemo(
     () => buildLinksByPlanId(allSocialMediaLinks),
     [allSocialMediaLinks],
+  );
+
+  const { data: activeSchedules = [] } = useOrgActiveSchedules(organizationId);
+  const scheduleByPlanId = useMemo(
+    () => buildScheduleByPlanId(activeSchedules),
+    [activeSchedules],
   );
 
   const { isPending: remindersPending } = useQuery(
@@ -1377,6 +1384,7 @@ const SocialMediaContent = () => {
                                       subServices={Array.isArray(subServices) ? subServices : []}
                                       contentPillars={Array.isArray(contentPillars) ? contentPillars : []}
                                       linksByPlanId={linksByPlanId}
+                                      scheduleByPlanId={scheduleByPlanId}
                                       digitalEmployees={digitalEmployees}
                                       creativeEmployees={digitalEmployees}
                                       currentUserRole={currentUserRole ?? null}

@@ -31,6 +31,7 @@ export function TikTokContentSettingsPanel({
     data,
     isPending,
     startOAuth,
+    startPublishOAuth,
     disconnect,
     setDefaultAccount,
     deleteAccount,
@@ -43,9 +44,17 @@ export function TikTokContentSettingsPanel({
   useEffect(() => {
     const connected = searchParams.get("connected");
     const existing = searchParams.get("existing");
+    const publish = searchParams.get("publish");
     const oauthError = searchParams.get("oauth_error");
     if (connected === "1") {
-      if (existing === "1") {
+      if (publish === "1") {
+        toast.success(
+          t(
+            "digitalMarketing.tiktokContent.publishAuthorizedToast",
+            "TikTok publishing authorized. You can now schedule and post videos.",
+          ),
+        );
+      } else if (existing === "1") {
         toast.info(
           t(
             "digitalMarketing.tiktokContent.reconnectedToast",
@@ -59,6 +68,7 @@ export function TikTokContentSettingsPanel({
       }
       searchParams.delete("connected");
       searchParams.delete("existing");
+      searchParams.delete("publish");
       setSearchParams(searchParams, { replace: true });
     }
     if (oauthError) {
@@ -129,6 +139,49 @@ export function TikTokContentSettingsPanel({
                 "digitalMarketing.manageComments.reconnectForComments",
                 "Reconnect your TikTok account to grant comment.list and comment.list.manage scopes.",
               )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+      {oauthConnected &&
+        accounts.some(
+          (a) => a.is_active && (!a.publish_token_granted || a.publish_scopes_granted === false),
+        ) && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t(
+                "digitalMarketing.tiktokContent.reconnectForPublishTitle",
+                "Video publish authorization required",
+              )}
+            </AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>
+                {t(
+                  "digitalMarketing.tiktokContent.reconnectForPublish",
+                  "Your TikTok account is connected for insights and comments, but publishing needs a separate Login Kit authorization for video.upload and video.publish.",
+                )}
+              </p>
+              {accounts
+                .filter(
+                  (a) =>
+                    a.is_active && (!a.publish_token_granted || a.publish_scopes_granted === false),
+                )
+                .map((acc) => (
+                  <Button
+                    key={acc.id}
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={startPublishOAuth.isPending}
+                    onClick={() =>
+                      startPublishOAuth.mutate({ openId: acc.open_id, returnPath: oauthReturnPath })
+                    }
+                  >
+                    {startPublishOAuth.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {t("digitalMarketing.tiktokContent.authorizePublishing", "Authorize publishing")}{" "}
+                    ({getTikTokAccountDisplayLabel(acc)})
+                  </Button>
+                ))}
             </AlertDescription>
           </Alert>
         )}

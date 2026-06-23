@@ -9,7 +9,7 @@ import { LoadingDots } from '@/shared/components/LoadingDots';
 import type { DigitalMarketingEmployee } from '../hook/useDigitalMarketingEmployees';
 import type { CreativeEmployee } from '../hook/useCreativeEmployees';
 import type { ApprovalAccess } from '../hook/useBatchApprovalAccess';
-import type { SocialMediaLink } from '@/shared/types/social-media-links';
+import type { ScheduledPost } from '@/6-1-scheduled-posts/types/scheduled-post';
 
 interface ContentPlanTableProps {
   contentPlans: ContentPlan[];
@@ -18,6 +18,7 @@ interface ContentPlanTableProps {
   subServices: SubService[];
   contentPillars: ContentPillar[];
   linksByPlanId?: Record<string, SocialMediaLink[]>;
+  scheduleByPlanId?: Record<string, ScheduledPost>;
   digitalEmployees?: DigitalMarketingEmployee[];
   creativeEmployees?: CreativeEmployee[];
   currentUserRole?: string | null;
@@ -47,6 +48,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
   subServices,
   contentPillars,
   linksByPlanId = {},
+  scheduleByPlanId = {},
   digitalEmployees = [],
   creativeEmployees = [],
   currentUserRole = null,
@@ -265,6 +267,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
               key={plan.id}
               plan={plan}
               planLinks={linksByPlanId[plan.id] ?? []}
+              tiktokSchedule={scheduleByPlanId[plan.id] ?? null}
               contentTypes={contentTypes}
               services={services}
               subServices={subServices}

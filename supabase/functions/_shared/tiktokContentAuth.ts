@@ -10,7 +10,9 @@ export const tiktokContentCorsHeaders: Record<string, string> = {
 export const TIKTOK_CONTENT_API_BASE = "https://open.tiktokapis.com/v2";
 export const TIKTOK_BUSINESS_API_BASE = "https://business-api.tiktok.com/open_api/v1.3";
 export const TIKTOK_CONTENT_OAUTH_SCOPES =
-  "user.info.basic,video.list,user.info.stats,comment.list,comment.list.manage";
+  "user.info.basic,video.list,user.info.stats,comment.list,comment.list.manage,video.upload,video.publish";
+
+export const TIKTOK_CONTENT_PUBLISH_SCOPES = ["video.upload", "video.publish"] as const;
 
 export type TikTokContentOAuthTokenKind = "login_kit" | "tt_user";
 
@@ -46,6 +48,14 @@ export function tiktokContentScopesIncludeComments(scope: string | null | undefi
     .map((s) => s.trim())
     .filter(Boolean);
   return TIKTOK_CONTENT_COMMENT_SCOPES.every((required) => parts.includes(required));
+}
+
+export function tiktokContentScopesIncludePublish(scope: string | null | undefined): boolean {
+  const parts = String(scope ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return TIKTOK_CONTENT_PUBLISH_SCOPES.every((required) => parts.includes(required));
 }
 
 export function tiktokContentJson(body: object, status: number): Response {

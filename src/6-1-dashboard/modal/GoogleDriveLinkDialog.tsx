@@ -63,6 +63,12 @@ interface GoogleDriveLinkDialogProps {
 }
 const isCarouselContentType = (t: string | undefined) => t === 'Post' || t === 'Carousel';
 
+const isVideoContentType = (t: string | undefined) => {
+  if (!t) return false;
+  const lower = t.toLowerCase();
+  return lower === 'reel' || lower === 'story' || lower === 'video';
+};
+
 const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   isOpen,
   onClose,
@@ -862,7 +868,11 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                         />
                       ) : driveGoogleConnected ? (
                         <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-                          <GoogleDriveFilePreview link={currentLink} className="min-h-0 flex-1" />
+                          <GoogleDriveFilePreview
+                            link={currentLink}
+                            className="min-h-0 flex-1"
+                            forceVideo={isVideoContentType(contentType)}
+                          />
                         </div>
                       ) : (
                         <div className="flex h-full min-h-0 w-full flex-1 flex-col">

@@ -11,7 +11,7 @@ import {
   readPlatformTikTokContentOAuth,
   tiktokContentOAuthRedirectUri,
 } from "../_shared/tiktokContentAuth.ts";
-import { exchangeTikTokBusinessOrganicAuthCode, fetchTikTokUserInfo } from "../_shared/tiktokContentApi.ts";
+import { exchangeTikTokBusinessOrganicAuthCode, exchangeTikTokContentAuthCode, fetchTikTokUserInfo } from "../_shared/tiktokContentApi.ts";
 import { isPlaceholderTikTokAccountLabel } from "../_shared/tiktokContentAccountProfile.ts";
 
 function redirectToAppPath(path: string, query: string, status = 302): Response {
@@ -41,6 +41,8 @@ type OAuthStateRow = {
   user_id: string;
   expires_at: string;
   return_path?: string | null;
+  oauth_purpose?: string | null;
+  target_open_id?: string | null;
 };
 
 Deno.serve(async (req: Request) => {
@@ -76,11 +78,87 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  // Exchange auth code immediately (parallel with state lookup) — codes expire in seconds.
-  const [stateRes, tokenResult] = await Promise.all([
+  const { data: stateRowEarly } = await admin
+    .from("tiktok_content_oauth_states")
+    .select("id, organization_id, user_id, expires_at, return_path, oauth_purpose, target_open_id")
+    .eq("state_token", state)
+    .maybeSingle();
+
+  const oauthReturnPathEarly = resolveOAuthReturnPath(
+    stateRowEarly?.return_path != null ? String(stateRowEarly.return_path) : null,
+  );
+
+  if (String(stateRowEarly?.oauth_purpose ?? "full") === "publish") {
+    if (!stateRowEarly?.id) {
+      return redirectDefault("?oauth_error=invalid_state", oauthReturnPathEarly);
+    }
+    const expiresAtPublish = new Date(String(stateRowEarly.expires_at)).getTime();
+    if (!Number.isFinite(expiresAtPublish) || expiresAtPublish < Date.now()) {
+      await admin.from("tiktok_content_oauth_states").delete().eq("id", stateRowEarly.id);
+      return redirectDefault("?oauth_error=state_expired", oauthReturnPathEarly);
+    }
+
+    let loginKitData;
+    try {
+      loginKitData = await exchangeTikTokContentAuthCode(
+        oauth.clientKey,
+        oauth.clientSecret,
+        authCode,
+        redirectUri,
+      );
+    } catch (e) {
+      const msg = sanitizeOAuthError(e instanceof Error ? e.message : "token_exchange_failed");
+      console.error("tiktok-content-oauth-callback publish-only:", msg);
+      return redirectDefault(`?oauth_error=${encodeURIComponent(msg)}`, oauthReturnPathEarly);
+    }
+
+    await admin.from("tiktok_content_oauth_states").delete().eq("id", stateRowEarly.id);
+
+    const organizationId = String(stateRowEarly.organization_id);
+    const targetOpenId = String(stateRowEarly.target_open_id ?? loginKitData.open_id).trim();
+    const now = new Date().toISOString();
+
+    try {
+      const publishAccessEnc = await encryptTikTokContentToken(loginKitData.access_token);
+      const publishRefreshEnc = await encryptTikTokContentToken(loginKitData.refresh_token);
+      const publishAccessExpires = loginKitData.expires_in
+        ? new Date(Date.now() + loginKitData.expires_in * 1000).toISOString()
+        : null;
+      const publishOAuthScopes = mergeTikTokContentOAuthScopes(
+        loginKitData.scope,
+        TIKTOK_CONTENT_OAUTH_SCOPES,
+      );
+
+      const { error: publishTokErr } = await admin
+        .from("organization_tiktok_content_connection_tokens")
+        .update({
+          publish_access_token_enc: publishAccessEnc,
+          publish_refresh_token_enc: publishRefreshEnc,
+          publish_access_token_expires_at: publishAccessExpires,
+          publish_oauth_scopes: publishOAuthScopes,
+          updated_at: now,
+        })
+        .eq("organization_id", organizationId)
+        .eq("open_id", targetOpenId);
+
+      if (publishTokErr) {
+        console.error("tiktok-content-oauth-callback publish-only update:", publishTokErr.message);
+        return redirectDefault("?oauth_error=save_token_failed", oauthReturnPathEarly);
+      }
+    } catch (e) {
+      console.error("tiktok-content-oauth-callback publish-only encrypt:", e);
+      return redirectDefault("?oauth_error=encryption_failed", oauthReturnPathEarly);
+    }
+
+    return redirectDefault("?connected=1&publish=1", oauthReturnPathEarly);
+  }
+
+  // Exchange auth code immediately (parallel) — codes expire in seconds.
+  // Business tt_user: comments + insights. Login Kit: Content Posting API (open.tiktokapis.com).
+  const [stateRes, businessResult, loginKitResult] = await Promise.all([
     admin
       .from("tiktok_content_oauth_states")
-      .select("id, organization_id, user_id, expires_at, return_path")
+      .select("id, organization_id, user_id, expires_at, return_path, oauth_purpose, target_open_id")
       .eq("state_token", state)
       .maybeSingle(),
     exchangeTikTokBusinessOrganicAuthCode(
@@ -92,7 +170,18 @@ Deno.serve(async (req: Request) => {
       (data) => ({ ok: true as const, data }),
       (e) => ({ ok: false as const, error: e }),
     ),
+    exchangeTikTokContentAuthCode(
+      oauth.clientKey,
+      oauth.clientSecret,
+      authCode,
+      redirectUri,
+    ).then(
+      (data) => ({ ok: true as const, data }),
+      (e) => ({ ok: false as const, error: e }),
+    ),
   ]);
+
+  const tokenResult = businessResult;
 
   const stateRow = stateRes.data as OAuthStateRow | null;
   const oauthReturnPath = resolveOAuthReturnPath(
@@ -108,6 +197,13 @@ Deno.serve(async (req: Request) => {
   }
 
   const tokenData = tokenResult.data;
+  const loginKitData = loginKitResult.ok ? loginKitResult.data : null;
+  if (!loginKitResult.ok) {
+    console.warn(
+      "tiktok-content-oauth-callback login_kit exchange:",
+      loginKitResult.error instanceof Error ? loginKitResult.error.message : loginKitResult.error,
+    );
+  }
 
   if (stateRes.error || !stateRow?.id) {
     return redirectDefault("?oauth_error=invalid_state", oauthReturnPath);
@@ -173,6 +269,26 @@ Deno.serve(async (req: Request) => {
     return redirectDefault("?oauth_error=save_connection_failed", oauthReturnPath);
   }
 
+  let publishAccessEnc: string | null = null;
+  let publishRefreshEnc: string | null = null;
+  let publishAccessExpires: string | null = null;
+  let publishOAuthScopes: string | null = null;
+  if (loginKitData) {
+    try {
+      publishAccessEnc = await encryptTikTokContentToken(loginKitData.access_token);
+      publishRefreshEnc = await encryptTikTokContentToken(loginKitData.refresh_token);
+      publishAccessExpires = loginKitData.expires_in
+        ? new Date(Date.now() + loginKitData.expires_in * 1000).toISOString()
+        : null;
+      publishOAuthScopes = mergeTikTokContentOAuthScopes(
+        loginKitData.scope,
+        TIKTOK_CONTENT_OAUTH_SCOPES,
+      );
+    } catch (e) {
+      console.error("tiktok-content-oauth-callback publish encrypt:", e);
+    }
+  }
+
   const { error: tokErr } = await admin.from("organization_tiktok_content_connection_tokens").upsert(
     {
       organization_id: organizationId,
@@ -183,6 +299,14 @@ Deno.serve(async (req: Request) => {
       refresh_token_expires_at: refreshExpires,
       oauth_scopes: mergeTikTokContentOAuthScopes(tokenData.scope, TIKTOK_CONTENT_OAUTH_SCOPES),
       oauth_token_kind: tokenKind,
+      ...(publishAccessEnc
+        ? {
+          publish_access_token_enc: publishAccessEnc,
+          publish_refresh_token_enc: publishRefreshEnc,
+          publish_access_token_expires_at: publishAccessExpires,
+          publish_oauth_scopes: publishOAuthScopes,
+        }
+        : {}),
       updated_at: now,
     },
     { onConflict: "organization_id,open_id" },

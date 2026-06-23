@@ -26,7 +26,7 @@ import SocialMediaLinksDialog from '../../modal/SocialMediaLinksDialog';
 import type { DigitalMarketingEmployee } from '../../hook/useDigitalMarketingEmployees';
 import type { CreativeEmployee } from '../../hook/useCreativeEmployees';
 import type { ApprovalAccess } from '../../hook/useBatchApprovalAccess';
-import type { SocialMediaLink } from '@/shared/types/social-media-links';
+import type { ScheduledPost } from '@/6-1-scheduled-posts/types/scheduled-post';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog, logger } from '@/shared/lib/logger';
@@ -39,6 +39,7 @@ import { id as idLocale } from 'date-fns/locale';
 interface ContentPlanRowProps {
   plan: ContentPlan;
   planLinks?: SocialMediaLink[];
+  tiktokSchedule?: ScheduledPost | null;
   contentTypes: ContentType[];
   services: Service[];
   subServices: SubService[];
@@ -69,6 +70,7 @@ interface ContentPlanRowProps {
 export const ContentPlanRow = memo<ContentPlanRowProps>(({
   plan,
   planLinks = [],
+  tiktokSchedule = null,
   contentTypes,
   services,
   subServices,
@@ -327,7 +329,15 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   // Check if Post Link should be disabled (when Production Approved is false)
   const isPostLinkDisabled = !plan.production_approved;
 
-  // UPDATED: Handle Google Drive Link change with auto-save and production status logic
+  const reelReady = Boolean(
+    plan.post_date &&
+    plan.approved &&
+    plan.production_approved &&
+    plan.google_drive_link?.trim() &&
+    plan.content_type?.name === 'Reel',
+  );
+
+  // UPDATED: Handle Google Drive Link change
   const handleGoogleDriveLinkChange = (value: string) => {
     // Normalize: Convert empty string to null for consistency
     const normalizedValue = value && value.trim().length > 0 ? value : null;
@@ -953,10 +963,22 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         minWidth: '280px',
         maxWidth: '280px'
       }} className="px-2 py-1 border-r border-gray-200 border-b border-gray-200">
-          <PostLinkCell planLinks={links} isDisabled={isPostLinkDisabled} onSocialLinksClick={() => {
-          if (!plan.production_approved) return; // Don't open if production not approved
-          setIsSocialLinksDialogOpen(true);
-        }} isSelected={isSelected} productionApproved={plan.production_approved || false} />
+          <PostLinkCell
+            planLinks={links}
+            isDisabled={isPostLinkDisabled}
+            onSocialLinksClick={() => {
+              if (!plan.production_approved) return;
+              setIsSocialLinksDialogOpen(true);
+            }}
+            isSelected={isSelected}
+            productionApproved={plan.production_approved || false}
+            tiktokSchedule={
+              tiktokSchedule
+                ? { status: tiktokSchedule.status, scheduledAt: tiktokSchedule.scheduled_at }
+                : null
+            }
+            reelReady={reelReady}
+          />
         </td>
 
         {/* PIC POST - Show employee who added first link */}
@@ -979,7 +1001,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         maxWidth: '64px'
       }} className="px-2 py-1 text-center border-r border-gray-200 border-b border-gray-200">
           <Switch
-            checked={links && links.length > 0}
+            checked={plan.done === true}
             onCheckedChange={() => {}}
             disabled={true}
             className={switchOnSelectedRow}

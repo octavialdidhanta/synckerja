@@ -1,0 +1,283 @@
+import { TIKTOK_CONTENT_API_BASE } from "../tiktokContentAuth.ts";
+import { sleepMs } from "../scheduledPosts/scheduledPostRetry.ts";
+
+export const TIKTOK_PUBLISH_SCOPES = ["video.upload", "video.publish"] as const;
+
+export function tiktokScopesIncludePublish(scope: string | null | undefined): boolean {
+  const parts = String(scope ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return TIKTOK_PUBLISH_SCOPES.every((required) => parts.includes(required));
+}
+
+type TikTokContentError = {
+  code?: string;
+  message?: string;
+  log_id?: string;
+};
+
+type TikTokContentEnvelope<T> = {
+  data?: T;
+  error?: TikTokContentError;
+};
+
+function throwPublishError(prefix: string, err?: TikTokContentError, httpStatus?: number): never {
+  const code = err?.code?.trim() ?? "";
+  const msg = err?.message?.trim() ?? "";
+  const logId = err?.log_id?.trim();
+  const logSuffix = logId ? ` [log_id=${logId}]` : "";
+  const detail = msg && msg !== "ok"
+    ? `${prefix}: ${msg}${code && code !== "ok" ? ` (${code})` : ""}${logSuffix}`
+    : `${prefix}${logSuffix}${httpStatus ? ` HTTP ${httpStatus}` : ""}`;
+  throw new Error(detail);
+}
+
+export type TikTokCreatorInfo = {
+  creator_avatar_url?: string;
+  creator_username?: string;
+  creator_nickname?: string;
+  privacy_level_options?: string[];
+  comment_disabled?: boolean;
+  duet_disabled?: boolean;
+  stitch_disabled?: boolean;
+  max_video_post_duration_sec?: number;
+};
+
+/** Pick a privacy level allowed for this creator (unaudited apps → SELF_ONLY). */
+export function resolveTikTokPublishPrivacyLevel(
+  requested: string | null | undefined,
+  creatorInfo: Pick<TikTokCreatorInfo, "privacy_level_options">,
+): string {
+  const options = (creatorInfo.privacy_level_options ?? []).filter(Boolean);
+  const wanted = String(requested ?? "").trim();
+
+  if (wanted && options.includes(wanted)) return wanted;
+  if (options.includes("SELF_ONLY")) return "SELF_ONLY";
+  if (options.length > 0) return options[0];
+  return "SELF_ONLY";
+}
+
+export async function queryTikTokCreatorInfo(
+  accessToken: string,
+  options?: { maxAttempts?: number },
+): Promise<TikTokCreatorInfo> {
+  const maxAttempts = options?.maxAttempts ?? 3;
+  let lastHttpStatus: number | undefined;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const res = await fetch(`${TIKTOK_CONTENT_API_BASE}/post/publish/creator_info/query/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+      body: "{}",
+    });
+    const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokCreatorInfo>;
+    lastHttpStatus = res.status;
+
+    if (res.ok && json.error?.code === "ok") {
+      return json.data ?? {};
+    }
+
+    const retryable = res.status === 503 || res.status === 502 || res.status === 429 || res.status === 504;
+    if (retryable && attempt < maxAttempts - 1) {
+      await sleepMs(1500 * (attempt + 1));
+      continue;
+    }
+
+    throwPublishError("creator_info_failed", json.error, res.status);
+  }
+
+  throwPublishError("creator_info_failed", undefined, lastHttpStatus);
+}
+
+export type TikTokVideoInitResult = {
+  publish_id: string;
+  upload_url?: string;
+};
+
+const MIN_CHUNK_BYTES = 5 * 1024 * 1024;
+const DEFAULT_CHUNK_BYTES = 10 * 1024 * 1024;
+const MAX_CHUNK_BYTES = 64 * 1024 * 1024;
+const MAX_CHUNKS = 1000;
+
+export function computeTikTokFileUploadChunkPlan(videoSize: number): {
+  chunkSize: number;
+  totalChunkCount: number;
+} {
+  if (!Number.isFinite(videoSize) || videoSize <= 0) {
+    throw new Error("invalid_video_size");
+  }
+  if (videoSize <= MIN_CHUNK_BYTES) {
+    return { chunkSize: videoSize, totalChunkCount: 1 };
+  }
+
+  let chunkSize = DEFAULT_CHUNK_BYTES;
+  let totalChunkCount = Math.floor(videoSize / chunkSize);
+  while (totalChunkCount > MAX_CHUNKS) {
+    chunkSize = Math.min(chunkSize * 2, MAX_CHUNK_BYTES);
+    totalChunkCount = Math.floor(videoSize / chunkSize);
+  }
+  if (totalChunkCount < 1) totalChunkCount = 1;
+  return { chunkSize, totalChunkCount };
+}
+
+export async function initTikTokVideoPublishFileUpload(
+  accessToken: string,
+  args: {
+    videoSize: number;
+    chunkSize: number;
+    totalChunkCount: number;
+    caption: string;
+    privacyLevel: string;
+    disableComment?: boolean;
+    disableDuet?: boolean;
+    disableStitch?: boolean;
+  },
+): Promise<TikTokVideoInitResult> {
+  const res = await fetch(`${TIKTOK_CONTENT_API_BASE}/post/publish/video/init/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
+    },
+    body: JSON.stringify({
+      post_info: {
+        title: args.caption.slice(0, 2200),
+        privacy_level: args.privacyLevel,
+        disable_comment: args.disableComment ?? false,
+        disable_duet: args.disableDuet ?? false,
+        disable_stitch: args.disableStitch ?? false,
+      },
+      source_info: {
+        source: "FILE_UPLOAD",
+        video_size: args.videoSize,
+        chunk_size: args.chunkSize,
+        total_chunk_count: args.totalChunkCount,
+      },
+    }),
+  });
+  const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokVideoInitResult>;
+  if (!res.ok || json.error?.code !== "ok" || !json.data?.publish_id || !json.data?.upload_url) {
+    throwPublishError("video_init_failed", json.error, res.status);
+  }
+  return json.data;
+}
+
+export async function uploadTikTokVideoChunks(
+  uploadUrl: string,
+  videoBytes: Uint8Array,
+  chunkPlan: { chunkSize: number; totalChunkCount: number },
+  mimeType = "video/mp4",
+): Promise<void> {
+  const totalSize = videoBytes.byteLength;
+  for (let chunkIndex = 0; chunkIndex < chunkPlan.totalChunkCount; chunkIndex++) {
+    const start = chunkIndex * chunkPlan.chunkSize;
+    const end = chunkIndex === chunkPlan.totalChunkCount - 1
+      ? totalSize - 1
+      : Math.min(start + chunkPlan.chunkSize - 1, totalSize - 1);
+    const chunk = videoBytes.subarray(start, end + 1);
+
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": mimeType,
+        "Content-Length": String(chunk.byteLength),
+        "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+      },
+      body: chunk,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `video_upload_failed: chunk ${chunkIndex + 1}/${chunkPlan.totalChunkCount} HTTP ${res.status}${body ? ` ${body.slice(0, 200)}` : ""}`,
+      );
+    }
+  }
+}
+
+export async function initTikTokVideoPublishPullFromUrl(
+  accessToken: string,
+  args: {
+    videoUrl: string;
+    caption: string;
+    privacyLevel: string;
+    disableComment?: boolean;
+    disableDuet?: boolean;
+    disableStitch?: boolean;
+  },
+): Promise<TikTokVideoInitResult> {
+  const res = await fetch(`${TIKTOK_CONTENT_API_BASE}/post/publish/video/init/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
+    },
+    body: JSON.stringify({
+      post_info: {
+        title: args.caption.slice(0, 2200),
+        privacy_level: args.privacyLevel,
+        disable_comment: args.disableComment ?? false,
+        disable_duet: args.disableDuet ?? false,
+        disable_stitch: args.disableStitch ?? false,
+      },
+      source_info: {
+        source: "PULL_FROM_URL",
+        video_url: args.videoUrl,
+      },
+    }),
+  });
+  const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokVideoInitResult>;
+  if (!res.ok || json.error?.code !== "ok" || !json.data?.publish_id) {
+    throwPublishError("video_init_failed", json.error, res.status);
+  }
+  return json.data;
+}
+
+export type TikTokPublishStatus = {
+  status: string;
+  fail_reason?: string;
+  publicaly_available_post_id?: string[];
+  uploaded_bytes?: number;
+};
+
+export async function fetchTikTokPublishStatus(
+  accessToken: string,
+  publishId: string,
+): Promise<TikTokPublishStatus> {
+  const res = await fetch(`${TIKTOK_CONTENT_API_BASE}/post/publish/status/fetch/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
+    },
+    body: JSON.stringify({ publish_id: publishId }),
+  });
+  const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokPublishStatus>;
+  if (!res.ok || json.error?.code !== "ok") {
+    throwPublishError("publish_status_failed", json.error, res.status);
+  }
+  return json.data ?? { status: "UNKNOWN" };
+}
+
+export async function pollTikTokPublishUntilComplete(
+  accessToken: string,
+  publishId: string,
+  options?: { maxAttempts?: number; delayMs?: number },
+): Promise<TikTokPublishStatus> {
+  const maxAttempts = options?.maxAttempts ?? 30;
+  const delayMs = options?.delayMs ?? 2000;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const status = await fetchTikTokPublishStatus(accessToken, publishId);
+    const s = String(status.status ?? "").toUpperCase();
+    if (s === "PUBLISH_COMPLETE") return status;
+    if (s === "FAILED") {
+      throw new Error(`publish_failed: ${status.fail_reason ?? "unknown"}`);
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  throw new Error("publish_timeout: TikTok publish did not complete in time");
+}

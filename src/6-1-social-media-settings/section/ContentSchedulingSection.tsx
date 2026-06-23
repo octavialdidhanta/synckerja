@@ -7,8 +7,14 @@ import { Edit, Trash2, Plus } from 'lucide-react';
 import { useServiceRequiredPlatforms, ServiceRequiredPlatform } from '@/6-1-dashboard/hook/useServiceRequiredPlatforms';
 import { ServiceRequiredPlatformsModal } from '../modal/ServiceRequiredPlatformsModal';
 import { useSettingsServicesQuery } from '../hooks/useSettingsServicesQuery';
+import { useOrgSchedulingSettings } from '@/6-1-scheduled-posts/hooks/useOrgDefaultPostTime';
+import { Input } from '@/shared/components/ui/input';
+import { Label } from '@/shared/components/ui/label';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 export const ContentSchedulingSection: React.FC = () => {
+  const { t } = useTranslation();
   const { data: services = [], isPending: servicesPending } = useSettingsServicesQuery();
   const {
     requiredPlatforms,
@@ -18,6 +24,11 @@ export const ContentSchedulingSection: React.FC = () => {
     toggleRequiredPlatformStatus,
     isToggling,
   } = useServiceRequiredPlatforms();
+  const {
+    defaultPostTimeWib,
+    isLoading: defaultTimeLoading,
+    updateDefaultTime,
+  } = useOrgSchedulingSettings();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlatform, setEditingPlatform] = useState<ServiceRequiredPlatform | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
@@ -72,12 +83,49 @@ export const ContentSchedulingSection: React.FC = () => {
     return `${platform.platform} - ${platform.custom_platform_name || 'Custom'}`;
   };
 
-  if (servicesPending || platformsPending) {
+  if (servicesPending || platformsPending || defaultTimeLoading) {
     return null;
   }
 
+  const handleDefaultTimeChange = async (value: string) => {
+    try {
+      await updateDefaultTime.mutateAsync(value);
+      toast.success(t('digitalMarketing.scheduledPosts.defaultTimeSaved'));
+    } catch {
+      toast.error(t('digitalMarketing.scheduledPosts.defaultTimeSaveFailed'));
+    }
+  };
+
   return (
     <div className="space-y-4">
+      <div className="border rounded-lg p-4">
+        <div className="mb-3">
+          <h3 className="text-lg font-semibold">
+            {t('digitalMarketing.scheduledPosts.defaultTimeTitle')}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {t('digitalMarketing.scheduledPosts.defaultTimeDesc')}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="default-post-time-wib" className="text-sm">
+              {t('digitalMarketing.scheduledPosts.defaultTimeLabel')}
+            </Label>
+            <Input
+              id="default-post-time-wib"
+              type="time"
+              value={defaultPostTimeWib}
+              onChange={(e) => {
+                if (canManage) void handleDefaultTimeChange(e.target.value.slice(0, 5));
+              }}
+              disabled={!canManage || updateDefaultTime.isPending}
+              className="w-[160px]"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">Service Required Platforms</h3>

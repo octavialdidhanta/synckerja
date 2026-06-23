@@ -60,6 +60,24 @@ Deno.serve(async (req: Request) => {
 
   const returnPathRaw = body.return_path != null ? String(body.return_path).trim() : "";
   const returnPath = TIKTOK_CONTENT_OAUTH_RETURN_PATHS.has(returnPathRaw) ? returnPathRaw : null;
+  const oauthPurposeRaw = String(body.oauth_purpose ?? "full").trim().toLowerCase();
+  const oauthPurpose = oauthPurposeRaw === "publish" ? "publish" : "full";
+  const targetOpenId = body.open_id != null ? String(body.open_id).trim() : "";
+
+  if (oauthPurpose === "publish") {
+    if (!targetOpenId) {
+      return tiktokContentJson({ error: "Missing open_id for publish authorization" }, 400);
+    }
+    const { data: tokenRow } = await admin
+      .from("organization_tiktok_content_connection_tokens")
+      .select("open_id")
+      .eq("organization_id", organizationId)
+      .eq("open_id", targetOpenId)
+      .maybeSingle();
+    if (!tokenRow?.open_id) {
+      return tiktokContentJson({ error: "TikTok account not connected" }, 400);
+    }
+  }
 
   const stateToken = randomUrlSafe(32);
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
@@ -69,6 +87,8 @@ Deno.serve(async (req: Request) => {
     user_id: userRes.userId,
     state_token: stateToken,
     expires_at: expiresAt,
+    oauth_purpose: oauthPurpose,
+    ...(oauthPurpose === "publish" ? { target_open_id: targetOpenId } : {}),
     ...(returnPath ? { return_path: returnPath } : {}),
   });
   if (stateErr) {

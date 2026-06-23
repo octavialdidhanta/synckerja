@@ -3,7 +3,8 @@ import React from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
-import type { SocialMediaLink } from '@/shared/types/social-media-links';
+import { formatTimeWibFromUtc } from '@/6-1-scheduled-posts/lib/resolveScheduledAtUtc';
+import { useTranslation } from 'react-i18next';
 
 interface GoogleDriveLinkCellProps {
   googleDriveLink: string | null;
@@ -68,6 +69,11 @@ interface PostLinkCellProps {
   onSocialLinksClick: () => void;
   isSelected?: boolean;
   productionApproved?: boolean;
+  tiktokSchedule?: {
+    status: string;
+    scheduledAt?: string;
+  } | null;
+  reelReady?: boolean;
 }
 
 export const PostLinkCell: React.FC<PostLinkCellProps> = ({
@@ -75,11 +81,32 @@ export const PostLinkCell: React.FC<PostLinkCellProps> = ({
   isDisabled,
   onSocialLinksClick,
   isSelected = false,
-  productionApproved = false
+  productionApproved = false,
+  tiktokSchedule = null,
+  reelReady = false,
 }) => {
+  const { t } = useTranslation();
   const links = planLinks;
 
   const getPostLinksDisplayText = (): string => {
+    const tiktokLink = links?.find((l) => l.platform === 'TikTok' && l.url?.trim());
+    if (tiktokSchedule?.status === 'pending' || tiktokSchedule?.status === 'publishing') {
+      const time = tiktokSchedule.scheduledAt
+        ? formatTimeWibFromUtc(tiktokSchedule.scheduledAt)
+        : '';
+      return time
+        ? t('digitalMarketing.scheduledPosts.cellScheduled', { time })
+        : t('digitalMarketing.scheduledPosts.cellScheduledNoTime');
+    }
+    if (tiktokLink) {
+      return 'TikTok link added';
+    }
+    if (tiktokSchedule?.status === 'failed') {
+      return t('digitalMarketing.scheduledPosts.cellFailed');
+    }
+    if (reelReady && (!links || links.length === 0)) {
+      return t('digitalMarketing.scheduledPosts.cellReady');
+    }
     if (!links || links.length === 0) return 'Click to add social media links...';
 
     if (links.length === 1) {
