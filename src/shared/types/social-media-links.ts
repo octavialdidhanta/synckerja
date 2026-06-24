@@ -4,6 +4,8 @@ export interface SocialMediaLink {
   platform: string;
   url: string;
   social_media_name?: string | null;
+  platform_account_open_id?: string | null;
+  external_post_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }

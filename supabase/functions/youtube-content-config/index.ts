@@ -7,6 +7,8 @@ import type { YouTubeChannelRow } from "../_shared/youtubeContentApi.ts";
 import {
   getUserFromBearer,
   hasYouTubeCommentsOAuthScope,
+  youtubeContentScopesIncludeUpload,
+  parseYouTubeOAuthScopes,
   isYouTubeContentPlatformConfigured,
   requireActiveOrg,
   requireOrgAdmin,
@@ -65,20 +67,31 @@ Deno.serve(async (req: Request) => {
     const accountsWithCommentScopes = await Promise.all(
       (accounts ?? []).map(async (account) => {
         if (!account.is_active) {
-          return { ...account, comments_scopes_granted: false };
+          return { ...account, comments_scopes_granted: false, upload_scopes_granted: false };
         }
+        const { data: tokenRow } = await admin
+          .from("organization_youtube_content_connection_tokens")
+          .select("oauth_scopes")
+          .eq("organization_id", organizationId)
+          .eq("channel_id", String(account.channel_id))
+          .maybeSingle();
+
+        let scopes = parseYouTubeOAuthScopes(tokenRow?.oauth_scopes);
         const accessToken = await getYouTubeContentAccessToken(
           admin,
           organizationId,
           String(account.channel_id),
         );
-        if (!accessToken) {
-          return { ...account, comments_scopes_granted: false };
+        if (scopes.length === 0 && accessToken) {
+          scopes = await fetchGoogleTokenScopes(accessToken).catch(() => []);
         }
-        const scopes = await fetchGoogleTokenScopes(accessToken).catch(() => []);
+        if (!accessToken) {
+          return { ...account, comments_scopes_granted: false, upload_scopes_granted: false };
+        }
         return {
           ...account,
           comments_scopes_granted: hasYouTubeCommentsOAuthScope(scopes),
+          upload_scopes_granted: youtubeContentScopesIncludeUpload(scopes),
         };
       }),
     );
@@ -161,12 +174,14 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
+      const scopes = await fetchGoogleTokenScopes(accessToken).catch(() => []);
       const { isExistingAccount } = await saveYouTubeChannelConnection(admin, {
         organizationId,
         userId: userRes.userId,
         channel,
         accessToken,
         refreshToken,
+        oauthScopes: scopes.length > 0 ? scopes.join(" ") : null,
         expiresIn: pending.access_token_expires_at
           ? Math.max(
             0,

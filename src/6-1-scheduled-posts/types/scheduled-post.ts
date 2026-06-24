@@ -40,6 +40,9 @@ export type ScheduledPost = {
   published_at: string | null;
   error_message: string | null;
   retry_count: number;
+  next_retry_at: string | null;
+  locked_at: string | null;
+  last_error_at: string | null;
   scheduled_by: string | null;
   created_at: string;
   updated_at: string;

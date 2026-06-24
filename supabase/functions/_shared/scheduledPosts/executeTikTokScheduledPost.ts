@@ -30,6 +30,14 @@ type PlanRow = {
   content_type?: { name?: string } | null;
 };
 
+type TikTokProviderConfigExt = {
+  open_id?: string;
+  account_label?: string;
+  employee_id?: string;
+  tiktok_publish_id?: string;
+  tiktok_upload_completed?: boolean;
+};
+
 async function loadPlan(admin: SupabaseClient, planId: string): Promise<PlanRow | null> {
   const { data, error } = await admin
     .from("social_media_plans")
@@ -50,6 +58,23 @@ function planEligibilityInput(plan: PlanRow) {
     google_drive_link: plan.google_drive_link,
     content_type_name: plan.content_type?.name ?? null,
   };
+}
+
+async function persistTikTokProviderConfig(
+  admin: SupabaseClient,
+  scheduleId: string,
+  base: Record<string, unknown>,
+  patch: Partial<TikTokProviderConfigExt>,
+): Promise<Record<string, unknown>> {
+  const next = { ...base, ...patch };
+  await admin
+    .from("social_media_scheduled_posts")
+    .update({
+      provider_config: next,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", scheduleId);
+  return next;
 }
 
 async function upsertTikTokLink(
@@ -108,6 +133,45 @@ async function upsertTikTokLink(
   await syncPlanDoneStateForPlan(admin, plan.id);
 }
 
+async function finalizeTikTokPublish(
+  admin: SupabaseClient,
+  schedule: ScheduledPostRow,
+  plan: PlanRow,
+  openId: string,
+  publishAccessToken: string,
+  externalPostId: string,
+  creatorUsername?: string,
+): Promise<{ published_url: string; external_post_id: string }> {
+  const cfg = schedule.provider_config as TikTokProviderConfigExt;
+  const { data: account } = await admin
+    .from("organization_tiktok_content_accounts")
+    .select("label, display_name")
+    .eq("organization_id", schedule.organization_id)
+    .eq("open_id", openId)
+    .maybeSingle();
+
+  const accountLabel = String(
+    cfg.account_label ?? account?.display_name ?? account?.label ?? "TikTok",
+  );
+
+  let publishedUrl =
+    `https://www.tiktok.com/@${creatorUsername ?? "user"}/video/${externalPostId}`;
+  if (externalPostId && !publishedUrl.includes(externalPostId)) {
+    publishedUrl = `https://www.tiktok.com/video/${externalPostId}`;
+  }
+
+  await upsertTikTokLink(admin, plan, {
+    url: publishedUrl,
+    openId,
+    accountLabel,
+    externalPostId,
+    scheduledBy: schedule.scheduled_by,
+    employeeId: cfg.employee_id,
+  });
+
+  return { published_url: publishedUrl, external_post_id: externalPostId };
+}
+
 export async function executeTikTokScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
@@ -123,7 +187,8 @@ export async function executeTikTokScheduledPost(
     throw new Error("google_drive_link_changed");
   }
 
-  const openId = String((schedule.provider_config as { open_id?: string }).open_id ?? "").trim();
+  const cfg = schedule.provider_config as TikTokProviderConfigExt;
+  const openId = String(cfg.open_id ?? "").trim();
   if (!openId) throw new Error("missing_open_id");
 
   const publishAccessToken = await getTikTokPublishAccessToken(
@@ -150,6 +215,41 @@ export async function executeTikTokScheduledPost(
     throw new Error("publish_scopes_not_granted");
   }
 
+  let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
+
+  if (cfg.tiktok_publish_id && cfg.tiktok_upload_completed) {
+    const publishStatus = await pollTikTokPublishUntilComplete(
+      publishAccessToken,
+      cfg.tiktok_publish_id,
+    );
+    const postIds = publishStatus.publicaly_available_post_id ?? [];
+    const externalPostId = postIds.length > 0
+      ? String(postIds[0])
+      : cfg.tiktok_publish_id;
+
+    let creatorUsername: string | undefined;
+    try {
+      const creatorInfo = await queryTikTokCreatorInfo(publishAccessToken);
+      creatorUsername = creatorInfo.creator_username;
+    } catch {
+      creatorUsername = undefined;
+    }
+
+    return finalizeTikTokPublish(
+      admin,
+      schedule,
+      plan,
+      openId,
+      publishAccessToken,
+      externalPostId,
+      creatorUsername,
+    );
+  }
+
+  if (cfg.tiktok_publish_id && !cfg.tiktok_upload_completed) {
+    throw new Error("tiktok_upload_incomplete: wait for stale recovery or retry");
+  }
+
   const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
   const { bytes: videoBytes, mimeType } = await downloadGoogleDriveVideo(driveUrl);
 
@@ -169,12 +269,21 @@ export async function executeTikTokScheduledPost(
     privacyLevel,
   });
 
+  providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+    tiktok_publish_id: initResult.publish_id,
+    tiktok_upload_completed: false,
+  });
+
   await uploadTikTokVideoChunks(
     String(initResult.upload_url),
     videoBytes,
     chunkPlan,
     mimeType,
   );
+
+  providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+    tiktok_upload_completed: true,
+  });
 
   const publishStatus = await pollTikTokPublishUntilComplete(
     publishAccessToken,
@@ -184,33 +293,13 @@ export async function executeTikTokScheduledPost(
   const postIds = publishStatus.publicaly_available_post_id ?? [];
   const externalPostId = postIds.length > 0 ? String(postIds[0]) : initResult.publish_id;
 
-  const { data: account } = await admin
-    .from("organization_tiktok_content_accounts")
-    .select("label, display_name")
-    .eq("organization_id", schedule.organization_id)
-    .eq("open_id", openId)
-    .maybeSingle();
-
-  const accountLabel = String(
-    (schedule.provider_config as { account_label?: string }).account_label
-      ?? account?.display_name
-      ?? account?.label
-      ?? "TikTok",
-  );
-
-  let publishedUrl = `https://www.tiktok.com/@${creatorInfo.creator_username ?? "user"}/video/${externalPostId}`;
-  if (externalPostId && !publishedUrl.includes(externalPostId)) {
-    publishedUrl = `https://www.tiktok.com/video/${externalPostId}`;
-  }
-
-  await upsertTikTokLink(admin, plan, {
-    url: publishedUrl,
+  return finalizeTikTokPublish(
+    admin,
+    schedule,
+    plan,
     openId,
-    accountLabel,
+    publishAccessToken,
     externalPostId,
-    scheduledBy: schedule.scheduled_by,
-    employeeId: (schedule.provider_config as { employee_id?: string })?.employee_id,
-  });
-
-  return { published_url: publishedUrl, external_post_id: externalPostId };
+    creatorInfo.creator_username,
+  );
 }

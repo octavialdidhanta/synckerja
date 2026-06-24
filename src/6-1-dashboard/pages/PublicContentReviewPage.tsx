@@ -48,6 +48,7 @@ import { useUnifiedProfile } from '@/shared/hooks/useUnifiedProfile';
 import { useSafeAreaInsets } from '@/mobile/shared/contexts/SafeAreaInsetsContext';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { revertStepCompletionFromDriveLinkRemovalWithRpc } from '@/8-2-DailyTask/services/completionApprovalService';
+import { triggerPlanAutoSchedule } from '@/6-1-scheduled-posts/lib/triggerPlanAutoSchedule';
 
 const REVIEW_COMMENTER_STORAGE_KEY = 'review_commenter_';
 
@@ -876,6 +877,14 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
         devLog.error('Error updating production status for approval:', error);
         toast.error(t('publicReview.toast.approveFailed', 'Failed to approve production'));
         return;
+      }
+      const { data: planRow } = await supabase
+        .from('social_media_plans')
+        .select('organization_id, production_approved')
+        .eq('id', planId)
+        .single();
+      if (planRow?.organization_id) {
+        void triggerPlanAutoSchedule(planId, planRow.organization_id);
       }
       toast.success(t('publicReview.toast.approveSuccess', 'Production approved successfully'));
     } catch (e) {

@@ -2,7 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
 import type { ScheduledPost } from '../types/scheduled-post';
-import { pickTikTokScheduleForModal } from '../lib/pickTikTokScheduleDisplay';
+import { pickTikTokScheduleForModal } from '../lib/pickPlatformScheduleDisplay';
+export {
+  pickYouTubeScheduleForModal,
+  pickInstagramScheduleForModal,
+  pickLinkedInScheduleForModal,
+} from '../lib/pickPlatformScheduleDisplay';
 
 const SCHEDULED_POSTS_QUERY_KEY = 'socialMediaScheduledPosts';
 
@@ -20,9 +25,15 @@ export function useScheduledPostsByPlan(planId?: string) {
       return (data ?? []) as ScheduledPost[];
     },
     enabled: Boolean(planId),
-    staleTime: 15_000,
+    staleTime: 5_000,
     refetchOnWindowFocus: true,
-    refetchInterval: 30_000,
+    refetchInterval: (query) => {
+      const rows = query.state.data ?? [];
+      const hasActive = rows.some(
+        (row) => row.status === 'pending' || row.status === 'publishing',
+      );
+      return hasActive ? 3_000 : 30_000;
+    },
   });
 }
 
@@ -39,13 +50,20 @@ export function useInvalidateScheduledPosts() {
   const queryClient = useQueryClient();
   return (planId?: string, organizationId?: string) => {
     if (planId) {
-      queryClient.invalidateQueries({ queryKey: [SCHEDULED_POSTS_QUERY_KEY, planId] });
+      queryClient.invalidateQueries({
+        queryKey: [SCHEDULED_POSTS_QUERY_KEY, planId],
+        refetchType: 'active',
+      });
     } else {
-      queryClient.invalidateQueries({ queryKey: [SCHEDULED_POSTS_QUERY_KEY] });
+      queryClient.invalidateQueries({
+        queryKey: [SCHEDULED_POSTS_QUERY_KEY],
+        refetchType: 'active',
+      });
     }
     if (organizationId) {
       queryClient.invalidateQueries({
         queryKey: [SCHEDULED_POSTS_QUERY_KEY, 'org-active', organizationId],
+        refetchType: 'active',
       });
     }
   };

@@ -6,6 +6,7 @@ export * from './lib/resolveScheduledAtUtc';
 export * from './lib/validateGoogleDriveVideoLink';
 export * from './lib/buildTikTokCaption';
 export * from './lib/platformSupportsAutoSchedule';
+export * from './components/AutoScheduleSection';
 export * from './hooks/useOrgDefaultPostTime';
 export * from './hooks/useOrgActiveSchedules';
 export * from './hooks/useScheduledPostsByPlan';

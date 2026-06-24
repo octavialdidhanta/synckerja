@@ -1,6 +1,7 @@
 export const LINKEDIN_SCOPE_FEATURE_MAP = {
   insights: ['r_organization_social_feed'] as const,
   comments: ['r_organization_social_feed', 'w_organization_social_feed'] as const,
+  publish: ['w_organization_social'] as const,
   pages: ['rw_organization_admin'] as const,
 } as const;
 

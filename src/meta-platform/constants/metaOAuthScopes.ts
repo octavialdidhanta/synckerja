@@ -6,6 +6,7 @@ export const META_BUSINESS_OAUTH_SCOPE_LIST = [
   'instagram_manage_messages',
   'instagram_manage_comments',
   'instagram_manage_insights',
+  'instagram_content_publish',
   'pages_read_engagement',
   'pages_manage_engagement',
   'pages_messaging',
@@ -54,6 +55,7 @@ export const META_SCOPE_FEATURE_MAP = {
   dm: ['instagram_manage_messages', 'pages_messaging'] as const,
   comments: ['instagram_manage_comments', 'pages_manage_engagement'] as const,
   insights: ['instagram_manage_insights', 'pages_read_engagement'] as const,
+  publish: ['instagram_content_publish'] as const,
   pages: ['pages_show_list', 'pages_manage_metadata'] as const,
   threads_insights: ['threads_basic', 'threads_manage_insights'] as const,
   threads_replies: [

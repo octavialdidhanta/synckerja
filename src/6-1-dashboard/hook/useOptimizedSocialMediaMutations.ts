@@ -10,6 +10,7 @@ import {
 import { ContentPlan } from '../types/social-media';
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
+import { triggerPlanAutoSchedule } from '@/6-1-scheduled-posts/lib/triggerPlanAutoSchedule';
 
 /** Allowed columns for social_media_plans table (no link_url - that column does not exist). */
 const SOCIAL_MEDIA_PLANS_UPDATE_KEYS = new Set([
@@ -233,6 +234,23 @@ export const useOptimizedSocialMediaMutations = () => {
               }
             }).catch((err) => {
               devLog.error('syncStepCompletionFromProductionApproval rejected', err);
+            });
+          }
+
+          const prodApprovedTransition =
+            updates.production_approved === true &&
+            oldPlan &&
+            !oldPlan.production_approved;
+          if (organizationId && prodApprovedTransition) {
+            void triggerPlanAutoSchedule(variables.id, organizationId).then(() => {
+              queryClient.invalidateQueries({
+                queryKey: ['scheduled-posts-by-plan', variables.id],
+                refetchType: 'none',
+              });
+              queryClient.invalidateQueries({
+                queryKey: ['all-social-media-scheduled-posts'],
+                refetchType: 'none',
+              });
             });
           }
 

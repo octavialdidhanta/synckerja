@@ -10,11 +10,32 @@ export const youtubeContentCorsHeaders: Record<string, string> = {
 export const YOUTUBE_CONTENT_COMMENTS_OAUTH_SCOPE =
   "https://www.googleapis.com/auth/youtube.force-ssl";
 
+export const YOUTUBE_CONTENT_UPLOAD_OAUTH_SCOPE =
+  "https://www.googleapis.com/auth/youtube.upload";
+
 export const YOUTUBE_CONTENT_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
+  YOUTUBE_CONTENT_UPLOAD_OAUTH_SCOPE,
   YOUTUBE_CONTENT_COMMENTS_OAUTH_SCOPE,
   "https://www.googleapis.com/auth/yt-analytics.readonly",
 ].join(" ");
+
+export function parseYouTubeOAuthScopes(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String);
+  if (typeof raw === "string") {
+    return raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+export function youtubeContentScopesIncludeUpload(scopes: unknown): boolean {
+  const list = parseYouTubeOAuthScopes(scopes);
+  return list.some(
+    (s) =>
+      s.includes("youtube.upload")
+      || s === "https://www.googleapis.com/auth/youtube",
+  );
+}
 
 export function hasYouTubeCommentsOAuthScope(scopes: string[]): boolean {
   return scopes.some(

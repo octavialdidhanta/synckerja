@@ -13,9 +13,10 @@ export async function saveYouTubeChannelConnection(
     accessToken: string;
     refreshToken: string;
     expiresIn?: number;
+    oauthScopes?: string | null;
   },
 ): Promise<{ isExistingAccount: boolean }> {
-  const { organizationId, userId, channel, accessToken, refreshToken, expiresIn } = args;
+  const { organizationId, userId, channel, accessToken, refreshToken, expiresIn, oauthScopes } = args;
   const channelId = channel.channel_id;
   const now = new Date().toISOString();
   const accessExpires = expiresIn
@@ -43,6 +44,7 @@ export async function saveYouTubeChannelConnection(
       access_token_enc: accessEnc,
       refresh_token_enc: refreshEnc,
       access_token_expires_at: accessExpires,
+      oauth_scopes: oauthScopes?.trim() || null,
       updated_at: now,
     },
     { onConflict: "organization_id,channel_id" },

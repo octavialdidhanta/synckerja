@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -11,16 +11,28 @@ import { useSocialMediaLinks } from '@/6-1-dashboard/hook/useSocialMediaLinks';
 import { useSocialMediaNames } from '../hook/useSocialMediaNames';
 import { useServiceRequiredPlatforms } from '../hook/useServiceRequiredPlatforms';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { CreateSocialMediaLinkData } from '@/shared/types/social-media-links';
-import { useQuery } from '@tanstack/react-query';
+import { CreateSocialMediaLinkData, type SocialMediaLink } from '@/shared/types/social-media-links';
+import { resolveSocialMediaLinkName } from '../lib/resolveSocialMediaLinkName';
+import type { SocialMediaName } from '@/shared/types/social-media-names';
+import type { ServiceRequiredPlatform } from '../hook/useServiceRequiredPlatforms';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { TikTokAutoScheduleSection } from '@/6-1-scheduled-posts/components/TikTokAutoScheduleSection';
+import { AutoScheduleSection } from '@/6-1-scheduled-posts/components/AutoScheduleSection';
 import { RequiredPlatformsProgress } from '@/6-1-scheduled-posts/components/RequiredPlatformsProgress';
+import { useScheduledPostsByPlan } from '@/6-1-scheduled-posts/hooks/useScheduledPostsByPlan';
 import { buildTikTokCaption } from '@/6-1-scheduled-posts/lib/buildTikTokCaption';
 import { syncPlanDoneStateClient } from '@/6-1-scheduled-posts/lib/syncPlanDoneStateClient';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useBriefExtended } from '../hook/useBriefExtended';
 import { Check } from 'lucide-react';
+import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
+import { DeletePublishedConfirmDialog } from '@/6-1-scheduled-posts/components/DeletePublishedConfirmDialog';
+import { useDeletePublishedPost } from '@/6-1-scheduled-posts/hooks/useDeletePublishedPost';
+import {
+  resolveYouTubeChannelIdForDelete,
+  shouldDeleteViaPlatformPublish,
+} from '@/6-1-scheduled-posts/lib/resolveYouTubeChannelIdForDelete';
 
 interface SocialMediaLinksDialogProps {
   isOpen: boolean;
@@ -101,6 +113,89 @@ const validateUrlForPlatform = (url: string, platform: string): string | null =>
   return null; // Valid URL
 };
 
+function buildFormLinkFromServer(
+  link: SocialMediaLink,
+  requiredPlatforms: ServiceRequiredPlatform[],
+  getNamesByPlatform: (platform: string) => SocialMediaName[],
+): SocialMediaLinkForm {
+  const platformNames = getNamesByPlatform(link.platform);
+  const social_media_name = resolveSocialMediaLinkName({
+    platform: link.platform,
+    storedName: link.social_media_name,
+    platformAccountOpenId: link.platform_account_open_id,
+    url: link.url,
+    requiredPlatforms,
+    namesForPlatform: platformNames,
+  });
+
+  return {
+    id: link.id,
+    platform: link.platform,
+    social_media_name,
+    url: link.url,
+    isNew: false,
+    urlError: validateUrlForPlatform(link.url, link.platform) || undefined,
+  };
+}
+
+function mergeServerLinksIntoForm(
+  prev: SocialMediaLinkForm[],
+  serverLinks: SocialMediaLink[],
+  requiredPlatforms: ServiceRequiredPlatform[],
+  getNamesByPlatform: (platform: string) => SocialMediaName[],
+): SocialMediaLinkForm[] {
+  const serverById = new Map(serverLinks.map((link) => [link.id, link]));
+  let changed = false;
+
+  const merged = prev.flatMap((formRow) => {
+    if (formRow.isNew) return [formRow];
+
+    const server = serverById.get(formRow.id);
+    if (!server) {
+      changed = true;
+      return [];
+    }
+
+    const fromServer = buildFormLinkFromServer(server, requiredPlatforms, getNamesByPlatform);
+    let next = formRow;
+
+    if (!formRow.url.trim() && fromServer.url.trim()) {
+      next = { ...next, url: fromServer.url, urlError: fromServer.urlError };
+      changed = true;
+    }
+
+    const shouldFillName =
+      !formRow.social_media_name.trim() &&
+      fromServer.social_media_name.trim() &&
+      (!formRow.url.trim() || formRow.url.trim() === fromServer.url.trim());
+
+    if (shouldFillName) {
+      next = { ...next, social_media_name: fromServer.social_media_name };
+      changed = true;
+    }
+
+    if (fromServer.url.trim() && !formRow.url.trim()) {
+      return [next];
+    }
+
+    if (!server.url?.trim() && formRow.url.trim()) {
+      next = { ...next, url: '', urlError: undefined };
+      changed = true;
+    }
+
+    return [next];
+  });
+
+  for (const server of serverLinks) {
+    if (!merged.some((row) => row.id === server.id)) {
+      merged.push(buildFormLinkFromServer(server, requiredPlatforms, getNamesByPlatform));
+      changed = true;
+    }
+  }
+
+  return changed ? merged : prev;
+}
+
 const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
   isOpen,
   onClose,
@@ -108,8 +203,17 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
   planTitle
 }) => {
   const { organizationId } = useCurrentOrg();
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const { data: currentEmployee } = useCurrentEmployee();
   const [formLinks, setFormLinks] = useState<SocialMediaLinkForm[]>([]);
+  const [deleteLinkTarget, setDeleteLinkTarget] = useState<{
+    linkId: string;
+    platform: string;
+    accountLabel: string;
+    accountId: string;
+  } | null>(null);
+  const deletePublishedMutation = useDeletePublishedPost();
   const { 
     links, 
     isLoading, 
@@ -121,6 +225,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
     isUpdating,
     isDeleting 
   } = useSocialMediaLinks(socialMediaPlanId);
+  const { data: schedules = [] } = useScheduledPostsByPlan(isOpen ? socialMediaPlanId : undefined);
 
   const { socialMediaNames, getNamesByPlatform, isLoading: isLoadingNames } = useSocialMediaNames(organizationId);
 
@@ -153,7 +258,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
   }, [isOpen, planTitle, briefCaption]);
 
   const contentTypeName = planData?.content_type?.name ?? null;
-  const tiktokEligible = Boolean(
+  const reelEligible = Boolean(
     planData?.post_date &&
     planData?.approved &&
     planData?.production_approved &&
@@ -164,43 +269,179 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
     planData?.service_id || undefined
   );
 
+  const progressLinks = useMemo(() => {
+    const merged = new Map<
+      string,
+      {
+        platform: string;
+        url: string | null;
+        social_media_name?: string | null;
+        platform_account_open_id?: string | null;
+      }
+    >();
+
+    for (const link of links) {
+      merged.set(link.id, {
+        platform: link.platform,
+        url: link.url,
+        social_media_name: link.social_media_name ?? null,
+        platform_account_open_id: link.platform_account_open_id ?? null,
+      });
+    }
+
+    for (const form of formLinks) {
+      if (!form.platform?.trim()) continue;
+
+      if (form.isNew) {
+        const url = form.url?.trim();
+        if (!url) continue;
+        merged.set(form.id, {
+          platform: form.platform,
+          url,
+          social_media_name: form.social_media_name?.trim() || null,
+          platform_account_open_id: null,
+        });
+        continue;
+      }
+
+      const serverLink = links.find((row) => row.id === form.id);
+      if (!serverLink) continue;
+
+      const url = form.url?.trim() || serverLink.url?.trim() || null;
+      if (!url) continue;
+
+      merged.set(form.id, {
+        platform: form.platform,
+        url,
+        social_media_name: form.social_media_name?.trim() || serverLink.social_media_name || null,
+        platform_account_open_id: serverLink.platform_account_open_id ?? null,
+      });
+    }
+
+    return Array.from(merged.values());
+  }, [links, formLinks]);
+
+  useEffect(() => {
+    if (!isOpen || !socialMediaPlanId) return;
+
+    const channel = supabase
+      .channel(`publish-progress-${socialMediaPlanId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_media_links',
+          filter: `social_media_plan_id=eq.${socialMediaPlanId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['socialMediaLinks', socialMediaPlanId] });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_media_scheduled_posts',
+          filter: `social_media_plan_id=eq.${socialMediaPlanId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['socialMediaScheduledPosts', socialMediaPlanId] });
+          if (organizationId) {
+            queryClient.invalidateQueries({ queryKey: ['social-media-plans', organizationId] });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [isOpen, socialMediaPlanId, organizationId, queryClient]);
+
   // Track if form has been initialized to prevent reset on refetch
   const formInitializedRef = useRef(false);
   
   // Initialize form data when dialog opens or links change
-  // Only initialize once when dialog opens, not on every links change
   useEffect(() => {
-    if (isOpen && !formInitializedRef.current) {
+    if (!isOpen) {
+      formInitializedRef.current = false;
+      return;
+    }
+
+    if (isLoading || isLoadingNames) return;
+    if (planData?.service_id && isLoadingRequiredPlatforms) return;
+
+    if (!formInitializedRef.current) {
       formInitializedRef.current = true;
       if (links.length > 0) {
-        // Convert existing links to form format with URL validation
-        const existingLinks: SocialMediaLinkForm[] = links.map(link => {
-          const urlError = validateUrlForPlatform(link.url, link.platform) || undefined;
-          return {
-            id: link.id,
-            platform: link.platform,
-            social_media_name: link.social_media_name,
-            url: link.url,
-            isNew: false,
-            urlError
-          };
-        });
-        setFormLinks(existingLinks);
+        setFormLinks(
+          links.map((link) =>
+            buildFormLinkFromServer(link, requiredPlatforms, getNamesByPlatform),
+          ),
+        );
       } else {
-        // Start with one empty link
-        setFormLinks([{
-          id: `new-${Date.now()}`,
-          platform: '',
-          social_media_name: '',
-          url: '',
-          isNew: true
-        }]);
+        setFormLinks([
+          {
+            id: `new-${Date.now()}`,
+            platform: '',
+            social_media_name: '',
+            url: '',
+            isNew: true,
+          },
+        ]);
       }
-    } else if (!isOpen) {
-      // Reset flag when dialog closes
-      formInitializedRef.current = false;
+      return;
     }
-  }, [isOpen, links]);
+
+    setFormLinks((prev) =>
+      mergeServerLinksIntoForm(prev, links, requiredPlatforms, getNamesByPlatform),
+    );
+  }, [
+    isOpen,
+    isLoading,
+    isLoadingNames,
+    isLoadingRequiredPlatforms,
+    links,
+    planData?.service_id,
+    requiredPlatforms,
+    socialMediaNames,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen || isLoadingNames || isLoadingRequiredPlatforms) return;
+
+    setFormLinks((prev) => {
+      let changed = false;
+      const next = prev.map((link) => {
+        if (!link.platform?.trim() || !link.url?.trim()) return link;
+
+        const platformNames = getNamesByPlatform(link.platform);
+        const resolved = resolveSocialMediaLinkName({
+          platform: link.platform,
+          storedName: link.social_media_name,
+          url: link.url,
+          requiredPlatforms,
+          namesForPlatform: platformNames,
+        });
+
+        if (!resolved || resolved === link.social_media_name) return link;
+
+        const shouldReplace =
+          !link.social_media_name?.trim() ||
+          (platformNames.some((name) => name.name === resolved) &&
+            !platformNames.some((name) => name.name === link.social_media_name));
+
+        if (!shouldReplace) return link;
+
+        changed = true;
+        return { ...link, social_media_name: resolved };
+      });
+
+      return changed ? next : prev;
+    });
+  }, [isOpen, requiredPlatforms, socialMediaNames, isLoadingNames, isLoadingRequiredPlatforms]);
 
   const handleAddLink = () => {
     setFormLinks(prev => [
@@ -216,14 +457,47 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
   };
 
   const handleRemoveLink = async (id: string, isNew: boolean = false) => {
+    const link = formLinks.find((row) => row.id === id);
+    if (!link) return;
+
     if (isNew) {
-      // Just remove from form if it's a new link
-      setFormLinks(prev => prev.filter(link => link.id !== id));
-    } else {
-      // Delete from database if it's an existing link
-      await deleteLink(id);
-      // Remove from form as well
-      setFormLinks(prev => prev.filter(link => link.id !== id));
+      setFormLinks((prev) => prev.filter((row) => row.id !== id));
+      return;
+    }
+
+    if (shouldDeleteViaPlatformPublish(link)) {
+      const serverLink = links.find((row) => row.id === id);
+      const channelId = resolveYouTubeChannelIdForDelete(link, serverLink, requiredPlatforms);
+      if (!channelId || !organizationId) {
+        toast.error(t('digitalMarketing.scheduledPosts.deleteFromPlatformFailed'));
+        return;
+      }
+      setDeleteLinkTarget({
+        linkId: id,
+        platform: link.platform,
+        accountLabel: link.social_media_name?.trim() || link.platform,
+        accountId: channelId,
+      });
+      return;
+    }
+
+    await deleteLink(id);
+    setFormLinks((prev) => prev.filter((row) => row.id !== id));
+  };
+
+  const handleDeleteLinkConfirm = async () => {
+    if (!deleteLinkTarget || !organizationId) return;
+    try {
+      await deletePublishedMutation.mutateAsync({
+        platform: deleteLinkTarget.platform,
+        organizationId,
+        planId: socialMediaPlanId,
+        accountId: deleteLinkTarget.accountId,
+      });
+      setFormLinks((prev) => prev.filter((row) => row.id !== deleteLinkTarget.linkId));
+      setDeleteLinkTarget(null);
+    } catch {
+      // toast handled in hook
     }
   };
 
@@ -246,6 +520,18 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
         if (field === 'url') {
           if (updatedLink.platform) {
             updatedLink.urlError = validateUrlForPlatform(value, updatedLink.platform) || undefined;
+            if (value.trim() && !updatedLink.social_media_name?.trim()) {
+              const resolved = resolveSocialMediaLinkName({
+                platform: updatedLink.platform,
+                storedName: '',
+                url: value,
+                requiredPlatforms,
+                namesForPlatform: getNamesByPlatform(updatedLink.platform),
+              });
+              if (resolved) {
+                updatedLink.social_media_name = resolved;
+              }
+            }
           } else {
             updatedLink.urlError = undefined;
           }
@@ -434,8 +720,8 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
         </DialogHeader>
 
         <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6 pb-4 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="shrink-0 space-y-4 overflow-x-hidden">
-            {tiktokEligible && (
+          <div className="shrink-0 min-w-0 space-y-4">
+            {reelEligible && (
               <div className="flex flex-wrap gap-2 text-xs">
                 {[
                   ['Post date', Boolean(planData?.post_date)],
@@ -456,7 +742,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
             )}
 
             {organizationId && (
-              <TikTokAutoScheduleSection
+              <AutoScheduleSection
                 organizationId={organizationId}
                 planId={socialMediaPlanId}
                 planTitle={planTitle ?? null}
@@ -465,7 +751,9 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                 onCaptionChange={setTiktokCaption}
                 googleDriveLink={planData?.google_drive_link ?? null}
                 employeeId={currentEmployee?.id}
-                eligible={tiktokEligible}
+                reelEligible={reelEligible}
+                serviceId={planData?.service_id ?? null}
+                requiredPlatforms={requiredPlatforms}
               />
             )}
 
@@ -480,12 +768,10 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
               ) : (
                 <RequiredPlatformsProgress
                   requiredPlatforms={requiredPlatforms}
-                  links={formLinks.map((l) => ({
-                    platform: l.platform,
-                    url: l.url,
-                    social_media_name: l.social_media_name,
-                  }))}
+                  links={progressLinks}
+                  schedules={schedules}
                   contentTypeName={contentTypeName}
+                  showWhenDone
                   planDone={planData?.done === true}
                 />
               )
@@ -514,7 +800,13 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
               </div>
             ) : (
               <div className="space-y-4 py-2 pr-3">
-                {formLinks.map((link) => (
+                {formLinks.map((link) => {
+                  const platformNames = link.platform ? getNamesByPlatform(link.platform) : [];
+                  const showOrphanName =
+                    Boolean(link.social_media_name?.trim()) &&
+                    !platformNames.some((name) => name.name === link.social_media_name);
+
+                  return (
                   <div key={link.id} className="min-w-0 overflow-hidden rounded-lg border bg-gray-50 p-4">
                     <div className="grid min-w-0 grid-cols-12 gap-3 items-end">
                       <div className="col-span-3 min-w-0 space-y-1">
@@ -570,12 +862,17 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                                   </SelectItem>
                                 ) : (
                                   <>
-                                    {getNamesByPlatform(link.platform).map((name) => (
+                                    {showOrphanName && (
+                                      <SelectItem value={link.social_media_name}>
+                                        {link.social_media_name}
+                                      </SelectItem>
+                                    )}
+                                    {platformNames.map((name) => (
                                       <SelectItem key={name.id} value={name.name}>
                                         {name.name}
                                       </SelectItem>
                                     ))}
-                                    {getNamesByPlatform(link.platform).length === 0 && (
+                                    {platformNames.length === 0 && !showOrphanName && (
                                       <SelectItem value="no-names-available" disabled>
                                         No names available for {link.platform}
                                       </SelectItem>
@@ -637,7 +934,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                           variant="ghost"
                           size="sm"
                           className="h-10 w-10 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          disabled={isSaving}
+                          disabled={isSaving || isDeleting || deletePublishedMutation.isPending}
                           title="Delete link"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -645,7 +942,8 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 {formLinks.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
@@ -693,6 +991,19 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <DeletePublishedConfirmDialog
+        open={deleteLinkTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteLinkTarget(null);
+        }}
+        platform={deleteLinkTarget?.platform ?? 'YouTube'}
+        accountLabel={deleteLinkTarget?.accountLabel ?? ''}
+        isPending={deletePublishedMutation.isPending}
+        onConfirm={() => {
+          void handleDeleteLinkConfirm();
+        }}
+      />
     </Dialog>
   );
 };

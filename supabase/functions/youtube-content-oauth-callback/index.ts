@@ -12,6 +12,7 @@ import {
 import {
   exchangeYouTubeContentAuthCode,
   fetchYouTubeChannelsMine,
+  fetchGoogleTokenScopes,
 } from "../_shared/youtubeContentApi.ts";
 
 function redirectToAppPath(path: string, query: string, status = 302): Response {
@@ -120,6 +121,8 @@ Deno.serve(async (req: Request) => {
 
   if (channels.length === 1) {
     try {
+      const scopes = await fetchGoogleTokenScopes(tokenData.access_token).catch(() => []);
+      const oauthScopes = scopes.length > 0 ? scopes.join(" ") : null;
       const { isExistingAccount } = await saveYouTubeChannelConnection(admin, {
         organizationId,
         userId,
@@ -127,6 +130,7 @@ Deno.serve(async (req: Request) => {
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
         expiresIn: tokenData.expires_in,
+        oauthScopes,
       });
       const query = isExistingAccount ? "?connected=1&existing=1" : "?connected=1";
       return redirectDefault(query, oauthReturnPath);

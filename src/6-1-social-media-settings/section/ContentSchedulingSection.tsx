@@ -7,6 +7,7 @@ import { Edit, Trash2, Plus } from 'lucide-react';
 import { useServiceRequiredPlatforms, ServiceRequiredPlatform } from '@/6-1-dashboard/hook/useServiceRequiredPlatforms';
 import { ServiceRequiredPlatformsModal } from '../modal/ServiceRequiredPlatformsModal';
 import { useSettingsServicesQuery } from '../hooks/useSettingsServicesQuery';
+import { needsOAuthAccountUpdate } from '@/6-1-scheduled-posts/lib/resolveRequiredPlatformTargets';
 import { useOrgSchedulingSettings } from '@/6-1-scheduled-posts/hooks/useOrgDefaultPostTime';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -76,11 +77,18 @@ export const ContentSchedulingSection: React.FC = () => {
     setSelectedServiceId(null);
   };
 
-  const getPlatformDisplayName = (platform: ServiceRequiredPlatform): string => {
-    if (platform.social_media_name) {
-      return `${platform.platform} - ${platform.social_media_name.name}`;
+  const getAccountBadge = (platform: ServiceRequiredPlatform) => {
+    if (platform.platform_account_label) {
+      return (
+        <Badge variant="outline">{platform.platform_account_label}</Badge>
+      );
     }
-    return `${platform.platform} - ${platform.custom_platform_name || 'Custom'}`;
+    if (platform.social_media_name) {
+      return <Badge variant="outline">{platform.social_media_name.name}</Badge>;
+    }
+    return (
+      <Badge variant="secondary">{platform.custom_platform_name || 'Custom'}</Badge>
+    );
   };
 
   if (servicesPending || platformsPending || defaultTimeLoading) {
@@ -174,7 +182,7 @@ export const ContentSchedulingSection: React.FC = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Platform</TableHead>
-                        <TableHead>Social Media Name</TableHead>
+                        <TableHead>Account</TableHead>
                         <TableHead>Status</TableHead>
                         {canManage && <TableHead className="text-right">Actions</TableHead>}
                       </TableRow>
@@ -189,15 +197,14 @@ export const ContentSchedulingSection: React.FC = () => {
                             {platform.platform}
                           </TableCell>
                           <TableCell>
-                            {platform.social_media_name ? (
-                              <Badge variant="outline">
-                                {platform.social_media_name.name}
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary">
-                                {platform.custom_platform_name || 'Custom'}
-                              </Badge>
-                            )}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {getAccountBadge(platform)}
+                              {needsOAuthAccountUpdate(platform) ? (
+                                <Badge variant="destructive" className="text-[10px]">
+                                  {t('digitalMarketing.scheduledPosts.updateOAuthAccountRequired')}
+                                </Badge>
+                              ) : null}
+                            </div>
                           </TableCell>
                           <TableCell>
                             {canManage ? (

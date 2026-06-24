@@ -58,14 +58,17 @@ Pilih **External** (customer di luar organisasi Google Workspace Anda).
 
 ### Scopes
 
-Pastikan hanya scope ini yang aktif (hapus scope lain yang tidak dipakai fitur ini):
+Pastikan scope aktif untuk insight **dan scheduled publish**:
 
 ```
 https://www.googleapis.com/auth/youtube.readonly
+https://www.googleapis.com/auth/youtube.upload
 https://www.googleapis.com/auth/yt-analytics.readonly
 ```
 
-Klik **Add or remove scopes** → filter "YouTube" → centang kedua scope di atas → **Update**.
+Klik **Add or remove scopes** → filter "YouTube" → centang scope di atas → **Update**.
+
+**Justification `youtube.upload`:** Synckerja schedules Reel videos from approved content plans to the customer's YouTube channel (private/unlisted during app review). Upload is initiated only when the user clicks Schedule or Post Now on an approved plan with a linked Google Drive video.
 
 ### APIs yang harus tetap enabled
 

@@ -22,7 +22,21 @@ type TikTokContentEnvelope<T> = {
   error?: TikTokContentError;
 };
 
-function throwPublishError(prefix: string, err?: TikTokContentError, httpStatus?: number): never {
+function throwPublishError(
+  prefix: string,
+  err?: TikTokContentError,
+  httpStatus?: number,
+  res?: Response,
+): never {
+  if (httpStatus === 429) {
+    const retryAfter = res?.headers?.get("Retry-After");
+    const seconds = retryAfter ? parseInt(retryAfter, 10) : NaN;
+    if (Number.isFinite(seconds) && seconds > 0) {
+      throw new Error(`http 429 retry-after:${seconds}`);
+    }
+    throw new Error("http 429");
+  }
+
   const code = err?.code?.trim() ?? "";
   const msg = err?.message?.trim() ?? "";
   const logId = err?.log_id?.trim();
@@ -87,7 +101,7 @@ export async function queryTikTokCreatorInfo(
       continue;
     }
 
-    throwPublishError("creator_info_failed", json.error, res.status);
+    throwPublishError("creator_info_failed", json.error, res.status, res);
   }
 
   throwPublishError("creator_info_failed", undefined, lastHttpStatus);
@@ -161,7 +175,7 @@ export async function initTikTokVideoPublishFileUpload(
   });
   const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokVideoInitResult>;
   if (!res.ok || json.error?.code !== "ok" || !json.data?.publish_id || !json.data?.upload_url) {
-    throwPublishError("video_init_failed", json.error, res.status);
+    throwPublishError("video_init_failed", json.error, res.status, res);
   }
   return json.data;
 }
@@ -231,7 +245,7 @@ export async function initTikTokVideoPublishPullFromUrl(
   });
   const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokVideoInitResult>;
   if (!res.ok || json.error?.code !== "ok" || !json.data?.publish_id) {
-    throwPublishError("video_init_failed", json.error, res.status);
+    throwPublishError("video_init_failed", json.error, res.status, res);
   }
   return json.data;
 }
@@ -257,7 +271,7 @@ export async function fetchTikTokPublishStatus(
   });
   const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokPublishStatus>;
   if (!res.ok || json.error?.code !== "ok") {
-    throwPublishError("publish_status_failed", json.error, res.status);
+    throwPublishError("publish_status_failed", json.error, res.status, res);
   }
   return json.data ?? { status: "UNKNOWN" };
 }

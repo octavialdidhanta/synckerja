@@ -18,6 +18,42 @@ export const MEDIA_SOURCE_GOOGLE_DRIVE = "google_drive_link";
 export type TikTokProviderConfig = {
   open_id: string;
   account_label?: string;
+  employee_id?: string;
+  tiktok_publish_id?: string;
+  tiktok_upload_completed?: boolean;
+};
+
+export type YouTubeProviderConfig = {
+  channel_id: string;
+  account_label?: string;
+  employee_id?: string;
+  published_channel_id?: string;
+  published_channel_title?: string;
+  published_privacy_status?: string;
+  youtube_upload_url?: string;
+  youtube_upload_bytes_sent?: number;
+  youtube_upload_completed?: boolean;
+  youtube_video_id?: string;
+};
+
+export type InstagramProviderConfig = {
+  instagram_business_account_id: string;
+  facebook_page_id: string;
+  account_label?: string;
+  employee_id?: string;
+  ig_container_id?: string;
+  ig_upload_phase?: string;
+  ig_upload_session_id?: string;
+};
+
+export type LinkedInProviderConfig = {
+  page_id: string;
+  organization_urn?: string;
+  account_label?: string;
+  employee_id?: string;
+  linkedin_upload_urn?: string;
+  linkedin_upload_instructions?: Record<string, unknown>;
+  linkedin_post_urn?: string;
 };
 
 export type ScheduledPostRow = {
@@ -41,6 +77,9 @@ export type ScheduledPostRow = {
   published_at: string | null;
   error_message: string | null;
   retry_count: number;
+  next_retry_at: string | null;
+  locked_at: string | null;
+  last_error_at: string | null;
   scheduled_by: string | null;
   created_at: string;
   updated_at: string;

@@ -9,9 +9,9 @@ import {
   tiktokContentJson,
   tiktokContentScopesIncludePublish,
 } from "../_shared/tiktokContentAuth.ts";
-import { cancelScheduleById } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
-import { executeTikTokScheduledPost } from "../_shared/scheduledPosts/executeTikTokScheduledPost.ts";
-import { resolveScheduleStatusAfterFailure } from "../_shared/scheduledPosts/scheduledPostRetry.ts";
+import { cancelScheduleById, cancelPendingSchedulesForPlatformAccount } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
+import { assertPlatformCanSchedule } from "../_shared/scheduledPosts/platformRegistry.ts";
+import { runScheduledPostJob } from "../_shared/scheduledPosts/runScheduledPostJob.ts";
 import {
   getPlanEligibilityMissingReasons,
   isPlanEligibleForTikTokAutoSchedule,
@@ -97,51 +97,18 @@ Deno.serve(async (req: Request) => {
     const scheduleId = String(body.schedule_id ?? "").trim();
     if (!scheduleId) return tiktokContentJson({ error: "Missing schedule_id" }, 400);
 
-    const { data: schedule, error: schedErr } = await admin
-      .from("social_media_scheduled_posts")
-      .select("*")
-      .eq("id", scheduleId)
-      .maybeSingle();
-
-    if (schedErr || !schedule) return tiktokContentJson({ error: "Schedule not found" }, 404);
-    if (schedule.status !== "pending" && schedule.status !== "publishing") {
-      return tiktokContentJson({ error: "Schedule not runnable", status: schedule.status }, 400);
+    const job = await runScheduledPostJob(admin, scheduleId);
+    if (!job.ok) {
+      return tiktokContentJson(
+        { error: job.error ?? "publish_failed", retry_count: job.retry_count, stub_code: job.stubCode },
+        job.error === "Schedule not found" ? 404 : 500,
+      );
     }
-
-    await admin
-      .from("social_media_scheduled_posts")
-      .update({ status: "publishing", updated_at: new Date().toISOString() })
-      .eq("id", scheduleId);
-
-    try {
-      const result = await executeTikTokScheduledPost(admin, schedule);
-      await admin
-        .from("social_media_scheduled_posts")
-        .update({
-          status: "published",
-          published_url: result.published_url,
-          external_post_id: result.external_post_id,
-          published_at: new Date().toISOString(),
-          error_message: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", scheduleId);
-      return tiktokContentJson({ ok: true, ...result }, 200);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "publish_failed";
-      const retryCount = Number(schedule.retry_count ?? 0) + 1;
-      const nextStatus = resolveScheduleStatusAfterFailure(retryCount, msg);
-      await admin
-        .from("social_media_scheduled_posts")
-        .update({
-          status: nextStatus,
-          error_message: msg,
-          retry_count: retryCount,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", scheduleId);
-      return tiktokContentJson({ error: msg, retry_count: retryCount }, 500);
-    }
+    return tiktokContentJson({
+      ok: true,
+      published_url: job.published_url,
+      external_post_id: job.external_post_id,
+    }, 200);
   }
 
   const planId = String(body.social_media_plan_id ?? "").trim();
@@ -161,6 +128,13 @@ Deno.serve(async (req: Request) => {
   };
 
   if (action === "schedule" || action === "post_now") {
+    try {
+      assertPlatformCanSchedule("TikTok");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "platform_not_supported";
+      return tiktokContentJson({ error: msg }, 400);
+    }
+
     if (!isPlanEligibleForTikTokAutoSchedule(eligibility)) {
       return tiktokContentJson({
         error: "plan_not_eligible",
@@ -208,12 +182,7 @@ Deno.serve(async (req: Request) => {
     const accountLabel = body.account_label != null ? String(body.account_label) : "";
     const driveLink = plan.google_drive_link?.trim() ?? "";
 
-    await admin
-      .from("social_media_scheduled_posts")
-      .update({ status: "cancelled", updated_at: new Date().toISOString() })
-      .eq("social_media_plan_id", planId)
-      .eq("platform", "TikTok")
-      .in("status", ["pending", "publishing"]);
+    await cancelPendingSchedulesForPlatformAccount(admin, planId, "TikTok", openId);
 
     const providerConfig: TikTokProviderConfig & { employee_id?: string } = {
       open_id: openId,
@@ -237,6 +206,7 @@ Deno.serve(async (req: Request) => {
         title,
         privacy_level: DEFAULT_PRIVACY_LEVEL,
         provider_config: providerConfig,
+        platform_account_id: openId,
         scheduled_by: userId,
       })
       .select("*")
@@ -248,32 +218,26 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "post_now") {
-      try {
-        const result = await executeTikTokScheduledPost(admin, inserted);
-        await admin
-          .from("social_media_scheduled_posts")
-          .update({
-            status: "published",
-            published_url: result.published_url,
-            external_post_id: result.external_post_id,
-            published_at: new Date().toISOString(),
-            error_message: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", inserted.id);
-        return tiktokContentJson({ ok: true, schedule: inserted, ...result }, 200);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "publish_failed";
-        await admin
-          .from("social_media_scheduled_posts")
-          .update({
-            status: "failed",
-            error_message: msg,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", inserted.id);
-        return tiktokContentJson({ error: msg }, 500);
+      const job = await runScheduledPostJob(admin, inserted.id, { skipPublishingTransition: true });
+      if (!job.ok) {
+        return tiktokContentJson(
+          { error: job.error ?? "publish_failed", stub_code: job.stubCode },
+          500,
+        );
       }
+
+      const { data: publishedRow } = await admin
+        .from("social_media_scheduled_posts")
+        .select("*")
+        .eq("id", inserted.id)
+        .maybeSingle();
+
+      return tiktokContentJson({
+        ok: true,
+        schedule: publishedRow ?? inserted,
+        published_url: job.published_url,
+        external_post_id: job.external_post_id,
+      }, 200);
     }
 
     return tiktokContentJson({ ok: true, schedule: inserted }, 200);

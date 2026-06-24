@@ -11,12 +11,14 @@ export const linkedinContentCorsHeaders: Record<string, string> = {
 export const LINKEDIN_CONTENT_OAUTH_SCOPES_DEFAULT = [
   "r_organization_social_feed",
   "w_organization_social_feed",
+  "w_organization_social",
   "rw_organization_admin",
 ].join(" ");
 
 export const LINKEDIN_SCOPE_FEATURE_MAP = {
   insights: ["r_organization_social_feed"] as const,
   comments: ["r_organization_social_feed", "w_organization_social_feed"] as const,
+  publish: ["w_organization_social"] as const,
   pages: ["rw_organization_admin"] as const,
 } as const;
 

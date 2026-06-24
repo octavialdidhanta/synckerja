@@ -1,14 +1,40 @@
+import type { ScheduledPost } from '../types/scheduled-post';
+import {
+  pickAccountScheduleForModal,
+  pickPlatformScheduleForModal,
+} from './pickPlatformScheduleDisplay';
+
 export type RequiredPlatformInput = {
+  id?: string;
   platform: string;
   is_active?: boolean | null;
   social_media_name?: { name: string } | null;
   custom_platform_name?: string | null;
+  platform_account_id?: string | null;
+  platform_account_label?: string | null;
 };
 
 export type SocialMediaLinkInput = {
   platform: string;
   url: string | null;
   social_media_name?: string | null;
+  platform_account_open_id?: string | null;
+};
+
+export type RequiredPlatformItemStatus =
+  | 'missing'
+  | 'scheduled'
+  | 'publishing'
+  | 'published'
+  | 'failed'
+  | 'link_ready';
+
+export type RequiredPlatformProgressItem = {
+  key: string;
+  label: string;
+  platform: string;
+  status: RequiredPlatformItemStatus;
+  url?: string | null;
 };
 
 export function filterRequiredPlatformsForContentType(
@@ -29,55 +55,154 @@ function isValidLink(link: SocialMediaLinkInput): boolean {
   return Boolean(platform && url.startsWith('http'));
 }
 
+function requiredPlatformLabel(rp: RequiredPlatformInput): string {
+  const base = rp.platform.trim();
+  if (rp.social_media_name?.name) return `${base} · ${rp.social_media_name.name}`;
+  if (rp.platform_account_label?.trim()) return `${base} · ${rp.platform_account_label.trim()}`;
+  if (rp.custom_platform_name?.trim()) return `${base} · ${rp.custom_platform_name.trim()}`;
+  return base;
+}
+
+function findLinkForRequired(
+  links: SocialMediaLinkInput[],
+  platform: string,
+  accountId?: string | null,
+): SocialMediaLinkInput | null {
+  const platformTrim = platform.trim();
+  const valid = links.filter((link) => link.platform?.trim() === platformTrim && isValidLink(link));
+  if (!valid.length) return null;
+
+  const accountTrim = accountId?.trim();
+  if (accountTrim) {
+    const byAccount = valid.find(
+      (link) => link.platform_account_open_id?.trim() === accountTrim,
+    );
+    if (byAccount) return byAccount;
+  }
+
+  return valid[0];
+}
+
+export function computeRequiredPlatformProgressItems(
+  requiredPlatforms: RequiredPlatformInput[],
+  links: SocialMediaLinkInput[],
+  contentTypeName: string | null | undefined,
+  schedules: ScheduledPost[] = [],
+): RequiredPlatformProgressItem[] {
+  const activeRequired = filterRequiredPlatformsForContentType(requiredPlatforms, contentTypeName);
+
+  return activeRequired.map((rp, index) => {
+    const accountId = rp.platform_account_id?.trim() || null;
+    const schedule = accountId
+      ? pickAccountScheduleForModal(schedules, rp.platform, accountId)
+      : pickPlatformScheduleForModal(schedules, rp.platform);
+    const link = findLinkForRequired(links, rp.platform, accountId);
+    const key = rp.id ?? `${rp.platform}-${accountId ?? index}`;
+
+    let status: RequiredPlatformItemStatus = 'missing';
+    let url: string | null | undefined;
+
+    if (schedule?.status === 'published') {
+      status = 'published';
+      url = schedule.published_url;
+    } else if (schedule?.status === 'publishing') {
+      status = 'publishing';
+    } else if (schedule?.status === 'pending') {
+      status = 'scheduled';
+    } else if (schedule?.status === 'failed') {
+      status = 'failed';
+    } else if (link && isValidLink(link)) {
+      status = 'link_ready';
+      url = link.url;
+    }
+
+    if ((status === 'published' || status === 'link_ready') && !url && link?.url) {
+      url = link.url;
+    }
+
+    return {
+      key,
+      label: requiredPlatformLabel(rp),
+      platform: rp.platform,
+      status,
+      url,
+    };
+  });
+}
+
+function isFilledItemStatus(status: RequiredPlatformItemStatus): boolean {
+  return status === 'published' || status === 'link_ready';
+}
+
 export function computePlanDoneState(
   requiredPlatforms: RequiredPlatformInput[],
   links: SocialMediaLinkInput[],
   contentTypeName: string | null | undefined,
+  schedules: ScheduledPost[] = [],
 ): boolean {
   const activeRequired = filterRequiredPlatformsForContentType(requiredPlatforms, contentTypeName);
-  const validLinks = links.filter(isValidLink);
 
   if (activeRequired.length > 0) {
-    const filledPlatforms = new Set(validLinks.map((l) => l.platform.trim()));
-    return activeRequired.every((rp) => filledPlatforms.has(rp.platform.trim()));
+    const items = computeRequiredPlatformProgressItems(
+      requiredPlatforms,
+      links,
+      contentTypeName,
+      schedules,
+    );
+    return items.every((item) => isFilledItemStatus(item.status));
   }
 
-  return validLinks.length >= 1;
+  return links.filter(isValidLink).length >= 1;
 }
 
 export function computeRequiredPlatformsProgress(
   requiredPlatforms: RequiredPlatformInput[],
   links: SocialMediaLinkInput[],
   contentTypeName: string | null | undefined,
+  schedules: ScheduledPost[] = [],
 ): {
   totalRequired: number;
   filledRequired: number;
   missingPlatforms: string[];
   isValid: boolean;
   progress: number;
+  items: RequiredPlatformProgressItem[];
+  hasPublishing: boolean;
 } {
-  const activeRequired = filterRequiredPlatformsForContentType(requiredPlatforms, contentTypeName);
-  const validLinks = links.filter(isValidLink);
-  const filledPlatforms = new Set(validLinks.map((l) => l.platform.trim()));
+  const items = computeRequiredPlatformProgressItems(
+    requiredPlatforms,
+    links,
+    contentTypeName,
+    schedules,
+  );
 
-  const missingPlatforms = activeRequired
-    .filter((rp) => !filledPlatforms.has(rp.platform.trim()))
-    .map((rp) => {
-      if (rp.social_media_name?.name) return `${rp.platform} - ${rp.social_media_name.name}`;
-      if (rp.custom_platform_name) return `${rp.platform} - ${rp.custom_platform_name}`;
-      return rp.platform;
-    });
+  const filledRequired = items.filter((item) => isFilledItemStatus(item.status)).length;
+  const hasPublishing = items.some((item) => item.status === 'publishing');
+  const missingPlatforms = items
+    .filter((item) => item.status === 'missing' || item.status === 'failed')
+    .map((item) => item.label);
 
-  const filledRequired = activeRequired.length - missingPlatforms.length;
-  const progress = activeRequired.length > 0
-    ? Math.round((filledRequired / activeRequired.length) * 100)
-    : 100;
+  const totalRequired = items.length;
+  let progress =
+    totalRequired > 0 ? Math.round((filledRequired / totalRequired) * 100) : 100;
+
+  if (hasPublishing && progress < 100) {
+    const inFlight = items.filter(
+      (item) => item.status === 'publishing' || item.status === 'scheduled',
+    ).length;
+    progress = Math.min(
+      99,
+      Math.round(((filledRequired + inFlight * 0.35) / totalRequired) * 100),
+    );
+  }
 
   return {
-    totalRequired: activeRequired.length,
+    totalRequired,
     filledRequired,
     missingPlatforms,
-    isValid: missingPlatforms.length === 0,
+    isValid: missingPlatforms.length === 0 && filledRequired === totalRequired,
     progress,
+    items,
+    hasPublishing,
   };
 }

@@ -10,6 +10,8 @@ export interface ServiceRequiredPlatform {
   platform: string;
   social_media_name_id: string | null;
   custom_platform_name: string | null;
+  platform_account_id: string | null;
+  platform_account_label: string | null;
   is_active: boolean;
   organization_id: string | null;
   created_at: string;
@@ -32,6 +34,8 @@ export interface CreateServiceRequiredPlatformData {
   platform: string;
   social_media_name_id?: string | null;
   custom_platform_name?: string | null;
+  platform_account_id?: string | null;
+  platform_account_label?: string | null;
   is_active?: boolean;
   organization_id: string;
 }
@@ -40,10 +44,35 @@ export interface UpdateServiceRequiredPlatformData {
   platform?: string;
   social_media_name_id?: string | null;
   custom_platform_name?: string | null;
+  platform_account_id?: string | null;
+  platform_account_label?: string | null;
   is_active?: boolean;
 }
 
 const SERVICE_REQUIRED_PLATFORMS_QUERY_KEY = 'serviceRequiredPlatforms';
+
+function duplicateIdentity(data: {
+  platform: string;
+  social_media_name_id?: string | null;
+  platform_account_id?: string | null;
+}) {
+  if (String(data.platform_account_id ?? '').trim()) {
+    return { field: 'platform_account_id' as const, value: data.platform_account_id!.trim() };
+  }
+  return { field: 'social_media_name_id' as const, value: data.social_media_name_id ?? null };
+}
+
+function duplicateDisplayName(data: {
+  platform: string;
+  custom_platform_name?: string | null;
+  platform_account_label?: string | null;
+  social_media_name_id?: string | null;
+}) {
+  if (data.platform_account_label?.trim()) return data.platform_account_label.trim();
+  if (data.custom_platform_name?.trim()) return data.custom_platform_name.trim();
+  if (data.social_media_name_id) return 'selected social media name';
+  return 'this platform';
+}
 
 export const useServiceRequiredPlatforms = (serviceId?: string) => {
   const queryClient = useQueryClient();
@@ -109,12 +138,15 @@ export const useServiceRequiredPlatforms = (serviceId?: string) => {
       }
 
       // Check if a duplicate exists (including inactive ones)
-      const { data: existingPlatforms, error: checkError } = await supabase
+      const identity = duplicateIdentity(data);
+      let duplicateQuery = supabase
         .from('service_required_platforms')
         .select('id, is_active')
         .eq('service_id', data.service_id)
         .eq('platform', data.platform)
-        .eq('social_media_name_id', data.social_media_name_id || null);
+        .eq(identity.field, identity.value);
+
+      const { data: existingPlatforms, error: checkError } = await duplicateQuery;
 
       if (checkError) {
         throw checkError;
@@ -130,6 +162,9 @@ export const useServiceRequiredPlatforms = (serviceId?: string) => {
             .update({
               is_active: true,
               custom_platform_name: data.custom_platform_name || null,
+              platform_account_id: data.platform_account_id || null,
+              platform_account_label: data.platform_account_label || null,
+              social_media_name_id: data.social_media_name_id || null,
             })
             .eq('id', existingPlatform.id)
             .select(`
@@ -143,8 +178,7 @@ export const useServiceRequiredPlatforms = (serviceId?: string) => {
           return reactivatedPlatform as ServiceRequiredPlatform;
         } else {
           // Active duplicate exists - throw user-friendly error
-          const platformName = data.custom_platform_name || 
-            (data.social_media_name_id ? 'selected social media name' : 'this platform');
+          const platformName = duplicateDisplayName(data);
           throw new Error(`This platform (${data.platform}) with ${platformName} is already configured as a required platform for this service.`);
         }
       }
@@ -157,6 +191,8 @@ export const useServiceRequiredPlatforms = (serviceId?: string) => {
           platform: data.platform,
           social_media_name_id: data.social_media_name_id || null,
           custom_platform_name: data.custom_platform_name || null,
+          platform_account_id: data.platform_account_id || null,
+          platform_account_label: data.platform_account_label || null,
           is_active: data.is_active ?? true,
           organization_id: data.organization_id,
           created_by: (await supabase.auth.getUser()).data.user?.id,
@@ -171,8 +207,7 @@ export const useServiceRequiredPlatforms = (serviceId?: string) => {
       if (error) {
         // Handle unique constraint violation with user-friendly message
         if (error.code === '23505' || error.message?.includes('unique constraint') || error.message?.includes('duplicate key')) {
-          const platformName = data.custom_platform_name || 
-            (data.social_media_name_id ? 'selected social media name' : 'this platform');
+          const platformName = duplicateDisplayName(data);
           throw new Error(`This platform (${data.platform}) with ${platformName} is already configured as a required platform for this service.`);
         }
         throw error;
@@ -206,7 +241,7 @@ export const useServiceRequiredPlatforms = (serviceId?: string) => {
       // Get current platform data to check for duplicates
       const { data: currentPlatform, error: fetchError } = await supabase
         .from('service_required_platforms')
-        .select('service_id, platform, social_media_name_id')
+        .select('service_id, platform, social_media_name_id, platform_account_id')
         .eq('id', id)
         .single();
 
@@ -214,22 +249,34 @@ export const useServiceRequiredPlatforms = (serviceId?: string) => {
 
       // Check if update would create a duplicate
       const newPlatform = updates.platform || currentPlatform.platform;
-      const newSocialMediaNameId = updates.social_media_name_id !== undefined 
-        ? updates.social_media_name_id 
+      const newSocialMediaNameId = updates.social_media_name_id !== undefined
+        ? updates.social_media_name_id
         : currentPlatform.social_media_name_id;
+      const newPlatformAccountId = updates.platform_account_id !== undefined
+        ? updates.platform_account_id
+        : currentPlatform.platform_account_id;
+
+      const identity = String(newPlatformAccountId ?? '').trim()
+        ? { field: 'platform_account_id' as const, value: String(newPlatformAccountId).trim() }
+        : { field: 'social_media_name_id' as const, value: newSocialMediaNameId || null };
 
       const { data: duplicateCheck, error: checkError } = await supabase
         .from('service_required_platforms')
         .select('id')
         .eq('service_id', currentPlatform.service_id)
         .eq('platform', newPlatform)
-        .eq('social_media_name_id', newSocialMediaNameId || null)
-        .neq('id', id); // Exclude current platform
+        .eq(identity.field, identity.value)
+        .neq('id', id);
 
       if (checkError) throw checkError;
 
       if (duplicateCheck && duplicateCheck.length > 0) {
-        const platformName = updates.custom_platform_name || 'selected social media name';
+        const platformName = duplicateDisplayName({
+          platform: newPlatform,
+          custom_platform_name: updates.custom_platform_name,
+          platform_account_label: updates.platform_account_label,
+          social_media_name_id: newSocialMediaNameId,
+        });
         throw new Error(`This platform (${newPlatform}) with ${platformName} is already configured as a required platform for this service.`);
       }
 
