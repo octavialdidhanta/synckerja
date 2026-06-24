@@ -17,6 +17,7 @@ type Props = {
   platform: string;
   accountLabel: string;
   isPending?: boolean;
+  platformNote?: string;
   onConfirm: () => void;
 };
 
@@ -26,6 +27,7 @@ export function DeletePublishedConfirmDialog({
   platform,
   accountLabel,
   isPending = false,
+  platformNote,
   onConfirm,
 }: Props) {
   const { t } = useTranslation();
@@ -37,11 +39,16 @@ export function DeletePublishedConfirmDialog({
           <AlertDialogTitle>
             {t('digitalMarketing.scheduledPosts.deleteFromPlatformConfirmTitle')}
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            {t('digitalMarketing.scheduledPosts.deleteFromPlatformConfirmBody', {
-              platform,
-              account: accountLabel,
-            })}
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>
+                {t('digitalMarketing.scheduledPosts.deleteFromPlatformConfirmBody', {
+                  platform,
+                  account: accountLabel,
+                })}
+              </p>
+              {platformNote ? <p>{platformNote}</p> : null}
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

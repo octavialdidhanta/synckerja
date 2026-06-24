@@ -6,6 +6,7 @@ export type DeletePlanPlatformPublishResult = {
   ok?: boolean;
   already_deleted?: boolean;
   nothing_to_delete_on_platform?: boolean;
+  platform_only_db_cleanup?: boolean;
   error?: string;
 };
 
@@ -26,6 +27,8 @@ export async function deletePlanPlatformPublish(args: {
 
   if (platform === 'YouTube') {
     body.channel_id = args.accountId;
+  } else if (platform === 'TikTok') {
+    body.open_id = args.accountId;
   } else {
     throw new Error(`delete_not_supported:${platform}`);
   }

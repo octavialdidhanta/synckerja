@@ -14,8 +14,7 @@ import {
   isPlanEligibleForTikTokAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "../scheduledPosts/scheduledPostEligibility.ts";
-import { buildPlanPostMetadataUpdates } from "../scheduledPosts/syncPlanPostMetadata.ts";
-import { syncPlanDoneStateForPlan } from "../scheduledPosts/syncPlanDoneStateDb.ts";
+import { syncPlanCompletionStateForPlan } from "../scheduledPosts/syncPlanCompletionStateDb.ts";
 import type { ScheduledPostRow } from "../scheduledPosts/scheduledPostTypes.ts";
 import { DEFAULT_PRIVACY_LEVEL } from "../scheduledPosts/scheduledPostTypes.ts";
 
@@ -124,13 +123,7 @@ async function upsertTikTokLink(
     }
   }
 
-  const meta = buildPlanPostMetadataUpdates(plan.post_date);
-  await admin
-    .from("social_media_plans")
-    .update({ ...meta, updated_at: new Date().toISOString() })
-    .eq("id", plan.id);
-
-  await syncPlanDoneStateForPlan(admin, plan.id);
+  await syncPlanCompletionStateForPlan(admin, plan.id);
 }
 
 async function finalizeTikTokPublish(

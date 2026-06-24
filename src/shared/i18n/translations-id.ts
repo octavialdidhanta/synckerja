@@ -874,6 +874,8 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.deleteFromPlatformSuccess": "Posting berhasil dihapus dari platform",
   "digitalMarketing.scheduledPosts.deleteFromPlatformAlreadyRemoved": "Link dibersihkan (posting sudah tidak ada di platform)",
   "digitalMarketing.scheduledPosts.deleteFromPlatformFailed": "Gagal menghapus dari platform",
+  "digitalMarketing.scheduledPosts.deleteFromPlatformTikTokNote": "Video tetap ada di TikTok. Hanya link dan jadwal di Synckerja yang akan dihapus.",
+  "digitalMarketing.scheduledPosts.deleteFromPlatformTikTokSuccess": "Link dan jadwal di Synckerja berhasil dibersihkan (video tetap ada di TikTok)",
   "digitalMarketing.scheduledPosts.deleteScopesMissing": "Hubungkan ulang YouTube dengan izin mengelola video sebelum menghapus",
   "digitalMarketing.scheduledPosts.privacyLabel": "Visibilitas",
   "digitalMarketing.scheduledPosts.privacyLockedHint": "Visibilitas terkunci. Batalkan jadwal untuk mengubah.",

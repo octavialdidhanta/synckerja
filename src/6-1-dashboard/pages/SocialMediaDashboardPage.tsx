@@ -48,12 +48,17 @@ import { useBatchApprovalAccess } from "../hook/useBatchApprovalAccess";
 import { useSyncPicProduction } from "../hook/useSyncPicProduction";
 import { useApprovalTaskStepCreation } from "../hook/useApprovalTaskStepCreation";
 import DailyTaskSelectorDialog from "../modal/DailyTaskSelectorDialog";
+import {
+  planNeedsStaleMetadataSync,
+  syncPlanCompletionStateClient,
+} from '@/6-1-scheduled-posts/lib/syncPlanCompletionStateClient';
 
 const SocialMediaContent = () => {
   const { tab } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { orgBootstrapPending } = useOrgBootstrapPending();
   
   // Get data from context
@@ -146,8 +151,8 @@ const SocialMediaContent = () => {
 
   const { data: activeSchedules = [] } = useOrgActiveSchedules(organizationId);
   const scheduleByPlanId = useMemo(
-    () => buildScheduleByPlanId(activeSchedules),
-    [activeSchedules],
+    () => buildScheduleByPlanId(activeSchedules, linksByPlanId),
+    [activeSchedules, linksByPlanId],
   );
 
   const { isPending: remindersPending } = useQuery(
@@ -167,6 +172,37 @@ const SocialMediaContent = () => {
         approvalAccess.loading));
 
   const showDashboardSkeleton = useSocialMediaDashboardSkeletonGate(rawDashboardPending);
+
+  const staleMetadataSyncRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!organizationId || showDashboardSkeleton || contentPlans.length === 0) return;
+
+    const stalePlans = contentPlans.filter((plan) => {
+      if (staleMetadataSyncRef.current.has(plan.id)) return false;
+      return planNeedsStaleMetadataSync(plan);
+    });
+
+    if (stalePlans.length === 0) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      for (const plan of stalePlans.slice(0, 25)) {
+        if (cancelled) break;
+        staleMetadataSyncRef.current.add(plan.id);
+        await syncPlanCompletionStateClient(plan.id);
+      }
+      if (!cancelled) {
+        await queryClient.invalidateQueries({ queryKey: ['content-plans'] });
+        await queryClient.invalidateQueries({ queryKey: ['social-media-plans'] });
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [organizationId, showDashboardSkeleton, contentPlans, queryClient]);
 
   // State hooks
   const [activeMainTab, setActiveMainTab] = useState("dashboard");
@@ -255,7 +291,6 @@ const SocialMediaContent = () => {
     ? (contentPlans.find((p) => p.id === notificationPreviewPlanId) as ContentPlan | undefined) ?? notificationPreviewPlanFetched ?? null
     : null;
 
-  const queryClient = useQueryClient();
   useEffect(() => {
     if (!notificationPreviewPlanId) return;
     queryClient.invalidateQueries({ queryKey: ['link-comments', notificationPreviewPlanId] });
@@ -473,19 +508,11 @@ const SocialMediaContent = () => {
 
         return false;
       } else if (activePerformanceTab === 'content-post') {
-        // For Content Post: Priority actual_post_date > post_date (same logic as ContentPostTab)
-        // Check actual_post_date first (most reliable - when content was actually posted)
+        if (plan.done !== true) return false;
+
         if (plan.actual_post_date) {
           const actualPostDateStr = getDateString(plan.actual_post_date);
           if (actualPostDateStr && actualPostDateStr === todayDateString) {
-            return true;
-          }
-        }
-
-        // Fallback: check post_date if actual_post_date doesn't match or doesn't exist
-        if (plan.post_date) {
-          const postDateStr = getDateString(plan.post_date);
-          if (postDateStr && postDateStr === todayDateString) {
             return true;
           }
         }
@@ -569,48 +596,39 @@ const SocialMediaContent = () => {
       }
     };
 
-    // Helper: get actual post date for a plan (plan.actual_post_date > link date > today only if hasLinks)
     const getActualPostDateForPlan = (plan: any): string | null => {
-      if (plan.actual_post_date) {
-        const d = getDateString(plan.actual_post_date);
-        if (d) return d;
-      }
-      const planLinks = allSocialMediaLinks.filter((link: { social_media_plan_id?: string; created_at?: string }) => link.social_media_plan_id === plan.id);
-      if (planLinks.length > 0) {
-        const withDate = planLinks
-          .map((l: { created_at?: string }) => l.created_at && getDateString(l.created_at))
-          .filter(Boolean) as string[];
-        if (withDate.length > 0) return withDate.sort()[0];
-        return new Date().toISOString().split('T')[0];
-      }
-      return plan.actual_post_date ? getDateString(plan.actual_post_date) : null;
+      if (!plan.actual_post_date) return null;
+      return getDateString(plan.actual_post_date);
     };
 
-    // Helper function to calculate on-time status (same logic as ContentPlanRow)
     const calculateOnTimeStatusForPlan = (plan: any): string => {
       if (!plan.post_date) return '';
-      
+
+      const stored = String(plan.on_time_status ?? '').trim();
+      if (stored === 'In Progress' || stored === 'Scheduled') return stored;
+      if (!plan.actual_post_date) return stored;
+
+      if (stored === 'Ontime' || stored.includes('Late')) return stored;
+
       const actualPostDate = getActualPostDateForPlan(plan);
-      
-      if (!actualPostDate) return '';
-      
+      if (!actualPostDate) return stored;
+
       try {
         const actual = new Date(actualPostDate);
         const planned = new Date(plan.post_date);
-        
+
         if (isNaN(actual.getTime()) || isNaN(planned.getTime())) {
           return '';
         }
-        
+
         const diffTime = actual.getTime() - planned.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         if (diffDays <= 0) {
           return 'Ontime';
-        } else {
-          return `Late ${diffDays} Day${diffDays > 1 ? 's' : ''}`;
         }
-      } catch (error) {
+        return `Late ${diffDays} Day${diffDays > 1 ? 's' : ''}`;
+      } catch {
         return '';
       }
     };

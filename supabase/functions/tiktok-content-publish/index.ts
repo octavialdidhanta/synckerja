@@ -4,11 +4,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   getUserFromBearer,
   requireActiveOrg,
+  requireOrgAdmin,
   requireTikTokContentPlatformConfigured,
   tiktokContentCorsHeaders,
   tiktokContentJson,
   tiktokContentScopesIncludePublish,
 } from "../_shared/tiktokContentAuth.ts";
+import { deleteTikTokPublishedPost } from "../_shared/scheduledPosts/deletePublished/deleteTikTokPublishedPost.ts";
 import { cancelScheduleById, cancelPendingSchedulesForPlatformAccount } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
 import { assertPlatformCanSchedule } from "../_shared/scheduledPosts/platformRegistry.ts";
 import { runScheduledPostJob } from "../_shared/scheduledPosts/runScheduledPostJob.ts";
@@ -108,6 +110,35 @@ Deno.serve(async (req: Request) => {
       ok: true,
       published_url: job.published_url,
       external_post_id: job.external_post_id,
+    }, 200);
+  }
+
+  if (action === "delete") {
+    if (!userId) return tiktokContentJson({ error: "Unauthorized" }, 401);
+    const adminForbidden = await requireOrgAdmin(admin, userId, organizationId);
+    if (adminForbidden) return adminForbidden;
+
+    const planId = String(body.social_media_plan_id ?? "").trim();
+    const openId = String(body.open_id ?? "").trim();
+    if (!planId) return tiktokContentJson({ error: "Missing social_media_plan_id" }, 400);
+    if (!openId) return tiktokContentJson({ error: "Missing open_id" }, 400);
+
+    const result = await deleteTikTokPublishedPost(admin, {
+      organizationId,
+      planId,
+      openId,
+    });
+
+    if (!result.ok) {
+      const status = result.error === "plan_not_found" ? 404 : 400;
+      return tiktokContentJson({ error: result.error }, status);
+    }
+
+    return tiktokContentJson({
+      ok: true,
+      platform_only_db_cleanup: true,
+      nothing_to_delete_on_platform: result.nothing_to_delete_on_platform,
+      cleanup: result.cleanup,
     }, 200);
   }
 

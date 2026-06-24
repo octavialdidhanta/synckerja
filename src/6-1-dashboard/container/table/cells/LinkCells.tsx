@@ -90,7 +90,15 @@ export const PostLinkCell: React.FC<PostLinkCellProps> = ({
 
   const getPostLinksDisplayText = (): string => {
     const tiktokLink = links?.find((l) => l.platform === 'TikTok' && l.url?.trim());
-    if (tiktokSchedule?.status === 'pending' || tiktokSchedule?.status === 'publishing') {
+    const linksWithUrl = (links ?? []).filter((l) => l.url?.trim());
+    const hasNonTiktokLinks = linksWithUrl.some((l) => l.platform !== 'TikTok');
+    const tiktokScheduleRelevant =
+      Boolean(tiktokSchedule) && (Boolean(tiktokLink) || !hasNonTiktokLinks);
+
+    if (
+      tiktokScheduleRelevant &&
+      (tiktokSchedule?.status === 'pending' || tiktokSchedule?.status === 'publishing')
+    ) {
       const time = tiktokSchedule.scheduledAt
         ? formatTimeWibFromUtc(tiktokSchedule.scheduledAt)
         : '';
@@ -101,23 +109,23 @@ export const PostLinkCell: React.FC<PostLinkCellProps> = ({
     if (tiktokLink) {
       return 'TikTok link added';
     }
-    if (tiktokSchedule?.status === 'failed') {
+    if (tiktokScheduleRelevant && tiktokSchedule?.status === 'failed') {
       return t('digitalMarketing.scheduledPosts.cellFailed');
     }
-    if (reelReady && (!links || links.length === 0)) {
+    if (reelReady && linksWithUrl.length === 0) {
       return t('digitalMarketing.scheduledPosts.cellReady');
     }
-    if (!links || links.length === 0) return 'Click to add social media links...';
+    if (linksWithUrl.length === 0) return 'Click to add social media links...';
 
-    if (links.length === 1) {
-      const link = links[0];
+    if (linksWithUrl.length === 1) {
+      const link = linksWithUrl[0];
       return `${link.platform} link added`;
     }
 
-    return `${links.length} social media links added`;
+    return `${linksWithUrl.length} social media links added`;
   };
 
-  const isDone = links && links.length > 0;
+  const isDone = links?.some((l) => l.url?.trim());
 
   const getTextColorClass = (): string => {
     if (isSelected) {

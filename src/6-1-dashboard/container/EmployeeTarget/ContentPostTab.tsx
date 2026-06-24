@@ -146,26 +146,12 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
     return null;
   };
 
-  // Same resolution as SocialMediaDashboardPage metrics: actual_post_date, else earliest link created_at, else today when links exist
   const getActualPostDateForPlan = useCallback(
-    (plan: { id: string; actual_post_date?: string | null; post_date?: string | null }) => {
-      if (plan.actual_post_date) {
-        const d = getDateString(plan.actual_post_date);
-        if (d) return d;
-      }
-      const planLinks = allSocialMediaLinks.filter(
-        (link: { social_media_plan_id?: string }) => link.social_media_plan_id === plan.id
-      );
-      if (planLinks.length > 0) {
-        const withDate = planLinks
-          .map((l: { created_at?: string }) => l.created_at && getDateString(l.created_at))
-          .filter(Boolean) as string[];
-        if (withDate.length > 0) return withDate.sort()[0];
-        return new Date().toISOString().split('T')[0];
-      }
-      return plan.actual_post_date ? getDateString(plan.actual_post_date) : null;
+    (plan: { id: string; actual_post_date?: string | null }) => {
+      if (!plan.actual_post_date) return null;
+      return getDateString(plan.actual_post_date);
     },
-    [allSocialMediaLinks]
+    []
   );
 
   // Calculate daily posted content count for specific PIC and exact date
@@ -186,9 +172,8 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
         return false;
       }
 
-      // Check if content is posted: done=true (toggle Done = On) OR has social media links
-      const hasLinks = allSocialMediaLinks.some(link => link.social_media_plan_id === plan.id);
-      const isPosted = plan.done === true || hasLinks;
+      // Posted only when plan is fully complete (done toggle)
+      const isPosted = plan.done === true;
       
       if (!isPosted) {
         return false;

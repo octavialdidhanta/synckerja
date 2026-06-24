@@ -31,6 +31,10 @@ import { useToast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog, logger } from '@/shared/lib/logger';
 import { cn } from '@/shared/lib/utils';
+import {
+  ON_TIME_IN_PROGRESS,
+  ON_TIME_SCHEDULED,
+} from '@/6-1-scheduled-posts/lib/derivePlanPostMetadata';
 import { CreateTaskDialog } from '@/8-2-DailyTask/section/CreateTaskDialog';
 import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
@@ -293,20 +297,29 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
     }
   };
 
-  // Calculate on-time status for display
   const displayOnTimeStatus = () => {
     if (!plan.post_date) {
       return '';
     }
 
-    // Prefer using stored on_time_status from database when available
-    if (plan.on_time_status && plan.on_time_status.trim().length > 0) {
-      return plan.on_time_status;
+    const stored = plan.on_time_status?.trim() ?? '';
+
+    if (stored === ON_TIME_IN_PROGRESS || stored === ON_TIME_SCHEDULED) {
+      return stored;
     }
 
-    // Fallback: compute using actual_post_date value
-    return calculateOnTimeStatus(plan.actual_post_date, plan.post_date);
+    if (!plan.actual_post_date) {
+      return stored || '-';
+    }
+
+    if (stored === 'Ontime' || stored.includes('Late')) {
+      return stored;
+    }
+
+    return calculateOnTimeStatus(plan.actual_post_date, plan.post_date) || '-';
   };
+
+  const onTimeStatusLabel = displayOnTimeStatus();
 
   // Calculate actual post date for display
   const displayActualPostDate = () => {
@@ -1033,14 +1046,18 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
                 'text-xs font-medium',
                 isSelected
                   ? 'text-white'
-                  : displayOnTimeStatus().includes('Late')
+                  : onTimeStatusLabel.includes('Late')
                     ? 'text-red-600'
-                    : displayOnTimeStatus() === 'Ontime'
+                    : onTimeStatusLabel === 'Ontime'
                       ? 'text-green-600'
-                      : 'text-gray-600'
+                      : onTimeStatusLabel === ON_TIME_SCHEDULED
+                        ? 'text-blue-600'
+                        : onTimeStatusLabel === ON_TIME_IN_PROGRESS
+                          ? 'text-orange-600'
+                          : 'text-gray-600'
               )}
             >
-              {displayOnTimeStatus() || '-'}
+              {onTimeStatusLabel || '-'}
             </span>
           </div>
         </td>

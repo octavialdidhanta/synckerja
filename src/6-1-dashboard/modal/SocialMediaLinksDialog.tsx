@@ -21,18 +21,20 @@ import { AutoScheduleSection } from '@/6-1-scheduled-posts/components/AutoSchedu
 import { RequiredPlatformsProgress } from '@/6-1-scheduled-posts/components/RequiredPlatformsProgress';
 import { useScheduledPostsByPlan } from '@/6-1-scheduled-posts/hooks/useScheduledPostsByPlan';
 import { buildTikTokCaption } from '@/6-1-scheduled-posts/lib/buildTikTokCaption';
-import { syncPlanDoneStateClient } from '@/6-1-scheduled-posts/lib/syncPlanDoneStateClient';
+import { syncPlanCompletionStateClient } from '@/6-1-scheduled-posts/lib/syncPlanCompletionStateClient';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useBriefExtended } from '../hook/useBriefExtended';
 import { Check } from 'lucide-react';
+import { format } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { DeletePublishedConfirmDialog } from '@/6-1-scheduled-posts/components/DeletePublishedConfirmDialog';
 import { useDeletePublishedPost } from '@/6-1-scheduled-posts/hooks/useDeletePublishedPost';
 import {
-  resolveYouTubeChannelIdForDelete,
+  resolvePlatformAccountIdForDelete,
   shouldDeleteViaPlatformPublish,
-} from '@/6-1-scheduled-posts/lib/resolveYouTubeChannelIdForDelete';
+} from '@/6-1-scheduled-posts/lib/resolvePlatformAccountIdForDelete';
 
 interface SocialMediaLinksDialogProps {
   isOpen: boolean;
@@ -362,6 +364,24 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
 
   // Track if form has been initialized to prevent reset on refetch
   const formInitializedRef = useRef(false);
+
+  useEffect(() => {
+    formInitializedRef.current = false;
+    setFormLinks([]);
+    setDeleteLinkTarget(null);
+  }, [socialMediaPlanId]);
+
+  const formattedPostDate = useMemo(() => {
+    const raw = planData?.post_date;
+    if (!raw) return null;
+    try {
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return null;
+      return format(date, 'd MMM yyyy', { locale: idLocale });
+    } catch {
+      return null;
+    }
+  }, [planData?.post_date]);
   
   // Initialize form data when dialog opens or links change
   useEffect(() => {
@@ -467,8 +487,8 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
 
     if (shouldDeleteViaPlatformPublish(link)) {
       const serverLink = links.find((row) => row.id === id);
-      const channelId = resolveYouTubeChannelIdForDelete(link, serverLink, requiredPlatforms);
-      if (!channelId || !organizationId) {
+      const accountId = resolvePlatformAccountIdForDelete(link, serverLink, requiredPlatforms);
+      if (!accountId || !organizationId) {
         toast.error(t('digitalMarketing.scheduledPosts.deleteFromPlatformFailed'));
         return;
       }
@@ -476,7 +496,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
         linkId: id,
         platform: link.platform,
         accountLabel: link.social_media_name?.trim() || link.platform,
-        accountId: channelId,
+        accountId: accountId,
       });
       return;
     }
@@ -666,7 +686,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
       }
 
       onClose();
-      await syncPlanDoneStateClient(socialMediaPlanId);
+      await syncPlanCompletionStateClient(socialMediaPlanId);
     } catch (error) {
       console.error('Error saving social media links:', error);
     }
@@ -713,8 +733,10 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
               {planTitle && (
                 <p className="mt-1 truncate text-xs text-muted-foreground">
                   Content: {planTitle}
+                  {formattedPostDate ? ` · ${formattedPostDate}` : ''}
                 </p>
               )}
+              <p className="sr-only">Plan ID: {socialMediaPlanId}</p>
             </div>
           </div>
         </DialogHeader>
@@ -999,6 +1021,11 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
         }}
         platform={deleteLinkTarget?.platform ?? 'YouTube'}
         accountLabel={deleteLinkTarget?.accountLabel ?? ''}
+        platformNote={
+          deleteLinkTarget?.platform === 'TikTok'
+            ? t('digitalMarketing.scheduledPosts.deleteFromPlatformTikTokNote')
+            : undefined
+        }
         isPending={deletePublishedMutation.isPending}
         onConfirm={() => {
           void handleDeleteLinkConfirm();

@@ -14,8 +14,7 @@ import {
   isPlanEligibleForLinkedInAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
-import { buildPlanPostMetadataUpdates } from "./syncPlanPostMetadata.ts";
-import { syncPlanDoneStateForPlan } from "./syncPlanDoneStateDb.ts";
+import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { LinkedInProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
 
 const LINKEDIN_PUBLISH_SCOPES = ["w_organization_social"] as const;
@@ -111,12 +110,7 @@ async function upsertLinkedInLink(
     }
   }
 
-  const meta = buildPlanPostMetadataUpdates(plan.post_date);
-  await admin
-    .from("social_media_plans")
-    .update({ ...meta, updated_at: new Date().toISOString() })
-    .eq("id", plan.id);
-  await syncPlanDoneStateForPlan(admin, plan.id);
+  await syncPlanCompletionStateForPlan(admin, plan.id);
 }
 
 export async function executeLinkedInScheduledPost(

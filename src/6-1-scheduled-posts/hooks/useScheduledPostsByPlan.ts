@@ -3,6 +3,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
 import type { ScheduledPost } from '../types/scheduled-post';
 import { pickTikTokScheduleForModal } from '../lib/pickPlatformScheduleDisplay';
+import { invalidatePlanPublishQueries } from '../lib/invalidatePlanPublishQueries';
 export {
   pickYouTubeScheduleForModal,
   pickInstagramScheduleForModal,
@@ -78,7 +79,6 @@ async function invokePublish(body: Record<string, unknown>) {
 }
 
 export function useSchedulePostMutation() {
-  const invalidate = useInvalidateScheduledPosts();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -105,17 +105,15 @@ export function useSchedulePostMutation() {
       });
     },
     onSuccess: (_data, vars) => {
-      invalidate(vars.planId, vars.organizationId);
-      queryClient.invalidateQueries({ queryKey: ['content-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['social-media-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['socialMediaLinks', vars.planId] });
-      queryClient.invalidateQueries({ queryKey: ['all-social-media-links'] });
+      void invalidatePlanPublishQueries(queryClient, {
+        organizationId: vars.organizationId,
+        planId: vars.planId,
+      });
     },
   });
 }
 
 export function usePostNowMutation() {
-  const invalidate = useInvalidateScheduledPosts();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -140,17 +138,16 @@ export function usePostNowMutation() {
       });
     },
     onSuccess: (_data, vars) => {
-      invalidate(vars.planId, vars.organizationId);
-      queryClient.invalidateQueries({ queryKey: ['content-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['social-media-plans'] });
-      queryClient.invalidateQueries({ queryKey: ['socialMediaLinks', vars.planId] });
-      queryClient.invalidateQueries({ queryKey: ['all-social-media-links'] });
+      void invalidatePlanPublishQueries(queryClient, {
+        organizationId: vars.organizationId,
+        planId: vars.planId,
+      });
     },
   });
 }
 
 export function useCancelScheduleMutation() {
-  const invalidate = useInvalidateScheduledPosts();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (args: { organizationId: string; scheduleId: string; planId: string }) => {
@@ -162,7 +159,10 @@ export function useCancelScheduleMutation() {
       });
     },
     onSuccess: (_data, vars) => {
-      invalidate(vars.planId, vars.organizationId);
+      void invalidatePlanPublishQueries(queryClient, {
+        organizationId: vars.organizationId,
+        planId: vars.planId,
+      });
     },
   });
 }

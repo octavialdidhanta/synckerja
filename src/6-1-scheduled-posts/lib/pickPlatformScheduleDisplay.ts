@@ -66,11 +66,19 @@ export function pickLinkedInScheduleForModal(rows: ScheduledPost[]): ScheduledPo
 }
 
 /** Dashboard post-link cell: only surface schedules that should override the link label. */
-export function pickTikTokScheduleForTableCell(rows: ScheduledPost[]): ScheduledPost | null {
+export function pickTikTokScheduleForTableCell(
+  rows: ScheduledPost[],
+  options?: { hasTikTokLink?: boolean; hasNonTiktokLinks?: boolean },
+): ScheduledPost | null {
   const tiktok = rows
     .filter((s) => s.platform === 'TikTok' && s.status !== 'cancelled')
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   if (!tiktok.length) return null;
+
+  const hasTikTokLink = options?.hasTikTokLink ?? false;
+  const hasNonTiktokLinks = options?.hasNonTiktokLinks ?? false;
+  const scheduleRelevant = hasTikTokLink || !hasNonTiktokLinks;
+  if (!scheduleRelevant) return null;
 
   const active = tiktok.find((s) => ACTIVE_STATUSES.has(s.status));
   if (active) return active;
@@ -89,7 +97,10 @@ export function pickTikTokScheduleForTableCell(rows: ScheduledPost[]): Scheduled
   return latest;
 }
 
-export function buildScheduleByPlanId(rows: ScheduledPost[]): Record<string, ScheduledPost> {
+export function buildScheduleByPlanId(
+  rows: ScheduledPost[],
+  linksByPlanId?: Record<string, Array<{ platform: string; url: string | null }>>,
+): Record<string, ScheduledPost> {
   const byPlan = new Map<string, ScheduledPost[]>();
   for (const row of rows) {
     if (row.platform !== 'TikTok') continue;
@@ -100,7 +111,12 @@ export function buildScheduleByPlanId(rows: ScheduledPost[]): Record<string, Sch
 
   const map: Record<string, ScheduledPost> = {};
   for (const [planId, planRows] of byPlan) {
-    const picked = pickTikTokScheduleForTableCell(planRows);
+    const planLinks = linksByPlanId?.[planId] ?? [];
+    const linksWithUrl = planLinks.filter((l) => l.url?.trim());
+    const picked = pickTikTokScheduleForTableCell(planRows, {
+      hasTikTokLink: linksWithUrl.some((l) => l.platform === 'TikTok'),
+      hasNonTiktokLinks: linksWithUrl.some((l) => l.platform !== 'TikTok'),
+    });
     if (picked) map[planId] = picked;
   }
   return map;

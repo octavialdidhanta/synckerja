@@ -20,8 +20,7 @@ import {
   isReelContentType,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
-import { buildPlanPostMetadataUpdates } from "./syncPlanPostMetadata.ts";
-import { syncPlanDoneStateForPlan } from "./syncPlanDoneStateDb.ts";
+import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { ScheduledPostRow, YouTubeProviderConfig } from "./scheduledPostTypes.ts";
 import { DEFAULT_YOUTUBE_SCHEDULE_PRIVACY } from "./normalizeYouTubeSchedulePrivacy.ts";
 
@@ -121,13 +120,7 @@ async function upsertYouTubeLink(
     }
   }
 
-  const meta = buildPlanPostMetadataUpdates(plan.post_date);
-  await admin
-    .from("social_media_plans")
-    .update({ ...meta, updated_at: new Date().toISOString() })
-    .eq("id", plan.id);
-
-  await syncPlanDoneStateForPlan(admin, plan.id);
+  await syncPlanCompletionStateForPlan(admin, plan.id);
 }
 
 async function finalizeYouTubePublish(

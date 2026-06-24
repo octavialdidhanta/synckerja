@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
-import { useInvalidateScheduledPosts } from './useScheduledPostsByPlan';
+import { invalidatePlanPublishQueries } from '../lib/invalidatePlanPublishQueries';
+import { syncPlanCompletionStateClient } from '../lib/syncPlanCompletionStateClient';
 
 export type PlatformPublishFunction =
   | 'tiktok-content-publish'
@@ -21,22 +22,18 @@ async function invokePlatformPublish(
 }
 
 export function usePlatformScheduleMutations(functionName: PlatformPublishFunction) {
-  const invalidate = useInvalidateScheduledPosts();
   const queryClient = useQueryClient();
 
-  const onSuccess = (planId: string, organizationId: string) => {
-    invalidate(planId, organizationId);
-    queryClient.invalidateQueries({ queryKey: ['content-plans'] });
-    queryClient.invalidateQueries({ queryKey: ['social-media-plans'] });
-    queryClient.invalidateQueries({ queryKey: ['socialMediaLinks', planId] });
-    queryClient.invalidateQueries({ queryKey: ['all-social-media-links'] });
+  const onSuccess = async (planId: string, organizationId: string) => {
+    await syncPlanCompletionStateClient(planId);
+    await invalidatePlanPublishQueries(queryClient, { organizationId, planId });
   };
 
   const scheduleMutation = useMutation({
     mutationFn: (args: Record<string, unknown>) =>
       invokePlatformPublish(functionName, { action: 'schedule', ...args }),
     onSuccess: (_data, vars) => {
-      onSuccess(
+      void onSuccess(
         String(vars.social_media_plan_id ?? vars.planId),
         String(vars.organization_id ?? vars.organizationId),
       );
@@ -47,7 +44,7 @@ export function usePlatformScheduleMutations(functionName: PlatformPublishFuncti
     mutationFn: (args: Record<string, unknown>) =>
       invokePlatformPublish(functionName, { action: 'post_now', ...args }),
     onSuccess: (_data, vars) => {
-      onSuccess(
+      void onSuccess(
         String(vars.social_media_plan_id ?? vars.planId),
         String(vars.organization_id ?? vars.organizationId),
       );
@@ -67,7 +64,7 @@ export function usePlatformScheduleMutations(functionName: PlatformPublishFuncti
         social_media_plan_id: args.planId,
       }),
     onSuccess: (_data, vars) => {
-      invalidate(vars.planId, vars.organizationId);
+      void onSuccess(vars.planId, vars.organizationId);
     },
   });
 

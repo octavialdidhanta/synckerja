@@ -875,6 +875,8 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.deleteFromPlatformSuccess": "Post removed from platform",
   "digitalMarketing.scheduledPosts.deleteFromPlatformAlreadyRemoved": "Link cleared (post was already removed from platform)",
   "digitalMarketing.scheduledPosts.deleteFromPlatformFailed": "Failed to delete from platform",
+  "digitalMarketing.scheduledPosts.deleteFromPlatformTikTokNote": "The video will remain on TikTok. Only the link and schedule in Synckerja will be removed.",
+  "digitalMarketing.scheduledPosts.deleteFromPlatformTikTokSuccess": "Link and schedule cleared in Synckerja (video remains on TikTok)",
   "digitalMarketing.scheduledPosts.deleteScopesMissing": "Reconnect YouTube with permission to manage videos before deleting",
   "digitalMarketing.scheduledPosts.privacyLabel": "Visibility",
   "digitalMarketing.scheduledPosts.privacyLockedHint": "Visibility is locked. Cancel the schedule to change it.",

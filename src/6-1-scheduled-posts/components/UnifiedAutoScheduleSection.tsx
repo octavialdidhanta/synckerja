@@ -560,6 +560,11 @@ export function UnifiedAutoScheduleSection({
         }}
         platform={deleteTarget?.platform ?? 'YouTube'}
         accountLabel={deleteTarget?.accountLabel ?? ''}
+        platformNote={
+          deleteTarget?.platform === 'TikTok'
+            ? t('digitalMarketing.scheduledPosts.deleteFromPlatformTikTokNote')
+            : undefined
+        }
         isPending={deletePublishedMutation.isPending}
         onConfirm={() => {
           void handleDeleteConfirm();

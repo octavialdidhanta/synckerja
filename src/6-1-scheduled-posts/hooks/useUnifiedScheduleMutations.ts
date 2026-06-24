@@ -2,7 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
 import { buildPlatformPublishPayload, getEdgeFunctionForPlatform } from '../lib/buildPlatformPublishPayload';
-import { useInvalidateScheduledPosts } from './useScheduledPostsByPlan';
+import { invalidatePlanPublishQueries } from '../lib/invalidatePlanPublishQueries';
+import { syncPlanCompletionStateClient } from '../lib/syncPlanCompletionStateClient';
 
 async function invokePlatformPublish(
   platform: string,
@@ -20,15 +21,11 @@ async function invokePlatformPublish(
 }
 
 export function useUnifiedScheduleMutations() {
-  const invalidate = useInvalidateScheduledPosts();
   const queryClient = useQueryClient();
 
-  const onSuccess = (planId: string, organizationId: string) => {
-    invalidate(planId, organizationId);
-    queryClient.invalidateQueries({ queryKey: ['content-plans'] });
-    queryClient.invalidateQueries({ queryKey: ['social-media-plans'] });
-    queryClient.invalidateQueries({ queryKey: ['socialMediaLinks', planId] });
-    queryClient.invalidateQueries({ queryKey: ['all-social-media-links'] });
+  const onSuccess = async (planId: string, organizationId: string) => {
+    await syncPlanCompletionStateClient(planId);
+    await invalidatePlanPublishQueries(queryClient, { organizationId, planId });
   };
 
   const scheduleMutation = useMutation({
@@ -57,7 +54,9 @@ export function useUnifiedScheduleMutations() {
       });
       return invokePlatformPublish(args.platform, 'schedule', payload);
     },
-    onSuccess: (_data, vars) => onSuccess(vars.planId, vars.organizationId),
+    onSuccess: (_data, vars) => {
+      void onSuccess(vars.planId, vars.organizationId);
+    },
   });
 
   const postNowMutation = useMutation({
@@ -85,7 +84,9 @@ export function useUnifiedScheduleMutations() {
       });
       return invokePlatformPublish(args.platform, 'post_now', payload);
     },
-    onSuccess: (_data, vars) => onSuccess(vars.planId, vars.organizationId),
+    onSuccess: (_data, vars) => {
+      void onSuccess(vars.planId, vars.organizationId);
+    },
   });
 
   const cancelMutation = useMutation({
@@ -100,7 +101,9 @@ export function useUnifiedScheduleMutations() {
         schedule_id: args.scheduleId,
         social_media_plan_id: args.planId,
       }),
-    onSuccess: (_data, vars) => onSuccess(vars.planId, vars.organizationId),
+    onSuccess: (_data, vars) => {
+      void onSuccess(vars.planId, vars.organizationId);
+    },
   });
 
   return { scheduleMutation, postNowMutation, cancelMutation };

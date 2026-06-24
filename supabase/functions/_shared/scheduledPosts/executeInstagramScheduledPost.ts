@@ -12,8 +12,7 @@ import {
   isPlanEligibleForInstagramAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
-import { buildPlanPostMetadataUpdates } from "./syncPlanPostMetadata.ts";
-import { syncPlanDoneStateForPlan } from "./syncPlanDoneStateDb.ts";
+import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { InstagramProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
 
 const INSTAGRAM_PUBLISH_SCOPES = ["instagram_content_publish"] as const;
@@ -109,12 +108,7 @@ async function upsertInstagramLink(
     }
   }
 
-  const meta = buildPlanPostMetadataUpdates(plan.post_date);
-  await admin
-    .from("social_media_plans")
-    .update({ ...meta, updated_at: new Date().toISOString() })
-    .eq("id", plan.id);
-  await syncPlanDoneStateForPlan(admin, plan.id);
+  await syncPlanCompletionStateForPlan(admin, plan.id);
 }
 
 export async function executeInstagramScheduledPost(

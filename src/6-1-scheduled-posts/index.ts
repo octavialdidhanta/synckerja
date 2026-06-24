@@ -2,6 +2,8 @@ export * from './types/scheduled-post';
 export * from './types/platform-delivery';
 export * from './lib/computePlanDoneState';
 export * from './lib/computeRequiredPlatformsProgress';
+export * from './lib/syncPlanCompletionStateClient';
+export * from './lib/derivePlanPostMetadata';
 export * from './lib/resolveScheduledAtUtc';
 export * from './lib/validateGoogleDriveVideoLink';
 export * from './lib/buildTikTokCaption';

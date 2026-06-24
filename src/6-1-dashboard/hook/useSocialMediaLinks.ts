@@ -2,7 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
-import { syncPlanDoneStateClient } from '@/6-1-scheduled-posts/lib/syncPlanDoneStateClient';
+import { syncPlanCompletionStateClient } from '@/6-1-scheduled-posts/lib/syncPlanCompletionStateClient';
 import { SocialMediaLink, CreateSocialMediaLinkData, UpdateSocialMediaLinkData } from '@/shared/types/social-media-links';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 
@@ -34,68 +34,6 @@ export const useSocialMediaLinks = (planId?: string) => {
     refetchOnMount: false, // Don't refetch on mount if data is fresh (reduces unnecessary requests)
     retry: 1,
   });
-
-  // Helper function to calculate on-time status
-  const calculateOnTimeStatus = (actualPostDate: string | null, postDate: string) => {
-    if (!actualPostDate || !postDate) return '';
-    const actual = new Date(actualPostDate);
-    const planned = new Date(postDate);
-    if (actual <= planned) {
-      return 'Ontime';
-    } else {
-      const diffTime = Math.abs(actual.getTime() - planned.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return `Late ${diffDays} Day${diffDays > 1 ? 's' : ''}`;
-    }
-  };
-
-  // Helper function to update actual post date and on-time status
-  const updateActualPostDate = async (socialMediaPlanId: string) => {
-    const currentDate = new Date().toISOString().split('T')[0];
-    
-    // Get the plan's post_date to calculate on-time status
-    const { data: planData, error: planError } = await supabase
-      .from('social_media_plans')
-      .select('post_date')
-      .eq('id', socialMediaPlanId)
-      .single();
-
-    if (planError) {
-      console.error('Failed to get plan data:', planError);
-      return;
-    }
-
-    const onTimeStatus = calculateOnTimeStatus(currentDate, planData.post_date);
-
-    const { error } = await supabase
-      .from('social_media_plans')
-      .update({ 
-        actual_post_date: currentDate,
-        on_time_status: onTimeStatus,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', socialMediaPlanId);
-
-    if (error) {
-      console.error('Failed to update actual post date:', error);
-    }
-  };
-
-  // Helper function to clear actual post date and on-time status
-  const clearActualPostDate = async (socialMediaPlanId: string) => {
-    const { error } = await supabase
-      .from('social_media_plans')
-      .update({ 
-        actual_post_date: null,
-        on_time_status: '',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', socialMediaPlanId);
-
-    if (error) {
-      console.error('Failed to clear actual post date:', error);
-    }
-  };
 
   // Create new social media link
   const createLinkMutation = useMutation({
@@ -137,9 +75,7 @@ export const useSocialMediaLinks = (planId?: string) => {
       
       const needsUpdate = isFirstLink && !planData?.post_link_created_by && currentEmployee?.id;
       
-      // Update actual post date when first link is created
-      await updateActualPostDate(newLink.social_media_plan_id);
-      await syncPlanDoneStateClient(newLink.social_media_plan_id);
+      await syncPlanCompletionStateClient(newLink.social_media_plan_id);
       
       // If this is the first link and post_link_created_by is not set, set it
       if (needsUpdate) {
@@ -198,7 +134,7 @@ export const useSocialMediaLinks = (planId?: string) => {
         (old: SocialMediaLink[] = []) =>
           old.map(link => link.id === updatedLink.id ? updatedLink : link)
       );
-      await syncPlanDoneStateClient(updatedLink.social_media_plan_id);
+      await syncPlanCompletionStateClient(updatedLink.social_media_plan_id);
       // Invalidate all-social-media-links query to refresh ContentPostTab immediately
       queryClient.invalidateQueries({ 
         queryKey: ['all-social-media-links'],
@@ -231,12 +167,8 @@ export const useSocialMediaLinks = (planId?: string) => {
             old.filter(link => link.id !== deletedId)
         );
         
-        // Check if this was the last link, if so, clear actual post date and on-time status
         const remainingLinks = queryClient.getQueryData([SOCIAL_MEDIA_LINKS_QUERY_KEY, planId]) as SocialMediaLink[] || [];
         if (remainingLinks.length === 0) {
-          await clearActualPostDate(planId);
-          
-          // Clear post_link_created_by when all links are deleted
           const { error: updateError } = await supabase
             .from('social_media_plans')
             .update({ 
@@ -250,7 +182,7 @@ export const useSocialMediaLinks = (planId?: string) => {
           }
         }
         
-        await syncPlanDoneStateClient(planId);
+        await syncPlanCompletionStateClient(planId);
         
         // Invalidate content plans to refresh the table
         queryClient.invalidateQueries({ queryKey: ['content-plans'] });
@@ -456,9 +388,7 @@ export const useSocialMediaLinks = (planId?: string) => {
         
         const needsUpdate = isFirstLinks && !planData?.post_link_created_by && currentEmployee?.id;
         
-        // Update actual post date when links are created
-        await updateActualPostDate(planIdForCheck);
-        await syncPlanDoneStateClient(planIdForCheck);
+        await syncPlanCompletionStateClient(planIdForCheck);
         
         // If these are the first links and post_link_created_by is not set, set it
         if (needsUpdate) {

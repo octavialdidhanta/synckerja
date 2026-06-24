@@ -1,32 +1,32 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { syncPlanCompletionStateForPlan } from "../syncPlanCompletionStateDb.ts";
 
-export type ClearYouTubePlanPublishStateResult = {
+export type ClearTikTokPlanPublishStateResult = {
   linksDeleted: number;
   schedulesUpdated: number;
   locksRemoved: number;
 };
 
-export async function clearYouTubePlanPublishState(
+export async function clearTikTokPlanPublishState(
   admin: SupabaseClient,
   args: {
     planId: string;
-    channelId: string;
+    openId: string;
   },
-): Promise<ClearYouTubePlanPublishStateResult> {
+): Promise<ClearTikTokPlanPublishStateResult> {
   const planId = args.planId.trim();
-  const channelId = args.channelId.trim();
+  const openId = args.openId.trim();
 
   const { data: linkRows } = await admin
     .from("social_media_links")
     .select("id, platform_account_open_id")
     .eq("social_media_plan_id", planId)
-    .eq("platform", "YouTube");
+    .eq("platform", "TikTok");
 
   const linksToDelete = (linkRows ?? []).filter((row) => {
-    const openId = String(row.platform_account_open_id ?? "").trim();
-    if (!openId) return true;
-    return openId === channelId;
+    const rowOpenId = String(row.platform_account_open_id ?? "").trim();
+    if (!rowOpenId) return true;
+    return rowOpenId === openId;
   });
 
   let linksDeleted = 0;
@@ -34,27 +34,27 @@ export async function clearYouTubePlanPublishState(
     const ids = linksToDelete.map((row) => row.id);
     const { error } = await admin.from("social_media_links").delete().in("id", ids);
     if (!error) linksDeleted = ids.length;
-    else console.error("clearYouTubePlanPublishState links:", error.message);
+    else console.error("clearTikTokPlanPublishState links:", error.message);
   }
 
   const { data: scheduleRows } = await admin
     .from("social_media_scheduled_posts")
     .select("id, status, provider_config, platform_account_id, external_post_id")
     .eq("social_media_plan_id", planId)
-    .eq("platform", "YouTube")
+    .eq("platform", "TikTok")
     .neq("status", "cancelled");
 
   let schedulesUpdated = 0;
   const now = new Date().toISOString();
 
   for (const row of scheduleRows ?? []) {
-    const rowChannel =
+    const rowOpenId =
       String(row.platform_account_id ?? "").trim()
-      || String((row.provider_config as Record<string, unknown>)?.channel_id ?? "").trim();
+      || String((row.provider_config as Record<string, unknown>)?.open_id ?? "").trim();
     const hasPost = Boolean(String(row.external_post_id ?? "").trim())
       || row.status === "published";
-    if (rowChannel && rowChannel !== channelId) continue;
-    if (!rowChannel && !hasPost) continue;
+    if (rowOpenId && rowOpenId !== openId) continue;
+    if (!rowOpenId && !hasPost) continue;
 
     const { error } = await admin
       .from("social_media_scheduled_posts")
@@ -68,19 +68,19 @@ export async function clearYouTubePlanPublishState(
       .eq("id", row.id);
 
     if (!error) schedulesUpdated += 1;
-    else console.error("clearYouTubePlanPublishState schedule:", error.message);
+    else console.error("clearTikTokPlanPublishState schedule:", error.message);
   }
 
   const { data: lockRows, error: lockSelectErr } = await admin
     .from("social_media_plan_schedule_manual_locks")
     .delete()
     .eq("social_media_plan_id", planId)
-    .eq("platform", "YouTube")
-    .eq("platform_account_id", channelId)
+    .eq("platform", "TikTok")
+    .eq("platform_account_id", openId)
     .select("id");
 
   if (lockSelectErr) {
-    console.error("clearYouTubePlanPublishState locks:", lockSelectErr.message);
+    console.error("clearTikTokPlanPublishState locks:", lockSelectErr.message);
   }
 
   const { count: remainingLinks } = await admin

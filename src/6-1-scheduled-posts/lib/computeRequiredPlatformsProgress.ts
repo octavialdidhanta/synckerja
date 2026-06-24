@@ -19,6 +19,7 @@ export type SocialMediaLinkInput = {
   url: string | null;
   social_media_name?: string | null;
   platform_account_open_id?: string | null;
+  created_at?: string | null;
 };
 
 export type RequiredPlatformItemStatus =
@@ -35,6 +36,7 @@ export type RequiredPlatformProgressItem = {
   platform: string;
   status: RequiredPlatformItemStatus;
   url?: string | null;
+  completedAtIso?: string | null;
 };
 
 export function filterRequiredPlatformsForContentType(
@@ -101,10 +103,12 @@ export function computeRequiredPlatformProgressItems(
 
     let status: RequiredPlatformItemStatus = 'missing';
     let url: string | null | undefined;
+    let completedAtIso: string | null = null;
 
     if (schedule?.status === 'published') {
       status = 'published';
       url = schedule.published_url;
+      completedAtIso = schedule.published_at ?? schedule.created_at ?? null;
     } else if (schedule?.status === 'publishing') {
       status = 'publishing';
     } else if (schedule?.status === 'pending') {
@@ -114,6 +118,7 @@ export function computeRequiredPlatformProgressItems(
     } else if (link && isValidLink(link)) {
       status = 'link_ready';
       url = link.url;
+      completedAtIso = link.created_at ?? null;
     }
 
     if ((status === 'published' || status === 'link_ready') && !url && link?.url) {
@@ -126,6 +131,7 @@ export function computeRequiredPlatformProgressItems(
       platform: rp.platform,
       status,
       url,
+      completedAtIso,
     };
   });
 }
