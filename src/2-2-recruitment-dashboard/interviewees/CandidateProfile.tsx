@@ -273,9 +273,9 @@ const CandidateProfile = () => {
 
   if (location.pathname.startsWith('/recruitment/candidates/')) {
     return (
-        <div className="min-h-full bg-gray-50">
+        <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-gray-50">
           {/* Header */}
-          <div className="bg-white border-b border-gray-200 shadow-sm">
+          <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
             <div className="w-full px-4 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -310,26 +310,32 @@ const CandidateProfile = () => {
             </div>
           </div>
 
-          {/* Main Layout */}
-          <div className="w-full px-4 py-4">
-            <div className="flex gap-4">
-              {/* Sidebar - narrow width so main content has more space */}
-              <div className="flex-shrink-0 w-64 max-w-[260px]">
-                <CandidateProfileSidebar candidateData={candidate} />
-              </div>
-              
-              {/* Main Content */}
-              <div className="flex-1 min-w-0">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                  <CandidateProfileTabs 
-                    candidate={candidate} 
-                    onUpdate={handleProfileUpdate} 
-                    isReadOnly={true} 
-                    hideReviews={false}
-                    isHRView={true}
-                  />
+          {/* Main Layout — pb-2 + bottom safe spacer selaras /employees */}
+          <div className="flex min-h-0 flex-1 flex-col px-4 pt-4 pb-2">
+            <div className="flex min-h-[calc(100vh-120px)] min-h-0 flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 gap-4">
+                {/* Sidebar - narrow width so main content has more space */}
+                <div className="flex w-64 max-w-[260px] flex-shrink-0 flex-col self-stretch min-h-0">
+                  <CandidateProfileSidebar candidateData={candidate} fillHeight />
+                </div>
+
+                {/* Main Content */}
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <CandidateProfileTabs
+                      candidate={candidate}
+                      onUpdate={handleProfileUpdate}
+                      isReadOnly={true}
+                      hideReviews={false}
+                      isHRView={true}
+                    />
+                  </div>
                 </div>
               </div>
+              <div
+                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+                aria-hidden
+              />
             </div>
           </div>
         </div>

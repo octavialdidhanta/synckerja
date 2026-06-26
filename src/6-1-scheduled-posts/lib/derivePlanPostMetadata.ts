@@ -7,6 +7,19 @@ import type {
 export const ON_TIME_IN_PROGRESS = 'In Progress';
 export const ON_TIME_SCHEDULED = 'Scheduled';
 
+/** True only when all required platforms are complete and post metadata reflects a finished publish. */
+export function isPostMetricComplete(plan: {
+  done?: boolean | null;
+  actual_post_date?: string | null;
+  on_time_status?: string | null;
+}): boolean {
+  if (plan.done !== true) return false;
+  if (!plan.actual_post_date) return false;
+  const onTime = String(plan.on_time_status ?? '').trim();
+  if (!onTime || onTime === ON_TIME_IN_PROGRESS || onTime === ON_TIME_SCHEDULED) return false;
+  return onTime === 'Ontime' || onTime.startsWith('Late ');
+}
+
 function isValidLink(link: SocialMediaLinkInput): boolean {
   const url = link.url?.trim() ?? '';
   const platform = link.platform?.trim() ?? '';

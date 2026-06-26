@@ -71,6 +71,10 @@ export const SocialMediaPerformanceTabs: React.FC<SocialMediaPerformanceTabsProp
           contentManagers={contentPlanners}
           digitalEmployees={digitalEmployees}
           handleEditTarget={handleEditTarget}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
         />
       </TabsContent>
 
@@ -79,6 +83,10 @@ export const SocialMediaPerformanceTabs: React.FC<SocialMediaPerformanceTabsProp
           contentManagers={creativeProductionMembers}
           digitalEmployees={digitalEmployees}
           handleEditTarget={handleEditTarget}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
         />
       </TabsContent>
 
@@ -86,6 +94,10 @@ export const SocialMediaPerformanceTabs: React.FC<SocialMediaPerformanceTabsProp
         <ContentPostTab
           contentManagers={contentPlanners}
           handleEditTarget={handleEditTarget}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
         />
       </TabsContent>
     </Tabs>

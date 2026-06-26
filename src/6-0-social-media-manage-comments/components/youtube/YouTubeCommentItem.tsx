@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import { useTranslation } from "react-i18next";
 
@@ -74,7 +74,8 @@ export function YouTubeCommentItem({
 
   const { t, i18n } = useTranslation();
 
-  const [showReplies, setShowReplies] = useState(false);
+  const [showReplies, setShowReplies] = useState(() => comment.reply_count > 0);
+  const [knownReplyCount, setKnownReplyCount] = useState(0);
 
   const name = comment.display_name?.trim() || "User";
 
@@ -86,27 +87,37 @@ export function YouTubeCommentItem({
 
   const optimisticForParent = replyControls.getOptimisticForParent(comment.id);
 
+  const replyCountVisible = Math.max(
+    comment.reply_count,
+    optimisticForParent.length,
+    knownReplyCount,
+  );
+
+  const hasReplies = replyCountVisible > 0;
+
   const repliesExpanded =
-
     !nested
-
-    && (showReplies || isReplyTarget || optimisticForParent.length > 0 || forceRepliesExpanded);
-
-  const hasReplies = comment.reply_count > 0;
+    && (showReplies || isReplyTarget || optimisticForParent.length > 0 || forceRepliesExpanded || comment.reply_count > 0);
 
   const canReply = comment.can_reply !== false;
 
-
+  const handleRepliesLoaded = useCallback((count: number) => {
+    setKnownReplyCount((prev) => Math.max(prev, count));
+    if (count > 0) {
+      setShowReplies(true);
+    }
+  }, []);
 
   useEffect(() => {
+    setKnownReplyCount(0);
+    setShowReplies(comment.reply_count > 0);
+  }, [comment.id, comment.reply_count]);
 
-    if (isReplyTarget || optimisticForParent.length > 0) {
-
+  useEffect(() => {
+    if (isReplyTarget || optimisticForParent.length > 0 || comment.reply_count > 0) {
       setShowReplies(true);
-
     }
-
-  }, [isReplyTarget, optimisticForParent.length]);
+  }, [isReplyTarget, optimisticForParent.length, comment.reply_count]);
 
 
 
@@ -186,6 +197,14 @@ export function YouTubeCommentItem({
 
             {timeLabel ? <span>{timeLabel}</span> : null}
 
+            {!nested && hasReplies ? (
+              <span className="font-medium text-foreground">
+                {t("digitalMarketing.manageComments.replyCount", {
+                  count: replyCountVisible,
+                })}
+              </span>
+            ) : null}
+
             {comment.like_count > 0 ? (
 
               <span>
@@ -237,32 +256,16 @@ export function YouTubeCommentItem({
 
             </button>
 
-            {!nested && (hasReplies || forceRepliesExpanded || optimisticForParent.length > 0) ? (
-
+            {!nested && hasReplies ? (
               <button
-
                 type="button"
-
                 className="hover:text-foreground"
-
                 onClick={() => setShowReplies((prev) => !prev)}
-
               >
-
                 {repliesExpanded
-
                   ? t("digitalMarketing.manageComments.hideReplies", "Hide replies")
-
-                  : t("digitalMarketing.manageComments.viewReplies", {
-
-                      count: comment.reply_count,
-
-                      defaultValue: `View ${comment.reply_count} replies`,
-
-                    })}
-
+                  : t("digitalMarketing.manageComments.showReplies", "Show replies")}
               </button>
-
             ) : null}
 
           </div>
@@ -288,6 +291,8 @@ export function YouTubeCommentItem({
               isMutating={isMutating}
 
               highlightedIds={highlightedIds}
+
+              onRepliesLoaded={handleRepliesLoaded}
 
             />
 

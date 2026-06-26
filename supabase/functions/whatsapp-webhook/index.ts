@@ -3,8 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   ensureWaLeadWebsiteAttribution,
   findMergeableFloatingStubLeadId,
-  resolveWebIdFromDisplayPhoneNumber,
 } from "../_shared/omnichannelPublicApi/mergeWaInboundAttribution.ts";
+import { resolveWebIdForInboundWhatsApp } from "../_shared/omnichannelPublicApi/resolveWebIdFromWhatsAppAccount.ts";
+import { syncOmnichannelWhatsAppDelivery } from "../_shared/omnichannelPublicApi/syncOmnichannelWhatsAppDelivery.ts";
 
 /** Declare Deno global for IDE when edge-runtime.d.ts is not resolved */
 declare const Deno: {
@@ -443,6 +444,7 @@ async function ensureLeadForNewConversation(
   customerWaId: string | null | undefined,
   createdByDisplayName: string,
   displayPhoneNumber?: string | null,
+  phoneNumberId?: string | null,
 ): Promise<string | null> {
   const ticketId = WA_TICKET_PREFIX + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
   const { data: existing } = await supabase.from("leads").select("id").eq("ticket_id", ticketId).maybeSingle();
@@ -465,7 +467,12 @@ async function ensureLeadForNewConversation(
   const safeTitle = (title && String(title).trim().slice(0, 100)) || source;
   const phoneNumber = source === "WhatsApp" && customerWaId ? String(customerWaId).trim() || null : null;
   const now = new Date().toISOString();
-  const webId = resolveWebIdFromDisplayPhoneNumber(displayPhoneNumber);
+  const webId = await resolveWebIdForInboundWhatsApp({
+    admin: supabase,
+    organizationId: orgId,
+    phoneNumberId,
+    displayPhoneNumber,
+  });
 
   if (phoneNumber) {
     const formLeadId = await findMergeableFormLeadId(supabase, orgId, {
@@ -478,6 +485,7 @@ async function ensureLeadForNewConversation(
         .update({
           ticket_id: ticketId,
           phone_number: phoneNumber,
+          ...(webId ? { web_id: webId } : {}),
           updated_at: now,
         })
         .eq("id", formLeadId);
@@ -504,6 +512,7 @@ async function ensureLeadForNewConversation(
           title: safeTitle,
           source,
           phone_number: phoneNumber,
+          ...(webId ? { web_id: webId } : {}),
           updated_at: now,
         })
         .eq("id", floatingStubId);
@@ -535,6 +544,7 @@ async function ensureLeadForNewConversation(
     services: null,
     followup: 0,
     phone_number: phoneNumber,
+    ...(webId ? { web_id: webId } : {}),
   });
   if (error) {
     console.error("ensureLeadForNewConversation: insert error", error);
@@ -544,10 +554,9 @@ async function ensureLeadForNewConversation(
   return newLeadId;
 }
 
-function resolveVialdiWeddingWebIdFromDisplayPhoneNumber(
-  displayPhoneNumber: string | null | undefined,
+function resolveVialdiWeddingWebIdFromInbound(
+  webId: string | null,
 ): "vialdi-wedding" | null {
-  const webId = resolveWebIdFromDisplayPhoneNumber(displayPhoneNumber);
   return webId === "vialdi-wedding" ? "vialdi-wedding" : null;
 }
 
@@ -558,11 +567,27 @@ async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
   customerWaId: string;
   customerName: string | null;
   displayPhoneNumber: string | null;
+  phoneNumberId: string | null;
   timestampIso: string;
 }): Promise<void> {
-  const { supabase, orgId, convId, customerWaId, customerName, displayPhoneNumber, timestampIso } = args;
+  const {
+    supabase,
+    orgId,
+    convId,
+    customerWaId,
+    customerName,
+    displayPhoneNumber,
+    phoneNumberId,
+    timestampIso,
+  } = args;
 
-  const webId = resolveVialdiWeddingWebIdFromDisplayPhoneNumber(displayPhoneNumber);
+  const resolvedWebId = await resolveWebIdForInboundWhatsApp({
+    admin: supabase,
+    organizationId: orgId,
+    phoneNumberId,
+    displayPhoneNumber,
+  });
+  const webId = resolveVialdiWeddingWebIdFromInbound(resolvedWebId);
   if (!webId) return;
 
   const ticketId = WA_TICKET_PREFIX + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -589,6 +614,7 @@ async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
       ticketId,
       customerWaId,
       displayPhoneNumber,
+      phoneNumberId,
       inboundTimestampIso: timestampIso,
     });
 
@@ -909,6 +935,13 @@ Deno.serve(async (req: Request) => {
                   statusPayload: st as Record<string, unknown>,
                 });
 
+                await syncOmnichannelWhatsAppDelivery(supabase, {
+                  waMessageId,
+                  metaStatus: status,
+                  statusPayload: st as Record<string, unknown>,
+                  statusTimestampIso: statusTimestamp,
+                });
+
                 await persistWhatsappMetaSessionExpiryFromStatusPayload(supabase, st as Record<string, unknown>);
 
                 // If Meta reports the outbound message failed due to session window expiry, mark the conversation Expired
@@ -1125,6 +1158,7 @@ Deno.serve(async (req: Request) => {
                     customerWaId,
                     account.created_by_display_name,
                     account.display_phone_number,
+                    phoneNumberId,
                   );
                 }
 
@@ -1147,6 +1181,7 @@ Deno.serve(async (req: Request) => {
                   customerWaId,
                   customerName: customerName ?? null,
                   displayPhoneNumber: account.display_phone_number,
+                  phoneNumberId,
                   timestampIso: timestamp,
                 });
 

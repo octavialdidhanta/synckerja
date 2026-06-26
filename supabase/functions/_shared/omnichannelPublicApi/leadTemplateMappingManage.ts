@@ -7,12 +7,15 @@ import {
 } from "./leadFormDataKeys.ts";
 import {
   buildPreviewParamsFromMapping,
-  countTemplateBodySlotsFromComponents,
   parseParameterMapping,
   resolveBodyKeyValue,
   suggestLeadParameterMapping,
   validateParameterMappingForSlots,
 } from "./leadTemplateMapping.ts";
+import {
+  fetchLeadTemplateBodySlotCount,
+  resolveWabaIdForOrg,
+} from "./leadWhatsAppTemplateSlots.ts";
 import {
   fetchMetaTemplateComponents,
   renderFilledBodyTemplateText,
@@ -32,28 +35,15 @@ async function fetchTemplateBodySlotCount(
   organizationId: string,
   templateName: string,
   templateLanguage: string,
+  webId?: string,
 ): Promise<{ ok: true; slotCount: number } | { ok: false; error: string }> {
-  const creds = await resolveOrganizationWhatsAppCredentials(admin, organizationId);
-  if (!creds.ok) return { ok: false, error: creds.error };
-
-  const wabaId = await resolveWabaId(admin, organizationId, creds.credentials);
-  if (!wabaId) {
-    return { ok: false, error: "WhatsApp Business Account ID tidak ditemukan." };
-  }
-
-  const components = await fetchMetaTemplateComponents(
-    wabaId,
-    creds.credentials.accessToken,
+  return fetchLeadTemplateBodySlotCount(
+    admin,
+    organizationId,
     templateName,
     templateLanguage,
+    webId,
   );
-
-  if (!components) {
-    return { ok: false, error: "Template Meta tidak ditemukan atau belum APPROVED." };
-  }
-
-  const slotCount = countTemplateBodySlotsFromComponents(components);
-  return { ok: true, slotCount };
 }
 
 async function resolveWabaId(
@@ -61,36 +51,7 @@ async function resolveWabaId(
   organizationId: string,
   credentials: { whatsappAccountId: string; phoneNumberId: string; accessToken: string },
 ): Promise<string | null> {
-  const { data: acc } = await admin
-    .from("organization_whatsapp_accounts")
-    .select("whatsapp_business_account_id")
-    .eq("id", credentials.whatsappAccountId)
-    .eq("organization_id", organizationId)
-    .maybeSingle();
-
-  let wabaId = String(acc?.whatsapp_business_account_id ?? "").trim();
-  if (!wabaId) {
-    const { data: meta } = await admin
-      .from("organization_meta_config")
-      .select("whatsapp_business_account_id")
-      .eq("organization_id", organizationId)
-      .maybeSingle();
-    wabaId = String(meta?.whatsapp_business_account_id ?? "").trim();
-  }
-
-  if (!wabaId && credentials.phoneNumberId) {
-    const fields = encodeURIComponent("whatsapp_business_account{id}");
-    const url =
-      `https://graph.facebook.com/v21.0/${encodeURIComponent(credentials.phoneNumberId)}?fields=${fields}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${credentials.accessToken}` },
-    });
-    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    const wabaObj = json.whatsapp_business_account as { id?: string } | undefined;
-    wabaId = wabaObj?.id != null ? String(wabaObj.id).trim() : "";
-  }
-
-  return wabaId || null;
+  return resolveWabaIdForOrg(admin, organizationId, credentials);
 }
 
 const MAPPER_SUBMISSION_LOOKBACK_DAYS = 30;
@@ -233,6 +194,7 @@ export async function handleLeadTemplateMappingAction(
       organizationId,
       templateName,
       templateLanguage,
+      webId,
     );
     if (!slots.ok) return json({ success: false, error: slots.error }, 422);
 
@@ -329,7 +291,7 @@ export async function handleLeadTemplateMappingAction(
     const bodyParams = buildPreviewParamsFromMapping(bodyKeys, leadArgs);
 
     let previewText = bodyParams.filter((p) => p !== "-").join(" · ");
-    const creds = await resolveOrganizationWhatsAppCredentials(admin, organizationId);
+    const creds = await resolveOrganizationWhatsAppCredentials(admin, organizationId, { webId });
     if (creds.ok && templateName) {
       const wabaId = await resolveWabaId(admin, organizationId, creds.credentials);
       if (wabaId) {
@@ -378,6 +340,7 @@ export async function handleLeadTemplateMappingAction(
       organizationId,
       templateName,
       templateLanguage,
+      webId,
     );
     if (!slots.ok) return json({ success: false, error: slots.error }, 422);
 

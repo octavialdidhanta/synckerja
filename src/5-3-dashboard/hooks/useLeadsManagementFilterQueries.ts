@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { getLeadStatusDisplayName } from "@/5-1-leads-management/utils/leadStatusDisplay";
 
+import { API_LEAD_KNOWN_SOURCES, formatLeadWebPropertyDisplay } from "@/5-3-dashboard/lib/apiLeadDisplayLabels";
+
 /**
  * Opsi filter kolom Source: master `lead_sources` + nilai `lead.source` yang ada di data
  * (mis. default "Website") agar dropdown tidak hanya "All Sources" bila master DB kosong/tidak lengkap.
@@ -15,6 +17,11 @@ export function buildLeadSourceFilterOptions(
     const n = (s.name ?? "").trim();
     if (n) byName.set(n, { id: s.id, name: n });
   }
+  for (const canonical of API_LEAD_KNOWN_SOURCES) {
+    if (!byName.has(canonical)) {
+      byName.set(canonical, { id: `__api_canonical__${canonical}`, name: canonical });
+    }
+  }
   let seq = 0;
   for (const l of leads) {
     const n = (l.source ?? "").trim();
@@ -25,6 +32,25 @@ export function buildLeadSourceFilterOptions(
   }
   return [...byName.values()].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
+/** Opsi filter kolom Web / Property: distinct `web_id` dari leads API. */
+export function buildWebPropertyFilterOptions(
+  leads: Array<{ web_id?: string | null }>,
+): Array<{ id: string; value: string; label: string }> {
+  const byWebId = new Map<string, { id: string; value: string; label: string }>();
+  let seq = 0;
+  for (const l of leads) {
+    const raw = (l.web_id ?? "").trim();
+    if (!raw) continue;
+    if (!byWebId.has(raw)) {
+      const label = formatLeadWebPropertyDisplay(raw) || raw;
+      byWebId.set(raw, { id: `__web__${seq++}`, value: raw, label });
+    }
+  }
+  return [...byWebId.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
   );
 }
 

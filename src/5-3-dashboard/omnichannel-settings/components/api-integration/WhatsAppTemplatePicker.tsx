@@ -38,6 +38,8 @@ type WhatsAppTemplatePickerProps = {
   leadMappingComplete?: boolean;
   /** Hide helper line under label (e.g. when parent already shows section subtitle). */
   hideApprovedHint?: boolean;
+  /** Load approved templates from this WhatsApp account (mapped per web_id). */
+  whatsappAccountId?: string | null;
 };
 
 function rowLanguageCode(row: TemplateTableRow): string {
@@ -82,9 +84,13 @@ export function WhatsAppTemplatePicker({
   queryEnabled = true,
   leadMappingComplete = false,
   hideApprovedHint = false,
+  whatsappAccountId,
 }: WhatsAppTemplatePickerProps) {
   const { t } = useTranslation();
-  const { rows, isLoading, waConfigured } = useApprovedWhatsAppTemplatesFlat({ enabled: queryEnabled });
+  const { rows, isLoading, waConfigured } = useApprovedWhatsAppTemplatesFlat({
+    enabled: queryEnabled,
+    whatsappAccountId,
+  });
 
   const [open, setOpen] = useState(false);
 

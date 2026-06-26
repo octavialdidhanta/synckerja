@@ -19,18 +19,25 @@ import {
   computeProgressAgainstMonthlyTarget,
   normalizeMonthlyTargetValue,
 } from '../../utils/performanceEmployeeMetrics';
+import { isPostMetricComplete } from '@/6-1-scheduled-posts/lib/derivePlanPostMetadata';
 
 interface ContentPostTabProps {
   contentManagers: ContentManager[];
   handleEditTarget: (manager: ContentManager) => void;
+  selectedDate: Date;
+  setSelectedDate: React.Dispatch<React.SetStateAction<Date>>;
+  selectedMonth: Date;
+  setSelectedMonth: React.Dispatch<React.SetStateAction<Date>>;
 }
 
 const ContentPostTab: React.FC<ContentPostTabProps> = ({
   contentManagers,
-  handleEditTarget
+  handleEditTarget,
+  selectedDate: dailyTargetDate,
+  setSelectedDate: setDailyTargetDate,
+  selectedMonth: monthlyTargetDate,
+  setSelectedMonth: setMonthlyTargetDate,
 }) => {
-  const [dailyTargetDate, setDailyTargetDate] = useState<Date>(new Date());
-  const [monthlyTargetDate, setMonthlyTargetDate] = useState<Date>(new Date());
   const [currentPICPage, setCurrentPICPage] = useState(0);
   const [isDailyDateEditing, setIsDailyDateEditing] = useState(false);
   const [isMonthlyDateEditing, setIsMonthlyDateEditing] = useState(false);
@@ -172,10 +179,8 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
         return false;
       }
 
-      // Posted only when plan is fully complete (done toggle)
-      const isPosted = plan.done === true;
-      
-      if (!isPosted) {
+      // Posted only when all required platforms are complete with valid post metadata
+      if (!isPostMetricComplete(plan)) {
         return false;
       }
 
@@ -202,7 +207,7 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
       // But for now, we require date match - so return false
       return false;
     }).length;
-  }, [contentPlans, allSocialMediaLinks]);
+  }, [contentPlans]);
 
   // Calculate monthly posted content count for specific PIC and month/year
   // Use useCallback to memoize function and ensure it updates when dependencies change
@@ -233,11 +238,10 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
         return false;
       }
       
-      // Check if content is posted: done=true (toggle Done = On) OR has social media links
-      const hasLinks = allSocialMediaLinks.some(link => link.social_media_plan_id === plan.id);
-      return plan.done === true || hasLinks;
+      // Check if content is fully posted (all required platforms + Ontime/Late status)
+      return isPostMetricComplete(plan);
     }).length;
-  }, [contentPlans, allSocialMediaLinks]);
+  }, [contentPlans]);
 
   // Calculate on time rate for content posting
   // Use useCallback to memoize function and ensure it updates when dependencies change
@@ -259,19 +263,21 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
           return false;
         }
 
-        const hasLinks = allSocialMediaLinks.some(link => link.social_media_plan_id === plan.id);
-        return plan.done === true || hasLinks;
+        return isPostMetricComplete(plan);
       });
 
       if (monthlyPlans.length === 0) return null;
 
       const onTimePlans = monthlyPlans.filter(plan => {
+        const stored = String(plan.on_time_status ?? '').trim();
+        if (stored === 'Ontime') return true;
+        if (stored.includes('Late')) return false;
         const actualStr = getActualPostDateForPlan(plan);
         const postStr = getDateString(plan.post_date);
         if (actualStr && postStr) {
           return actualStr <= postStr;
         }
-        return true;
+        return false;
       });
 
       return Math.round((onTimePlans.length / monthlyPlans.length) * 100);
@@ -297,8 +303,7 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
           return false;
         }
 
-        const hasLinks = allSocialMediaLinks.some(link => link.social_media_plan_id === plan.id);
-        return plan.done === true || hasLinks;
+        return isPostMetricComplete(plan);
       });
 
       if (monthlyPlans.length === 0) return null;
@@ -407,7 +412,8 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
   const handleDailyDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = e.target.value;
     if (newDate) {
-      setDailyTargetDate(new Date(newDate));
+      const [y, m, d] = newDate.split('-').map(Number);
+      setDailyTargetDate(new Date(y, m - 1, d));
     }
     setIsDailyDateEditing(false);
   };

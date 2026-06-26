@@ -20,6 +20,7 @@ export interface LeadsFilters {
   services: string;
   category: string;
   createdBy: string;
+  webProperty: string;
   assignee: string;
   fuPriority: string;
   status: string;
@@ -84,6 +85,7 @@ export const LeadsFilters = ({
     services: 'all',
     category: 'all',
     createdBy: 'all',
+    webProperty: 'all',
     assignee: 'all',
     fuPriority: 'all',
     status: 'all',
@@ -132,6 +134,7 @@ export const LeadsFilters = ({
       services: 'all',
       category: 'all',
       createdBy: 'all',
+      webProperty: 'all',
       assignee: 'all',
       fuPriority: 'all',
       status: 'all',

@@ -1,25 +1,18 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  FLOATING_WA_LEAD_SOURCE,
-} from "./syncFloatingWaClickToLead.ts";
-import {
   resolveSessionMarketingAttribution,
   type SessionMarketingRow,
 } from "./urlParams.ts";
+import { resolveWebIdForInboundWhatsApp } from "./resolveWebIdFromWhatsAppAccount.ts";
+import {
+  isFloatingWaLeadSource,
+} from "./apiLeadCrmFields.ts";
 
 /** Recent floating stub eligible for merge when first inbound WA arrives. */
 export const FLOATING_STUB_MERGE_LOOKBACK_MS = 30 * 60 * 1000;
 
 /** Session attribution fallback when wa-link-clicks row missing but traffic-logs ran. */
 export const SESSION_ATTRIBUTION_LOOKBACK_MS = 30 * 60 * 1000;
-
-export function resolveWebIdFromDisplayPhoneNumber(
-  displayPhoneNumber: string | null | undefined,
-): string | null {
-  const d = String(displayPhoneNumber ?? "").replace(/\D/g, "");
-  if (d === "6281281714855" || d === "6281118891308") return "vialdi-wedding";
-  return null;
-}
 
 function buildAttributionLabelFromJson(attribution: Record<string, unknown> | null): string | null {
   if (!attribution) return null;
@@ -67,12 +60,11 @@ export async function findMergeableFloatingStubLeadId(
 
   let query = supabase
     .from("leads")
-    .select("id, ticket_id, phone_number, web_id, created_at")
+    .select("id, ticket_id, phone_number, web_id, created_at, source")
     .eq("organization_id", orgId)
-    .eq("source", FLOATING_WA_LEAD_SOURCE)
     .gte("created_at", since)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(20);
 
   if (webId) {
     query = query.eq("web_id", webId);
@@ -80,6 +72,7 @@ export async function findMergeableFloatingStubLeadId(
 
   const { data: rows } = await query;
   for (const row of rows ?? []) {
+    if (!isFloatingWaLeadSource(row.source as string | null)) continue;
     const tid = String(row.ticket_id ?? "").trim().toUpperCase();
     if (tid.startsWith("WA-")) continue;
     const phone = row.phone_number != null ? String(row.phone_number).trim() : "";
@@ -283,12 +276,26 @@ export async function ensureWaLeadWebsiteAttribution(args: {
   ticketId: string;
   customerWaId: string;
   displayPhoneNumber: string | null | undefined;
+  phoneNumberId?: string | null;
   inboundTimestampIso: string;
 }): Promise<void> {
-  const { supabase, orgId, leadId, ticketId, customerWaId, displayPhoneNumber, inboundTimestampIso } =
-    args;
+  const {
+    supabase,
+    orgId,
+    leadId,
+    ticketId,
+    customerWaId,
+    displayPhoneNumber,
+    phoneNumberId,
+    inboundTimestampIso,
+  } = args;
 
-  const webId = resolveWebIdFromDisplayPhoneNumber(displayPhoneNumber);
+  const webId = await resolveWebIdForInboundWhatsApp({
+    admin: supabase,
+    organizationId: orgId,
+    phoneNumberId,
+    displayPhoneNumber,
+  });
   if (!webId) return;
 
   try {

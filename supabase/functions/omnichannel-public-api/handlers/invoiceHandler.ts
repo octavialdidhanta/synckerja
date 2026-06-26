@@ -157,6 +157,7 @@ export async function handleInvoiceTrigger(
     if (templateName && phoneRaw) {
       const waResult = await triggerInvoiceWhatsApp(admin, {
         organizationId: ctx.organizationId,
+        webId: ctx.webId,
         templateName,
         templateLanguage,
         phoneNumber: phoneRaw,

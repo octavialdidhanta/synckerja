@@ -39,6 +39,10 @@ import {
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { format, differenceInYears } from 'date-fns';
+import {
+  isInterviewScheduleComplete,
+} from '@/2-2-recruitment-dashboard/applications/lib/recruitmentContactLinks';
+import { sendRecruitmentInterviewEmail } from '@/2-2-recruitment-dashboard/applications/lib/sendRecruitmentInterviewEmail';
 
 interface JobApplication {
   id: string;
@@ -101,6 +105,7 @@ export const CandidateQuickViewModal = ({
   const [interviewerEmail, setInterviewerEmail] = useState<string>('');
   const [interviewNotes, setInterviewNotes] = useState<string>('');
   const [savingInterview, setSavingInterview] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const hasAutoReviewedRef = useRef(false);
   const { toast } = useToast();
   const { organizationId } = useCurrentOrg();
@@ -393,8 +398,8 @@ export const CandidateQuickViewModal = ({
     });
   };
 
-  const handleUpdateInterviewSchedule = async () => {
-    if (!application) return;
+  const handleUpdateInterviewSchedule = async (): Promise<boolean> => {
+    if (!application) return false;
 
     setSavingInterview(true);
     try {
@@ -458,6 +463,7 @@ export const CandidateQuickViewModal = ({
       if (onApplicationUpdate) {
         await onApplicationUpdate();
       }
+      return true;
     } catch (error: any) {
       console.error('Error updating interview schedule:', error);
       toast({
@@ -465,13 +471,14 @@ export const CandidateQuickViewModal = ({
         description: "Failed to update interview schedule.",
         variant: "destructive",
       });
+      return false;
     } finally {
       setSavingInterview(false);
     }
   };
 
-  const handleSendEmail = () => {
-    if (!application?.applicant_email) {
+  const handleSendEmail = async () => {
+    if (!application?.applicant_email?.trim()) {
       toast({
         title: "Error",
         description: "No email address available for this candidate.",
@@ -480,88 +487,62 @@ export const CandidateQuickViewModal = ({
       return;
     }
 
-    const positionTitle = application.job_openings?.job_title || 'the position';
-    const profileLink = application.recruitment_token ? 
-      `${window.location.origin}/candidate/profile?token=${application.recruitment_token}` : 
-      '';
+    const effectiveSchedule = {
+      interviewDate: interviewDate?.trim() || application.interview_date || '',
+      interviewTime: interviewTime?.trim() || application.interview_time || '',
+      interviewLocation: interviewLocation?.trim() || application.interview_location || '',
+    };
 
-    // Format date
-    let formattedDate = '';
-    if (application.interview_date) {
-      formattedDate = format(new Date(application.interview_date), 'EEEE, MMMM dd, yyyy');
+    if (!isInterviewScheduleComplete(effectiveSchedule)) {
+      toast({
+        title: "Interview schedule required",
+        description: "Please fill in interview date, time, and location before sending email.",
+        variant: "destructive",
+      });
+      return;
     }
 
-    // Format time
-    const formattedTime = application.interview_time || '';
+    const hasUnsavedSchedule =
+      Boolean(interviewDate?.trim() && interviewTime?.trim() && interviewLocation?.trim()) &&
+      (
+        interviewDate !== (application.interview_date || '') ||
+        interviewTime !== (application.interview_time || '') ||
+        interviewLocation !== (application.interview_location || '') ||
+        interviewerName !== (application.interviewer_name || '') ||
+        interviewerEmail !== (application.interviewer_email || '') ||
+        interviewNotes !== (application.interview_notes || '')
+      );
 
-    // Build email body with exact format requested
-    let emailBody = `INTERVIEW INVITATION
-===================
-
-Dear ${application.applicant_name}
-
-Thank you for your interest in the ${positionTitle} position with ${companyName || 'our organization'}.
-
-We have reviewed your application and would like to invite you for an interview to discuss your qualifications further.`;
-
-    // Add interview details if available
-    if (formattedDate || formattedTime || application.interview_location || application.interviewer_name) {
-      emailBody += `
-
-Interview Details:`;
-
-      if (formattedDate) {
-        emailBody += `
-
-  Date: ${formattedDate}`;
-      }
-
-      if (formattedTime) {
-        emailBody += `
-  Time: ${formattedTime}`;
-      }
-
-      if (application.interview_location) {
-        emailBody += `
-  Location: ${application.interview_location}`;
-      }
-
-      if (application.interviewer_name) {
-        emailBody += `
-  Interviewer: ${application.interviewer_name}`;
-      }
+    if (hasUnsavedSchedule) {
+      const saved = await handleUpdateInterviewSchedule();
+      if (!saved) return;
     }
 
-    if (application.interview_notes?.trim()) {
-      emailBody += `
+    setSendingEmail(true);
+    try {
+      const result = await sendRecruitmentInterviewEmail(application.id);
+      if (!result.success) {
+        toast({
+          title: "Failed to send email",
+          description: result.error || "Could not send interview invitation.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-Additional Notes:
-${application.interview_notes.trim()}`;
+      await queryClient.invalidateQueries({ queryKey: ['job-applications'] });
+      onStatusUpdate(application.id, 'contacted');
+      if (onApplicationUpdate) {
+        await onApplicationUpdate();
+      }
+
+      toast({
+        title: "Email sent",
+        description: `Interview invitation sent to ${application.applicant_email}.`,
+      });
+    } finally {
+      setSendingEmail(false);
     }
-
-    // Add profile completion link if available
-    if (profileLink) {
-      emailBody += `
-
-Profile Completion Required:
-
-${profileLink}`;
-    }
-
-    emailBody += `
-
-
-
-Best regards,
-HR Recruitment Team
-================== 
-Please reply to confirm your availability`;
-
-    const subject = `Interview Invitation - ${positionTitle}`;
-    const mailtoUrl = `mailto:${application.applicant_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
-    
-    window.open(mailtoUrl, '_blank');
-    handleStatusChange('contacted');
   };
 
   const handleSendWhatsApp = () => {
@@ -682,11 +663,12 @@ Please reply to confirm your availability`;
   const skills = parseSkills(application.skills);
   const age = application.birth_date ? calculateAge(application.birth_date) : null;
   const positionApplied = application.job_openings?.job_title || 'Position Applied';
-  const scheduleSaved = Boolean(
-    application.interview_date?.trim() &&
-    application.interview_time?.trim() &&
-    application.interview_location?.trim()
-  );
+  const effectiveInterviewSchedule = {
+    interviewDate: interviewDate?.trim() || application?.interview_date || '',
+    interviewTime: interviewTime?.trim() || application?.interview_time || '',
+    interviewLocation: interviewLocation?.trim() || application?.interview_location || '',
+  };
+  const scheduleSaved = isInterviewScheduleComplete(effectiveInterviewSchedule);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -721,12 +703,17 @@ Please reply to confirm your availability`;
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleSendEmail}
-                disabled={loading || !scheduleSaved}
+                onClick={() => void handleSendEmail()}
+                disabled={loading || savingInterview || sendingEmail || !scheduleSaved}
                 className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                title={
+                  !scheduleSaved
+                    ? 'Set interview date, time, and location first'
+                    : undefined
+                }
               >
                 <Mail className="h-4 w-4 mr-1" />
-                Send Email
+                {sendingEmail ? 'Sending...' : 'Send Email'}
               </Button>
               <Button
                 variant="outline"

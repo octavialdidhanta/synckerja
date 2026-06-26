@@ -151,6 +151,7 @@ export const LEAD_ATTRIBUTION_SORT_COLUMNS = [
   "services",
   "category",
   "created_by_name",
+  "web_id",
   "source",
   "utm_source",
   "utm_campaign",
@@ -248,6 +249,7 @@ function sortComparable(
     case "services":
     case "category":
     case "created_by_name":
+    case "web_id":
     case "source":
     case "utm_source":
     case "utm_campaign":

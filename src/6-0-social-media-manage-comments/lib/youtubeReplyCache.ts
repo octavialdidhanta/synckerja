@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { fetchYouTubeContentCommentReplies } from "@/youtube-content/hooks/useYouTubeContentCommentsQuery";
 import type {
   YouTubeCommentRow,
   YouTubeCommentsListResponse,
@@ -30,21 +31,29 @@ export function youtubeCommentRepliesQueryKey(
   ] as const;
 }
 
+function sortYouTubeRepliesNewest(comments: YouTubeCommentRow[]) {
+  return [...comments].sort((a, b) => (b.create_time ?? 0) - (a.create_time ?? 0));
+}
+
+export function mergeYouTubeRepliesIntoCache(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+  serverRows: YouTubeCommentRow[],
+) {
+  queryClient.setQueryData<YouTubeCommentsListResponse | null>(queryKey, (old) => {
+    const merged = new Map<string, YouTubeCommentRow>();
+    for (const row of old?.comments ?? []) merged.set(row.id, row);
+    for (const row of serverRows) merged.set(row.id, row);
+    return { comments: sortYouTubeRepliesNewest([...merged.values()]) };
+  });
+}
+
 export function appendYouTubeReplyToCache(
   queryClient: QueryClient,
   queryKey: readonly unknown[],
   reply: YouTubeCommentRow,
 ) {
-  queryClient.setQueryData<YouTubeCommentsListResponse | null>(queryKey, (old) => {
-    if (!old) {
-      return { comments: [reply] };
-    }
-    if (old.comments.some((c) => c.id === reply.id)) return old;
-    return {
-      ...old,
-      comments: [reply, ...old.comments],
-    };
-  });
+  mergeYouTubeRepliesIntoCache(queryClient, queryKey, [reply]);
 }
 
 export function buildOptimisticYouTubeReplyRow(args: {
@@ -85,25 +94,29 @@ export async function burstRefetchYouTubeRepliesUntilFound(args: {
 }) {
   const { queryClient, organizationId, channelId, videoId, parentCommentId, text, onFound } =
     args;
-  const prefix = [
-    "youtube-content-comment-replies",
+  const repliesKey = youtubeCommentRepliesQueryKey(
     organizationId,
     channelId,
     videoId,
     parentCommentId,
-  ];
+  );
 
   for (let attempt = 0; attempt < MANAGE_COMMENTS_BURST_MAX_ATTEMPTS; attempt++) {
-    await queryClient.refetchQueries({ queryKey: prefix });
-    const entries = queryClient.getQueriesData<YouTubeCommentsListResponse | null>({
-      queryKey: prefix,
-    });
-    const serverTexts = entries.flatMap(([, data]) =>
-      (data?.comments ?? []).map((c) => c.text),
-    );
-    if (serverTexts.some((s) => s.trim() === text.trim())) {
-      onFound?.(serverTexts);
-      return true;
+    try {
+      const data = await fetchYouTubeContentCommentReplies({
+        organizationId,
+        channelId,
+        videoId,
+        commentId: parentCommentId,
+      });
+      mergeYouTubeRepliesIntoCache(queryClient, repliesKey, data.comments);
+      const serverTexts = data.comments.map((c) => c.text);
+      if (serverTexts.some((s) => s.trim() === text.trim())) {
+        onFound?.(serverTexts);
+        return true;
+      }
+    } catch {
+      // YouTube may not list the reply immediately after insert.
     }
     if (attempt < MANAGE_COMMENTS_BURST_MAX_ATTEMPTS - 1) {
       await sleep(MANAGE_COMMENTS_BURST_POLL_MS);

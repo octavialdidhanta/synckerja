@@ -52,6 +52,7 @@ import {
   planNeedsStaleMetadataSync,
   syncPlanCompletionStateClient,
 } from '@/6-1-scheduled-posts/lib/syncPlanCompletionStateClient';
+import { isPostMetricComplete } from '@/6-1-scheduled-posts/lib/derivePlanPostMetadata';
 
 const SocialMediaContent = () => {
   const { tab } = useParams<{ tab?: string }>();
@@ -403,18 +404,27 @@ const SocialMediaContent = () => {
       };
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
-    // Use local date to avoid timezone issues
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const todayDateString = `${year}-${month}-${day}`; // Format: YYYY-MM-DD (local timezone)
+    const dailyFilterDate = new Date(selectedDate);
+    dailyFilterDate.setHours(0, 0, 0, 0);
+    const dailyYear = dailyFilterDate.getFullYear();
+    const dailyMonth = String(dailyFilterDate.getMonth() + 1).padStart(2, '0');
+    const dailyDay = String(dailyFilterDate.getDate()).padStart(2, '0');
+    const dailyDateString = `${dailyYear}-${dailyMonth}-${dailyDay}`;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
     
     // Use deferredMonth for metrics so dropdown stays responsive
-    const filterDate = deferredMonth || today;
+    const filterDate = deferredMonth || dailyFilterDate;
     const currentMonth = filterDate.getMonth();
     const currentYear = filterDate.getFullYear();
+    const isSelectedMonthCurrent =
+      filterDate.getMonth() === now.getMonth() &&
+      filterDate.getFullYear() === now.getFullYear();
+    const monthlyReferenceDay = isSelectedMonthCurrent
+      ? now
+      : new Date(currentYear, currentMonth + 1, 0);
+    monthlyReferenceDay.setHours(0, 0, 0, 0);
 
     // Filter plans based on active performance tab
     let filteredPlans = contentPlans;
@@ -476,80 +486,17 @@ const SocialMediaContent = () => {
       return null;
     };
 
-    // Filter plans by day - use today's date string for exact match
-    // For Production tab, filter by production_completion_date or production_approved_date
-    // For Content Post tab, filter by actual_post_date or post_date (same logic as ContentPostTab)
-    // For Content Planner tab, filter by post_date
-    const dailyContentPlans = filteredPlans.filter(plan => {
-      if (activePerformanceTab === 'production') {
-        // For Production: filter by production completion/approval date
-        // Priority: production_approved_date > production_completion_date > post_date (if approved)
-        // AND must have production_approved === true
-        
-        // Check production_approved_date first (most reliable)
-        const approvedDateStr = getDateString(plan.production_approved_date);
-        if (approvedDateStr && approvedDateStr === todayDateString && plan.production_approved === true) {
-          return true;
-        }
-
-        // Check production_completion_date second
-        const completionDateStr = getDateString(plan.production_completion_date);
-        if (completionDateStr && completionDateStr === todayDateString && plan.production_approved === true) {
-          return true;
-        }
-
-        // Fallback: if production_approved is true and post_date is today
-        if (plan.production_approved === true && plan.post_date) {
-          const postDateStr = getDateString(plan.post_date);
-          if (postDateStr && postDateStr === todayDateString) {
-            return true;
-          }
-        }
-
-        return false;
-      } else if (activePerformanceTab === 'content-post') {
-        if (plan.done !== true) return false;
-
-        if (plan.actual_post_date) {
-          const actualPostDateStr = getDateString(plan.actual_post_date);
-          if (actualPostDateStr && actualPostDateStr === todayDateString) {
-            return true;
-          }
-        }
-
-        return false;
-      } else if (activePerformanceTab === 'content-planner') {
-        // For Content Planner: Priority completion_date > post_date (same logic as ContentPlannerTab)
-        // Check completion_date first (most reliable - this is when content planner approved)
-        if (plan.completion_date) {
-          const completionDateStr = getDateString(plan.completion_date);
-          if (completionDateStr && completionDateStr === todayDateString) {
-            return true;
-          }
-        }
-
-        // Fallback: check post_date if completion_date doesn't match or doesn't exist
-        if (plan.post_date) {
-          const postDateStr = getDateString(plan.post_date);
-          if (postDateStr && postDateStr === todayDateString) {
-            return true;
-          }
-        }
-
-        return false;
-      } else {
-        // Default: filter by post_date
-      if (!plan.post_date) return false;
-        const postDateStr = getDateString(plan.post_date);
-        return postDateStr === todayDateString;
-      }
+    // Daily total: content with post_date on selected day (same basis as main table POST DATE column)
+    const dailyTotalPlans = filteredPlans.filter((plan) => {
+      const postDateStr = getDateString(plan.post_date);
+      return postDateStr === dailyDateString;
     });
 
-    // Filter plans by month
+    // Filter plans by month (scheduled post_date in selected month)
     const monthlyContentPlans = filteredPlans.filter(plan => {
       if (!plan.post_date) return false;
       const postDate = new Date(plan.post_date);
-      return postDate.getMonth() === currentMonth && 
+      return postDate.getMonth() === currentMonth &&
              postDate.getFullYear() === currentYear;
     });
 
@@ -587,9 +534,8 @@ const SocialMediaContent = () => {
         // Production: Not completed = belum Production Approved
         return plan.production_approved !== true;
       } else if (activePerformanceTab === 'content-post') {
-        // Content Post: Not completed = belum selesai Post (done === false AND tidak ada links)
-        const hasLinks = allSocialMediaLinks.some(link => link.social_media_plan_id === plan.id);
-        return plan.done !== true && !hasLinks;
+        // Content Post: not completed until all required platforms are done
+        return plan.done !== true;
       } else {
         // Default: not completed if not approved
         return plan.approved !== true;
@@ -677,7 +623,7 @@ const SocialMediaContent = () => {
       postDate.setHours(0, 0, 0, 0);
       
       // Calculate days until deadline
-      const daysUntilDeadline = Math.ceil((postDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const daysUntilDeadline = Math.ceil((postDate.getTime() - monthlyReferenceDay.getTime()) / (1000 * 60 * 60 * 24));
       
       // Content is approaching deadline if post_date is between tomorrow and 7 days from now
       // AND in the current month (bulan yang sedang berjalan)
@@ -690,9 +636,10 @@ const SocialMediaContent = () => {
       const isApproaching = daysUntilDeadline >= 1 && daysUntilDeadline <= 7;
       if (!isApproaching) return false;
       
-      // For "Upcoming Deadlines", use same logic for all tabs:
-      // Content must not be posted (not done and no social media links)
-      // This ensures the same value is displayed in Content Planner, Production, and Content Post tabs
+      // Content must not be fully posted yet
+      if (activePerformanceTab === 'content-post') {
+        return plan.done !== true;
+      }
       const hasLinks = allSocialMediaLinks.some(link => link.social_media_plan_id === plan.id);
       return plan.done !== true && !hasLinks;
     };
@@ -710,12 +657,16 @@ const SocialMediaContent = () => {
       return false;
     };
 
-    // For daily overdue, count only Late Post (post_date < today and not completed)
-    const dailyLatePostPlans = filteredPlans.filter(plan => {
+    // For daily overdue, count late posts as of selected daily date (post_date before filter date, not completed)
+    const isLatePostForDaily = (plan: any) => {
       if (!plan.post_date) return false;
-      // Only count late post (post_date < today)
-      return isLatePost(plan);
-    });
+      if (!isNotCompleted(plan)) return false;
+      const postDateStr = getDateString(plan.post_date);
+      if (!postDateStr) return false;
+      return postDateStr < dailyDateString;
+    };
+
+    const dailyLatePostPlans = filteredPlans.filter(isLatePostForDaily);
 
     // For monthly overdue, count only Approaching Deadline (post_date in next 7 days and not completed)
     // IMPORTANT: Use all contentPlans (not filteredPlans) to ensure same value across all tabs
@@ -728,20 +679,20 @@ const SocialMediaContent = () => {
       return isApproachingDeadline(plan);
     });
 
-    const isCompleted = (plan: any) => {
-      if (activePerformanceTab === 'content-planner') {
-        return plan.approved === true || plan.done === true;
-      } else if (activePerformanceTab === 'production') {
-        // For Production: content is completed if production_approved is true
-        // Note: dailyContentPlans already filtered by date, so we just need to check approval status
-        return plan.production_approved === true || plan.done === true;
-      } else if (activePerformanceTab === 'content-post') {
-        // Content is completed if done=true OR has social media links (same logic as ContentPostTab)
-        const hasLinks = allSocialMediaLinks.some(link => link.social_media_plan_id === plan.id);
-        return plan.done === true || hasLinks;
-      }
-      return plan.approved === true || plan.done === true;
-    };
+    const postDailyCompletedPlans = contentPlans.filter((plan) => {
+      if (!isPostMetricComplete(plan)) return false;
+      if (!plan.actual_post_date) return false;
+      const actualPostDateStr = getDateString(plan.actual_post_date);
+      return actualPostDateStr === dailyDateString;
+    });
+
+    const postMonthlyCompletedPlans = contentPlans.filter((plan) => {
+      if (!isPostMetricComplete(plan)) return false;
+      if (!plan.post_date) return false;
+      const postDate = new Date(plan.post_date);
+      return postDate.getMonth() === currentMonth &&
+             postDate.getFullYear() === currentYear;
+    });
 
     const needsRevision = (plan: any) => {
       if (activePerformanceTab === 'content-planner') {
@@ -771,20 +722,20 @@ const SocialMediaContent = () => {
       // post_date is the scheduled date and is present on all content, making it the most reliable filter
       if (!plan.post_date) return false;
       const postDateStr = getDateString(plan.post_date);
-      return postDateStr === todayDateString;
+      return postDateStr === dailyDateString;
     });
 
     return {
       dailyOverdueContent: dailyLatePostPlans.length,
-      dailyCompletedContent: dailyContentPlans.filter(isCompleted).length,
+      dailyCompletedContent: postDailyCompletedPlans.length,
       dailyRevisedContent: dailyRevisedPlans.length,
-      dailyTotalContent: dailyContentPlans.length,
+      dailyTotalContent: dailyTotalPlans.length,
       monthlyOverdueContent: monthlyApproachingDeadlinePlans.length,
-      monthlyCompletedContent: monthlyContentPlans.filter(isCompleted).length,
+      monthlyCompletedContent: postMonthlyCompletedPlans.length,
       monthlyRevisedContent: monthlyContentPlans.filter(needsRevision).length,
       monthlyTotalContent: monthlyContentPlans.length
     };
-  }, [contentPlans, activePerformanceTab, allSocialMediaLinks, loading, deferredMonth]);
+  }, [contentPlans, activePerformanceTab, allSocialMediaLinks, loading, deferredMonth, selectedDate]);
 
   // Callback handlers
   const handleSelectItem = useCallback((id: string, checked: boolean) => {

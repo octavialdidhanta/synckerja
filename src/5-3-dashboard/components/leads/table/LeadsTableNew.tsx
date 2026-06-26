@@ -21,6 +21,12 @@ import {
   getLeadTableStatusPresentation,
   isResolvedLeadStatusName,
 } from '@/5-1-leads-management/utils/leadStatusDisplay';
+import {
+  formatLeadWebPropertyDisplay,
+  normalizeApiLeadCreatedByDisplay,
+  normalizeApiLeadSourceDisplay,
+  resolveApiLeadSourceColorKey,
+} from "@/5-3-dashboard/lib/apiLeadDisplayLabels";
 
 /** Hijau pekat untuk badge Converted & Resolve di tabel leads */
 const LEAD_SOLID_GREEN_BADGE = 'bg-green-700 text-white border-green-800';
@@ -68,6 +74,13 @@ type CreatedByColumnFilterConfig = {
   onChange: (value: string) => void;
   /** Nilai = `created_by_name` (trim), dari distinct leads. */
   options: string[];
+};
+
+type WebPropertyColumnFilterConfig = {
+  value: string;
+  onChange: (value: string) => void;
+  /** value = raw web_id, label = humanized display */
+  options: Array<{ id: string; value: string; label: string }>;
 };
 
 type AssigneeColumnFilterConfig = {
@@ -135,6 +148,7 @@ interface LeadsTableNewProps {
   servicesColumnFilter?: CategoryColumnFilterConfig | null;
   sourceColumnFilter?: SourceColumnFilterConfig | null;
   createdByColumnFilter?: CreatedByColumnFilterConfig | null;
+  webPropertyColumnFilter?: WebPropertyColumnFilterConfig | null;
   assigneeColumnFilter?: AssigneeColumnFilterConfig | null;
   fuPriorityColumnFilter?: FuPriorityColumnFilterConfig | null;
   statusColumnFilter?: StatusColumnFilterConfig | null;
@@ -196,6 +210,7 @@ export default function LeadsTableNew({
   servicesColumnFilter,
   sourceColumnFilter,
   createdByColumnFilter,
+  webPropertyColumnFilter,
   assigneeColumnFilter,
   fuPriorityColumnFilter,
   statusColumnFilter,
@@ -437,15 +452,18 @@ export default function LeadsTableNew({
       'Phone': 'bg-purple-50 text-purple-700 border-purple-200',
       'Chat': 'bg-pink-50 text-pink-700 border-pink-200',
       'Website': 'bg-green-50 text-green-700 border-green-200',
+      'Website form': 'bg-green-50 text-green-700 border-green-200',
       'WhatsApp': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      'WhatsApp button': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      'WhatsApp floating click': 'bg-emerald-50 text-emerald-700 border-emerald-200',
       'Instagram': 'bg-amber-50 text-amber-700 border-amber-200'
     };
-  return colors[source as keyof typeof colors] || colors.Website;
+    const key = resolveApiLeadSourceColorKey(source);
+    return colors[key as keyof typeof colors] || colors['Website form'];
   };
 
-  // Created By: channel colors for known sources; distinct colors for custom names (e.g. account/org names)
   const getCreatedByColor = (createdByName?: string | null) => {
-    const name = (createdByName ?? '').trim();
+    const name = normalizeApiLeadCreatedByDisplay(createdByName);
     if (/whatsapp/i.test(name)) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (/email/i.test(name)) return 'bg-blue-50 text-blue-700 border-blue-200';
     if (/instagram/i.test(name)) return 'bg-amber-50 text-amber-700 border-amber-200';
@@ -515,6 +533,12 @@ export default function LeadsTableNew({
       { key: "services", label: "Services", width: "w-[280px] max-w-[280px]", sortKey: "services" },
       { key: "category", label: "Category", width: "w-[200px] max-w-[200px]", sortKey: "category" },
       { key: "created_by", label: "Created By", width: "w-[120px]", sortKey: "created_by_name" },
+      {
+        key: "web_property",
+        label: t("leadsManagement.table.webProperty", "Web / Property"),
+        width: "w-[140px]",
+        sortKey: "web_id",
+      },
       { key: "source", label: "Source", width: "w-[100px]", sortKey: "source" },
       { key: "utm_campaign", label: "UTM Campaign", width: "w-[250px] max-w-[250px]", sortKey: "utm_campaign" },
       { key: "utm_source", label: "UTM Source", width: "w-[110px]", sortKey: "utm_source" },
@@ -777,6 +801,24 @@ export default function LeadsTableNew({
               label: name,
             })),
             t("leadsManagement.table.filterCreatedBy", "Filter by creator"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "web_property" && webPropertyColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {renderAttributionSortHead(header)}
+          {renderLeadColumnFilterDropdown(
+            webPropertyColumnFilter.value,
+            webPropertyColumnFilter.onChange,
+            t("leadsManagement.filters.allWebProperties", "All properties"),
+            webPropertyColumnFilter.options.map((o) => ({
+              key: o.id,
+              value: o.value,
+              label: o.label,
+            })),
+            t("leadsManagement.table.filterWebProperty", "Filter web / property"),
           )}
         </div>
       );
@@ -1210,15 +1252,31 @@ export default function LeadsTableNew({
                   <TableCell className="whitespace-nowrap">
                     <Badge
                       className={`${getCreatedByColor(lead.created_by_name)} text-xs px-3 py-1 rounded-sm font-medium border max-w-[140px] inline-flex items-center justify-center`}
-                      title={lead.created_by_name ?? ''}
+                      title={normalizeApiLeadCreatedByDisplay(lead.created_by_name) || ''}
                     >
-                      <span className="whitespace-nowrap truncate block min-w-0">{lead.created_by_name || '—'}</span>
+                      <span className="whitespace-nowrap truncate block min-w-0">
+                        {normalizeApiLeadCreatedByDisplay(lead.created_by_name) || '—'}
+                      </span>
                     </Badge>
                   </TableCell>
-                  {/* Source Column - right after Created By */}
+                  <TableCell className="whitespace-nowrap max-w-[160px]">
+                    {(() => {
+                      const webLabel = formatLeadWebPropertyDisplay(lead.web_id);
+                      return webLabel ? (
+                        <Badge
+                          className="bg-slate-50 text-slate-700 border-slate-200 text-xs px-3 py-1 rounded-sm font-medium border max-w-[150px] inline-flex items-center justify-center"
+                          title={lead.web_id ?? undefined}
+                        >
+                          <span className="whitespace-nowrap truncate block min-w-0">{webLabel}</span>
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Badge className={`${getSourceColor(lead.source)} text-xs px-3 py-1 rounded-sm font-medium border w-32 justify-center`}>
-                      {lead.source || 'Website'}
+                      {normalizeApiLeadSourceDisplay(lead.source)}
                     </Badge>
                   </TableCell>
                   <TableCell className="min-w-0 max-w-[250px] text-xs text-gray-800">

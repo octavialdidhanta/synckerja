@@ -1,6 +1,6 @@
 # Panduan Integrasi API Omnichannel
 
-> v**1.4.10** · `npm run generate:omnichannel-api-docs`
+> v**1.4.15** · `npm run generate:omnichannel-api-docs`
 
 Integrasikan website eksternal untuk **traffic**, **leads**, dan **invoice + nota WhatsApp**.
 
@@ -518,6 +518,20 @@ Synckerja memilih mapping **otomatis** saat runtime:
 | {{6}} | `event_time` | `form_data.event_time` |
 | {{7}} | `event_address` | `form_data.event_address` |
 
+**Contoh `new_leads_vialdi_id` (7 slot, `web_id=vialdi` — form agency / kontak):**
+
+| Slot | Field key | Sumber payload |
+|------|-----------|----------------|
+| {{1}} | `name` | `name` |
+| {{2}} | `email` | `email` |
+| {{3}} | `phone_number` | `phone_number` |
+| {{4}} | `package_label` | `form_data.package_label` |
+| {{5}} | `industry` | `form_data.industry` |
+| {{6}} | `job_title` | `form_data.job_title` |
+| {{7}} | `event_address` | `form_data.event_address` (blok alamat + ringkasan) |
+
+Form agency biasanya **tanpa** `event_date`; field tambahan (`business_type`, `needs`, `office_address`, `ringkasan_kebutuhan`) tetap masuk `form_data` dan bisa dipetakan ke slot lain jika template berbeda.
+
 **Contoh legacy `elementorform` (5 slot):**
 
 | body_keys (5 slot) | Sumber payload |
@@ -534,14 +548,18 @@ Synckerja memilih mapping **otomatis** saat runtime:
 
 1. `name` · 2. `email` · 3. `phone_number` · 4. `package_label` · 5. `event_date` · 6. `event_time` · 7. `event_address`
 
-Field 4–7 dari `form_data` / body JSON. Kosong → `-`.
+Field 4–7 dari `form_data` / body JSON. Kosong → `-`. **Meta menolak newline di nilai variabel template** — Synckerja mengganti baris baru dengan ` · ` sebelum kirim ke Graph API.
 
 ### `whatsapp_status` / `whatsapp_skip_reason` (leads)
 
+Respons **201** `whatsapp_status=sent` = Meta **menerima** request kirim (`wamid` terisi), **bukan** jaminan sampai ke HP.
+Status final `delivered` / `failed` (delivery) di-update **async** via webhook Meta ke baris `lead_submissions` di Synckerja.
+
 | Status | Arti |
 |--------|------|
-| `sent` | Template diterima Meta; `whatsapp_message_id` terisi (`wamid....`) |
-| `failed` | Graph API menolak (cek `whatsapp_skip_reason` prefix `meta:`) |
+| `sent` | Meta menerima request kirim; `whatsapp_message_id` terisi (`wamid....`) |
+| `delivered` | Webhook Meta: pesan sampai ke perangkat penerima (atau `read`) |
+| `failed` | Graph API menolak (`meta:` / `meta_precheck:`) **atau** delivery gagal (`meta_delivery:`) |
 | `skipped` | Tidak ada attempt kirim — lihat `whatsapp_skip_reason` |
 
 | skip_reason | Penyebab |
@@ -550,12 +568,19 @@ Field 4–7 dari `form_data` / body JSON. Kosong → `-`.
 | `no_phone` | `phone_number` kosong |
 | `no_template` | `default_whatsapp_lead_template_name` belum diset |
 | `wa_not_configured` | Akun WA / token Meta belum ada |
-| `meta:...` | Error Meta saat `failed` (mis. jumlah variabel body tidak cocok dengan template) |
+| `wa_account_not_mapped` | Tidak ada baris aktif `organization_whatsapp_web_id_accounts` untuk `web_id` token — atur di Synckerja Office (API Integration → Akun WhatsApp per web_id) |
+| `meta_precheck:...` | Jumlah slot mapping ≠ template Meta (dicek sebelum Graph API); format: `meta_precheck:expected_N_got_M;template=...;lang=...;mapping=...;web_id=...` |
+| `meta:...` | Error Meta saat Graph API reject (mis. #132000 slot count, #100 parameter tidak valid); menyertakan `template`, `lang`, `mapping`, `slots`, `web_id` |
+| `meta_delivery:#CODE:...` | Meta **terima** request (`sent`) lalu webhook lapor gagal deliver (mis. #131049 healthy ecosystem); cek DB / dashboard Synckerja |
 | `persist_failed:...` | Meta `sent` tapi gagal simpan thread livechat (lead tetap 201; cek log server) |
+
+**Field `whatsapp_debug` (saat `whatsapp_status=failed` atau `skipped` dengan `wa_account_not_mapped`):** `template_name`, `template_language`, `mapping_source`, `param_count`, `expected_slot_count`, `web_id`, `whatsapp_account_id`, `phone_number_id`, `account_resolution` (`mapped` | `not_mapped`).
+
+**Akun WhatsApp per web_id:** Token membawa `web_id`; Synckerja memetakan ke akun WA di dashboard (bukan dikirim client). Alur: token → `web_id` → `organization_whatsapp_web_id_accounts` → template mapping → Meta Graph API.
 
 **Livechat setelah `sent`:** Synckerja membuat/update baris `whatsapp_conversations` + pesan outbound `whatsapp_messages`, merge `ticket_id` lead dari `LEAD-*` ke `WA-*`, dan mengembalikan `whatsapp_conversation_id`. Thread langsung muncul di **Omnichannel → Livechat**; tombol **Open Chat** di halaman Leads aktif.
 
-**Troubleshooting `failed`:** pastikan jumlah variabel template Meta = jumlah `body_keys` legacy **atau** 7 (fallback). Kesalahan umum: setting org pakai template 5-slot tapi baris legacy kosong → API mengirim 7 variabel → Meta error #132000.
+**Troubleshooting `failed`:** pastikan jumlah variabel template Meta = jumlah slot di `parameter_mapping` per `web_id`. Kesalahan umum: mapping salah web_id (mis. tanpa `email`/`phone_number`) → Meta #100; **newline di field teks panjang** (mis. `event_address` multi-baris) → Meta #100 (server menormalisasi otomatis); template 5-slot tapi fallback 7 variabel → `meta_precheck:` atau Meta #132000. Cek `whatsapp_debug` di respons 201.
 
 ---
 
@@ -583,7 +608,7 @@ Wajib: `page_view_id`, `active_ms`, `scroll_max_pct`. Opsional: `ended_at` (saat
 Wajib: `session_id`, `visitor_id`, `path`, `track_key`. `path` = halaman **tempat klik terjadi** (bukan `target_url`). Server dapat mengoreksi `path` dari page_view aktif; opsional `page_view_id` dari respons `traffic-logs`. Urutan: `traffic-logs` lalu `click-events`. Error **422** `SESSION_NOT_READY`. → **SDK otomatis** via `data-syn-track` (capture phase)
 
 #### POST /api/v1/wa-link-clicks
-Wajib: `session_id`, `visitor_id`. Disarankan: `path` (default `/`), `target_url`, `target_phone`. UTM **tidak** dikirim di body — server merge dari `analytics_sessions`. Mencatat analytics **dan** stub lead CRM (`source: WhatsApp floating click`, submission `draft`). Satu stub per session + web_id. → **SDK otomatis** via link wa.me / `data-syn-wa-track`
+Wajib: `session_id`, `visitor_id`. Disarankan: `path` (default `/`), `target_url`, `target_phone`. UTM **tidak** dikirim di body — server merge dari `analytics_sessions`. Mencatat analytics **dan** stub lead CRM (`source: WhatsApp button`, submission `draft`). Satu stub per session + web_id. → **SDK otomatis** via link wa.me / `data-syn-wa-track`
 
 ```json
 { "session_id": "...", "visitor_id": "...", "path": "/konsultasi", "target_url": "https://wa.me/628...", "target_phone": "628..." }
@@ -606,11 +631,14 @@ Urutan disarankan: `traffic-logs` (landing UTM) lalu `wa-link-clicks`. Server up
 ### Leads
 
 #### POST /api/v1/leads
-Wajib: `name`. Minimal salah satu `phone_number` atau `email`. Opsional: `session_id` (atribusi UTM + gclid/fbclid; **upgrade stub** jika session sama dengan klik floating WA), `notes`, `consent`, `form_id`. **Field lain** → `lead_submissions.form_data` (maks. 64 key, 32 KB, flat JSON).
+Wajib: `name`. Minimal salah satu `phone_number` atau `email`. Opsional: `session_id` (atribusi UTM + gclid/fbclid; **upgrade stub** jika session sama dengan klik floating WA), `notes`, `consent`, `form_id`, `title`, `category`, `source_label` (override CRM — default server derive dari `form_data`/`notes`/landing). **Field lain** → `lead_submissions.form_data` (maks. 64 key, 32 KB, flat JSON).
 
-Jika `consent=true` + `phone_number` + template lead diset → WA konfirmasi otomatis (biasanya ≤ 1 menit). Lead **tetap 201** meski WA gagal. Cek `whatsapp_status`; jika `failed`, baca `whatsapp_skip_reason` (`meta:...` = error Meta).
+Server mengisi `title`, `category`, `source` (channel: Website form / WhatsApp button). `created_by_name` **kosong** untuk lead API (CRM menampilkan —). `web_id` pada baris lead dari token API → kolom CRM **Web / Property**.
+
+Jika `consent=true` + `phone_number` + template lead diset → WA konfirmasi otomatis (biasanya ≤ 1 menit). Lead **tetap 201** meski WA gagal. Cek `whatsapp_status`; jika `failed`, baca `whatsapp_skip_reason` dan `whatsapp_debug`.
 
 ```json
+// Request — wedding / form dengan tanggal acara
 {
   "session_id": "...",
   "name": "John Doe",
@@ -626,6 +654,22 @@ Jika `consent=true` + `phone_number` + template lead diset → WA konfirmasi oto
 ```
 
 ```json
+// Request — agency (web_id=vialdi, tanpa event_date)
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone_number": "+6281234567890",
+  "consent": true,
+  "form_id": "contact-page",
+  "package_label": "Konsultasi umum — halaman kontak",
+  "industry": "UMKM",
+  "business_type": "B2B",
+  "job_title": "Brand Owner",
+  "event_address": "Alamat kantor / ringkasan kebutuhan (blok teks)"
+}
+```
+
+```json
 // Response 201 — sukses WA + thread livechat (contoh production vialdi-wedding / elementorform)
 {
   "success": true,
@@ -637,6 +681,25 @@ Jika `consent=true` + `phone_number` + template lead diset → WA konfirmasi oto
   "whatsapp_conversation_id": "uuid-conversation",
   "whatsapp_skip_reason": null,
   "attribution": { "utm_source": "test_dev", "web_id": "vialdi-wedding" }
+}
+```
+
+```json
+// Response 201 — WA gagal (mapping / Meta); lead tetap tersimpan
+{
+  "success": true,
+  "lead_id": "...",
+  "ticket_id": "LEAD-20260626-8172",
+  "whatsapp_status": "failed",
+  "whatsapp_skip_reason": "meta_precheck:expected_7_got_5;template=new_leads_vialdi_id;lang=id;mapping=fixed_7;web_id=vialdi",
+  "whatsapp_debug": {
+    "template_name": "new_leads_vialdi_id",
+    "template_language": "id",
+    "mapping_source": "fixed_7",
+    "param_count": 7,
+    "expected_slot_count": 7,
+    "web_id": "vialdi"
+  }
 }
 ```
 
@@ -683,6 +746,7 @@ Saat invoice berhasil dan lead cocok:
 - Otomatis buat **Sales Activity** (`Lead Conversion`) + item dari `items` invoice → tampil di `/operations/sales/activities`
 - **Offline conversion** Google/Meta dipicu jika diaktifkan di pengaturan API
 - **Nota WhatsApp** (`whatsapp_status`) terkirim jika org punya akun WA + **template invoice** diset di **Organization settings** (tab Tokens & SDK)
+- Respons 201 `sent` = Meta menerima request; `delivered` / `failed` di-update async via webhook ke `sales_invoices` (field `whatsapp_skip_reason` saat gagal, prefix `meta_delivery:`)
 
 - **409** — `invoice_number` duplikat
 

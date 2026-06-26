@@ -21,6 +21,8 @@ export interface NewLead {
   updated_at: string;
   created_by: string;
   created_by_name: string;
+  /** Public API / analytics property slug (e.g. vialdi-wedding). */
+  web_id?: string | null;
   organization_id: string;
   ticket_id: string | null;
   /** Raw JSON from `leads.attribution` (optional on virtual rows). */

@@ -4,7 +4,15 @@ import { Badge } from "@/shared/components/ui/badge";
 import { X, User, Calendar, BarChart3, Activity, Megaphone } from "lucide-react";
 import { format } from "date-fns";
 import { NewLead } from '@/shared/types/leads';
-import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatusDisplay';
+import {
+  getLeadStatusDisplayName,
+} from '@/5-1-leads-management/utils/leadStatusDisplay';
+import {
+  formatLeadWebPropertyDisplay,
+  normalizeApiLeadCreatedByDisplay,
+  normalizeApiLeadSourceDisplay,
+  resolveApiLeadSourceColorKey,
+} from "@/5-3-dashboard/lib/apiLeadDisplayLabels";
 
 interface ViewLeadDialogProps {
   open: boolean;
@@ -64,10 +72,14 @@ export const ViewLeadDialog = ({
       'Phone': 'bg-purple-100 text-purple-700',
       'Chat': 'bg-pink-100 text-pink-700',
       'Website': 'bg-green-100 text-green-700',
+      'Website form': 'bg-green-100 text-green-700',
       'WhatsApp': 'bg-emerald-100 text-emerald-700',
+      'WhatsApp button': 'bg-emerald-100 text-emerald-700',
+      'WhatsApp floating click': 'bg-emerald-100 text-emerald-700',
       'Instagram': 'bg-amber-100 text-amber-700'
     };
-    return colors[source as keyof typeof colors] || colors.Website;
+    const key = resolveApiLeadSourceColorKey(source);
+    return colors[key as keyof typeof colors] || colors['Website form'];
   };
 
   return (
@@ -102,7 +114,13 @@ export const ViewLeadDialog = ({
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Created By</label>
-                <p className="text-sm font-medium mt-1">{lead.created_by_name}</p>
+                <p className="text-sm font-medium mt-1">{normalizeApiLeadCreatedByDisplay(lead.created_by_name) || '—'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Web / Property</label>
+                <p className="text-sm font-medium mt-1">
+                  {formatLeadWebPropertyDisplay(lead.web_id) || '—'}
+                </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Assignee</label>
@@ -139,7 +157,7 @@ export const ViewLeadDialog = ({
                 <label className="text-sm font-medium text-gray-500">Source</label>
                 <div className="mt-1">
                   <Badge className={`${getSourceColor(lead.source)} text-xs px-3 py-1 rounded-full font-medium`}>
-                    {lead.source || 'Website'}
+                    {normalizeApiLeadSourceDisplay(lead.source)}
                   </Badge>
                 </div>
               </div>

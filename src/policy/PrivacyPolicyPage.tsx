@@ -25,7 +25,7 @@ export default function PrivacyPolicyPage() {
         <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-8 shadow-sm md:p-10">
           <header className="mb-8">
             <h1 className="mb-2 text-2xl font-bold text-slate-900 md:text-3xl">Privacy Policy</h1>
-            <p className="text-sm text-slate-500">Last Updated: 26th Nov, 2025</p>
+            <p className="text-sm text-slate-500">Last Updated: 23rd Jun, 2026</p>
           </header>
 
           <section className={sectionClass}>
@@ -73,7 +73,7 @@ export default function PrivacyPolicyPage() {
             <p className={paraClass}><strong>Location Information:</strong> Approximate location derived from your IP address.</p>
             <p className={paraClass}><strong>Log Files:</strong> System logs generated when using our APIs or back-end systems, which may include timestamped metadata, request headers, and usage traces.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">C. Information from Third Parties and Integrations</h3>
-            <p className={paraClass}>If you connect third-party services to Synckerja, we may collect information from those platforms, such as social platforms (e.g., Facebook Page ID, Instagram account data, YouTube channel ID and video performance metrics such as views, likes, and comments, WhatsApp business number), e-commerce platforms (e.g., Shopify, WooCommerce), email and CRM tools, and authentication services.</p>
+            <p className={paraClass}>If you connect third-party services to Synckerja, we may collect information from those platforms, such as social platforms (e.g., Facebook Page ID, Instagram account data, YouTube channel ID and video performance metrics such as views, likes, and comments, TikTok account profile and video performance metrics, comments, and publish status, WhatsApp business number), e-commerce platforms (e.g., Shopify, WooCommerce), email and CRM tools, and authentication services.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">D. Cookies and Tracking Technologies</h3>
             <p className={paraClass}>We and our partners use cookies, pixels, and similar technologies to collect data about how users interact with our platform. Read more in our Cookie Policy.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">E. Aggregated and De-Identified Data</h3>
@@ -141,6 +141,19 @@ export default function PrivacyPolicyPage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Google API Limited Use Disclosure</h2>
             <p className={paraClass}>Our application may integrate with Google APIs, including Google sign-in, Google Drive (when you choose to connect Drive for file preview), Google Ads (when an administrator connects an ad account), and YouTube (when an administrator connects a YouTube channel for organic content performance reporting). We confirm that any user data obtained through these APIs is used solely to provide or improve user-facing features within Synckerja for the organization that connected the service. We do not use this data to develop, improve, or train generalized AI or machine learning models. We do not sell Google or YouTube user data. You may disconnect these integrations in your organization settings, which stops our further use of stored OAuth tokens for that integration. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.</p>
+          </section>
+
+          <section className={sectionClass}>
+            <h2 className={headingClass}>TikTok API Disclosure</h2>
+            <p className={paraClass}>
+              When an organization administrator connects a TikTok account through OAuth in Digital Marketing → Social Media Performance → TikTok settings, Synckerja may access TikTok data only to provide user-facing features for that organization. Depending on the permissions granted, this may include basic profile information (such as username and display name), published video lists, video performance metrics, comments on connected videos, and the ability to publish videos to the connected account.
+            </p>
+            <p className={paraClass}>
+              Video publishing occurs only when a user explicitly chooses Schedule or Post Now on an approved content plan. We do not perform background or automatic uploads. We store publish identifiers and basic metadata (such as title, privacy level, and publish time) to show posting status inside Synckerja. Comment management is limited to reading and responding to comments on videos associated with the connected account.
+            </p>
+            <p className={paraClass}>
+              We use TikTok data solely to provide or improve these features within Synckerja for the organization that connected the account. We do not sell TikTok user data, use it to build advertising profiles, or use it to develop, improve, or train generalized AI or machine learning models. OAuth tokens are stored encrypted on our servers. Organization administrators may disconnect TikTok at any time in settings, which deactivates stored tokens for that connection. Our use of TikTok APIs complies with the TikTok Developer Terms of Service and applicable TikTok platform policies.
+            </p>
           </section>
 
           <section className={sectionClass}>

@@ -138,5 +138,6 @@ export function planNeedsStaleMetadataSync(plan: {
   if (onTime === 'Ontime' && !hasActual) return true;
   if (onTime.startsWith('Late') && !hasActual) return true;
   if (isDone && !hasActual && onTime !== 'In Progress' && onTime !== 'Scheduled') return true;
+  if (isDone && (onTime === 'In Progress' || onTime === 'Scheduled')) return true;
   return false;
 }

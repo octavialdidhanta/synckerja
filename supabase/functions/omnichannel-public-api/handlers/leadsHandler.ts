@@ -16,8 +16,13 @@ import {
 } from "../../_shared/omnichannelPublicApi/syncFloatingWaClickToLead.ts";
 import { extractLeadFormPayload } from "../../_shared/omnichannelPublicApi/leadFormData.ts";
 import {
+  deriveApiLeadCrmFields,
+  extractLeadFormOverrides,
+} from "../../_shared/omnichannelPublicApi/apiLeadCrmFields.ts";
+import {
   parseLeadConsent,
   triggerLeadWhatsApp,
+  type LeadWhatsAppDebugInfo,
 } from "../../_shared/omnichannelPublicApi/triggerLeadWhatsApp.ts";
 import {
   persistLeadWhatsAppThread,
@@ -88,6 +93,15 @@ export async function handleLeads(
       core.status ?? "new",
     );
 
+    const crmFields = deriveApiLeadCrmFields({
+      webId: ctx.webId,
+      channel: "website_form",
+      overrides: extractLeadFormOverrides(body),
+      formData,
+      notes,
+      attribution,
+    });
+
     const now = new Date().toISOString();
     let leadId: string;
 
@@ -101,8 +115,10 @@ export async function handleLeads(
 
       const leadPatch: Record<string, unknown> = {
         client: name,
-        title: "Lead Website",
-        source: "Website",
+        title: crmFields.title,
+        category: crmFields.category,
+        source: crmFields.source,
+        created_by_name: crmFields.created_by_name,
         phone_number: phoneRaw || null,
         email: emailRaw || null,
         status_id: statusId,
@@ -175,13 +191,13 @@ export async function handleLeads(
       const { error: leadErr } = await admin.from("leads").insert({
         id: leadId,
         client: name,
-        title: "Lead Website",
-        category: "Website API",
+        title: crmFields.title,
+        category: crmFields.category,
         created_by: actor.userId,
-        created_by_name: actor.displayName,
+        created_by_name: crmFields.created_by_name,
         assignee: "Unassigned",
         organization_id: ctx.organizationId,
-        source: "Website",
+        source: crmFields.source,
         status_id: statusId,
         phone_number: phoneRaw || null,
         email: emailRaw || null,
@@ -227,6 +243,7 @@ export async function handleLeads(
     let whatsappMessageId: string | null = null;
     let whatsappSkipReason: string | null = null;
     let whatsappConversationId: string | null = null;
+    let whatsappDebug: LeadWhatsAppDebugInfo | null = null;
 
     const hasConsent = parseLeadConsent(body, formData);
 
@@ -266,6 +283,11 @@ export async function handleLeads(
       whatsappStatus = waResult.status;
       whatsappMessageId = waResult.messageId;
       whatsappSkipReason = waResult.skipReason ?? null;
+      if (waResult.status === "failed" && waResult.debug) {
+        whatsappDebug = waResult.debug;
+      } else if (waResult.status === "skipped" && waResult.debug) {
+        whatsappDebug = waResult.debug;
+      }
 
       if (waResult.status === "failed") {
         console.error("handleLeads WhatsApp failed:", {
@@ -279,7 +301,9 @@ export async function handleLeads(
           error: waResult.error,
         });
       } else if (waResult.status === "sent" && waResult.messageId) {
-        const creds = await resolveOrganizationWhatsAppCredentials(admin, ctx.organizationId);
+        const creds = await resolveOrganizationWhatsAppCredentials(admin, ctx.organizationId, {
+          webId: ctx.webId,
+        });
         if (creds.ok) {
           const templateLanguage = waResult.templateLanguage ?? orgTemplateLanguage ?? "id";
           const bodyPreview = await buildLeadWhatsAppStoredBody(admin, {
@@ -337,8 +361,7 @@ export async function handleLeads(
     const { data: ticketRow } = await admin.from("leads").select("ticket_id").eq("id", leadId).single();
     const finalTicketId = ticketRow?.ticket_id ?? null;
 
-    return apiSuccess(
-      {
+    const responseBody: Record<string, unknown> = {
         lead_id: leadId,
         ticket_id: finalTicketId,
         whatsapp_ticket_id: finalTicketId,
@@ -348,10 +371,15 @@ export async function handleLeads(
         whatsapp_message_id: whatsappMessageId,
         whatsapp_skip_reason: whatsappSkipReason,
         whatsapp_conversation_id: whatsappConversationId,
-      },
-      201,
-      corsHeaders,
-    );
+      };
+
+    if (whatsappStatus === "failed" && whatsappDebug) {
+      responseBody.whatsapp_debug = whatsappDebug;
+    } else if (whatsappStatus === "skipped" && whatsappDebug) {
+      responseBody.whatsapp_debug = whatsappDebug;
+    }
+
+    return apiSuccess(responseBody, 201, corsHeaders);
   } catch (e) {
     console.error("handleLeads:", e);
     return apiError("Kesalahan server saat menyimpan lead.", "INTERNAL_ERROR", 500, corsHeaders);

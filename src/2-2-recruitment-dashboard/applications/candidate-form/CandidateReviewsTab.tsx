@@ -131,6 +131,7 @@ export const CandidateReviewsTab = ({
   const [selectedDocument, setSelectedDocument] = useState<DocumentFile | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [imageRotation, setImageRotation] = useState(0);
   const [isLoadingDocument, setIsLoadingDocument] = useState(false);
   const [newReview, setNewReview] = useState({
     question_review_id: '',
@@ -311,6 +312,8 @@ export const CandidateReviewsTab = ({
     setSelectedDocument(document);
     setIsLoadingDocument(true);
     setPreviewUrl(null);
+    setZoomLevel(100);
+    setImageRotation(0);
 
     try {
       // Documents are stored in recruitment-files bucket
@@ -400,6 +403,17 @@ export const CandidateReviewsTab = ({
         });
       }
     }
+  };
+
+  const isImagePreview = (doc: DocumentFile) => {
+    if (doc.mime_type?.startsWith('image/')) return true;
+    const ext = doc.file_name.split('.').pop()?.toLowerCase();
+    return ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'gif' || ext === 'webp';
+  };
+
+  const isPdfPreview = (doc: DocumentFile) => {
+    if (doc.mime_type === 'application/pdf') return true;
+    return doc.file_name.toLowerCase().endsWith('.pdf');
   };
 
   const handleAddReview = async () => {
@@ -824,6 +838,17 @@ export const CandidateReviewsTab = ({
     }
   };
 
+  const isImagePreview = (doc: DocumentFile) => {
+    if (doc.mime_type?.startsWith('image/')) return true;
+    const ext = doc.file_name.split('.').pop()?.toLowerCase();
+    return ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'gif' || ext === 'webp';
+  };
+
+  const isPdfPreview = (doc: DocumentFile) => {
+    if (doc.mime_type === 'application/pdf') return true;
+    return doc.file_name.toLowerCase().endsWith('.pdf');
+  };
+
   const getScoreColor = (score: number): string => {
     if (score >= 80) return 'text-green-600 bg-green-50 border-green-200';
     if (score >= 60) return 'text-blue-600 bg-blue-50 border-blue-200';
@@ -867,9 +892,9 @@ export const CandidateReviewsTab = ({
   }
 
   return (
-    <div className="flex min-h-0 max-h-[calc(100vh-120px)]">
+    <div className="flex h-full min-h-0 flex-1 p-3">
       {/* Left Section - Reviews & Score (35% width) */}
-      <div className="w-[35%] space-y-4 overflow-y-auto pr-4 seamless-scroll">
+      <div className="flex w-[35%] min-h-0 flex-col space-y-4 overflow-y-auto pr-4 seamless-scroll scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* Score Overview & Actions */}
         <Card>
           <CardHeader className="pb-4">
@@ -1155,8 +1180,8 @@ export const CandidateReviewsTab = ({
       </div>
 
       {/* Right Section - Document Preview (65% width) */}
-      <div className="w-[65%] flex flex-col min-h-0">
-        <Card className="flex flex-col h-full min-h-0">
+      <div className="flex min-h-0 min-w-0 w-[65%] flex-1 flex-col">
+        <Card className="flex h-full min-h-0 w-full flex-col">
           <CardHeader className="flex-shrink-0 pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
@@ -1214,9 +1239,9 @@ export const CandidateReviewsTab = ({
                       </div>
                     </div>
                   ) : previewUrl ? (
-                    <div className="flex flex-col h-full min-h-0">
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden">
                       {/* Document Controls */}
-                      <div className="flex items-center justify-between p-3 bg-gray-50 border-b flex-shrink-0">
+                      <div className="flex flex-shrink-0 items-center justify-between border-b bg-gray-50 p-3">
                         <div className="flex items-center gap-2">
                           {/* Document List Dropdown */}
                           <DropdownMenu>
@@ -1278,63 +1303,85 @@ export const CandidateReviewsTab = ({
                             {documents.findIndex(d => d.id === selectedDocument.id) + 1} / {documents.length}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => setZoomLevel(prev => Math.max(25, prev - 10))}
-                            disabled={zoomLevel <= 25}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <span className="text-xs font-medium w-12 text-center">{zoomLevel}%</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))}
-                            disabled={zoomLevel >= 200}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                          <div className="w-px h-4 bg-gray-300 mx-1"></div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => {
-                              const iframe = document.querySelector('iframe[title="Document Preview"]') as HTMLIFrameElement;
-                              if (iframe) {
-                                const currentRotation = parseInt(iframe.style.transform.replace('rotate(', '').replace('deg)', '')) || 0;
-                                iframe.style.transform = `rotate(${currentRotation + 90}deg)`;
-                              }
-                            }}
-                            title="Rotate"
-                          >
-                            <RotateCw className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => setZoomLevel(100)}
-                            title="Fit to page"
-                          >
-                            <Maximize2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        {isImagePreview(selectedDocument) ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setZoomLevel(prev => Math.max(25, prev - 10))}
+                              disabled={zoomLevel <= 25}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="text-xs font-medium w-12 text-center">{zoomLevel}%</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))}
+                              disabled={zoomLevel >= 200}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                            <div className="w-px h-4 bg-gray-300 mx-1" />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setImageRotation(prev => (prev + 90) % 360)}
+                              title="Rotate"
+                            >
+                              <RotateCw className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => {
+                                setZoomLevel(100);
+                                setImageRotation(0);
+                              }}
+                              title="Reset view"
+                            >
+                              <Maximize2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
-                      {/* Document Viewer */}
-                      <div className="flex-1 overflow-auto bg-gray-100 p-4 min-h-0 seamless-scroll" style={{ position: 'relative' }}>
-                        <div className="bg-white shadow-lg mx-auto absolute inset-4" style={{ width: `${Math.max(zoomLevel, 100)}%`, transition: 'width 0.2s' }}>
+                      {/* Document Viewer — full width, scroll jika konten lebih tinggi/lebar */}
+                      <div className="min-h-0 flex-1 overflow-auto bg-white seamless-scroll scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {isImagePreview(selectedDocument) ? (
+                          <img
+                            src={previewUrl}
+                            alt={selectedDocument.file_name}
+                            className="block h-auto max-w-none"
+                            style={{
+                              width: `${zoomLevel}%`,
+                              transform: imageRotation ? `rotate(${imageRotation}deg)` : undefined,
+                              transformOrigin: 'top left',
+                            }}
+                          />
+                        ) : isPdfPreview(selectedDocument) ? (
                           <iframe
                             src={previewUrl}
-                            className="w-full border-0"
-                            style={{ minHeight: '600px', height: '100%', width: '100%', display: 'block' }}
+                            className="h-full min-h-full w-full border-0"
                             title="Document Preview"
                           />
-                        </div>
+                        ) : (
+                          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-gray-600">
+                            <FileText className="h-10 w-10 text-gray-400" />
+                            <p className="text-sm">Preview is not available for this file type.</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open(previewUrl, '_blank')}
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              Open
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (

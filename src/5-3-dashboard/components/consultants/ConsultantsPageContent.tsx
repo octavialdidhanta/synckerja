@@ -28,6 +28,7 @@ import {
   FU_PRIORITY_FILTER_CHOICES,
   buildAssigneeFilterOptions,
   buildLeadSourceFilterOptions,
+  buildWebPropertyFilterOptions,
   buildUniqueLeadStatusFilterOptions,
   useLeadsManagementFilterQueries,
 } from '@/5-3-dashboard/hooks/useLeadsManagementFilterQueries';
@@ -53,6 +54,7 @@ export const ConsultantsPageContent = () => {
     services: 'all',
     category: 'all',
     createdBy: 'all',
+    webProperty: 'all',
     assignee: 'all',
     fuPriority: 'all',
     status: 'all',
@@ -121,6 +123,10 @@ export const ConsultantsPageContent = () => {
     setFilters((prev) => ({ ...prev, createdBy: value }));
   }, []);
 
+  const handleWebPropertyFilterChange = useCallback((value: string) => {
+    setFilters((prev) => ({ ...prev, webProperty: value }));
+  }, []);
+
   const handleAssigneeFilterChange = useCallback((value: string) => {
     setFilters((prev) => ({ ...prev, assignee: value }));
   }, []);
@@ -140,12 +146,18 @@ export const ConsultantsPageContent = () => {
 
   const createdByFilterOptions = useMemo(() => {
     const set = new Set<string>();
+    const skip = new Set(["Website form", "Synckerja API"]);
     for (const l of leads) {
       const n = (l.created_by_name ?? "").trim();
-      if (n) set.add(n);
+      if (n && !skip.has(n)) set.add(n);
     }
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [leads]);
+
+  const webPropertyFilterOptions = useMemo(
+    () => buildWebPropertyFilterOptions(leads),
+    [leads],
+  );
 
   const sourceFilterOptions = useMemo(
     () => buildLeadSourceFilterOptions(leads, leadSources),
@@ -269,6 +281,12 @@ export const ConsultantsPageContent = () => {
     if (filters.createdBy !== 'all' && filters.createdBy) {
       filtered = filtered.filter(
         (lead) => (lead.created_by_name ?? '').trim() === filters.createdBy,
+      );
+    }
+
+    if (filters.webProperty !== 'all' && filters.webProperty) {
+      filtered = filtered.filter(
+        (lead) => (lead.web_id ?? '').trim() === filters.webProperty,
       );
     }
 
@@ -488,6 +506,11 @@ export const ConsultantsPageContent = () => {
                       value: filters.createdBy,
                       onChange: handleCreatedByFilterChange,
                       options: createdByFilterOptions,
+                    }}
+                    webPropertyColumnFilter={{
+                      value: filters.webProperty,
+                      onChange: handleWebPropertyFilterChange,
+                      options: webPropertyFilterOptions,
                     }}
                     assigneeColumnFilter={{
                       value: filters.assignee,

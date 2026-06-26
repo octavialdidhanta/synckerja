@@ -1,9 +1,39 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { parseEdgeFunctionError } from "@/tiktok-ads/lib/parseEdgeFunctionError";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { youtubeManageCommentsInboxStateQueryKey } from "@/6-0-social-media-manage-comments/lib/youtubeManageCommentsInboxQueryKeys";
 import type { YouTubeManageCommentsInboxState } from "@/6-0-social-media-manage-comments/lib/youtubeManageCommentsInboxApi";
+import {
+  hydrateCommentHighlightStoreFromServer,
+  hydratePostHighlightStoreFromServer,
+} from "@/6-0-social-media-manage-comments/lib/manageCommentsInboundHighlightStore";
 import type { YouTubeCommentRow } from "@/youtube-content/types/youtubeCommentApiTypes";
+
+function isYouTubeInboxStatePayload(payload: unknown): payload is YouTubeManageCommentsInboxState {
+  if (!payload || typeof payload !== "object") return false;
+  const row = payload as YouTubeManageCommentsInboxState;
+  return Array.isArray(row.posts) && Array.isArray(row.inbound_comments);
+}
+
+function applyYouTubeInboxStateFromPayload(
+  queryClient: QueryClient,
+  organizationId: string,
+  channelId: string,
+  videoId: string,
+  payload: unknown,
+) {
+  if (!isYouTubeInboxStatePayload(payload)) return;
+  queryClient.setQueryData(
+    youtubeManageCommentsInboxStateQueryKey(organizationId, channelId),
+    payload,
+  );
+  hydratePostHighlightStoreFromServer(channelId, payload.posts);
+  const engagedSet = new Set(payload.engaged_comment_ids);
+  const inboundForVideo = payload.inbound_comments
+    .filter((row) => row.video_id === videoId)
+    .map((row) => row.comment_id);
+  hydrateCommentHighlightStoreFromServer(channelId, videoId, inboundForVideo, engagedSet);
+}
 
 async function invokeYouTubeCommentAction(
   organizationId: string,
@@ -38,26 +68,6 @@ export function useYouTubeContentCommentMutations(args: {
   const { organizationId, channelId, videoId } = args;
   const queryClient = useQueryClient();
 
-  const invalidateComments = () => {
-    if (!organizationId || !channelId || !videoId) return;
-    void queryClient.invalidateQueries({
-      queryKey: ["youtube-content-comments", organizationId, channelId, videoId],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["youtube-content-comment-replies", organizationId, channelId, videoId],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["youtube-content-comment-posts", organizationId, channelId],
-    });
-  };
-
-  const invalidateInboxState = () => {
-    if (!organizationId || !channelId) return;
-    void queryClient.invalidateQueries({
-      queryKey: youtubeManageCommentsInboxStateQueryKey(organizationId, channelId),
-    });
-  };
-
   const replyComment = useMutation({
     mutationFn: async (input: {
       text: string;
@@ -77,20 +87,13 @@ export function useYouTubeContentCommentMutations(args: {
         target_parent_comment_id: input.targetParentCommentId ?? null,
       });
     },
-    onSuccess: (_data, variables) => {
-      invalidateComments();
-      invalidateInboxState();
-      if (!organizationId || !channelId || !videoId) return;
-      const listParentId = variables.repliesListParentId.trim() || variables.commentId;
-      void queryClient.invalidateQueries({
-        queryKey: [
-          "youtube-content-comment-replies",
-          organizationId,
-          channelId,
-          videoId,
-          listParentId,
-        ],
-      });
+    onSuccess: (data) => {
+      if (organizationId && channelId && videoId) {
+        applyYouTubeInboxStateFromPayload(queryClient, organizationId, channelId, videoId, data);
+      }
+      // Reply thread cache is updated optimistically in YouTubeCommentThreadPanel.
+      // Do not invalidate replies here — an immediate refetch often returns before YouTube
+      // lists the new reply and wipes the cached row from the UI.
     },
   });
 

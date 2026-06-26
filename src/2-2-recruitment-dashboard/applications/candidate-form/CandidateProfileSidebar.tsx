@@ -47,6 +47,7 @@ const PROFESSIONAL_COLORS = {
 };
 
 interface CandidateProfileSidebarProps {
+  fillHeight?: boolean;
   candidateData: {
     id?: string;
     full_name?: string;
@@ -69,7 +70,7 @@ interface CandidateProfileSidebarProps {
   };
 }
 
-export const CandidateProfileSidebar = ({ candidateData }: CandidateProfileSidebarProps) => {
+export const CandidateProfileSidebar = ({ candidateData, fillHeight = false }: CandidateProfileSidebarProps) => {
   const { t } = useAppTranslation();
   const [documents, setDocuments] = useState<any[]>([]);
   const [education, setEducation] = useState<any[]>([]);
@@ -207,7 +208,8 @@ export const CandidateProfileSidebar = ({ candidateData }: CandidateProfileSideb
       LAYOUT_CONSTANTS.sidebar.width,
       LAYOUT_CONSTANTS.sidebar.minHeight,
       PROFESSIONAL_COLORS.background.secondary,
-      "flex flex-col"
+      "flex flex-col",
+      fillHeight && "h-full min-h-0 flex-1"
     )}>
       {/* Compact Profile Header */}
       <Card className={cn(
@@ -368,15 +370,16 @@ export const CandidateProfileSidebar = ({ candidateData }: CandidateProfileSideb
         </CardContent>
       </Card>
 
-      {/* Compact Help Section */}
+      {/* Compact Help Section — stretches to bottom when fillHeight */}
       <Card className={cn(
         PROFESSIONAL_COLORS.background.card,
-        PROFESSIONAL_COLORS.shadow.sm
+        PROFESSIONAL_COLORS.shadow.sm,
+        fillHeight && "mt-auto flex min-h-0 flex-1 flex-col"
       )}>
         <CardHeader className={LAYOUT_CONSTANTS.card.paddingSmall}>
           <h4 className={cn("text-sm font-medium", PROFESSIONAL_COLORS.text.heading)}>{t('candidateProfile.sidebar.help', 'Help')}</h4>
         </CardHeader>
-        <CardContent className={LAYOUT_CONSTANTS.card.paddingSmall}>
+        <CardContent className={cn(LAYOUT_CONSTANTS.card.paddingSmall, fillHeight && "flex-1")}>
           <div className={cn("text-sm space-y-2", PROFESSIONAL_COLORS.text.secondary)}>
             <p>{t('candidateProfile.sidebar.helpCompleteSections', 'Complete all sections to submit.')}</p>
             <p>{t('candidateProfile.sidebar.helpUploadDocs', 'Upload CV, Ijazah, KTP.')}</p>

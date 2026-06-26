@@ -112,6 +112,7 @@ export function jsonToLeadsFiltersState(j: RecipientPickerFiltersJson, prev: Lea
     services: j.services,
     category: j.category,
     createdBy: j.createdBy,
+    webProperty: prev.webProperty ?? "all",
     assignee: j.assignee,
     fuPriority: j.fuPriority,
     status: j.status,

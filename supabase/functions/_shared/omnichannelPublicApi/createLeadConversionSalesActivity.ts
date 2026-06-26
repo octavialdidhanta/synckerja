@@ -54,7 +54,7 @@ export async function createLeadConversionSalesActivity(
     date: today,
     created_by: args.createdByUserId,
     total_amount: args.totalAmount,
-    description: `Invoice ${args.invoiceNumber} via Website API`,
+    description: `Invoice ${args.invoiceNumber} via Website form`,
     created_at: now,
     updated_at: now,
   });

@@ -19,9 +19,20 @@ const FIXED_7_KEYS = [
   "event_address",
 ] as const;
 
+export function sanitizeMetaTemplateParam(value: string): string {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/[\n\r]+/g, " · ")
+    .replace(/\t/g, " ")
+    .replace(/ {5,}/g, "    ")
+    .trim()
+    .slice(0, 1024);
+}
+
 export function paramOrDash(value: unknown): string {
   const s = value == null ? "" : String(value).trim();
-  return s.length > 0 ? s.slice(0, 1024) : "-";
+  if (s.length === 0) return "-";
+  return sanitizeMetaTemplateParam(s);
 }
 
 export function isValidLeadMappableFieldKey(key: string): boolean {

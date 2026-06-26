@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import type { TemplateListResponse } from "../types";
@@ -38,6 +38,7 @@ export function useWhatsAppMessageTemplates(
   return useInfiniteQuery({
     queryKey: ["whatsapp-message-templates", organizationId, whatsappAccountId],
     enabled: Boolean(organizationId && queryEnabled),
+    placeholderData: keepPreviousData,
     initialPageParam: "" as string,
     queryFn: ({ pageParam }) => fetchPage(pageParam || undefined, whatsappAccountId),
     getNextPageParam: (last) => {

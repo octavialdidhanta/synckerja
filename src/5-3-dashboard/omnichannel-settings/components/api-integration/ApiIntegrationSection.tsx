@@ -27,6 +27,10 @@ import { ApiTokenRevokeDialog } from "@/5-3-dashboard/omnichannel-settings/compo
 import { ClickInfoHint } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ClickInfoHint";
 import { LeadTemplateVariableMapper } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/LeadTemplateVariableMapper";
 import {
+  labelFromWebIdMapping,
+  WebIdWhatsAppAccountMapper,
+} from "@/5-3-dashboard/omnichannel-settings/components/api-integration/WebIdWhatsAppAccountMapper";
+import {
   getDefaultApiBaseUrl,
   getOmnichannelTokenDisplayStatus,
   getOmnichannelTokenExpiryState,
@@ -40,6 +44,7 @@ import {
   useUpdateOmnichannelTokenOrigins,
   useUpdateOmnichannelApiSettings,
   useUpsertLeadTemplateMapping,
+  useWebIdWhatsAppAccounts,
   type OmnichannelApiTokenRow,
   type OmnichannelApiTokenType,
 } from "@/5-3-dashboard/omnichannel-settings/hooks/useOmnichannelApiIntegration";
@@ -96,6 +101,7 @@ export function ApiIntegrationSection() {
     null,
   );
   const [leadMappingWebId, setLeadMappingWebId] = useState<string | null>(null);
+  const [leadMappingWaAccountId, setLeadMappingWaAccountId] = useState<string | null>(null);
 
   const tokensTabEnabled = tab === "tokens";
 
@@ -112,8 +118,16 @@ export function ApiIntegrationSection() {
   const updateTokenOrigins = useUpdateOmnichannelTokenOrigins(organizationId);
   const updateSettings = useUpdateOmnichannelApiSettings(organizationId);
   const upsertLeadMapping = useUpsertLeadTemplateMapping(organizationId);
+  const { data: webIdWaData } = useWebIdWhatsAppAccounts(organizationId, {
+    enabled: tokensTabEnabled,
+  });
 
   const apiBase = useMemo(() => getDefaultApiBaseUrl(), []);
+
+  const mappedAccountLabel = useMemo(
+    () => labelFromWebIdMapping(webIdWaData?.mappings, leadMappingWebId),
+    [webIdWaData?.mappings, leadMappingWebId],
+  );
 
   const sortedTokens = useMemo(() => sortOmnichannelApiTokensForDisplay(tokens), [tokens]);
 
@@ -135,7 +149,16 @@ export function ApiIntegrationSection() {
     setLeadMappingDirty(false);
     setPendingLeadMapping(null);
     setLeadMappingWebId(null);
+    setLeadMappingWaAccountId(null);
   }, [organizationId]);
+
+  useEffect(() => {
+    if (leadMappingWebId != null) return;
+    const candidates = webIdWaData?.candidate_web_ids ?? [];
+    if (candidates.length > 0) {
+      setLeadMappingWebId(candidates[0]!);
+    }
+  }, [leadMappingWebId, webIdWaData?.candidate_web_ids]);
 
   useEffect(() => {
     if (!settingsDirty) {
@@ -327,6 +350,15 @@ export function ApiIntegrationSection() {
               </div>
 
               <div className="space-y-4 px-4 py-4">
+                <WebIdWhatsAppAccountMapper
+                  organizationId={organizationId}
+                  selectedWebId={leadMappingWebId}
+                  onWebIdChange={setLeadMappingWebId}
+                  onMappedAccountIdChange={setLeadMappingWaAccountId}
+                  disabled={settingsLoading || updateSettings.isPending}
+                  queryEnabled={tokensTabEnabled}
+                />
+
                 <div className="max-w-lg space-y-1.5">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="wa-template">
@@ -360,7 +392,9 @@ export function ApiIntegrationSection() {
                   disabled={settingsLoading || updateSettings.isPending || upsertLeadMapping.isPending}
                   queryEnabled={tokensTabEnabled}
                   onMappingChange={setPendingLeadMapping}
-                  onWebIdChange={setLeadMappingWebId}
+                  selectedWebId={leadMappingWebId}
+                  whatsappAccountId={leadMappingWaAccountId}
+                  mappedAccountLabel={mappedAccountLabel}
                   onCompleteChange={setLeadMappingComplete}
                   onDirtyChange={setLeadMappingDirty}
                 />

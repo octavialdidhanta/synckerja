@@ -598,6 +598,7 @@ type CommentThreadItem = {
     topLevelComment?: { id?: string; snippet?: YouTubeCommentSnippet };
     videoId?: string;
     canReply?: boolean;
+    totalReplyCount?: unknown;
   };
 };
 
@@ -658,8 +659,10 @@ function parseCommentThreadItems(
     const vid = String(thread.snippet?.videoId ?? fallbackVideoId).trim();
     if (!topId) continue;
     if (filterVideoId && vid !== filterVideoId.trim()) continue;
+    const totalReplyCount = Number(thread.snippet?.totalReplyCount ?? 0) || 0;
     all.push({
       ...mapYouTubeCommentSnippet(topId, vid, top?.snippet, channelId, null),
+      reply_count: totalReplyCount,
       thread_id: threadId || null,
       // YouTube expects commentThread id as parentId for top-level replies.
       reply_parent_id: threadId || topId,

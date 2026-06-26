@@ -10,6 +10,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { CandidateQuickViewModal } from './CandidateQuickViewModal';
+import {
+  isInterviewScheduleComplete,
+} from '../lib/recruitmentContactLinks';
+import { sendRecruitmentInterviewEmail } from '../lib/sendRecruitmentInterviewEmail';
 
 export const ApplicationsTable = () => {
   const { data: applications = [], error } = useJobApplications();
@@ -93,6 +97,48 @@ export const ApplicationsTable = () => {
   const handleQuickView = (application: JobApplication) => {
     setSelectedApplication(application);
     setIsQuickViewOpen(true);
+  };
+
+  const handleSendEmail = async (application: JobApplication) => {
+    if (!application.applicant_email?.trim()) {
+      toast({
+        title: 'Error',
+        description: 'No email address available for this candidate.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (
+      !isInterviewScheduleComplete({
+        interviewDate: application.interview_date,
+        interviewTime: application.interview_time,
+        interviewLocation: application.interview_location,
+      })
+    ) {
+      toast({
+        title: 'Interview schedule required',
+        description: 'Open Quick View, set interview date/time/location, then send email.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const result = await sendRecruitmentInterviewEmail(application.id);
+    if (!result.success) {
+      toast({
+        title: 'Failed to send email',
+        description: result.error || 'Could not send interview invitation.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    handleStatusChange(application.id, 'contacted');
+    toast({
+      title: 'Email sent',
+      description: `Interview invitation sent to ${application.applicant_email}.`,
+    });
   };
 
   const handleCloseQuickView = () => {
@@ -326,7 +372,9 @@ export const ApplicationsTable = () => {
                         Quick View
                       </DropdownMenuItem>
                       <DropdownMenuItem>Download CV</DropdownMenuItem>
-                      <DropdownMenuItem>Send Email</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => void handleSendEmail(application)}>
+                        Send Email
+                      </DropdownMenuItem>
                       <DropdownMenuItem>Send WhatsApp</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

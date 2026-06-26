@@ -643,6 +643,24 @@ export function YouTubeCommentThreadPanel({
 
           setOptimisticReplies((prev) => prev.filter((r) => r.tempId !== tempId));
 
+          void burstRefetchYouTubeRepliesUntilFound({
+
+            queryClient,
+
+            organizationId,
+
+            channelId,
+
+            videoId,
+
+            parentCommentId: repliesListParentId,
+
+            text,
+
+            onFound: (serverTexts) => pruneOptimisticForParent(repliesListParentId, serverTexts),
+
+          });
+
         } else {
 
           void burstRefetchYouTubeRepliesUntilFound({
@@ -675,8 +693,6 @@ export function YouTubeCommentThreadPanel({
 
 
 
-        void queryClient.refetchQueries({ queryKey: repliesKey });
-
         queryClient.setQueryData<YouTubeCommentsListResponse | null>(
           ["youtube-content-comments", organizationId, channelId, videoId, "newest"],
           (old) => {
@@ -699,8 +715,6 @@ export function YouTubeCommentThreadPanel({
             };
           },
         );
-
-        void commentsQuery.refetch();
 
         toast.success(
 
@@ -747,8 +761,6 @@ export function YouTubeCommentThreadPanel({
       organizationId,
 
       channelId,
-
-      commentsQuery,
 
       t,
 

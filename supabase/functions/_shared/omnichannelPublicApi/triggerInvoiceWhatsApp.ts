@@ -1,11 +1,16 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { resolveOrganizationWhatsAppCredentials } from "./resolveOrganizationWhatsAppCredentials.ts";
+import {
+  resolveOrganizationWhatsAppCredentials,
+  WA_ACCOUNT_NOT_MAPPED_CODE,
+  WA_ACCOUNT_NOT_MAPPED_ERROR,
+} from "./resolveOrganizationWhatsAppCredentials.ts";
 
 const META_API_BASE = "https://graph.facebook.com/v21.0";
 
 export type InvoiceWhatsAppResult = {
-  status: "sent" | "failed" | "pending";
+  status: "sent" | "failed" | "skipped" | "pending";
   messageId: string | null;
+  skipReason?: string | null;
   error?: string;
 };
 
@@ -14,6 +19,7 @@ export async function triggerInvoiceWhatsApp(
   admin: SupabaseClient,
   args: {
     organizationId: string;
+    webId: string;
     templateName: string;
     templateLanguage?: string | null;
     phoneNumber: string;
@@ -24,9 +30,19 @@ export async function triggerInvoiceWhatsApp(
   },
 ): Promise<InvoiceWhatsAppResult> {
   try {
-    const creds = await resolveOrganizationWhatsAppCredentials(admin, args.organizationId);
+    const creds = await resolveOrganizationWhatsAppCredentials(admin, args.organizationId, {
+      webId: args.webId,
+    });
     if (!creds.ok) {
-      return { status: "failed", messageId: null, error: creds.error };
+      const isNotMapped =
+        creds.code === WA_ACCOUNT_NOT_MAPPED_CODE ||
+        creds.error === WA_ACCOUNT_NOT_MAPPED_ERROR;
+      return {
+        status: "skipped",
+        messageId: null,
+        skipReason: isNotMapped ? WA_ACCOUNT_NOT_MAPPED_ERROR : undefined,
+        error: creds.error,
+      };
     }
 
     const toDigits = args.phoneNumber.replace(/\D/g, "");

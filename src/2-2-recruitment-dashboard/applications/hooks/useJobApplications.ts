@@ -14,6 +14,12 @@ export interface JobApplication {
   created_at: string;
   recruitment_token?: string;
   interview_status?: string;
+  interview_date?: string;
+  interview_time?: string;
+  interview_location?: string;
+  interviewer_name?: string;
+  interviewer_email?: string;
+  interview_notes?: string;
   job_opening_id: string;
   recruitment_link_id?: string;
   candidate_profile_id?: string;

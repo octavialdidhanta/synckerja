@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 
 export type OmnichannelApiTokenType = "sdk" | "server" | "legacy_full";
@@ -180,6 +180,7 @@ export function useLeadTemplateMapping(
       });
       return (data.mapping ?? null) as LeadTemplateMappingRow | null;
     },
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -199,6 +200,7 @@ export function useRecentLeadFormDataKeys(
       });
       return (data.keys ?? []) as string[];
     },
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -243,6 +245,7 @@ export function useLatestLeadSubmissionForPreview(
         return empty;
       }
     },
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -288,6 +291,60 @@ export function useSuggestLeadTemplateMapping(organizationId: string | null | un
       template_name: string;
       template_language: string;
     }) => invokeManage({ action: "suggestLeadTemplateMapping", organizationId, ...payload }),
+  });
+}
+
+export type WebIdWhatsAppAccountNested = {
+  id: string;
+  whatsapp_business_name: string | null;
+  display_phone_number: string | null;
+  phone_number_id: string | null;
+  is_active: boolean;
+};
+
+export type WebIdWhatsAppAccountMappingRow = {
+  id: string;
+  web_id: string;
+  whatsapp_account_id: string;
+  is_active: boolean;
+  updated_at: string;
+  organization_whatsapp_accounts: WebIdWhatsAppAccountNested | WebIdWhatsAppAccountNested[] | null;
+};
+
+export type WebIdWhatsAppAccountsBundle = {
+  mappings: WebIdWhatsAppAccountMappingRow[];
+  candidate_web_ids: string[];
+};
+
+const webIdWaQueryKey = (orgId: string) => [...queryKey(orgId), "web-id-wa-accounts"] as const;
+
+export function useWebIdWhatsAppAccounts(
+  organizationId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: webIdWaQueryKey(organizationId ?? ""),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
+    queryFn: async (): Promise<WebIdWhatsAppAccountsBundle> => {
+      const data = await invokeManage({ action: "listWebIdWhatsAppAccounts", organizationId });
+      return {
+        mappings: (data.mappings ?? []) as WebIdWhatsAppAccountMappingRow[],
+        candidate_web_ids: (data.candidate_web_ids ?? []) as string[],
+      };
+    },
+  });
+}
+
+export function useUpsertWebIdWhatsAppAccount(organizationId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { web_id: string; whatsapp_account_id: string }) =>
+      invokeManage({ action: "upsertWebIdWhatsAppAccount", organizationId, ...payload }),
+    onSuccess: () => {
+      if (organizationId) {
+        void qc.invalidateQueries({ queryKey: webIdWaQueryKey(organizationId) });
+      }
+    },
   });
 }
 

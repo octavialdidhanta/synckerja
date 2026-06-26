@@ -20,11 +20,16 @@ export function templateSelectionKey(name: string, language: string): string {
   return `${name.trim()}::${language.trim()}`;
 }
 
-export function useApprovedWhatsAppTemplatesFlat(options?: { enabled?: boolean }) {
+export function useApprovedWhatsAppTemplatesFlat(options?: {
+  enabled?: boolean;
+  /** When set, templates are loaded for this WABA account (e.g. web_id mapping). */
+  whatsappAccountId?: string | null;
+}) {
   const queryEnabled = options?.enabled ?? true;
   const { accounts, isLoading: accountsLoading } = useWhatsAppAccounts();
 
-  const waAccountId = useMemo(() => pickDefaultWhatsAppAccountId(accounts), [accounts]);
+  const defaultAccountId = useMemo(() => pickDefaultWhatsAppAccountId(accounts), [accounts]);
+  const waAccountId = options?.whatsappAccountId?.trim() || defaultAccountId;
 
   const tplQuery = useWhatsAppMessageTemplates(waAccountId, {
     enabled: queryEnabled && Boolean(waAccountId),
@@ -53,16 +58,20 @@ export function useApprovedWhatsAppTemplatesFlat(options?: { enabled?: boolean }
       .filter((row) => row.statusRaw === "APPROVED");
   }, [tplQuery.data?.pages]);
 
-  const isLoading =
-    accountsLoading ||
-    (Boolean(waAccountId) &&
-      (tplQuery.isLoading || tplQuery.isFetchingNextPage || tplQuery.hasNextPage));
+  const hasTemplatePages = (tplQuery.data?.pages?.length ?? 0) > 0;
+  const isInitialLoading =
+    accountsLoading || (Boolean(waAccountId) && tplQuery.isLoading && !hasTemplatePages);
+  const isRefetching =
+    Boolean(waAccountId) &&
+    !isInitialLoading &&
+    (tplQuery.isFetching || tplQuery.isFetchingNextPage || Boolean(tplQuery.hasNextPage));
 
   const waConfigured = accounts.some((a) => a.is_active);
 
   return {
     rows,
-    isLoading,
+    isLoading: isInitialLoading,
+    isRefetching,
     isError: tplQuery.isError,
     waConfigured,
     waAccountId,

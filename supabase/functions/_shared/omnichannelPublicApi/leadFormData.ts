@@ -5,6 +5,11 @@ export const RESERVED_LEAD_BODY_KEYS = new Set([
   "notes",
   "session_id",
   "status",
+  "title",
+  "category",
+  "source_label",
+  "consent",
+  "form_id",
 ]);
 
 export const MAX_FORM_DATA_KEYS = 64;

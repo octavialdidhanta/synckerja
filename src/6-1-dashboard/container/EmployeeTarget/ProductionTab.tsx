@@ -22,15 +22,21 @@ interface ProductionTabProps {
   contentManagers: ContentManager[];
   digitalEmployees?: DigitalMarketingEmployee[];
   handleEditTarget: (manager: ContentManager) => void;
+  selectedDate: Date;
+  setSelectedDate: React.Dispatch<React.SetStateAction<Date>>;
+  selectedMonth: Date;
+  setSelectedMonth: React.Dispatch<React.SetStateAction<Date>>;
 }
 
 const ProductionTab: React.FC<ProductionTabProps> = ({
   contentManagers,
   digitalEmployees: digitalEmployeesProp,
-  handleEditTarget
+  handleEditTarget,
+  selectedDate: dailyTargetDate,
+  setSelectedDate: setDailyTargetDate,
+  selectedMonth: monthlyTargetDate,
+  setSelectedMonth: setMonthlyTargetDate,
 }) => {
-  const [dailyTargetDate, setDailyTargetDate] = useState<Date>(new Date());
-  const [monthlyTargetDate, setMonthlyTargetDate] = useState<Date>(new Date());
   const [currentPICPage, setCurrentPICPage] = useState(0);
   const [isDailyDateEditing, setIsDailyDateEditing] = useState(false);
   const [isMonthlyDateEditing, setIsMonthlyDateEditing] = useState(false);
@@ -381,7 +387,8 @@ const ProductionTab: React.FC<ProductionTabProps> = ({
   const handleDailyDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = e.target.value;
     if (newDate) {
-      setDailyTargetDate(new Date(newDate));
+      const [y, m, d] = newDate.split('-').map(Number);
+      setDailyTargetDate(new Date(y, m - 1, d));
     }
     setIsDailyDateEditing(false);
   };

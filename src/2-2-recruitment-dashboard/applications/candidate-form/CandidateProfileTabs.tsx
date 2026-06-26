@@ -587,8 +587,11 @@ export const CandidateProfileTabs = ({
                 className="h-full overflow-hidden data-[state=active]:flex data-[state=active]:flex-col m-0 flex-1"
               >
                 <div className={cn(
-                  "flex-1 overflow-auto flex flex-col",
-                  LAYOUT_CONSTANTS.padding.md
+                  "flex min-h-0 flex-1 flex-col",
+                  tab.id === 'reviews'
+                    ? "overflow-hidden"
+                    : "overflow-auto",
+                  tab.id !== 'reviews' && LAYOUT_CONSTANTS.padding.md
                 )}>
                   <TabComponent
                     {...(tab.id === 'education' && {

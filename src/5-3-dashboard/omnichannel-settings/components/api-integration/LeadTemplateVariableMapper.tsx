@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, RefreshCw } from "lucide-react";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -31,7 +32,6 @@ import {
 } from "@/5-3-dashboard/omnichannel-settings/lib/leadTemplatePreview";
 import {
   useLatestLeadSubmissionForPreview,
-  useLeadMappingWebIds,
   useLeadTemplateMapping,
   useRecentLeadFormDataKeys,
   useSuggestLeadTemplateMapping,
@@ -42,7 +42,6 @@ function rowLanguageCode(languageCode: string): string {
   return languageCode === "—" ? "id" : languageCode;
 }
 
-/** Shared grid: label | arrow | value select (aligned across web_id + {{n}} rows). */
 const mapperRowGridClass =
   "grid grid-cols-[3rem_auto_minmax(200px,20rem)] items-center gap-x-2 sm:gap-x-3";
 
@@ -68,9 +67,11 @@ export type LeadTemplateVariableMapperProps = {
   disabled?: boolean;
   queryEnabled?: boolean;
   onMappingChange?: (mapping: Record<string, string> | null) => void;
-  onWebIdChange?: (webId: string) => void;
   onCompleteChange?: (complete: boolean) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  selectedWebId?: string | null;
+  whatsappAccountId?: string | null;
+  mappedAccountLabel?: string | null;
 };
 
 export function LeadTemplateVariableMapper({
@@ -81,26 +82,31 @@ export function LeadTemplateVariableMapper({
   disabled = false,
   queryEnabled = true,
   onMappingChange,
-  onWebIdChange,
   onCompleteChange,
   onDirtyChange,
+  selectedWebId,
+  whatsappAccountId,
+  mappedAccountLabel,
 }: LeadTemplateVariableMapperProps) {
   const { t } = useTranslation();
-  const [webId, setWebId] = useState<string>("");
+  const webId = selectedWebId?.trim() ?? "";
   const [slotMapping, setSlotMapping] = useState<Record<number, string>>({});
   const [loadedBaseline, setLoadedBaseline] = useState<Record<number, string>>({});
   const [suggestLoadedKey, setSuggestLoadedKey] = useState("");
   const userEditedRef = useRef(false);
+  const stableBodySlotCountRef = useRef(0);
+  const prevWebIdRef = useRef(webId);
 
   const templateName = template?.name.trim() ?? "";
   const templateLanguage = (template?.language ?? "id").trim() || "id";
 
-  const { data: webIds = [], isLoading: webIdsLoading } = useLeadMappingWebIds(organizationId, {
-    enabled: queryEnabled && Boolean(templateName),
-  });
-
-  const { rows, isLoading: templatesLoading } = useApprovedWhatsAppTemplatesFlat({
+  const {
+    rows,
+    isLoading: templatesInitialLoading,
+    isRefetching: templatesRefetching,
+  } = useApprovedWhatsAppTemplatesFlat({
     enabled: queryEnabled,
+    whatsappAccountId,
   });
 
   const matchedTemplate = useMemo(() => {
@@ -113,8 +119,17 @@ export function LeadTemplateVariableMapper({
   }, [rows, templateName, templateLanguage]);
 
   const bodySlotCount = matchedTemplate ? countTemplateBodySlots(matchedTemplate) : 0;
+  if (bodySlotCount > 0) {
+    stableBodySlotCountRef.current = bodySlotCount;
+  }
+  const displaySlotCount =
+    bodySlotCount > 0 ? bodySlotCount : stableBodySlotCountRef.current;
 
-  const { data: savedMapping, isLoading: mappingLoading } = useLeadTemplateMapping(
+  const {
+    data: savedMapping,
+    isLoading: mappingLoading,
+    isFetching: mappingFetching,
+  } = useLeadTemplateMapping(
     organizationId,
     webId && templateName
       ? { web_id: webId, template_name: templateName, template_language: templateLanguage }
@@ -138,7 +153,6 @@ export function LeadTemplateVariableMapper({
   );
 
   const latestSubmission = previewBundle?.submission ?? null;
-
   const suggestMapping = useSuggestLeadTemplateMapping(organizationId);
 
   const mapperFormDataKeys = useMemo(() => {
@@ -155,53 +169,58 @@ export function LeadTemplateVariableMapper({
   const fieldOptionKeys = useMemo(() => new Set(fieldOptions.map((f) => f.key)), [fieldOptions]);
 
   const mappingComplete = useMemo(
-    () => isLeadMappingComplete(slotMapping, bodySlotCount),
-    [slotMapping, bodySlotCount],
+    () => isLeadMappingComplete(slotMapping, displaySlotCount),
+    [slotMapping, displaySlotCount],
   );
 
   const isMappingDirty = useMemo(() => {
     if (!mappingComplete || !webId) return false;
-    for (let slot = 1; slot <= bodySlotCount; slot++) {
+    for (let slot = 1; slot <= displaySlotCount; slot++) {
       if ((slotMapping[slot] ?? "").trim() !== (loadedBaseline[slot] ?? "").trim()) {
         return true;
       }
     }
     return false;
-  }, [slotMapping, loadedBaseline, mappingComplete, bodySlotCount, webId]);
+  }, [slotMapping, loadedBaseline, mappingComplete, displaySlotCount, webId]);
 
   const applyLoadedMapping = useCallback((mapping: Record<number, string>) => {
-    setSlotMapping((prev) => (slotMappingsEqual(prev, mapping, bodySlotCount) ? prev : mapping));
-    setLoadedBaseline((prev) => (slotMappingsEqual(prev, mapping, bodySlotCount) ? prev : mapping));
+    setSlotMapping((prev) =>
+      slotMappingsEqual(prev, mapping, displaySlotCount) ? prev : mapping,
+    );
+    setLoadedBaseline((prev) =>
+      slotMappingsEqual(prev, mapping, displaySlotCount) ? prev : mapping,
+    );
     userEditedRef.current = false;
-  }, [bodySlotCount]);
+  }, [displaySlotCount]);
 
   const slotMappingRef = useRef(slotMapping);
   slotMappingRef.current = slotMapping;
 
   useEffect(() => {
-    if (!webId && webIds.length > 0) {
-      setWebId(webIds[0]!);
+    if (prevWebIdRef.current !== webId) {
+      prevWebIdRef.current = webId;
+      userEditedRef.current = false;
+      setSuggestLoadedKey("");
     }
-  }, [webId, webIds]);
+  }, [webId]);
 
   useEffect(() => {
-    setSlotMapping({});
-    setLoadedBaseline({});
     userEditedRef.current = false;
     setSuggestLoadedKey("");
-  }, [organizationId, templateName, templateLanguage, webId]);
+  }, [organizationId, templateName, templateLanguage]);
 
   const mappingLoadKey = `${webId}::${templateName}::${templateLanguage}`;
+  const savedMappingMatchesWebId = savedMapping?.web_id === webId;
 
   useEffect(() => {
     if (!webId || !templateName) return;
 
-    if (savedMapping?.parameter_mapping) {
+    if (savedMappingMatchesWebId && savedMapping?.parameter_mapping) {
       const fromDb = parameterMappingToRecord(savedMapping.parameter_mapping);
       if (Object.keys(fromDb).length > 0) {
         if (
           !userEditedRef.current &&
-          !slotMappingsEqual(fromDb, slotMappingRef.current, bodySlotCount)
+          !slotMappingsEqual(fromDb, slotMappingRef.current, displaySlotCount)
         ) {
           applyLoadedMapping(fromDb);
         }
@@ -209,9 +228,11 @@ export function LeadTemplateVariableMapper({
       }
     }
 
+    if (!savedMappingMatchesWebId && mappingFetching) return;
+
     if (userEditedRef.current) return;
 
-    if (bodySlotCount <= 0 || suggestLoadedKey === mappingLoadKey || suggestMapping.isPending) {
+    if (displaySlotCount <= 0 || suggestLoadedKey === mappingLoadKey || suggestMapping.isPending) {
       return;
     }
 
@@ -233,7 +254,8 @@ export function LeadTemplateVariableMapper({
       });
   }, [
     savedMapping,
-    bodySlotCount,
+    savedMappingMatchesWebId,
+    displaySlotCount,
     webId,
     templateName,
     templateLanguage,
@@ -241,6 +263,7 @@ export function LeadTemplateVariableMapper({
     suggestLoadedKey,
     suggestMapping,
     applyLoadedMapping,
+    mappingFetching,
   ]);
 
   useEffect(() => {
@@ -252,10 +275,6 @@ export function LeadTemplateVariableMapper({
   }, [isMappingDirty, onDirtyChange]);
 
   useEffect(() => {
-    if (webId) onWebIdChange?.(webId);
-  }, [webId, onWebIdChange]);
-
-  useEffect(() => {
     if (!mappingComplete || !webId) {
       onMappingChange?.(null);
       return;
@@ -264,9 +283,9 @@ export function LeadTemplateVariableMapper({
   }, [slotMapping, mappingComplete, webId, onMappingChange]);
 
   const bodySlots = useMemo(() => {
-    if (bodySlotCount <= 0) return [];
-    return Array.from({ length: bodySlotCount }, (_, i) => i + 1);
-  }, [bodySlotCount]);
+    if (displaySlotCount <= 0) return [];
+    return Array.from({ length: displaySlotCount }, (_, i) => i + 1);
+  }, [displaySlotCount]);
 
   const previewSubmission = useMemo((): LeadPreviewSubmission | null => {
     if (!latestSubmission) return null;
@@ -281,12 +300,12 @@ export function LeadTemplateVariableMapper({
   }, [latestSubmission]);
 
   const livePreview = useMemo(() => {
-    if (!matchedTemplate || !mappingComplete || bodySlotCount <= 0) return null;
+    if (!matchedTemplate || !mappingComplete || displaySlotCount <= 0) return null;
 
     const bodyText = buildLeadTemplateBodyPreviewText(
       matchedTemplate.bodyFull,
       slotMapping,
-      bodySlotCount,
+      displaySlotCount,
       previewSubmission,
     );
 
@@ -294,7 +313,7 @@ export function LeadTemplateVariableMapper({
       bodyText,
       submittedAt: previewSubmission?.submitted_at ?? null,
     };
-  }, [matchedTemplate, mappingComplete, bodySlotCount, slotMapping, previewSubmission]);
+  }, [matchedTemplate, mappingComplete, displaySlotCount, slotMapping, previewSubmission]);
 
   const phonePreviewProps = useMemo(() => {
     if (!matchedTemplate) return null;
@@ -336,9 +355,12 @@ export function LeadTemplateVariableMapper({
     void refetchFormDataKeys();
   }, [refetchSubmission, refetchFormDataKeys]);
 
-  const isLoading = webIdsLoading || templatesLoading || mappingLoading;
+  const slotsBusy =
+    templatesInitialLoading ||
+    templatesRefetching ||
+    mappingLoading ||
+    mappingFetching;
   const previewLoading = submissionLoading || submissionFetching;
-  const noWebIds = !webIdsLoading && webIds.length === 0;
 
   const templatePickerBlock = (
     <div className="space-y-1.5">
@@ -357,8 +379,27 @@ export function LeadTemplateVariableMapper({
         queryEnabled={queryEnabled}
         leadMappingComplete={leadMappingComplete}
         hideApprovedHint
+        whatsappAccountId={whatsappAccountId}
       />
     </div>
+  );
+
+  const webIdContextBlock = webId ? (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="text-muted-foreground">
+        {t("omnichannel.settings.apiIntegration.leadMapper.contextWebId")}
+      </span>
+      <Badge variant="outline" className="font-mono text-[11px] font-normal">
+        {webId}
+      </Badge>
+      {mappedAccountLabel ? (
+        <span className="text-muted-foreground">{mappedAccountLabel}</span>
+      ) : null}
+    </div>
+  ) : (
+    <p className="text-xs text-amber-800 dark:text-amber-200">
+      {t("omnichannel.settings.apiIntegration.leadMapper.selectWebIdAbove")}
+    </p>
   );
 
   const phonePreviewColumn = phonePreviewProps ? (
@@ -382,201 +423,166 @@ export function LeadTemplateVariableMapper({
     </div>
   ) : null;
 
+  if (!templateName) {
+    return (
+      <div className="mt-4 rounded-lg border border-border/70 bg-muted/20 p-4">
+        <div className="mb-3">
+          <h5 className="text-sm font-semibold text-foreground">
+            {t("omnichannel.settings.apiIntegration.leadMapper.title")}
+          </h5>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("omnichannel.settings.apiIntegration.leadMapper.subtitle")}
+          </p>
+        </div>
+        <div className="max-w-md">{templatePickerBlock}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-4 rounded-lg border border-border/70 bg-muted/20 p-4">
-      {!templateName ? (
-        <div className="max-w-md">{templatePickerBlock}</div>
-      ) : webId && bodySlotCount > 0 ? (
-        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:gap-12 lg:overflow-hidden">
-          <div className="w-full max-w-md shrink-0 space-y-3">
-            {templatePickerBlock}
-                <div className={mapperRowGridClass}>
-                  <Label
-                    htmlFor="lead-mapper-web-id"
-                    className="font-mono text-xs font-medium leading-tight text-foreground"
-                  >
-                    web_id
-                  </Label>
-                  <span className="text-muted-foreground" aria-hidden>
-                    →
-                  </span>
-                  <Select
-                    value={webId || undefined}
-                    onValueChange={(value) => {
-                      setWebId(value);
-                      userEditedRef.current = false;
-                    }}
-                    disabled={disabled || noWebIds || isLoading}
-                  >
-                    <SelectTrigger id="lead-mapper-web-id" className={mapperSelectTriggerClass}>
-                      <SelectValue
-                        placeholder={t("omnichannel.settings.apiIntegration.leadMapper.webIdPlaceholder")}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {webIds.map((id) => (
-                        <SelectItem key={id} value={id} className="font-mono text-sm">
-                          {id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {noWebIds ? (
-                  <p className="pl-[calc(3rem+1.75rem)] text-xs text-amber-800 dark:text-amber-200 sm:pl-[calc(3rem+2rem)]">
-                    {t("omnichannel.settings.apiIntegration.leadMapper.noWebIds")}
-                  </p>
-                ) : null}
-            {bodySlots.map((slot) => {
-              const currentField = (slotMapping[slot] ?? "").trim();
-              const staleField =
-                currentField && !fieldOptionKeys.has(currentField) ? currentField : null;
+      <div className="mb-3">
+        <h5 className="text-sm font-semibold text-foreground">
+          {t("omnichannel.settings.apiIntegration.leadMapper.title")}
+        </h5>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("omnichannel.settings.apiIntegration.leadMapper.subtitle")}
+        </p>
+      </div>
 
-              return (
-              <div key={slot} className={mapperRowGridClass}>
-                <span className="font-mono text-sm text-muted-foreground">{`{{${slot}}}`}</span>
-                <span className="text-muted-foreground" aria-hidden>
-                  →
-                </span>
-                <Select
-                  value={slotMapping[slot] ?? ""}
-                  onValueChange={(value) => handleSlotChange(slot, value)}
-                  disabled={disabled || isLoading}
-                >
-                  <SelectTrigger className={mapperSelectTriggerClass}>
-                    <SelectValue placeholder={t("omnichannel.settings.apiIntegration.leadMapper.fieldPlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {staleField ? (
-                      <SelectGroup>
-                        <SelectItem
-                          value={staleField}
-                          className="font-mono text-sm text-amber-800 dark:text-amber-200"
-                        >
-                          {t("omnichannel.settings.apiIntegration.leadMapper.fieldStale", {
-                            key: staleField,
-                          })}
-                        </SelectItem>
-                      </SelectGroup>
-                    ) : null}
-                    <SelectGroup>
-                      <SelectLabel>{t("omnichannel.settings.apiIntegration.leadMapper.group.core")}</SelectLabel>
-                      {fieldOptions
-                        .filter((f) => f.group === "core")
-                        .map((f) => (
-                          <SelectItem key={f.key} value={f.key} className="font-mono text-sm">
-                            {t(f.labelKey)}
-                          </SelectItem>
-                        ))}
-                    </SelectGroup>
-                    {fieldOptions.some((f) => f.group === "form_common") ? (
-                      <SelectGroup>
-                        <SelectLabel>{t("omnichannel.settings.apiIntegration.leadMapper.group.formCommon")}</SelectLabel>
-                        {fieldOptions
-                          .filter((f) => f.group === "form_common")
-                          .map((f) => (
-                            <SelectItem key={f.key} value={f.key} className="font-mono text-sm">
-                              {t(f.labelKey)}
-                            </SelectItem>
-                          ))}
-                      </SelectGroup>
-                    ) : null}
-                    {fieldOptions.some((f) => f.group === "custom") ? (
-                      <SelectGroup>
-                        <SelectLabel>{t("omnichannel.settings.apiIntegration.leadMapper.group.custom")}</SelectLabel>
-                        {fieldOptions
-                          .filter((f) => f.group === "custom")
-                          .map((f) => (
-                            <SelectItem key={f.key} value={f.key} className="font-mono text-sm">
-                              {f.key}
-                            </SelectItem>
-                          ))}
-                      </SelectGroup>
-                    ) : null}
-                  </SelectContent>
-                </Select>
-              </div>
-            );
-            })}
-
-            {!mappingComplete ? (
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-                {t("omnichannel.settings.apiIntegration.leadMapper.incomplete", { count: bodySlotCount })}
-              </p>
-            ) : null}
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={disabled || !mappingComplete || previewLoading}
-                onClick={handleRefreshPreviewData}
-              >
-                {previewLoading ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                {t("omnichannel.settings.apiIntegration.leadMapper.preview")}
-              </Button>
-            </div>
-          </div>
-
-          {phonePreviewColumn}
-        </div>
-      ) : (
-        <div className="max-w-md space-y-3">
+      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:gap-12 lg:overflow-hidden">
+        <div className="w-full max-w-md shrink-0 space-y-3">
           {templatePickerBlock}
-          <div className={mapperRowGridClass}>
-            <Label
-              htmlFor="lead-mapper-web-id-fallback"
-              className="font-mono text-xs font-medium leading-tight text-foreground"
+          {webIdContextBlock}
+
+          {webId && displaySlotCount > 0 ? (
+            <div
+              className={`relative space-y-3 ${slotsBusy ? "pointer-events-none opacity-60" : ""}`}
+              style={{ minHeight: displaySlotCount > 0 ? `${displaySlotCount * 2.75 + 1}rem` : undefined }}
             >
-              web_id
-            </Label>
-            <span className="text-muted-foreground" aria-hidden>
-              →
-            </span>
-            <Select
-              value={webId || undefined}
-              onValueChange={(value) => {
-                setWebId(value);
-                userEditedRef.current = false;
-              }}
-              disabled={disabled || noWebIds || isLoading}
-            >
-              <SelectTrigger id="lead-mapper-web-id-fallback" className={mapperSelectTriggerClass}>
-                <SelectValue
-                  placeholder={t("omnichannel.settings.apiIntegration.leadMapper.webIdPlaceholder")}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {webIds.map((id) => (
-                  <SelectItem key={id} value={id} className="font-mono text-sm">
-                    {id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {noWebIds ? (
-            <p className="text-xs text-amber-800 dark:text-amber-200">
-              {t("omnichannel.settings.apiIntegration.leadMapper.noWebIds")}
-            </p>
-          ) : null}
-          {!templatesLoading && bodySlotCount === 0 ? (
+              {slotsBusy ? (
+                <div className="absolute right-0 top-0 z-10 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <span className="sr-only">{t("common.loading")}</span>
+                </div>
+              ) : null}
+
+              {bodySlots.map((slot) => {
+                const currentField = (slotMapping[slot] ?? "").trim();
+                const staleField =
+                  currentField && !fieldOptionKeys.has(currentField) ? currentField : null;
+
+                return (
+                  <div key={slot} className={mapperRowGridClass}>
+                    <span className="font-mono text-sm text-muted-foreground">{`{{${slot}}}`}</span>
+                    <span className="text-muted-foreground" aria-hidden>
+                      →
+                    </span>
+                    <Select
+                      value={slotMapping[slot] ?? ""}
+                      onValueChange={(value) => handleSlotChange(slot, value)}
+                      disabled={disabled || slotsBusy}
+                    >
+                      <SelectTrigger className={mapperSelectTriggerClass}>
+                        <SelectValue
+                          placeholder={t(
+                            "omnichannel.settings.apiIntegration.leadMapper.fieldPlaceholder",
+                          )}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {staleField ? (
+                          <SelectGroup>
+                            <SelectItem
+                              value={staleField}
+                              className="font-mono text-sm text-amber-800 dark:text-amber-200"
+                            >
+                              {t("omnichannel.settings.apiIntegration.leadMapper.fieldStale", {
+                                key: staleField,
+                              })}
+                            </SelectItem>
+                          </SelectGroup>
+                        ) : null}
+                        <SelectGroup>
+                          <SelectLabel>
+                            {t("omnichannel.settings.apiIntegration.leadMapper.group.core")}
+                          </SelectLabel>
+                          {fieldOptions
+                            .filter((f) => f.group === "core")
+                            .map((f) => (
+                              <SelectItem key={f.key} value={f.key} className="font-mono text-sm">
+                                {t(f.labelKey)}
+                              </SelectItem>
+                            ))}
+                        </SelectGroup>
+                        {fieldOptions.some((f) => f.group === "form_common") ? (
+                          <SelectGroup>
+                            <SelectLabel>
+                              {t("omnichannel.settings.apiIntegration.leadMapper.group.formCommon")}
+                            </SelectLabel>
+                            {fieldOptions
+                              .filter((f) => f.group === "form_common")
+                              .map((f) => (
+                                <SelectItem key={f.key} value={f.key} className="font-mono text-sm">
+                                  {t(f.labelKey)}
+                                </SelectItem>
+                              ))}
+                          </SelectGroup>
+                        ) : null}
+                        {fieldOptions.some((f) => f.group === "custom") ? (
+                          <SelectGroup>
+                            <SelectLabel>
+                              {t("omnichannel.settings.apiIntegration.leadMapper.group.custom")}
+                            </SelectLabel>
+                            {fieldOptions
+                              .filter((f) => f.group === "custom")
+                              .map((f) => (
+                                <SelectItem key={f.key} value={f.key} className="font-mono text-sm">
+                                  {f.key}
+                                </SelectItem>
+                              ))}
+                          </SelectGroup>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
+
+              {!mappingComplete ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                  {t("omnichannel.settings.apiIntegration.leadMapper.incomplete", {
+                    count: displaySlotCount,
+                  })}
+                </p>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={disabled || !mappingComplete || previewLoading}
+                  onClick={handleRefreshPreviewData}
+                >
+                  {previewLoading ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {t("omnichannel.settings.apiIntegration.leadMapper.preview")}
+                </Button>
+              </div>
+            </div>
+          ) : webId && !templatesRefetching && displaySlotCount === 0 ? (
             <p className="text-xs text-muted-foreground">
               {t("omnichannel.settings.apiIntegration.leadMapper.noBodySlots")}
             </p>
-          ) : isLoading ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t("common.loading")}
-            </div>
           ) : null}
         </div>
-      )}
+
+        {phonePreviewColumn}
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
 } from "../_shared/omnichannelPublicApi/tokenOrigins.ts";
 import { isValidWebId, normalizeWebId } from "../_shared/omnichannelPublicApi/urlParams.ts";
 import { handleLeadTemplateMappingAction } from "../_shared/omnichannelPublicApi/leadTemplateMappingManage.ts";
+import { handleWebIdWhatsAppAccountAction } from "../_shared/omnichannelPublicApi/webIdWhatsAppAccountManage.ts";
 
 const MAX_ACTIVE_TOKENS_PER_ORG = 50;
 
@@ -89,6 +90,14 @@ Deno.serve(async (req) => {
 
   const adminErr = await requireOrgAdmin(admin, userRes.user.id, organizationId);
   if (adminErr) return adminErr;
+
+  const webIdAccountResponse = await handleWebIdWhatsAppAccountAction(
+    admin,
+    body,
+    organizationId,
+    json,
+  );
+  if (webIdAccountResponse) return webIdAccountResponse;
 
   const mappingResponse = await handleLeadTemplateMappingAction(admin, body, organizationId, json);
   if (mappingResponse) return mappingResponse;

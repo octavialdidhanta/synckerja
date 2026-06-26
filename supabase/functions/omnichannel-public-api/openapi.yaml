@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Synckerja Omnichannel Public API
-  version: 1.4.10
+  version: 1.4.15
   description: |
     API integrasi untuk website eksternal — traffic analytics, leads, dan invoice trigger.
     Token tipe `sdk` (analytics + leads) dan `server` (invoice-trigger saja).
@@ -26,14 +26,22 @@ info:
     refresh rollup di platform, bukan re-ingest dari website.
 
     **Klik floating WhatsApp:** `POST /api/v1/wa-link-clicks` mencatat analytics **dan** membuat/update stub lead
-    di CRM (`source: WhatsApp floating click`) dengan atribusi UTM first-touch dari `session_id` yang sama dengan
+    di CRM (`source: WhatsApp button`) dengan atribusi UTM first-touch dari `session_id` yang sama dengan
     `traffic-logs`. Satu stub per session per web_id; klik berikutnya hanya menambah event analytics.
 
     **WhatsApp lead:** `POST /api/v1/leads` dapat memicu template konfirmasi ke visitor jika `consent=true`,
     `phone_number` terisi, dan template lead diset di Organization settings (`default_whatsapp_lead_template_name`
-    + `default_whatsapp_lead_template_language`). Cek `whatsapp_status` di respons 201. Jika `whatsapp_status=sent`,
+    + `default_whatsapp_lead_template_language`). Respons 201 `whatsapp_status=sent` berarti Meta **menerima** request kirim;
+    status final delivery (`delivered` / `failed`) di-update async via webhook ke baris `lead_submissions` di Synckerja
+    (bukan di respons 201). Jika `whatsapp_status=sent` pada 201,
     Synckerja membuat/update thread di Livechat (`whatsapp_conversations`) dan mengembalikan `whatsapp_conversation_id`;
     `ticket_id` lead di-merge ke format `WA-*` agar Open Chat di CRM aktif.
+
+    **Akun WhatsApp per web_id:** Nomor pengirim outbound (lead + invoice) dan atribusi inbound ditentukan di Synckerja Office
+    (API Integration → Akun WhatsApp per web_id), **bukan** oleh website client. Token API membawa `web_id`; server memetakan
+    ke baris aktif `organization_whatsapp_web_id_accounts` → `organization_whatsapp_accounts` → Meta Graph API.
+    Tanpa mapping aktif untuk `web_id` token: `whatsapp_status=skipped`, `whatsapp_skip_reason=wa_account_not_mapped`.
+    Website client **tidak** mengirim `phone_number_id` pengirim.
 
     **Bahasa template org:** Invoice memakai `default_whatsapp_invoice_template_language` (fallback `id`).
     Lead: bahasa baris mapping aktif `organization_whatsapp_templates` menang per web_id; jika tidak ada,
@@ -120,7 +128,7 @@ paths:
       summary: Catat klik link WhatsApp dan sinkron stub lead CRM
       description: |
         Mencatat event di `analytics_wa_clicks` dan membuat/update **stub lead** di CRM
-        (`source: WhatsApp floating click`, `lead_submissions` status `draft`).
+        (`source: WhatsApp button`, `lead_submissions` status `draft`).
         Atribusi UTM / gclid / fbclid di-merge server-side dari `analytics_sessions` via `session_id`
         — client **tidak** perlu mengirim UTM di body.
         Dedupe: satu stub lead per `session_id` + `web_id`; klik berikutnya mengembalikan `lead_created: false`.
@@ -152,13 +160,20 @@ paths:
     post:
       summary: Kirim data formulir prospek
       description: |
-        Menyimpan lead ke CRM. Jika `session_id` cocok dengan stub dari klik floating WhatsApp,
-        lead yang ada di-upgrade (bukan duplikat) — `source` berubah ke `Website`, submission `draft` → `submitted`.
+        Menyimpan lead ke CRM. Kolom CRM (`title`, `category`, `source`, `created_by_name`) diisi server
+        (derive dari `form_data` / `notes` / landing URL; override opsional lewat body).
+        `leads.web_id` diisi dari token API (ditampilkan di CRM sebagai kolom **Web / Property**).
+        `created_by_name` dikosongkan untuk lead API (tidak ada staff pembuat; audit `created_by` UUID system actor tetap ada).
+        `source` = channel masuk (`Website form` / `WhatsApp button`), bukan `web_id`.
+        Jika `session_id` cocok dengan stub dari klik floating WhatsApp,
+        lead yang ada di-upgrade (bukan duplikat) — `title`/`category`/`source` ter-derive; submission `draft` → `submitted`.
         Jika `consent=true`, `phone_number` terisi, dan template lead
         (`default_whatsapp_lead_template_name`) diset di Organization settings, Synckerja mengirim
-        WhatsApp konfirmasi ke visitor. Mapping variabel body: prioritas `parameter_mapping` (UI),
+        WhatsApp konfirmasi ke visitor.         Mapping variabel body: prioritas `parameter_mapping` (UI),
         legacy `body_keys`, lalu fallback fixed 7 variabel — per `web_id` + template org.
-        Lead tetap HTTP 201 meski WA gagal — cek `whatsapp_status` dan `whatsapp_skip_reason`.
+        Akun pengirim WA: mapping `web_id` → akun WhatsApp di Synckerja (bukan dari client).
+        Sebelum kirim ke Meta, server memvalidasi jumlah slot body vs mapping (gagal awal → `meta_precheck:`).
+        Lead tetap HTTP 201 meski WA gagal — cek `whatsapp_status`, `whatsapp_skip_reason`, dan `whatsapp_debug`.
       tags: [Leads]
       requestBody:
         required: true
@@ -405,6 +420,9 @@ components:
       description: |
         Field inti disimpan ke kolom CRM. Field lain (mis. consent, event_date)
         otomatis masuk lead_submissions.form_data (jsonb).
+        Server mengisi `title`, `category`, dan `source` (channel). `created_by_name` dikosongkan untuk lead API.
+        `web_id` pada baris lead berasal dari token API (kolom CRM **Web / Property**).
+        Website tidak wajib mengirim override CRM.
       properties:
         session_id:
           type: string
@@ -418,6 +436,18 @@ components:
           type: string
         notes:
           type: string
+        title:
+          type: string
+          maxLength: 120
+          description: Opsional. Override judul lead di CRM; default derive dari form_data/notes/landing.
+        category:
+          type: string
+          maxLength: 120
+          description: Opsional. Override kategori; default industry/package_label/web_id.
+        source_label:
+          type: string
+          maxLength: 80
+          description: Opsional. Override kolom Source; default Website form.
         status:
           type: string
           enum: [new, contacted, deal, lost]
@@ -448,8 +478,10 @@ components:
             UTM + gclid/fbclid (string) dari analytics_sessions bila session_id dikirim.
         whatsapp_status:
           type: string
-          enum: [pending, sent, failed, skipped]
-          description: Hasil kirim template konfirmasi lead ke visitor.
+          enum: [pending, sent, delivered, failed, skipped]
+          description: |
+            Hasil kirim template konfirmasi lead. Respons 201 `sent` = Meta menerima request (wamid terisi).
+            Status `delivered` / `failed` (delivery) di-update async via webhook Meta ke DB Synckerja.
         whatsapp_message_id:
           type: string
           nullable: true
@@ -457,8 +489,50 @@ components:
           type: string
           nullable: true
           description: |
-            Saat skipped: no_consent, no_phone, no_template, wa_not_configured.
-            Saat failed: diawali meta: (pesan error Graph API Meta, mis. jumlah variabel template tidak cocok).
+            Saat skipped: no_consent, no_phone, no_template, wa_not_configured, wa_account_not_mapped.
+            Saat failed: meta_precheck: (slot mismatch sebelum Graph API), meta: (Graph reject), atau
+            meta_delivery:#CODE: (webhook — Meta terima request lalu gagal deliver, mis. #131049).
+            Format meta/meta_precheck menyertakan template, lang, mapping, slots, web_id (dipisah `;`).
+        whatsapp_conversation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID thread Livechat setelah whatsapp_status=sent.
+        whatsapp_ticket_id:
+          type: string
+          nullable: true
+          description: Sama dengan ticket_id; format WA-* setelah thread WA terbuat.
+        whatsapp_debug:
+          type: object
+          nullable: true
+          description: |
+            Saat whatsapp_status=failed atau skipped (wa_account_not_mapped) — detail template/akun untuk troubleshooting.
+          properties:
+            template_name:
+              type: string
+            template_language:
+              type: string
+            mapping_source:
+              type: string
+              enum: [parameter_mapping, organization_whatsapp_templates, fixed_7]
+            param_count:
+              type: integer
+            expected_slot_count:
+              type: integer
+              nullable: true
+            web_id:
+              type: string
+            whatsapp_account_id:
+              type: string
+              format: uuid
+              nullable: true
+            phone_number_id:
+              type: string
+              nullable: true
+            account_resolution:
+              type: string
+              enum: [mapped, not_mapped]
+              nullable: true
     InvoiceTriggerRequest:
       type: object
       required: [invoice_number, amount, items, phone_number, email]
@@ -499,7 +573,15 @@ components:
           description: Lead Conversion di /operations/sales/activities
         whatsapp_status:
           type: string
-          enum: [pending, sent, failed]
+          enum: [pending, sent, delivered, failed]
+          description: |
+            Hasil kirim nota WA. Respons 201 `sent` = Meta menerima request.
+            `delivered` / `failed` di-update async via webhook Meta ke `sales_invoices`.
         whatsapp_message_id:
           type: string
           nullable: true
+        whatsapp_skip_reason:
+          type: string
+          nullable: true
+          description: |
+            Saat failed: meta: (Graph reject) atau meta_delivery:#CODE: (gagal deliver pasca-accept via webhook).

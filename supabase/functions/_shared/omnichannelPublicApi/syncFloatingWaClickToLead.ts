@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { OmnichannelApiTokenContext } from "./auth.ts";
 import {
+  API_LEAD_SOURCE_WHATSAPP_BUTTON,
+  deriveApiLeadCrmFields,
+  isFloatingWaLeadSource,
+  LEGACY_FLOATING_WA_LEAD_SOURCE,
+} from "./apiLeadCrmFields.ts";
+import {
   getOrCreateSystemActor,
   resolveLeadStatusId,
 } from "./leadStatusMap.ts";
@@ -12,9 +18,10 @@ import {
   type SessionMarketingRow,
 } from "./urlParams.ts";
 
-export const FLOATING_WA_LEAD_SOURCE = "WhatsApp floating click";
-const FLOATING_WA_CLIENT = "WhatsApp floating click";
-const FLOATING_WA_TITLE = "Floating WA click";
+/** @deprecated import API_LEAD_SOURCE_WHATSAPP_BUTTON from apiLeadCrmFields */
+export const FLOATING_WA_LEAD_SOURCE = API_LEAD_SOURCE_WHATSAPP_BUTTON;
+
+const FLOATING_WA_CLIENT = "Website visitor";
 
 export type SyncFloatingWaClickParams = {
   sessionId: string;
@@ -50,7 +57,7 @@ export async function findFloatingStubLead(
 
   if (leadErr || !lead?.id) return null;
 
-  const isFloatingSource = lead.source === FLOATING_WA_LEAD_SOURCE;
+  const isFloatingSource = isFloatingWaLeadSource(lead.source);
 
   const { data: drafts } = await admin
     .from("lead_submissions")
@@ -96,7 +103,7 @@ export async function patchFloatingStubAttributionFromSession(
     .eq("organization_id", organizationId)
     .eq("web_id", webId)
     .eq("analytics_session_id", sessionId)
-    .eq("source", FLOATING_WA_LEAD_SOURCE)
+    .in("source", [API_LEAD_SOURCE_WHATSAPP_BUTTON, LEGACY_FLOATING_WA_LEAD_SOURCE])
     .is("attribution", null);
 
   if (error) {
@@ -168,16 +175,23 @@ export async function syncFloatingWaClickToLead(
   const statusId = await resolveLeadStatusId(admin, ctx.organizationId, "new");
   const leadId = crypto.randomUUID();
 
+  const crmFields = deriveApiLeadCrmFields({
+    webId: ctx.webId,
+    channel: "whatsapp_button",
+    clickPath: path,
+    attribution: marketing.attribution,
+  });
+
   const { error: leadErr } = await admin.from("leads").insert({
     id: leadId,
     client: FLOATING_WA_CLIENT,
-    title: FLOATING_WA_TITLE,
-    category: "Website API",
+    title: crmFields.title,
+    category: crmFields.category,
     created_by: actor.userId,
-    created_by_name: actor.displayName,
+    created_by_name: crmFields.created_by_name,
     assignee: "Unassigned",
     organization_id: ctx.organizationId,
-    source: FLOATING_WA_LEAD_SOURCE,
+    source: crmFields.source,
     status_id: statusId,
     phone_number: null,
     email: null,

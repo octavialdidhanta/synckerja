@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +36,8 @@ type YouTubeCommentReplyThreadProps = {
 
   highlightedIds?: Set<string>;
 
+  onRepliesLoaded?: (count: number) => void;
+
 };
 
 
@@ -59,6 +61,8 @@ export function YouTubeCommentReplyThread({
   isMutating,
 
   highlightedIds,
+
+  onRepliesLoaded,
 
 }: YouTubeCommentReplyThreadProps) {
 
@@ -99,6 +103,19 @@ export function YouTubeCommentReplyThread({
     return [...rows].sort((a, b) => (b.create_time ?? 0) - (a.create_time ?? 0));
 
   }, [repliesQuery.data?.comments]);
+
+
+
+  useEffect(() => {
+    if (!onRepliesLoaded) return;
+    const loadedCount = Math.max(
+      serverReplies.length,
+      optimisticReplies.filter((r) => r.status !== "failed").length,
+    );
+    if (loadedCount > 0) {
+      onRepliesLoaded(loadedCount);
+    }
+  }, [serverReplies.length, optimisticReplies, onRepliesLoaded]);
 
 
 

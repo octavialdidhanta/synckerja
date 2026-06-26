@@ -30,6 +30,9 @@ verify_jwt = false
 [functions.send-payroll-paid-email]
 verify_jwt = false
 
+[functions.send-recruitment-interview-email]
+verify_jwt = false
+
 [functions.notify-payroll-paid-batch]
 verify_jwt = false
 
