@@ -838,17 +838,6 @@ export const CandidateReviewsTab = ({
     }
   };
 
-  const isImagePreview = (doc: DocumentFile) => {
-    if (doc.mime_type?.startsWith('image/')) return true;
-    const ext = doc.file_name.split('.').pop()?.toLowerCase();
-    return ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'gif' || ext === 'webp';
-  };
-
-  const isPdfPreview = (doc: DocumentFile) => {
-    if (doc.mime_type === 'application/pdf') return true;
-    return doc.file_name.toLowerCase().endsWith('.pdf');
-  };
-
   const getScoreColor = (score: number): string => {
     if (score >= 80) return 'text-green-600 bg-green-50 border-green-200';
     if (score >= 60) return 'text-blue-600 bg-blue-50 border-blue-200';
