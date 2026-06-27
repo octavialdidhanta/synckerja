@@ -1043,6 +1043,54 @@ export function applyPeriodImpressionPctOverlay(
 }
 
 /**
+ * Campaign inventory (no date segment) merged with metrics rows so ENABLED campaigns
+ * with zero impressions still appear when Delivery is off (same pattern as keywords).
+ */
+export function mergeCampaignInventoryWithMetrics(
+  inventory: NormalizedMetricsRow[],
+  withMetrics: NormalizedMetricsRow[],
+  metricDefs: MetricDef[],
+): NormalizedMetricsRow[] {
+  const zeroMetrics = (): Record<string, number | null> => {
+    const m: Record<string, number | null> = {};
+    for (const def of metricDefs) m[def.key] = null;
+    return m;
+  };
+  const map = new Map<string, NormalizedMetricsRow>();
+
+  for (const row of inventory) {
+    const key = entityResourceKey("campaign", row);
+    if (!key) continue;
+    map.set(key, {
+      id: row.id,
+      identity: { ...row.identity },
+      metrics: zeroMetrics(),
+    });
+  }
+
+  for (const row of withMetrics) {
+    const key = entityResourceKey("campaign", row);
+    if (!key) continue;
+    const existing = map.get(key);
+    if (existing) {
+      existing.metrics = { ...row.metrics };
+      clearTopImpressionPctWithoutImpressions(existing.metrics);
+      Object.assign(existing.identity, row.identity);
+      continue;
+    }
+    const metricsCopy = { ...row.metrics };
+    clearTopImpressionPctWithoutImpressions(metricsCopy);
+    map.set(key, {
+      id: row.id,
+      identity: { ...row.identity },
+      metrics: metricsCopy,
+    });
+  }
+
+  return [...map.values()];
+}
+
+/**
  * Inventory (ad_group_criterion) = row list matching Google â€œstatus: Allâ€.
  * keyword_view rows only added when no inventory match (reporting-only), then deduped.
  */

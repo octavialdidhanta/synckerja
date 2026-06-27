@@ -17,7 +17,7 @@ import {
   SALES_ACTIVITY_CONTACT_REQUIRED_CODE,
 } from '@/shared/lib/leadSubmissionProfile';
 import { invalidateGoogleAdsConversionUploads } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
-import { kickGoogleAdsConversionAfterConverted } from '@/shared/lib/kickGoogleAdsConversionAfterConverted';
+import { enqueueGoogleAdsConversionPending } from '@/shared/lib/enqueueGoogleAdsConversionPending';
 import { kickMetaAdsConversionAfterConverted } from '@/shared/lib/kickMetaAdsConversionAfterConverted';
 import { resolveLeadConversionSalesActivity } from '@/shared/lib/sales/resolveLeadConversionSalesActivity';
 import {
@@ -335,11 +335,6 @@ async function createConvertedSalesActivity(
     queryClient.invalidateQueries({
       queryKey: ['lead-conversion-sales-activity', args.orgId, args.leadId],
     });
-    kickGoogleAdsConversionAfterConverted({
-      leadId: args.leadId,
-      organizationId: args.orgId,
-      salesActivityId: activityId,
-    });
     kickMetaAdsConversionAfterConverted({
       leadId: args.leadId,
       organizationId: args.orgId,
@@ -428,10 +423,11 @@ async function createConvertedSalesActivity(
   queryClient.invalidateQueries({
     queryKey: ['lead-conversion-sales-activity', args.orgId, args.leadId],
   });
-  kickGoogleAdsConversionAfterConverted({
+  enqueueGoogleAdsConversionPending({
     leadId: args.leadId,
     organizationId: args.orgId,
     salesActivityId: activityId,
+    paymentAt: new Date().toISOString(),
   });
   kickMetaAdsConversionAfterConverted({
     leadId: args.leadId,

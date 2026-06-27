@@ -3,7 +3,18 @@ import { HeaderAndTab } from "../container/HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { Button } from "@/shared/components/ui/button";
 import { BarChart3 } from "lucide-react";
-import { UtmTrackingTable, type UtmTableMetricsSlice } from "../components/UtmTrackingTable";
+import { UtmTrackingTable } from "../components/UtmTrackingTable";
+import { computeTrafficKpiDisplay } from "../lib/computeTrafficKpiDisplay";
+import {
+  computeSourceBreakdownTotals,
+  normalizeSourceBreakdownRows,
+} from "../lib/normalizeSourceBreakdownRows";
+import {
+  formatTrafficSyncErrorMessage,
+  parseTrafficSyncResponse,
+} from "../lib/parseTrafficSyncResponse";
+import { trafficDashboardErrorHint } from "../lib/trafficDashboardErrorHint";
+import { EMPTY_UTM_TABLE_METRICS, type UtmTableMetricsSlice } from "../lib/utmTableMetrics";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
 import { buildReportYearOptionsFromEarliest } from "@/6-0-digital-marketing-shared/lib/resolveReportDateRanges";
@@ -126,54 +137,6 @@ function formatPct(v: unknown) {
   return `${clamped}%`;
 }
 
-function trafficDashboardErrorHint(err: unknown): string | null {
-  const msg =
-    err &&
-    typeof err === "object" &&
-    "message" in err &&
-    typeof (err as { message: unknown }).message === "string"
-      ? (err as { message: string }).message.trim()
-      : "";
-  if (!msg) return null;
-  const lower = msg.toLowerCase();
-  if (lower.includes("forbidden")) {
-    return "Akses ditolak untuk Web ID ini di organisasi aktif. Periksa organisasi di header dan pastikan properti sudah dihubungkan (Connect) untuk org tersebut.";
-  }
-  if (lower.includes("web_id is required")) {
-    return "Web ID belum dipilih atau kosong.";
-  }
-  if (lower.includes("invalid range")) {
-    return "Rentang tanggal tidak valid (akhir sebelum mulai). Sesuaikan filter tanggal.";
-  }
-  if (lower.includes("could not choose the best candidate")) {
-    return "Ada dua versi get_traffic_dashboard di database (konflik overload). Jalankan migrasi terbaru (drop overload text,text,text) atau hapus fungsi duplikat di SQL Editor Supabase.";
-  }
-  if (lower.includes("pgrst") || lower.includes("could not find the function")) {
-    return "Fungsi database tidak ditemukan atau tidak cocok. Pastikan migrasi Supabase untuk traffic sudah di-push ke project ini.";
-  }
-  return msg;
-}
-
-type TrafficSyncResponseBody = {
-  success?: unknown;
-  ok?: unknown;
-  message?: unknown;
-  error?: unknown;
-  step?: unknown;
-  hint_sql?: unknown;
-  hint?: unknown;
-};
-
-function parseTrafficSyncResponse(text: string): TrafficSyncResponseBody | null {
-  if (!text) return null;
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return parsed && typeof parsed === "object" ? (parsed as TrafficSyncResponseBody) : null;
-  } catch {
-    return null;
-  }
-}
-
 export default function TrafficPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -186,12 +149,7 @@ export default function TrafficPage() {
     | { kind: "path"; path: string }
     | { kind: "source"; key: "utm" | "paid_click_ids" | "referral" | "direct"; label: string };
   const [clickDetails, setClickDetails] = useState<TrafficClickDetails | null>(null);
-  const [utmTableMetrics, setUtmTableMetrics] = useState<UtmTableMetricsSlice>({
-    utmFiltersActive: false,
-    filteredSessionsSum: 0,
-    filteredPageViewsSum: 0,
-    filteredClicksSum: 0,
-  });
+  const [utmTableMetrics, setUtmTableMetrics] = useState<UtmTableMetricsSlice>(EMPTY_UTM_TABLE_METRICS);
 
   const {
     organizationId,
@@ -285,60 +243,23 @@ export default function TrafficPage() {
     }));
   }, [dashboardQuery.data?.utm_table]);
 
-  const sourceBreakdownRows = useMemo(() => {
-    const raw = dashboardQuery.data?.source_breakdown;
-    if (!Array.isArray(raw)) return [];
-    return raw.map((r) => ({
-      key: String((r as { key?: unknown }).key ?? ""),
-      label: String((r as { label?: unknown }).label ?? ""),
-      sessions: Number((r as { sessions?: unknown }).sessions ?? 0),
-      page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
-      clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
-      max_deep_scroll_pct: (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null
-        ? null
-        : Number((r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct),
-      avg_max_deep_scroll_pct: (r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct == null
-        ? null
-        : Number((r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct),
-      scroll_sessions: Number((r as { scroll_sessions?: unknown }).scroll_sessions ?? 0),
-    }));
-  }, [dashboardQuery.data?.source_breakdown]);
+  const sourceBreakdownRows = useMemo(
+    () => normalizeSourceBreakdownRows(dashboardQuery.data?.source_breakdown),
+    [dashboardQuery.data?.source_breakdown],
+  );
 
-  const sourceBreakdownTotals = useMemo(() => {
-    return sourceBreakdownRows.reduce(
-      (acc, r) => {
-        const maxDeep = Number(r.max_deep_scroll_pct);
-        const avgDeep = Number(r.avg_max_deep_scroll_pct);
-        const scrollSessions = Number(r.scroll_sessions ?? 0);
-        return {
-          sessions: acc.sessions + r.sessions,
-          page_views: acc.page_views + r.page_views,
-          clicks: acc.clicks + r.clicks,
-          scroll_sessions: acc.scroll_sessions + (Number.isFinite(scrollSessions) ? scrollSessions : 0),
-          scroll_sum:
-            acc.scroll_sum +
-            (Number.isFinite(avgDeep) && Number.isFinite(scrollSessions) && scrollSessions > 0 ? avgDeep * scrollSessions : 0),
-          max_deep_scroll_pct:
-            Number.isFinite(maxDeep) ? Math.max(acc.max_deep_scroll_pct ?? 0, maxDeep) : acc.max_deep_scroll_pct,
-        };
-      },
-      { sessions: 0, page_views: 0, clicks: 0, scroll_sessions: 0, scroll_sum: 0, max_deep_scroll_pct: null as number | null },
-    );
-  }, [sourceBreakdownRows]);
+  const sourceBreakdownTotals = useMemo(
+    () => computeSourceBreakdownTotals(sourceBreakdownRows),
+    [sourceBreakdownRows],
+  );
 
   const hasSourceBreakdown = sourceBreakdownRows.length > 0;
-  const sessionsDisplay =
-    kpis == null
-      ? null
-      : utmTableMetrics.utmFiltersActive
-        ? utmTableMetrics.filteredSessionsSum
-        : hasSourceBreakdown
-          ? sourceBreakdownTotals.sessions
-          : kpis.sessions;
-  const pageViewsDisplay =
-    kpis == null ? null : utmTableMetrics.utmFiltersActive ? utmTableMetrics.filteredPageViewsSum : kpis.page_views;
-  const clicksDisplay =
-    kpis == null ? null : utmTableMetrics.utmFiltersActive ? utmTableMetrics.filteredClicksSum : kpis.clicks;
+  const { sessionsDisplay, pageViewsDisplay, clicksDisplay } = computeTrafficKpiDisplay({
+    kpis,
+    utmTableMetrics,
+    hasSourceBreakdown,
+    sourceBreakdownTotals,
+  });
   const topPages = dashboardQuery.data?.top_pages ?? [];
 
   const topPagesBlog = useMemo(() => {
@@ -424,14 +345,7 @@ export default function TrafficPage() {
 
         // Supabase Edge Runtime can intermittently return 503 without executing the function.
         // Retry a few times before surfacing the error to the user.
-        const errMsg = (() => {
-          const m = parsed?.message ?? parsed?.error ?? (typeof text === "string" && text.trim() ? text : null);
-          const step = parsed?.step ? String(parsed.step) : "";
-          const hint = parsed?.hint_sql ?? parsed?.hint;
-          const base = m == null ? "Edge runtime error" : String(m);
-          const withStep = step ? `[${step}] ${base}` : base;
-          return hint ? `${withStep} — ${String(hint)}` : withStep;
-        })();
+        const errMsg = formatTrafficSyncErrorMessage(parsed, text);
 
         if (res.status === 503 && attempt < delaysMs.length - 1) {
           lastErr = { status: res.status, message: errMsg };

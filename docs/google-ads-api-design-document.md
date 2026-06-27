@@ -90,7 +90,7 @@ We do **not** sell Google Ads data, access unrelated Google services, or bulk-ma
 |------|------|
 | Metrics UI | `src/6-0-google-ads/pages/GoogleAdsMetricsPage.tsx` |
 | Settings UI | `src/google-ads/settings/GoogleAdsSettingsShell.tsx` |
-| Conversion trigger | `src/shared/lib/kickGoogleAdsConversionAfterConverted.ts` |
+| Conversion trigger | `enqueue_google_ads_conversion_pending` RPC + `google-ads-upload-pending-conversions` (pg_cron) |
 | Edge Functions | `supabase/functions/google-ads-*` |
 | Migrations | `organization_google_ads_*`, `google_ads_conversion_uploads`, metrics schema |
 
@@ -153,27 +153,36 @@ This keeps **advertising cost visible alongside other operational data** in Sync
 
 ## 8. Offline Conversion Upload
 
-When a sales lead’s status changes to **Converted**:
+When a sales lead is **Converted** and a **qualifying payment** (down payment or full) is recorded:
 
 | Field | Source |
 |-------|--------|
-| `gclid` / `gbraid` / `wbraid` | `leads.gclid` or `leads.attribution` JSON |
-| `conversionDateTime` | `leads.converted_at` (Asia/Jakarta) |
-| `conversionValue` | `sales_activities.total_amount` (currency IDR) |
-| `conversionAction` | Configured conversion action resource name per brand/account |
-| `userIdentifiers` (hashed) | Email and phone from `lead_submissions`; SHA-256 per enhanced conversions spec |
+| `gclid` | `leads.gclid` or `leads.attribution` JSON (**required**) |
+| `conversionDateTime` | `leads.payment_at` (Asia/Jakarta) |
+| `conversionValue` | First `sales_activity_payments.payment_amount` (DP/full), else `sales_activities.down_payment_amount` / `total_amount` |
+| `conversionAction` | `organization_google_ads_accounts.conversion_action_id` (UI: `/omnichannel/settings/offline-conversion`) |
+| `userIdentifiers` (hashed) | Email and phone from `leads`, `lead_submissions`, or `lead_client_profiles`; SHA-256 per enhanced conversions spec |
 
 **Not sent:** raw passwords, full payment details, or unrelated PII.
 
 Upload is **idempotent per lead** (one row per `lead_id` in `google_ads_conversion_uploads`).
 
-**Trigger flow:**
+**Deferred trigger flow:**
 
-1. User changes lead status to **Converted** (table, WhatsApp livechat, or email channel).
-2. After sales activity is created, frontend invokes `google-ads-upload-offline-conversion` (fire-and-forget).
-3. Function validates JWT and organization access; resolves org connection + account (lead override → default).
-4. On success: log `status = success`; on failure: log `status = failed` (CRM conversion is not rolled back).
-5. Skipped when no gclid and no hashable contact: `status = skipped`.
+1. User converts lead with payment (livechat, table, or public API invoice).
+2. App calls RPC `enqueue_google_ads_conversion_pending` → sets `leads.payment_at`, audit `status = pending`.
+3. **pg_cron** hourly invokes `google-ads-upload-pending-conversions`.
+4. Batch uploads when `payment_at` is at least **5 hours** ago (avoids `UNREGISTERED_CLICK`).
+5. On success: `status = success`; on API failure: `status = failed` (auto-retry up to 5 attempts).
+6. Skipped when no `gclid`: no enqueue / `skip_reason = no_gclid`.
+7. Converted **without** payment: not queued for Google Ads upload.
+
+**Scheduler auth (pg_cron + manual invoke):**
+
+- Vault secrets: `google_ads_scheduler_project_url`, `google_ads_scheduler_service_role_key`
+- Use **secret key** (`sb_secret_...`) on projects with Supabase new API keys; legacy JWT may not match Edge runtime
+- pg_cron RPC sends `Authorization: Bearer` and `apikey` headers to `google-ads-upload-pending-conversions`
+- Rollout checklist: [`google-ads-deferred-rollout-checklist.md`](./google-ads-deferred-rollout-checklist.md)
 
 ---
 

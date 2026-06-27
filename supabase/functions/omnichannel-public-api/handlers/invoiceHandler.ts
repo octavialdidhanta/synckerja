@@ -126,12 +126,14 @@ export async function handleInvoiceTrigger(
 
           const offlineEnabled = settings?.offline_conversion_enabled !== false;
           if (offlineEnabled) {
-            kickOfflineConversionsServer({
+            await kickOfflineConversionsServer({
+              admin,
               supabaseUrl,
               serviceRoleKey,
               organizationId: ctx.organizationId,
               leadId,
               salesActivityId,
+              paymentAt: new Date().toISOString(),
             });
           }
         }

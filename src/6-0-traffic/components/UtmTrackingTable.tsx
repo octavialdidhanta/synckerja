@@ -3,7 +3,10 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { ClickDetailsDialog } from "@/6-0-traffic/components/ClickDetailsDialog";
+import type { UtmTableMetricsSlice } from "@/6-0-traffic/lib/utmTableMetrics";
 import { cn } from "@/shared/lib/utils";
+
+export type { UtmTableMetricsSlice };
 
 type UtmRow = {
   row_kind?: "session" | "journey" | null;
@@ -197,14 +200,6 @@ type UtmColumnSelectProps = {
   value: string;
   onValueChange: (v: string) => void;
   options: string[];
-};
-
-export type UtmTableMetricsSlice = {
-  utmFiltersActive: boolean;
-  /** Session count equals the number of UTM rows that pass column filters. */
-  filteredSessionsSum: number;
-  filteredPageViewsSum: number;
-  filteredClicksSum: number;
 };
 
 function UtmColumnSelect({ "aria-label": ariaLabel, value, onValueChange, options }: UtmColumnSelectProps) {

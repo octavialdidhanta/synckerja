@@ -1,12 +1,11 @@
 import { invalidateGoogleAdsConversionUploads } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
-import { kickGoogleAdsConversionAfterConverted } from '@/shared/lib/kickGoogleAdsConversionAfterConverted';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog } from '@/shared/lib/logger';
 
 const DEFAULT_LIMIT = 50;
 
 /**
- * Re-queue offline conversion uploads for converted leads that never succeeded.
+ * Re-queue deferred Google Ads uploads for converted leads with gclid + payment.
  * Used after enabling "offline conversion uploads" in Google Ads settings.
  */
 export async function retryGoogleAdsUploadsForConvertedLeads(
@@ -31,10 +30,12 @@ export async function retryGoogleAdsUploadsForConvertedLeads(
 
   const { data: leads, error: leadsErr } = await supabase
     .from('leads')
-    .select('id')
+    .select('id, gclid, payment_at')
     .eq('organization_id', orgId)
     .not('converted_at', 'is', null)
-    .order('converted_at', { ascending: false })
+    .not('gclid', 'is', null)
+    .not('payment_at', 'is', null)
+    .order('payment_at', { ascending: false })
     .limit(Math.max(limit, 100));
 
   if (leadsErr) {
@@ -43,14 +44,30 @@ export async function retryGoogleAdsUploadsForConvertedLeads(
   }
 
   const toRetry = (leads ?? [])
-    .map((r) => String(r.id))
-    .filter((id) => id && !successLeadIds.has(id))
+    .filter((r) => {
+      const id = String(r.id);
+      const gclid = String((r as { gclid?: string | null }).gclid ?? '').trim();
+      return id && gclid && !successLeadIds.has(id);
+    })
     .slice(0, limit);
 
-  for (const leadId of toRetry) {
-    kickGoogleAdsConversionAfterConverted({ leadId, organizationId: orgId });
+  let queued = 0;
+  for (const row of toRetry) {
+    const leadId = String(row.id);
+    const { data, error } = await supabase.rpc('enqueue_google_ads_conversion_pending', {
+      p_organization_id: orgId,
+      p_lead_id: leadId,
+      p_sales_activity_id: null,
+      p_payment_at: (row as { payment_at?: string | null }).payment_at ?? new Date().toISOString(),
+      p_force_retry: true,
+    });
+    if (error) {
+      devLog.warn('[retryGoogleAdsUploadsForConvertedLeads]', leadId, error.message);
+      continue;
+    }
+    if (data === true) queued += 1;
   }
 
   invalidateGoogleAdsConversionUploads(orgId);
-  return toRetry.length;
+  return queued;
 }

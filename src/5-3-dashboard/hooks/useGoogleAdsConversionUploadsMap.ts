@@ -4,9 +4,10 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import type { NewLead } from '@/shared/types/leads';
 
 export type GoogleAdsSyncUploadRecord = {
-  status: 'success' | 'failed' | 'skipped';
+  status: 'pending' | 'success' | 'failed' | 'skipped';
   skip_reason: string | null;
   error_message: string | null;
+  upload_attempt_count: number;
 };
 
 type Invalidator = ((organizationId: string) => void) | null;
@@ -61,7 +62,7 @@ export function useGoogleAdsConversionUploadsMap(
       if (!organizationId) return [];
       const { data, error } = await supabase
         .from('google_ads_conversion_uploads')
-        .select('lead_id, status, skip_reason, error_message')
+        .select('lead_id, status, skip_reason, error_message, upload_attempt_count')
         .eq('organization_id', organizationId);
       if (error) throw error;
       return (data ?? []) as Array<{
@@ -69,6 +70,7 @@ export function useGoogleAdsConversionUploadsMap(
         status: string;
         skip_reason: string | null;
         error_message: string | null;
+        upload_attempt_count: number | null;
       }>;
     },
     enabled: Boolean(organizationId),
@@ -79,11 +81,19 @@ export function useGoogleAdsConversionUploadsMap(
     const m = new Map<string, GoogleAdsSyncUploadRecord>();
     for (const r of rows) {
       const status = r.status;
-      if (status !== 'success' && status !== 'failed' && status !== 'skipped') continue;
+      if (
+        status !== 'pending' &&
+        status !== 'success' &&
+        status !== 'failed' &&
+        status !== 'skipped'
+      ) {
+        continue;
+      }
       m.set(String(r.lead_id), {
-        status,
+        status: status as GoogleAdsSyncUploadRecord['status'],
         skip_reason: r.skip_reason,
         error_message: r.error_message,
+        upload_attempt_count: Number(r.upload_attempt_count ?? 0),
       });
     }
     return m;

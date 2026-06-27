@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import { MobileClickDetailsDialog } from "@/mobile/6-0-web-traffic/components/MobileClickDetailsDialog";
+import { trafficDashboardErrorHint } from "@/6-0-traffic/lib/trafficDashboardErrorHint";
 
 type Row = {
   key: string;
@@ -32,19 +34,23 @@ function formatPct(v: unknown) {
 export function MobileSourceTrafficTableCard({
   loading,
   error,
+  errorDetail,
+  onRetry,
   rows,
   webId,
-  fromDate,
-  toDate,
-  rangeIsMaximum,
+  queryFromDate,
+  queryToDate,
+  queryDateReady,
 }: {
   loading: boolean;
   error: boolean;
+  errorDetail?: unknown;
+  onRetry?: () => void;
   rows: Row[];
   webId: string;
-  fromDate: string | null;
-  toDate: string | null;
-  rangeIsMaximum: boolean;
+  queryFromDate: string | null;
+  queryToDate: string | null;
+  queryDateReady: boolean;
 }) {
   const [clickDetailsOpen, setClickDetailsOpen] = useState(false);
   const [clickSourceKey, setClickSourceKey] = useState<"utm" | "paid_click_ids" | "referral" | "direct">("utm");
@@ -78,6 +84,8 @@ export function MobileSourceTrafficTableCard({
       },
     );
   }, [rows]);
+
+  const errorHint = error ? trafficDashboardErrorHint(errorDetail) : null;
 
   return (
     <div className="overflow-hidden rounded-lg border border-primary/35 bg-card shadow-sm">
@@ -116,7 +124,17 @@ export function MobileSourceTrafficTableCard({
               ) : error ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-xs text-gray-500">
-                    Gagal memuat sumber traffic.
+                    <p className="font-medium text-gray-700">Gagal memuat sumber traffic.</p>
+                    {errorHint ? (
+                      <p className="mx-auto mt-2 max-w-xl text-[11px] leading-snug text-gray-500">{errorHint}</p>
+                    ) : null}
+                    {onRetry ? (
+                      <div className="mt-3">
+                        <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => void onRetry()}>
+                          Coba lagi
+                        </Button>
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
@@ -142,6 +160,7 @@ export function MobileSourceTrafficTableCard({
                       {row.key === "utm" || row.key === "paid_click_ids" || row.key === "referral" || row.key === "direct" ? (
                         <button
                           type="button"
+                          disabled={!queryDateReady || row.clicks <= 0}
                           onClick={() => {
                             const key: "utm" | "paid_click_ids" | "referral" | "direct" =
                               row.key === "utm" ||
@@ -164,7 +183,7 @@ export function MobileSourceTrafficTableCard({
                             setClickSourceLabel(label);
                             setClickDetailsOpen(true);
                           }}
-                          className="w-full font-semibold text-primary hover:underline"
+                          className="w-full font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
                           aria-label={`Lihat detail klik untuk ${displaySource(row.key, row.label)}`}
                         >
                           {row.clicks.toLocaleString()}
@@ -207,13 +226,12 @@ export function MobileSourceTrafficTableCard({
           setClickDetailsOpen(open);
         }}
         webId={webId}
-        fromDate={fromDate}
-        toDate={toDate}
-        rangeIsMaximum={rangeIsMaximum}
+        queryFromDate={queryFromDate}
+        queryToDate={queryToDate}
+        queryDateReady={queryDateReady}
         path={clickSourceLabel || "—"}
         sourceKey={clickSourceKey}
       />
     </div>
   );
 }
-

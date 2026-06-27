@@ -36,9 +36,11 @@ function formatPct(v: unknown) {
 
 export function MobileTopBlogPagesTableCard({
   rows,
+  queryDateReady,
   onClickClicks,
 }: {
   rows: TopPageRow[];
+  queryDateReady: boolean;
   onClickClicks: (path: string) => void;
 }) {
   const topPagesBlog = useMemo(() => {
@@ -103,7 +105,8 @@ export function MobileTopBlogPagesTableCard({
                       {Number(p.clicks ?? 0) > 0 ? (
                         <button
                           type="button"
-                          className="tabular-nums text-blue-600 hover:underline"
+                          className="tabular-nums text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                          disabled={!queryDateReady}
                           onClick={() => {
                             const raw = String(p.path ?? "").trim();
                             onClickClicks(raw || "/");

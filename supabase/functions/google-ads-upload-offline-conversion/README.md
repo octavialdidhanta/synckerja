@@ -6,7 +6,8 @@ Synckerja uploads offline click conversions when a CRM lead becomes **Converted*
 
 | Function | Purpose |
 |----------|---------|
-| `google-ads-upload-offline-conversion` | Upload on lead converted (called from app) |
+| `google-ads-upload-pending-conversions` | **Batch upload** pending queue (pg_cron hourly) |
+| `google-ads-upload-offline-conversion` | Legacy single-lead (service role ops/debug only) |
 | `google-ads-oauth-start` | Start OAuth (admin settings) |
 | `google-ads-oauth-callback` | OAuth redirect handler (Google → Supabase → app) |
 | `google-ads-config` | Settings CRUD, list customers/actions, test |
@@ -16,6 +17,7 @@ Synckerja uploads offline click conversions when a CRM lead becomes **Converted*
 ```bash
 supabase link
 supabase db push   # includes organization_google_ads_* tables
+supabase functions deploy google-ads-upload-pending-conversions
 supabase functions deploy google-ads-upload-offline-conversion
 supabase functions deploy google-ads-oauth-start
 supabase functions deploy google-ads-oauth-callback
@@ -80,7 +82,15 @@ Set as `GOOGLE_ADS_CONFIG_ENCRYPTION_KEY`. **Back up this key** — losing it re
 
 Implementation: `supabase/functions/_shared/googleAdsConfigCrypto.ts` (AES-256-GCM).
 
-## Upload invoke (authenticated)
+## Upload invoke (deferred)
+
+Leads are enqueued via RPC `enqueue_google_ads_conversion_pending` when payment is recorded (CRM / public API). Batch upload runs hourly via pg_cron.
+
+See [`../google-ads-upload-pending-conversions/README.md`](../google-ads-upload-pending-conversions/README.md).
+
+**Legacy single-lead (service role / secret key only):**
+
+Use `Authorization: Bearer` + `apikey` with `sb_secret_...` or legacy service_role JWT.
 
 ```json
 POST google-ads-upload-offline-conversion

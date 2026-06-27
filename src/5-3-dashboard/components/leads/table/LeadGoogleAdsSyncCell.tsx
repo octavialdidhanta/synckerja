@@ -2,6 +2,8 @@ import { Badge } from '@/shared/components/ui/badge';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { GoogleAdsSyncUploadRecord } from '@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap';
 
+const MAX_UPLOAD_ATTEMPTS = 5;
+
 type LeadGoogleAdsSyncCellProps = {
   isConverted: boolean;
   sync: GoogleAdsSyncUploadRecord | null;
@@ -48,12 +50,26 @@ export function LeadGoogleAdsSyncCell({
       <span
         className="inline-flex w-[100px] justify-center text-xs text-muted-foreground"
         title={t(
-          'leadsManagement.googleAdsSync.pendingHint',
-          'Belum ada log upload; refresh halaman setelah beberapa detik.',
+          'leadsManagement.googleAdsSync.noPaymentHint',
+          'Belum ada pembayaran tercatat atau lead tanpa gclid — tidak masuk antrian upload.',
         )}
       >
         —
       </span>
+    );
+  }
+
+  if (sync.status === 'pending') {
+    return (
+      <Badge
+        className="w-[100px] justify-center rounded-sm border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900"
+        title={t(
+          'leadsManagement.googleAdsSync.queuedHint',
+          'Dalam antrian. Upload otomatis ke Google Ads minimal 5 jam setelah pembayaran.',
+        )}
+      >
+        {t('leadsManagement.googleAdsSync.queued', 'Menunggu')}
+      </Badge>
     );
   }
 
@@ -84,10 +100,33 @@ export function LeadGoogleAdsSyncCell({
   }
 
   const err = sync.error_message?.trim() || '';
+  const permanentFailure = sync.upload_attempt_count >= MAX_UPLOAD_ATTEMPTS;
+
+  if (permanentFailure) {
+    return (
+      <Badge
+        className="w-[100px] justify-center rounded-sm border border-red-300 bg-red-100 px-2 py-1 text-xs font-medium text-red-800"
+        title={
+          err ||
+          t(
+            'leadsManagement.googleAdsSync.permanentFailedHint',
+            'Upload gagal setelah {{count}} percobaan. Periksa pengaturan Google Ads atau hubungi admin.',
+            { count: MAX_UPLOAD_ATTEMPTS },
+          )
+        }
+      >
+        {t('leadsManagement.googleAdsSync.permanentFailed', 'Gagal permanen')}
+      </Badge>
+    );
+  }
+
   return (
     <Badge
       className="w-[100px] justify-center rounded-sm border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700"
-      title={err || t('leadsManagement.googleAdsSync.failedHint', 'Upload ke Google Ads gagal')}
+      title={
+        err ||
+        t('leadsManagement.googleAdsSync.failedHint', 'Upload ke Google Ads gagal — akan dicoba ulang otomatis.')
+      }
     >
       {t('leadsManagement.googleAdsSync.failed', 'Gagal')}
     </Badge>

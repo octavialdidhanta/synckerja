@@ -36,15 +36,26 @@ export function compositeResourceId(customerId: string, resourceId: string): str
 }
 
 export function buildListCampaignsGaql(statusFilter: "all" | "enabled_only"): string {
+  return buildCampaignInventoryGaqlQuery({ statusFilter, pageSize: 10000 });
+}
+
+/** Campaign rows without date segment — for zero-metric inventory merge (matches listCampaigns scope). */
+export function buildCampaignInventoryGaqlQuery(opts: {
+  statusFilter: "all" | "enabled_only";
+  campaignFilterId?: string;
+  pageSize?: number;
+}): string {
   const parts = [
-    "SELECT campaign.id, campaign.name, campaign.status",
+    "SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type",
     "FROM campaign",
   ];
-  if (statusFilter === "enabled_only") {
-    parts.push("WHERE campaign.status = 'ENABLED'");
-  }
+  const clauses: string[] = [];
+  const campaignId = parseGoogleAdsResourceId(opts.campaignFilterId);
+  if (campaignId) clauses.push(`campaign.id = '${campaignId}'`);
+  if (opts.statusFilter === "enabled_only") clauses.push("campaign.status = 'ENABLED'");
+  if (clauses.length > 0) parts.push(`WHERE ${clauses.join(" AND ")}`);
   parts.push("ORDER BY campaign.name");
-  parts.push("LIMIT 10000");
+  parts.push(`LIMIT ${opts.pageSize ?? 10000}`);
   return parts.join("\n");
 }
 

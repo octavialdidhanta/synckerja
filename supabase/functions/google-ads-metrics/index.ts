@@ -29,6 +29,7 @@ import {
   sortNormalizedMetricsRows,
   isAdCreativeGaqlError,
   mergeKeywordInventoryWithMetrics,
+  mergeCampaignInventoryWithMetrics,
   filterClientUnsupportedMetrics,
   mergeMetricsRowsByEntity,
   applyPeriodImpressionPctOverlay,
@@ -66,6 +67,7 @@ import {
   type GoogleCampaignListItem,
 } from "../_shared/monthlyReportServiceFilter.ts";
 import {
+  buildCampaignInventoryGaqlQuery,
   buildListAdGroupsGaql,
   buildListCampaignsGaql,
   normalizeAdGroupListRow,
@@ -1541,6 +1543,7 @@ Deno.serve(async (req: Request) => {
     "keyword_zero_impr_null_top_v1",
     "date_range_between_v1",
     ...(entity === "keyword" ? ["keyword_inventory_v8"] : []),
+    ...(entity === "campaign" ? ["campaign_inventory_v1"] : []),
     "no_billing_v2",
   ];
 
@@ -1872,6 +1875,43 @@ Deno.serve(async (req: Request) => {
     return inventoryRows;
   }
 
+  async function fetchCampaignInventoryRows(
+    cfg: GoogleAdsConfig,
+    metricsCustomerId: string,
+    clientLabel?: string,
+  ): Promise<ReturnType<typeof normalizeGaqlRow>[]> {
+    const q = buildCampaignInventoryGaqlQuery({
+      statusFilter,
+      campaignFilterId: campaignFilter.resourceId || undefined,
+      pageSize: GAQL_FETCH_PAGE_SIZE,
+    });
+    const inventoryRows: ReturnType<typeof normalizeGaqlRow>[] = [];
+    let gaqlToken: string | null = null;
+
+    for (let pageIndex = 0; pageIndex < MAX_GAQL_PAGES; pageIndex++) {
+      const page = await runGaqlForCustomer(cfg, metricsCustomerId, q, gaqlToken);
+      for (const raw of page.results) {
+        const normalized = normalizeGaqlRow("campaign", raw, activeMetricDefs);
+        normalized.identity.metrics_customer_id = metricsCustomerId;
+        const resourceId = parseGoogleAdsResourceId(String(normalized.identity.campaign_id ?? normalized.id ?? ""));
+        if (clientLabel) {
+          normalized.identity.client_account = clientLabel;
+          if (resourceId) normalized.identity.campaign_id = resourceId;
+        }
+        if (resourceId) {
+          normalized.id = clientLabel
+            ? `${metricsCustomerId}-${resourceId}`
+            : resourceId;
+        }
+        inventoryRows.push(normalized);
+      }
+      gaqlToken = page.nextPageToken;
+      if (!gaqlToken) break;
+    }
+
+    return inventoryRows;
+  }
+
   async function fetchAllNormalizedForCustomer(
     cfg: GoogleAdsConfig,
     metricsCustomerId: string,
@@ -1954,6 +1994,14 @@ Deno.serve(async (req: Request) => {
         await fetchKeywordInventoryRows(cfg, metricsCustomerId, clientLabel),
       );
       merged = mergeKeywordInventoryWithMetrics(inventory, merged, activeMetricDefs);
+    }
+
+    if (entity === "campaign" && !onlyRunning) {
+      const inventory = mergeMetricsRowsByEntity(
+        "campaign",
+        await fetchCampaignInventoryRows(cfg, metricsCustomerId, clientLabel),
+      );
+      merged = mergeCampaignInventoryWithMetrics(inventory, merged, activeMetricDefs);
     }
 
     if (needsPeriodTopPct && periodMergedForOverlay) {

@@ -9,13 +9,15 @@ import { useTrafficDashboardController } from "@/6-0-traffic/hooks/useTrafficDas
 import { WebTrafficNavigationFooter } from "@/mobile/6-0-web-traffic/components/WebTrafficNavigationFooter";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { WebIdPicker } from "@/mobile/6-0-web-traffic/components/WebIdPicker";
+import { MobileTrafficWebIdPicker } from "@/mobile/6-0-web-traffic/components/MobileTrafficWebIdPicker";
 import { MobileSessionsBySourceCard } from "@/mobile/6-0-web-traffic/components/MobileSessionsBySourceCard";
 import { MobileSourceTrafficTableCard } from "@/mobile/6-0-web-traffic/components/MobileSourceTrafficTableCard";
 import { MobileUtmTrackingTable } from "@/mobile/6-0-web-traffic/components/MobileUtmTrackingTable";
 import { MobileTopPagesTableCard } from "@/mobile/6-0-web-traffic/components/MobileTopPagesTableCard";
 import { MobileClickDetailsDialog } from "@/mobile/6-0-web-traffic/components/MobileClickDetailsDialog";
 import { MobileTopBlogPagesTableCard } from "@/mobile/6-0-web-traffic/components/MobileTopBlogPagesTableCard";
+import { MobileTrafficDateRangeDrawer } from "@/mobile/6-0-web-traffic/components/MobileTrafficDateRangeDrawer";
+import { ConnectWebIdDialog } from "@/6-0-traffic/components/ConnectWebIdDialog";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
@@ -26,25 +28,36 @@ import { useToolsMobilePageAccess } from "@/mobile-app/hooks/useToolsMobilePageA
 import { cn } from "@/shared/lib/utils";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { useToast } from "@/shared/components/ui/use-toast";
+import { computeTrafficKpiDisplay } from "@/6-0-traffic/lib/computeTrafficKpiDisplay";
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/mobile-app/components/ui/drawer";
-import { ChevronDown } from "lucide-react";
+  computeSourceBreakdownTotals,
+  normalizeSourceBreakdownRows,
+} from "@/6-0-traffic/lib/normalizeSourceBreakdownRows";
 import {
-  computePresetRange,
-  formatGoogleAdsPickerButtonLabel,
-  type GoogleAdsDatePresetId,
-} from "@/6-0-google-ads/lib/googleAdsDatePresets";
-import { googleAdsAllTimeSelection } from "@/6-0-digital-marketing-shared/lib/resolveReportDateRanges";
+  formatTrafficSyncErrorMessage,
+  parseTrafficSyncResponse,
+} from "@/6-0-traffic/lib/parseTrafficSyncResponse";
+import { trafficDashboardErrorHint } from "@/6-0-traffic/lib/trafficDashboardErrorHint";
+import { EMPTY_UTM_TABLE_METRICS, type UtmTableMetricsSlice } from "@/6-0-traffic/lib/utmTableMetrics";
+import { buildReportYearOptionsFromEarliest } from "@/6-0-digital-marketing-shared/lib/resolveReportDateRanges";
+import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
+import { computePresetRange, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 
-function formatCompactInt(n: number) {
+function formatCompactInt(n: number | null) {
+  if (n == null) return "—";
   const safe = Number(n ?? 0);
-  if (!Number.isFinite(safe)) return "0";
+  if (!Number.isFinite(safe)) return "—";
   return safe.toLocaleString();
 }
 
@@ -53,68 +66,92 @@ const MAX_PULL = 72;
 const INDICATOR_HEIGHT = 56;
 const PULL_RESISTANCE = 0.55;
 
-type TrafficSyncResponseBody = {
-  success?: unknown;
-  ok?: unknown;
-  error?: unknown;
-  message?: unknown;
-};
-
 function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean }) {
   useStatusBarStyle("light");
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const { mainFixedStyle, isKeyboardShellOpen } = useVisualViewport();
+  const { data: userRole } = useCurrentUserRole();
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [disconnectingWebId, setDisconnectingWebId] = useState<string | null>(null);
+  const [disconnectConfirmWebId, setDisconnectConfirmWebId] = useState<string | null>(null);
+  const [utmTableMetrics, setUtmTableMetrics] = useState<UtmTableMetricsSlice>(EMPTY_UTM_TABLE_METRICS);
+
   const {
+    organizationId,
     webId,
     setWebId,
     dateSelection,
     setDateSelection,
+    filtersHydrated,
+    googleCustomerId,
     webIdsQuery,
+    webAccessQuery,
     effectiveWebId,
-    dashboardQuery,
-    ingestionQuery,
     fromDate,
     toDate,
     rangeIsMaximum,
+    queryFromDate,
+    queryToDate,
+    queryDateReady,
+    dashboardQuery,
+    ingestionQuery,
   } = useTrafficDashboardController();
 
-  type MobileDateFilter =
-    | "maximum"
-    | "last_30"
-    | "today"
-    | "yesterday"
-    | "this_week"
-    | "this_month"
-    | "last_month"
-    | "custom";
+  const { data: accountDateBounds } = useGoogleAdsAccountDateBounds(
+    organizationId,
+    googleCustomerId || null,
+    Boolean(organizationId && googleCustomerId),
+  );
 
-  const dateFilter = useMemo((): MobileDateFilter => {
-    switch (dateSelection.preset) {
-      case "all_time":
-        return "maximum";
-      case "last_30_days":
-        return "last_30";
-      case "today":
-        return "today";
-      case "yesterday":
-        return "yesterday";
-      case "this_week_mon_today":
-        return "this_week";
-      case "this_month":
-        return "this_month";
-      case "last_month":
-        return "last_month";
-      case "custom":
-        return "custom";
-      default:
-        return "last_30";
-    }
-  }, [dateSelection.preset]);
+  useEffect(() => {
+    const earliest = accountDateBounds?.earliest_date;
+    if (!earliest) return;
+    setDateSelection((prev) => {
+      if (prev.preset !== "all_time") return prev;
+      const range = computePresetRange("all_time", new Date(), {
+        accountEarliestYmd: earliest,
+      });
+      const nextFrom = range.from ? toYmdLocal(range.from) : null;
+      const nextTo = range.to ? toYmdLocal(range.to) : null;
+      const prevFrom = prev.range.from ? toYmdLocal(prev.range.from) : null;
+      const prevTo = prev.range.to ? toYmdLocal(prev.range.to) : null;
+      if (prevFrom === nextFrom && prevTo === nextTo) return prev;
+      return { ...prev, range };
+    });
+  }, [accountDateBounds?.earliest_date, setDateSelection]);
+
+  const calendarYearPresetYears = useMemo(
+    () => buildReportYearOptionsFromEarliest(accountDateBounds?.earliest_date),
+    [accountDateBounds?.earliest_date],
+  );
+
+  const accessibleWebIds = webIdsQuery.data ?? [];
+  const pendingApprovalWebIds = useMemo(() => {
+    return (webAccessQuery.data ?? [])
+      .filter((row) => row.is_approved === false)
+      .map((row) => row.web_id)
+      .filter((id) => id.trim() !== "");
+  }, [webAccessQuery.data]);
+
+  const selectedWebId = useMemo(() => {
+    if (webIdsQuery.isLoading || accessibleWebIds.length === 0) return "";
+    const trimmed = webId.trim();
+    if (trimmed && accessibleWebIds.includes(trimmed)) return trimmed;
+    return accessibleWebIds[0];
+  }, [webIdsQuery.isLoading, accessibleWebIds, webId]);
+
+  const canManageWebId = userRole === "owner" || userRole === "admin";
+
+  const disconnectConfirmIsPending = useMemo(() => {
+    if (!disconnectConfirmWebId) return false;
+    return (webAccessQuery.data ?? []).some(
+      (row) => row.web_id === disconnectConfirmWebId && row.is_approved === false,
+    );
+  }, [disconnectConfirmWebId, webAccessQuery.data]);
+
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [periodDrawerOpen, setPeriodDrawerOpen] = useState(false);
-
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
@@ -129,52 +166,51 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
     pullDistanceRef.current = pullDistance;
   }, [pullDistance]);
 
-  // Default Web ID: prefer "vialdi wedding" when available (otherwise first option).
-  useEffect(() => {
-    if (webId.trim()) return;
-    const options = webIdsQuery.data ?? [];
-    if (options.length === 0) return;
-    const preferred =
-      options.find((v) => String(v).toLowerCase().includes("vialdi wedding")) ?? options[0];
-    setWebId(preferred);
-  }, [setWebId, webId, webIdsQuery.data]);
-
-  const applyDateFilter = useCallback(
-    (value: MobileDateFilter) => {
-      const now = new Date();
-      if (value === "custom") {
-        setShowCustomDatePicker(true);
-        return;
-      }
-
-      if (value === "maximum") {
-        setCustomDateRange(null);
-        setDateSelection(googleAdsAllTimeSelection());
-        return;
-      }
-
-      const presetByFilter: Record<
-        Exclude<MobileDateFilter, "maximum" | "custom">,
-        GoogleAdsDatePresetId
-      > = {
-        last_30: "last_30_days",
-        today: "today",
-        yesterday: "yesterday",
-        this_week: "this_week_mon_today",
-        this_month: "this_month",
-        last_month: "last_month",
-      };
-
-      const preset = presetByFilter[value];
-      setCustomDateRange(null);
-      setDateSelection({
-        preset,
-        range: computePresetRange(preset, now),
-        rollingDays: 30,
-      });
-    },
-    [setDateSelection],
+  const kpis = dashboardQuery.data?.kpis ?? null;
+  const sourceBreakdownRows = useMemo(
+    () => normalizeSourceBreakdownRows(dashboardQuery.data?.source_breakdown),
+    [dashboardQuery.data?.source_breakdown],
   );
+  const sourceBreakdownTotals = useMemo(
+    () => computeSourceBreakdownTotals(sourceBreakdownRows),
+    [sourceBreakdownRows],
+  );
+  const hasSourceBreakdown = sourceBreakdownRows.length > 0;
+  const { sessionsDisplay, pageViewsDisplay, clicksDisplay } = computeTrafficKpiDisplay({
+    kpis,
+    utmTableMetrics,
+    hasSourceBreakdown,
+    sourceBreakdownTotals,
+  });
+
+  const utmRows = useMemo(() => {
+    return (dashboardQuery.data?.utm_table ?? []).map((r) => ({
+      row_kind: (r as { row_kind?: "session" | "journey" | null }).row_kind ?? null,
+      visit_key: (r as { visit_key?: string | null }).visit_key ?? null,
+      visitor_id: (r as { visitor_id?: string | null }).visitor_id ?? null,
+      session_id: (r as { session_id?: string | null }).session_id ?? null,
+      day: (r as { day?: string | null }).day ?? null,
+      occurred_at: (r as { occurred_at?: string | null }).occurred_at ?? null,
+      time_label: (r as { time_label?: string | null }).time_label ?? null,
+      route: (r as { route?: string | null }).route ?? null,
+      utm_campaign: (r as { utm_campaign?: string | null }).utm_campaign ?? null,
+      utm_source: (r as { utm_source?: string | null }).utm_source ?? null,
+      utm_medium: (r as { utm_medium?: string | null }).utm_medium ?? null,
+      utm_content: (r as { utm_content?: string | null }).utm_content ?? null,
+      utm_term: (r as { utm_term?: string | null }).utm_term ?? null,
+      page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
+      clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
+      max_deep_scroll_pct:
+        (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null
+          ? null
+          : Number((r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct),
+      avg_max_deep_scroll_pct:
+        (r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct == null
+          ? null
+          : Number((r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct),
+      scroll_sessions: Number((r as { scroll_sessions?: unknown }).scroll_sessions ?? 0),
+    }));
+  }, [dashboardQuery.data?.utm_table]);
 
   const handleCustomDateRange = useCallback(
     (startDate: Date, endDate: Date) => {
@@ -188,7 +224,41 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
     [setDateSelection],
   );
 
-  const periodLabel = formatGoogleAdsPickerButtonLabel(dateSelection);
+  async function handleDisconnectWebAccess(webIdToDisconnect: string) {
+    if (!organizationId) return;
+    setDisconnectingWebId(webIdToDisconnect);
+    try {
+      const { error } = await supabase
+        .from("analytics_web_access")
+        .delete()
+        .eq("organization_id", organizationId)
+        .eq("web_id", webIdToDisconnect);
+      if (error) throw error;
+
+      if (webId.trim() === webIdToDisconnect) {
+        setWebId("");
+      }
+
+      toast({
+        title: "web_id disconnected",
+        description: `Koneksi web_id "${webIdToDisconnect}" sudah dihapus dari organisasi ini.`,
+        variant: "headsUp",
+        duration: 2800,
+      });
+      void webAccessQuery.refetch();
+      void webIdsQuery.refetch();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus koneksi web_id.";
+      toast({
+        title: "Disconnect failed",
+        description: message,
+        variant: "headsUp",
+        duration: 3200,
+      });
+    } finally {
+      setDisconnectingWebId(null);
+    }
+  }
 
   const syncRollups = useCallback(async () => {
     if (!effectiveWebId) return;
@@ -196,7 +266,8 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
       toast({
         title: "Select date range",
         description: "Pilih date range (preset atau custom) dulu untuk refresh rollup.",
-        variant: "destructive",
+        variant: "headsUp",
+        duration: 3200,
       });
       return;
     }
@@ -238,15 +309,10 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
       });
 
       const text = await res.text();
-      let parsed: TrafficSyncResponseBody | null = null;
-      try {
-        const raw: unknown = text ? JSON.parse(text) : null;
-        parsed = raw && typeof raw === "object" ? (raw as TrafficSyncResponseBody) : null;
-      } catch {
-        parsed = null;
-      }
+      const parsed = parseTrafficSyncResponse(text);
+      const syncOk = res.ok && (parsed?.success === true || parsed?.ok === true);
 
-      if (res.ok && (parsed?.success === true || parsed?.ok === true)) {
+      if (syncOk) {
         const desc = rangeIsMaximum
           ? `Rollup refreshed for ${effectiveWebId} (Maximum: semua tanggal yang tersedia).`
           : `Rollup refreshed for ${effectiveWebId} (${fromDate} → ${toDate}).`;
@@ -256,12 +322,14 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
         return;
       }
 
+      const errMsg = formatTrafficSyncErrorMessage(parsed, text);
+
       if (res.status === 503 && attempt < delaysMs.length - 1) {
-        lastErr = { status: res.status, message: String(parsed?.error ?? parsed?.message ?? text ?? "Edge runtime error") };
+        lastErr = { status: res.status, message: errMsg };
         continue;
       }
 
-      lastErr = { status: res.status, message: String(parsed?.error ?? parsed?.message ?? text ?? res.statusText) };
+      lastErr = { status: res.status, message: errMsg || res.statusText };
       break;
     }
 
@@ -300,7 +368,6 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
       const el = listScrollRef.current;
       if (!el || isRefreshing) return;
 
-      // Allow horizontal swipes inside horizontal-scroll zones (tables) to work.
       const target = e.target as HTMLElement | null;
       if (target?.closest?.("[data-horizontal-scroll-zone]")) {
         return;
@@ -318,7 +385,6 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
       const dx = x - touchStartX.current;
       const delta = y - touchStartY.current;
 
-      // If gesture is mostly horizontal, do not treat it as pull-to-refresh.
       if (Math.abs(dx) > Math.abs(delta)) {
         setPullDistance(0);
         pullDistanceRef.current = 0;
@@ -359,6 +425,8 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
     avg_max_deep_scroll_pct?: number | null;
     scroll_sessions?: number;
   }>;
+
+  const dashboardErrorHint = dashboardQuery.isError ? trafficDashboardErrorHint(dashboardQuery.error) : null;
 
   return (
     <SidebarProvider>
@@ -420,71 +488,87 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
               <div className="rounded-lg border border-primary/35 bg-card p-3">
                 <div className="flex min-w-0 flex-col gap-2">
                   <div className="min-w-0 w-full">
-                    <WebIdPicker
-                      value={effectiveWebId}
-                      onChange={setWebId}
-                      options={webIdsQuery.data ?? []}
-                      disabled={webIdsQuery.isLoading}
-                      aria-label={t("traffic.mobile.webId", "Web ID")}
+                    <MobileTrafficWebIdPicker
+                      value={selectedWebId}
+                      options={accessibleWebIds}
+                      loading={webIdsQuery.isLoading}
+                      canDisconnect={canManageWebId}
+                      disconnectingWebId={disconnectingWebId}
+                      onValueChange={setWebId}
+                      onConnectClick={() => setConnectOpen(true)}
+                      onDisconnectClick={setDisconnectConfirmWebId}
                     />
                   </div>
 
                   <div className="min-w-0 w-full">
-                    <Drawer open={periodDrawerOpen} onOpenChange={setPeriodDrawerOpen}>
-                      <DrawerTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-full min-w-0 gap-2 justify-between text-xs"
-                          title={periodLabel}
-                          aria-label={t("traffic.mobile.dateRange", "Tanggal")}
-                        >
-                          <span className="min-w-0 flex-1 truncate text-left">{periodLabel}</span>
-                          <ChevronDown className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
-                        </Button>
-                      </DrawerTrigger>
-                      <DrawerContent className="max-h-[80dvh]">
-                        <DrawerHeader className="text-left safe-area-top pb-2">
-                          <DrawerTitle>{t("traffic.mobile.dateRange", "Tanggal")}</DrawerTitle>
-                        </DrawerHeader>
-                        <div className="px-4 pb-4">
-                          <div className="grid gap-2">
-                            {(
-                              [
-                                { value: "maximum", label: t("traffic.mobile.dateRange.maximumShort", "Maximum") },
-                                { value: "last_30", label: t("reports.dateFilter.last30Days", "Last 30 days") },
-                                { value: "today", label: t("reports.dateFilter.today", "Today") },
-                                { value: "yesterday", label: t("reports.dateFilter.yesterday", "Yesterday") },
-                                { value: "this_week", label: t("reports.dateFilter.thisWeek", "This Week") },
-                                { value: "this_month", label: t("reports.dateFilter.thisMonth", "This Month") },
-                                { value: "last_month", label: t("reports.dateFilter.lastMonth", "Last Month") },
-                                { value: "custom", label: t("reports.dateFilter.custom", "Custom") },
-                              ] as Array<{ value: typeof dateFilter; label: string }>
-                            ).map((opt) => (
-                              <DrawerClose asChild key={opt.value}>
-                                <Button
-                                  type="button"
-                                  variant={dateFilter === opt.value ? "default" : "outline"}
-                                  className="justify-between"
-                                  onClick={() => {
-                                    applyDateFilter(opt.value);
-                                  }}
-                                >
-                                  <span className="text-sm">{opt.label}</span>
-                                </Button>
-                              </DrawerClose>
-                            ))}
-                          </div>
-                        </div>
-                      </DrawerContent>
-                    </Drawer>
+                    <MobileTrafficDateRangeDrawer
+                      value={dateSelection}
+                      onChange={setDateSelection}
+                      filtersHydrated={filtersHydrated}
+                      accountEarliestYmd={accountDateBounds?.earliest_date}
+                      calendarYearPresetYears={calendarYearPresetYears}
+                      allTimeHint={t(
+                        "digitalMarketing.traffic.allTimeRangeHint",
+                        "All time uses the same date range as Report and Google Ads tabs.",
+                      )}
+                      calendarYearFilterHint={t(
+                        "digitalMarketing.report.calendarYearFilterHint",
+                        "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
+                      )}
+                      onCustomClick={() => setShowCustomDatePicker(true)}
+                    />
                   </div>
                 </div>
               </div>
 
+              {pendingApprovalWebIds.length > 0 ? (
+                <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 p-3 text-xs text-amber-950">
+                  <p className="font-semibold text-amber-950">web_id belum approved</p>
+                  <p className="mt-1 text-amber-900/90">Data traffic belum bisa diambil sampai approval aktif.</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {pendingApprovalWebIds.map((pendingWebId) => (
+                      <span
+                        key={pendingWebId}
+                        className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-white/70 px-2 py-1"
+                      >
+                        <code className="text-amber-950">{pendingWebId}</code>
+                        {canManageWebId ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 border-amber-300 px-2 text-xs text-amber-950 hover:bg-amber-100"
+                            onClick={() => setDisconnectConfirmWebId(pendingWebId)}
+                            disabled={disconnectingWebId === pendingWebId}
+                          >
+                            {disconnectingWebId === pendingWebId ? "Menghapus..." : "Hapus"}
+                          </Button>
+                        ) : null}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {dashboardQuery.isError ? (
-                <div className="rounded-lg border border-primary/35 bg-card p-3 text-sm text-destructive">
-                  {t("traffic.mobile.error.dashboard", "Gagal memuat dashboard.")}
+                <div className="rounded-lg border border-primary/35 bg-card p-3 text-sm">
+                  <p className="font-medium text-destructive">
+                    {t("traffic.mobile.error.dashboard", "Gagal memuat dashboard.")}
+                  </p>
+                  {dashboardErrorHint ? (
+                    <p className="mt-2 text-xs text-muted-foreground">{dashboardErrorHint}</p>
+                  ) : null}
+                  <div className="mt-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => void dashboardQuery.refetch()}
+                    >
+                      Coba lagi
+                    </Button>
+                  </div>
                 </div>
               ) : null}
 
@@ -493,18 +577,25 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
               (ingestionQuery.data?.data_status === "raw_pending_rollup" ||
                 ingestionQuery.data?.data_status === "rollups_not_built") ? (
                 <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 p-3 text-xs text-amber-950">
-                  {t(
-                    "traffic.mobile.hintRollups",
-                    "Event trafik sudah masuk (HTTP 201). Rollup dashboard biasanya selesai dalam 45–90 detik; tarik refresh atau tunggu poll otomatis. Jika masih kosong setelah ~2 menit, sync rollup dari desktop (owner/admin).",
-                  )}
+                  <p className="font-semibold text-amber-950">Agregat dashboard sedang disiapkan</p>
+                  <p className="mt-1 text-amber-900/90">
+                    Event trafik sudah masuk (API mengembalikan HTTP 201), tetapi rollup harian belum selesai.
+                    Dashboard biasanya memperbarui otomatis dalam <strong>45–90 detik</strong>. Grafik harian bisa
+                    sementara nol sampai rollup selesai. Jika setelah ~2 menit masih kosong, klik{" "}
+                    <strong>Sync data</strong> (akun <strong>owner</strong> atau <strong>admin</strong>) untuk refresh
+                    rollup manual—bukan mengirim ulang data dari website.
+                  </p>
                 </div>
               ) : null}
               {!ingestionQuery.isLoading && !ingestionQuery.isError && ingestionQuery.data?.data_status === "no_ingested_data" ? (
                 <div className="rounded-lg border border-sky-200/80 bg-sky-50/60 p-3 text-xs text-slate-800">
-                  {t(
-                    "traffic.mobile.hintNoRaw",
-                    "Belum ada sesi / page view / klik tercatat. Pastikan pixel di situs terhubung ke proyek ini dan web_id cocok, lalu sync bila perlu.",
-                  )}
+                  <p className="font-semibold">Belum ada event trafik di database</p>
+                  <p className="mt-1">
+                    Untuk properti <code className="rounded bg-muted px-1.5 py-0.5">{effectiveWebId}</code> belum ada
+                    data sesi, page view, atau klik. Pastikan skrip / pixel di situs publik terhubung ke proyek Supabase
+                    ini dan mengirim <code className="rounded bg-muted px-1.5 py-0.5">web_id</code> yang sama, lalu
+                    ulangi Sync bila perlu.
+                  </p>
                 </div>
               ) : null}
 
@@ -512,89 +603,56 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
                 <div className="rounded-lg border border-primary/35 bg-card p-3">
                   <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.sessions", "Sessions")}</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    {formatCompactInt(dashboardQuery.data?.kpis.sessions ?? 0)}
+                    {formatCompactInt(sessionsDisplay)}
                   </div>
                 </div>
                 <div className="rounded-lg border border-primary/35 bg-card p-3">
                   <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.pageViews", "Page views")}</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    {formatCompactInt(dashboardQuery.data?.kpis.page_views ?? 0)}
+                    {formatCompactInt(pageViewsDisplay)}
                   </div>
                 </div>
                 <div className="rounded-lg border border-primary/35 bg-card p-3">
                   <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.clicks", "Clicks")}</div>
                   <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    {formatCompactInt(dashboardQuery.data?.kpis.clicks ?? 0)}
+                    {formatCompactInt(clicksDisplay)}
                   </div>
                 </div>
               </div>
 
               <MobileSessionsBySourceCard
-                rows={(dashboardQuery.data?.source_breakdown ?? []).map((r) => ({
-                  key: String((r as { key?: unknown }).key ?? ""),
-                  label: String((r as { label?: unknown }).label ?? ""),
-                  sessions: Number((r as { sessions?: unknown }).sessions ?? 0),
+                rows={sourceBreakdownRows.map((r) => ({
+                  key: r.key,
+                  label: r.label,
+                  sessions: r.sessions,
                 }))}
                 loading={dashboardQuery.isLoading}
               />
 
               <MobileUtmTrackingTable
-                rows={(dashboardQuery.data?.utm_table ?? []).map((r) => ({
-                  visit_key: (r as { visit_key?: string | null }).visit_key ?? null,
-                  visitor_id: (r as { visitor_id?: string | null }).visitor_id ?? null,
-                  session_id: (r as { session_id?: string | null }).session_id ?? null,
-                  day: (r as { day?: string | null }).day ?? null,
-                  occurred_at: (r as { occurred_at?: string | null }).occurred_at ?? null,
-                  time_label: (r as { time_label?: string | null }).time_label ?? null,
-                  route: (r as { route?: string | null }).route ?? null,
-                  utm_campaign: (r as { utm_campaign?: string | null }).utm_campaign ?? null,
-                  utm_source: (r as { utm_source?: string | null }).utm_source ?? null,
-                  utm_medium: (r as { utm_medium?: string | null }).utm_medium ?? null,
-                  utm_content: (r as { utm_content?: string | null }).utm_content ?? null,
-                  utm_term: (r as { utm_term?: string | null }).utm_term ?? null,
-                  page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
-                  clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
-                  max_deep_scroll_pct: (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null
-                    ? null
-                    : Number((r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct),
-                  avg_max_deep_scroll_pct: (r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct == null
-                    ? null
-                    : Number((r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct),
-                  scroll_sessions: Number((r as { scroll_sessions?: unknown }).scroll_sessions ?? 0),
-                }))}
+                rows={utmRows}
+                onUtmTableMetricsSliceChange={setUtmTableMetrics}
                 webId={effectiveWebId}
-                fromDate={fromDate}
-                toDate={toDate}
-                rangeIsMaximum={rangeIsMaximum}
+                queryFromDate={queryFromDate}
+                queryToDate={queryToDate}
+                queryDateReady={queryDateReady}
               />
 
               <MobileSourceTrafficTableCard
                 loading={dashboardQuery.isLoading}
                 error={dashboardQuery.isError}
-                rows={(dashboardQuery.data?.source_breakdown ?? []).map((r) => ({
-                  key: String((r as { key?: unknown }).key ?? ""),
-                  label: String((r as { label?: unknown }).label ?? ""),
-                  sessions: Number((r as { sessions?: unknown }).sessions ?? 0),
-                  page_views: Number((r as { page_views?: unknown }).page_views ?? 0),
-                  clicks: Number((r as { clicks?: unknown }).clicks ?? 0),
-                  max_deep_scroll_pct:
-                    (r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct == null
-                      ? null
-                      : Number((r as { max_deep_scroll_pct?: unknown }).max_deep_scroll_pct),
-                  avg_max_deep_scroll_pct:
-                    (r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct == null
-                      ? null
-                      : Number((r as { avg_max_deep_scroll_pct?: unknown }).avg_max_deep_scroll_pct),
-                  scroll_sessions: Number((r as { scroll_sessions?: unknown }).scroll_sessions ?? 0),
-                }))}
+                errorDetail={dashboardQuery.error}
+                onRetry={() => void dashboardQuery.refetch()}
+                rows={sourceBreakdownRows}
                 webId={effectiveWebId}
-                fromDate={fromDate}
-                toDate={toDate}
-                rangeIsMaximum={rangeIsMaximum}
+                queryFromDate={queryFromDate}
+                queryToDate={queryToDate}
+                queryDateReady={queryDateReady}
               />
 
               <MobileTopPagesTableCard
                 rows={topPages}
+                queryDateReady={queryDateReady}
                 onClickClicks={(path) => {
                   const raw = String(path ?? "").trim();
                   setClickDetails({ kind: "path", path: raw || "/" });
@@ -603,6 +661,7 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
 
               <MobileTopBlogPagesTableCard
                 rows={topPages}
+                queryDateReady={queryDateReady}
                 onClickClicks={(path) => {
                   const raw = String(path ?? "").trim();
                   setClickDetails({ kind: "path", path: raw || "/" });
@@ -627,15 +686,81 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
         </main>
       </div>
 
+      <ConnectWebIdDialog
+        open={connectOpen}
+        onOpenChange={setConnectOpen}
+        organizationId={organizationId}
+        existingWebIds={accessibleWebIds}
+        onConnected={(newWebId) => {
+          void webIdsQuery.refetch();
+          setWebId(newWebId);
+        }}
+        onRequestSubmitted={() => {
+          void webAccessQuery.refetch();
+          void webIdsQuery.refetch();
+        }}
+      />
+
+      <AlertDialog
+        open={disconnectConfirmWebId != null}
+        onOpenChange={(open) => {
+          if (!open && disconnectingWebId == null) setDisconnectConfirmWebId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {disconnectConfirmIsPending ? "Hapus request web_id?" : "Disconnect web_id?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Koneksi web_id{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">{disconnectConfirmWebId ?? ""}</code>{" "}
+              akan dihapus dari{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">analytics_web_access</code>{" "}
+              untuk organisasi ini.
+              {disconnectConfirmIsPending ? (
+                <>
+                  {" "}
+                  Request belum approved; data traffic tetap tidak bisa diambil sampai request baru dibuat dan
+                  di-approved.
+                </>
+              ) : (
+                <>
+                  {" "}
+                  Data trafik mentah di database tidak ikut terhapus, tetapi dashboard tidak lagi menampilkan properti
+                  ini sampai Anda connect ulang.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={disconnectingWebId != null}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={disconnectingWebId != null || disconnectConfirmWebId == null}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!disconnectConfirmWebId) return;
+                void handleDisconnectWebAccess(disconnectConfirmWebId).then(() => {
+                  setDisconnectConfirmWebId(null);
+                });
+              }}
+            >
+              {disconnectingWebId != null ? "Menghapus..." : "Hapus koneksi"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <MobileClickDetailsDialog
         open={clickDetails != null}
         onOpenChange={(open) => {
           if (!open) setClickDetails(null);
         }}
         webId={effectiveWebId}
-        fromDate={fromDate}
-        toDate={toDate}
-        rangeIsMaximum={rangeIsMaximum}
+        queryFromDate={queryFromDate}
+        queryToDate={queryToDate}
+        queryDateReady={queryDateReady}
         path={clickDetails?.path ?? ""}
       />
     </SidebarProvider>
@@ -677,4 +802,3 @@ export default function MobileWebTrafficPage() {
 
   return <MobileWebTrafficPageContent hasPageAccess={hasPageAccess} />;
 }
-
