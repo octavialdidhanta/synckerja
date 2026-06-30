@@ -20,6 +20,29 @@ export function getCarouselImagePublicUrl(storagePath: string): string {
   return supabase.storage.from(CAROUSEL_BUCKET).getPublicUrl(storagePath).data.publicUrl;
 }
 
+/** Download a carousel image by storage path; opens in new tab if fetch fails (CORS). */
+export async function downloadCarouselImage(
+  storagePath: string,
+  fileName: string,
+): Promise<'ok' | 'fallback'> {
+  const url = getCarouselImagePublicUrl(storagePath);
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error('Fetch failed');
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+    return 'ok';
+  } catch {
+    window.open(url, '_blank');
+    return 'fallback';
+  }
+}
+
 export function useCarouselImages(socialMediaPlanId: string | undefined) {
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();

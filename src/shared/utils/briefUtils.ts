@@ -9,9 +9,16 @@ export function extractBriefTitle(text: string): string | null {
     const t = lines[i].trim();
     if (!t) continue;
     if (/^##\s+Format|^Format\s*&?\s*Style/i.test(t)) break;
-    if (t.startsWith('## ')) break;
+    const h2Match = t.match(/^##\s+(.+?)\s*(?:##\s*)?$/);
+    if (h2Match) {
+      const h2Title = h2Match[1].trim();
+      if (h2Title && !/^Format\s*&?\s*Style/i.test(h2Title)) return h2Title;
+      break;
+    }
     const h1Match = t.match(/^#\s+(.+)$/);
     if (h1Match) return h1Match[1].trim();
+    const boldOnlyMatch = t.match(/^\*\*(.+?)\*\*\s*$/);
+    if (boldOnlyMatch?.[1]?.trim()) return boldOnlyMatch[1].trim();
     // **Judul Script:** value (same line) or **Judul Script:**\nvalue (next line)
     const judulSameLine = t.match(/^\*\*Judul\s+Script\*\*\s*:?\s*(.+)$/i);
     if (judulSameLine && judulSameLine[1]?.trim()) return judulSameLine[1].trim();
@@ -48,7 +55,15 @@ export function removeBriefTitleFromStart(text: string): string {
       continue;
     }
     // Exact title match (standalone)
-    if (t === title || t === `# ${title}` || t === `**${title}**` || (t.startsWith('# ') && t.slice(2).trim() === title)) {
+    if (
+      t === title ||
+      t === `# ${title}` ||
+      t === `**${title}**` ||
+      t === `## ${title}` ||
+      t === `## ${title} ##` ||
+      (t.startsWith('# ') && t.slice(2).trim() === title) ||
+      (t.startsWith('## ') && t.replace(/^##\s+|\s*##\s*$/g, '').trim() === title)
+    ) {
       removed = true;
       continue;
     }

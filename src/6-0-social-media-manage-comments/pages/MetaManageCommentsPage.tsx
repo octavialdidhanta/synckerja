@@ -12,6 +12,11 @@ import { ManageCommentsPlatformBadge } from '@/6-0-social-media-manage-comments/
 import { MetaCommentThreadPanel } from '@/6-0-social-media-manage-comments/components/meta/MetaCommentThreadPanel';
 import { MetaManageCommentsPageSkeleton } from '@/6-0-social-media-manage-comments/skeletons/MetaManageCommentsPageSkeleton';
 import { useRefetchOnTabVisible } from '@/6-0-social-media-manage-comments/hooks/useRefetchOnTabVisible';
+import { useNewInboundPostHighlights } from '@/6-0-social-media-manage-comments/hooks/useNewInboundPostHighlights';
+import {
+  useMetaManageCommentsInboxState,
+  useSyncMetaManageCommentsPostBaselines,
+} from '@/6-0-social-media-manage-comments/hooks/useMetaManageCommentsInboxState';
 import { filterManageCommentsPosts } from '@/6-0-social-media-manage-comments/lib/filterPostList';
 import { sortPostsForInbox } from '@/6-0-social-media-manage-comments/lib/sortPostsForInbox';
 import type {
@@ -103,10 +108,75 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
   useRefetchOnTabVisible(refetchPosts);
 
   const allPosts = postsQuery.posts;
+  const postsReady = postsQuery.isFetched && !postsQuery.isLoading;
+
+  const inboxEnabled =
+    Boolean(organizationId && accountId && canManage && !gatePending) &&
+    platform === 'instagram';
+
+  const { syncPostBaselinesMutation, dismissPostHighlightMutation } =
+    useMetaManageCommentsInboxState({
+      organizationId,
+      platform,
+      accountId,
+      activeMediaId: selectedMediaId,
+      enabled: inboxEnabled,
+    });
+
+  useSyncMetaManageCommentsPostBaselines({
+    organizationId,
+    platform,
+    accountId,
+    posts: allPosts,
+    postsReady,
+    enabled: inboxEnabled,
+    syncPostBaselines: syncPostBaselinesMutation,
+  });
+
+  const {
+    pinnedPostIds,
+    highlightedPostIds,
+    pinnedAtMs,
+    pinnedAtVersion,
+    markPostWithNewActivity,
+    dismissPostHighlight,
+  } = useNewInboundPostHighlights(selectedMediaId, accountId);
+
+  const visibleHighlightedPostIds = useMemo(() => {
+    if (platform !== 'instagram') return new Set<string>();
+    const countById = new Map(allPosts.map((p) => [p.id, p.commentCount]));
+    const next = new Set<string>();
+    for (const id of highlightedPostIds) {
+      if ((countById.get(id) ?? 0) > 0) next.add(id);
+    }
+    return next;
+  }, [highlightedPostIds, allPosts, platform]);
+
+  const handlePostHighlightResolved = useCallback(
+    (postId: string) => {
+      dismissPostHighlight(postId);
+      if (platform === 'instagram') {
+        void dismissPostHighlightMutation.mutateAsync(postId).catch(() => {});
+      }
+    },
+    [dismissPostHighlight, dismissPostHighlightMutation, platform],
+  );
+
   const filteredPosts = useMemo(() => {
-    const filtered = filterManageCommentsPosts(allPosts, postFilter, '', new Set());
-    return sortPostsForInbox(filtered, new Set(), new Map());
-  }, [allPosts, postFilter]);
+    const highlightSet = platform === 'instagram' ? visibleHighlightedPostIds : new Set<string>();
+    const filtered = filterManageCommentsPosts(allPosts, postFilter, '', highlightSet);
+    const pinned = platform === 'instagram' ? pinnedPostIds : new Set<string>();
+    const pinnedMs = platform === 'instagram' ? pinnedAtMs : new Map<string, number>();
+    return sortPostsForInbox(filtered, pinned, pinnedMs);
+  }, [
+    allPosts,
+    postFilter,
+    pinnedPostIds,
+    pinnedAtMs,
+    visibleHighlightedPostIds,
+    pinnedAtVersion,
+    platform,
+  ]);
 
   const selectedPost = useMemo(
     () => filteredPosts.find((p) => String(p.id) === selectedMediaId) ?? null,
@@ -229,7 +299,7 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                         <ManageCommentsPostList
                           posts={filteredPosts}
                           selectedId={selectedMediaId}
-                          highlightedPostIds={new Set()}
+                          highlightedPostIds={visibleHighlightedPostIds}
                           onSelect={handleSelectPost}
                           isLoading={postsQuery.isLoading}
                           isFetching={postsQuery.isFetching}
@@ -253,6 +323,18 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                         post={selectedPost}
                         commentsScopesGranted={commentsScopesGranted}
                         connectPath={CONNECT_PATH}
+                        postHighlightActive={
+                          platform === 'instagram' && selectedPost
+                            ? visibleHighlightedPostIds.has(selectedPost.id)
+                            : false
+                        }
+                        onNewInboundComments={() => {
+                          if (platform === 'instagram' && selectedPost) {
+                            markPostWithNewActivity(selectedPost.id);
+                          }
+                        }}
+                        onPostHighlightResolved={handlePostHighlightResolved}
+                        inboxEnabled={inboxEnabled}
                       />
                     ) : (
                       <ManageCommentsEmptyState />

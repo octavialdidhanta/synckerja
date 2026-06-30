@@ -86,16 +86,22 @@ export function parseMarkdownTable(
 
 /**
  * Convert 2D array to markdown table string.
- * Trims trailing fully-empty rows so save does not duplicate bottom rows.
+ * Trims trailing fully-empty rows so save does not duplicate bottom rows (unless disabled).
  */
-export function stringifyMarkdownTable(rows: string[][]): string {
+export function stringifyMarkdownTable(
+  rows: string[][],
+  options?: { trimTrailingEmptyBodyRows?: boolean },
+): string {
   if (rows.length === 0) return '';
 
   const colCount = Math.max(...rows.map((r) => r.length));
   const isRowEmpty = (r: string[]) => r.length <= 0 || r.every((c) => (c ?? '').trim() === '');
   let trimmedRows = rows;
-  while (trimmedRows.length > 1 && isRowEmpty(trimmedRows[trimmedRows.length - 1])) {
-    trimmedRows = trimmedRows.slice(0, -1);
+  const shouldTrim = options?.trimTrailingEmptyBodyRows !== false;
+  if (shouldTrim) {
+    while (trimmedRows.length > 1 && isRowEmpty(trimmedRows[trimmedRows.length - 1])) {
+      trimmedRows = trimmedRows.slice(0, -1);
+    }
   }
 
   const pad = (arr: string[]) => {

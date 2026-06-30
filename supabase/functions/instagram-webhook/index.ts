@@ -11,6 +11,7 @@ import {
   mergeInstagramConversationDuplicates,
   normalizeInstagramUsername,
 } from "../_shared/instagramAccountDedupe.ts";
+import { syncMetaManageCommentsInboundComments } from "../_shared/metaManageCommentsInboxState.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -814,6 +815,125 @@ function extractMessagingFromEntry(entry: Record<string, unknown>): MessagingEvt
   return events;
 }
 
+type InstagramCommentWebhookEvent = {
+  commentId: string;
+  mediaId: string;
+  authorIgScopedId: string | null;
+  parentCommentId: string | null;
+  verb: string | null;
+};
+
+function extractInstagramCommentChangesFromEntry(
+  entry: Record<string, unknown>,
+): InstagramCommentWebhookEvent[] {
+  const events: InstagramCommentWebhookEvent[] = [];
+  const changes = entry.changes;
+  if (!Array.isArray(changes)) return events;
+
+  for (const ch of changes) {
+    const change = ch as Record<string, unknown>;
+    const field = typeof change.field === "string" ? change.field : "";
+    if (field !== "comments") continue;
+
+    const val = change.value as Record<string, unknown> | undefined;
+    if (!val) continue;
+
+    const commentId = typeof val.id === "string" ? val.id.trim() : String(val.id ?? "").trim();
+    const media = val.media as Record<string, unknown> | undefined;
+    const mediaId = typeof media?.id === "string" ? media.id.trim() : String(media?.id ?? "").trim();
+    const from = val.from as Record<string, unknown> | undefined;
+    const authorRaw = from?.id != null ? String(from.id).trim() : "";
+    const authorIgScopedId = authorRaw || null;
+    const parentRaw = val.parent_id != null ? String(val.parent_id).trim() : "";
+    const parentCommentId = parentRaw || null;
+    const verb = typeof val.verb === "string" ? val.verb.trim().toLowerCase() : null;
+
+    if (!commentId || !mediaId) continue;
+
+    events.push({ commentId, mediaId, authorIgScopedId, parentCommentId, verb });
+  }
+
+  return events;
+}
+
+async function processInstagramCommentWebhookEvents(
+  supabase: ReturnType<typeof createClient>,
+  webhookObject: string,
+  entryId: string | null,
+  events: InstagramCommentWebhookEvent[],
+): Promise<number> {
+  if (events.length === 0) return 0;
+
+  if (webhookObject === "page") {
+    console.log("[instagram-webhook] ignored_page_comments_v1", { count: events.length, entryId });
+    return 0;
+  }
+  if (webhookObject !== "instagram") return 0;
+
+  const account = await resolveInstagramAccountForMessaging(supabase, entryId, null, null);
+  if (!account) {
+    console.error(
+      "[instagram-webhook] comment webhook: account not found for entry:",
+      entryId ?? "(missing)",
+    );
+    return 0;
+  }
+
+  const businessIgId = String(account.instagram_business_account_id).trim();
+  const orgId = account.organization_id;
+  let processed = 0;
+
+  for (const evt of events) {
+    if (evt.verb === "remove") {
+      let deleteQuery = supabase
+        .from("meta_manage_comments_inbound_comments")
+        .delete()
+        .eq("organization_id", orgId)
+        .eq("platform", "instagram")
+        .eq("account_id", businessIgId)
+        .eq("comment_id", evt.commentId);
+      if (evt.mediaId) {
+        deleteQuery = deleteQuery.eq("media_id", evt.mediaId);
+      }
+      const { error } = await deleteQuery;
+      if (error) {
+        console.warn("[instagram-webhook] comment remove delete error", evt.commentId, error.message);
+      } else {
+        processed += 1;
+      }
+      continue;
+    }
+
+    if (evt.authorIgScopedId && evt.authorIgScopedId === businessIgId) {
+      console.log("[instagram-webhook] skip self-comment", evt.commentId);
+      continue;
+    }
+
+    try {
+      await syncMetaManageCommentsInboundComments(
+        supabase,
+        orgId,
+        "instagram",
+        businessIgId,
+        evt.mediaId,
+        [evt.commentId],
+      );
+      console.log("[instagram-webhook] comments webhook received", {
+        orgId,
+        mediaId: evt.mediaId,
+        commentId: evt.commentId,
+        authorIgScopedId: evt.authorIgScopedId,
+        parentCommentId: evt.parentCommentId,
+      });
+      processed += 1;
+    } catch (e) {
+      console.error("[instagram-webhook] syncMetaManageCommentsInboundComments error", e);
+    }
+  }
+
+  return processed;
+}
+
 function livechatPushUsesDatabaseWebhookOnly(): boolean {
   return Deno.env.get("LIVECHAT_USE_DATABASE_WEBHOOK_FOR_PUSH") === "true";
 }
@@ -961,14 +1081,37 @@ Deno.serve(async (req: Request) => {
       const hasMessaging = Array.isArray(first?.messaging) && (first.messaging as unknown[]).length > 0;
       console.log("[instagram-webhook] first entry keys:", keys.join(", "), "id:", first?.id, "messaging?:", hasMessaging ? (first.messaging as unknown[]).length : "none", "changes?:", hasChanges ? (first.changes as unknown[]).length : "none");
       if (hasChanges && !hasMessaging) {
-        console.log("[instagram-webhook] Payload punya 'changes' bukan 'messaging' — ini bukan event DM. Untuk tes: kirim pesan nyata dari app Instagram ke akun bisnis (@octa.vialdi), jangan pakai tombol Test di Meta.");
+        const firstChanges = (first?.changes as Array<Record<string, unknown>>) ?? [];
+        const changeFields = firstChanges
+          .map((c) => (typeof c.field === "string" ? c.field : ""))
+          .filter(Boolean);
+        if (changeFields.includes("comments")) {
+          console.log("[instagram-webhook] Payload has comments changes — comment ingest path.");
+        } else {
+          console.log(
+            "[instagram-webhook] Payload has changes but no messaging/DM events. fields:",
+            changeFields.join(", ") || "(none)",
+          );
+        }
       }
     }
     const ensuredLivechatStatusOrgs = new Set<string>();
     let processedCount = 0;
+    let commentProcessedCount = 0;
     for (const entry of entries) {
       const entryRecord = entry as Record<string, unknown>;
       const entryId = entry?.id != null && entry?.id !== "" ? String(entry.id).trim() : null;
+
+      const commentEvents = extractInstagramCommentChangesFromEntry(entryRecord);
+      if (commentEvents.length > 0) {
+        commentProcessedCount += await processInstagramCommentWebhookEvents(
+          supabase,
+          webhookObject,
+          entryId,
+          commentEvents,
+        );
+      }
+
       const messaging = extractMessagingFromEntry(entryRecord);
       if (messaging.length === 0) continue;
 
@@ -1597,10 +1740,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, processed: processedCount }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ success: true, processed: processedCount, commentProcessedCount }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     console.error("[instagram-webhook] error", err);
     return new Response(JSON.stringify({ error: "Webhook failed" }), {

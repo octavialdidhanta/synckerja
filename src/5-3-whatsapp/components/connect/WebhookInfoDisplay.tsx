@@ -102,7 +102,7 @@ export function WebhookInfoDisplay({ embedded, compact, variant = 'whatsapp' }: 
                         )
                       : t(
                           'instagramConnect.webhookReceiveHint',
-                          'Agar DM masuk ke aplikasi: di Meta Developer → App Anda → Instagram → Configuration → Webhook, isi Callback URL dan Verify Token di bawah, klik Verify and Save, lalu subscribe ke "messages".',
+                          'Agar DM dan komentar IG masuk ke aplikasi: di Meta Developer → App Anda → Instagram → Configuration → Webhook, isi Callback URL dan Verify Token di bawah, klik Verify and Save. Synckerja subscribe otomatis ke messages + comments saat connect — reconnect atau tombol Subscribe webhooks jika akun sudah lama terhubung.',
                         )}
                 </p>
               </TooltipContent>

@@ -60,6 +60,19 @@ export async function syncMetaManageCommentsPostBaselines(
   return invokeInboxAction(organizationId, platform, accountId, 'syncPostBaselines', { posts });
 }
 
+export async function syncMetaManageCommentsInboundComments(
+  organizationId: string,
+  platform: MetaContentPlatform,
+  accountId: string,
+  mediaId: string,
+  commentIds: string[],
+): Promise<MetaManageCommentsInboxState> {
+  return invokeInboxAction(organizationId, platform, accountId, 'syncInboundComments', {
+    media_id: mediaId,
+    comment_ids: commentIds,
+  });
+}
+
 export async function markMetaManageCommentsCommentRead(
   organizationId: string,
   platform: MetaContentPlatform,

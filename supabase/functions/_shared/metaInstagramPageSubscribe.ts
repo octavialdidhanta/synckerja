@@ -1,7 +1,14 @@
 export const META_GRAPH_VERSION = "v21.0";
 
-/** Fields for Page Subscribed Apps — only names Meta accepts on this edge (not messaging_seen). */
-export const INSTAGRAM_PAGE_SUBSCRIBED_FIELDS = "messages,messaging_postbacks,message_reads";
+/** DM livechat fields for Page Subscribed Apps (not messaging_seen). */
+export const INSTAGRAM_DM_SUBSCRIBED_FIELDS = "messages,messaging_postbacks,message_reads";
+
+/** Instagram comment webhook field (Manage Comments real-time inbox). */
+export const INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS = "comments";
+
+/** Fields for Page Subscribed Apps — DM + Instagram comments. */
+export const INSTAGRAM_PAGE_SUBSCRIBED_FIELDS =
+  `${INSTAGRAM_DM_SUBSCRIBED_FIELDS},${INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS}`;
 
 export type InstagramPageSubscribeResult = {
   pageId: string;

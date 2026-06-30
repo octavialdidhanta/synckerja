@@ -49,30 +49,17 @@ export const useApprovalTaskStepCreation = ({
     }
   }, []);
 
-  // Get user ID untuk created_by (harus merujuk ke users.id, bukan employees.id)
-  const getUserId = useCallback(async (organizationId: string): Promise<string | null> => {
-    // Try dari currentEmployee hook dulu (cached)
-    // currentEmployee.user_id adalah user_id yang diperlukan untuk created_by
+  // created_by FK → auth.users.id (bukan employees.id). RLS insert sudah cek akses org via daily_tasks.
+  const getUserId = useCallback(async (_organizationId: string): Promise<string | null> => {
     if (currentEmployee?.user_id) {
       return currentEmployee.user_id;
     }
-    
-    // Fallback: get dari auth user
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-      
-      // Verify employee exists for this organization
-      const { data: employeeData } = await supabase
-        .from('employees')
-        .select('user_id')
-        .eq('user_id', user.id)
-        .eq('organization_id', organizationId)
-        .maybeSingle();
-      
-      // Return user.id (bukan employee.id) karena constraint task_steps_created_by_fkey
-      // mengharuskan created_by merujuk ke users.id
-      return employeeData ? user.id : null;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      return user?.id ?? null;
     } catch (error) {
       devLog.error('Error getting user ID', error);
       return null;
@@ -84,27 +71,56 @@ export const useApprovalTaskStepCreation = ({
     taskId: string,
     plan: ContentPlan,
     completionDate?: string // Completion date untuk completed_at di task step
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; errorAlreadyShown?: boolean }> => {
     let userId: string | null = null;
     let stepTitle = '';
     let completedAt = '';
     
     try {
-      // 1. Check duplicate FIRST (early exit untuk performance)
-      // Only check for existing "Concept" steps, not "Content" steps
-      // Because a plan can have both "Concept" and "Content" steps
-      const { data: existingConceptStep } = await supabase
+      // 1. Existing Concept step — idempotent (retry setelah insert sukses tapi onUpdate gagal)
+      const { data: existingConceptSteps, error: existingConceptError } = await supabase
         .from('task_steps')
-        .select('id')
+        .select('id, task_id')
         .eq('social_media_plan_id', plan.id)
         .eq('is_concept_step', true)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (existingConceptStep) {
-        toast.error('Concept step already exists for this social media plan');
-        return false;
+      if (existingConceptError) {
+        devLog.error('Error checking existing concept step:', existingConceptError);
       }
 
+      const existingConceptStep = existingConceptSteps?.[0];
+      let taskStepId: string | undefined;
+      let skipInsert = false;
+
+      completedAt =
+        completionDate || plan.completion_date || new Date().toISOString();
+
+      if (existingConceptStep) {
+        if (existingConceptStep.task_id === taskId) {
+          taskStepId = existingConceptStep.id;
+          skipInsert = true;
+        } else {
+          const { error: moveError } = await supabase
+            .from('task_steps')
+            .update({ task_id: taskId })
+            .eq('id', existingConceptStep.id);
+
+          if (moveError) {
+            devLog.error('Error moving concept step to selected daily task:', moveError);
+            toast.error(
+              'Concept step already exists on another daily task. Unapprove first or pick that task.',
+            );
+            return { success: false, errorAlreadyShown: true };
+          }
+
+          taskStepId = existingConceptStep.id;
+          skipInsert = true;
+        }
+      }
+
+      if (!skipInsert) {
       // 2. Get service and content type names (with fallback)
       let serviceName = plan.service?.name || '';
       let contentTypeName = plan.content_type?.name || '';
@@ -140,55 +156,56 @@ export const useApprovalTaskStepCreation = ({
       // 4. Get user ID untuk created_by (harus merujuk ke users.id, bukan employees.id)
       userId = await getUserId(plan.organization_id);
       if (!userId) {
-        toast.error('Cannot create task step: User record not found');
-        return false;
+        toast.error('Cannot create task step: User not authenticated');
+        return { success: false, errorAlreadyShown: true };
       }
 
       // 5. Get max order (with single query, efficient)
-      const { data: existingSteps } = await supabase
+      const { data: orderRows } = await supabase
         .from('task_steps')
         .select('order')
         .eq('task_id', taskId)
         .order('order', { ascending: false })
-        .limit(1)
-        .maybeSingle(); // Use maybeSingle for performance
+        .limit(1);
 
-      const nextOrder = existingSteps?.order ? existingSteps.order + 1 : 1;
+      const nextOrder =
+        orderRows && orderRows.length > 0 ? (orderRows[0].order || 0) + 1 : 1;
 
       // 6. Insert task step (atomic operation)
       // completed_at harus ambil dari completion_date di social_media_plans
       // Gunakan completionDate parameter (yang di-set saat toggle Approved)
       // Jika tidak ada, gunakan plan.completion_date atau timestamp saat ini sebagai fallback
-      completedAt = completionDate 
-        || plan.completion_date 
-        || new Date().toISOString();
-      
-      const { data: insertedStep, error: insertError } = await supabase
-        .from('task_steps')
-        .insert({
-          task_id: taskId,
-          title: stepTitle,
-          is_completed: true, // Task step auto-completed karena content sudah approved
-          order: nextOrder,
-          completed_at: completedAt, // Ambil dari completion_date di social_media_plans
-          created_by: userId, // Harus merujuk ke users.id (bukan employees.id)
-          social_media_plan_id: plan.id, // Tidak boleh NULL
-          is_concept_step: true // This is a Concept step
-        })
-        .select('id')
-        .single();
-
-      const taskStepId = insertedStep?.id;
+      const { error: insertError } = await supabase.from('task_steps').insert({
+        task_id: taskId,
+        title: stepTitle,
+        is_completed: true, // Task step auto-completed karena content sudah approved
+        order: nextOrder,
+        completed_at: completedAt, // Ambil dari completion_date di social_media_plans
+        created_by: userId, // Harus merujuk ke users.id (bukan employees.id)
+        social_media_plan_id: plan.id, // Tidak boleh NULL
+        is_concept_step: true, // This is a Concept step
+      });
 
       if (insertError) {
-        // Check for duplicate error (race condition)
+        // Race: step mungkin sudah dibuat oleh request paralel
         if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
-          toast.error('Task step already exists (created by another process)');
-          return false;
-        }
-        
-        // Check for foreign key constraint violations
-        if (insertError.code === '23503' || insertError.message?.includes('foreign key constraint')) {
+          const { data: racedSteps } = await supabase
+            .from('task_steps')
+            .select('id, task_id')
+            .eq('social_media_plan_id', plan.id)
+            .eq('is_concept_step', true)
+            .limit(1);
+
+          if (racedSteps?.[0]) {
+            taskStepId = racedSteps[0].id;
+          } else {
+            toast.error('Task step already exists (created by another process)');
+            return { success: false, errorAlreadyShown: true };
+          }
+        } else if (
+          insertError.code === '23503' ||
+          insertError.message?.includes('foreign key constraint')
+        ) {
           devLog.error('Foreign key constraint violation:', {
             code: insertError.code,
             message: insertError.message,
@@ -196,9 +213,9 @@ export const useApprovalTaskStepCreation = ({
             hint: insertError.hint,
             userId,
             taskId,
-            planId: plan.id
+            planId: plan.id,
           });
-          
+
           if (insertError.message?.includes('created_by')) {
             toast.error('Cannot create task step: Invalid user ID. Please try logging out and back in.');
           } else if (insertError.message?.includes('task_id')) {
@@ -206,28 +223,40 @@ export const useApprovalTaskStepCreation = ({
           } else if (insertError.message?.includes('social_media_plan_id')) {
             toast.error('Cannot create task step: Invalid social media plan ID.');
           } else {
-            toast.error(`Cannot create task step: ${insertError.message || 'Database constraint violation'}`);
+            toast.error(
+              `Cannot create task step: ${insertError.message || 'Database constraint violation'}`,
+            );
           }
-          return false;
+          return { success: false, errorAlreadyShown: true };
+        } else {
+          devLog.error('Task step insert error:', {
+            code: insertError.code,
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            userId,
+            taskId,
+            planId: plan.id,
+            stepTitle,
+            completedAt,
+            nextOrder,
+          });
+
+          throw insertError;
         }
-        
-        // Log other errors for debugging
-        devLog.error('Task step insert error:', {
-          code: insertError.code,
-          message: insertError.message,
-          details: insertError.details,
-          hint: insertError.hint,
-          userId,
-          taskId,
-          planId: plan.id,
-          stepTitle,
-          completedAt,
-          nextOrder
-        });
-        
-        // Throw to be caught by outer catch
-        throw insertError;
+      } else {
+        const { data: insertedSteps } = await supabase
+          .from('task_steps')
+          .select('id')
+          .eq('social_media_plan_id', plan.id)
+          .eq('is_concept_step', true)
+          .eq('task_id', taskId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        taskStepId = insertedSteps?.[0]?.id;
       }
+      } // end if (!skipInsert)
 
       // 6b. Auto create assignment & due date jika PIC tersedia
       // Mengikuti pola di TitleDialog.tsx untuk menjaga konsistensi
@@ -314,8 +343,7 @@ export const useApprovalTaskStepCreation = ({
       }
 
       // 7. Task step created successfully
-      // The task step creation (plus optional assignment & due date) has completed
-      return true;
+      return { success: true };
     } catch (error: any) {
       devLog.error('Error creating task step:', {
         error,
@@ -326,9 +354,9 @@ export const useApprovalTaskStepCreation = ({
         taskId,
         planId: plan?.id,
         userId,
-        stepTitle
+        stepTitle,
       });
-      
+
       // Show more specific error message
       let errorMessage = 'Failed to create task step';
       if (error?.message) {
@@ -340,11 +368,11 @@ export const useApprovalTaskStepCreation = ({
           errorMessage = `Failed to create task step: ${error.message}`;
         }
       }
-      
+
       toast.error(errorMessage);
-      return false;
+      return { success: false, errorAlreadyShown: true };
     }
-  }, [formatDateDDMMYYYY, getUserId]);
+  }, [formatDateDDMMYYYY, getUserId, currentEmployee?.id]);
 
   // Check if should show modal untuk approval
   const shouldShowModal = useCallback((plan: ContentPlan, oldStatus: string | null): boolean => {
@@ -376,11 +404,32 @@ export const useApprovalTaskStepCreation = ({
     if (!pendingApproval) return;
 
     const { planId, plan, completionDate } = pendingApproval;
-    
-    // Create task step FIRST (before updating status)
-    // Pass completionDate untuk digunakan sebagai completed_at di task step
-    const success = await createTaskStep(taskId, plan, completionDate);
-    
+
+    // Refetch plan so service/content_type/title are fresh (BriefDialog may have updated brief only in UI)
+    let planForStep = plan;
+    const { data: freshPlan } = await supabase
+      .from('social_media_plans')
+      .select(
+        `
+        *,
+        service:services(id, name),
+        content_type:content_types(id, name)
+      `,
+      )
+      .eq('id', planId)
+      .maybeSingle();
+
+    if (freshPlan) {
+      planForStep = {
+        ...plan,
+        ...freshPlan,
+        service: freshPlan.service ?? plan.service,
+        content_type: freshPlan.content_type ?? plan.content_type,
+      } as ContentPlan;
+    }
+
+    const { success, errorAlreadyShown } = await createTaskStep(taskId, planForStep, completionDate);
+
     if (success) {
       // Update all fields AFTER task step created successfully
       // Gunakan completionDate dari pendingApproval (yang sama dengan completed_at di task step)
@@ -404,7 +453,7 @@ export const useApprovalTaskStepCreation = ({
       setPendingApproval(null);
       
       toast.success('Content plan approved and task step created successfully');
-    } else {
+    } else if (!errorAlreadyShown) {
       // Task step creation failed - status tetap tidak berubah
       // Modal tetap terbuka agar user bisa retry
       toast.error('Failed to create task step. Please try again or cancel.');
@@ -497,8 +546,29 @@ export const useApprovalTaskStepCreation = ({
 
       // Delete only Concept steps (is_concept_step = true)
       const conceptStepIds = existingSteps.map(step => step.id);
-      
+
       if (conceptStepIds.length > 0) {
+        // Hapus assignment dulu agar trigger unassign tidak insert push_queue dengan
+        // task_step_id saat parent step ikut CASCADE-delete (FK violation).
+        const { error: assignDeleteError } = await supabase
+          .from('task_steps_assigned')
+          .delete()
+          .in('task_step_id', conceptStepIds);
+
+        if (assignDeleteError) {
+          devLog.error('Error deleting Concept task step assignments:', {
+            error: assignDeleteError,
+            code: assignDeleteError.code,
+            message: assignDeleteError.message,
+            planId,
+            conceptStepIds,
+          });
+          toast.error(
+            'Failed to delete Concept task step: ' + (assignDeleteError.message || 'Unknown error'),
+          );
+          return false;
+        }
+
         const { error: deleteError } = await supabase
           .from('task_steps')
           .delete()

@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
-import { ExternalLink, Check, RotateCcw, LinkIcon, Calendar, FileText, Tag, Lock, Share2, Upload, GripVertical, Trash2, ImageIcon, ChevronDown, ChevronUp, User, Briefcase } from 'lucide-react';
+import { ExternalLink, Check, RotateCcw, LinkIcon, Calendar, FileText, Tag, Lock, Share2, Upload, GripVertical, Trash2, ImageIcon, ChevronDown, ChevronUp, User, Briefcase, Download, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { OptimizedCommentPanel } from './OptimizedCommentPanel';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
@@ -16,7 +16,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { usePublicReviewToken } from '../hook/usePublicReviewToken';
 import { useProdApprovalAccess } from '../hook/useProdApprovalAccess';
-import { useCarouselImages, getCarouselImagePublicUrl, CAROUSEL_QUERY_KEY } from '../hook/useCarouselImages';
+import { useCarouselImages, getCarouselImagePublicUrl, downloadCarouselImage, CAROUSEL_QUERY_KEY } from '../hook/useCarouselImages';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { isFileLink, linksSemanticallyEqual } from '../utils/previewUtils';
 import { revertStepCompletionFromDriveLinkRemovalWithRpc } from '@/8-2-DailyTask/services/completionApprovalService';
@@ -98,6 +98,8 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   const [currentLink, setCurrentLink] = useState(googleDriveLink);
   const [carouselPreviewIndex, setCarouselPreviewIndex] = useState(0);
   const [carouselSectionExpanded, setCarouselSectionExpanded] = useState(true);
+  const [carouselDownloading, setCarouselDownloading] = useState(false);
+  const [downloadingImageId, setDownloadingImageId] = useState<string | null>(null);
   const carouselFileInputRef = useRef<HTMLInputElement>(null);
   const { canShowApprovalButtons } = useProdApprovalAccess(isOpen);
   const queryClient = useQueryClient();
@@ -656,6 +658,30 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
     e.dataTransfer.dropEffect = 'copy';
   }, []);
 
+  const handleDownloadCarouselImage = useCallback(
+    async (storagePath: string, index: number, imageId?: string) => {
+      const setBusy = imageId
+        ? () => setDownloadingImageId(imageId)
+        : () => setCarouselDownloading(true);
+      const clearBusy = imageId
+        ? () => setDownloadingImageId(null)
+        : () => setCarouselDownloading(false);
+
+      setBusy();
+      try {
+        const result = await downloadCarouselImage(storagePath, `carousel-${index + 1}.jpg`);
+        if (result === 'ok') {
+          toast.success(t('publicReview.preview.downloaded', 'Image downloaded'));
+        } else {
+          toast.info(t('publicReview.preview.downloadFallback', 'Download failed, opened in new tab'));
+        }
+      } finally {
+        clearBusy();
+      }
+    },
+    [t],
+  );
+
   const handleSharePublicLink = async () => {
     if (isCarouselMode) {
       if (carouselCount < 1) {
@@ -806,12 +832,33 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                 {isCarouselMode ? (
                   carouselImages.length > 0 ? (
                     <div className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 overflow-hidden">
-                      <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
+                      <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
                         <img
                           src={getCarouselImagePublicUrl(carouselImages[carouselPreviewIndex]?.storage_path)}
                           alt={`Carousel ${carouselPreviewIndex + 1}`}
                           className="max-h-full max-w-full object-contain rounded-lg"
                         />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          className="absolute top-1.5 right-1.5 h-8 w-8 rounded-full border border-gray-200/80 bg-white/90 shadow-md hover:bg-white"
+                          disabled={carouselDownloading}
+                          onClick={() =>
+                            handleDownloadCarouselImage(
+                              carouselImages[carouselPreviewIndex]?.storage_path,
+                              carouselPreviewIndex,
+                            )
+                          }
+                          title={t('publicReview.preview.download', 'Download image')}
+                          aria-label={t('publicReview.preview.download', 'Download image')}
+                        >
+                          {carouselDownloading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <Button
@@ -997,6 +1044,22 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                         />
                         <span className="text-xs text-gray-600 flex-1 truncate">#{idx + 1}</span>
                         <div className="flex items-center gap-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            disabled={downloadingImageId === img.id}
+                            onClick={() => handleDownloadCarouselImage(img.storage_path, idx, img.id)}
+                            title={t('publicReview.preview.download', 'Download image')}
+                            aria-label={t('publicReview.preview.download', 'Download image')}
+                          >
+                            {downloadingImageId === img.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
                           <Button
                             type="button"
                             variant="ghost"

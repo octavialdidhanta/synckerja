@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,11 @@ import type { ManageCommentsReplyControls } from '@/6-0-social-media-manage-comm
 import type { ManageCommentsPostListItem } from '@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes';
 import { MANAGE_COMMENTS_THREAD_POLL_MS } from '@/6-0-social-media-manage-comments/lib/manageCommentsPolling';
 import { sortCommentsForThread } from '@/6-0-social-media-manage-comments/lib/sortCommentsForThread';
+import { useNewInboundCommentHighlights } from '@/6-0-social-media-manage-comments/hooks/useNewInboundCommentHighlights';
+import {
+  useMetaManageCommentsInboxState,
+  useSyncMetaManageCommentsInboundComments,
+} from '@/6-0-social-media-manage-comments/hooks/useMetaManageCommentsInboxState';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 import {
   useMetaContentCommentMutations,
@@ -25,6 +30,10 @@ type MetaCommentThreadPanelProps = {
   post: ManageCommentsPostListItem | null;
   commentsScopesGranted: boolean;
   connectPath: string;
+  postHighlightActive?: boolean;
+  onNewInboundComments?: () => void;
+  onPostHighlightResolved?: (postId: string) => void;
+  inboxEnabled?: boolean;
 };
 
 function metaCommentCreateTime(iso: string | null | undefined): number {
@@ -40,10 +49,19 @@ export function MetaCommentThreadPanel({
   post,
   commentsScopesGranted,
   connectPath,
+  postHighlightActive = false,
+  onNewInboundComments,
+  onPostHighlightResolved,
+  inboxEnabled = false,
 }: MetaCommentThreadPanelProps) {
   const { t } = useTranslation();
   const mediaId = post?.id ?? null;
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hadCommentHighlightsRef = useRef(false);
+  const markedReadRef = useRef(new Set<string>());
+  const prevThreadHighlightCountRef = useRef(0);
+  const prevHighlightCountRef = useRef(0);
 
   const commentsQuery = useMetaContentCommentsQuery({
     organizationId,
@@ -60,6 +78,147 @@ export function MetaCommentThreadPanel({
     accountId,
     mediaId,
   });
+
+  const {
+    syncInboundCommentsMutation,
+    markCommentReadMutation,
+    invalidateInboxState,
+  } = useMetaManageCommentsInboxState({
+    organizationId,
+    platform,
+    accountId,
+    activeMediaId: mediaId,
+    enabled: inboxEnabled && Boolean(post),
+  });
+
+  const comments = useMemo(
+    () => commentsQuery.data?.comments ?? [],
+    [commentsQuery.data?.comments],
+  );
+  const commentIds = useMemo(() => comments.map((c) => c.id), [comments]);
+  const commentsReady = commentsQuery.isFetched && !commentsQuery.isLoading;
+
+  useSyncMetaManageCommentsInboundComments({
+    organizationId,
+    platform,
+    accountId,
+    mediaId,
+    commentIds,
+    commentsReady,
+    enabled: inboxEnabled && Boolean(post) && commentsScopesGranted,
+    syncInboundComments: syncInboundCommentsMutation,
+  });
+
+  const { pinnedIds, highlightedIds, dismissHighlight } = useNewInboundCommentHighlights(
+    accountId,
+    mediaId,
+  );
+
+  useEffect(() => {
+    hadCommentHighlightsRef.current = false;
+    markedReadRef.current.clear();
+    prevThreadHighlightCountRef.current = 0;
+    prevHighlightCountRef.current = 0;
+  }, [mediaId]);
+
+  useEffect(() => {
+    if (highlightedIds.size > 0) {
+      hadCommentHighlightsRef.current = true;
+    }
+    if (highlightedIds.size > prevThreadHighlightCountRef.current) {
+      onNewInboundComments?.();
+    }
+    prevThreadHighlightCountRef.current = highlightedIds.size;
+  }, [highlightedIds.size, onNewInboundComments]);
+
+  const resolvePostHighlightIfNeeded = useCallback(
+    (postId: string, remainingCommentHighlights: number) => {
+      if (!postId || !onPostHighlightResolved) return;
+      if (remainingCommentHighlights === 0) {
+        onPostHighlightResolved(postId);
+        return;
+      }
+      if (postHighlightActive && !hadCommentHighlightsRef.current) {
+        onPostHighlightResolved(postId);
+      }
+    },
+    [onPostHighlightResolved, postHighlightActive],
+  );
+
+  const markCommentEngaged = useCallback(
+    (commentId: string) => {
+      if (!post?.id || !inboxEnabled) return;
+      const wasHighlighted = highlightedIds.has(commentId);
+      if (wasHighlighted) {
+        if (markedReadRef.current.has(commentId)) return;
+        markedReadRef.current.add(commentId);
+        dismissHighlight(commentId);
+        void markCommentReadMutation
+          .mutateAsync({ mediaId: post.id, commentId })
+          .catch(() => {
+            markedReadRef.current.delete(commentId);
+          });
+        resolvePostHighlightIfNeeded(post.id, highlightedIds.size - 1);
+        invalidateInboxState();
+        return;
+      }
+      if (!wasHighlighted && postHighlightActive) {
+        resolvePostHighlightIfNeeded(post.id, highlightedIds.size);
+      }
+    },
+    [
+      post?.id,
+      inboxEnabled,
+      highlightedIds,
+      dismissHighlight,
+      markCommentReadMutation,
+      resolvePostHighlightIfNeeded,
+      invalidateInboxState,
+      postHighlightActive,
+    ],
+  );
+
+  const highlightedIdsKey = useMemo(
+    () => [...highlightedIds].sort().join(','),
+    [highlightedIds],
+  );
+
+  useEffect(() => {
+    if (!inboxEnabled || !post?.id || !commentsReady || !highlightedIdsKey) return;
+    for (const commentId of highlightedIdsKey.split(',')) {
+      if (commentId) markCommentEngaged(commentId);
+    }
+  }, [post?.id, commentsReady, highlightedIdsKey, markCommentEngaged, inboxEnabled]);
+
+  useEffect(() => {
+    if (!inboxEnabled || !post?.id || highlightedIds.size > 0 || !hadCommentHighlightsRef.current) {
+      return;
+    }
+    hadCommentHighlightsRef.current = false;
+    onPostHighlightResolved?.(post.id);
+  }, [highlightedIds.size, post?.id, onPostHighlightResolved, inboxEnabled]);
+
+  useEffect(() => {
+    if (!inboxEnabled || !post?.id || !commentsReady || !postHighlightActive) return;
+    if (comments.length > 0 || highlightedIds.size > 0) return;
+    onPostHighlightResolved?.(post.id);
+  }, [
+    post?.id,
+    commentsReady,
+    comments.length,
+    postHighlightActive,
+    highlightedIds.size,
+    onPostHighlightResolved,
+    inboxEnabled,
+  ]);
+
+  useEffect(() => {
+    const count = highlightedIds.size;
+    if (count > prevHighlightCountRef.current && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    prevHighlightCountRef.current = count;
+  }, [highlightedIds]);
 
   useEffect(() => {
     setReplyToCommentId(null);
@@ -102,18 +261,14 @@ export function MetaCommentThreadPanel({
     ],
   );
 
-  const comments = useMemo(
-    () => commentsQuery.data?.comments ?? [],
-    [commentsQuery.data?.comments],
-  );
-
   const displayComments = useMemo(() => {
     const withTime = comments.map((c) => ({
       ...c,
       create_time: metaCommentCreateTime(c.published_at),
     }));
-    return sortCommentsForThread(withTime, 'newest', new Set());
-  }, [comments]);
+    const pinned = inboxEnabled ? pinnedIds : new Set<string>();
+    return sortCommentsForThread(withTime, 'newest', pinned);
+  }, [comments, pinnedIds, inboxEnabled]);
 
   const isMutating = replyMutation.isPending;
 
@@ -160,7 +315,10 @@ export function MetaCommentThreadPanel({
         onRefresh={() => void commentsQuery.refetch()}
         isRefreshing={commentsQuery.isFetching}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/60 scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/60 scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <div className="mx-auto w-full max-w-[680px] px-4">
           <MetaCommentPostPreview key={post.id} post={post} />
           <div className="mt-4">
@@ -197,6 +355,7 @@ export function MetaCommentThreadPanel({
                   mediaId={mediaId}
                   replyControls={replyControls}
                   isMutating={isMutating}
+                  isNew={inboxEnabled && highlightedIds.has(comment.id)}
                 />
               ))
             )}
