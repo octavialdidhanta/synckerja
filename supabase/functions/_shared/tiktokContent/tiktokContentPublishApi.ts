@@ -22,6 +22,29 @@ type TikTokContentEnvelope<T> = {
   error?: TikTokContentError;
 };
 
+function formatTikTokApiErrorDetail(
+  prefix: string,
+  err?: TikTokContentError,
+  httpStatus?: number,
+): string {
+  const code = err?.code?.trim() ?? "";
+  const msg = err?.message?.trim() ?? "";
+  const logId = err?.log_id?.trim();
+  const logSuffix = logId ? ` [log_id=${logId}]` : "";
+
+  if (code === "unaudited_client_can_only_post_to_private_accounts") {
+    return `${prefix}: TikTok app belum lolos App Review — posting sandbox hanya didukung dengan visibility Only me (SELF_ONLY) pada akun yang memenuhi syarat. Set akun TikTok ke Private sementara, atau selesaikan TikTok App Review untuk Direct Post.${logSuffix}`;
+  }
+  if (code === "privacy_level_option_mismatch") {
+    return `${prefix}: Visibility tidak valid untuk akun TikTok ini. Gunakan opsi dari creator_info (biasanya Only me / SELF_ONLY untuk app belum diaudit).${logSuffix}`;
+  }
+
+  if (msg && msg !== "ok") {
+    return `${prefix}: ${msg}${code && code !== "ok" ? ` (${code})` : ""}${logSuffix}`;
+  }
+  return `${prefix}${logSuffix}${httpStatus ? ` HTTP ${httpStatus}` : ""}`;
+}
+
 function throwPublishError(
   prefix: string,
   err?: TikTokContentError,
@@ -37,14 +60,7 @@ function throwPublishError(
     throw new Error("http 429");
   }
 
-  const code = err?.code?.trim() ?? "";
-  const msg = err?.message?.trim() ?? "";
-  const logId = err?.log_id?.trim();
-  const logSuffix = logId ? ` [log_id=${logId}]` : "";
-  const detail = msg && msg !== "ok"
-    ? `${prefix}: ${msg}${code && code !== "ok" ? ` (${code})` : ""}${logSuffix}`
-    : `${prefix}${logSuffix}${httpStatus ? ` HTTP ${httpStatus}` : ""}`;
-  throw new Error(detail);
+  throw new Error(formatTikTokApiErrorDetail(prefix, err, httpStatus));
 }
 
 export type TikTokCreatorInfo = {
@@ -64,12 +80,28 @@ export function resolveTikTokPublishPrivacyLevel(
   creatorInfo: Pick<TikTokCreatorInfo, "privacy_level_options">,
 ): string {
   const options = (creatorInfo.privacy_level_options ?? []).filter(Boolean);
-  const wanted = String(requested ?? "").trim();
+  const wanted = String(requested ?? "").trim() || "SELF_ONLY";
 
-  if (wanted && options.includes(wanted)) return wanted;
+  if (options.includes(wanted)) return wanted;
   if (options.includes("SELF_ONLY")) return "SELF_ONLY";
-  if (options.length > 0) return options[0];
-  return "SELF_ONLY";
+
+  throw new Error(
+    `privacy_level_option_mismatch: Only me (SELF_ONLY) required for unaudited TikTok apps; available options: ${options.join(", ") || "none"}`,
+  );
+}
+
+export function deriveTikTokPostInteractionFromCreator(
+  creatorInfo: Pick<TikTokCreatorInfo, "comment_disabled" | "duet_disabled" | "stitch_disabled">,
+): {
+  disableComment: boolean;
+  disableDuet: boolean;
+  disableStitch: boolean;
+} {
+  return {
+    disableComment: creatorInfo.comment_disabled ?? false,
+    disableDuet: creatorInfo.duet_disabled ?? false,
+    disableStitch: creatorInfo.stitch_disabled ?? false,
+  };
 }
 
 export async function queryTikTokCreatorInfo(
@@ -112,7 +144,6 @@ export type TikTokVideoInitResult = {
   upload_url?: string;
 };
 
-const MIN_CHUNK_BYTES = 5 * 1024 * 1024;
 const DEFAULT_CHUNK_BYTES = 10 * 1024 * 1024;
 const MAX_CHUNK_BYTES = 64 * 1024 * 1024;
 const MAX_CHUNKS = 1000;
@@ -124,7 +155,13 @@ export function computeTikTokFileUploadChunkPlan(videoSize: number): {
   if (!Number.isFinite(videoSize) || videoSize <= 0) {
     throw new Error("invalid_video_size");
   }
-  if (videoSize <= MIN_CHUNK_BYTES) {
+
+  // TikTok FILE_UPLOAD rules:
+  // - <5 MB: one chunk, chunk_size === video_size
+  // - <=64 MB: may upload whole file in one chunk (chunk_size === video_size)
+  // - >64 MB: multi-chunk; total_chunk_count = floor(video_size / chunk_size);
+  //   the final chunk absorbs trailing bytes (may exceed chunk_size, up to 128 MB)
+  if (videoSize <= MAX_CHUNK_BYTES) {
     return { chunkSize: videoSize, totalChunkCount: 1 };
   }
 
@@ -134,7 +171,15 @@ export function computeTikTokFileUploadChunkPlan(videoSize: number): {
     chunkSize = Math.min(chunkSize * 2, MAX_CHUNK_BYTES);
     totalChunkCount = Math.floor(videoSize / chunkSize);
   }
-  if (totalChunkCount < 1) totalChunkCount = 1;
+
+  if (totalChunkCount < 2) {
+    chunkSize = MAX_CHUNK_BYTES;
+    totalChunkCount = Math.floor(videoSize / chunkSize);
+  }
+  if (totalChunkCount < 2) {
+    throw new Error("invalid_video_chunk_plan");
+  }
+
   return { chunkSize, totalChunkCount };
 }
 
@@ -164,6 +209,8 @@ export async function initTikTokVideoPublishFileUpload(
         disable_comment: args.disableComment ?? false,
         disable_duet: args.disableDuet ?? false,
         disable_stitch: args.disableStitch ?? false,
+        brand_content_toggle: false,
+        brand_organic_toggle: false,
       },
       source_info: {
         source: "FILE_UPLOAD",
@@ -236,6 +283,8 @@ export async function initTikTokVideoPublishPullFromUrl(
         disable_comment: args.disableComment ?? false,
         disable_duet: args.disableDuet ?? false,
         disable_stitch: args.disableStitch ?? false,
+        brand_content_toggle: false,
+        brand_organic_toggle: false,
       },
       source_info: {
         source: "PULL_FROM_URL",

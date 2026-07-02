@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -12,8 +12,10 @@ import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatus
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 import type { MetaContentOAuthReturnPath } from '@/meta-content/settings/metaContentSettingsPaths';
+import { useMetaContentConfig } from '@/meta-content/hooks/useMetaContentConfig';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { supabase } from '@/shared/lib/supabaseClient';
 
 export type MetaContentSettingsPanelProps = {
   platform: MetaContentPlatform;
@@ -21,7 +23,7 @@ export type MetaContentSettingsPanelProps = {
   className?: string;
 };
 
-function accountLabel(row: {
+function instagramAccountLabel(row: {
   instagram_username: string | null;
   instagram_name: string | null;
   facebook_page_name?: string | null;
@@ -36,6 +38,22 @@ function accountLabel(row: {
   );
 }
 
+const INSTAGRAM_SCOPE_FEATURES = [
+  'instagram_dm',
+  'comments',
+  'insights',
+  'pages',
+  'publish',
+] as const;
+
+const FACEBOOK_SCOPE_FEATURES = [
+  'messenger_dm',
+  'comments',
+  'insights',
+  'pages',
+  'facebook_publish',
+] as const;
+
 export function MetaContentSettingsPanel({
   platform,
   oauthReturnPath,
@@ -45,13 +63,32 @@ export function MetaContentSettingsPanel({
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
+  const [isDisconnectingFb, setIsDisconnectingFb] = useState(false);
+
   const {
-    accounts,
-    isLoading,
-    refetch,
-    disconnectAccount,
-    isDisconnecting,
+    accounts: instagramAccounts,
+    isLoading: instagramLoading,
+    refetch: refetchInstagram,
+    disconnectAccount: disconnectInstagramAccount,
+    isDisconnecting: isDisconnectingInstagram,
   } = useInstagramAccounts();
+
+  const metaConfig = useMetaContentConfig(organizationId);
+  const facebookAccounts = useMemo(
+    () => (metaConfig.data?.accounts ?? []).filter((acc) => acc.platform === 'facebook'),
+    [metaConfig.data?.accounts],
+  );
+
+  const scopeCardAccounts = useMemo(() => {
+    if (platform === 'instagram') {
+      return instagramAccounts.map((acc) => ({ granted_scopes: acc.granted_scopes }));
+    }
+    return facebookAccounts.map((acc) => ({ granted_scopes: acc.granted_scopes }));
+  }, [platform, instagramAccounts, facebookAccounts]);
+
+  const isLoading = platform === 'instagram' ? instagramLoading : metaConfig.isPending;
+  const connectedCount =
+    platform === 'instagram' ? instagramAccounts.length : facebookAccounts.length;
 
   const PlatformIcon = platform === 'instagram' ? Instagram : Facebook;
 
@@ -65,14 +102,14 @@ export function MetaContentSettingsPanel({
   const { startOAuth, oauthLoading, hasOAuth } = useMetaOAuthConnect({
     flow: platform,
     onExchangeComplete: async (resData) => {
-      await refetch();
+      await refetchInstagram();
       queryClient.invalidateQueries({ queryKey: ['meta-content-config', organizationId] });
       const synced = typeof resData.accounts_synced === 'number' ? resData.accounts_synced : 0;
       if (synced > 0) {
         toast.success(
           t('digitalMarketing.metaContent.connectedToast', 'Meta account connected successfully.'),
         );
-      } else {
+      } else if (platform === 'instagram') {
         showZeroAccountsWarning();
       }
       if (resData.warning?.trim()) {
@@ -114,14 +151,33 @@ export function MetaContentSettingsPanel({
     }
   }, [searchParams, setSearchParams, t]);
 
-  const handleDisconnect = async (accountId: string) => {
+  const handleDisconnectInstagram = async (accountId: string) => {
     try {
-      await disconnectAccount(accountId);
-      await refetch();
+      await disconnectInstagramAccount(accountId);
+      await refetchInstagram();
       queryClient.invalidateQueries({ queryKey: ['meta-content-config', organizationId] });
       toast.success(t('digitalMarketing.metaContent.disconnectedToast', 'Account disconnected.'));
     } catch (e) {
       toast.error((e as Error)?.message ?? t('common.error', 'Error'));
+    }
+  };
+
+  const handleDisconnectFacebook = async (pageId: string) => {
+    if (!organizationId) return;
+    setIsDisconnectingFb(true);
+    try {
+      const { error } = await supabase
+        .from('organization_facebook_pages')
+        .delete()
+        .eq('organization_id', organizationId)
+        .eq('facebook_page_id', pageId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['meta-content-config', organizationId] });
+      toast.success(t('digitalMarketing.metaContent.disconnectedToast', 'Account disconnected.'));
+    } catch (e) {
+      toast.error((e as Error)?.message ?? t('common.error', 'Error'));
+    } finally {
+      setIsDisconnectingFb(false);
     }
   };
 
@@ -162,7 +218,14 @@ export function MetaContentSettingsPanel({
         </Alert>
       )}
 
-      <MetaScopeStatusCards accounts={accounts} />
+      <MetaScopeStatusCards
+        accounts={scopeCardAccounts}
+        features={
+          platform === 'instagram'
+            ? [...INSTAGRAM_SCOPE_FEATURES]
+            : [...FACEBOOK_SCOPE_FEATURES]
+        }
+      />
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -171,19 +234,19 @@ export function MetaContentSettingsPanel({
           onClick={() => void startOAuth()}
         >
           {oauthLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {accounts.length > 0
+          {connectedCount > 0
             ? t('digitalMarketing.metaContent.connectAnother', 'Connect another account')
             : t('digitalMarketing.metaContent.connectAccount', 'Connect with Facebook')}
         </Button>
       </div>
 
-      {accounts.length > 0 && (
+      {platform === 'instagram' && instagramAccounts.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {t('digitalMarketing.metaContent.connectedAccounts', 'Connected accounts')}
           </p>
-          {accounts.map((acc) => {
-            const label = accountLabel(acc);
+          {instagramAccounts.map((acc) => {
+            const label = instagramAccountLabel(acc);
             return (
               <div
                 key={acc.id}
@@ -203,14 +266,46 @@ export function MetaContentSettingsPanel({
                   size="icon"
                   variant="ghost"
                   aria-label={t('digitalMarketing.metaContent.removeAccount', 'Remove account')}
-                  disabled={isDisconnecting}
-                  onClick={() => void handleDisconnect(acc.id)}
+                  disabled={isDisconnectingInstagram}
+                  onClick={() => void handleDisconnectInstagram(acc.id)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {platform === 'facebook' && facebookAccounts.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t('digitalMarketing.metaContent.connectedAccounts', 'Connected accounts')}
+          </p>
+          {facebookAccounts.map((acc) => (
+            <div
+              key={acc.account_id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <PlatformIcon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{acc.account_label}</p>
+                  <p className="truncate text-xs text-muted-foreground">{acc.page_id}</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label={t('digitalMarketing.metaContent.removeAccount', 'Remove account')}
+                disabled={isDisconnectingFb}
+                onClick={() => void handleDisconnectFacebook(acc.account_id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 

@@ -3,6 +3,7 @@ import { tiktokContentScopesIncludePublish } from "../tiktokContentAuth.ts";
 import { getTikTokPublishAccessToken } from "../tiktokContentOrgResolver.ts";
 import {
   computeTikTokFileUploadChunkPlan,
+  deriveTikTokPostInteractionFromCreator,
   initTikTokVideoPublishFileUpload,
   pollTikTokPublishUntilComplete,
   queryTikTokCreatorInfo,
@@ -254,12 +255,16 @@ export async function executeTikTokScheduledPost(
 
   const caption = schedule.caption?.trim() || schedule.title?.trim() || " ";
   const chunkPlan = computeTikTokFileUploadChunkPlan(videoBytes.byteLength);
+  const interaction = deriveTikTokPostInteractionFromCreator(creatorInfo);
   const initResult = await initTikTokVideoPublishFileUpload(publishAccessToken, {
     videoSize: videoBytes.byteLength,
     chunkSize: chunkPlan.chunkSize,
     totalChunkCount: chunkPlan.totalChunkCount,
     caption,
     privacyLevel,
+    disableComment: interaction.disableComment,
+    disableDuet: interaction.disableDuet,
+    disableStitch: interaction.disableStitch,
   });
 
   providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {

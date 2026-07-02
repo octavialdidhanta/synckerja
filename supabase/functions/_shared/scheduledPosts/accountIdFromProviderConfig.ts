@@ -10,6 +10,8 @@ export function getAccountIdFromProviderConfig(
       return String(cfg.channel_id ?? "").trim() || null;
     case "Instagram":
       return String(cfg.instagram_business_account_id ?? "").trim() || null;
+    case "Facebook":
+      return String(cfg.facebook_page_id ?? "").trim() || null;
     case "LinkedIn":
       return String(cfg.page_id ?? "").trim() || null;
     default:

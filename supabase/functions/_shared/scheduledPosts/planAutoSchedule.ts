@@ -13,7 +13,8 @@ import {
 import { DEFAULT_YOUTUBE_SCHEDULE_PRIVACY } from "./normalizeYouTubeSchedulePrivacy.ts";
 import { tiktokContentScopesIncludePublish } from "../tiktokContentAuth.ts";
 import { youtubeContentScopesIncludeUpload, parseYouTubeOAuthScopes } from "../youtubeContentAuth.ts";
-import { missingScopesForFeature } from "../metaPlatformScopes.ts";
+import { missingScopesForFeature, facebookPublishScopesOk } from "../metaPlatformScopes.ts";
+import { resolveMetaContentAccount } from "../metaContentAuth.ts";
 import { missingLinkedInScopesForFeature, parseLinkedInGrantedScopes } from "../linkedinContentAuth.ts";
 
 export type AutoScheduleSkipReason =
@@ -56,7 +57,7 @@ type ScheduleRow = {
   platform_account_id: string | null;
 };
 
-const AUTO_PLATFORMS = new Set(["TikTok", "YouTube", "Instagram", "LinkedIn"]);
+const AUTO_PLATFORMS = new Set(["TikTok", "YouTube", "Instagram", "Facebook", "LinkedIn"]);
 
 function getEdgeFunctionForPlatform(platform: string): string | null {
   switch (platform.trim()) {
@@ -65,6 +66,8 @@ function getEdgeFunctionForPlatform(platform: string): string | null {
     case "YouTube":
       return "youtube-content-publish";
     case "Instagram":
+      return "meta-content-publish";
+    case "Facebook":
       return "meta-content-publish";
     case "LinkedIn":
       return "linkedin-content-publish";
@@ -102,6 +105,8 @@ function buildPublishBody(
       return { ...base, channel_id: args.accountId, privacy_level: DEFAULT_YOUTUBE_SCHEDULE_PRIVACY };
     case "Instagram":
       return { ...base, instagram_business_account_id: args.accountId };
+    case "Facebook":
+      return { ...base, facebook_page_id: args.accountId };
     case "LinkedIn":
       return { ...base, page_id: args.accountId };
     default:
@@ -169,6 +174,14 @@ async function checkAccountPublishReady(
       return {
         connected: true,
         scopesOk: missingScopesForFeature(scopes, "publish").length === 0,
+      };
+    }
+    case "Facebook": {
+      const account = await resolveMetaContentAccount(admin, organizationId, "facebook", id);
+      if (!account) return { connected: false, scopesOk: false };
+      return {
+        connected: true,
+        scopesOk: facebookPublishScopesOk(account.grantedScopes),
       };
     }
     case "LinkedIn": {

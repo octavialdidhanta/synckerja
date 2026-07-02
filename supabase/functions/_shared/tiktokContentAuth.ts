@@ -14,6 +14,10 @@ export const TIKTOK_CONTENT_OAUTH_SCOPES =
 
 export const TIKTOK_CONTENT_PUBLISH_SCOPES = ["video.upload", "video.publish"] as const;
 
+/** Login Kit / Direct Post (developers.tiktok.com) — separate from business-api CONTENT credentials. */
+export const TIKTOK_CONTENT_PUBLISH_OAUTH_SCOPES =
+  "user.info.basic,video.upload,video.publish";
+
 export type TikTokContentOAuthTokenKind = "login_kit" | "tt_user";
 
 export const TIKTOK_CONTENT_OAUTH_TOKEN_KINDS = {
@@ -74,8 +78,22 @@ export function readPlatformTikTokContentOAuth(): { clientKey: string; clientSec
   return { clientKey, clientSecret };
 }
 
+/** developers.tiktok.com app — Login Kit token exchange & publish OAuth start. */
+export function readPlatformTikTokContentPublishOAuth(): { clientKey: string; clientSecret: string } | null {
+  const clientKey = Deno.env.get("TIKTOK_CONTENT_PUBLISH_CLIENT_KEY")?.trim() ??
+    Deno.env.get("TIKTOK_DEVELOPERS_CLIENT_KEY")?.trim() ?? "";
+  const clientSecret = Deno.env.get("TIKTOK_CONTENT_PUBLISH_CLIENT_SECRET")?.trim() ??
+    Deno.env.get("TIKTOK_DEVELOPERS_CLIENT_SECRET")?.trim() ?? "";
+  if (!clientKey || !clientSecret) return null;
+  return { clientKey, clientSecret };
+}
+
 export function isTikTokContentPlatformConfigured(): boolean {
   return readPlatformTikTokContentOAuth() !== null;
+}
+
+export function isTikTokContentPublishPlatformConfigured(): boolean {
+  return readPlatformTikTokContentPublishOAuth() !== null;
 }
 
 export function requireTikTokContentPlatformConfigured(): Response | null {
@@ -84,6 +102,19 @@ export function requireTikTokContentPlatformConfigured(): Response | null {
       {
         error:
           "TikTok Content is not configured. Set TIKTOK_CONTENT_CLIENT_KEY and TIKTOK_CONTENT_CLIENT_SECRET in Supabase Edge Function secrets.",
+      },
+      503,
+    );
+  }
+  return null;
+}
+
+export function requireTikTokContentPublishPlatformConfigured(): Response | null {
+  if (!isTikTokContentPublishPlatformConfigured()) {
+    return tiktokContentJson(
+      {
+        error:
+          "TikTok publish is not configured. Set TIKTOK_CONTENT_PUBLISH_CLIENT_KEY and TIKTOK_CONTENT_PUBLISH_CLIENT_SECRET (developers.tiktok.com app) in Supabase Edge Function secrets.",
       },
       503,
     );

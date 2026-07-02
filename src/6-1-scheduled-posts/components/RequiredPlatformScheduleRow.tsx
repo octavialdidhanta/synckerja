@@ -185,6 +185,13 @@ export function RequiredPlatformScheduleRow({
                 ))}
               </SelectContent>
             </Select>
+          ) : platform === 'TikTok' ? (
+            <span
+              className="text-xs text-muted-foreground"
+              title={t('digitalMarketing.scheduledPosts.tiktokUnauditedHint')}
+            >
+              {t('digitalMarketing.scheduledPosts.tiktokPrivacySelfOnly')}
+            </span>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
           )}

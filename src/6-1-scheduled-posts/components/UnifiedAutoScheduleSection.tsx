@@ -20,6 +20,7 @@ import {
   formatSkippedTargetLabels,
   getBulkEligibleTargets,
 } from '../lib/autoScheduleBulkEligibility';
+import { notifyPublishMutationError } from '../lib/notifyPublishMutationError';
 import { RequiredPlatformScheduleRow } from './RequiredPlatformScheduleRow';
 import { DeletePublishedConfirmDialog } from './DeletePublishedConfirmDialog';
 import { useDeletePublishedPost } from '../hooks/useDeletePublishedPost';
@@ -64,6 +65,8 @@ function getReconnectHint(platform: string, t: (key: string) => string): string 
       return t('digitalMarketing.scheduledPosts.youtubeReconnectUpload');
     case 'Instagram':
       return t('digitalMarketing.scheduledPosts.instagramReconnectPublish');
+    case 'Facebook':
+      return t('digitalMarketing.scheduledPosts.facebookReconnectPublish');
     case 'LinkedIn':
       return t('digitalMarketing.scheduledPosts.linkedinReconnectPublish');
     default:
@@ -240,7 +243,7 @@ export function UnifiedAutoScheduleSection({
         return { ok: true };
       } catch (e) {
         const error = e instanceof Error ? e.message : t('digitalMarketing.scheduledPosts.publishFailed');
-        if (!silent) toast.error(error);
+        if (!silent) notifyPublishMutationError(e, t);
         return { ok: false, error };
       }
     },

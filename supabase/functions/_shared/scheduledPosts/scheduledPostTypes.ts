@@ -46,6 +46,15 @@ export type InstagramProviderConfig = {
   ig_upload_session_id?: string;
 };
 
+export type FacebookProviderConfig = {
+  facebook_page_id: string;
+  account_label?: string;
+  employee_id?: string;
+  fb_video_id?: string;
+  fb_upload_url?: string;
+  fb_upload_phase?: string;
+};
+
 export type LinkedInProviderConfig = {
   page_id: string;
   organization_urn?: string;

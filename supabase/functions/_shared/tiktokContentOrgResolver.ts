@@ -6,6 +6,7 @@ import {
 import {
   mergeTikTokContentOAuthScopes,
   readPlatformTikTokContentOAuth,
+  readPlatformTikTokContentPublishOAuth,
   TIKTOK_CONTENT_OAUTH_SCOPES,
   TIKTOK_CONTENT_OAUTH_TOKEN_KINDS,
   type TikTokContentOAuthTokenKind,
@@ -170,15 +171,15 @@ export async function getTikTokPublishAccessToken(
   }
 
   if (hasPublishVault && publishNeedsRefresh) {
-    const oauth = readPlatformTikTokContentOAuth();
-    if (oauth) {
+    const publishOAuth = readPlatformTikTokContentPublishOAuth() ?? readPlatformTikTokContentOAuth();
+    if (publishOAuth) {
       try {
         const refreshToken = await decryptTikTokContentToken(
           String(tokenRow.publish_refresh_token_enc),
         );
         const refreshed = await refreshTikTokContentAccessToken(
-          oauth.clientKey,
-          oauth.clientSecret,
+          publishOAuth.clientKey,
+          publishOAuth.clientSecret,
           refreshToken,
         );
         if (refreshed?.access_token) {

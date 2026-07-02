@@ -28,6 +28,10 @@ export function isPlanEligibleForInstagramAutoSchedule(plan: PlanEligibilityInpu
   return isPlanEligibleForReelAutoSchedule(plan);
 }
 
+export function isPlanEligibleForFacebookAutoSchedule(plan: PlanEligibilityInput): boolean {
+  return isPlanEligibleForReelAutoSchedule(plan);
+}
+
 export function isPlanEligibleForLinkedInAutoSchedule(plan: PlanEligibilityInput): boolean {
   return isPlanEligibleForReelAutoSchedule(plan);
 }

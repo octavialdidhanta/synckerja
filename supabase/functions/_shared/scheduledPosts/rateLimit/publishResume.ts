@@ -33,6 +33,11 @@ export function isLinkedInResumeRow(providerConfig: Record<string, unknown>): bo
   );
 }
 
+export function isFacebookResumeRow(providerConfig: Record<string, unknown>): boolean {
+  const videoId = providerConfig.fb_video_id;
+  return typeof videoId === "string" && videoId.length > 0;
+}
+
 export function isPublishResumeRow(
   platform: string,
   providerConfig: Record<string, unknown>,
@@ -44,6 +49,8 @@ export function isPublishResumeRow(
       return isYouTubeResumeRow(providerConfig);
     case "Instagram":
       return isInstagramResumeRow(providerConfig);
+    case "Facebook":
+      return isFacebookResumeRow(providerConfig);
     case "LinkedIn":
       return isLinkedInResumeRow(providerConfig);
     default:
@@ -71,6 +78,11 @@ export function stripPublishResumeFlags(
       delete next.ig_container_id;
       delete next.ig_upload_phase;
       delete next.ig_upload_session_id;
+      break;
+    case "Facebook":
+      delete next.fb_video_id;
+      delete next.fb_upload_url;
+      delete next.fb_upload_phase;
       break;
     case "LinkedIn":
       delete next.linkedin_upload_urn;

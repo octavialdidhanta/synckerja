@@ -27,6 +27,7 @@ import { ScheduleStatusBadge } from '../ScheduleStatusBadge';
 import type { ScheduledPost } from '../../types/scheduled-post';
 import { GoogleDriveFilePreview } from '@/6-1-dashboard/modal/GoogleDriveInAppFilePreview';
 import { validateGoogleDriveVideoLink } from '../../lib/validateGoogleDriveVideoLink';
+import { notifyPublishMutationError } from '../../lib/notifyPublishMutationError';
 
 const QUICK_TIMES = ['12:00', '15:00', '18:00', '20:00'];
 
@@ -140,7 +141,7 @@ export function TikTokAutoScheduleSection({
         toast.success(t('digitalMarketing.scheduledPosts.publishedTikTok'));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('digitalMarketing.scheduledPosts.publishFailed'));
+      notifyPublishMutationError(e, t);
     }
   };
 

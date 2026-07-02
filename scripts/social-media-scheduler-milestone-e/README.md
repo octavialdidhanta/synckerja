@@ -30,6 +30,13 @@ Ensure `SCHEDULER_PUBLISH_DRY_RUN` is **off** (or unset) in Edge secrets.
 2. **Post Now** one Reel → appears on IG account.
 3. Schedule + cron smoke test.
 
+### Facebook Reels
+
+1. Reconnect Facebook Page in settings (grant `pages_manage_posts` — requires Meta App Review).
+2. **Post Now** one Reel → appears on Facebook Page Reels tab.
+3. Schedule + cron smoke test.
+4. Delete published smoke test.
+
 ### LinkedIn
 
 1. Reconnect LinkedIn (grant `w_organization_social` — requires Community Management API).

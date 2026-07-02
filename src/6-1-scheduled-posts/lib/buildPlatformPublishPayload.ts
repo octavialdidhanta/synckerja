@@ -9,6 +9,8 @@ export function getEdgeFunctionForPlatform(platform: string): PlatformPublishFun
       return 'youtube-content-publish';
     case 'Instagram':
       return 'meta-content-publish';
+    case 'Facebook':
+      return 'meta-content-publish';
     case 'LinkedIn':
       return 'linkedin-content-publish';
     default:
@@ -57,6 +59,12 @@ export function buildPlatformPublishPayload(
       return {
         ...base,
         instagram_business_account_id: args.accountId,
+        scheduled_at: args.scheduledAtIso,
+      };
+    case 'Facebook':
+      return {
+        ...base,
+        facebook_page_id: args.accountId,
         scheduled_at: args.scheduledAtIso,
       };
     case 'LinkedIn':

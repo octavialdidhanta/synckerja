@@ -4,9 +4,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   TIKTOK_CONTENT_OAUTH_RETURN_PATHS,
   TIKTOK_CONTENT_OAUTH_SCOPES,
+  TIKTOK_CONTENT_PUBLISH_OAUTH_SCOPES,
   readPlatformTikTokContentOAuth,
+  readPlatformTikTokContentPublishOAuth,
   requireOrgAdmin,
   requireTikTokContentPlatformConfigured,
+  requireTikTokContentPublishPlatformConfigured,
   getUserFromBearer,
   tiktokContentJson,
   tiktokContentOAuthRedirectUri,
@@ -36,11 +39,6 @@ Deno.serve(async (req: Request) => {
     return tiktokContentJson({ error: "Server misconfigured" }, 500);
   }
 
-  const platformForbidden = requireTikTokContentPlatformConfigured();
-  if (platformForbidden) return platformForbidden;
-
-  const oauth = readPlatformTikTokContentOAuth()!;
-
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const userRes = await getUserFromBearer(admin, req.headers.get("Authorization"));
   if ("error" in userRes) return userRes.error;
@@ -62,6 +60,16 @@ Deno.serve(async (req: Request) => {
   const returnPath = TIKTOK_CONTENT_OAUTH_RETURN_PATHS.has(returnPathRaw) ? returnPathRaw : null;
   const oauthPurposeRaw = String(body.oauth_purpose ?? "full").trim().toLowerCase();
   const oauthPurpose = oauthPurposeRaw === "publish" ? "publish" : "full";
+
+  const platformForbidden = oauthPurpose === "publish"
+    ? requireTikTokContentPublishPlatformConfigured()
+    : requireTikTokContentPlatformConfigured();
+  if (platformForbidden) return platformForbidden;
+
+  const oauth = oauthPurpose === "publish"
+    ? readPlatformTikTokContentPublishOAuth()!
+    : readPlatformTikTokContentOAuth()!;
+
   const targetOpenId = body.open_id != null ? String(body.open_id).trim() : "";
 
   if (oauthPurpose === "publish") {
@@ -99,7 +107,7 @@ Deno.serve(async (req: Request) => {
   const redirectUri = tiktokContentOAuthRedirectUri();
   const params = new URLSearchParams({
     client_key: oauth.clientKey,
-    scope: TIKTOK_CONTENT_OAUTH_SCOPES,
+    scope: oauthPurpose === "publish" ? TIKTOK_CONTENT_PUBLISH_OAUTH_SCOPES : TIKTOK_CONTENT_OAUTH_SCOPES,
     response_type: "code",
     redirect_uri: redirectUri,
     state: stateToken,

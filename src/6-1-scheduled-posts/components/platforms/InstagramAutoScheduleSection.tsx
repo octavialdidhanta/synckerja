@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMetaContentConfig } from '@/meta-content/hooks/useMetaContentConfig';
-import { missingScopesForFeature } from '@/meta-platform/constants/metaOAuthScopes';
+import { instagramPublishScopesOk } from '@/meta-platform/constants/metaOAuthScopes';
 import {
   useScheduledPostsByPlan,
   pickInstagramScheduleForModal,
@@ -37,7 +37,7 @@ export function InstagramAutoScheduleSection(props: Props) {
         .map((a) => ({
           id: a.account_id,
           label: a.account_label || a.account_id,
-          publishScopesOk: missingScopesForFeature(a.granted_scopes ?? [], 'publish').length === 0,
+          publishScopesOk: instagramPublishScopesOk(a.granted_scopes ?? []),
         })),
     [config?.accounts],
   );

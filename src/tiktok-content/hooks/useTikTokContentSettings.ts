@@ -24,6 +24,7 @@ type SettingsResponse = {
   oauthConnected: boolean;
   accounts: TikTokContentAccountRow[];
   serverConfigured?: boolean;
+  publishConfigured?: boolean;
 };
 
 async function invokeConfig(

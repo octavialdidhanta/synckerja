@@ -10,7 +10,6 @@ import {
 } from "../_shared/metaContentAuth.ts";
 import { enrichMetaContentAccountsWithAvatars } from "../_shared/metaContentAccountProfile.ts";
 import {
-  META_SCOPE_FEATURE_MAP,
   missingScopesForFeature,
 } from "../_shared/metaPlatformScopes.ts";
 
@@ -52,9 +51,12 @@ Deno.serve(async (req: Request) => {
       await listMetaContentAccounts(admin, organizationId),
     );
     const enriched = accounts.map((acc) => {
-      const features = Object.keys(META_SCOPE_FEATURE_MAP) as Array<keyof typeof META_SCOPE_FEATURE_MAP>;
+      const publishFeature = acc.platform === "facebook" ? "facebook_publish" : "publish";
+      const dmFeatures = acc.platform === "facebook"
+        ? (["messenger_dm", "comments", "insights", "pages", publishFeature] as const)
+        : (["instagram_dm", "comments", "insights", "pages", publishFeature] as const);
       const featureStatus = Object.fromEntries(
-        features.map((f) => [f, {
+        dmFeatures.map((f) => [f, {
           ok: missingScopesForFeature(acc.granted_scopes, f).length === 0,
           missing: missingScopesForFeature(acc.granted_scopes, f),
         }]),

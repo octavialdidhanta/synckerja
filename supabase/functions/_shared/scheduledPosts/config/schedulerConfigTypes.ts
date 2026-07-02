@@ -7,6 +7,7 @@ export type SchedulerConfig = {
   tiktok_global_in_flight: number;
   youtube_global_in_flight: number;
   instagram_global_in_flight: number;
+  facebook_global_in_flight: number;
   linkedin_global_in_flight: number;
 };
 
@@ -19,5 +20,6 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   tiktok_global_in_flight: 12,
   youtube_global_in_flight: 6,
   instagram_global_in_flight: 4,
+  facebook_global_in_flight: 4,
   linkedin_global_in_flight: 4,
 };

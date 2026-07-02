@@ -4,6 +4,7 @@ const PLATFORM_IN_FLIGHT_KEYS: Record<string, keyof SchedulerConfig> = {
   TikTok: "tiktok_global_in_flight",
   YouTube: "youtube_global_in_flight",
   Instagram: "instagram_global_in_flight",
+  Facebook: "facebook_global_in_flight",
   LinkedIn: "linkedin_global_in_flight",
 };
 

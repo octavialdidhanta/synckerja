@@ -373,6 +373,8 @@ export const enTranslations: TranslationDictionary = {
   "metaPlatform.scopeStatus.dm": "DM Live Chat",
   "metaPlatform.scopeStatus.comments": "Comments",
   "metaPlatform.scopeStatus.insights": "Insights",
+  "metaPlatform.scopeStatus.publish": "Reels Publishing",
+  "metaPlatform.scopeStatus.facebookPublish": "Facebook Reels Publishing",
   "metaPlatform.scopeStatus.pages": "Pages",
   "metaPlatform.scopeStatus.threadsInsights": "Threads Insights",
   "metaPlatform.scopeStatus.threadsReplies": "Threads Replies",
@@ -798,8 +800,15 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.report.manageTargets": "KPI targets",
   "digitalMarketing.tiktokContent.settingsTitle": "TikTok Content",
   "digitalMarketing.tiktokContent.settingsDesc": "Connect TikTok creator accounts via Login Kit to pull organic video insights.",
-  "digitalMarketing.tiktokContent.serverNotConfigured": "Server not configured",
-  "digitalMarketing.tiktokContent.serverNotConfiguredDesc": "Set TIKTOK_CONTENT_CLIENT_KEY and TIKTOK_CONTENT_CLIENT_SECRET in Supabase Edge Function secrets.",
+  "digitalMarketing.tiktokContent.serverNotConfigured": "TikTok connection unavailable",
+  "digitalMarketing.tiktokContent.serverNotConfiguredDesc": "Connecting TikTok is temporarily unavailable. Please try again later or contact support.",
+  "digitalMarketing.tiktokContent.credentialDiagnosticsTitle": "Server credential check",
+  "digitalMarketing.tiktokContent.credentialDiagnosticsError": "Credential check failed",
+  "digitalMarketing.tiktokContent.credentialSameApp": "TIKTOK_CONTENT and TIKTOK_ADS use the same App ID (OK).",
+  "digitalMarketing.tiktokContent.credentialDifferentApps": "TIKTOK_CONTENT and TIKTOK_ADS use different App IDs (expected).",
+  "digitalMarketing.tiktokContent.publishUnavailableTitle": "Video publishing not available yet",
+  "digitalMarketing.tiktokContent.publishUnavailableDesc":
+    "Auto-post and publish authorization are not enabled for this workspace yet. Contact Synckerja support if you need video publishing.",
   "digitalMarketing.tiktokContent.connectAccount": "Connect TikTok account",
   "digitalMarketing.tiktokContent.disconnectAll": "Disconnect all",
   "digitalMarketing.tiktokContent.connectedAccounts": "Connected accounts",
@@ -858,6 +867,7 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.videoPreviewRetry": "Retry preview",
   "digitalMarketing.scheduledPosts.reconnectPublishScopes": "Reconnect TikTok in settings to enable video.publish scope.",
   "digitalMarketing.scheduledPosts.instagramReconnectPublish": "Reconnect Instagram in settings to enable Reels publishing.",
+  "digitalMarketing.scheduledPosts.facebookReconnectPublish": "Reconnect Facebook in settings to enable Reels publishing (pages_manage_posts).",
   "digitalMarketing.scheduledPosts.youtubeReconnectUpload": "Reconnect YouTube in settings to enable video upload.",
   "digitalMarketing.scheduledPosts.linkedinReconnectPublish": "Reconnect LinkedIn in settings to enable video publishing.",
   "digitalMarketing.scheduledPosts.schedule": "Schedule",
@@ -866,6 +876,17 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.retryPostNow": "Retry (Post Now)",
   "digitalMarketing.scheduledPosts.scheduleRetrying":
     "Publish delayed — retrying automatically. {{error}}",
+  "digitalMarketing.scheduledPosts.rateLimitQueue":
+    "Waiting in publish queue — next attempt at {{time}} WIB",
+  "digitalMarketing.scheduledPosts.rateLimitOrgToast":
+    "Publish queue is full for this organization (max 3 posts per 5 minutes per platform). Retrying automatically in about 90 seconds.",
+  "digitalMarketing.scheduledPosts.rateLimitGlobalToast":
+    "Platform publish queue is busy. Retrying automatically shortly.",
+  "digitalMarketing.scheduledPosts.rateLimitQueueToast":
+    "Waiting in publish queue — retrying automatically.",
+  "digitalMarketing.scheduledPosts.tiktokPrivacySelfOnly": "Only me",
+  "digitalMarketing.scheduledPosts.tiktokUnauditedHint":
+    "Sandbox: TikTok posts are Only me until App Review. Use a private TikTok account or complete TikTok App Review for public posting.",
   "digitalMarketing.scheduledPosts.scheduledFor": "TikTok scheduled for {{time}} WIB",
   "digitalMarketing.scheduledPosts.published": "Post published",
   "digitalMarketing.scheduledPosts.publishedTikTok": "TikTok post published",

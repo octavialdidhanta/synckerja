@@ -8,7 +8,7 @@ export type PlatformScheduleCapability =
 export const PLATFORM_SCHEDULE_REGISTRY: Record<string, PlatformScheduleCapability> = {
   TikTok: { deliveryMode: "api_auto", implemented: true },
   Instagram: { deliveryMode: "api_auto", implemented: true },
-  Facebook: { deliveryMode: "manual_only", implemented: false, stubCode: "manual_only" },
+  Facebook: { deliveryMode: "api_auto", implemented: true },
   YouTube: { deliveryMode: "api_auto", implemented: true },
   LinkedIn: { deliveryMode: "api_auto", implemented: true },
 };

@@ -8,7 +8,7 @@ import {
 import { buildScheduleStubError } from "./platforms/stubErrors.ts";
 import { executeTikTokScheduledPost } from "./platforms/tiktok.ts";
 import { executeInstagramScheduledPost } from "./platforms/instagram.ts";
-import { executeFacebookScheduledPostStub } from "./platforms/facebook.ts";
+import { executeFacebookScheduledPost } from "./platforms/facebook.ts";
 import { executeYouTubeScheduledPost } from "./platforms/youtube.ts";
 import { executeLinkedInScheduledPost } from "./platforms/linkedin.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
@@ -47,7 +47,7 @@ export async function executeScheduledPost(
     case "Instagram":
       return executeInstagramScheduledPost(admin, schedule);
     case "Facebook":
-      return executeFacebookScheduledPostStub();
+      return executeFacebookScheduledPost(admin, schedule);
     case "YouTube":
       return executeYouTubeScheduledPost(admin, schedule);
     case "LinkedIn":

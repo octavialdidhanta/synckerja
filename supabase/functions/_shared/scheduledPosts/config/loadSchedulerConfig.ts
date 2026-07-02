@@ -57,6 +57,12 @@ function applyEnvOverrides(base: SchedulerConfig): SchedulerConfig {
       1,
       50,
     ),
+    facebook_global_in_flight: parseEnvInt(
+      "SCHEDULER_FACEBOOK_GLOBAL_IN_FLIGHT",
+      base.facebook_global_in_flight,
+      1,
+      50,
+    ),
     linkedin_global_in_flight: parseEnvInt(
       "SCHEDULER_LINKEDIN_GLOBAL_IN_FLIGHT",
       base.linkedin_global_in_flight,
@@ -94,6 +100,9 @@ export async function loadSchedulerConfig(
     ),
     instagram_global_in_flight: Number(
       row.instagram_global_in_flight ?? DEFAULT_SCHEDULER_CONFIG.instagram_global_in_flight,
+    ),
+    facebook_global_in_flight: Number(
+      row.facebook_global_in_flight ?? DEFAULT_SCHEDULER_CONFIG.facebook_global_in_flight,
     ),
     linkedin_global_in_flight: Number(
       row.linkedin_global_in_flight ?? DEFAULT_SCHEDULER_CONFIG.linkedin_global_in_flight,

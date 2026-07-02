@@ -1,7 +1,7 @@
 export const PLATFORM_DELIVERY_CONFIG = {
   TikTok: { deliveryMode: 'api_auto' as const, scheduleReady: true },
   Instagram: { deliveryMode: 'api_auto' as const, scheduleReady: true },
-  Facebook: { deliveryMode: 'manual_only' as const, scheduleReady: false },
+  Facebook: { deliveryMode: 'api_auto' as const, scheduleReady: true },
   YouTube: { deliveryMode: 'api_auto' as const, scheduleReady: true },
   LinkedIn: { deliveryMode: 'api_auto' as const, scheduleReady: true },
 } as const;

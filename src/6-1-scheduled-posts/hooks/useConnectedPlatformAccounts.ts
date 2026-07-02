@@ -2,7 +2,10 @@ import { useMemo } from 'react';
 import { useLinkedInContentSettings } from '@/linkedin-content/hooks/useLinkedInContentSettings';
 import { missingLinkedInScopesForFeature } from '@/linkedin-content/constants/linkedinOAuthScopes';
 import { useMetaContentConfig } from '@/meta-content/hooks/useMetaContentConfig';
-import { missingScopesForFeature } from '@/meta-platform/constants/metaOAuthScopes';
+import {
+  facebookPublishScopesOk,
+  instagramPublishScopesOk,
+} from '@/meta-platform/constants/metaOAuthScopes';
 import { useTikTokContentSettings } from '@/tiktok-content/hooks/useTikTokContentSettings';
 import { getTikTokAccountDisplayLabel } from '@/tiktok-content/lib/tiktokAccountDisplayLabel';
 import { useYouTubeContentSettings } from '@/youtube-content/hooks/useYouTubeContentSettings';
@@ -73,7 +76,9 @@ export function useConnectedPlatformAccounts(organizationId: string | null | und
         accountId: acc.account_id,
         accountLabel: acc.account_label || acc.account_id,
         publishScopesOk:
-          missingScopesForFeature(acc.granted_scopes ?? [], 'publish').length === 0,
+          metaKey === 'instagram'
+            ? instagramPublishScopesOk(acc.granted_scopes ?? [])
+            : facebookPublishScopesOk(acc.granted_scopes ?? []),
         isActive: true,
       });
     }

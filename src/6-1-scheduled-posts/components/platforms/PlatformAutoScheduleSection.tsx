@@ -19,6 +19,7 @@ import { ScheduleStatusBadge } from '../ScheduleStatusBadge';
 import type { ScheduledPost } from '../../types/scheduled-post';
 import { GoogleDriveFilePreview } from '@/6-1-dashboard/modal/GoogleDriveInAppFilePreview';
 import { validateGoogleDriveVideoLink } from '../../lib/validateGoogleDriveVideoLink';
+import { notifyPublishMutationError } from '../../lib/notifyPublishMutationError';
 import {
   usePlatformScheduleMutations,
   type PlatformPublishFunction,
@@ -180,7 +181,7 @@ export function PlatformAutoScheduleSection({
         toast.success(t('digitalMarketing.scheduledPosts.publishedPlatform', { platform }));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('digitalMarketing.scheduledPosts.publishFailed'));
+      notifyPublishMutationError(e, t);
     }
   };
 

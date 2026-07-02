@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   getUserFromBearer,
   isTikTokContentPlatformConfigured,
+  isTikTokContentPublishPlatformConfigured,
   requireActiveOrg,
   requireOrgAdmin,
   requireTikTokContentPlatformConfigured,
@@ -20,6 +21,7 @@ import {
   pickTikTokAccountLabel,
   syncTikTokContentAccountProfiles,
 } from "../_shared/tiktokContentAccountProfile.ts";
+import { buildTikTokCredentialDiagnostics } from "../_shared/tiktokCredentialDiagnostics.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -164,7 +166,17 @@ Deno.serve(async (req: Request) => {
       oauthConnected: (tokenRows ?? []).length > 0,
       accounts: accountsWithScopes,
       serverConfigured: isTikTokContentPlatformConfigured(),
+      publishConfigured: isTikTokContentPublishPlatformConfigured(),
     }, 200);
+  }
+
+  if (action === "getCredentialDiagnostics") {
+    if (Deno.env.get("TIKTOK_CREDENTIAL_DIAGNOSTICS_ENABLED")?.trim() !== "true") {
+      return tiktokContentJson({ error: "Forbidden" }, 403);
+    }
+    const adminForbidden = await requireOrgAdmin(admin, userRes.userId, organizationId);
+    if (adminForbidden) return adminForbidden;
+    return tiktokContentJson(buildTikTokCredentialDiagnostics(), 200);
   }
 
   const adminForbidden = await requireOrgAdmin(admin, userRes.userId, organizationId);

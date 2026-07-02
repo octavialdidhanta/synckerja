@@ -366,6 +366,8 @@ export const idTranslations: TranslationDictionary = {
   "metaPlatform.scopeStatus.dm": "DM Live Chat",
   "metaPlatform.scopeStatus.comments": "Komentar",
   "metaPlatform.scopeStatus.insights": "Insights",
+  "metaPlatform.scopeStatus.publish": "Publikasi Reels",
+  "metaPlatform.scopeStatus.facebookPublish": "Publikasi Reels Facebook",
   "metaPlatform.scopeStatus.pages": "Halaman",
   "metaPlatform.scopeStatus.threadsInsights": "Threads Insights",
   "metaPlatform.scopeStatus.threadsReplies": "Threads Balasan",
@@ -797,8 +799,15 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.report.manageTargets": "Target KPI",
   "digitalMarketing.tiktokContent.settingsTitle": "Konten TikTok",
   "digitalMarketing.tiktokContent.settingsDesc": "Hubungkan akun kreator TikTok via Login Kit untuk mengambil insight video organik.",
-  "digitalMarketing.tiktokContent.serverNotConfigured": "Server belum dikonfigurasi",
-  "digitalMarketing.tiktokContent.serverNotConfiguredDesc": "Atur TIKTOK_CONTENT_CLIENT_KEY dan TIKTOK_CONTENT_CLIENT_SECRET di secret Edge Function Supabase.",
+  "digitalMarketing.tiktokContent.serverNotConfigured": "Koneksi TikTok tidak tersedia",
+  "digitalMarketing.tiktokContent.serverNotConfiguredDesc": "Menghubungkan TikTok sementara tidak tersedia. Coba lagi nanti atau hubungi dukungan.",
+  "digitalMarketing.tiktokContent.credentialDiagnosticsTitle": "Pemeriksaan credential server",
+  "digitalMarketing.tiktokContent.credentialDiagnosticsError": "Pemeriksaan credential gagal",
+  "digitalMarketing.tiktokContent.credentialSameApp": "TIKTOK_CONTENT dan TIKTOK_ADS memakai App ID yang sama (OK).",
+  "digitalMarketing.tiktokContent.credentialDifferentApps": "TIKTOK_CONTENT dan TIKTOK_ADS memakai App ID berbeda (sesuai harapan).",
+  "digitalMarketing.tiktokContent.publishUnavailableTitle": "Publish video belum tersedia",
+  "digitalMarketing.tiktokContent.publishUnavailableDesc":
+    "Auto-post dan otorisasi publish belum diaktifkan untuk workspace ini. Hubungi dukungan Synckerja jika Anda membutuhkan publish video.",
   "digitalMarketing.tiktokContent.connectAccount": "Hubungkan akun TikTok",
   "digitalMarketing.tiktokContent.disconnectAll": "Putuskan semua",
   "digitalMarketing.tiktokContent.connectedAccounts": "Akun terhubung",
@@ -857,6 +866,7 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.videoPreviewRetry": "Coba lagi",
   "digitalMarketing.scheduledPosts.reconnectPublishScopes": "Hubungkan ulang TikTok di pengaturan untuk mengaktifkan scope video.publish.",
   "digitalMarketing.scheduledPosts.instagramReconnectPublish": "Hubungkan ulang Instagram di pengaturan untuk mengaktifkan publikasi Reels.",
+  "digitalMarketing.scheduledPosts.facebookReconnectPublish": "Hubungkan ulang Facebook di pengaturan untuk mengaktifkan publikasi Reels (pages_manage_posts).",
   "digitalMarketing.scheduledPosts.youtubeReconnectUpload": "Hubungkan ulang YouTube di pengaturan untuk mengaktifkan upload video.",
   "digitalMarketing.scheduledPosts.linkedinReconnectPublish": "Hubungkan ulang LinkedIn di pengaturan untuk mengaktifkan publikasi video.",
   "digitalMarketing.scheduledPosts.schedule": "Jadwalkan",
@@ -865,6 +875,17 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.retryPostNow": "Coba lagi (Posting Sekarang)",
   "digitalMarketing.scheduledPosts.scheduleRetrying":
     "Publish tertunda — mencoba ulang otomatis. {{error}}",
+  "digitalMarketing.scheduledPosts.rateLimitQueue":
+    "Menunggu antrian publish — percobaan berikutnya pukul {{time}} WIB",
+  "digitalMarketing.scheduledPosts.rateLimitOrgToast":
+    "Antrian publish penuh untuk organisasi ini (maks. 3 posting per 5 menit per platform). Akan dicoba ulang otomatis sekitar 90 detik lagi.",
+  "digitalMarketing.scheduledPosts.rateLimitGlobalToast":
+    "Antrian publish platform sedang sibuk. Akan dicoba ulang otomatis sebentar lagi.",
+  "digitalMarketing.scheduledPosts.rateLimitQueueToast":
+    "Menunggu antrian publish — mencoba ulang otomatis.",
+  "digitalMarketing.scheduledPosts.tiktokPrivacySelfOnly": "Hanya saya",
+  "digitalMarketing.scheduledPosts.tiktokUnauditedHint":
+    "Sandbox: posting TikTok hanya Hanya saya sampai App Review lolos. Gunakan akun TikTok privat sementara, atau selesaikan TikTok App Review untuk posting publik.",
   "digitalMarketing.scheduledPosts.scheduledFor": "TikTok dijadwalkan pukul {{time}} WIB",
   "digitalMarketing.scheduledPosts.published": "Posting berhasil dipublikasikan",
   "digitalMarketing.scheduledPosts.publishedTikTok": "Posting TikTok berhasil",

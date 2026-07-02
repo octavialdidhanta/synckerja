@@ -29,6 +29,10 @@ export async function deletePlanPlatformPublish(args: {
     body.channel_id = args.accountId;
   } else if (platform === 'TikTok') {
     body.open_id = args.accountId;
+  } else if (platform === 'Instagram') {
+    body.instagram_business_account_id = args.accountId;
+  } else if (platform === 'Facebook') {
+    body.facebook_page_id = args.accountId;
   } else {
     throw new Error(`delete_not_supported:${platform}`);
   }

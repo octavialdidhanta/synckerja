@@ -21,6 +21,7 @@ export const META_FACEBOOK_PAGE_OAUTH_SCOPE_LIST = [
   'pages_manage_metadata',
   'pages_read_engagement',
   'pages_manage_engagement',
+  'pages_manage_posts',
   'pages_messaging',
   'business_management',
 ] as const;
@@ -56,6 +57,7 @@ export const META_SCOPE_FEATURE_MAP = {
   comments: ['instagram_manage_comments', 'pages_manage_engagement'] as const,
   insights: ['instagram_manage_insights', 'pages_read_engagement'] as const,
   publish: ['instagram_content_publish'] as const,
+  facebook_publish: ['pages_manage_posts', 'pages_read_engagement', 'pages_show_list'] as const,
   pages: ['pages_show_list', 'pages_manage_metadata'] as const,
   threads_insights: ['threads_basic', 'threads_manage_insights'] as const,
   threads_replies: [
@@ -78,4 +80,20 @@ export function missingScopesForFeature(
 export function hasAllScopes(granted: string[], required: readonly string[]): boolean {
   const grantedSet = new Set(granted.map((s) => s.toLowerCase()));
   return required.every((s) => grantedSet.has(s.toLowerCase()));
+}
+
+export function missingScopesForInstagramPublish(granted: string[]): string[] {
+  return missingScopesForFeature(granted, 'publish');
+}
+
+export function missingScopesForFacebookPublish(granted: string[]): string[] {
+  return missingScopesForFeature(granted, 'facebook_publish');
+}
+
+export function instagramPublishScopesOk(granted: string[]): boolean {
+  return missingScopesForInstagramPublish(granted).length === 0;
+}
+
+export function facebookPublishScopesOk(granted: string[]): boolean {
+  return missingScopesForFacebookPublish(granted).length === 0;
 }

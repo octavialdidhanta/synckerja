@@ -11,7 +11,6 @@ import { useTikTokContentSettings } from "@/tiktok-content/hooks/useTikTokConten
 import type { TikTokContentOAuthReturnPath } from "@/tiktok-content/settings/tiktokContentSettingsPaths";
 import { getTikTokAccountDisplayLabel } from "@/tiktok-content/lib/tiktokAccountDisplayLabel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
-
 export type TikTokContentSettingsPanelProps = {
   organizationId: string | null | undefined;
   enabled?: boolean;
@@ -39,6 +38,7 @@ export function TikTokContentSettingsPanel({
 
   const oauthConnected = data?.oauthConnected ?? false;
   const serverConfigured = data?.serverConfigured !== false;
+  const publishConfigured = data?.publishConfigured === true;
   const accounts = data?.accounts ?? [];
 
   useEffect(() => {
@@ -115,15 +115,34 @@ export function TikTokContentSettingsPanel({
 
       {!serverConfigured && (
         <Alert variant="destructive">
-          <AlertTitle>{t("digitalMarketing.tiktokContent.serverNotConfigured", "Server not configured")}</AlertTitle>
+          <AlertTitle>
+            {t("digitalMarketing.tiktokContent.serverNotConfigured", "TikTok connection unavailable")}
+          </AlertTitle>
           <AlertDescription>
             {t(
               "digitalMarketing.tiktokContent.serverNotConfiguredDesc",
-              "Set TIKTOK_CONTENT_CLIENT_KEY and TIKTOK_CONTENT_CLIENT_SECRET in Supabase Edge Function secrets.",
+              "Connecting TikTok is temporarily unavailable. Please try again later or contact support.",
             )}
           </AlertDescription>
         </Alert>
       )}
+
+      {serverConfigured && !publishConfigured && oauthConnected ? (
+        <Alert>
+          <AlertTitle>
+            {t(
+              "digitalMarketing.tiktokContent.publishUnavailableTitle",
+              "Video publishing not available yet",
+            )}
+          </AlertTitle>
+          <AlertDescription>
+            {t(
+              "digitalMarketing.tiktokContent.publishUnavailableDesc",
+              "Auto-post and publish authorization are not enabled for this workspace yet. Contact Synckerja support if you need video publishing.",
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {oauthConnected &&
         accounts.some((a) => a.is_active && a.comments_scopes_granted === false) && (
