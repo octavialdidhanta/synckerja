@@ -19,7 +19,9 @@ export type MetaOAuthExchangeResult = {
   facebook_pages_synced?: number;
   webhook_subscribed_count?: number;
   error?: string;
+  /** @deprecated Prefer warning_code; raw strings are not shown to tenants. */
   warning?: string;
+  warning_code?: 'no_pages_found' | 'webhook_partial' | string;
 };
 
 type UseMetaOAuthConnectArgs = {

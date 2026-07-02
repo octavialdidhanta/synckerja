@@ -259,7 +259,7 @@ function ThreadsManageCommentsPageContent() {
                         accountId={accountId}
                         account={selectedAccount}
                         post={selectedPost}
-                        connectPath={CONNECT_INSTAGRAM_PATH}
+                        connectPath={CONNECT_THREADS_PATH}
                         postHighlightActive={
                           selectedPost ? visibleHighlightedPostIds.has(selectedPost.id) : false
                         }

@@ -494,10 +494,10 @@ export function ThreadsCommentThreadPanel({
         <AlertDescription>
           {t(
             'digitalMarketing.threadsContent.commentsScopeMissingHint',
-            'Reconnect Instagram to grant Threads reply permissions.',
+            'Authorize Threads on the Connect Threads page to enable replies.',
           )}{' '}
           <Link to={connectPath} className="underline">
-            {t('digitalMarketing.threadsContent.openConnect', 'Connect Instagram / Threads')}
+            {t('threadsConnect.connectButton', 'Connect Threads')}
           </Link>
         </AlertDescription>
       </Alert>
@@ -524,16 +524,16 @@ export function ThreadsCommentThreadPanel({
               <AlertTitle>
                 {t(
                   'digitalMarketing.threadsContent.contentPublishMissingTitle',
-                  'threads_content_publish required to reply',
+                  'Reply permission required',
                 )}
               </AlertTitle>
               <AlertDescription>
                 {t(
                   'digitalMarketing.threadsContent.contentPublishMissingHint',
-                  'Your token can read comments but cannot publish replies. Revoke Synckerja under Threads → Website permissions, reconnect, and accept publish content.',
+                  'Your Threads account can read comments but cannot publish replies yet. Open Connect Threads and authorize again.',
                 )}{' '}
                 <Link to={connectPath} className="underline">
-                  {t('digitalMarketing.threadsContent.openConnect', 'Connect Instagram / Threads')}
+                  {t('threadsConnect.reconnect', 'Reconnect Threads')}
                 </Link>
               </AlertDescription>
             </Alert>

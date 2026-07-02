@@ -362,14 +362,11 @@ Deno.serve(async (req: Request) => {
       facebook_pages_synced: fbPagesSynced,
       granted_scopes: grantedScopes,
       webhook_subscribed_count: webhookSubscribedCount,
-      webhook_subscribe_results: webhookSubscribeResults,
     };
     if (accountsSynced === 0 && fbPagesSynced === 0) {
-      responseBody.warning =
-        "No Facebook Pages were found. Ensure your login has Page admin access and pages_show_list is granted.";
+      responseBody.warning_code = "no_pages_found";
     } else if (totalPagesSynced > 0 && webhookSubscribedCount < totalPagesSynced) {
-      responseBody.warning =
-        "Accounts synced but Page webhook subscription failed for some Pages. Grant pages_manage_metadata and reconnect.";
+      responseBody.warning_code = "webhook_partial";
     }
 
     return new Response(

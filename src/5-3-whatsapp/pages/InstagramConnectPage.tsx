@@ -17,6 +17,7 @@ import { useInstagramConnectPageSkeletonGate } from '../hooks/useInstagramConnec
 import { Instagram, CheckCircle2, Unplug, Loader2, Facebook } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildMetaOAuthDialogUrl } from '@/meta-platform/constants/buildMetaOAuthDialogUrl';
+import { notifyMetaOAuthExchangeWarnings } from '@/meta-platform/lib/notifyMetaOAuthExchangeResult';
 import { META_BUSINESS_OAUTH_SCOPES } from '@/meta-platform/constants/metaOAuthScopes';
 import { getMetaInstagramOAuthConfigId } from '@/meta-platform/constants/metaOAuthEnv';
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
@@ -146,6 +147,7 @@ export function InstagramConnectPage() {
       webhook_subscribed_count?: number;
       error?: string;
       warning?: string;
+      warning_code?: string;
     }) => {
       await refetchAccounts();
       setAvailableAccounts([]);
@@ -155,19 +157,10 @@ export function InstagramConnectPage() {
         if (webhookSynced >= synced) {
           toast.success(t('instagramConnect.oauthSuccessWithWebhooks', 'Akun Instagram terhubung. Webhook DM diaktifkan.'));
         } else {
-          toast.warning(t('instagramConnect.oauthSuccessWebhookPartial', 'Akun terhubung, tapi webhook DM gagal sebagian.'), {
-            description: t(
-              'instagramConnect.oauthSuccessWebhookPartialHint',
-              'Connect ulang dengan Facebook dan pastikan izin pages_manage_metadata disetujui.',
-            ),
-            duration: 12000,
-          });
+          notifyMetaOAuthExchangeWarnings(t, resData);
         }
       } else {
         showZeroAccountsWarning();
-      }
-      if (resData.warning?.trim()) {
-        toast.info(resData.warning.trim(), { duration: 10000 });
       }
     },
     [refetchAccounts, showZeroAccountsWarning, t],
@@ -395,7 +388,7 @@ export function InstagramConnectPage() {
         if (sub.success !== false && (sub.subscribed_count ?? 0) > 0) {
           toast.success(t('instagramConnect.oauthSuccessWithWebhooks', 'Akun Instagram terhubung. Webhook DM diaktifkan.'));
         } else {
-          toast.warning(t('instagramConnect.oauthSuccessWebhookPartial', 'Akun terhubung, tapi webhook DM gagal sebagian.'));
+          notifyMetaOAuthExchangeWarnings(t, { warning_code: 'webhook_partial' });
         }
       } catch {
         toast.success(t('instagramConnect.oauthSuccess', 'Connected.'));

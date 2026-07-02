@@ -15,7 +15,8 @@ import { ThreadsContentPostsTable } from '@/6-0-social-media-performance/compone
 import { ThreadsContentPerformancePageSkeleton } from '@/6-0-social-media-performance/skeletons/ThreadsContentPerformancePageSkeleton';
 import { useThreadsContentSettings } from '@/threads-content/hooks/useThreadsContentSettings';
 import { useThreadsContentMetricsQuery } from '@/threads-content/hooks/useThreadsContentMetrics';
-import { CONNECT_INSTAGRAM_PATH } from '@/threads-content/settings/threadsContentSettingsPaths';
+import { CONNECT_INSTAGRAM_PATH, CONNECT_THREADS_PATH } from '@/threads-content/settings/threadsContentSettingsPaths';
+import { useInstagramAccounts } from '@/5-3-whatsapp/hooks/useInstagramAccounts';
 import { ThreadsDateRangePicker } from '@/6-0-social-media-performance/components/ThreadsDateRangePicker';
 import { buildThreadsCalendarYearPresetYears, threadsContentMetricsFetchArgs } from '@/threads-content/lib/toThreadsPostDateRangePayload';
 
@@ -37,6 +38,7 @@ function ThreadsContentPerformancePageContent() {
   const settingsQuery = useThreadsContentSettings(organizationId, {
     enabled: Boolean(organizationId) && !gatePending,
   });
+  const { accounts: instagramAccounts, isLoading: instagramAccountsLoading } = useInstagramAccounts();
   const { dateSelection, setDateSelection } = useDigitalMarketingPaidAdsFilters();
   const [accountId, setAccountId] = useState('');
 
@@ -65,11 +67,12 @@ function ThreadsContentPerformancePageContent() {
   const calendarYearPresetYears = useMemo(() => buildThreadsCalendarYearPresetYears(), []);
   const metricsLoading = metricsQuery.isLoading || metricsQuery.isFetching;
 
-  if (gatePending || settingsQuery.isPending) {
+  if (gatePending || settingsQuery.isPending || instagramAccountsLoading) {
     return <ThreadsContentPerformancePageSkeleton />;
   }
 
   const notConnected = !settingsQuery.data?.oauthConnected;
+  const hasInstagramConnected = instagramAccounts.length > 0;
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
@@ -82,15 +85,22 @@ function ThreadsContentPerformancePageContent() {
             <div className="flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
               {notConnected ? (
                 <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-                  <p className="mb-4 text-sm text-slate-600">
-                    {t(
-                      'digitalMarketing.threadsContent.notConnectedDesc',
-                      'Reconnect Instagram to grant Threads permissions.',
-                    )}
+                  <p className="mb-4 max-w-md text-sm text-slate-600">
+                    {hasInstagramConnected
+                      ? t(
+                          'digitalMarketing.threadsContent.threadsOAuthRequiredDesc',
+                          'Instagram is connected. Threads uses a separate authorization — open Connect Threads and complete the Threads login (not Instagram reconnect).',
+                        )
+                      : t(
+                          'digitalMarketing.threadsContent.instagramRequiredDesc',
+                          'Connect an Instagram Business account first, then authorize Threads on the Connect Threads page.',
+                        )}
                   </p>
                   <Button asChild>
-                    <Link to={CONNECT_INSTAGRAM_PATH}>
-                      {t('digitalMarketing.threadsContent.openConnect', 'Connect Instagram / Threads')}
+                    <Link to={hasInstagramConnected ? CONNECT_THREADS_PATH : CONNECT_INSTAGRAM_PATH}>
+                      {hasInstagramConnected
+                        ? t('threadsConnect.connectButton', 'Connect Threads')
+                        : t('digitalMarketing.threadsContent.openInstagramConnect', 'Connect Instagram')}
                     </Link>
                   </Button>
                 </div>

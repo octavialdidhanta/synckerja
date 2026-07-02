@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/aler
 import { cn } from '@/shared/lib/utils';
 import { useInstagramAccounts } from '@/5-3-whatsapp/hooks/useInstagramAccounts';
 import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
+import { notifyMetaOAuthExchangeWarnings } from '@/meta-platform/lib/notifyMetaOAuthExchangeResult';
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 import type { MetaContentOAuthReturnPath } from '@/meta-content/settings/metaContentSettingsPaths';
@@ -112,9 +113,7 @@ export function MetaContentSettingsPanel({
       } else if (platform === 'instagram') {
         showZeroAccountsWarning();
       }
-      if (resData.warning?.trim()) {
-        toast.info(resData.warning.trim(), { duration: 10000 });
-      }
+      notifyMetaOAuthExchangeWarnings(t, resData, { notifyWebhookPartial: false });
     },
   });
 

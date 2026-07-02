@@ -7,6 +7,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useFacebookPages } from '../hooks/useFacebookPages';
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
+import { notifyMetaOAuthExchangeWarnings } from '@/meta-platform/lib/notifyMetaOAuthExchangeResult';
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 import { cn } from '@/shared/lib/utils';
 import { CONNECT_FACEBOOK_PATH } from '../constants/omnichannelIntegrationPaths';
@@ -47,16 +48,20 @@ export function FacebookConnectPage() {
       const fbSynced =
         typeof resData.facebook_pages_synced === 'number' ? resData.facebook_pages_synced : 0;
       const igSynced = typeof resData.accounts_synced === 'number' ? resData.accounts_synced : 0;
-      if (fbSynced > 0 || igSynced > 0) {
-        toast.success(t('facebookConnect.oauthSuccess', 'Facebook Page connected.'));
+      const synced = fbSynced + igSynced;
+      const webhookSynced =
+        typeof resData.webhook_subscribed_count === 'number' ? resData.webhook_subscribed_count : 0;
+      if (synced > 0) {
+        if (webhookSynced >= synced) {
+          toast.success(t('facebookConnect.oauthSuccess', 'Facebook Page connected.'));
+        } else {
+          notifyMetaOAuthExchangeWarnings(t, resData);
+        }
       } else {
         toast.warning(
           t('facebookConnect.zeroPagesWarning', 'Login OK, but no Facebook Page found.'),
           { duration: 10000 },
         );
-      }
-      if (resData.warning?.trim()) {
-        toast.info(resData.warning.trim(), { duration: 10000 });
       }
     },
   });

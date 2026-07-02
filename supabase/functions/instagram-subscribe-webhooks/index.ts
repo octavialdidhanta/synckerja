@@ -202,8 +202,8 @@ Deno.serve(async (req: Request) => {
         total: results.length,
         results,
         hint: allOk
-          ? "Page webhook subscription enabled (messages, postbacks, reads, comments). Send a real DM or comment on an IG post, then check instagram-webhook POST logs."
-          : "Some pages failed. Reconnect Facebook OAuth to grant pages_manage_metadata, then try again.",
+          ? "Page webhook subscription enabled."
+          : "Some pages failed. Reconnect Facebook and try again, or contact Synckerja support.",
       }),
       {
         status: allOk ? 200 : 207,
