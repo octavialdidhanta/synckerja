@@ -91,6 +91,15 @@ export function useThreadsOAuthConnect(args: UseThreadsOAuthConnectArgs = {}) {
         stopOAuthPopupPoll();
         clearThreadsOAuthPopupFlag();
         setOauthLoading(false);
+        if (elapsed > 2000) {
+          toast.warning(
+            t(
+              'threadsConnect.oauthPopupClosedHint',
+              'Threads authorization did not complete. If you saw a tester-invite error, accept the invite in the Threads app first (Settings → Website permissions → Invites), then try again.',
+            ),
+            { duration: 14000 },
+          );
+        }
       }
     }, OAUTH_POPUP_POLL_MS);
   }, [clearThreadsOAuthPopupFlag, stopOAuthPopupPoll]);

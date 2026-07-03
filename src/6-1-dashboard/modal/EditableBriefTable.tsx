@@ -13,6 +13,62 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 
+/** Fixed storyboard column widths (px). */
+const BRIEF_COLUMN_WIDTH_PX = {
+  timing: 80,
+  /** Middle columns (Pembahasan, VO, Visual, …) — fixed when table scrolls horizontally. */
+  content: 360,
+  actions: 72,
+  /** At most this many visible columns (data + actions) before horizontal scroll. */
+  maxColumnsWithoutScroll: 6,
+} as const;
+
+function isTimingColumn(header: string, colIdx: number): boolean {
+  if (colIdx === 0) return true;
+  const h = String(header ?? '').trim().toLowerCase();
+  return h === 'timing' || h === 'no' || h === '#' || h === 'no.';
+}
+
+/** Pad every row to the same column count (header-driven). */
+function normalizeBriefTableRows(rows: string[][]): string[][] {
+  if (rows.length === 0) return rows;
+  const colCount = Math.max(...rows.map((r) => r.length), 1);
+  return rows.map((row) => {
+    const cells = [...row];
+    while (cells.length < colCount) cells.push('');
+    return cells.slice(0, colCount);
+  });
+}
+
+/** Drop only trailing columns that are empty in header and all body rows. */
+function trimTrailingEmptyColumns(rows: string[][]): string[][] {
+  const normalized = normalizeBriefTableRows(rows);
+  if (normalized.length === 0) return normalized;
+  let colCount = normalized[0]?.length ?? 0;
+  while (colCount > 1) {
+    const colIdx = colCount - 1;
+    const headerEmpty = (normalized[0]?.[colIdx] ?? '').trim() === '';
+    const bodyEmpty = normalized.slice(1).every((row) => (row[colIdx] ?? '').trim() === '');
+    if (!headerEmpty && !bodyEmpty) break;
+    if (headerEmpty && bodyEmpty) {
+      colCount -= 1;
+      continue;
+    }
+    break;
+  }
+  return normalized.map((row) => row.slice(0, colCount));
+}
+
+function briefTableColumnKey(headerRow: string[]): string {
+  return headerRow.map((h) => String(h ?? '').trim()).join('\x1f');
+}
+
+const briefTableCellClass =
+  'border-b border-r border-gray-300 px-3 py-3 text-gray-700 align-top overflow-hidden break-words [overflow-wrap:anywhere] [word-break:break-word] min-w-0 last:border-r-0';
+
+const briefTableHeaderClass =
+  'sticky top-0 z-10 border-b-2 border-r border-gray-300 bg-gray-100 px-3 py-3 text-left font-semibold text-gray-900 min-w-0 overflow-hidden last:border-r-0';
+
 /** Auto-resize textarea to fit content height */
 function AutoResizeTextarea({
   value,
@@ -83,19 +139,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     };
   }, [onEditingChange]);
 
-  const trimEmptyColumns = (rows: string[][]): string[][] => {
-    if (rows.length === 0) return rows;
-    const colCount = Math.max(...rows.map((r) => r.length));
-    let lastNonEmptyCol = -1;
-    for (let c = 0; c < colCount; c++) {
-      const hasContent = rows.some((r) => (r[c] ?? '').trim() !== '');
-      if (hasContent) lastNonEmptyCol = c;
-    }
-    if (lastNonEmptyCol < 0) return rows;
-    return rows.map((r) => r.slice(0, lastNonEmptyCol + 1));
-  };
-
-  const displayData = trimEmptyColumns(tableData);
+  const normalizedTableData = normalizeBriefTableRows(tableData);
+  const displayData = trimTrailingEmptyColumns(normalizedTableData);
   const colCount = Math.max(...displayData.map((r) => r.length), 1);
   const padRow = (row: string[]) => {
     const r = [...row];
@@ -207,12 +252,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const handleRemoveColumn = (colIdx: number) => {
-    const currentColCount = Math.max(...tableData.map((r) => r.length), 1);
+    const source = normalizeBriefTableRows(isEditing ? [displayData[0] ?? [], ...editData] : displayData);
+    const currentColCount = Math.max(...source.map((r) => r.length), 1);
     if (currentColCount <= 1) return;
-    const newData = tableData.map((row) => row.filter((_, i) => i !== colIdx));
+    const newData = source.map((row) => row.filter((_, i) => i !== colIdx));
     persistTable(newData);
     if (isEditing) {
-      setEditData((prev) => prev.map((row) => row.filter((_, i) => i !== colIdx)));
+      setEditData(newData.slice(1));
     }
     toast.success(t('briefDialog.storyboard.columnRemoved', 'Column removed'));
   };
@@ -299,7 +345,23 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
 
   const unusedColumnIndices = headerRow
     .map((_, colIdx) => colIdx)
-    .filter((colIdx) => isColumnUnused(colIdx, tableData));
+    .filter((colIdx) => isColumnUnused(colIdx, displayData));
+
+  const contentColumnCount = Math.max(headerRow.length - 1, 0);
+  const totalVisibleColumns = headerRow.length + (showRowActionsColumn ? 1 : 0);
+  const useHorizontalScrollLayout =
+    totalVisibleColumns > BRIEF_COLUMN_WIDTH_PX.maxColumnsWithoutScroll;
+  const fixedSidesPx =
+    BRIEF_COLUMN_WIDTH_PX.timing + (showRowActionsColumn ? BRIEF_COLUMN_WIDTH_PX.actions : 0);
+  const sharedContentWidth =
+    contentColumnCount > 0
+      ? `calc((100% - ${fixedSidesPx}px) / ${contentColumnCount})`
+      : undefined;
+  const scrollTableWidthPx =
+    BRIEF_COLUMN_WIDTH_PX.timing +
+    contentColumnCount * BRIEF_COLUMN_WIDTH_PX.content +
+    (showRowActionsColumn ? BRIEF_COLUMN_WIDTH_PX.actions : 0);
+  const tableLayoutKey = briefTableColumnKey(headerRow);
 
   const renderStoryboardToolbar = () => {
     if (!storyboardToolbar || alwaysEditable || readOnly || !onSave) return null;
@@ -399,7 +461,33 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         )}
         style={{ overflowAnchor: 'none' } as React.CSSProperties}
       >
-        <table className="min-w-[720px] w-full border-collapse text-sm">
+        <table
+          key={tableLayoutKey}
+          className={cn(
+            'table-fixed border-collapse text-sm',
+            !useHorizontalScrollLayout && 'w-full',
+          )}
+          style={
+            useHorizontalScrollLayout
+              ? { width: scrollTableWidthPx, minWidth: scrollTableWidthPx }
+              : undefined
+          }
+        >
+          <colgroup>
+            {headerRow.map((header, j) => (
+              <col
+                key={j}
+                style={
+                  isTimingColumn(header, j)
+                    ? { width: BRIEF_COLUMN_WIDTH_PX.timing }
+                    : useHorizontalScrollLayout
+                      ? { width: BRIEF_COLUMN_WIDTH_PX.content }
+                      : { width: sharedContentWidth }
+                }
+              />
+            ))}
+            {showRowActionsColumn ? <col style={{ width: BRIEF_COLUMN_WIDTH_PX.actions }} /> : null}
+          </colgroup>
           <thead className="sticky top-0 z-20 bg-gray-100">
             <tr>
               {headerRow.map((cell, j) => {
@@ -409,10 +497,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                 return (
                   <th
                     key={j}
-                    className={cn(
-                      'sticky top-0 z-10 border-b-2 border-r border-gray-300 bg-gray-100 px-4 py-3 text-left font-semibold text-gray-900 whitespace-nowrap last:border-r-0',
-                      j === 0 && 'w-[80px] min-w-[80px] max-w-[80px]',
-                    )}
+                    className={briefTableHeaderClass}
                   >
                     {shouldRenderControlsInThisHeader ? (
                       <div className="flex items-center justify-between gap-2">
@@ -420,13 +505,20 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                         {renderHeaderControls()}
                       </div>
                     ) : (
-                      cell
+                      <span className="block truncate" title={cell}>
+                        {cell}
+                      </span>
                     )}
                   </th>
                 );
               })}
               {showRowActionsColumn && (
-                <th className="sticky top-0 z-10 w-[72px] min-w-[72px] max-w-[72px] overflow-hidden whitespace-nowrap border-b-2 border-l border-gray-300 bg-gray-100 px-2 py-3 font-semibold text-gray-900">
+                <th
+                  className={cn(
+                    briefTableHeaderClass,
+                    'overflow-hidden whitespace-nowrap border-l border-gray-300 px-2',
+                  )}
+                >
                   {showHeaderControls && controlsPlacement === 'actionsColumn' ? renderHeaderControls() : null}
                 </th>
               )}
@@ -443,25 +535,27 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                   {displayRow.map((cell, cellIdx) => (
                     <td
                       key={cellIdx}
-                      className={cn(
-                        'border-b border-r border-gray-300 px-4 py-3 text-gray-700 align-top last:border-r-0',
-                        cellIdx === 0 && 'w-[80px] min-w-[80px] max-w-[80px]',
-                      )}
+                      className={briefTableCellClass}
                     >
                       {(isEditing || alwaysEditable) ? (
                         <AutoResizeTextarea
                           value={cell}
                           onChange={(e) => updateCell(rowIdx, cellIdx, e.target.value)}
-                          className="w-full min-h-[60px] text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
+                          className="box-border w-full max-w-full min-h-[60px] resize-none overflow-hidden rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]"
                           minRows={2}
                         />
                       ) : (
-                        <span className="whitespace-pre-wrap">{cell}</span>
+                        <span className="block whitespace-pre-wrap">{cell}</span>
                       )}
                     </td>
                   ))}
                   {showRowActionsColumn && (
-                    <td className="w-[72px] min-w-[72px] max-w-[72px] overflow-hidden whitespace-nowrap border-b border-l border-gray-300 px-2 py-3 align-middle">
+                    <td
+                      className={cn(
+                        briefTableCellClass,
+                        'overflow-hidden whitespace-nowrap border-l border-gray-300 px-2 align-middle',
+                      )}
+                    >
                       {onSave && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

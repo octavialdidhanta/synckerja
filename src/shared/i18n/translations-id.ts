@@ -2262,7 +2262,7 @@ export const idTranslations: TranslationDictionary = {
   "threadsConnect.appIdHint": "Set VITE_THREADS_APP_ID ke App ID Threads API Anda di Meta Developer.",
   "threadsConnect.httpsHint": "Uji dari https://office.synckerja.com dan whitelist redirect URI di Meta → Threads API → Settings.",
   "threadsConnect.prerequisiteHint": "Langkah 1: Connect Instagram (OAuth Facebook). Langkah 2: Otorisasi Threads di sini — membuka threads.net di popup.",
-  "threadsConnect.alreadyConnected": "Threads sudah terhubung untuk organisasi ini.",
+  "threadsConnect.oauthPopupClosedHint": "Otorisasi Threads belum selesai. Jika muncul error undangan tester, terima undangan di app Threads dulu (Settings → Website permissions → Invites), lalu coba lagi.",
   "threadsConnect.noAccounts": "Belum ada akun Instagram terhubung.",
   "threadsConnect.threadsLinked": "Threads terhubung",
   "threadsConnect.threadsPending": "Threads belum diotorisasi",

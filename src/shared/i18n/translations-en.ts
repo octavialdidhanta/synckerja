@@ -2267,6 +2267,7 @@ export const enTranslations: TranslationDictionary = {
   "threadsConnect.threadsLinked": "Threads linked",
   "threadsConnect.threadsPending": "Threads not authorized",
   "threadsConnect.loading": "Loading…",
+  "threadsConnect.oauthPopupClosedHint": "Threads authorization did not complete. If you saw a tester-invite error, accept the invite in the Threads app first (Settings → Website permissions → Invites), then try again.",
   "facebookConnect.tabTitle": "Connect Facebook Page",
   "facebookConnect.leftTitle": "Connect Facebook Page",
   "facebookConnect.rightTitle": "Connected Pages",
