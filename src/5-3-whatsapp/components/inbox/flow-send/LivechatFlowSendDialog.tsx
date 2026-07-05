@@ -19,27 +19,55 @@ type LivechatFlowSendDialogProps = {
   onOpenChange: (open: boolean) => void;
   conversation: WhatsAppConversation;
   waAccounts: WhatsAppAccount[];
-  showAutoAssignHint?: boolean;
 };
 
-function FlowSendDialogTitle({
-  isMobile,
+function FlowSendMobileHeader({
   onClose,
   title,
+  contactLine,
 }: {
-  isMobile: boolean;
   onClose: () => void;
   title: string;
+  contactLine: string;
 }) {
   return (
-    <div className={cn("flex items-center gap-2", isMobile && "pr-2")}>
-      {isMobile ? (
-        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={onClose} aria-label="Close">
-          <X className="h-5 w-5" />
-        </Button>
-      ) : null}
-      <DialogTitle className={cn(isMobile ? "text-lg" : "text-base")}>{title}</DialogTitle>
-    </div>
+    <header className="safe-area-top flex shrink-0 items-center gap-1 border-b px-2 py-2.5">
+      <DialogTitle className="sr-only">
+        {title} · {contactLine}
+      </DialogTitle>
+      <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={onClose} aria-label="Close">
+        <X className="h-5 w-5" />
+      </Button>
+      <div className="flex min-h-10 min-w-0 flex-1 items-center gap-1.5 overflow-hidden pr-2">
+        <span className="shrink-0 text-lg font-semibold leading-[1.25rem]">{title}</span>
+        <span className="shrink-0 leading-[1.25rem] text-muted-foreground" aria-hidden>
+          ·
+        </span>
+        <span className="min-w-0 truncate text-lg font-medium leading-[1.25rem] text-muted-foreground">{contactLine}</span>
+      </div>
+    </header>
+  );
+}
+
+function FlowSendDesktopHeader({
+  title,
+  contactLine,
+}: {
+  title: string;
+  contactLine: string;
+}) {
+  return (
+    <DialogHeader className="flex-shrink-0 space-y-0 border-b px-4 py-3 text-left">
+      <div className="flex min-w-0 items-center gap-2 pr-8">
+        <DialogTitle className="my-0 shrink-0 text-base leading-none">{title}</DialogTitle>
+        <span className="shrink-0 text-muted-foreground" aria-hidden>
+          ·
+        </span>
+        <DialogDescription className="my-0 min-w-0 truncate text-sm font-medium leading-none text-muted-foreground">
+          {contactLine}
+        </DialogDescription>
+      </div>
+    </DialogHeader>
   );
 }
 
@@ -48,7 +76,6 @@ export function LivechatFlowSendDialog({
   onOpenChange,
   conversation,
   waAccounts,
-  showAutoAssignHint = false,
 }: LivechatFlowSendDialogProps) {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
@@ -66,6 +93,7 @@ export function LivechatFlowSendDialog({
 
   const contactLabel =
     conversation.customer_name?.trim() || conversation.customer_wa_id || "—";
+  const mobileContactLine = form.ticketId ? `${contactLabel} · ${form.ticketId}` : contactLabel;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,40 +107,23 @@ export function LivechatFlowSendDialog({
         hideCloseButton={isMobile}
         fullscreenAnimation={isMobile}
       >
-        <DialogHeader
-          className={cn(
-            "flex-shrink-0 border-b px-4 text-left",
-            isMobile ? "safe-area-top pb-3 pt-4" : "py-3",
-          )}
-        >
-          <FlowSendDialogTitle
-            isMobile={isMobile}
+        {isMobile ? (
+          <FlowSendMobileHeader
             onClose={() => onOpenChange(false)}
             title={t("whatsappInbox.flowSend.title", "Kirim Flow")}
+            contactLine={mobileContactLine}
           />
-          <DialogDescription className="mt-1 text-sm text-muted-foreground">
-            {t(
-              "whatsappInbox.flowSend.description",
-              "Pilih Form Flow atau Flow Template untuk dikirim ke kontak ini.",
-            )}
-            {" · "}
-            {contactLabel}
-            {form.ticketId ? ` · ${form.ticketId}` : ""}
-          </DialogDescription>
-        </DialogHeader>
-
-        {showAutoAssignHint ? (
-          <div className="mx-4 mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-slate-800">
-            {t(
-              "whatsappInbox.followUp.autoAssignHint",
-              "Saat Anda mengirim follow-up, Anda akan otomatis ditetapkan sebagai agen percakapan ini.",
-            )}
-          </div>
-        ) : null}
+        ) : (
+          <FlowSendDesktopHeader
+            title={t("whatsappInbox.flowSend.title", "Kirim Flow")}
+            contactLine={mobileContactLine}
+          />
+        )}
 
         <div
           className={cn(
-            "scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4",
+            "scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4",
+            isMobile ? "py-3" : "py-4",
             isMobile && "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           )}
         >
@@ -121,6 +132,7 @@ export function LivechatFlowSendDialog({
             waAccountId={form.waAccountId}
             form={form}
             isMobile={isMobile}
+            minimalChrome
           />
         </div>
 

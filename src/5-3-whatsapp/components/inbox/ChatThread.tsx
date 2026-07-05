@@ -66,7 +66,7 @@ import {
 } from '../../constants/leadStatus';
 import { LivechatFollowUpBar } from './LivechatFollowUpBar';
 import { LivechatFollowUpDialog } from './LivechatFollowUpDialog';
-import { LivechatFlowSendComposerButton, LivechatFlowSendDialog } from './flow-send';
+import { LivechatFlowSendDialog, LivechatComposerAttachMenu } from './flow-send';
 import { LivechatResolveHeaderButton } from './LivechatResolveHeaderButton';
 import { useWhatsAppAccounts } from '../../hooks/useWhatsAppAccounts';
 import type { Locale } from 'date-fns';
@@ -3048,23 +3048,16 @@ export function ChatThread({
             </div>
           )}
           <div className="flex min-h-[44px] items-center gap-0.5">
-          <button
-            type="button"
-            className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50"
-            disabled={isSending || isUploading || sendDisabled}
-            onClick={() => !sendDisabled && fileInputRef.current?.click()}
-            title={t('whatsappInbox.attachMedia', 'Attach image, video, or document')}
-            aria-label={t('whatsappInbox.attachMedia', 'Attach image, video, or document')}
-          >
-            <Paperclip className="h-4 w-4" />
-          </button>
-          {!showFollowUpComposer && isWhatsAppConversation ? (
-            <LivechatFlowSendComposerButton
-              disabled={flowSendDisabled}
-              onClick={() => setFlowSendDialogOpen(true)}
-              compact={hideHeader}
-            />
-          ) : null}
+          <LivechatComposerAttachMenu
+            compactMenu={hideHeader}
+            attachDisabled={sendDisabled}
+            onAttach={() => fileInputRef.current?.click()}
+            showFlowSend={!showFollowUpComposer && isWhatsAppConversation}
+            flowSendDisabled={flowSendDisabled}
+            onFlowSend={() => setFlowSendDialogOpen(true)}
+            isSending={isSending}
+            isUploading={isUploading}
+          />
           <Textarea
             ref={textareaRef}
             placeholder={pendingMedia ? t('whatsappInbox.writeCaption', 'Write caption (optional)...') : t('whatsappInbox.typeMessage', 'Type a message...')}
@@ -3130,7 +3123,6 @@ export function ChatThread({
           onOpenChange={setFlowSendDialogOpen}
           conversation={conversation as WhatsAppConversation}
           waAccounts={waAccounts}
-          showAutoAssignHint={!hasAssignee}
         />
       ) : null}
       {/* Image / video: immersive dark overlay */}

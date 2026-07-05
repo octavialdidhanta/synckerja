@@ -2805,6 +2805,8 @@ export const enTranslations: TranslationDictionary = {
   "whatsappInbox.flowSend.description": "Choose a Form Flow or Flow Template to send to this contact.",
   "whatsappInbox.flowSend.emptyCatalog": "No active flows or approved Flow Templates yet.",
   "whatsappInbox.flowSend.sent": "Flow sent.",
+  "whatsappInbox.flowSend.templateLabelShort": "Template",
+  "whatsappInbox.composerActions.menu": "Message options",
   "whatsappInbox.followUp.button": "Follow-up",
   "whatsappInbox.followUp.title": "Follow-up",
   "whatsappInbox.followUp.sender": "Sender number",

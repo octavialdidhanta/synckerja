@@ -44,9 +44,11 @@ type FlowSendPickerContentProps = {
     | "isEmptyCatalog"
   >;
   isMobile?: boolean;
+  /** Flow-send dialog: hide sender, manage link, hints, empty preview placeholder. */
+  minimalChrome?: boolean;
 };
 
-export function FlowSendPickerContent({ mode, waAccountId, form, isMobile }: FlowSendPickerContentProps) {
+export function FlowSendPickerContent({ mode, waAccountId, form, isMobile, minimalChrome }: FlowSendPickerContentProps) {
   const { t } = useAppTranslation();
   const {
     catalog,
@@ -68,16 +70,31 @@ export function FlowSendPickerContent({ mode, waAccountId, form, isMobile }: Flo
     isEmptyCatalog,
   } = form;
 
+  const compact = Boolean(isMobile || minimalChrome);
+  const showPreviewPanel = !compact || isSessionFlow || previewRow;
+
   return (
-    <div className={cn("grid min-w-0 gap-6", isMobile ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2")}>
-      <div className="min-w-0 space-y-4">
-        <div className="space-y-2">
-          <Label>{t("whatsappInbox.followUp.sender", "Nomor pengirim")}</Label>
-          <p className="text-sm font-medium text-foreground">{senderLabel}</p>
-        </div>
+    <div
+      className={cn(
+        "grid min-w-0",
+        isMobile ? "gap-3" : compact ? "gap-4" : "gap-6 grid-cols-1 lg:grid-cols-2",
+        !isMobile && showPreviewPanel && compact && "grid-cols-1 lg:grid-cols-2",
+      )}
+    >
+      <div className="min-w-0 space-y-3">
+        {!compact ? (
+          <div className="space-y-2">
+            <Label>{t("whatsappInbox.followUp.sender", "Nomor pengirim")}</Label>
+            <p className="text-sm font-medium text-foreground">{senderLabel}</p>
+          </div>
+        ) : null}
 
         <div className="space-y-2">
-          <Label>{t("whatsappInbox.followUp.template", "Template pesan")}</Label>
+          <Label className={cn(compact && "text-xs")}>
+            {compact
+              ? t("whatsappInbox.flowSend.templateLabelShort", "Template")
+              : t("whatsappInbox.followUp.template", "Template pesan")}
+          </Label>
           <Select
             value={selectionValue}
             onValueChange={setSelectionValue}
@@ -119,7 +136,7 @@ export function FlowSendPickerContent({ mode, waAccountId, form, isMobile }: Flo
               ) : null}
             </SelectContent>
           </Select>
-          {!sessionOpen ? (
+          {!sessionOpen && !compact ? (
             <p className="text-xs text-muted-foreground">
               {t(
                 "whatsappInbox.followUp.sessionClosedHint",
@@ -160,19 +177,22 @@ export function FlowSendPickerContent({ mode, waAccountId, form, isMobile }: Flo
           </div>
         ) : null}
 
-        <p className="text-xs text-muted-foreground">
-          <Link
-            to="/omnichannel/campaign/templates"
-            className="font-medium text-primary underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {t("whatsappInbox.followUp.manageTemplates", "Kelola template")}
-          </Link>
-        </p>
+        {!compact ? (
+          <p className="text-xs text-muted-foreground">
+            <Link
+              to="/omnichannel/campaign/templates"
+              className="font-medium text-primary underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {t("whatsappInbox.followUp.manageTemplates", "Kelola template")}
+            </Link>
+          </p>
+        ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-col items-center justify-start">
+      {showPreviewPanel ? (
+        <div className={cn("flex min-h-0 flex-col items-center justify-start", isMobile && "pt-1")}>
         {isSessionFlow && selectedSessionFlow ? (
           <div className="w-full max-w-[280px] rounded-2xl border border-slate-200 bg-[#ece5dd] p-4 shadow-sm">
             <div className="rounded-lg bg-white p-3 shadow-sm">
@@ -206,12 +226,13 @@ export function FlowSendPickerContent({ mode, waAccountId, form, isMobile }: Flo
             previewAt={previewRow.lastEditedAt ?? previewRow.createdAt}
             metaSyncLoading={templateDetail.isFetching}
           />
-        ) : (
+        ) : !compact ? (
           <p className="text-sm text-muted-foreground">
             {t("whatsappInbox.followUp.previewHint", "Pilih template untuk melihat preview.")}
           </p>
-        )}
+        ) : null}
       </div>
+      ) : null}
     </div>
   );
 }
