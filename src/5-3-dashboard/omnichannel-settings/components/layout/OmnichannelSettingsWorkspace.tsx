@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO,
-  OMNICHANNEL_SETTINGS_SECTIONS,
+  parseOmnichannelSettingsPathname,
   parseOmnichannelSettingsSectionSlug,
   omnichannelSettingsPath,
   omnichannelSettingsSectionPagePath,
@@ -17,6 +17,7 @@ import { CustomerSurveySettingsShell } from "@/features/customer-survey/settings
 import { CustomerSurveyTargetSettingsShell } from "@/features/customer-survey/settings/CustomerSurveyTargetSettingsShell";
 import { OfflineConversionSettingsShell } from "@/meta-ads/settings/OfflineConversionSettingsShell";
 import { ApiIntegrationSection } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiIntegrationSection";
+import { FlowBuilderSettingsShell } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/FlowBuilderSettingsShell";
 import { cn } from "@/shared/lib/utils";
 import {
   OMNICHANNEL_SETTINGS_CARD_HEADER_BASE,
@@ -30,11 +31,14 @@ const panelScrollClass =
 export function OmnichannelSettingsWorkspace() {
   const { t } = useTranslation();
   const { section: sectionSlug } = useParams<{ section: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
 
   const activeSection = useMemo(
-    () => parseOmnichannelSettingsSectionSlug(sectionSlug),
-    [sectionSlug],
+    () =>
+      parseOmnichannelSettingsPathname(location.pathname) ??
+      parseOmnichannelSettingsSectionSlug(sectionSlug),
+    [location.pathname, sectionSlug],
   );
 
   useEffect(() => {
@@ -84,6 +88,7 @@ export function OmnichannelSettingsWorkspace() {
               {activeSection === "user-management" ? <UserManagementSection /> : null}
               {activeSection === "sla" ? <SlaManagementSection /> : null}
               {activeSection === "survey" ? <CustomerSurveySettingsShell /> : null}
+              {activeSection === "flow" ? <FlowBuilderSettingsShell /> : null}
               {activeSection === "target" ? <CustomerSurveyTargetSettingsShell /> : null}
               {activeSection === "offline-conversion" ? <OfflineConversionSettingsShell /> : null}
               {activeSection === "api-integration" ? <ApiIntegrationSection /> : null}

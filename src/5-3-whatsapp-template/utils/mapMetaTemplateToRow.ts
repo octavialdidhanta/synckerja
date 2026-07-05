@@ -1,5 +1,9 @@
 import type { MetaMessageTemplate, TemplateTableRow } from "../types";
 import { metaLanguageToShortTag } from "./languageDisplay";
+import {
+  extractFlowIdsFromTemplateComponents,
+  templateHasFlowButton,
+} from "./extractFlowIdsFromTemplateComponents";
 
 const MEDIA_HEADER_FORMATS = new Set(["IMAGE", "VIDEO", "DOCUMENT"]);
 
@@ -295,6 +299,8 @@ export function mapMetaTemplateToRow(meta: MetaMessageTemplate): TemplateTableRo
   /** Prefer Meta `created_time`; if absent, Meta still exposes `last_updated_time` on the template node. */
   const createdAt = createdFromMeta ?? lastEditedAt;
   const mediaFormat = mediaFormatForTable(meta.components, headerText);
+  const linkedFlowIds = extractFlowIdsFromTemplateComponents(meta.components);
+  const hasFlowButton = templateHasFlowButton(meta.components);
 
   return {
     id,
@@ -322,5 +328,7 @@ export function mapMetaTemplateToRow(meta: MetaMessageTemplate): TemplateTableRo
     createdAt,
     lastEditedAt,
     mediaFormat,
+    hasFlowButton,
+    linkedFlowIds,
   };
 }

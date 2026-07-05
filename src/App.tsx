@@ -87,7 +87,10 @@ import {
   WhatsAppTemplatePageSkeleton,
 } from "@/appRouteSkeletonLoaders";
 
+import { AutomationFlowEditorSkeleton } from "@/5-3-automation-flow/skeletons/AutomationFlowEditorSkeleton";
+
 const PAGE_GUARD_LOADING_SHELL = <StandardRouteLoadingShell />;
+
 import { DailyTaskProviderShell } from "@/shared/wrappers/DailyTaskProviderShell";
 import {
   CustomerSurveyPublicFormPage,
@@ -250,6 +253,9 @@ const CRMDashboardPage = lazy(() =>
 );
 const OmnichannelSettingsPage = lazy(() =>
   import("@/5-3-dashboard/pages/OmnichannelSettingsPage").then((m) => ({ default: m.OmnichannelSettingsPage })),
+);
+const AutomationFlowEditorPage = lazy(() =>
+  import("@/5-3-automation-flow/pages/AutomationFlowEditorPage"),
 );
 const SalesOperationsPage = lazy(() =>
   import("@/5-2-activities/pages/SalesOperationsPage").then((m) => ({ default: m.SalesOperationsPage })),
@@ -1159,6 +1165,38 @@ function AppRoutes() {
               <Route
                 path="/omnichannel/settings/api-integration/docs"
                 element={<Navigate to="/omnichannel/settings/api-integration?tab=docs" replace />}
+              />
+              <Route
+                path="/omnichannel/settings/flow-builder"
+                element={<Navigate to="/omnichannel/settings/flow-builder/listing" replace />}
+              />
+              <Route
+                path="/omnichannel/settings/flow-builder/*"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/settings"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <OmnichannelSettingsSuspense>
+                      <OmnichannelSettingsPage />
+                    </OmnichannelSettingsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/omnichannel/flow-builder/:flowId/editor"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/settings"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                    loadingShellWrapperClassName="bg-gray-100 overflow-hidden"
+                  >
+                    <Suspense fallback={<AutomationFlowEditorSkeleton />}>
+                      <AutomationFlowEditorPage />
+                    </Suspense>
+                  </PageAccessGuard>
+                }
               />
               <Route
                 path="/omnichannel/settings/:section"
@@ -3030,6 +3068,38 @@ const App = () => (
                         <Route
                           path="/omnichannel/settings/api-integration/docs"
                           element={<Navigate to="/omnichannel/settings/api-integration?tab=docs" replace />}
+                        />
+                        <Route
+                          path="/omnichannel/settings/flow-builder"
+                          element={<Navigate to="/omnichannel/settings/flow-builder/listing" replace />}
+                        />
+                        <Route
+                          path="/omnichannel/settings/flow-builder/*"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/settings"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <OmnichannelSettingsSuspense>
+                                <OmnichannelSettingsPage />
+                              </OmnichannelSettingsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/omnichannel/flow-builder/:flowId/editor"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/settings"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShellWrapperClassName="bg-gray-100 overflow-hidden"
+                            >
+                              <Suspense fallback={<AutomationFlowEditorSkeleton />}>
+                                <AutomationFlowEditorPage />
+                              </Suspense>
+                            </PageAccessGuard>
+                          }
                         />
                         <Route
                           path="/omnichannel/settings/:section"

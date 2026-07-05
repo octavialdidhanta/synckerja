@@ -105,6 +105,10 @@ export interface WhatsAppMessage {
   read_at: string | null;
   /** Public URL for image/video/document preview (outbound: our storage; inbound: our storage after download from Meta). */
   media_url?: string | null;
+  /** Message source: agent manual send, flow automation bot, or system. */
+  source?: "agent" | "flow_automation" | "system" | null;
+  automation_flow_id?: string | null;
+  automation_enrollment_id?: string | null;
   /** Pesan yang dibalas: wa_message_id dan body untuk ditampilkan di bubble. */
   reply_to_wa_message_id?: string | null;
   reply_to_body?: string | null;

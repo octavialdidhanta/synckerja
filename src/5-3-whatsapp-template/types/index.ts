@@ -85,6 +85,10 @@ export type TemplateTableRow = {
   lastEditedAt: Date | null;
   /** HEADER `format` from Meta (`IMAGE` | `VIDEO` | `DOCUMENT`) when template has media header; else null. */
   mediaFormat: string | null;
+  /** True when template has at least one FLOW button component. */
+  hasFlowButton: boolean;
+  /** Meta Flow IDs linked via FLOW buttons. */
+  linkedFlowIds: string[];
 };
 
 /** `all` = no date window (show every template that passes other filters). */
@@ -110,6 +114,21 @@ export const QUALITY_FILTER_OPTIONS = [
 ] as const;
 
 export type QualityFilterOption = (typeof QUALITY_FILTER_OPTIONS)[number];
+
+export type TemplateCatalogView = "all" | "message_templates" | "form_flows" | "flow_templates";
+
+/** Meta WhatsApp Form Flow row in unified template catalog. */
+export type MetaFormFlowCatalogRow = {
+  catalogKind: "meta_form_flow";
+  id: string;
+  name: string;
+  status: "ACTIVE" | "DRAFT" | "OTHER";
+  lastUpdatedAt: Date | null;
+  linkedTemplateHsmId: string | null;
+  linkedTemplateName: string | null;
+  canSendViaTemplate: boolean;
+  canSendViaSession: boolean;
+};
 
 /** Local editor model for Meta template `BUTTONS` component (Graph / Business Management API). */
 export type QuickReplyVariant = "custom" | "prefilled";

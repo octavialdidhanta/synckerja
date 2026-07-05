@@ -191,8 +191,37 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // POST — create flow
+    // POST — create flow or publish existing
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const action = body.action != null ? String(body.action).trim().toLowerCase() : "";
+
+    if (action === "publish") {
+      const flowId = body.flow_id != null ? String(body.flow_id).trim() : "";
+      if (!flowId) {
+        return new Response(JSON.stringify({ error: "flow_id is required", code: "INVALID_BODY" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const publishUrl = `${META_API_BASE}/${encodeURIComponent(flowId)}/publish`;
+      const res = await fetch(publishUrl, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ctx.accessToken}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = json?.error?.message ?? json?.error_message ?? "Meta API error";
+        return new Response(JSON.stringify({ error: String(msg), details: json }), {
+          status: res.status >= 400 && res.status < 600 ? res.status : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ success: true, result: json }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const name = body.name != null ? String(body.name).trim() : "";
     const categoriesRaw = body.categories;
     const publish = Boolean(body.publish);

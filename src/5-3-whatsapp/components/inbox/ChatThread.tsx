@@ -66,6 +66,7 @@ import {
 } from '../../constants/leadStatus';
 import { LivechatFollowUpBar } from './LivechatFollowUpBar';
 import { LivechatFollowUpDialog } from './LivechatFollowUpDialog';
+import { LivechatFlowSendComposerButton, LivechatFlowSendDialog } from './flow-send';
 import { LivechatResolveHeaderButton } from './LivechatResolveHeaderButton';
 import { useWhatsAppAccounts } from '../../hooks/useWhatsAppAccounts';
 import type { Locale } from 'date-fns';
@@ -864,11 +865,88 @@ function MediaPreview({
     );
   }
 
-  if (messageType === 'quick_reply' || messageType === 'postback') {
+  if (messageType === 'interactive') {
+    const flowInteractive = (rawMetadata as {
+      flow_interactive?: {
+        type?: string;
+        action?: {
+          button?: string;
+          sections?: Array<{ rows?: Array<{ title?: string }> }>;
+          buttons?: Array<{ reply?: { title?: string } }>;
+        };
+      };
+    })?.flow_interactive;
+    const interactiveType = flowInteractive?.type ?? 'list';
+    const isReplyButtons = interactiveType === 'button';
+    const buttonText = flowInteractive?.action?.button ?? t('whatsappInbox.listMessageButton', 'List message');
+    const rows = flowInteractive?.action?.sections?.[0]?.rows ?? [];
+    const replyButtons = flowInteractive?.action?.buttons ?? [];
+    return (
+      <div className="min-w-0">
+        <span
+          className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            isOutbound ? 'bg-white/20 text-white' : isReplyButtons ? 'bg-violet-100 text-violet-800' : 'bg-blue-100 text-blue-800'
+          }`}
+        >
+          {isReplyButtons
+            ? t('whatsappInbox.quickReplyLabel', 'Quick reply')
+            : t('whatsappInbox.listMessageLabel', 'List message')}
+        </span>
+        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{body || '—'}</p>
+        {isReplyButtons ? (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {replyButtons.map((btn, index) => (
+              <span
+                key={`${btn.reply?.title ?? index}`}
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                  isOutbound ? 'border-white/30 bg-white/10 text-white' : 'border-border bg-background text-foreground'
+                }`}
+              >
+                {btn.reply?.title ?? '…'}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className={`mt-2 rounded border px-2 py-1.5 text-xs ${isOutbound ? 'border-white/30 bg-white/10 text-white' : 'border-border bg-background'}`}>
+            <span className="font-medium">{buttonText}</span>
+            {rows.length > 0 ? (
+              <ul className={`mt-1 space-y-0.5 ${isOutbound ? 'text-white/90' : 'text-muted-foreground'}`}>
+                {rows.slice(0, 4).map((row, index) => (
+                  <li key={`${row.title ?? index}`}>• {row.title}</li>
+                ))}
+                {rows.length > 4 ? <li>… +{rows.length - 4}</li> : null}
+              </ul>
+            ) : null}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (messageType === 'nfm_reply') {
+    return (
+      <div className="min-w-0">
+        <span
+          className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            isOutbound ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+          }`}
+        >
+          {t('whatsappInbox.formFlowSubmissionLabel', 'Form submission')}
+        </span>
+        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{body || '—'}</p>
+      </div>
+    );
+  }
+
+  if (messageType === 'quick_reply' || messageType === 'postback' || messageType === 'list_reply' || messageType === 'button_reply') {
     const chipLabel =
       messageType === 'quick_reply'
         ? t('whatsappInbox.quickReplyLabel', 'Quick reply')
-        : t('whatsappInbox.postbackLabel', 'Postback');
+        : messageType === 'list_reply'
+          ? t('whatsappInbox.listReplyLabel', 'List reply')
+          : messageType === 'button_reply'
+            ? t('whatsappInbox.buttonReplyLabel', 'Button reply')
+            : t('whatsappInbox.postbackLabel', 'Postback');
     return (
       <div className="min-w-0">
         <span
@@ -1077,6 +1155,7 @@ export function ChatThread({
   const [mediaViewer, setMediaViewer] = useState<{ url: string; type: string } | null>(null);
   const [scrollToMessageIdLocal, setScrollToMessageIdLocal] = useState<string | null>(null);
   const [followUpDialogOpen, setFollowUpDialogOpen] = useState(false);
+  const [flowSendDialogOpen, setFlowSendDialogOpen] = useState(false);
   const { accounts: waAccountsFromHook } = useWhatsAppAccounts();
   const waAccounts = waAccountsProp ?? waAccountsFromHook;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1450,6 +1529,8 @@ export function ChatThread({
     (isResolvedStatus(effectiveStatusName) || isExpiredStatusName(effectiveStatusName));
   const followUpActionDisabled =
     sendDisabledByNoAccount || sendDisabledByNoOmnichannelAddon;
+  const flowSendDisabled =
+    sendDisabledByNoAccount || sendDisabledByNoOmnichannelAddon || sendDisabledByNotAssignee;
   const sendDisabled =
     outboundSessionBlocked ||
     sendDisabledByNoAccount ||
@@ -2637,6 +2718,11 @@ export function ChatThread({
                       {inboundDropdown}
                     </div>
                   )}
+                  {msg.direction === "outbound" && msg.source === "flow_automation" ? (
+                    <div className="mb-1 inline-flex rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/90">
+                      {t("whatsappInbox.automationBadge", "Automation")}
+                    </div>
+                  ) : null}
                   {msg.direction === 'outbound' && !hasReplyBlock && outboundDropdown && (
                     <div className="absolute top-1 right-1" onClick={(e) => e.stopPropagation()}>
                       {outboundDropdown}
@@ -2863,10 +2949,15 @@ export function ChatThread({
                     'whatsappInbox.conversationResolvedFollowUpHint',
                     'Chat sudah di-resolve. Gunakan tombol Follow-up untuk mengirim template; balasan bebas setelah customer membalas.',
                   )
-                : t(
-                    'whatsappInbox.metaSessionExpiredFollowUpHint',
-                    'Sesi percakapan Meta sudah berakhir. Gunakan tombol Follow-up untuk mengirim template.',
-                  )}
+                : showFollowUpComposer
+                  ? t(
+                      'whatsappInbox.metaSessionExpiredFollowUpHint',
+                      'Sesi percakapan Meta sudah berakhir. Gunakan tombol Follow-up untuk mengirim template.',
+                    )
+                  : t(
+                      'whatsappInbox.metaSessionExpiredFlowHint',
+                      'Sesi percakapan Meta sudah berakhir. Gunakan tombol Kirim Flow untuk mengirim Flow Template.',
+                    )}
             </span>
           </div>
         )}
@@ -2967,6 +3058,13 @@ export function ChatThread({
           >
             <Paperclip className="h-4 w-4" />
           </button>
+          {!showFollowUpComposer && isWhatsAppConversation ? (
+            <LivechatFlowSendComposerButton
+              disabled={flowSendDisabled}
+              onClick={() => setFlowSendDialogOpen(true)}
+              compact={hideHeader}
+            />
+          ) : null}
           <Textarea
             ref={textareaRef}
             placeholder={pendingMedia ? t('whatsappInbox.writeCaption', 'Write caption (optional)...') : t('whatsappInbox.typeMessage', 'Type a message...')}
@@ -3024,6 +3122,15 @@ export function ChatThread({
           onOpenChange={setFollowUpDialogOpen}
           conversation={conversation as WhatsAppConversation}
           waAccounts={waAccounts}
+        />
+      ) : null}
+      {!showFollowUpComposer && conversation?.source === 'whatsapp' ? (
+        <LivechatFlowSendDialog
+          open={flowSendDialogOpen}
+          onOpenChange={setFlowSendDialogOpen}
+          conversation={conversation as WhatsAppConversation}
+          waAccounts={waAccounts}
+          showAutoAssignHint={!hasAssignee}
         />
       ) : null}
       {/* Image / video: immersive dark overlay */}

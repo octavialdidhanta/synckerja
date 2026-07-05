@@ -6,11 +6,17 @@ import {
 } from "../_shared/omnichannelPublicApi/mergeWaInboundAttribution.ts";
 import { resolveWebIdForInboundWhatsApp } from "../_shared/omnichannelPublicApi/resolveWebIdFromWhatsAppAccount.ts";
 import { syncOmnichannelWhatsAppDelivery } from "../_shared/omnichannelPublicApi/syncOmnichannelWhatsAppDelivery.ts";
+import { extractInboundWhatsAppBody } from "../_shared/omnichannelFlow/sendMessageRuntime.ts";
+import { persistWaFlowSubmissionToLead } from "../_shared/omnichannelFlow/persistWaFlowSubmission.ts";
 
 /** Declare Deno global for IDE when edge-runtime.d.ts is not resolved */
 declare const Deno: {
   serve: (handler: (req: Request) => Promise<Response> | Response) => void;
   env: { get(key: string): string | undefined };
+};
+
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<unknown>) => void;
 };
 
 const corsHeaders = {
@@ -22,6 +28,77 @@ const corsHeaders = {
 const META_GRAPH_BASE = "https://graph.facebook.com/v18.0";
 /** Same bucket as outbound sends (ChatThread) – satu bucket untuk kirim & terima media */
 const WHATSAPP_MEDIA_BUCKET = "whatsapp-media";
+
+async function invokeAutomationFlowRuntime(payload: {
+  organizationId: string;
+  conversationId: string;
+  messageId: string;
+  messageBody: string;
+  phoneNumberId: string | null;
+  customerWaId: string;
+  customerName: string | null;
+  isResumeFromWait?: boolean;
+  replyId?: string | null;
+}): Promise<void> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceRoleKey) return;
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/flow-runtime`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        organization_id: payload.organizationId,
+        conversation_id: payload.conversationId,
+        message_id: payload.messageId,
+        message_body: payload.messageBody,
+        phone_number_id: payload.phoneNumberId,
+        customer_wa_id: payload.customerWaId,
+        customer_name: payload.customerName,
+        is_resume_from_wait: payload.isResumeFromWait ?? true,
+        reply_id: payload.replyId ?? null,
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.error("flow-runtime invoke failed:", res.status, errText);
+    }
+  } catch (err) {
+    console.error("flow-runtime invoke error:", err);
+  }
+}
+
+type FlowRuntimeInvokePayload = {
+  organizationId: string;
+  conversationId: string;
+  messageId: string;
+  messageBody: string;
+  phoneNumberId: string | null;
+  customerWaId: string;
+  customerName: string | null;
+  isResumeFromWait?: boolean;
+  replyId?: string | null;
+};
+
+/** Keep flow-runtime alive after webhook 200; await when waitUntil unavailable (interactive). */
+async function scheduleFlowRuntimeInvoke(
+  payload: FlowRuntimeInvokePayload,
+  interactive: boolean,
+): Promise<void> {
+  const promise = invokeAutomationFlowRuntime(payload);
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime.waitUntil === "function") {
+    EdgeRuntime.waitUntil(promise);
+    return;
+  }
+  if (interactive) {
+    await promise;
+  } else {
+    void promise;
+  }
+}
 
 /** Frasa + kata satuan yang mengindikasikan permintaan kontak. On/off via env WHATSAPP_BLOCK_CONTACT_REQUESTS. */
 const CONTACT_REQUEST_PHRASES: readonly string[] = [
@@ -43,11 +120,23 @@ const CONTACT_REQUEST_PHRASES: readonly string[] = [
   "drop your number", "drop your email", "dm your number", "dm your email",
 ];
 
+function contactPhraseMatches(normalized: string, phrase: string): boolean {
+  const p = phrase.trim().toLowerCase();
+  if (!p) return false;
+  // Multi-word phrases are specific enough for substring match.
+  if (p.includes(" ")) {
+    return normalized.includes(p);
+  }
+  // Single-token phrases use word boundaries so "wa" does not match inside "awal".
+  const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(normalized);
+}
+
 function messageContainsContactRequest(text: string | null | undefined): boolean {
   if (text == null || text === "") return false;
   const normalized = text.toLowerCase().trim().replace(/\s+/g, " ");
   if (normalized.length === 0) return false;
-  return CONTACT_REQUEST_PHRASES.some((phrase) => normalized.includes(phrase));
+  return CONTACT_REQUEST_PHRASES.some((phrase) => contactPhraseMatches(normalized, phrase));
 }
 
 /** Meta outbound status webhook values (sent → delivered → read); failed is terminal. */
@@ -646,6 +735,7 @@ async function ensureLeadsVialdiWeddingFromAnalyticsWaClick(args: {
     );
 
     if (upsertErr) {
+      if ((upsertErr as { code?: string }).code === "PGRST205") return;
       console.warn("ensureLeadsVialdiWeddingFromAnalyticsWaClick: leads_vialdi_wedding upsert error", upsertErr);
     }
   } catch (e) {
@@ -658,6 +748,135 @@ type LivechatPushTable = "whatsapp_messages" | "instagram_messages" | "email_mes
 
 function livechatPushUsesDatabaseWebhookOnly(): boolean {
   return Deno.env.get("LIVECHAT_USE_DATABASE_WEBHOOK_FOR_PUSH") === "true";
+}
+
+async function runInboundMessageSideEffects(
+  supabase: ReturnType<typeof createClient>,
+  args: {
+    orgId: string;
+    convId: string;
+    insertPayload: Record<string, unknown>;
+    timestamp: string;
+  },
+): Promise<void> {
+  const { orgId, convId, insertPayload, timestamp } = args;
+
+  await notifyLivechatInboundPush("whatsapp_messages", insertPayload);
+  await supabase.rpc("sync_conversation_last_message", { p_conversation_id: convId });
+
+  await supabase
+    .from("whatsapp_conversations")
+    .update({
+      meta_session_expires_at: null,
+      last_inbound_at: timestamp,
+      updated_at: timestamp,
+    })
+    .eq("id", convId);
+
+  const { data: convTemplateState } = await supabase
+    .from("whatsapp_conversations")
+    .select("template_followup_awaiting_reply, ticket_id")
+    .eq("id", convId)
+    .maybeSingle();
+  if (convTemplateState?.template_followup_awaiting_reply === true) {
+    let linkedLeadId: string | null = null;
+    const convTicket = (convTemplateState.ticket_id as string | null)?.trim() ?? "";
+    if (convTicket) {
+      const { data: leadByTicket } = await supabase
+        .from("leads")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("ticket_id", convTicket)
+        .maybeSingle();
+      linkedLeadId = (leadByTicket?.id as string | undefined) ?? null;
+    }
+    const { error: resetErr } = await supabase.rpc("apply_template_followup_customer_reply", {
+      p_lead_id: linkedLeadId,
+      p_conv_id: convId,
+    });
+    if (resetErr) {
+      console.error("apply_template_followup_customer_reply error:", resetErr);
+    }
+  }
+
+  const { data: convRow } = await supabase
+    .from("whatsapp_conversations")
+    .select("lead_status_id, first_inbound_at")
+    .eq("id", convId)
+    .single();
+  const statusId = convRow?.lead_status_id ?? null;
+  const firstInboundAt = convRow?.first_inbound_at ?? null;
+  let leadStatusName: string | null = null;
+  if (statusId) {
+    const { data: statusRow } = await supabase
+      .from("lead_statuses")
+      .select("name")
+      .eq("id", statusId)
+      .maybeSingle();
+    leadStatusName = (statusRow?.name as string) ?? null;
+  }
+  const orgOrGlobal = `organization_id.eq.${orgId},organization_id.is.null`;
+  const { data: openStatus } = await supabase
+    .from("lead_statuses")
+    .select("id")
+    .or(orgOrGlobal)
+    .eq("name", "Open")
+    .maybeSingle();
+  const { data: unreadStatus } = openStatus?.id
+    ? { data: null }
+    : await supabase.from("lead_statuses").select("id").or(orgOrGlobal).eq("name", "Unread").maybeSingle();
+  const openStatusId = openStatus?.id ?? unreadStatus?.id ?? null;
+
+  if (firstInboundAt == null) {
+    await supabase
+      .from("whatsapp_conversations")
+      .update({ first_inbound_at: timestamp, last_inbound_at: timestamp, updated_at: timestamp })
+      .eq("id", convId);
+  }
+
+  const statusNameLower = leadStatusName?.trim().toLowerCase() ?? "";
+  const isResolved = statusNameLower === "closed" || statusNameLower === "resolve";
+  const isExpired = statusNameLower === "expired";
+  const isNewOrReopen = openStatusId && (statusId == null || isResolved || isExpired);
+  console.log("Resolve-cycle:", {
+    conversation_id: convId,
+    leadStatusName,
+    isResolved,
+    openStatusId: openStatusId ?? "MISSING",
+    isNewOrReopen,
+  });
+  if (isNewOrReopen) {
+    const { data: convBefore } = await supabase
+      .from("whatsapp_conversations")
+      .select("organization_id, ticket_id")
+      .eq("id", convId)
+      .maybeSingle();
+    const { error: updateErr } = await supabase
+      .from("whatsapp_conversations")
+      .update({ lead_status_id: openStatusId, last_inbound_at: timestamp, updated_at: timestamp })
+      .eq("id", convId);
+    if (updateErr) {
+      console.error("Reopen to Open (Unread) update error:", updateErr);
+    } else {
+      console.log("Reopened conversation to Open (Unread):", convId, { openStatusId, hadStatus: statusId });
+    }
+    if (convBefore?.organization_id && openStatusId) {
+      const ticketId = (convBefore.ticket_id as string) ?? `WA-${convId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+      const { error: leadErr } = await supabase
+        .from("leads")
+        .update({ status_id: openStatusId, updated_at: timestamp })
+        .eq("organization_id", convBefore.organization_id)
+        .eq("ticket_id", ticketId);
+      if (leadErr) console.error("Reopen: sync leads.status_id to Open failed:", leadErr);
+    }
+    const { error: cycleErr } = await supabase.from("whatsapp_conversation_cycles").insert({
+      conversation_id: convId,
+      cycle_started_at: timestamp,
+    });
+    if (cycleErr) console.error("New cycle insert error:", cycleErr);
+  } else if (isResolved && !openStatusId) {
+    console.warn("Cannot reopen: lead_statuses has no row with name 'Open' or 'Unread' (org or global). Add Open or Unread status in DB.");
+  }
 }
 
 async function notifyLivechatInboundPush(
@@ -920,6 +1139,18 @@ Deno.serve(async (req: Request) => {
                 console.log("[whatsapp-webhook] POST entry whatsapp_business_account_id=", whatsappBusinessAccountId, "phone_number_id=", phoneNumberId ?? "(none)");
               }
 
+              if (messages.length === 0 && statuses.length > 0) {
+                console.log(
+                  "[whatsapp-webhook] status-only payload:",
+                  "statuses=",
+                  statuses.length,
+                  "phone_number_id=",
+                  phoneNumberId ?? "(none)",
+                  "sample_ids=",
+                  statuses.slice(0, 3).map((s: { id?: string; status?: string }) => `${s.status ?? "?"}:${String(s.id ?? "").slice(-8)}`).join(","),
+                );
+              }
+
               // Status updates (sent | delivered | read | failed): inbox raw_metadata + campaign blast recipients
               for (const st of statuses) {
                 const waMessageId = st.id != null ? String(st.id).trim() : "";
@@ -1084,17 +1315,41 @@ Deno.serve(async (req: Request) => {
 
                 for (const msg of sortedMessages) {
                 if (msg.type === "unsupported") {
+                  console.log("[whatsapp-webhook] skip unsupported inbound", { msgId: msg.id, from: msg.from });
                   continue;
                 }
                 const customerWaId = String(msg.from ?? "");
                 const mediaCaption = getInboundMediaCaption(msg as Record<string, unknown>);
-                const msgType = String(msg.type ?? "text");
-                let bodyText =
-                  msg.text?.body ?? mediaCaption ?? (msgType === "text" ? "" : `[${msgType}]`);
-                if (blockContactRequests && messageContainsContactRequest(bodyText)) {
-                  continue;
+                const extracted = extractInboundWhatsAppBody(msg as Record<string, unknown>);
+                let msgType = extracted.messageType || String(msg.type ?? "text");
+                let bodyText = extracted.body;
+                if (!extracted.replyId) {
+                  bodyText = msg.text?.body ?? mediaCaption ?? extracted.body ?? (msgType === "text" ? "" : `[${msgType}]`);
+                  if (msgType === "text" && !msg.text?.body && mediaCaption) msgType = String(msg.type ?? "text");
                 }
                 const msgId = msg.id;
+                const isFlowInteractiveReply =
+                  extracted.replyId != null ||
+                  msgType === "list_reply" ||
+                  msgType === "button_reply";
+                const isMetaFormFlowSubmission = msgType === "nfm_reply";
+                if (
+                  blockContactRequests &&
+                  !isFlowInteractiveReply &&
+                  !isMetaFormFlowSubmission &&
+                  messageContainsContactRequest(bodyText)
+                ) {
+                  console.log("[whatsapp-webhook] skip contact-request block", { msgId, bodyPreview: String(bodyText).slice(0, 80) });
+                  continue;
+                }
+
+                console.log("[whatsapp-webhook] inbound message", {
+                  msgId,
+                  from: customerWaId,
+                  msgType,
+                  replyId: extracted.replyId,
+                  bodyPreview: String(bodyText ?? "").slice(0, 80),
+                });
                 const timestamp = msg.timestamp ? new Date(Number(msg.timestamp) * 1000).toISOString() : new Date().toISOString();
                 const customerName = contactMap[customerWaId] ?? null;
 
@@ -1166,15 +1421,72 @@ Deno.serve(async (req: Request) => {
                   continue;
                 }
 
-                await reconcileFormLeadWithWaTicket(
+                if (isMetaFormFlowSubmission && extracted.flowResponse) {
+                  const ticketId = WA_TICKET_PREFIX + String(conv.id).replace(/-/g, "").slice(0, 8).toUpperCase();
+                  const { data: leadRow } = await supabase
+                    .from("leads")
+                    .select("id")
+                    .eq("organization_id", orgId)
+                    .eq("ticket_id", ticketId)
+                    .maybeSingle();
+                  if (!leadRow?.id) {
+                    await ensureLeadForNewConversation(
+                      supabase,
+                      orgId,
+                      conv.id,
+                      "whatsapp",
+                      customerName ?? customerWaId ?? "WhatsApp",
+                      lastBody ?? "WhatsApp Form Flow",
+                      customerWaId,
+                      account.created_by_display_name,
+                      account.display_phone_number,
+                      phoneNumberId,
+                    );
+                  }
+                  await persistWaFlowSubmissionToLead(supabase, {
+                    orgId,
+                    convId: conv.id,
+                    customerWaId,
+                    customerName,
+                    flowResponse: extracted.flowResponse,
+                    flowName: extracted.flowName ?? null,
+                  });
+                }
+
+                const flowRuntimePayload = {
+                  organizationId: orgId,
+                  conversationId: conv.id,
+                  messageId: msgId,
+                  messageBody: bodyText ?? "",
+                  phoneNumberId: phoneNumberId ?? null,
+                  customerWaId,
+                  customerName: customerName ?? null,
+                  isResumeFromWait: true,
+                  replyId: extracted.replyId,
+                };
+
+                // Resume automation immediately for list/button picks — don't wait on CRM side-effects.
+                let automationFlowInvokedEarly = false;
+                if (isFlowInteractiveReply) {
+                  automationFlowInvokedEarly = true;
+                  console.log("flow-runtime interactive invoke", {
+                    conversationId: conv.id,
+                    messageId: msgId,
+                    msgType,
+                    replyId: extracted.replyId,
+                    messageBody: bodyText,
+                  });
+                  await scheduleFlowRuntimeInvoke(flowRuntimePayload, true);
+                }
+
+                const reconcileFormLead = reconcileFormLeadWithWaTicket(
                   supabase,
                   orgId,
                   conv.id,
                   customerWaId,
                   customerName ?? customerWaId ?? "",
                 );
-
-                await ensureLeadsVialdiWeddingFromAnalyticsWaClick({
+                const vialdiLeadSync = ensureLeadsVialdiWeddingFromAnalyticsWaClick({
                   supabase,
                   orgId,
                   convId: conv.id,
@@ -1184,31 +1496,40 @@ Deno.serve(async (req: Request) => {
                   phoneNumberId,
                   timestampIso: timestamp,
                 });
-
-                let mediaUrl: string | null = null;
-                const mediaInfo = getMediaIdAndType(msg as Record<string, unknown>);
-                if (mediaInfo && accessToken) {
-                  mediaUrl = await resolveInboundMediaUrl(
-                    mediaInfo.id,
-                    accessToken,
-                    supabase,
-                    conv.id,
-                    msgId,
-                    mediaInfo.type,
-                    mediaInfo.mime,
-                    mediaInfo.filename
-                  );
-                  if (!mediaUrl) {
-                    console.warn("Inbound media resolution failed (Meta or storage). Message will show [image] + Tampilkan gambar.", { msgId, type: mediaInfo.type });
-                  }
+                if (isFlowInteractiveReply) {
+                  void reconcileFormLead;
+                  void vialdiLeadSync;
+                } else {
+                  await reconcileFormLead;
+                  await vialdiLeadSync;
                 }
 
-                if (msgType === "sticker" && mediaUrl) {
-                  bodyText = "Sticker";
-                  await supabase
-                    .from("whatsapp_conversations")
-                    .update({ last_message_body: "Sticker", updated_at: timestamp })
-                    .eq("id", conv.id);
+                let mediaUrl: string | null = null;
+                if (!isFlowInteractiveReply) {
+                  const mediaInfo = getMediaIdAndType(msg as Record<string, unknown>);
+                  if (mediaInfo && accessToken) {
+                    mediaUrl = await resolveInboundMediaUrl(
+                      mediaInfo.id,
+                      accessToken,
+                      supabase,
+                      conv.id,
+                      msgId,
+                      mediaInfo.type,
+                      mediaInfo.mime,
+                      mediaInfo.filename
+                    );
+                    if (!mediaUrl) {
+                      console.warn("Inbound media resolution failed (Meta or storage). Message will show [image] + Tampilkan gambar.", { msgId, type: mediaInfo.type });
+                    }
+                  }
+
+                  if (msgType === "sticker" && mediaUrl) {
+                    bodyText = "Sticker";
+                    await supabase
+                      .from("whatsapp_conversations")
+                      .update({ last_message_body: "Sticker", updated_at: timestamp })
+                      .eq("id", conv.id);
+                  }
                 }
 
                 const insertPayload: Record<string, unknown> = {
@@ -1218,7 +1539,7 @@ Deno.serve(async (req: Request) => {
                   platform_message_id: msgId,
                   channel: "whatsapp",
                   body: bodyText,
-                  message_type: msg.type ?? "text",
+                  message_type: msgType,
                   raw_metadata: msg,
                   created_at: timestamp,
                 };
@@ -1228,7 +1549,7 @@ Deno.serve(async (req: Request) => {
                 const msgRaw = msg as Record<string, unknown>;
                 const context = msgRaw?.context as { reply_to?: { id?: string }; id?: string } | undefined;
                 const replyToId = context?.reply_to?.id ?? context?.id;
-                if (replyToId && typeof replyToId === "string") {
+                if (!isFlowInteractiveReply && replyToId && typeof replyToId === "string") {
                   const replyToWaMessageId = replyToId.trim();
                   if (replyToWaMessageId) {
                     insertPayload.reply_to_wa_message_id = replyToWaMessageId;
@@ -1258,130 +1579,40 @@ Deno.serve(async (req: Request) => {
 
                 const { error: waInsertErr } = await supabase.from("whatsapp_messages").insert(insertPayload);
                 if (waInsertErr) {
-                  console.error("whatsapp_messages insert error", waInsertErr);
+                  const isDuplicate =
+                    (waInsertErr as { code?: string }).code === "23505" ||
+                    String(waInsertErr.message ?? "").toLowerCase().includes("duplicate");
+                  if (isDuplicate) {
+                    console.warn("Duplicate wa_message_id; continuing flow-runtime resume", msgId);
+                  } else {
+                    console.error("whatsapp_messages insert error (still invoking flow-runtime)", waInsertErr);
+                  }
+                }
+                // Text / non-interactive inbound: invoke after persist. Interactive picks already fired above.
+                if (!automationFlowInvokedEarly) {
+                  await scheduleFlowRuntimeInvoke(flowRuntimePayload, false);
+                }
+                if (waInsertErr) {
                   continue;
                 }
-                await notifyLivechatInboundPush("whatsapp_messages", insertPayload);
-                // Sync last_message from actual latest message so preview is always correct
-                await supabase.rpc("sync_conversation_last_message", { p_conversation_id: conv.id });
 
-                // Customer inbound reopens Meta CSW — clear stale lock from prior failed/expired outbound.
-                await supabase
-                  .from("whatsapp_conversations")
-                  .update({
-                    meta_session_expires_at: null,
-                    last_inbound_at: timestamp,
-                    updated_at: timestamp,
-                  })
-                  .eq("id", conv.id);
-
-                // Template follow-up cycle: customer replied → reset followup, Set Status
-                const { data: convTemplateState } = await supabase
-                  .from("whatsapp_conversations")
-                  .select("template_followup_awaiting_reply, ticket_id")
-                  .eq("id", conv.id)
-                  .maybeSingle();
-                if (convTemplateState?.template_followup_awaiting_reply === true) {
-                  let linkedLeadId: string | null = null;
-                  const convTicket = (convTemplateState.ticket_id as string | null)?.trim() ?? "";
-                  if (convTicket) {
-                    const { data: leadByTicket } = await supabase
-                      .from("leads")
-                      .select("id")
-                      .eq("organization_id", orgId)
-                      .eq("ticket_id", convTicket)
-                      .maybeSingle();
-                    linkedLeadId = (leadByTicket?.id as string | undefined) ?? null;
-                  }
-                  const { error: resetErr } = await supabase.rpc("apply_template_followup_customer_reply", {
-                    p_lead_id: linkedLeadId,
-                    p_conv_id: conv.id,
+                // List/button picks: automation already running — defer CRM/sync so flow-runtime is not blocked.
+                if (isFlowInteractiveReply) {
+                  void runInboundMessageSideEffects(supabase, {
+                    orgId,
+                    convId: conv.id,
+                    insertPayload,
+                    timestamp,
                   });
-                  if (resetErr) {
-                    console.error("apply_template_followup_customer_reply error:", resetErr);
-                  }
+                  continue;
                 }
 
-                // Resolve-cycle tracking: first_inbound_at, re-open to Unread (Open), new cycle when Closed or new conv
-                const { data: convRow } = await supabase
-                  .from("whatsapp_conversations")
-                  .select("lead_status_id, first_inbound_at")
-                  .eq("id", conv.id)
-                  .single();
-                const statusId = convRow?.lead_status_id ?? null;
-                const firstInboundAt = convRow?.first_inbound_at ?? null;
-                let leadStatusName: string | null = null;
-                if (statusId) {
-                  const { data: statusRow } = await supabase
-                    .from("lead_statuses")
-                    .select("name")
-                    .eq("id", statusId)
-                    .maybeSingle();
-                  leadStatusName = (statusRow?.name as string) ?? null;
-                }
-                // Prefer "Open", fallback "Unread". Include global statuses (organization_id IS NULL) for all tenants.
-                const orgOrGlobal = `organization_id.eq.${orgId},organization_id.is.null`;
-                const { data: openStatus } = await supabase
-                  .from("lead_statuses")
-                  .select("id")
-                  .or(orgOrGlobal)
-                  .eq("name", "Open")
-                  .maybeSingle();
-                const { data: unreadStatus } = openStatus?.id
-                  ? { data: null }
-                  : await supabase.from("lead_statuses").select("id").or(orgOrGlobal).eq("name", "Unread").maybeSingle();
-                const openStatusId = openStatus?.id ?? unreadStatus?.id ?? null;
-
-                if (firstInboundAt == null) {
-                  await supabase
-                    .from("whatsapp_conversations")
-                    .update({ first_inbound_at: timestamp, last_inbound_at: timestamp, updated_at: timestamp })
-                    .eq("id", conv.id);
-                }
-
-                const statusNameLower = leadStatusName?.trim().toLowerCase() ?? "";
-                const isResolved = statusNameLower === "closed" || statusNameLower === "resolve";
-                const isExpired = statusNameLower === "expired";
-                const isNewOrReopen = openStatusId && (statusId == null || isResolved || isExpired);
-                console.log("Resolve-cycle:", {
-                  conversation_id: conv.id,
-                  leadStatusName,
-                  isResolved,
-                  openStatusId: openStatusId ?? "MISSING",
-                  isNewOrReopen,
+                await runInboundMessageSideEffects(supabase, {
+                  orgId,
+                  convId: conv.id,
+                  insertPayload,
+                  timestamp,
                 });
-                if (isNewOrReopen) {
-                  const { data: convBefore } = await supabase
-                    .from("whatsapp_conversations")
-                    .select("organization_id, ticket_id")
-                    .eq("id", conv.id)
-                    .maybeSingle();
-                  const { error: updateErr } = await supabase
-                    .from("whatsapp_conversations")
-                    .update({ lead_status_id: openStatusId, last_inbound_at: timestamp, updated_at: timestamp })
-                    .eq("id", conv.id);
-                  if (updateErr) {
-                    console.error("Reopen to Open (Unread) update error:", updateErr);
-                  } else {
-                    console.log("Reopened conversation to Open (Unread):", conv.id, { openStatusId, hadStatus: statusId });
-                  }
-                  if (convBefore?.organization_id && openStatusId) {
-                    const ticketId = (convBefore.ticket_id as string) ?? `WA-${conv.id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
-                    const { error: leadErr } = await supabase
-                      .from("leads")
-                      .update({ status_id: openStatusId, updated_at: timestamp })
-                      .eq("organization_id", convBefore.organization_id)
-                      .eq("ticket_id", ticketId);
-                    if (leadErr) console.error("Reopen: sync leads.status_id to Open failed:", leadErr);
-                  }
-                  const { error: cycleErr } = await supabase.from("whatsapp_conversation_cycles").insert({
-                    conversation_id: conv.id,
-                    cycle_started_at: timestamp,
-                  });
-                  if (cycleErr) console.error("New cycle insert error:", cycleErr);
-                } else if (isResolved && !openStatusId) {
-                  console.warn("Cannot reopen: lead_statuses has no row with name 'Open' or 'Unread' (org or global). Add Open or Unread status in DB.");
-                }
               }
               }
             }

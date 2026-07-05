@@ -70,6 +70,7 @@ export function CreateTemplateWizard({
   onOpenChange,
   whatsappAccountId = null,
   onWhatsappAccountIdChange,
+  prefillFlowId = null,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -77,6 +78,8 @@ export function CreateTemplateWizard({
   whatsappAccountId?: string | null;
   /** Menyelaraskan dropdown akun di halaman template saat pengguna mengganti akun di wizard. */
   onWhatsappAccountIdChange?: (id: string) => void;
+  /** Pre-fill FLOW button with Meta form flow id (from Form Flows catalog). */
+  prefillFlowId?: string | null;
 }) {
   const { t } = useTranslation();
   const { accounts: waAccounts, isLoading: waAccountsLoading } = useWhatsAppAccounts();
@@ -122,6 +125,18 @@ export function CreateTemplateWizard({
       return fromPage ?? waAccounts[0].id;
     });
   }, [open, whatsappAccountId, waAccountIdsKey, waAccounts]);
+
+  useEffect(() => {
+    if (!open || !prefillFlowId?.trim()) return;
+    setMessageType("flows");
+    setCategory("MARKETING");
+    setTemplateButtons((prev) => {
+      const withFlow = ensureFlowTemplateButton(prev);
+      return withFlow.map((b) =>
+        b.kind === "FLOW" ? { ...b, flowId: prefillFlowId.trim(), text: b.text || "View flow" } : b,
+      );
+    });
+  }, [open, prefillFlowId]);
 
   useEffect(() => {
     const idx = sortedUniqueVariableIndices(body);

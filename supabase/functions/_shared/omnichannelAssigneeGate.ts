@@ -114,3 +114,37 @@ export function jsonGateError(
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+/** Auto-assign sender as conversation assignee when unassigned (follow-up / flow send). */
+export async function ensureConversationAssigneeForFollowUp(
+  admin: SupabaseClient,
+  conversationId: string,
+  currentAssigneeId: string | null | undefined,
+  senderEmployeeId: string,
+): Promise<{ effectiveAssigneeId: string; autoAssigned: boolean }> {
+  const existing =
+    currentAssigneeId != null && String(currentAssigneeId).trim() !== ""
+      ? String(currentAssigneeId).trim()
+      : null;
+  if (existing) {
+    return { effectiveAssigneeId: existing, autoAssigned: false };
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("whatsapp_conversations")
+    .update({ assignee_id: senderEmployeeId, updated_at: now })
+    .eq("id", conversationId);
+
+  if (error) {
+    console.error("ensureConversationAssigneeForFollowUp error:", error);
+    throw error;
+  }
+
+  console.log("auto_assigned_followup", {
+    conversation_id: conversationId,
+    employee_id: senderEmployeeId,
+  });
+
+  return { effectiveAssigneeId: senderEmployeeId, autoAssigned: true };
+}

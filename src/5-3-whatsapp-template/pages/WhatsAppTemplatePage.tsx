@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { HeaderAndTab } from "@/5-3-dashboard/components/layout/HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
@@ -14,7 +15,7 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { useWhatsAppAccounts } from "@/5-3-whatsapp/hooks/useWhatsAppAccounts";
-import { useWhatsAppMessageTemplates } from "../hooks/useWhatsAppMessageTemplates";
+import { useWhatsAppTemplateCatalog } from "../hooks/useWhatsAppTemplateCatalog";
 import { useDeleteWhatsAppMessageTemplate } from "../hooks/useDeleteWhatsAppMessageTemplate";
 import { mapMetaTemplateToRow } from "../utils/mapMetaTemplateToRow";
 import type {
@@ -22,6 +23,7 @@ import type {
   MetaMessageTemplate,
   QualityFilterOption,
   StatusFilterOption,
+  TemplateCatalogView,
   TemplateTableRow,
 } from "../types";
 import { templateDeleteBlockReason } from "../utils/templateDeleteRules";
@@ -32,6 +34,10 @@ import { TemplateDetailPanel } from "../components/TemplateDetailPanel";
 import { useWhatsAppMessageTemplateByHsmId } from "../hooks/useWhatsAppMessageTemplateByHsmId";
 import { WhatsAppTemplateEmptyState } from "../components/WhatsAppTemplateEmptyState";
 import { CreateTemplateWizard } from "../components/CreateTemplateWizard";
+import {
+  TemplateCatalogFilterChips,
+  TemplateFormFlowsTable,
+} from "../components/TemplateFormFlowsTable";
 
 const MAX_ACTIVE_TEMPLATES = 6000;
 
@@ -125,10 +131,18 @@ export function WhatsAppTemplatePage() {
     );
   }, [organizationId, whatsappAccounts]);
 
-  const { data, isLoading, isError, isFetched, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useWhatsAppMessageTemplates(selectedWhatsappAccountId, {
-      enabled: !whatsappAccountsLoading && whatsappAccounts.length > 0,
-    });
+  const catalog = useWhatsAppTemplateCatalog(selectedWhatsappAccountId, {
+    enabled: !whatsappAccountsLoading && whatsappAccounts.length > 0,
+  });
+  const { isLoading, isError, error } = catalog;
+
+  const [searchParams] = useSearchParams();
+  const [catalogView, setCatalogView] = useState<TemplateCatalogView>(() => {
+    const v = searchParams.get("catalog");
+    if (v === "form_flows" || v === "flow_templates" || v === "message_templates" || v === "all") return v;
+    return "all";
+  });
+  const [prefillFlowId, setPrefillFlowId] = useState<string | null>(() => searchParams.get("flowId"));
 
   const [subTab, setSubTab] = useState<TemplateManagerSubTab>("templates");
   const [searchQuery, setSearchQuery] = useState("");
@@ -143,6 +157,14 @@ export function WhatsAppTemplatePage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<TemplateTableRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TemplateTableRow | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("create") === "1" && searchParams.get("flowId")) {
+      setPrefillFlowId(searchParams.get("flowId"));
+      setWizardOpen(true);
+      setCatalogView("form_flows");
+    }
+  }, [searchParams]);
 
   const detailMetaQuery = useWhatsAppMessageTemplateByHsmId({
     hsmId: detailRow?.id ?? null,
@@ -170,17 +192,14 @@ export function WhatsAppTemplatePage() {
 
   const deleteMutation = useDeleteWhatsAppMessageTemplate();
 
-  const rawRows = useMemo(() => {
-    const pages = data?.pages ?? [];
-    const items: MetaMessageTemplate[] = pages.flatMap((p) => p.data ?? []);
-    const mapped = items.map((m) => mapMetaTemplateToRow(m)).filter((r): r is TemplateTableRow => r != null);
-    const seen = new Set<string>();
-    return mapped.filter((r) => {
-      if (seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
+  const rawRows = catalog.messageTemplates;
+  const filteredFormFlows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return catalog.formFlows.filter((f) => {
+      if (!q) return true;
+      return f.name.toLowerCase().includes(q) || f.id.includes(q);
     });
-  }, [data]);
+  }, [catalog.formFlows, searchQuery]);
 
   const languageOptions = useMemo(() => {
     const s = new Set<string>();
@@ -196,6 +215,8 @@ export function WhatsAppTemplatePage() {
   const filteredSorted = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     let list = rawRows.filter((r) => {
+      if (catalogView === "flow_templates" && !r.hasFlowButton) return false;
+      if (catalogView === "message_templates" && r.hasFlowButton) return false;
       if (q && !r.templateName.toLowerCase().includes(q) && !r.bodyPreview.toLowerCase().includes(q)) return false;
       if (categoryFilters.length > 0 && !categoryFilters.includes(r.categoryFilter)) return false;
       if (languageFilters.length > 0 && !languageFilters.includes(r.languageLabel)) return false;
@@ -209,7 +230,17 @@ export function WhatsAppTemplatePage() {
     });
     list = sortRows(list, sortKey, sortDir);
     return list;
-  }, [rawRows, searchQuery, categoryFilters, languageFilters, statusFilters, qualityFilters, datePreset, dateFilterDisabled, sortKey, sortDir]);
+  }, [rawRows, searchQuery, categoryFilters, languageFilters, statusFilters, qualityFilters, datePreset, dateFilterDisabled, sortKey, sortDir, catalogView]);
+
+  const catalogCounts = useMemo(
+    () => ({
+      all: rawRows.length + catalog.formFlows.length,
+      messageTemplates: rawRows.filter((r) => !r.hasFlowButton).length,
+      formFlows: catalog.formFlows.length,
+      flowTemplates: catalog.flowTemplates.length,
+    }),
+    [rawRows, catalog.formFlows.length, catalog.flowTemplates.length],
+  );
 
   const activeApprovedCount = useMemo(() => rawRows.filter((r) => r.statusRaw === "APPROVED").length, [rawRows]);
 
@@ -285,7 +316,7 @@ export function WhatsAppTemplatePage() {
   }, [deleteTarget, deleteMutation, selectedWhatsappAccountId]);
 
   /** Jangan tebak dari tabel akun di klien (RLS / data bisa kosong); satu sumber kebenaran = respons Edge Function. */
-  const serverSaysNotConfigured = isFetched && isError && isNotConfiguredTemplatesError(error);
+  const serverSaysNotConfigured = !isLoading && isError && isNotConfiguredTemplatesError(error);
 
   const errorDetail = isError && error instanceof Error ? error.message : null;
 
@@ -349,7 +380,28 @@ export function WhatsAppTemplatePage() {
                         onSelectedWhatsappAccountIdChange={setSelectedWhatsappAccountId}
                       />
 
-                      {isLoading ? (
+                      <TemplateCatalogFilterChips
+                        value={catalogView}
+                        onChange={setCatalogView}
+                        counts={catalogCounts}
+                      />
+
+                      {catalogView === "form_flows" ? (
+                        isLoading ? (
+                          <div className="mt-4 h-48 animate-pulse rounded-md bg-slate-100" aria-busy aria-label="Loading form flows" />
+                        ) : (
+                          <div className="mt-4">
+                            <TemplateFormFlowsTable
+                              rows={filteredFormFlows}
+                              onCreateTemplate={(flowId) => {
+                                setPrefillFlowId(flowId);
+                                setDetailRow(null);
+                                setWizardOpen(true);
+                              }}
+                            />
+                          </div>
+                        )
+                      ) : isLoading ? (
                         <div className="mt-4 h-48 animate-pulse rounded-md bg-slate-100" aria-busy aria-label="Loading templates" />
                       ) : rawRows.length === 0 ? (
                         <div className="mt-4">
@@ -375,12 +427,8 @@ export function WhatsAppTemplatePage() {
                             <p>
                               {filteredSorted.length} message templates shown (total active templates: {activeApprovedCount} of{" "}
                               {MAX_ACTIVE_TEMPLATES})
+                              {catalog.isFetchingTemplates ? " · syncing…" : ""}
                             </p>
-                            {hasNextPage ? (
-                              <Button type="button" variant="outline" size="sm" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
-                                {isFetchingNextPage ? "Loading…" : "Load more"}
-                              </Button>
-                            ) : null}
                           </div>
                         </>
                       )}
@@ -396,9 +444,13 @@ export function WhatsAppTemplatePage() {
       </div>
       <CreateTemplateWizard
         open={wizardOpen}
-        onOpenChange={setWizardOpen}
+        onOpenChange={(open) => {
+          setWizardOpen(open);
+          if (!open) setPrefillFlowId(null);
+        }}
         whatsappAccountId={selectedWhatsappAccountId}
         onWhatsappAccountIdChange={setSelectedWhatsappAccountId}
+        prefillFlowId={prefillFlowId}
       />
 
       <AlertDialog open={deleteTarget != null} onOpenChange={(o) => !o && setDeleteTarget(null)}>

@@ -1,17 +1,19 @@
 import type { LucideIcon } from "lucide-react";
 import { ClipboardList, Code2, Megaphone, Target, Timer, Users } from "lucide-react";
+import { FlowBuilderIcon } from "@/5-3-dashboard/omnichannel-settings/components/icons/FlowBuilderIcon";
 
 export type OmnichannelSettingsSectionId =
   | "user-management"
   | "sla"
   | "survey"
+  | "flow"
   | "target"
   | "offline-conversion"
   | "api-integration";
 
 export type OmnichannelSettingsSectionMeta = {
   id: OmnichannelSettingsSectionId;
-  /** Last path segment under `/omnichannel/settings/`. */
+  /** Path segment(s) under `/omnichannel/settings/` (may include nested paths). */
   urlSlug: string;
   icon: LucideIcon;
   titleKey: string;
@@ -45,6 +47,14 @@ export const OMNICHANNEL_SETTINGS_SECTIONS: OmnichannelSettingsSectionMeta[] = [
     status: "active",
   },
   {
+    id: "flow",
+    urlSlug: "flow-builder/listing",
+    icon: FlowBuilderIcon as LucideIcon,
+    titleKey: "omnichannel.settings.flowBuilder.sidebarTitle",
+    descriptionKey: "omnichannel.settings.flowBuilder.sidebarDescription",
+    status: "active",
+  },
+  {
     id: "target",
     urlSlug: "target",
     icon: Target,
@@ -74,7 +84,12 @@ const URL_SLUG_TO_SECTION_ID = new Map<string, OmnichannelSettingsSectionId>([
   ...OMNICHANNEL_SETTINGS_SECTIONS.map((s) => [s.urlSlug, s.id] as const),
   ["google-ads", "offline-conversion"],
   ["api-integration/docs", "api-integration"],
+  ["flow-builder", "flow"],
+  ["flow-builder/usage", "flow"],
+  ["flow-builder/form-flows", "flow"],
 ]);
+
+const OMNICHANNEL_SETTINGS_PATH_PREFIX = "/omnichannel/settings/";
 
 export const OMNICHANNEL_SETTINGS_DEFAULT_SECTION_ID: OmnichannelSettingsSectionId =
   OMNICHANNEL_SETTINGS_SECTIONS[0]?.id ?? "user-management";
@@ -89,6 +104,19 @@ export function parseOmnichannelSettingsSectionSlug(
 ): OmnichannelSettingsSectionId | null {
   if (!slug) return null;
   return URL_SLUG_TO_SECTION_ID.get(slug) ?? null;
+}
+
+/** Resolve section from full pathname (supports nested slugs such as `flow-builder/listing`). */
+export function parseOmnichannelSettingsPathname(pathname: string): OmnichannelSettingsSectionId | null {
+  if (!pathname.startsWith(OMNICHANNEL_SETTINGS_PATH_PREFIX)) return null;
+  const rest = pathname.slice(OMNICHANNEL_SETTINGS_PATH_PREFIX.length).replace(/\/+$/, "");
+  if (!rest) return null;
+
+  const direct = URL_SLUG_TO_SECTION_ID.get(rest);
+  if (direct) return direct;
+
+  const firstSegment = rest.split("/")[0];
+  return URL_SLUG_TO_SECTION_ID.get(firstSegment ?? "") ?? null;
 }
 
 export function omnichannelSettingsPath(sectionId: OmnichannelSettingsSectionId): string {

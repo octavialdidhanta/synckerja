@@ -113,6 +113,9 @@ verify_jwt = false
 [functions.whatsapp-flows]
 verify_jwt = false
 
+[functions.send-whatsapp-flow-session]
+verify_jwt = false
+
 # User JWT + optional cron secret inside body/header; auth enforced in function.
 [functions.whatsapp-campaign-worker]
 verify_jwt = false
