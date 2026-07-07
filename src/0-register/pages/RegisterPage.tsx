@@ -2,10 +2,13 @@ import { useRef } from "react";
 import { RegistrationForm } from "@/0-register/components/RegistrationForm";
 import { AuthTestimonialsPanel } from "@/0-register/components/AuthTestimonialsPanel";
 import { useMobileKeyboardViewport } from "@/shared/hooks/useMobileKeyboardViewport";
+import { DOCUMENT_TITLE_DEFAULT } from "@/policy/policyBranding";
+import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 
 export default function RegisterPage() {
   const submitRef = useRef<HTMLButtonElement>(null);
   const kb = useMobileKeyboardViewport({ submitAnchorRef: submitRef });
+  useDocumentTitle(DOCUMENT_TITLE_DEFAULT);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden safe-area-top lg:flex-row lg:items-stretch">

@@ -2,6 +2,8 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { POLICY_CONTACT_EMAIL, policyContactMailtoHref } from "@/policy/contact";
+import { APP_NAME, DOCUMENT_TITLE_ACCOUNT_DELETION, DOCUMENT_TITLE_PRIVACY } from "@/policy/policyBranding";
+import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 
 const sectionClass = "mb-6";
 const headingClass = "text-lg font-semibold text-slate-800 mt-8 mb-4 first:mt-0";
@@ -11,6 +13,7 @@ const listClass = "list-decimal pl-6 mb-4 space-y-2 text-slate-700";
 /** Public page for app store data safety — account deletion URL (no login). */
 export default function AccountDeletionPage() {
   const { t } = useAppTranslation();
+  useDocumentTitle(DOCUMENT_TITLE_ACCOUNT_DELETION);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-slate-50 [-ms-overflow-style:auto] [scrollbar-width:auto]">
@@ -20,7 +23,7 @@ export default function AccountDeletionPage() {
             {t("policy.accountDeletion.backToApp", "Back to app")}
           </Link>
           <span className="truncate text-sm font-medium text-slate-700">
-            {t("policy.accountDeletion.brand", "Synckerja")}
+            {t("policy.accountDeletion.brand", APP_NAME)}
           </span>
         </div>
       </div>
@@ -39,7 +42,7 @@ export default function AccountDeletionPage() {
             <p className={paraClass}>
               {t(
                 "policy.accountDeletion.intro",
-                "This page explains how to request deletion of your Synckerja account and related data.",
+                "This page explains how to request deletion of your Synckerja Office account and related data.",
               )}
             </p>
           </section>
@@ -88,7 +91,7 @@ export default function AccountDeletionPage() {
             </p>
             <p className={paraClass}>
               <Link to="/policy/privacy" className="text-blue-600 hover:underline">
-                {t("policy.accountDeletion.privacyLink", "Privacy Policy")}
+                {t("policy.accountDeletion.privacyLink", DOCUMENT_TITLE_PRIVACY)}
               </Link>
             </p>
           </section>

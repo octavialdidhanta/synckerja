@@ -1,6 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { POLICY_CONTACT_EMAIL, policyBaseUrl, policyContactMailtoHref } from "@/policy/contact";
+import { APP_NAME, DOCUMENT_TITLE_PRIVACY, DOCUMENT_TITLE_TERMS } from "@/policy/policyBranding";
+import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 
 const sectionClass = "mb-6";
 const headingClass = "text-lg font-semibold text-slate-800 mt-8 mb-4 first:mt-0";
@@ -9,12 +11,13 @@ const paraClass = "text-slate-700 mb-4 leading-relaxed";
 const listClass = "list-disc pl-6 mb-4 space-y-2 text-slate-700";
 
 /**
- * Public Terms of Service at `/policy/terms` — content aligned with product reference (ProfitLoop → Synckerja).
+ * Public Terms of Service at `/policy/terms` — content aligned with product reference (ProfitLoop → Synckerja Office).
  * Governing law: Indonesia (operator: PT Integrasi Visual Digital Indonesia), not the reference jurisdiction.
  */
 export default function TermsOfServicePage() {
   const BASE_URL = policyBaseUrl();
   const pricingUrl = `${BASE_URL}/pricing`;
+  useDocumentTitle(DOCUMENT_TITLE_TERMS);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-slate-50 [-ms-overflow-style:auto] [scrollbar-width:auto]">
@@ -23,25 +26,25 @@ export default function TermsOfServicePage() {
           <Link to="/login" className="text-sm text-slate-600 hover:text-slate-900">
             ← Back to app
           </Link>
-          <span className="text-sm font-medium text-slate-700">Synckerja</span>
+          <span className="text-sm font-medium text-slate-700">{APP_NAME}</span>
         </div>
       </div>
       <div className="px-4 py-8">
         <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-8 shadow-sm md:p-10">
           <header className="mb-8">
-            <h1 className="mb-2 text-2xl font-bold text-slate-900 md:text-3xl">Terms of Service</h1>
+            <h1 className="mb-2 text-2xl font-bold text-slate-900 md:text-3xl">{DOCUMENT_TITLE_TERMS}</h1>
             <p className="text-sm text-slate-500">Last Updated: 26th Nov, 2025</p>
           </header>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Introduction</h2>
             <p className={paraClass}>
-              Welcome to Synckerja. Please read these Terms of Service (Terms) carefully before using our website and services.
+              Welcome to Synckerja Office. Please read these Terms of Service (Terms) carefully before using our website and services.
               These Terms govern your access to and use of {BASE_URL} and all associated services (collectively, the Service or
-              Synckerja).
+              Synckerja Office).
             </p>
             <p className={paraClass}>
-              By accessing or using Synckerja, you agree to be bound by these Terms and any Data Processing Agreements where
+              By accessing or using Synckerja Office, you agree to be bound by these Terms and any Data Processing Agreements where
               applicable. If you do not agree to these Terms, you may not use the Service.
             </p>
           </section>
@@ -49,7 +52,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Who We Are</h2>
             <p className={paraClass}>
-              Synckerja is a global SaaS platform specializing in advanced messaging automation and conversational marketing. We
+              Synckerja Office is a global SaaS platform specializing in advanced messaging automation and conversational marketing. We
               empower businesses of all sizes to engage with their customers across popular messaging platforms such as WhatsApp,
               Facebook Messenger, Instagram, Telegram, and Website Live Chat—using intelligent chatbot workflows, AI capabilities,
               and integrated marketing tools.
@@ -60,14 +63,14 @@ export default function TermsOfServicePage() {
             </p>
             <p className={paraClass}>
               We operate with a strong commitment to user privacy, data transparency, and responsible data management practices.
-              Whether you are using Synckerja to run campaigns, train AI assistants, or build powerful automation flows, your
+              Whether you are using Synckerja Office to run campaigns, train AI assistants, or build powerful automation flows, your
               privacy is one of our top priorities.
             </p>
           </section>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Account Registration</h2>
-            <p className={paraClass}>You must create an account to access most Synckerja features. By registering, you agree to:</p>
+            <p className={paraClass}>You must create an account to access most Synckerja Office features. By registering, you agree to:</p>
             <ul className={listClass}>
               <li>Provide accurate, current, and complete information</li>
               <li>Keep your login credentials confidential</li>
@@ -78,13 +81,13 @@ export default function TermsOfServicePage() {
               suspected fraud.
             </p>
             <p className={paraClass}>
-              You must be at least 18 years old or of legal age in your jurisdiction to use Synckerja.
+              You must be at least 18 years old or of legal age in your jurisdiction to use Synckerja Office.
             </p>
           </section>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Subscription, Billing &amp; Payments</h2>
-            <p className={paraClass}>Synckerja offers both free and paid plans. By subscribing, you agree to:</p>
+            <p className={paraClass}>Synckerja Office offers both free and paid plans. By subscribing, you agree to:</p>
             <ul className={listClass}>
               <li>
                 Pay all applicable fees as per the pricing page (
@@ -109,7 +112,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>AI Use and Responsibility</h2>
             <p className={paraClass}>
-              Synckerja uses AI technologies including intent detection, natural language processing, and AI-powered message
+              Synckerja Office uses AI technologies including intent detection, natural language processing, and AI-powered message
               generation. By using our AI features, you agree:
             </p>
             <ul className={listClass}>
@@ -131,7 +134,7 @@ export default function TermsOfServicePage() {
               <li>Abuse our automation or messaging features to spam or mislead</li>
               <li>Upload malware, interfere with platform stability, or scrape our data</li>
               <li>Impersonate any person or organization</li>
-              <li>Use Synckerja to build or promote hate speech, violence, or discrimination</li>
+              <li>Use Synckerja Office to build or promote hate speech, violence, or discrimination</li>
             </ul>
             <p className={paraClass}>We reserve the right to suspend or ban users for violations.</p>
           </section>
@@ -139,7 +142,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Prohibited Illegal Businesses and Activities</h2>
             <p className={paraClass}>
-              Synckerja strictly prohibits the use of our platform for any illegal business activities or to promote, facilitate, or
+              Synckerja Office strictly prohibits the use of our platform for any illegal business activities or to promote, facilitate, or
               operate businesses that are illegal in any jurisdiction. The following categories of businesses and activities are
               explicitly prohibited.
             </p>
@@ -191,7 +194,7 @@ export default function TermsOfServicePage() {
             </ul>
             <h3 className={subHeadingClass}>Consequences of Violation</h3>
             <p className={paraClass}>
-              If we discover or have reasonable grounds to believe that you are using Synckerja for any prohibited illegal business
+              If we discover or have reasonable grounds to believe that you are using Synckerja Office for any prohibited illegal business
               or activity:
             </p>
             <ul className={listClass}>
@@ -203,13 +206,13 @@ export default function TermsOfServicePage() {
             </ul>
             <h3 className={subHeadingClass}>Your Responsibility</h3>
             <p className={paraClass}>
-              It is your sole responsibility to ensure that your use of Synckerja complies with all applicable laws and regulations
+              It is your sole responsibility to ensure that your use of Synckerja Office complies with all applicable laws and regulations
               in your jurisdiction and the jurisdictions where your business operates. You represent and warrant that your business
               activities are legal and that you have obtained all necessary licenses, permits, and authorizations required to conduct
               your business.
             </p>
             <p className={paraClass}>
-              By using Synckerja, you acknowledge that you understand these prohibitions and agree not to use our platform for any
+              By using Synckerja Office, you acknowledge that you understand these prohibitions and agree not to use our platform for any
               illegal business purposes. If you are unsure whether your business activity is permitted, please contact us at{" "}
               <a href={policyContactMailtoHref()} className="break-all text-blue-600 hover:underline">
                 {POLICY_CONTACT_EMAIL}
@@ -221,8 +224,8 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>User Content and Data Ownership</h2>
             <p className={paraClass}>
-              You retain ownership of all content you upload or generate using Synckerja. However, by using our platform, you grant
-              Synckerja a non-exclusive, worldwide license to store, display, and process such content as necessary to provide
+              You retain ownership of all content you upload or generate using Synckerja Office. However, by using our platform, you grant
+              Synckerja Office a non-exclusive, worldwide license to store, display, and process such content as necessary to provide
               services.
             </p>
             <p className={paraClass}>
@@ -236,7 +239,7 @@ export default function TermsOfServicePage() {
               We take your privacy seriously and comply with applicable data protection regulations. For detailed information about
               our data protection practices, please refer to our{" "}
               <Link to="/policy/privacy" className="text-blue-600 hover:underline">
-                Privacy Policy
+                {DOCUMENT_TITLE_PRIVACY}
               </Link>
               .
             </p>
@@ -245,7 +248,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Cookies and Tracking</h2>
             <p className={paraClass}>
-              Synckerja uses cookies and tracking technologies to improve user experience, analyze site traffic, enable core
+              Synckerja Office uses cookies and tracking technologies to improve user experience, analyze site traffic, enable core
               functionality, and assist with marketing and advertising efforts. By using our site, you consent to the placement of
               these cookies on your device unless you disable them via your browser settings. You may also be presented with
               cookie consent controls depending on your location.
@@ -254,7 +257,7 @@ export default function TermsOfServicePage() {
               We do not store personal information in cookies unless explicitly authorized by the user. For full details, including
               how to manage or withdraw your consent, please review our{" "}
               <Link to="/policy/privacy" className="text-blue-600 hover:underline">
-                Privacy Policy
+                {DOCUMENT_TITLE_PRIVACY}
               </Link>{" "}
               (including cookie-related disclosures).
             </p>
@@ -263,10 +266,10 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Intellectual Property</h2>
             <p className={paraClass}>
-              All intellectual property rights in the Synckerja platform, including but not limited to the website design,
+              All intellectual property rights in the Synckerja Office platform, including but not limited to the website design,
               software code (front-end and back-end), source code, chatbot logic, AI models, APIs, visual interfaces, logos, trade
               names, service marks, and all content provided through the Service (collectively, the Proprietary Materials), are
-              owned by PT Integrasi Visual Digital Indonesia, Synckerja, or its licensors and are protected by applicable copyright,
+              owned by PT Integrasi Visual Digital Indonesia, Synckerja Office, or its licensors and are protected by applicable copyright,
               trademark, trade secret, and other intellectual property laws worldwide.
             </p>
             <p className={paraClass}>You may not:</p>
@@ -284,7 +287,7 @@ export default function TermsOfServicePage() {
               accordance with these Terms, and solely for your internal business or personal use.
             </p>
             <p className={paraClass}>
-              Any feedback, suggestions, or ideas submitted to Synckerja regarding improvements or innovations may be used by us
+              Any feedback, suggestions, or ideas submitted to Synckerja Office regarding improvements or innovations may be used by us
               without any obligation to compensate you. You hereby assign all rights, title, and interest in such submissions to
               PT Integrasi Visual Digital Indonesia to the extent permitted by law.
             </p>
@@ -294,11 +297,11 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Third-Party Platforms</h2>
             <p className={paraClass}>
-              Synckerja integrates with WhatsApp, Facebook, Instagram, Telegram, Shopify, WooCommerce, and others. You agree to abide
+              Synckerja Office integrates with WhatsApp, Facebook, Instagram, Telegram, Shopify, WooCommerce, and others. You agree to abide
               by the terms and policies of these platforms. We are not responsible for disruptions or rule changes from third-party
               services. For detailed information, please refer to our{" "}
               <Link to="/policy/privacy" className="text-blue-600 hover:underline">
-                Privacy Policy
+                {DOCUMENT_TITLE_PRIVACY}
               </Link>
               .
             </p>
@@ -306,7 +309,7 @@ export default function TermsOfServicePage() {
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Limitation of Liability</h2>
-            <p className={paraClass}>To the maximum extent permitted by law, Synckerja is not liable for:</p>
+            <p className={paraClass}>To the maximum extent permitted by law, Synckerja Office is not liable for:</p>
             <ul className={listClass}>
               <li>Lost profits, revenues, or data</li>
               <li>Service interruptions or failures</li>
@@ -321,7 +324,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Affiliate Policy</h2>
             <p className={paraClass}>
-              The Synckerja Affiliate Program enables you to stand out and provide a unique experience for your audience while
+              The Synckerja Office Affiliate Program enables you to stand out and provide a unique experience for your audience while
               earning recurring commission. For detailed information, request the current Affiliate Policy by contacting us at{" "}
               <a href={policyContactMailtoHref()} className="break-all text-blue-600 hover:underline">
                 {POLICY_CONTACT_EMAIL}
@@ -333,7 +336,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Reseller Policy</h2>
             <p className={paraClass}>
-              A Synckerja reseller is a business or entrepreneur that uses the Synckerja white-label program to sell chatbot
+              A Synckerja Office reseller is a business or entrepreneur that uses the Synckerja Office white-label program to sell chatbot
               automation services under their own brand name and domain, without having to develop or maintain the software
               themselves. For detailed information, request the current Reseller Policy by contacting us at{" "}
               <a href={policyContactMailtoHref()} className="break-all text-blue-600 hover:underline">
@@ -346,7 +349,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Community Guidelines</h2>
             <p className={paraClass}>
-              Synckerja may provide community forums and discussion boards to facilitate knowledge sharing, support, and
+              Synckerja Office may provide community forums and discussion boards to facilitate knowledge sharing, support, and
               collaboration among users. When participating in our forums, you agree to follow these community guidelines.
             </p>
             <h3 className={subHeadingClass}>Respectful Communication</h3>
@@ -379,7 +382,7 @@ export default function TermsOfServicePage() {
             </ul>
             <h3 className={subHeadingClass}>Moderation and Enforcement</h3>
             <ul className={listClass}>
-              <li>Synckerja reserves the right to moderate, edit, or remove any forum posts at our discretion</li>
+              <li>Synckerja Office reserves the right to moderate, edit, or remove any forum posts at our discretion</li>
               <li>We may issue warnings, temporarily suspend, or permanently ban users who violate these guidelines</li>
               <li>Repeated violations may result in permanent forum access revocation</li>
               <li>Decisions regarding moderation are final and not subject to appeal</li>
@@ -389,11 +392,11 @@ export default function TermsOfServicePage() {
               engage with or respond to inappropriate content.
             </p>
             <p className={paraClass}>
-              You are solely responsible for all content you post in our forums. Synckerja is not liable for user-generated content,
+              You are solely responsible for all content you post in our forums. Synckerja Office is not liable for user-generated content,
               and you agree to indemnify us against any claims arising from your posts.
             </p>
             <p className={paraClass}>
-              By participating in Synckerja forums, you acknowledge that you have read, understood, and agree to comply with these
+              By participating in Synckerja Office forums, you acknowledge that you have read, understood, and agree to comply with these
               community guidelines. Failure to adhere to these guidelines may result in immediate removal of content and termination
               of your forum access.
             </p>
@@ -402,7 +405,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Indemnification</h2>
             <p className={paraClass}>
-              You agree to indemnify, defend, and hold harmless Synckerja, PT Integrasi Visual Digital Indonesia, its subsidiaries,
+              You agree to indemnify, defend, and hold harmless Synckerja Office, PT Integrasi Visual Digital Indonesia, its subsidiaries,
               affiliates, officers, directors, employees, contractors, agents, licensors, and service providers from and against
               any and all third-party claims, demands, liabilities, damages, losses, costs, and expenses (including reasonable legal
               fees and costs) arising out of or relating to:
@@ -427,7 +430,7 @@ export default function TermsOfServicePage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Termination</h2>
             <p className={paraClass}>
-              We may suspend or terminate your access to Synckerja at our sole discretion without prior notice. Upon termination:
+              We may suspend or terminate your access to Synckerja Office at our sole discretion without prior notice. Upon termination:
             </p>
             <ul className={listClass}>
               <li>Your license to use our services ends immediately</li>
@@ -470,7 +473,7 @@ export default function TermsOfServicePage() {
             <h2 className={headingClass}>Changes to the Terms</h2>
             <p className={paraClass}>
               We may update these Terms from time to time. Major changes will be notified by email or site notification. Your
-              continued use of Synckerja after changes constitutes acceptance.
+              continued use of Synckerja Office after changes constitutes acceptance.
             </p>
           </section>
 

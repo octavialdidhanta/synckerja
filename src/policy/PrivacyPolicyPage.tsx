@@ -1,6 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { POLICY_CONTACT_EMAIL, policyBaseUrl, policyContactMailtoHref } from "@/policy/contact";
+import { APP_NAME, DOCUMENT_TITLE_PRIVACY } from "@/policy/policyBranding";
+import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 
 const sectionClass = "mb-6";
 const headingClass = "text-lg font-semibold text-slate-800 mt-8 mb-4 first:mt-0";
@@ -10,6 +12,7 @@ const listClass = "list-disc pl-6 mb-4 space-y-2 text-slate-700";
 /** Public page — no login required. Scrolls inside #root (body overflow is hidden). */
 export default function PrivacyPolicyPage() {
   const BASE_URL = policyBaseUrl();
+  useDocumentTitle(DOCUMENT_TITLE_PRIVACY);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-slate-50 [-ms-overflow-style:auto] [scrollbar-width:auto]">
@@ -18,20 +21,20 @@ export default function PrivacyPolicyPage() {
           <Link to="/login" className="text-sm text-slate-600 hover:text-slate-900">
             ← Back to app
           </Link>
-          <span className="text-sm font-medium text-slate-700">Synckerja</span>
+          <span className="text-sm font-medium text-slate-700">{APP_NAME}</span>
         </div>
       </div>
       <div className="px-4 py-8">
         <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-8 shadow-sm md:p-10">
           <header className="mb-8">
-            <h1 className="mb-2 text-2xl font-bold text-slate-900 md:text-3xl">Privacy Policy</h1>
+            <h1 className="mb-2 text-2xl font-bold text-slate-900 md:text-3xl">{DOCUMENT_TITLE_PRIVACY}</h1>
             <p className="text-sm text-slate-500">Last Updated: 23rd Jun, 2026</p>
           </header>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Introduction</h2>
             <p className={paraClass}>
-              Welcome to Synckerja ({BASE_URL}). We take your privacy seriously and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, disclose, and safeguard your information, and how you can exercise your rights.
+              Welcome to Synckerja Office ({BASE_URL}). We take your privacy seriously and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, disclose, and safeguard your information, and how you can exercise your rights.
             </p>
             <p className={paraClass}>
               This policy applies to all users of our platform including website visitors, customers, and partners (you or users).
@@ -41,13 +44,13 @@ export default function PrivacyPolicyPage() {
           <section className={sectionClass}>
             <h2 className={headingClass}>Who We Are</h2>
             <p className={paraClass}>
-              Synckerja is a global SaaS platform specializing in advanced messaging automation and conversational marketing. We empower businesses of all sizes to engage with their customers across popular messaging platforms such as WhatsApp, Facebook Messenger, Instagram, Telegram, and Website Live Chat—using intelligent chatbot workflows, AI capabilities, and integrated marketing tools.
+              Synckerja Office is a global SaaS platform specializing in advanced messaging automation and conversational marketing. We empower businesses of all sizes to engage with their customers across popular messaging platforms such as WhatsApp, Facebook Messenger, Instagram, Telegram, and Website Live Chat—using intelligent chatbot workflows, AI capabilities, and integrated marketing tools.
             </p>
             <p className={paraClass}>
               Our platform enables brands to generate leads, automate conversations, support sales, broadcast promotions, and build customer relationships—while complying with modern privacy and data protection standards.
             </p>
             <p className={paraClass}>
-              We operate with a strong commitment to user privacy, data transparency, and responsible data management practices. Whether you are using Synckerja to run campaigns, train AI assistants, or build powerful automation flows, your privacy is one of our top priorities.
+              We operate with a strong commitment to user privacy, data transparency, and responsible data management practices. Whether you are using Synckerja Office to run campaigns, train AI assistants, or build powerful automation flows, your privacy is one of our top priorities.
             </p>
           </section>
 
@@ -57,7 +60,7 @@ export default function PrivacyPolicyPage() {
               We collect various types of information to provide and improve our services, ensure security, comply with legal requirements, and offer a personalized user experience. The types of data we collect fall into the following categories:
             </p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">A. Information You Provide to Us Directly</h3>
-            <p className={paraClass}>When you use Synckerja, you may provide us with personal information, including:</p>
+            <p className={paraClass}>When you use Synckerja Office, you may provide us with personal information, including:</p>
             <ul className={listClass}>
               <li><strong>Account Registration Data:</strong> Name, email address, phone number, password, and language preference.</li>
               <li><strong>Profile Information:</strong> Business name, industry, company size, website URL, time zone, social profiles, and brand logo.</li>
@@ -67,13 +70,13 @@ export default function PrivacyPolicyPage() {
               <li><strong>Consent Preferences:</strong> Communication opt-in/opt-out preferences, cookie consent selections, and privacy settings.</li>
             </ul>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">B. Information We Collect Automatically</h3>
-            <p className={paraClass}>When you interact with Synckerja (e.g., visit the website, log in to your dashboard, or use any feature), we automatically collect:</p>
+            <p className={paraClass}>When you interact with Synckerja Office (e.g., visit the website, log in to your dashboard, or use any feature), we automatically collect:</p>
             <p className={paraClass}><strong>Device & Technical Data:</strong> IP address, browser type and version, operating system, device type and identifiers (e.g., User Agent, screen size), referral URLs.</p>
             <p className={paraClass}><strong>Usage Data:</strong> Pages visited, features accessed, time spent on pages or campaigns, error messages or performance metrics.</p>
             <p className={paraClass}><strong>Location Information:</strong> Approximate location derived from your IP address.</p>
             <p className={paraClass}><strong>Log Files:</strong> System logs generated when using our APIs or back-end systems, which may include timestamped metadata, request headers, and usage traces.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">C. Information from Third Parties and Integrations</h3>
-            <p className={paraClass}>If you connect third-party services to Synckerja, we may collect information from those platforms, such as social platforms (e.g., Facebook Page ID, Instagram account data, YouTube channel ID and video performance metrics such as views, likes, and comments, TikTok account profile and video performance metrics, comments, and publish status, WhatsApp business number), e-commerce platforms (e.g., Shopify, WooCommerce), email and CRM tools, and authentication services.</p>
+            <p className={paraClass}>If you connect third-party services to Synckerja Office, we may collect information from those platforms, such as social platforms (e.g., Facebook Page ID, Instagram account data, YouTube channel ID and video performance metrics such as views, likes, and comments, TikTok account profile and video performance metrics, comments, and publish status, WhatsApp business number), e-commerce platforms (e.g., Shopify, WooCommerce), email and CRM tools, and authentication services.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">D. Cookies and Tracking Technologies</h3>
             <p className={paraClass}>We and our partners use cookies, pixels, and similar technologies to collect data about how users interact with our platform. Read more in our Cookie Policy.</p>
             <h3 className="mt-6 mb-3 text-base font-semibold text-slate-800">E. Aggregated and De-Identified Data</h3>
@@ -97,7 +100,7 @@ export default function PrivacyPolicyPage() {
 
           <section className={sectionClass}>
             <h2 className={headingClass}>International Data Transfers</h2>
-            <p className={paraClass}>Synckerja may operate globally. Your personal information may be transferred to, stored, and processed in countries other than your own. We take appropriate safeguards (e.g., Standard Contractual Clauses, adequacy decisions, or your explicit consent where required) to ensure your data remains protected in accordance with this Privacy Policy and applicable laws.</p>
+            <p className={paraClass}>Synckerja Office may operate globally. Your personal information may be transferred to, stored, and processed in countries other than your own. We take appropriate safeguards (e.g., Standard Contractual Clauses, adequacy decisions, or your explicit consent where required) to ensure your data remains protected in accordance with this Privacy Policy and applicable laws.</p>
           </section>
 
           <section className={sectionClass}>
@@ -140,25 +143,25 @@ export default function PrivacyPolicyPage() {
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Google API Limited Use Disclosure</h2>
-            <p className={paraClass}>Our application may integrate with Google APIs, including Google sign-in, Google Drive (when you choose to connect Drive for file preview), Google Ads (when an administrator connects an ad account), and YouTube (when an administrator connects a YouTube channel for organic content performance reporting). We confirm that any user data obtained through these APIs is used solely to provide or improve user-facing features within Synckerja for the organization that connected the service. We do not use this data to develop, improve, or train generalized AI or machine learning models. We do not sell Google or YouTube user data. You may disconnect these integrations in your organization settings, which stops our further use of stored OAuth tokens for that integration. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.</p>
+            <p className={paraClass}>Our application may integrate with Google APIs, including Google sign-in, Google Drive (when you choose to connect Drive for file preview), Google Ads (when an administrator connects an ad account), and YouTube (when an administrator connects a YouTube channel for organic content performance reporting). We confirm that any user data obtained through these APIs is used solely to provide or improve user-facing features within Synckerja Office for the organization that connected the service. We do not use this data to develop, improve, or train generalized AI or machine learning models. We do not sell Google or YouTube user data. You may disconnect these integrations in your organization settings, which stops our further use of stored OAuth tokens for that integration. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.</p>
           </section>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>TikTok API Disclosure</h2>
             <p className={paraClass}>
-              When an organization administrator connects a TikTok account through OAuth in Digital Marketing → Social Media Performance → TikTok settings, Synckerja may access TikTok data only to provide user-facing features for that organization. Depending on the permissions granted, this may include basic profile information (such as username and display name), published video lists, video performance metrics, comments on connected videos, and the ability to publish videos to the connected account.
+              When an organization administrator connects a TikTok account through OAuth in Digital Marketing → Social Media Performance → TikTok settings, Synckerja Office may access TikTok data only to provide user-facing features for that organization. Depending on the permissions granted, this may include basic profile information (such as username and display name), published video lists, video performance metrics, comments on connected videos, and the ability to publish videos to the connected account.
             </p>
             <p className={paraClass}>
-              Video publishing occurs only when a user explicitly chooses Schedule or Post Now on an approved content plan. We do not perform background or automatic uploads. We store publish identifiers and basic metadata (such as title, privacy level, and publish time) to show posting status inside Synckerja. Comment management is limited to reading and responding to comments on videos associated with the connected account.
+              Video publishing occurs only when a user explicitly chooses Schedule or Post Now on an approved content plan. We do not perform background or automatic uploads. We store publish identifiers and basic metadata (such as title, privacy level, and publish time) to show posting status inside Synckerja Office. Comment management is limited to reading and responding to comments on videos associated with the connected account.
             </p>
             <p className={paraClass}>
-              We use TikTok data solely to provide or improve these features within Synckerja for the organization that connected the account. We do not sell TikTok user data, use it to build advertising profiles, or use it to develop, improve, or train generalized AI or machine learning models. OAuth tokens are stored encrypted on our servers. Organization administrators may disconnect TikTok at any time in settings, which deactivates stored tokens for that connection. Our use of TikTok APIs complies with the TikTok Developer Terms of Service and applicable TikTok platform policies.
+              We use TikTok data solely to provide or improve these features within Synckerja Office for the organization that connected the account. We do not sell TikTok user data, use it to build advertising profiles, or use it to develop, improve, or train generalized AI or machine learning models. OAuth tokens are stored encrypted on our servers. Organization administrators may disconnect TikTok at any time in settings, which deactivates stored tokens for that connection. Our use of TikTok APIs complies with the TikTok Developer Terms of Service and applicable TikTok platform policies.
             </p>
           </section>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Changes to This Policy</h2>
-            <p className={paraClass}>We may update this Policy from time to time. Major changes will be notified by email or site notification. Your continued use of Synckerja after changes constitutes acceptance.</p>
+            <p className={paraClass}>We may update this Policy from time to time. Major changes will be notified by email or site notification. Your continued use of Synckerja Office after changes constitutes acceptance.</p>
           </section>
 
           <section className={sectionClass}>

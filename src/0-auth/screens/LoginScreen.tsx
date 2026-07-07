@@ -29,6 +29,8 @@ import {
   authFormBottomSpacerClass,
 } from "@/0-auth/styles/authFormStyles";
 import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
+import { DOCUMENT_TITLE_DEFAULT } from "@/policy/policyBranding";
+import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 
 function messageForAuthError(error: AuthError, t: (key: string) => string): string {
   const code = error.code ?? "";
@@ -209,6 +211,7 @@ export function LoginScreen({
   const authBusy = loading || googleLoading;
   const brandBlue = "hsl(var(--brand-blue))";
   const brandRed = "hsl(var(--brand-red))";
+  useDocumentTitle(DOCUMENT_TITLE_DEFAULT);
 
   return (
     <div className={authFormRootClass}>
