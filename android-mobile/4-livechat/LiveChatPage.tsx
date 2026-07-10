@@ -25,26 +25,68 @@ import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPendi
 import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSubscription';
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { MOBILE_PAGE_PATH } from '@/shared/auth/page-access/mobileRoutePagePaths';
+import { DesktopWarning } from '@/mobile-app/components/DesktopWarning';
+import { SidebarProvider } from '@/mobile-app/components/ui/sidebar';
+import { AppSidebar } from '@/mobile-app/components/AppSidebar';
+import { ConsultantCrmNavigationFooter } from '@/mobile/4-leads-management/components/ConsultantCrmNavigationFooter';
+import { LiveChatMobileShellHeader } from './components/LiveChatMobileShellHeader';
+import { ToolsMobileDenyGateArea } from '@/mobile-app/components/ToolsMobileDenyGateArea';
+import { useToolsMobilePageAccess } from '@/mobile-app/hooks/useToolsMobilePageAccess';
+import { useMobileToolsShellLayout } from '@/shared/hooks/useMobileToolsShellLayout';
+import { cn } from '@/shared/lib/utils';
 
 type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `fb:${string}` | `email:${string}`;
 
 export default function LiveChatPage() {
+  useStatusBarStyle('livechat');
   const { t } = useAppTranslation();
+  const pagePath = MOBILE_PAGE_PATH.omnichannelLivechat;
+  const { hasPageAccess, showDenyShellHeader } = useToolsMobilePageAccess(pagePath);
+  const { outerShellClassName, mainShellClassName, mainShellStyle } = useMobileToolsShellLayout();
+
+  if (showDenyShellHeader) {
+    return (
+      <>
+        <LiveChatAppBadgeSync />
+        <DesktopWarning>
+          <SidebarProvider>
+            <div className={outerShellClassName}>
+              <AppSidebar />
+              <main
+                className={cn(
+                  'z-0 flex w-full min-w-0 max-w-none flex-col bg-background',
+                  mainShellClassName,
+                )}
+                style={mainShellStyle}
+              >
+                <LiveChatMobileShellHeader />
+                <ToolsMobileDenyGateArea
+                  pagePath={pagePath}
+                  contentPaddingClass="content-padding-above-nav-livechat"
+                />
+                <ConsultantCrmNavigationFooter className="safe-area-bottom-lower" />
+              </main>
+            </div>
+          </SidebarProvider>
+        </DesktopWarning>
+      </>
+    );
+  }
+
   return (
     <>
       <LiveChatAppBadgeSync />
       <ModuleShellContentGate
-        pagePath={MOBILE_PAGE_PATH.omnichannelLivechat}
+        pagePath={pagePath}
         className="flex min-h-0 min-w-0 flex-1 flex-col"
       >
-        <LiveChatPageInner t={t} />
+        {hasPageAccess ? <LiveChatPageInner t={t} /> : null}
       </ModuleShellContentGate>
     </>
   );
 }
 
 function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string }) {
-  useStatusBarStyle('livechat');
   const { organizationId } = useOrgBootstrapPending();
   const { refreshSubscriptionStatus } = useOptimizedSubscription({ includePlans: false });
 

@@ -5,13 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Loader2, Download, RefreshCw } from "lucide-react";
 import { endOfDay } from "date-fns";
 import { toast } from "sonner";
-import { TikTokShopHeaderAndTab } from "@/6-0-tiktok-shop/container/TikTokShopHeaderAndTab";
-import { TikTokShopShopNav } from "@/6-0-tiktok-shop/container/TikTokShopShopNav";
-import { TikTokShopDashboardSummaryBar } from "@/6-0-tiktok-shop/container/TikTokShopDashboardSummaryBar";
-import { TikTokShopOrderStatusFilter } from "@/6-0-tiktok-shop/container/TikTokShopOrderStatusFilter";
-import { TikTokShopOrdersTable } from "@/6-0-tiktok-shop/container/TikTokShopOrdersTable";
-import { TikTokShopOrderDetailDrawer } from "@/6-0-tiktok-shop/container/TikTokShopOrderDetailDrawer";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { TikTokShopModuleShell } from "@/6-0-tiktok-shop/layout/TikTokShopModuleShell";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
@@ -45,12 +39,14 @@ import {
 import { pollTikTokOrdersForStock } from "@/stock-management/lib/inventoryApi";
 import type { TikTokAdsEdgeError } from "@/tiktok-ads/lib/parseEdgeFunctionError";
 import {
-  TIKTOK_SHOP_PAGE_PATH,
   TIKTOK_SHOP_SETTINGS_PATH,
 } from "@/tiktok-shop/settings/tiktokShopSettingsPaths";
 import { TikTokShopDashboardPageSkeleton } from "@/6-0-tiktok-shop/skeletons/TikTokShopDashboardPageSkeleton";
-
-const PAGE_PATH = TIKTOK_SHOP_PAGE_PATH;
+import { TikTokShopShopNav } from "@/6-0-tiktok-shop/container/TikTokShopShopNav";
+import { TikTokShopDashboardSummaryBar } from "@/6-0-tiktok-shop/container/TikTokShopDashboardSummaryBar";
+import { TikTokShopOrderStatusFilter } from "@/6-0-tiktok-shop/container/TikTokShopOrderStatusFilter";
+import { TikTokShopOrdersTable } from "@/6-0-tiktok-shop/container/TikTokShopOrdersTable";
+import { TikTokShopOrderDetailDrawer } from "@/6-0-tiktok-shop/container/TikTokShopOrderDetailDrawer";
 
 function initialDateSelection(): GoogleAdsDateRangeSelection {
   const range = computePresetRange("last_30_days", new Date());
@@ -72,9 +68,9 @@ export default function TikTokShopDashboardPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <TikTokShopDashboardPageSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={PAGE_PATH}>
+    <TikTokShopModuleShell>
       <TikTokShopDashboardPageContent />
-    </ModuleShellContentGate>
+    </TikTokShopModuleShell>
   );
 }
 
@@ -244,17 +240,10 @@ function TikTokShopDashboardPageContent() {
       )
     : errorMessage;
 
-  if (showSkeleton) return <TikTokShopDashboardPageSkeleton />;
+  if (showSkeleton) return null;
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex min-h-full flex-col">
-            <div className="mb-1 flex-shrink-0">
-              <TikTokShopHeaderAndTab />
-            </div>
-
+    <>
             {!reportingEnabled ? (
               <div className="col-span-12 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                 <Alert>
@@ -469,9 +458,6 @@ function TikTokShopDashboardPageContent() {
               className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
               aria-hidden
             />
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
