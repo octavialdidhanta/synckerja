@@ -15,9 +15,9 @@ export type OkrPageDetailStatus = {
 };
 
 const INITIAL: Record<OkrPageDetailTabId, OkrPageDetailStatus> = {
-  company: { loading: true, error: null },
-  department: { loading: true, error: null },
-  individual: { loading: true, error: null },
+  company: { loading: false, error: null },
+  department: { loading: false, error: null },
+  individual: { loading: false, error: null },
 };
 
 type Ctx = {

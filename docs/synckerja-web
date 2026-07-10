@@ -1,0 +1,273 @@
+# Changelog Supabase — synckerja-web → synckerja
+
+Dokumen ini wajib di-update setiap ada perubahan di `supabase/migrations/` dari project **synckerja-web**.  
+Serahkan file ini + file SQL migration ke tim **synckerja** agar repo dan DB tetap selaras.
+
+**Prinsip:** additive only · RPC admin pakai `is_cms_admin()` · tidak ubah RLS/trigger office tanpa koordinasi.
+
+Template entry baru: [`TEMPLATE-synckerja-web.md`](./TEMPLATE-synckerja-web.md)
+
+---
+
+## [2026-07-09] Sales tenant — block modul per org (upsell)
+
+**Author:** synckerja-web (CMS admin)  
+**Status apply Supabase:** Sudah apply  
+
+### Ringkasan
+
+Tenant **Sales** (`subscription_self_service_enabled = false`) dapat dibatasi per modul dari CMS. Modul nonaktif tetap tampil di sidebar office (ikon kunci) tetapi akses route diblok untuk semua role termasuk Owner, dengan halaman upsell. Default saat jadi Sales: semua modul blocked kecuali Dashboard. Subscription tetap **hidden** (tidak ikut upsell).
+
+### File migration
+
+| File | Jenis |
+|------|-------|
+| `supabase/migrations/20260709220000_organization_sales_module_access.sql` | ADD tables + RLS SELECT + seed helper |
+| `supabase/migrations/20260709220100_admin_sales_modules_rpc.sql` | ADD RPC + extend `admin_update_organization_settings` |
+
+### Objek database
+
+**Tabel baru**
+- `public.organization_sales_module_access` — `(organization_id, module_key, is_enabled)`; RLS member SELECT
+- `public.cms_organization_module_adjustments` — audit perubahan modul
+
+**RPC / fungsi baru**
+- `sales_module_catalog_keys()` — daftar modul yang bisa diatur
+- `seed_sales_module_access_defaults(org_id)` — semua modul `is_enabled = false`
+- `admin_get_organization_sales_modules(org_id)`
+- `admin_update_organization_sales_modules(org_id, modules jsonb, reason)`
+- `admin_list_organization_module_adjustments(org_id, limit)`
+- `admin_update_organization_settings` — seed default saat toggle Mandiri → Sales
+
+### Dampak ke synckerja (office) — wajib deploy
+
+**Status implementasi di repo synckerja:** sudah ada (belum deploy production sampai push + release office).
+
+| Area | File |
+|------|------|
+| Katalog modul + path match | `src/shared/auth/module-access/moduleCatalog.ts` |
+| Baca akses modul Sales | `src/shared/auth/hooks/useSalesModuleAccess.ts` |
+| Block route (sebelum owner bypass) | `src/shared/auth/page-access/useDepartmentAccess.ts` |
+| Halaman upsell | `src/shared/auth/module-access/SalesModuleUpsellPage.tsx` |
+| Gate konten (sidebar/header tetap) | `src/shared/components/PageAccessContentGate.tsx` |
+| Sidebar — ikon kunci modul blocked | `src/shared/layouts/sidebar/AppSidebar.tsx` |
+| Unit test path → modul | `src/shared/auth/module-access/moduleCatalog.test.ts` |
+
+**Urutan cek akses route (Sales tenant):**
+1. Subscription hidden paths → deny (fitur terpisah, lihat entry di bawah)
+2. Sales module blocked paths → deny + upsell
+3. Owner bypass
+4. `permission_configurations`
+
+**Module keys** (9 yang bisa diatur CMS; `dashboard` selalu enabled, `subscription` tidak di tabel):
+
+`okr`, `humanResources`, `finance`, `digitalMarketing`, `omnichannel`, `operations`, `tools`, `requestForm`
+
+**Default Sales tanpa row DB:** semua modul `false` (blocked) kecuali Dashboard. Seed eksplisit saat toggle Mandiri → Sales di CMS (`seed_sales_module_access_defaults`).
+
+### Yang harus dilakukan tim synckerja
+
+1. ~~Copy 2 file migration ke repo synckerja~~ — sudah ada di `supabase/migrations/`
+2. **Deploy office** dengan perubahan module access (wajib agar CMS setting berlaku di production)
+3. Smoke test:
+   - Org Sales: default hanya Dashboard bisa dibuka; menu lain tampil + ikon kunci → upsell
+   - CMS enable Finance → `/incomes` bisa dibuka
+   - Owner diblok di modul nonaktif
+   - Menu Subscription tetap **hidden** (bukan upsell)
+   - Org Mandiri: semua modul normal (kecuali `permission_config`)
+4. Org Sales lama tanpa row modul: toggle Mandiri → Sales di CMS, atau panggil `seed_sales_module_access_defaults(org_id)`
+
+---
+
+## [2026-07-09] Hide /subscription untuk tenant sales (self-service flag)
+
+**Author:** synckerja-web (CMS admin)  
+**Status apply Supabase:** Sudah apply  
+
+### Ringkasan
+
+Menambah kolom `organizations.subscription_self_service_enabled` (default `true`) agar CMS dapat menandai tenant sales (`false`). Saat `false`, **synckerja office** harus menyembunyikan seluruh modul `/subscription` untuk semua role termasuk Owner, sambil tetap memblokir akses saat subscription expired.
+
+### File migration
+
+| File | Jenis |
+|------|-------|
+| `supabase/migrations/20260709210000_organizations_subscription_self_service.sql` | ADD column |
+| `supabase/migrations/20260709210100_admin_organization_settings_rpc.sql` | ADD RPC + extend `admin_list_organizations` |
+
+### Objek database
+
+**Kolom baru**
+- `public.organizations.subscription_self_service_enabled` — `boolean NOT NULL DEFAULT true`
+
+**RPC baru / diubah**
+- `admin_update_organization_settings(p_organization_id, p_subscription_self_service_enabled, p_reason)` — guard `is_cms_admin()`, audit ke `cms_subscription_adjustments` (`before_state`/`after_state` berisi flag)
+- `admin_list_organizations(...)` — return tambahan `subscription_self_service_enabled`
+
+### Dampak ke synckerja (office) — wajib deploy
+
+**Status implementasi di repo synckerja:** sudah ada (Fase 3 selesai).
+
+| Area | File |
+|------|------|
+| Helper path subscription | `src/10-subscription/shared/subscriptionSelfService.ts` |
+| Hook flag org | `src/shared/auth/hooks/useSubscriptionSelfServiceEnabled.ts` |
+| Block route + owner | `src/shared/auth/page-access/useDepartmentAccess.ts` |
+| Role guard | `src/10-subscription/shared/SubscriptionRoleGuard.tsx` |
+| Expiry policy | `src/10-subscription/shared/subscriptionExpiryPolicy.ts` |
+| Expiry guard | `src/10-subscription/shared/SubscriptionExpiryGuard.tsx` |
+| Banner | `src/10-subscription/hooks/useSubscriptionExpiryBanner.ts` |
+| Hide nav | `src/shared/layouts/sidebar/AppSidebar.tsx` |
+
+- RLS existing pada `organizations`: **tidak diubah**
+- Kolom dibaca via `useSubscriptionSelfServiceEnabled` (default `true` jika belum load)
+- Default `true` untuk org existing dan self-register onboarding
+
+**Path yang disembunyikan:** `/subscription`, `/subscription/overview`, `/subscription/plans`, `/subscription/management`
+
+### Yang harus dilakukan tim synckerja
+
+1. ~~Copy 2 file migration~~ — sudah ada di `supabase/migrations/`
+2. ~~Apply Supabase shared~~ — sudah apply dari synckerja-web
+3. **Deploy office** jika production belum ter-update
+4. Test: tenant mandiri (`true`) vs sales (`false`), expired block, CMS toggle + audit
+
+---
+
+## [2026-07-09] CMS Admin — pricing plans & add-ons
+
+**Author:** synckerja-web (CMS admin)  
+**Status apply Supabase:** Sudah apply  
+
+### Ringkasan
+
+Menambah halaman `/admin/pricing` untuk mengelola harga global `subscription_plans`, `subscription_add_ons`, dan override `subscription_plan_add_ons` via RPC admin + audit log.
+
+### File migration
+
+| File | Jenis |
+|------|-------|
+| `supabase/migrations/20260709182000_cms_plan_price_adjustments.sql` | ADD table |
+| `supabase/migrations/20260709182100_admin_plan_pricing_rpc.sql` | ADD RPC |
+
+### Objek database
+
+**Tabel baru**
+- `public.cms_plan_price_adjustments` — audit perubahan harga plan/add-on/override (RLS enabled, tanpa policy)
+
+**RPC baru**
+- `admin_list_subscription_plans()` — list plan + `subscriber_count`
+- `admin_list_subscription_add_ons()`
+- `admin_list_plan_add_on_overrides(p_plan_id)`
+- `admin_list_plan_price_adjustments(...)`
+- `admin_update_subscription_plan(...)` — `base_price_per_member`, `annual_discount_percentage`, `jumlah_hari_trial`, `is_active`
+- `admin_update_subscription_add_on(...)` — `default_unit_price_per_month`, `follows_plan_annual_discount`, `is_active`
+- `admin_update_plan_add_on_override(...)` — `unit_price_override_per_month` (null = pakai default add-on)
+- `admin_validate_price_amount(numeric)` — helper validasi harga 0–10.000.000
+
+### Dampak ke synckerja (office)
+
+- **Tidak ada breaking change** — hanya ADD tabel + fungsi
+- RLS existing pada `subscription_plans`, `subscription_add_ons`, `subscription_plan_add_ons`: **tidak diubah**
+- Trigger `updated_at` existing: **tidak diubah**
+- Perubahan harga berlaku **langsung** saat office membaca katalog (checkout/renewal)
+- Tabel `payments` / `organization_subscriptions`: **tidak disentuh**
+
+### Yang harus dilakukan tim synckerja
+
+1. Copy 2 file migration ke `supabase/migrations/` repo synckerja
+2. Pastikan migration belum duplikat jika sudah di-apply ke Supabase shared
+3. Test office: halaman billing/plan masih load, harga add-on omnichannel benar
+
+---
+
+## [2026-07-09] CMS Admin — atur tanggal trial & subscription
+
+**Author:** synckerja-web (CMS admin)  
+**Status apply Supabase:** Sudah apply  
+
+### Ringkasan
+
+CMS admin dapat mengubah `trial_end_date` / `subscription_end_date` per organization via RPC + audit trail.
+
+### File migration
+
+| File | Jenis |
+|------|-------|
+| `supabase/migrations/20260709181000_cms_subscription_adjustments.sql` | ADD table |
+| `supabase/migrations/20260709181100_admin_update_organization_subscription.sql` | ADD RPC |
+
+### Objek database
+
+**Tabel baru**
+- `public.cms_subscription_adjustments` — audit perubahan subscription per org (RLS enabled, tanpa policy)
+
+**RPC baru**
+- `admin_update_organization_subscription(p_organization_id, p_is_trial, p_trial_end_date, p_subscription_end_date, p_reason)` → jsonb
+- `admin_list_subscription_adjustments(p_organization_id, p_limit)`
+
+### Dampak ke synckerja (office)
+
+- **Tidak ada breaking change** — additive only
+- Memanfaatkan trigger existing: `update_subscription_status_on_expiry`, `refresh_organization_has_active_subscription`
+- `get_subscription_status(p_org_id)` office akan reflect tanggal yang diubah admin
+- RLS `organization_subscriptions`: **tidak diubah**
+
+### Yang harus dilakukan tim synckerja
+
+1. Copy 2 file migration ke repo synckerja
+2. Test: `get_subscription_status` untuk org yang di-extend trial oleh admin
+
+---
+
+## [2026-07-09] CMS Admin — list organizations (read-only)
+
+**Author:** synckerja-web (CMS admin)  
+**Status apply Supabase:** Sudah apply  
+
+### Ringkasan
+
+RPC read-only agar CMS admin bisa melihat semua tenant tanpa mengubah RLS office.
+
+### File migration
+
+| File | Jenis |
+|------|-------|
+| `supabase/migrations/20260709174200_admin_list_organizations.sql` | ADD RPC |
+| `supabase/migrations/20260709175700_admin_organizations_summary.sql` | ADD RPC |
+
+### Objek database
+
+**RPC baru**
+- `admin_list_organizations(p_status_filter, p_search, p_limit, p_offset)` — join org + subscription + plan, hitung `effective_status`
+- `admin_organizations_summary()` → jsonb (`total_count`, `active_count`, `trial_count`, `expired_count`)
+
+Keduanya: `SECURITY DEFINER`, guard `is_cms_admin()`, **tidak** mengubah data.
+
+### Dampak ke synckerja (office)
+
+- **Tidak ada dampak** — read-only, tidak ubah RLS/trigger/tabel
+
+### Yang harus dilakukan tim synckerja
+
+1. Copy 2 file migration ke repo synckerja (untuk history migration selaras)
+2. Tidak perlu ubah kode office
+
+---
+
+## Checklist cepat untuk tim synckerja
+
+Saat menerima update dari synckerja-web:
+
+- [ ] Baca entry terbaru di file ini
+- [ ] Copy semua file migration yang disebutkan (untuk `[2026-07-09]` terbaru: sudah di repo)
+- [ ] Konfirmasi status apply di Supabase shared (shared DB: **sudah apply**)
+- [ ] Deploy office ke production jika ada entry "wajib deploy"
+- [ ] Smoke test office:
+  - Login tenant Mandiri + Sales
+  - Sales: modul blocked → upsell; Subscription menu hidden
+  - CMS enable modul → route office terbuka
+  - Billing / subscription status / expired block
+- [ ] Balas di channel tim jika ada pertanyaan / konflik migration
+
+**Sumber changelog master:** `synckerja-web/documents/synckerja-web` — salin entry baru ke file ini saat ada migration baru.

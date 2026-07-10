@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { useUserOrganizations } from "@/shared/hooks/useUserOrganizations";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 import { toast } from "@/shared/hooks/use-toast";
 import { cn } from "@/shared/lib/utils";
 import { CreateOrganizationModal } from "./CreateOrganizationModal";
@@ -20,9 +21,66 @@ import { formatOrganizationRole } from "@/shared/lib/formatOrganizationRole";
 /** Locks trigger min width to this label so the header does not jump when the active org name is shorter. */
 const ORG_SWITCHER_WIDTH_SAMPLE = "PT Integrasi Visual Digital Indonesia";
 
+const ORG_SWITCHER_TRIGGER_CLASS =
+  "flex h-auto max-w-full shrink-0 items-center justify-start gap-2 rounded-md border border-border bg-background px-3 py-2 text-left font-normal";
+
+function OrgSwitcherTriggerFace({
+  triggerTitle,
+  subtitle,
+  showChevron,
+  isSwitching,
+  centeredTitle = false,
+}: {
+  triggerTitle: string;
+  subtitle: string;
+  showChevron: boolean;
+  isSwitching: boolean;
+  centeredTitle?: boolean;
+}) {
+  return (
+    <>
+      <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 text-left">
+        <div className="grid grid-cols-1">
+          <span
+            className="invisible col-start-1 row-start-1 whitespace-nowrap text-sm font-semibold"
+            aria-hidden
+          >
+            {ORG_SWITCHER_WIDTH_SAMPLE}
+          </span>
+          {centeredTitle ? (
+            <>
+              <div className="invisible col-start-1 row-start-1" aria-hidden>
+                <div className="text-sm font-semibold">—</div>
+                <div className="text-xs">—</div>
+              </div>
+              <div className="col-start-1 row-start-1 flex min-w-0 max-w-full items-center overflow-hidden">
+                <div className="truncate text-sm font-semibold text-foreground">{triggerTitle}</div>
+              </div>
+            </>
+          ) : (
+            <div className="col-start-1 row-start-1 min-w-0 max-w-full overflow-hidden">
+              <div className="truncate text-sm font-semibold text-foreground">{triggerTitle}</div>
+              <div className="truncate text-xs text-muted-foreground">{subtitle}</div>
+            </div>
+          )}
+        </div>
+      </div>
+      {isSwitching ? (
+        <Skeleton className="h-4 w-4 shrink-0 rounded" aria-hidden />
+      ) : showChevron ? (
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+      ) : (
+        <span className="h-4 w-4 shrink-0" aria-hidden />
+      )}
+    </>
+  );
+}
+
 export function OrganizationSwitcher() {
   const { t } = useTranslation();
   const { data, isLoading, setActiveOrganization, isSwitching } = useUserOrganizations();
+  const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const [createOpen, setCreateOpen] = useState(false);
 
   const memberships = data?.memberships ?? [];
@@ -74,6 +132,23 @@ export function OrganizationSwitcher() {
     );
   }
 
+  if (!selfServiceEnabled) {
+    return (
+      <div
+        className={cn(ORG_SWITCHER_TRIGGER_CLASS, isSwitching && "opacity-80")}
+        aria-label={triggerTitle}
+      >
+        <OrgSwitcherTriggerFace
+          triggerTitle={triggerTitle}
+          subtitle=""
+          showChevron={false}
+          isSwitching={isSwitching}
+          centeredTitle
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       {/* modal={false}: avoid focus/pointer-dismiss quirks under fixed header + full-app refetches after org switch */}
@@ -83,32 +158,19 @@ export function OrganizationSwitcher() {
             type="button"
             variant="outline"
             className={cn(
-              "h-auto max-w-full shrink-0 justify-start gap-2 border-border bg-background px-3 py-2 text-left font-normal hover:bg-brand-blue/10 hover:text-brand-blue",
+              ORG_SWITCHER_TRIGGER_CLASS,
+              "hover:bg-brand-blue/10 hover:text-brand-blue",
               isSwitching && "pointer-events-none opacity-80",
             )}
             aria-label={t("layout.orgSwitcher.triggerAria")}
             aria-busy={isSwitching}
           >
-            <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 text-left">
-              <div className="grid grid-cols-1">
-                <span
-                  className="invisible col-start-1 row-start-1 whitespace-nowrap text-sm font-semibold"
-                  aria-hidden
-                >
-                  {ORG_SWITCHER_WIDTH_SAMPLE}
-                </span>
-                <div className="col-start-1 row-start-1 min-w-0 max-w-full overflow-hidden">
-                  <div className="truncate text-sm font-semibold text-foreground">{triggerTitle}</div>
-                  <div className="truncate text-xs text-muted-foreground">{countLabel}</div>
-                </div>
-              </div>
-            </div>
-            {isSwitching ? (
-              <Skeleton className="h-4 w-4 shrink-0 rounded" aria-hidden />
-            ) : (
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-            )}
+            <OrgSwitcherTriggerFace
+              triggerTitle={triggerTitle}
+              subtitle={countLabel}
+              showChevron
+              isSwitching={isSwitching}
+            />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent

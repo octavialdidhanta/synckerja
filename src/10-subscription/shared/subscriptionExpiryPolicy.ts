@@ -1,5 +1,6 @@
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
 import type { SubscriptionExpiryStatus } from "@/10-subscription/hooks/useSubscriptionExpiry";
+import { deriveSubscriptionDaysRemaining } from "@/10-subscription/shared/subscriptionUtils";
 
 /** Show global warning banner when days until expiry is at or below this threshold. */
 export const BANNER_DAYS_THRESHOLD = 3;
@@ -18,10 +19,23 @@ export const ALLOWED_EXPIRED_ROUTES = [
   "/subscription/management",
 ] as const;
 
-export function isAllowedWhenExpired(pathname: string): boolean {
-  return ALLOWED_EXPIRED_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`),
-  );
+const SALES_BLOCKED_EXPIRED_ROUTES = [
+  "/subscription/plans",
+  "/subscription/management",
+] as const;
+
+export function isAllowedWhenExpired(
+  pathname: string,
+  options?: { subscriptionSelfServiceEnabled?: boolean },
+): boolean {
+  const selfServiceEnabled = options?.subscriptionSelfServiceEnabled !== false;
+
+  return ALLOWED_EXPIRED_ROUTES.some((route) => {
+    if (!selfServiceEnabled && SALES_BLOCKED_EXPIRED_ROUTES.includes(route as (typeof SALES_BLOCKED_EXPIRED_ROUTES)[number])) {
+      return false;
+    }
+    return pathname === route || pathname.startsWith(`${route}/`);
+  });
 }
 
 export function canManageSubscriptionRole(role: string | undefined): boolean {
@@ -35,7 +49,7 @@ export function shouldShowExpiryBanner(
 ): boolean {
   if (!subscriptionStatus) return false;
   if (expiryStatus.isExpired) return false;
-  const daysLeft = subscriptionStatus.days_until_expiry ?? Number.POSITIVE_INFINITY;
+  const daysLeft = deriveSubscriptionDaysRemaining(subscriptionStatus);
   return daysLeft <= BANNER_DAYS_THRESHOLD;
 }
 

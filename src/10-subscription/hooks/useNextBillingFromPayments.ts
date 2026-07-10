@@ -1,8 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { addMonths, addYears, differenceInDays, startOfToday } from "date-fns";
+import { differenceInCalendarDays, startOfToday } from "date-fns";
 import { supabase } from "@/shared/lib/supabaseClient";
 
+/**
+ * Derives next billing from payment history (display-only helpers).
+ * Subscription expiry UI should use `get_subscription_status` via `useOptimizedSubscription`.
+ */
 export function useNextBillingFromPayments(organizationId: string | undefined) {
   const { data: payments = [], isLoading: paymentsLoading } = useQuery({
     queryKey: ["payment-history-next-billing", organizationId],
@@ -13,7 +17,7 @@ export function useNextBillingFromPayments(organizationId: string | undefined) {
         .select("id, created_at, billing_cycle, subscription_start_date, subscription_end_date, status")
         .eq("organization_id", organizationId)
         .in("status", ["success", "settlement", "paid"])
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -29,36 +33,16 @@ export function useNextBillingFromPayments(organizationId: string | undefined) {
       return { nextBillingDate: null as Date | null, daysUntilExpiry: 0 };
     }
 
-    const sorted = [...successful].sort(
-      (a, b) => new Date(String(a.created_at)).getTime() - new Date(String(b.created_at)).getTime(),
-    );
-    const nextMap = new Map<string, Date>();
-    let prevNext: Date | null = null;
-    for (const p of sorted) {
-      const created = p.created_at ? new Date(String(p.created_at)) : null;
-      const cycle = p.billing_cycle === "yearly" ? 12 : 1;
-      const addOne = (d: Date) => (cycle === 12 ? addYears(d, 1) : addMonths(d, 1));
-      let next: Date | null = null;
-      const startFromDb = p.subscription_start_date ? new Date(String(p.subscription_start_date)) : null;
-      const endFromDb = p.subscription_end_date ? new Date(String(p.subscription_end_date)) : null;
-      const useDb = endFromDb && startFromDb && created && startFromDb.getTime() <= created.getTime();
-      if (useDb) {
-        next = endFromDb;
-      } else if (created) {
-        if (prevNext && created.getTime() < prevNext.getTime()) {
-          next = addOne(prevNext);
-        } else {
-          next = addOne(created);
-        }
-      }
-      if (next) nextMap.set(String(p.id), next);
-      prevNext = next;
-    }
-    const lastPayment = sorted[sorted.length - 1];
-    const nextBillingDate = lastPayment ? nextMap.get(String(lastPayment.id)) ?? null : null;
+    const lastPayment = successful[0];
+    const endFromDb = lastPayment.subscription_end_date
+      ? new Date(String(lastPayment.subscription_end_date))
+      : null;
+    const nextBillingDate =
+      endFromDb && Number.isFinite(endFromDb.getTime()) ? endFromDb : null;
+
     const today = startOfToday();
     const daysUntilExpiry = nextBillingDate
-      ? Math.max(0, differenceInDays(nextBillingDate, today))
+      ? differenceInCalendarDays(nextBillingDate, today)
       : 0;
 
     return { nextBillingDate, daysUntilExpiry };

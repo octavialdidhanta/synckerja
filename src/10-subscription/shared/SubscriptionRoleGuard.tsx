@@ -1,6 +1,8 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 import { useUserOrganizations } from "@/shared/hooks/useUserOrganizations";
+import { isSubscriptionModulePath } from "@/10-subscription/shared/subscriptionSelfService";
 import { useToolsModuleMobileViewport } from "@/shared/hooks/useToolsModuleMobileViewport";
 import { SubscriptionShellSkeleton } from "@/10-subscription/shared/SubscriptionShellSkeleton";
 import { SubscriptionOverviewRouteLoadingShell } from "@/10-subscription/shared/SubscriptionOverviewRouteLoadingShell";
@@ -15,8 +17,13 @@ function canManageSubscription(role: string | undefined): boolean {
 export function SubscriptionRoleGuard() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
+  const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const toolsMobile = useToolsModuleMobileViewport();
   const { data, isLoading } = useUserOrganizations();
+
+  if (!selfServiceEnabled && isSubscriptionModulePath(pathname)) {
+    return <Navigate to="/" replace />;
+  }
 
   const mobileSubscriptionBootstrap = toolsMobile && pathname.startsWith("/subscription");
 

@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { HelpContactCard } from "@/help/components/HelpContactCard";
 import { HelpFaqList } from "@/help/components/HelpFaqList";
+import { SUPPORT_EMAIL } from "@/help/constants/helpContact";
 
 export default function HelpPage() {
   const { t } = useTranslation();
@@ -22,7 +23,8 @@ export default function HelpPage() {
         <p className="text-center text-xs text-muted-foreground">
           {t(
             "help.legalNote",
-            "For privacy or legal inquiries, see our policy pages or contact business@vialdi.id.",
+            "For privacy or legal inquiries, see our policy pages or contact {{email}}.",
+            { email: SUPPORT_EMAIL },
           )}
         </p>
       </div>

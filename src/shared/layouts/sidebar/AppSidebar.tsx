@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type TransitionEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type TransitionEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Lock } from "lucide-react";
 import { Sidebar, SidebarContent, useSidebar } from "@/shared/components/ui/sidebar";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -12,6 +12,9 @@ import {
   type NavSubItem,
 } from "./navConfig";
 import { useSidebarState } from "./useSidebarState";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
+import { useSalesModuleAccess } from "@/shared/auth/hooks/useSalesModuleAccess";
+import type { SalesModuleKey } from "@/shared/auth/module-access/moduleCatalog";
 import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
 import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
 import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
@@ -134,6 +137,19 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const currentPath = location.pathname;
+  const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
+  const { isSalesTenant, isModuleEnabled } = useSalesModuleAccess();
+
+  const isNavModuleLocked = (itemId: string) => {
+    if (!isSalesTenant || itemId === "dashboard" || itemId === "subscription") return false;
+    return !isModuleEnabled(itemId as SalesModuleKey);
+  };
+
+  const visibleNavItems = useMemo(
+    () =>
+      selfServiceEnabled ? mainNavItems : mainNavItems.filter((item) => item.id !== "subscription"),
+    [selfServiceEnabled],
+  );
 
   const {
     activeSubSidebar,
@@ -146,7 +162,7 @@ export function AppSidebar() {
 
   const subSidebarPanelRef = useRef<HTMLDivElement | null>(null);
 
-  const activeMenuItem = mainNavItems.find(
+  const activeMenuItem = visibleNavItems.find(
     (item) => item.id === activeSubSidebar && item.subItems && item.subItems.length > 0,
   );
   const subSidebarOpen = Boolean(activeSubSidebar && activeMenuItem);
@@ -279,10 +295,11 @@ export function AppSidebar() {
             <SidebarBrandHeader />
             <div className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto seamless-scroll pb-4 pt-1">
               <div className="w-full min-w-0 space-y-0.5 px-0">
-                {mainNavItems.map((item) => {
+                {visibleNavItems.map((item) => {
                   const localizedTitle = t(item.titleKey);
                   const hasSub = Boolean(item.subItems && item.subItems.length > 0);
                   const parentActive = isParentActive(item);
+                  const moduleLocked = isNavModuleLocked(item.id);
 
                   return (
                     <div key={item.id} className="w-full min-w-0">
@@ -321,15 +338,21 @@ export function AppSidebar() {
                                 {localizedTitle}
                               </span>
                             </div>
-                            {hasSub && (
-                              <ChevronRight
-                                className={cn(
-                                  "ml-auto h-3 w-3 shrink-0 transform-none text-muted-foreground opacity-60 transition-[color,opacity] duration-200 ease-in-out motion-reduce:transition-none",
-                                  parentActive && "text-brand-blue opacity-100",
-                                  "group-hover:text-brand-blue group-hover:opacity-100",
-                                  "group-data-[collapsible=icon]:hidden",
-                                )}
-                              />
+                            {(hasSub || moduleLocked) && (
+                              <div className="ml-auto flex shrink-0 items-center gap-1 group-data-[collapsible=icon]:hidden">
+                                {moduleLocked ? (
+                                  <Lock className="h-3 w-3 text-amber-700" aria-hidden />
+                                ) : null}
+                                {hasSub ? (
+                                  <ChevronRight
+                                    className={cn(
+                                      "h-3 w-3 shrink-0 transform-none text-muted-foreground opacity-60 transition-[color,opacity] duration-200 ease-in-out motion-reduce:transition-none",
+                                      parentActive && "text-brand-blue opacity-100",
+                                      "group-hover:text-brand-blue group-hover:opacity-100",
+                                    )}
+                                  />
+                                ) : null}
+                              </div>
                             )}
                           </button>
                         ) : (
@@ -360,15 +383,21 @@ export function AppSidebar() {
                                 {localizedTitle}
                               </span>
                             </div>
-                            {hasSub && (
-                              <ChevronRight
-                                className={cn(
-                                  "ml-auto h-3 w-3 shrink-0 transform-none text-muted-foreground opacity-60 transition-[color,opacity] duration-200 ease-in-out motion-reduce:transition-none",
-                                  parentActive && "text-brand-blue opacity-100",
-                                  "group-hover:text-brand-blue group-hover:opacity-100",
-                                  "group-data-[collapsible=icon]:hidden",
-                                )}
-                              />
+                            {(hasSub || moduleLocked) && (
+                              <div className="ml-auto flex shrink-0 items-center gap-1 group-data-[collapsible=icon]:hidden">
+                                {moduleLocked ? (
+                                  <Lock className="h-3 w-3 text-amber-700" aria-hidden />
+                                ) : null}
+                                {hasSub ? (
+                                  <ChevronRight
+                                    className={cn(
+                                      "h-3 w-3 shrink-0 transform-none text-muted-foreground opacity-60 transition-[color,opacity] duration-200 ease-in-out motion-reduce:transition-none",
+                                      parentActive && "text-brand-blue opacity-100",
+                                      "group-hover:text-brand-blue group-hover:opacity-100",
+                                    )}
+                                  />
+                                ) : null}
+                              </div>
                             )}
                           </div>
                         )}

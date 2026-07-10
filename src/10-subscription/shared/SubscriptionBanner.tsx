@@ -5,6 +5,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { cn } from "@/shared/lib/utils";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
+import { deriveSubscriptionDaysRemaining, resolveSubscriptionExpiryEndIso } from "@/10-subscription/shared/subscriptionUtils";
 
 export type SubscriptionBannerProps = {
   subscriptionStatus: SubscriptionStatus;
@@ -29,11 +30,9 @@ export function SubscriptionBanner({
       year: "numeric",
     });
 
-  const expiryDate = subscriptionStatus.is_trial
-    ? subscriptionStatus.trial_end_date
-    : subscriptionStatus.subscription_end_date;
+  const expiryDate = resolveSubscriptionExpiryEndIso(subscriptionStatus);
 
-  const daysLeft = subscriptionStatus.days_until_expiry || 0;
+  const daysLeft = deriveSubscriptionDaysRemaining(subscriptionStatus);
   const isUrgent = daysLeft <= 1;
 
   const expiryMessage =

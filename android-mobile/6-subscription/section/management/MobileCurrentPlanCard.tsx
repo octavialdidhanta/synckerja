@@ -5,21 +5,17 @@ import { Progress } from "@/mobile-app/components/ui/progress";
 import { Button } from "@/mobile-app/components/ui/button";
 import { RefreshCw, Users, CalendarDays, ShieldCheck } from "lucide-react";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
-import { formatSubscriptionDate } from "@/10-subscription/shared/subscriptionUtils";
+import { formatSubscriptionDate, resolveSubscriptionExpiryEndIso } from "@/10-subscription/shared/subscriptionUtils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 interface MobileCurrentPlanCardProps {
   subscriptionStatus: SubscriptionStatus;
   onRefresh: () => void;
   isRefreshing?: boolean;
-  /** Override next billing date/days to match Payment History logic (sync with desktop) */
-  nextBillingOverride?: { date: Date | null; daysRemaining: number } | null;
-  /** When true and no override, show loading for next/ends (avoids wrong RPC date) */
-  nextBillingLoading?: boolean;
 }
 
 export const MobileCurrentPlanCard = memo(
-  ({ subscriptionStatus, onRefresh, isRefreshing, nextBillingOverride, nextBillingLoading }: MobileCurrentPlanCardProps) => {
+  ({ subscriptionStatus, onRefresh, isRefreshing }: MobileCurrentPlanCardProps) => {
     const { t } = useAppTranslation();
     const usagePercent =
       subscriptionStatus.member_count > 0
@@ -103,12 +99,7 @@ export const MobileCurrentPlanCard = memo(
             <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
               <span>{t("subscription.management.endsOn")}</span>
               <span className="font-semibold text-foreground">
-                {nextBillingLoading && !nextBillingOverride
-                  ? "..."
-                  : formatSubscriptionDate(
-                      nextBillingOverride?.date?.toISOString() ?? subscriptionStatus.subscription_end_date ?? subscriptionStatus.end_date,
-                      { month: "long" },
-                    )}
+                {formatSubscriptionDate(resolveSubscriptionExpiryEndIso(subscriptionStatus), { month: "long" })}
               </span>
             </div>
             <div className="mt-2 flex items-center gap-2 rounded-lg bg-card p-2.5 text-xs text-muted-foreground">
@@ -116,12 +107,10 @@ export const MobileCurrentPlanCard = memo(
               <div>
                 <p className="font-semibold text-foreground">{t("subscription.management.nextPayment")}</p>
                 <p>
-                  {nextBillingLoading && !nextBillingOverride
-                    ? "..."
-                    : formatSubscriptionDate(
-                        nextBillingOverride?.date?.toISOString() ?? subscriptionStatus.next_payment_date,
-                        { month: "long" },
-                      )}
+                  {formatSubscriptionDate(
+                    subscriptionStatus.next_payment_date ?? subscriptionStatus.subscription_end_date,
+                    { month: "long" },
+                  )}
                 </p>
               </div>
             </div>

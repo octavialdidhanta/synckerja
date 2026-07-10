@@ -3,11 +3,10 @@ import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { CreditCard, Users, Calendar, AlertCircle, CheckCircle, MessagesSquare } from "lucide-react";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
+import { deriveSubscriptionDaysRemaining } from "@/10-subscription/shared/subscriptionUtils";
 
 interface MetricCardsProps {
   subscriptionStatus: SubscriptionStatus | null;
-  daysRemainingOverride?: number | null;
-  nextBillingLoading?: boolean;
   /** Roster rows in `organization_omnichannel_staff` (livechat / omnichannel users). */
   omnichannelRosterActiveCount?: number;
   omnichannelRosterPending?: boolean;
@@ -16,8 +15,6 @@ interface MetricCardsProps {
 export const MetricCards = memo(
   function MetricCards({
     subscriptionStatus,
-    daysRemainingOverride,
-    nextBillingLoading,
     omnichannelRosterActiveCount = 0,
     omnichannelRosterPending = false,
   }: MetricCardsProps) {
@@ -32,16 +29,9 @@ export const MetricCards = memo(
         subscriptionStatus.current_employees || subscriptionStatus.employee_count || 0;
       const memberLimit = subscriptionStatus.member_count || subscriptionStatus.member_limit || 0;
 
-      const daysLeftLoading = nextBillingLoading && daysRemainingOverride == null;
-      const daysLeft = daysLeftLoading
-        ? 0
-        : Math.max(
-            0,
-            daysRemainingOverride ??
-              subscriptionStatus.days_until_expiry ??
-              subscriptionStatus.days_remaining ??
-              0,
-          );
+      const daysLeft = subscriptionStatus
+        ? Math.max(0, deriveSubscriptionDaysRemaining(subscriptionStatus))
+        : 0;
 
       const isTrial = subscriptionStatus.is_trial || false;
       const statusLabel = isTrial
@@ -84,11 +74,10 @@ export const MetricCards = memo(
           title: isTrial
             ? t("subscription.overview.metricTrialDaysLeft")
             : t("subscription.overview.metricDaysRemaining"),
-          value: daysLeftLoading ? t("subscription.overview.loadingEllipsis") : daysLeft,
+          value: daysLeft,
           icon: Calendar,
-          color: daysLeftLoading
-            ? "text-muted-foreground"
-            : daysLeft <= 3
+          color:
+            daysLeft <= 3
               ? "text-brand-red"
               : daysLeft <= 7
                 ? "text-brand-red"
@@ -103,8 +92,6 @@ export const MetricCards = memo(
       ];
     }, [
       subscriptionStatus,
-      daysRemainingOverride,
-      nextBillingLoading,
       omnichannelRosterActiveCount,
       omnichannelRosterPending,
       t,
@@ -215,10 +202,8 @@ export const MetricCards = memo(
     if (!prevProps.subscriptionStatus && !nextProps.subscriptionStatus) return true;
     if (!prevProps.subscriptionStatus || !nextProps.subscriptionStatus) return false;
 
-    const prevDays =
-      prevProps.daysRemainingOverride ?? prevProps.subscriptionStatus.days_until_expiry;
-    const nextDays =
-      nextProps.daysRemainingOverride ?? nextProps.subscriptionStatus.days_until_expiry;
+    const prevDays = deriveSubscriptionDaysRemaining(prevProps.subscriptionStatus);
+    const nextDays = deriveSubscriptionDaysRemaining(nextProps.subscriptionStatus);
 
     return (
       prevProps.subscriptionStatus.plan_name === nextProps.subscriptionStatus.plan_name &&
@@ -229,7 +214,6 @@ export const MetricCards = memo(
       prevProps.subscriptionStatus.omnichannel_roster_seat_cap ===
         nextProps.subscriptionStatus.omnichannel_roster_seat_cap &&
       prevDays === nextDays &&
-      prevProps.nextBillingLoading === nextProps.nextBillingLoading &&
       prevProps.omnichannelRosterPending === nextProps.omnichannelRosterPending &&
       prevProps.omnichannelRosterActiveCount === nextProps.omnichannelRosterActiveCount &&
       prevProps.subscriptionStatus.is_active === nextProps.subscriptionStatus.is_active &&

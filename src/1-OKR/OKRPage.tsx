@@ -25,6 +25,7 @@ import { getOkrActiveTabFromPath } from "./utils/okrPaths";
 import { OkrPageDetailLoadProvider, useOkrPageDetailTabs } from "./context/OkrPageDetailLoadContext";
 import { HeaderAndTab, OKRSidebarFooter } from "./section";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAccess";
 
 const CompanyObjectivesProgressCard = lazy(() =>
   import("@/1-home/components/HomeOKRDashboard/component/CompanyObjectivesProgressCard").then((m) => ({
@@ -87,6 +88,8 @@ function OKRPageContent() {
   const { t } = useTranslation();
   const location = useLocation();
   const handleTabChange = useOkrHeaderTabChange();
+  const { canAccessPage, accessDecisionPending } = useDepartmentAccess();
+  const hasPageAccess = canAccessPage(location.pathname);
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const { data: currentEmployee, isPending: currentEmployeePending } = useCurrentEmployee();
   const { data: cycles = [], isPending: cyclesPending } = useOkrCycles(organizationId);
@@ -152,6 +155,7 @@ function OKRPageContent() {
   );
 
   const rawPageLoadPending = useMemo(() => {
+    if (accessDecisionPending || !hasPageAccess) return false;
     if (orgBootstrapPending) return true;
     if (!organizationId) return false;
     if (cyclesPending) return true;
@@ -168,6 +172,8 @@ function OKRPageContent() {
     }
     return individualStats.isPending || detailTabs.individual.loading;
   }, [
+    accessDecisionPending,
+    hasPageAccess,
     orgBootstrapPending,
     organizationId,
     cyclesPending,

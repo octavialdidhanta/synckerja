@@ -2,8 +2,6 @@ import { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SubscriptionSectionLayout } from "@/10-subscription/shared/SubscriptionSectionLayout";
 import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
-import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
-import { useNextBillingFromPayments } from "@/10-subscription/hooks/useNextBillingFromPayments";
 import { useSubscriptionAnalytics } from "@/10-subscription/hooks/useSubscriptionAnalytics";
 import { useOptimizedPerformanceMonitor } from "@/10-subscription/hooks/useOptimizedPerformanceMonitor";
 import { useOrganizationOmnichannelStaff } from "@/shared/hooks/useOrganizationOmnichannelStaff";
@@ -23,8 +21,6 @@ const OverviewTabContent = memo(
     subscriptionStatus,
     analytics,
     refreshSubscriptionStatus,
-    nextBillingOverride,
-    nextBillingLoading,
     onFooterRefresh,
     isFooterRefreshing,
     omnichannelRosterActiveCount,
@@ -33,8 +29,6 @@ const OverviewTabContent = memo(
     subscriptionStatus: ReturnType<typeof useOptimizedSubscription>["subscriptionStatus"];
     analytics: ReturnType<typeof useSubscriptionAnalytics>["analytics"];
     refreshSubscriptionStatus: () => void;
-    nextBillingOverride: { date: Date; daysRemaining: number } | null;
-    nextBillingLoading: boolean;
     onFooterRefresh: () => Promise<void>;
     isFooterRefreshing: boolean;
     omnichannelRosterActiveCount: number;
@@ -59,11 +53,7 @@ const OverviewTabContent = memo(
             <div className="min-w-0">
               <div className="min-w-0 space-y-5 p-4">
               {subscriptionStatus && (
-                <CurrentSubscription
-                  subscriptionStatus={subscriptionStatus}
-                  nextBillingOverride={nextBillingOverride}
-                  nextBillingLoading={nextBillingLoading}
-                />
+                <CurrentSubscription subscriptionStatus={subscriptionStatus} />
               )}
 
                 <div className="space-y-2">
@@ -92,8 +82,6 @@ const OverviewTabContent = memo(
                   </div>
                   <MetricCards
                     subscriptionStatus={subscriptionStatus}
-                    daysRemainingOverride={nextBillingOverride?.daysRemaining}
-                    nextBillingLoading={nextBillingLoading}
                     omnichannelRosterActiveCount={omnichannelRosterActiveCount}
                     omnichannelRosterPending={omnichannelRosterPending}
                   />
@@ -142,11 +130,7 @@ const OverviewTabContent = memo(
 
 export default function OverviewPage() {
   useOptimizedPerformanceMonitor("OverviewPage");
-  const { organizationId } = useActiveOrganization();
   const { subscriptionStatus, statusLoading, statusError, refreshSubscriptionStatus } = useOptimizedSubscription();
-  const { nextBillingDate, daysUntilExpiry, paymentsLoading } = useNextBillingFromPayments(organizationId);
-  const nextBillingOverride =
-    nextBillingDate != null ? { date: nextBillingDate, daysRemaining: daysUntilExpiry } : null;
 
   const { analytics, isLoading: analyticsLoading, refetch: refetchAnalytics } = useSubscriptionAnalytics();
   const { data: omnichannelRoster = [], isPending: omnichannelRosterPending } = useOrganizationOmnichannelStaff();
@@ -170,8 +154,6 @@ export default function OverviewPage() {
           subscriptionStatus={subscriptionStatus}
           analytics={analytics}
           refreshSubscriptionStatus={refreshSubscriptionStatus}
-          nextBillingOverride={nextBillingOverride}
-          nextBillingLoading={paymentsLoading}
           onFooterRefresh={handleOverviewFooterRefresh}
           isFooterRefreshing={isFooterRefreshing}
           omnichannelRosterActiveCount={omnichannelRoster.length}

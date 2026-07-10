@@ -4,17 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { Badge } from "@/shared/components/ui/badge";
 import { Calendar, Users, CreditCard, AlertTriangle, Puzzle } from "lucide-react";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
+import { deriveSubscriptionDaysRemaining, resolveSubscriptionExpiryEndIso } from "@/10-subscription/shared/subscriptionUtils";
 
 interface CurrentSubscriptionProps {
   subscriptionStatus: SubscriptionStatus;
-  nextBillingOverride?: { date: Date | null; daysRemaining: number } | null;
-  nextBillingLoading?: boolean;
 }
 
 export const CurrentSubscription = memo(function CurrentSubscription({
   subscriptionStatus,
-  nextBillingOverride,
-  nextBillingLoading,
 }: CurrentSubscriptionProps) {
   const { t, i18n } = useTranslation();
 
@@ -34,15 +31,9 @@ export const CurrentSubscription = memo(function CurrentSubscription({
     maxEmployees > 0 ? (subscriptionStatus.current_employees / maxEmployees) * 100 : 0;
   const isNearLimit = employeeUsagePercentage >= 80;
 
-  const expiryDate = nextBillingOverride?.date
-    ? nextBillingOverride.date.toISOString()
-    : subscriptionStatus.is_trial
-      ? subscriptionStatus.trial_end_date || subscriptionStatus.end_date
-      : subscriptionStatus.subscription_end_date || subscriptionStatus.end_date;
+  const expiryDate = resolveSubscriptionExpiryEndIso(subscriptionStatus);
 
-  const daysRemaining =
-    nextBillingOverride != null ? nextBillingOverride.daysRemaining : subscriptionStatus.days_until_expiry;
-  const showNextBillingLoading = nextBillingLoading && nextBillingOverride == null;
+  const daysRemaining = deriveSubscriptionDaysRemaining(subscriptionStatus);
   const isExpired = subscriptionStatus.is_expired || daysRemaining < 0;
 
   const billingLabel =
@@ -108,18 +99,16 @@ export const CurrentSubscription = memo(function CurrentSubscription({
             <div className="text-sm">
               <p className="text-foreground">
                 {subscriptionStatus.is_trial ? t("subscription.overview.endsOn") : t("subscription.overview.renewsOn")}{" "}
-                {showNextBillingLoading ? "…" : expiryDate && formatDate(expiryDate)}
+                {expiryDate ? formatDate(expiryDate) : "—"}
               </p>
               <p
                 className={`text-xs ${(daysRemaining || 0) <= 3 && !isExpired ? "text-destructive" : "text-muted-foreground"}`}
               >
-                {showNextBillingLoading
-                  ? t("subscription.overview.loadingShort")
-                  : daysRemaining < 0
-                    ? t("subscription.overview.expiredDaysAgo", { count: Math.abs(daysRemaining) })
-                    : daysRemaining === 0
-                      ? t("subscription.overview.expiresToday")
-                      : t("subscription.overview.daysRemainingCount", { count: daysRemaining })}
+                {daysRemaining < 0
+                  ? t("subscription.overview.expiredDaysAgo", { count: Math.abs(daysRemaining) })
+                  : daysRemaining === 0
+                    ? t("subscription.overview.expiresToday")
+                    : t("subscription.overview.daysRemainingCount", { count: daysRemaining })}
               </p>
             </div>
           </div>
@@ -133,21 +122,15 @@ export const CurrentSubscription = memo(function CurrentSubscription({
               <div className="text-sm">
                 <p className="text-foreground">{billingLabel}</p>
                 <p className="text-xs text-muted-foreground">
-                  {showNextBillingLoading
-                    ? t("subscription.overview.loadingShort")
-                    : nextBillingOverride?.date
+                  {subscriptionStatus.next_payment_date
+                    ? t("subscription.overview.nextPaymentOn", {
+                        date: formatDate(subscriptionStatus.next_payment_date),
+                      })
+                    : subscriptionStatus.subscription_end_date
                       ? t("subscription.overview.nextPaymentOn", {
-                          date: formatDate(nextBillingOverride.date.toISOString()),
+                          date: formatDate(subscriptionStatus.subscription_end_date),
                         })
-                      : subscriptionStatus.next_payment_date
-                        ? t("subscription.overview.nextPaymentOn", {
-                            date: formatDate(subscriptionStatus.next_payment_date),
-                          })
-                        : subscriptionStatus.subscription_end_date
-                          ? t("subscription.overview.nextPaymentOn", {
-                              date: formatDate(subscriptionStatus.subscription_end_date),
-                            })
-                          : t("subscription.overview.nextPaymentDue")}
+                      : t("subscription.overview.nextPaymentDue")}
                 </p>
               </div>
             </div>

@@ -9,8 +9,10 @@ import { canManageSubscriptionRole } from "@/10-subscription/shared/subscription
 
 export function SubscriptionExpiredPage({
   expiryStatus,
+  selfServiceEnabled = true,
 }: {
   expiryStatus: SubscriptionExpiryStatus;
+  selfServiceEnabled?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -20,7 +22,7 @@ export function SubscriptionExpiredPage({
     (m) => m.organizationId === orgData.activeOrganizationId,
   );
   const organizationName = activeMembership?.companyName;
-  const canRenew = canManageSubscriptionRole(activeMembership?.role);
+  const canRenew = selfServiceEnabled && canManageSubscriptionRole(activeMembership?.role);
 
   const formattedDate = expiryStatus.expiredDate
     ? new Date(expiryStatus.expiredDate).toLocaleDateString(
@@ -42,10 +44,15 @@ export function SubscriptionExpiredPage({
               {t("subscription.expired.title", "Subscription expired")}
             </h1>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {t(
-                "subscription.expired.description",
-                "Your organization subscription has ended. Renew to continue using Synckerja.",
-              )}
+              {selfServiceEnabled
+                ? t(
+                    "subscription.expired.description",
+                    "Your organization subscription has ended. Renew to continue using Synckerja.",
+                  )
+                : t(
+                    "subscription.expired.descriptionSales",
+                    "Your organization subscription has ended. Contact the Synckerja team to renew.",
+                  )}
             </p>
             {organizationName ? (
               <p className="text-xs font-medium text-muted-foreground">{organizationName}</p>
@@ -79,10 +86,15 @@ export function SubscriptionExpiredPage({
             </div>
           ) : (
             <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-              {t(
-                "subscription.expired.contactAdmin",
-                "Please contact your organization Owner or Admin to renew the subscription.",
-              )}
+              {selfServiceEnabled
+                ? t(
+                    "subscription.expired.contactAdmin",
+                    "Please contact your organization Owner or Admin to renew the subscription.",
+                  )
+                : t(
+                    "subscription.expired.contactSynckerja",
+                    "Please contact the Synckerja team to renew your subscription.",
+                  )}
             </p>
           )}
         </CardContent>

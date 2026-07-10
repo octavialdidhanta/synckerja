@@ -3,8 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
-import { StockManagementHeaderAndTab } from "@/6-0-stock-management/container/StockManagementHeaderAndTab";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { Button } from "@/shared/components/ui/button";
@@ -25,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
-import { STOCK_MANAGEMENT_PAGE_PATH } from "@/stock-management/lib/inventoryPaths";
 import { useInventorySkusQuery } from "@/stock-management/hooks/useInventorySkusQuery";
 import { usePlatformSkuMappingsQuery } from "@/stock-management/hooks/usePlatformSkuMappingsQuery";
 import { deletePlatformMapping, upsertPlatformMapping } from "@/stock-management/lib/inventoryApi";
@@ -38,9 +36,9 @@ export default function StockPlatformMappingPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <StockManagementDashboardSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={STOCK_MANAGEMENT_PAGE_PATH}>
+    <StockManagementModuleShell>
       <StockPlatformMappingContent />
-    </ModuleShellContentGate>
+    </StockManagementModuleShell>
   );
 }
 
@@ -78,7 +76,7 @@ function StockPlatformMappingContent() {
   }, [shops, shopAccountId]);
 
   if (gatePending || (isLoading && mappings.length === 0)) {
-    return <StockManagementDashboardSkeleton />;
+    return null;
   }
 
   const invalidate = () => {
@@ -137,13 +135,7 @@ function StockPlatformMappingContent() {
   };
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden">
-          <div className="flex min-h-full flex-col">
-            <div className="mb-1 flex-shrink-0">
-              <StockManagementHeaderAndTab />
-            </div>
+    <>
             <div className="col-span-12 space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               {canManage ? (
                 <div className="space-y-2">
@@ -303,10 +295,7 @@ function StockPlatformMappingContent() {
                 </TableBody>
               </Table>
             </div>
-            <div className="h-2 flex-shrink-0" aria-hidden />
-          </div>
-        </div>
-      </div>
-    </div>
+            <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+    </>
   );
 }

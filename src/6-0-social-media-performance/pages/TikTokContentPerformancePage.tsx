@@ -5,8 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { endOfDay } from "date-fns";
-import { SocialMediaPerformanceHeaderAndTab } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { SocialMediaPerformanceModuleShell } from "@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useModulePageOverlaySkeleton } from "@/shared/auth/page-access/useModulePageOverlaySkeleton";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
@@ -42,9 +41,9 @@ const SOCIAL_MEDIA_PERFORMANCE_PATH = "/digital-marketing/social-media-performan
 
 export default function TikTokContentPerformancePage() {
   return (
-    <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
+    <SocialMediaPerformanceModuleShell>
       <TikTokContentPerformancePageContent />
-    </ModuleShellContentGate>
+    </SocialMediaPerformanceModuleShell>
   );
 }
 
@@ -177,22 +176,14 @@ function TikTokContentPerformancePageContent() {
   const showContent = useDebouncedReady(accessReady && !showFullPageSkeleton, 150);
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div
         className={cn(
-          "flex h-full min-h-0 w-full min-w-0 flex-1 flex-col",
+          "flex min-h-0 flex-1 flex-col",
           !showContent && "pointer-events-none invisible",
         )}
         aria-hidden={!showContent}
       >
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="mb-1 min-w-0 shrink-0">
-                <SocialMediaPerformanceHeaderAndTab />
-              </div>
-
               <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                   {!canManage ? (
@@ -339,10 +330,6 @@ function TikTokContentPerformancePageContent() {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
       </div>
 
       {!showContent ? (

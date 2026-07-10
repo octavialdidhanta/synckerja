@@ -9,6 +9,7 @@ import { ShareIntent } from "@/plugins/share-intent";
 import { shareIntentFilesToFiles } from "@/mobile-app/shareIntent/shareFilesToWeb";
 import { setShareBackGuard } from "@/mobile-app/shareIntent/shareBackGuard";
 import { useOrganizationList } from "@/mobile-app/hooks/useOrganizationList";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 import { OrganizationSelectDrawer } from "@/mobile-app/components/OrganizationSelectDrawer";
 import { AddNewExpenseModal } from "@/mobile/2-expense/modal/AddNewExpenseModal";
 import { useExpenses } from "@/shared/hooks/finance/useExpenses";
@@ -57,6 +58,7 @@ export default function ShareReceiptValidationPage() {
   const { t } = useAppTranslation();
   const navigate = useNavigate();
   const { activeOrganization, loading: orgLoading } = useOrganizationList();
+  const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const { updateRecurringBillAfterPayNow } = useExpenses();
   const { debts, isLoading: debtsLoading, refetch: refetchDebts } = useDebts();
   const { updateBalance } = useBankAccountBalances();
@@ -403,16 +405,18 @@ export default function ShareReceiptValidationPage() {
               </p>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-foreground truncate">{activeOrgName}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  disabled={orgLoading}
-                  onClick={() => setOrgDrawerOpen(true)}
-                >
-                  {t("shareReceipt.changeOrg", "Ubah")}
-                </Button>
+                {selfServiceEnabled ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={orgLoading}
+                    onClick={() => setOrgDrawerOpen(true)}
+                  >
+                    {t("shareReceipt.changeOrg", "Ubah")}
+                  </Button>
+                ) : null}
               </div>
             </section>
 

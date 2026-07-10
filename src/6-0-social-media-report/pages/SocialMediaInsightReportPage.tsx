@@ -4,10 +4,8 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { endOfDay } from "date-fns";
 import { toast } from "sonner";
-import {
-  SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH,
-  SocialMediaPerformanceHeaderAndTab,
-} from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
+import { SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
+import { SocialMediaPerformanceModuleShell } from "@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell";
 import { SocialMediaInsightReportDataProvider } from "@/6-0-social-media-performance-shared/SocialMediaInsightReportDataContext";
 import { useSocialMediaInsightReportDataContext } from "@/6-0-social-media-performance-shared/SocialMediaInsightReportDataContext";
 import type { SocialMediaPlatformFilter } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
@@ -34,19 +32,16 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
-
-const SOCIAL_MEDIA_PERFORMANCE_PATH = "/digital-marketing/social-media-performance";
 
 export default function SocialMediaInsightReportPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <SocialMediaInsightReportPageSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
+    <SocialMediaPerformanceModuleShell activeReportPath={SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH}>
       <SocialMediaInsightReportPageGate />
-    </ModuleShellContentGate>
+    </SocialMediaPerformanceModuleShell>
   );
 }
 
@@ -54,12 +49,11 @@ function SocialMediaInsightReportPageGate() {
   const { t } = useTranslation();
   const { canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
 
-  if (gatePending) return <SocialMediaInsightReportPageSkeleton />;
+  if (gatePending) return null;
   if (!canManage) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col bg-gray-100 p-4">
-        <SocialMediaPerformanceHeaderAndTab activeReportPath={SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH} />
-        <Alert className="mt-4 max-w-lg">
+      <div className="flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <Alert className="max-w-lg">
           <AlertTitle>
             {t("digitalMarketing.tiktokContent.accessDeniedTitle", "Access restricted")}
           </AlertTitle>
@@ -226,26 +220,15 @@ function SocialMediaInsightReportPageBody({
   const hasConnectedData = accounts.some((a) => a.connected && !a.isPlatformPlaceholder);
 
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div
-          className={cn(
-            "flex min-h-0 min-w-0 flex-1 flex-col",
-            showTableSkeletonOverlay && "pointer-events-none opacity-0",
-          )}
-          aria-hidden={showTableSkeletonOverlay}
-        >
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-2">
-            <div className="flex h-full min-h-0 min-w-0 flex-col">
-              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="flex min-h-full min-w-0 flex-col">
-                  <div className="mb-1 min-w-0 shrink-0">
-                    <SocialMediaPerformanceHeaderAndTab
-                      activeReportPath={SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH}
-                    />
-                  </div>
-
-                  <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 flex-col",
+          showTableSkeletonOverlay && "pointer-events-none opacity-0",
+        )}
+        aria-hidden={showTableSkeletonOverlay}
+      >
+        <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                     <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
                       <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -406,19 +389,15 @@ function SocialMediaInsightReportPageBody({
                         </p>
                       ) : null}
                     </div>
-                  </div>
-
-                  <div
-                    className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-                    aria-hidden
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {showTableSkeletonOverlay ? (
+        <div
+          className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+          aria-hidden
+        />
+      </div>
+
+      {showTableSkeletonOverlay ? (
           <div
             className="absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col overflow-hidden bg-gray-100"
             aria-busy
@@ -427,7 +406,6 @@ function SocialMediaInsightReportPageBody({
             <SocialMediaInsightReportTablePhaseSkeleton />
           </div>
         ) : null}
-      </div>
     </div>
   );
 }

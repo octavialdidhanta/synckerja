@@ -7,7 +7,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Columns3, Loader2, RefreshCw } from "lucide-react";
 import type { GoogleAdsMetricsRow } from "@/google-ads/metrics/types";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { ModuleHeaderBelowContentGate } from "@/shared/layouts/ModuleHeaderBelowContentGate";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
@@ -124,6 +124,28 @@ function parseMetricsPageOffset(token: string): number {
 }
 
 export default function GoogleAdsMetricsPage() {
+  const { orgBootstrapPending } = useOrgBootstrapPending();
+  if (orgBootstrapPending) return <GoogleAdsMetricsPageSkeleton />;
+  return (
+    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ModuleHeaderBelowContentGate
+              pagePath="/digital-marketing/google-ads"
+              header={<HeaderAndTab />}
+              className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+            >
+              <GoogleAdsMetricsPageContent />
+            </ModuleHeaderBelowContentGate>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GoogleAdsMetricsPageContent() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -931,25 +953,15 @@ export default function GoogleAdsMetricsPage() {
   }, [rawPageLoadPending]);
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <ModuleShellContentGate pagePath="/digital-marketing/google-ads">
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div
-            className={cn(
-              "flex min-h-0 flex-1 flex-col",
-              showPageSkeletonOverlay && "pointer-events-none opacity-0",
-            )}
-            aria-hidden={showPageSkeletonOverlay}
-          >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <div className="mb-1 min-w-0 shrink-0">
-                  <HeaderAndTab />
-                </div>
-
-                <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          showPageSkeletonOverlay && "pointer-events-none opacity-0",
+        )}
+        aria-hidden={showPageSkeletonOverlay}
+      >
+        <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                       {!canManage ? (
                         <div className="p-6">
@@ -1432,22 +1444,16 @@ export default function GoogleAdsMetricsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-          </div>
 
-          {showPageSkeletonOverlay ? (
-            <div
-              className="absolute inset-0 z-10 flex min-h-0 flex-col overflow-hidden bg-gray-100"
-              aria-busy
-              aria-label={t("common.loading", "Loading")}
-            >
-              <GoogleAdsMetricsPageSkeleton />
-            </div>
-          ) : null}
+      {showPageSkeletonOverlay ? (
+        <div
+          className="absolute inset-0 z-10 flex min-h-0 flex-col overflow-hidden bg-gray-100"
+          aria-busy
+          aria-label={t("common.loading", "Loading")}
+        >
+          <GoogleAdsMetricsPageSkeleton />
         </div>
-      </ModuleShellContentGate>
+      ) : null}
 
       <GoogleAdsModifyColumnsDialog
         open={metricsDialogOpen}

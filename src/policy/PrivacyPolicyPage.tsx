@@ -143,7 +143,20 @@ export default function PrivacyPolicyPage() {
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Google API Limited Use Disclosure</h2>
-            <p className={paraClass}>Our application may integrate with Google APIs, including Google sign-in, Google Drive (when you choose to connect Drive for file preview), Google Ads (when an administrator connects an ad account), and YouTube (when an administrator connects a YouTube channel for organic content performance reporting). We confirm that any user data obtained through these APIs is used solely to provide or improve user-facing features within Synckerja Office for the organization that connected the service. We do not use this data to develop, improve, or train generalized AI or machine learning models. We do not sell Google or YouTube user data. You may disconnect these integrations in your organization settings, which stops our further use of stored OAuth tokens for that integration. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.</p>
+            <p className={paraClass}>Our application may integrate with Google APIs, including Google sign-in, Google Drive (when you choose to connect Drive for file preview), Google Ads (when an administrator connects an ad account), and YouTube (when an administrator connects a YouTube channel for organic content performance reporting and, when authorized, video publishing). We confirm that any user data obtained through these APIs is used solely to provide or improve user-facing features within Synckerja Office for the organization that connected the service. We do not use this data to develop, improve, or train generalized AI or machine learning models. We do not sell Google or YouTube user data. You may disconnect these integrations in your organization settings, which stops our further use of stored OAuth tokens for that integration. Our use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.</p>
+          </section>
+
+          <section className={sectionClass}>
+            <h2 className={headingClass}>YouTube API Disclosure</h2>
+            <p className={paraClass}>
+              When an organization administrator connects a YouTube channel through Google OAuth in Digital Marketing → Social Media Performance → YouTube settings, Synckerja Office may access YouTube data only to provide user-facing features for that organization. Depending on the permissions granted, this may include channel identity, published video lists, video performance metrics (such as views, likes, and comments), channel analytics, comments on connected videos (read and reply when authorized), and the ability to upload videos to the connected channel.
+            </p>
+            <p className={paraClass}>
+              Video publishing occurs only when a user explicitly chooses Schedule or Post Now on an approved Reel content plan. The video file is retrieved from the Google Drive link attached to that plan (the file must be shared so it is accessible via the link). We do not perform background or automatic uploads. We store publish identifiers and basic metadata (such as title, privacy level, and publish time) to show posting status inside Synckerja Office.
+            </p>
+            <p className={paraClass}>
+              We use YouTube data solely to provide or improve these features within Synckerja Office for the organization that connected the channel. We do not sell YouTube user data, use it to build advertising profiles, or use it to develop, improve, or train generalized AI or machine learning models. OAuth tokens are stored encrypted on our servers. Organization administrators may disconnect YouTube at any time in settings, which deactivates stored tokens for that connection. Our use of YouTube APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
+            </p>
           </section>
 
           <section className={sectionClass}>

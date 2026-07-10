@@ -11,6 +11,12 @@ import {
   forceClearCache,
 } from "./departmentPageAccessCache";
 import { buildEffectiveAccessRoles, hasOwnerRole } from "./accessRoleSet";
+import {
+  isSubscriptionModulePath,
+  isSubscriptionSelfServiceEnabled,
+} from "@/10-subscription/shared/subscriptionSelfService";
+import { useSalesModuleAccess } from "@/shared/auth/hooks/useSalesModuleAccess";
+import { isSalesModulePathBlocked } from "@/shared/auth/module-access/moduleCatalog";
 
 const CROSS_DEPARTMENT_PAGES = ["/employees", "/reports", "/company", "/organization"];
 
@@ -38,6 +44,7 @@ export const useDepartmentAccess = () => {
   } = useCentralizedUserData();
   const { configurations, loading: configLoading, configBootstrapPending } =
     usePermissionConfiguration();
+  const { isSalesTenant, moduleAccess, getUpsellModuleForPath } = useSalesModuleAccess();
 
   const departmentAccess = useMemo(() => {
     const currentDepartmentId = employee?.department_id;
@@ -100,6 +107,18 @@ export const useDepartmentAccess = () => {
         }
       }
 
+      const current = normalizePath(pagePath);
+      if (
+        isSubscriptionModulePath(current) &&
+        !isSubscriptionSelfServiceEnabled(organization?.subscription_self_service_enabled)
+      ) {
+        return false;
+      }
+
+      if (isSalesModulePathBlocked(current, isSalesTenant, moduleAccess)) {
+        return false;
+      }
+
       if (hasOwner) {
         return true;
       }
@@ -128,11 +147,11 @@ export const useDepartmentAccess = () => {
         return false;
       }
 
-      const current = normalizePath(pagePath);
+      const currentPath = current;
 
       const verbosePermissions = import.meta.env.VITE_VERBOSE_PERMISSIONS === "true";
 
-      const cacheKey = `${current}-${effForPath.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
+      const cacheKey = `${currentPath}-${effForPath.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
       const cached = accessCache.get(cacheKey);
       if (
         cached &&
@@ -148,8 +167,8 @@ export const useDepartmentAccess = () => {
       const matchingConfigs = configurations
         .filter((c) => {
           const base = normalizePath(c.page_path);
-          if (configMatchesPath(base, current)) return true;
-          if (current === "/" && base === "/dashboard") return true;
+          if (configMatchesPath(base, currentPath)) return true;
+          if (currentPath === "/" && base === "/dashboard") return true;
           return false;
         })
         .sort(
@@ -159,7 +178,7 @@ export const useDepartmentAccess = () => {
       const pickMostSpecific = (list: typeof matchingConfigs) => list[0];
 
       let configsToEvaluate: typeof matchingConfigs;
-      if (current === "/") {
+      if (currentPath === "/") {
         const homeMatches = matchingConfigs
           .filter((c) => {
             const b = normalizePath(c.page_path);
@@ -180,7 +199,7 @@ export const useDepartmentAccess = () => {
 
       if (isDev && verbosePermissions) {
         logger.debug(`PERMISSION DEBUG: ${pagePath}`, {
-          current,
+          current: currentPath,
           userRole,
           eff: effForPath,
           configsToEvaluate,
@@ -306,6 +325,7 @@ export const useDepartmentAccess = () => {
       requiresCrossDepartmentAccess,
       getAccessLevel,
       getDepartmentRestrictionMessage,
+      getSalesModuleUpsellForPath: getUpsellModuleForPath,
       currentDepartmentId,
       userRole,
       isOwner,
@@ -330,6 +350,9 @@ export const useDepartmentAccess = () => {
     configBootstrapPending,
     centralProfileHydrated,
     t,
+    isSalesTenant,
+    moduleAccess,
+    getUpsellModuleForPath,
   ]);
 
   const { configHash } = departmentAccess;

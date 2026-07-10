@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { StockManagementHeaderAndTab } from "@/6-0-stock-management/container/StockManagementHeaderAndTab";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import {
@@ -12,7 +11,6 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Badge } from "@/shared/components/ui/badge";
-import { STOCK_MANAGEMENT_PAGE_PATH } from "@/stock-management/lib/inventoryPaths";
 import { useInventorySyncLogsQuery } from "@/stock-management/hooks/useInventorySyncStatusQuery";
 import { formatInventoryQty } from "@/stock-management/lib/formatInventoryQty";
 import { INVENTORY_PLATFORMS } from "@/stock-management/types/inventory";
@@ -27,9 +25,9 @@ export default function StockSyncLogsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <StockManagementDashboardSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={STOCK_MANAGEMENT_PAGE_PATH}>
+    <StockManagementModuleShell>
       <StockSyncLogsContent />
-    </ModuleShellContentGate>
+    </StockManagementModuleShell>
   );
 }
 
@@ -40,17 +38,11 @@ function StockSyncLogsContent() {
   const rows = data?.rows ?? [];
 
   if (gatePending || (isLoading && rows.length === 0)) {
-    return <StockManagementDashboardSkeleton />;
+    return null;
   }
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden">
-          <div className="flex min-h-full flex-col">
-            <div className="mb-1 flex-shrink-0">
-              <StockManagementHeaderAndTab />
-            </div>
+    <>
             <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <div className="min-h-0 overflow-auto">
               <Table>
@@ -115,10 +107,7 @@ function StockSyncLogsContent() {
               </Table>
               </div>
             </div>
-            <div className="h-2 flex-shrink-0" aria-hidden />
-          </div>
-        </div>
-      </div>
-    </div>
+            <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+    </>
   );
 }

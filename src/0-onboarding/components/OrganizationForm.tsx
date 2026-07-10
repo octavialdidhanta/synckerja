@@ -126,6 +126,7 @@ export default function OrganizationForm({
           description: data.description.trim() || null,
           terms_accepted: true,
           terms_accepted_at: now,
+          subscription_self_service_enabled: true,
         })
         .select("id")
         .single();

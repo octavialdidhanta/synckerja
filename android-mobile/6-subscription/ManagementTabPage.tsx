@@ -6,7 +6,6 @@ import { Button } from "@/mobile-app/components/ui/button";
 import { ManagementTabPageSkeleton } from "./ManagementTabPageSkeleton";
 import { useOptimizedPerformanceMonitor } from "@/10-subscription/hooks/useOptimizedPerformanceMonitor";
 import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
-import { useNextBillingFromPayments } from "@/10-subscription/hooks/useNextBillingFromPayments";
 import { useLastPaidSubscription } from "@/10-subscription/hooks/useLastPaidSubscription";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { MobileCurrentPlanCard } from "./section/management/MobileCurrentPlanCard";
@@ -29,10 +28,7 @@ const ManagementTabPage = memo(() => {
   const { activeTab, handleTabChange, setActiveTabOnLocationChange } = useSubscriptionTabs("management");
   const { organizationId } = useCurrentOrg();
   const { subscriptionStatus, isLoading, statusError, refreshSubscriptionStatus } = useOptimizedSubscription();
-  const { nextBillingDate, daysUntilExpiry, paymentsLoading } = useNextBillingFromPayments(organizationId ?? undefined);
   const { lastPaidAmount } = useLastPaidSubscription(organizationId ?? undefined);
-  const nextBillingOverride =
-    nextBillingDate != null ? { date: nextBillingDate, daysRemaining: daysUntilExpiry } : null;
 
   useEffect(() => {
     setActiveTabOnLocationChange();
@@ -142,13 +138,9 @@ const ManagementTabPage = memo(() => {
           subscriptionStatus={subscriptionStatus}
           onRefresh={refreshSubscriptionStatus}
           isRefreshing={isLoading}
-          nextBillingOverride={nextBillingOverride}
-          nextBillingLoading={paymentsLoading}
         />
         <MobileSubscriptionStats
           subscriptionStatus={subscriptionStatus}
-          nextBillingOverride={nextBillingOverride}
-          nextBillingLoading={paymentsLoading}
           lastPaidAmount={lastPaidAmount}
         />
         <MobilePaymentHistory />

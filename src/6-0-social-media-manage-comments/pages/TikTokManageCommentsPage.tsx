@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { SocialMediaPerformanceHeaderAndTab } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
+import { SocialMediaPerformanceModuleShell } from "@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell";
 import { ManageCommentsInboxLayout } from "@/6-0-social-media-manage-comments/layout/ManageCommentsInboxLayout";
 import { ManageCommentsPlatformTabs } from "@/6-0-social-media-manage-comments/container/ManageCommentsPlatformTabs";
 import { ManageCommentsFilterTabs } from "@/6-0-social-media-manage-comments/components/shared/ManageCommentsFilterTabs";
@@ -24,7 +24,6 @@ import type {
 } from "@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes";
 import { TIKTOK_CONTENT_MANAGE_COMMENTS_SETTINGS_PATH } from "@/tiktok-content/settings/tiktokContentSettingsPaths";
 import { SOCIAL_MEDIA_MANAGE_COMMENTS_TIKTOK_PATH } from "@/6-0-social-media-manage-comments/lib/manageCommentsPaths";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { useTikTokContentReportingEnabled } from "@/tiktok-content/hooks/useTikTokContentReportingEnabled";
@@ -35,15 +34,13 @@ import { TikTokContentAccountNav } from "@/6-0-social-media-performance/componen
 import { getTikTokAccountDisplayLabel } from "@/tiktok-content/lib/tiktokAccountDisplayLabel";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 
-const SOCIAL_MEDIA_PERFORMANCE_PATH = "/digital-marketing/social-media-performance";
-
 export default function TikTokManageCommentsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <TikTokManageCommentsPageSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
+    <SocialMediaPerformanceModuleShell>
       <TikTokManageCommentsPageContent />
-    </ModuleShellContentGate>
+    </SocialMediaPerformanceModuleShell>
   );
 }
 
@@ -202,17 +199,12 @@ function TikTokManageCommentsPageContent() {
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
 
   if (rawPageLoadPending) {
-    return <TikTokManageCommentsPageSkeleton />;
+    return null;
   }
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="mb-1 shrink-0">
-          <SocialMediaPerformanceHeaderAndTab />
-        </div>
-
-        <div className="flex max-h-[calc(100vh-120px)] min-h-0 flex-1 flex-row overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex max-h-[calc(100vh-120px)] min-h-0 flex-1 flex-row overflow-hidden">
           {!canManage ? (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <Alert>
@@ -366,7 +358,6 @@ function TikTokManageCommentsPageContent() {
               </div>
             </div>
           )}
-        </div>
       </div>
     </div>
   );

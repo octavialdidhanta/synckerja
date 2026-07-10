@@ -5,8 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { endOfDay } from "date-fns";
-import { SocialMediaPerformanceHeaderAndTab } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
+import { SocialMediaPerformanceModuleShell } from "@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { parseYmdLocal, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
@@ -52,9 +51,9 @@ export default function YouTubeContentPerformancePage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <YouTubeContentPerformancePageSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
+    <SocialMediaPerformanceModuleShell>
       <YouTubeContentPerformancePageContent />
-    </ModuleShellContentGate>
+    </SocialMediaPerformanceModuleShell>
   );
 }
 
@@ -253,20 +252,11 @@ function YouTubeContentPerformancePageContent() {
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
 
   if (rawPageLoadPending) {
-    return <YouTubeContentPerformancePageSkeleton />;
+    return null;
   }
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div className="mb-1 min-w-0 shrink-0">
-                <SocialMediaPerformanceHeaderAndTab />
-              </div>
-
-              <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
+    <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                   {!canManage ? (
                     <div className="p-6">
@@ -430,11 +420,6 @@ function YouTubeContentPerformancePageContent() {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

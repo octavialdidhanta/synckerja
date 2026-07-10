@@ -3,15 +3,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { StockManagementHeaderAndTab } from "@/6-0-stock-management/container/StockManagementHeaderAndTab";
+import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
 import { InventorySkusTable } from "@/6-0-stock-management/container/InventorySkusTable";
 import { CreateSkuDialog } from "@/6-0-stock-management/container/CreateSkuDialog";
 import { StockMovementDialog } from "@/6-0-stock-management/container/StockMovementDialog";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { Button } from "@/shared/components/ui/button";
-import { STOCK_MANAGEMENT_PAGE_PATH } from "@/stock-management/lib/inventoryPaths";
 import { useInventorySkusQuery } from "@/stock-management/hooks/useInventorySkusQuery";
 import {
   adjustInventorySku,
@@ -30,9 +28,9 @@ export default function StockManagementDashboardPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <StockManagementDashboardSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={STOCK_MANAGEMENT_PAGE_PATH}>
+    <StockManagementModuleShell>
       <StockManagementDashboardContent />
-    </ModuleShellContentGate>
+    </StockManagementModuleShell>
   );
 }
 
@@ -124,18 +122,11 @@ function StockManagementDashboardContent() {
     };
   }, [organizationId, selectedSku, movementMode, t, invalidate]);
 
-  if (showSkeleton) return <StockManagementDashboardSkeleton />;
+  if (showSkeleton) return null;
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="flex h-full min-h-0 flex-col">
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-h-full flex-col">
-              <div className="mb-1 flex-shrink-0">
-                <StockManagementHeaderAndTab />
-              </div>
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+    <>
+      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
                     <p className="text-sm font-medium text-gray-900">
@@ -187,11 +178,7 @@ function StockManagementDashboardContent() {
                   />
                 </div>
               </div>
-              <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
-            </div>
-          </div>
-        </div>
-      </div>
+      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
 
       <CreateSkuDialog
         open={createOpen}
@@ -210,6 +197,6 @@ function StockManagementDashboardContent() {
         mode={movementMode}
         onSubmit={movementHandler}
       />
-    </div>
+    </>
   );
 }

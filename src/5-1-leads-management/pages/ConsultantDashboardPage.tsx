@@ -99,7 +99,7 @@ export const ConsultantDashboardPage = () => {
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain relative flex h-full min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div
               className={cn(
-                "flex min-h-full min-w-0 flex-col",
+                "flex min-h-full min-w-0 w-full flex-1 flex-col",
                 showOverlay ? "pointer-events-none opacity-0" : "opacity-100",
               )}
             >
@@ -107,7 +107,7 @@ export const ConsultantDashboardPage = () => {
                 <HeaderAndTab />
               </div>
 
-              <ModuleShellContentGate>
+              <ModuleShellContentGate pagePath="/omnichannel/leads">
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
                   <ConsultantsPageContent />

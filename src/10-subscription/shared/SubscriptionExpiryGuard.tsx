@@ -6,9 +6,11 @@ import { useSubscriptionExpiry } from "@/10-subscription/hooks/useSubscriptionEx
 import { useSubscriptionExpiryRealtime } from "@/10-subscription/hooks/useSubscriptionExpiryRealtime";
 import { SubscriptionExpiredPage } from "@/10-subscription/shared/SubscriptionExpiredPage";
 import { isAllowedWhenExpired } from "@/10-subscription/shared/subscriptionExpiryPolicy";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 
 export function SubscriptionExpiryGuard() {
   const location = useLocation();
+  const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const [user, setUser] = useState<{ id: string } | null>(null);
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
   const { expiryStatus, isLoading, error, subscriptionStatus } = useSubscriptionExpiry();
@@ -33,7 +35,9 @@ export function SubscriptionExpiryGuard() {
     };
   }, []);
 
-  const isAllowedRoute = isAllowedWhenExpired(location.pathname);
+  const isAllowedRoute = isAllowedWhenExpired(location.pathname, {
+    subscriptionSelfServiceEnabled: selfServiceEnabled,
+  });
 
   // Do not replace <Outlet /> with a full-viewport spinner while org or subscription
   // is still resolving — that hides AppShellLayout (header/sidebar). Pages use skeletons instead.
@@ -57,7 +61,7 @@ export function SubscriptionExpiryGuard() {
   }
 
   if (expiryStatus.isExpired) {
-    return <SubscriptionExpiredPage expiryStatus={expiryStatus} />;
+    return <SubscriptionExpiredPage expiryStatus={expiryStatus} selfServiceEnabled={selfServiceEnabled} />;
   }
 
   return <Outlet />;

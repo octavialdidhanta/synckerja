@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { Youtube } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { SocialMediaPerformanceHeaderAndTab } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
+import { SocialMediaPerformanceModuleShell } from "@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell";
 import { ManageCommentsInboxLayout } from "@/6-0-social-media-manage-comments/layout/ManageCommentsInboxLayout";
 import { ManageCommentsPlatformTabs } from "@/6-0-social-media-manage-comments/container/ManageCommentsPlatformTabs";
 import { ManageCommentsFilterTabs } from "@/6-0-social-media-manage-comments/components/shared/ManageCommentsFilterTabs";
@@ -27,7 +27,6 @@ import {
   SOCIAL_MEDIA_MANAGE_COMMENTS_YOUTUBE_PATH,
 } from "@/6-0-social-media-manage-comments/lib/manageCommentsPaths";
 import { YOUTUBE_CONTENT_MANAGE_COMMENTS_SETTINGS_PATH } from "@/youtube-content/settings/youtubeContentSettingsPaths";
-import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { useYouTubeContentReportingEnabled } from "@/youtube-content/hooks/useYouTubeContentReportingEnabled";
@@ -37,15 +36,13 @@ import { YouTubeContentSettingsPanel } from "@/youtube-content/settings/YouTubeC
 import { YouTubeContentAccountNav } from "@/6-0-social-media-performance/components/YouTubeContentAccountNav";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 
-const SOCIAL_MEDIA_PERFORMANCE_PATH = "/digital-marketing/social-media-performance";
-
 export default function YouTubeManageCommentsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <YouTubeManageCommentsPageSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
+    <SocialMediaPerformanceModuleShell>
       <YouTubeManageCommentsPageContent />
-    </ModuleShellContentGate>
+    </SocialMediaPerformanceModuleShell>
   );
 }
 
@@ -220,17 +217,12 @@ function YouTubeManageCommentsPageContent() {
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
 
   if (rawPageLoadPending) {
-    return <YouTubeManageCommentsPageSkeleton />;
+    return null;
   }
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="mb-1 shrink-0">
-          <SocialMediaPerformanceHeaderAndTab />
-        </div>
-
-        <div className="flex max-h-[calc(100vh-120px)] min-h-0 flex-1 flex-row overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex max-h-[calc(100vh-120px)] min-h-0 flex-1 flex-row overflow-hidden">
           {!canManage ? (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <Alert>
@@ -264,22 +256,6 @@ function YouTubeManageCommentsPageContent() {
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 {isSettingsView ? (
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-                    {!commentsScopesGranted && (settings?.oauthConnected ?? false) ? (
-                      <Alert className="mb-4">
-                        <AlertTitle>
-                          {t(
-                            "digitalMarketing.manageComments.youtubeReconnectForCommentsTitle",
-                            "Reconnect for comment access",
-                          )}
-                        </AlertTitle>
-                        <AlertDescription>
-                          {t(
-                            "digitalMarketing.manageComments.youtubeReconnectForComments",
-                            "Reconnect your YouTube channel to grant the youtube.force-ssl scope required to read and reply to comments.",
-                          )}
-                        </AlertDescription>
-                      </Alert>
-                    ) : null}
                     <YouTubeContentSettingsPanel
                       organizationId={organizationId}
                       oauthReturnPath={YOUTUBE_CONTENT_MANAGE_COMMENTS_SETTINGS_PATH}
@@ -382,7 +358,6 @@ function YouTubeManageCommentsPageContent() {
               </div>
             </div>
           )}
-        </div>
       </div>
     </div>
   );

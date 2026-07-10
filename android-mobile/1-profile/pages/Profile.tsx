@@ -21,6 +21,7 @@ import { useLanguage } from "@/shared/i18n/LanguageProvider";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 import { useUserOrganizations } from "@/shared/hooks/useUserOrganizations";
 import type { AppLanguage } from "@/shared/i18n/translations";
 import {
@@ -83,6 +84,7 @@ const Profile = () => {
   const { language, setLanguage } = useLanguage();
   const { t } = useAppTranslation();
   const { userRole, user } = useCentralizedUserData();
+  const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const { data: userOrgsData } = useUserOrganizations();
   const roleFromMembership =
     activeOrganizationId && userOrgsData?.memberships.length
@@ -127,7 +129,8 @@ const Profile = () => {
     }
   };
 
-  const canOpenOrgDrawer = organizations.length > 1 && !switchingOrganization;
+  const canOpenOrgDrawer =
+    selfServiceEnabled && organizations.length > 1 && !switchingOrganization;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);

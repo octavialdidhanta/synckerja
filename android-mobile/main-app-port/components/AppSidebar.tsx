@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { BarChart3, Clock, CreditCard, Home, Lock, MessageCircle, Receipt, UserPlus, Wallet } from "lucide-react";
 import { NavLink } from "react-router-dom";
@@ -26,6 +26,7 @@ import {
 } from "@/mobile/4-leads-management/shared/consultantCrmNavPaths";
 import { SUBSCRIPTION_OVERVIEW_PATH } from "@/mobile/6-subscription/shared/mobileSubscriptionNavPaths";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 import { useFilteredNavByPageAccess } from "@/shared/auth/page-access/useFilteredNavByPageAccess";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { mobileSidebarPagePathForUrl } from "@/shared/auth/page-access/mobileRoutePagePaths";
@@ -62,8 +63,16 @@ export function AppSidebar() {
   const { t } = useAppTranslation();
   const { isTabLocked } = useHeaderTabPageAccess();
   const { filterNavItems } = useFilteredNavByPageAccess();
+  const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
+  const menuItemsFiltered = useMemo(
+    () =>
+      selfServiceEnabled
+        ? menuItems
+        : menuItems.filter((item) => item.url !== SUBSCRIPTION_OVERVIEW_PATH),
+    [selfServiceEnabled],
+  );
   const visibleMenuItems = filterNavItems(
-    menuItems.map((item) => ({ ...item, path: item.url })),
+    menuItemsFiltered.map((item) => ({ ...item, path: item.url })),
   );
   const isMobile = useIsMobile();
   const { isMobile: sidebarMobile, setOpenMobile } = useSidebar();
@@ -71,7 +80,7 @@ export function AppSidebar() {
   const onOrganizationSwitched = useOrganizationSwitchCallback();
   const [orgDrawerOpen, setOrgDrawerOpen] = useState(false);
 
-  const canOpenOrgDrawer = isMobile && organizations.length > 1;
+  const canOpenOrgDrawer = isMobile && organizations.length > 1 && selfServiceEnabled;
   const organizationDisplayName = activeOrganization?.company_name ?? "Organisasi";
 
   return (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { SocialMediaPerformanceHeaderAndTab } from '@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab';
+import { SocialMediaPerformanceModuleShell } from '@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell';
 import { ManageCommentsInboxLayout } from '@/6-0-social-media-manage-comments/layout/ManageCommentsInboxLayout';
 import { ManageCommentsPlatformTabs } from '@/6-0-social-media-manage-comments/container/ManageCommentsPlatformTabs';
 import { ManageCommentsFilterTabs } from '@/6-0-social-media-manage-comments/components/shared/ManageCommentsFilterTabs';
@@ -22,7 +22,6 @@ import type {
   ManageCommentsPostFilter,
   ManageCommentsPostListItem,
 } from '@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes';
-import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useOmnichannelSurveySettingsAdmin } from '@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin';
 import { ThreadsContentAccountNav } from '@/6-0-social-media-performance/components/ThreadsContentAccountNav';
@@ -36,15 +35,13 @@ import { ThreadsTabIcon } from '@/6-0-social-media-performance/components/Thread
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 
-const SOCIAL_MEDIA_PERFORMANCE_PATH = '/digital-marketing/social-media-performance';
-
 export default function ThreadsManageCommentsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <MetaManageCommentsPageSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
+    <SocialMediaPerformanceModuleShell>
       <ThreadsManageCommentsPageContent />
-    </ModuleShellContentGate>
+    </SocialMediaPerformanceModuleShell>
   );
 }
 
@@ -175,18 +172,14 @@ function ThreadsManageCommentsPageContent() {
   );
 
   if (gatePending || (canManage && settingsQuery.isPending)) {
-    return <MetaManageCommentsPageSkeleton />;
+    return null;
   }
 
   const showConnectCta = accounts.length === 0;
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="mb-1 shrink-0">
-          <SocialMediaPerformanceHeaderAndTab />
-        </div>
-        <div className="flex max-h-[calc(100vh-120px)] min-h-0 flex-1 flex-row overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex max-h-[calc(100vh-120px)] min-h-0 flex-1 flex-row overflow-hidden">
           {!canManage ? (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <Alert>
@@ -276,7 +269,6 @@ function ThreadsManageCommentsPageContent() {
               </div>
             </div>
           )}
-        </div>
       </div>
     </div>
   );

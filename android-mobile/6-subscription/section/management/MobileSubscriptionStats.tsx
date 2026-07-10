@@ -2,30 +2,20 @@ import { memo, useMemo } from "react";
 import { Card, CardContent } from "@/mobile-app/components/ui/card";
 import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
 import { Calendar, Users, Clock3, Shield } from "lucide-react";
-import { formatIDR, formatSubscriptionDate } from "@/10-subscription/shared/subscriptionUtils";
+import { formatIDR, formatSubscriptionDate, deriveSubscriptionDaysRemaining, resolveSubscriptionExpiryEndIso } from "@/10-subscription/shared/subscriptionUtils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 interface MobileSubscriptionStatsProps {
   subscriptionStatus: SubscriptionStatus;
-  /** Override next billing date/days to match Payment History (sync with desktop) */
-  nextBillingOverride?: { date: Date | null; daysRemaining: number } | null;
-  /** When true and no override, show loading for period/days */
-  nextBillingLoading?: boolean;
   /** When provided, show this as "Estimated bill" (last paid amount) instead of computed plan price */
   lastPaidAmount?: number | null;
 }
 
-export const MobileSubscriptionStats = memo(({ subscriptionStatus, nextBillingOverride, nextBillingLoading, lastPaidAmount }: MobileSubscriptionStatsProps) => {
+export const MobileSubscriptionStats = memo(({ subscriptionStatus, lastPaidAmount }: MobileSubscriptionStatsProps) => {
   const { t } = useAppTranslation();
-  const periodEndValue =
-    nextBillingLoading && !nextBillingOverride
-      ? "..."
-      : formatSubscriptionDate(
-          nextBillingOverride?.date?.toISOString() ?? subscriptionStatus.subscription_end_date ?? subscriptionStatus.end_date,
-          { month: "short" },
-        );
-  const daysLeftValue =
-    nextBillingLoading && !nextBillingOverride ? "..." : `${nextBillingOverride?.daysRemaining ?? subscriptionStatus.days_until_expiry ?? 0} ${t("subscription.management.daysUnit")}`;
+  const periodEndIso = resolveSubscriptionExpiryEndIso(subscriptionStatus);
+  const periodEndValue = formatSubscriptionDate(periodEndIso, { month: "short" });
+  const daysLeftValue = `${deriveSubscriptionDaysRemaining(subscriptionStatus)} ${t("subscription.management.daysUnit")}`;
 
   const stats = useMemo(
     () => [

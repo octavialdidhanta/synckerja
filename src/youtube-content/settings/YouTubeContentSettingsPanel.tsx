@@ -179,6 +179,42 @@ export function YouTubeContentSettingsPanel({
           </Alert>
         )}
 
+        {oauthConnected &&
+          accounts.some((a) => a.is_active && a.upload_scopes_granted === false) && (
+            <Alert variant="destructive">
+              <AlertTitle>
+                {t(
+                  "digitalMarketing.youtubeContent.reconnectForUploadTitle",
+                  "Video upload authorization required",
+                )}
+              </AlertTitle>
+              <AlertDescription>
+                {t(
+                  "digitalMarketing.youtubeContent.reconnectForUploadDesc",
+                  "Your YouTube channel is connected for insights, but scheduling and Post Now need the youtube.upload scope. Click Connect YouTube channel below and approve upload access on the Google screen.",
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+        {oauthConnected &&
+          accounts.some((a) => a.is_active && a.comments_scopes_granted === false) && (
+            <Alert>
+              <AlertTitle>
+                {t(
+                  "digitalMarketing.manageComments.youtubeReconnectForCommentsTitle",
+                  "Reconnect for comment access",
+                )}
+              </AlertTitle>
+              <AlertDescription>
+                {t(
+                  "digitalMarketing.manageComments.youtubeReconnectForComments",
+                  "Reconnect your YouTube channel to grant the youtube.force-ssl scope required to read and reply to comments.",
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
         <div className="flex flex-wrap gap-2">
         <Button
           type="button"

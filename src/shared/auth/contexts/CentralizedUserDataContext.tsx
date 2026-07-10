@@ -32,6 +32,7 @@ interface Organization {
   address?: string;
   website?: string;
   user_id?: string;
+  subscription_self_service_enabled?: boolean;
 }
 
 interface Employee {
@@ -532,7 +533,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
 
         const organizationPromise = supabase
           .from('organizations')
-          .select('id, company_name, industry, address, website, user_id')
+          .select('id, company_name, industry, address, website, user_id, subscription_self_service_enabled')
           .eq('id', organizationId)
           .maybeSingle();
 

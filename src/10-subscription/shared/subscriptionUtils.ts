@@ -1,4 +1,37 @@
+import { differenceInCalendarDays, startOfDay } from "date-fns";
+import type { SubscriptionStatus } from "@/10-subscription/hooks/useOptimizedSubscription";
 import type { SubscriptionPlan, SubscriptionPlanAddOnLink } from "@/10-subscription/types/SubscriptionPlanCatalog";
+
+/** End-of-period ISO from RPC subscription status (trial or paid). */
+export function resolveSubscriptionExpiryEndIso(status: Pick<
+  SubscriptionStatus,
+  "is_trial" | "trial_end_date" | "subscription_end_date" | "end_date"
+>): string | undefined {
+  if (status.is_trial) {
+    return status.trial_end_date || status.end_date;
+  }
+  return status.subscription_end_date || status.end_date;
+}
+
+/** Calendar days from reference (default: start of today) to expiry date; negative if already past. */
+export function computeCalendarDaysUntilExpiry(
+  endDateIso: string | null | undefined,
+  reference: Date = startOfDay(new Date()),
+): number {
+  if (!endDateIso) return 9999;
+  const end = startOfDay(new Date(endDateIso));
+  if (!Number.isFinite(end.getTime())) return 0;
+  return differenceInCalendarDays(end, startOfDay(reference));
+}
+
+export function deriveSubscriptionDaysRemaining(
+  status: Pick<SubscriptionStatus, "is_expired" | "is_trial" | "trial_end_date" | "subscription_end_date" | "end_date">,
+): number {
+  const endIso = resolveSubscriptionExpiryEndIso(status);
+  const days = computeCalendarDaysUntilExpiry(endIso);
+  if (status.is_expired && days > 0) return 0;
+  return days;
+}
 
 /** Format ISO/subscription date strings for mobile + shared UI (replaces legacy `@/features/10-management/utils/dateUtils`). */
 export function formatSubscriptionDate(

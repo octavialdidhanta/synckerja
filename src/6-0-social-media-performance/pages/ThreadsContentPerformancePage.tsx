@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Loader2, RefreshCw } from 'lucide-react';
-import { SocialMediaPerformanceHeaderAndTab } from '@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab';
-import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import { SocialMediaPerformanceModuleShell } from '@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useOmnichannelSurveySettingsAdmin } from '@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin';
 import { useDigitalMarketingPaidAdsFilters } from '@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext';
@@ -26,9 +25,9 @@ export default function ThreadsContentPerformancePage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
   if (orgBootstrapPending) return <ThreadsContentPerformancePageSkeleton />;
   return (
-    <ModuleShellContentGate pagePath={SOCIAL_MEDIA_PERFORMANCE_PATH}>
+    <SocialMediaPerformanceModuleShell>
       <ThreadsContentPerformancePageContent />
-    </ModuleShellContentGate>
+    </SocialMediaPerformanceModuleShell>
   );
 }
 
@@ -68,20 +67,15 @@ function ThreadsContentPerformancePageContent() {
   const metricsLoading = metricsQuery.isLoading || metricsQuery.isFetching;
 
   if (gatePending || settingsQuery.isPending || instagramAccountsLoading) {
-    return <ThreadsContentPerformancePageSkeleton />;
+    return null;
   }
 
   const notConnected = !settingsQuery.data?.oauthConnected;
   const hasInstagramConnected = instagramAccounts.length > 0;
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="mb-1 shrink-0">
-          <SocialMediaPerformanceHeaderAndTab />
-        </div>
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex min-h-[calc(100vh-120px)] min-w-0 flex-1 flex-col">
+    <>
+        <div className="flex min-h-[calc(100vh-120px)] min-w-0 flex-1 flex-col">
             <div className="flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
               {notConnected ? (
                 <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
@@ -168,9 +162,7 @@ function ThreadsContentPerformancePageContent() {
               )}
             </div>
             <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
-          </div>
         </div>
-      </div>
-    </div>
+    </>
   );
 }

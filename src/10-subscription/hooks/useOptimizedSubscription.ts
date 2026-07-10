@@ -6,6 +6,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
 import { fetchSubscriptionPlansWithAddOns } from "@/10-subscription/api/fetchSubscriptionPlansWithAddOns";
+import { deriveSubscriptionDaysRemaining } from "@/10-subscription/shared/subscriptionUtils";
 
 export type { SubscriptionPlan, SubscriptionPlanAddOnLink, SubscriptionAddOnNested } from "@/10-subscription/types/SubscriptionPlanCatalog";
 
@@ -177,18 +178,19 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
           : memberLimRpc;
       const rosterCap = Math.min(memberLim, paidOmni);
 
-      const daysRem = Number(raw.days_remaining ?? 0);
+      const isExpired = Boolean(raw.is_expired);
+      const isTrial = Boolean(raw.is_trial ?? raw.status === "trial");
       const mapped: SubscriptionStatus = {
         status: String(raw.status || "trial"),
         plan_name: String(raw.plan_name || "Free Trial"),
-        is_trial: Boolean(raw.is_trial ?? raw.status === "trial"),
+        is_trial: isTrial,
         is_active: Boolean(raw.is_active),
-        is_expired: Boolean(raw.is_expired),
+        is_expired: isExpired,
         current_employees: Number(raw.employee_count ?? 0),
         member_count: memberLim,
         over_limit: Boolean(raw.is_over_limit),
-        days_until_expiry: daysRem,
-        needs_renewal: daysRem <= 7,
+        days_until_expiry: 0,
+        needs_renewal: false,
         end_date: raw.end_date as string | undefined,
         subscription_start_date: raw.subscription_start_date as string | undefined,
         subscription_end_date: raw.subscription_end_date as string | undefined,
@@ -199,10 +201,14 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         employee_count: Number(raw.employee_count ?? 0),
         member_limit: memberLim,
         is_over_limit: Boolean(raw.is_over_limit),
-        days_remaining: daysRem,
+        days_remaining: 0,
         omnichannel_paid_seat_count: paidOmni,
         omnichannel_roster_seat_cap: rosterCap,
       };
+      const daysRem = deriveSubscriptionDaysRemaining(mapped);
+      mapped.days_until_expiry = daysRem;
+      mapped.days_remaining = daysRem;
+      mapped.needs_renewal = daysRem >= 0 && daysRem <= 7;
       return mapped;
     },
     enabled: !!organizationId,
