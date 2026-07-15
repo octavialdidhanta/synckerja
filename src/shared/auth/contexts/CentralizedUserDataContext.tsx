@@ -448,7 +448,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       logger.performance(`User Data Fetch (${user.id.slice(0, 8)}...)`, duration, 500);
 
 // Set user data
-      const fetchedUserData: UserData = {
+      let fetchedUserData: UserData = {
         user_id: user.id,
         full_name: profileData?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
         email: profileData?.email || user.email || '',
