@@ -12,6 +12,7 @@ import {
   resolveEmployeeForOmnichannelSend,
 } from "./omnichannelAssigneeGate.ts";
 import { resolveInstagramDmRecipientIdWithRetry } from "../_shared/instagramMessagingRecipient.ts";
+import { isMetaTokenInvalidError, META_TOKEN_RECONNECT_MESSAGE } from "../_shared/metaTokenError.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -662,8 +663,11 @@ Deno.serve(async (req: Request) => {
       const subcode = metaData?.error?.error_subcode;
       const errorType = metaData?.error?.type ?? "";
       // 551 = outside 24h messaging window (freeform only within 24h of user message)
+      const needsReconnect = isMetaTokenInvalidError(metaData?.error);
       const errMsg =
-        code === 551 || subcode === 551
+        needsReconnect
+          ? META_TOKEN_RECONNECT_MESSAGE
+          : code === 551 || subcode === 551
           ? "Sesi percakapan Meta sudah berakhir. Gunakan pesan template yang disetujui untuk menghubungi pengguna lagi."
           : code === 100 && recipientId === to
           ? "Meta tidak menemukan penerima (ID Instagram tidak valid). Untuk DM antar akun bisnis terhubung, pastikan kontak sudah mengirim pesan ke inbox ini dari app Instagram."
@@ -683,7 +687,8 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           error: errMsg,
           details: metaData,
-          code: code ?? undefined,
+          code: needsReconnect ? "META_TOKEN_INVALID" : (code ?? undefined),
+          needs_reconnect: needsReconnect || undefined,
         }),
         { status: statusFromMeta, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

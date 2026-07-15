@@ -11,6 +11,8 @@ import {
   jsonGateError,
   resolveEmployeeForOmnichannelSend,
 } from "../send-instagram-message/omnichannelAssigneeGate.ts";
+import { isMetaTokenInvalidError, META_TOKEN_RECONNECT_MESSAGE } from "../_shared/metaTokenError.ts";
+import { metaGraphVersion } from "../_shared/metaPlatformScopes.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +21,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-const META_GRAPH_VERSION = "v21.0";
+const META_GRAPH_VERSION = metaGraphVersion();
 
 async function markFacebookConversationExpiredReactive(
   supabase: ReturnType<typeof createClient>,
@@ -294,8 +296,11 @@ Deno.serve(async (req: Request) => {
       const rawMsg = metaData?.error?.message ?? "Meta API error";
       const code = metaData?.error?.code;
       const subcode = metaData?.error?.error_subcode;
+      const needsReconnect = isMetaTokenInvalidError(metaData?.error);
       const errMsg =
-        code === 551 || subcode === 551
+        needsReconnect
+          ? META_TOKEN_RECONNECT_MESSAGE
+          : code === 551 || subcode === 551
           ? "Sesi Meta sudah berakhir. Gunakan pesan template untuk menghubungi pengguna lagi."
           : rawMsg;
       const sessionMaybe = code === 551 || subcode === 551 || /24 hours|window|session/i.test(rawMsg);
@@ -303,7 +308,12 @@ Deno.serve(async (req: Request) => {
         await markFacebookConversationExpiredReactive(supabase, conversationId, conv.organization_id as string);
       }
       return new Response(
-        JSON.stringify({ error: errMsg, details: metaData, code: code ?? undefined }),
+        JSON.stringify({
+          error: errMsg,
+          details: metaData,
+          code: needsReconnect ? "META_TOKEN_INVALID" : (code ?? undefined),
+          needs_reconnect: needsReconnect || undefined,
+        }),
         { status: metaRes.status >= 400 && metaRes.status < 500 ? 400 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

@@ -25,6 +25,25 @@ export function resetIdentityQueriesForAuthUser(
   queryClient.removeQueries({ queryKey: AUTH_USER_HEADER_QUERY_KEY });
 }
 
+/** Remove org-scoped TanStack Query cache after CMS delete / org switch cleanup. */
+export function clearOrganizationScopedQueries(queryClient: QueryClient) {
+  const queryCache = queryClient.getQueryCache().getAll();
+  for (const query of queryCache) {
+    const key = query.queryKey;
+    const keyStr = JSON.stringify(key).toLowerCase();
+    if (
+      keyStr.includes("organization") ||
+      keyStr.includes("org-") ||
+      keyStr.includes("inventory") ||
+      keyStr.includes("employee") ||
+      keyStr.includes("subscription")
+    ) {
+      void queryClient.cancelQueries({ queryKey: key });
+      queryClient.removeQueries({ queryKey: key });
+    }
+  }
+}
+
 /** After active org changes: optimistic role in header + await fresh org/role rows. */
 export async function syncAfterOrganizationSwitch(
   queryClient: QueryClient,

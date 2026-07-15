@@ -15,7 +15,7 @@ import {
   isSubscriptionModulePath,
   isSubscriptionSelfServiceEnabled,
 } from "@/10-subscription/shared/subscriptionSelfService";
-import { useSalesModuleAccess } from "@/shared/auth/hooks/useSalesModuleAccess";
+import { useEffectiveModuleAccess } from "@/shared/auth/hooks/useEffectiveModuleAccess";
 import { isSalesModulePathBlocked } from "@/shared/auth/module-access/moduleCatalog";
 
 const CROSS_DEPARTMENT_PAGES = ["/employees", "/reports", "/company", "/organization"];
@@ -44,7 +44,7 @@ export const useDepartmentAccess = () => {
   } = useCentralizedUserData();
   const { configurations, loading: configLoading, configBootstrapPending } =
     usePermissionConfiguration();
-  const { isSalesTenant, moduleAccess, getUpsellModuleForPath } = useSalesModuleAccess();
+  const { isModuleGatingActive, moduleAccess, getUpsellModuleForPath } = useEffectiveModuleAccess();
 
   const departmentAccess = useMemo(() => {
     const currentDepartmentId = employee?.department_id;
@@ -115,7 +115,7 @@ export const useDepartmentAccess = () => {
         return false;
       }
 
-      if (isSalesModulePathBlocked(current, isSalesTenant, moduleAccess)) {
+      if (isSalesModulePathBlocked(current, isModuleGatingActive, moduleAccess)) {
         return false;
       }
 
@@ -350,7 +350,7 @@ export const useDepartmentAccess = () => {
     configBootstrapPending,
     centralProfileHydrated,
     t,
-    isSalesTenant,
+    isModuleGatingActive,
     moduleAccess,
     getUpsellModuleForPath,
   ]);

@@ -18,6 +18,10 @@ export type MetaOAuthExchangeResult = {
   accounts_synced?: number;
   facebook_pages_synced?: number;
   webhook_subscribed_count?: number;
+  dm_scopes_ok?: boolean;
+  instagram_dm_scopes_ok?: boolean;
+  messenger_dm_scopes_ok?: boolean;
+  needs_reconnect?: boolean;
   error?: string;
   /** @deprecated Prefer warning_code; raw strings are not shown to tenants. */
   warning?: string;
@@ -123,7 +127,7 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
     [args, clearMetaOAuthPopupFlag, t],
   );
 
-  const openOAuthPopup = useCallback(async () => {
+  const openOAuthPopup = useCallback(async (options?: { rerequest?: boolean }) => {
     if (!hasOAuth || !redirectUri) {
       toast.error(t('instagramConnect.oauthNotConfigured', 'VITE_META_APP_ID not set.'));
       setOauthLoading(false);
@@ -148,7 +152,7 @@ export function useMetaOAuthConnect(args: UseMetaOAuthConnectArgs = {}) {
       state,
       configId: metaOAuthConfigId,
       scope: oauthScope,
-      authTypeRerequest: flow === 'facebook',
+      authTypeRerequest: options?.rerequest === true,
       graphVersion: META_OAUTH_VERSION,
     });
     try {

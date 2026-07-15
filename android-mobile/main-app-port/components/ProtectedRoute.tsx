@@ -88,9 +88,26 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
             return;
           }
 
-          // Get current path
           const currentPath = window.location.pathname;
-          
+
+          if (currentPath === "/organization-unavailable") {
+            setIsAuthenticated(true);
+            setIsLoading(false);
+            return;
+          }
+
+          const { count: membershipCount } = await supabase
+            .from("user_organizations")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", session.user.id)
+            .eq("is_active", true);
+
+          if ((membershipCount ?? 0) === 0 && currentPath !== "/organization-unavailable") {
+            navigate("/organization-unavailable");
+            setIsLoading(false);
+            return;
+          }
+
           // Check if user needs to create organization
           if (!profileData?.active_organization_id && currentPath !== "/create-organization") {
             console.log("ProtectedRoute: No active organization, checking if user has created one before");

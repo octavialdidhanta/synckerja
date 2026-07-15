@@ -3,6 +3,7 @@ import {
   isSalesModulePathBlocked,
   resolveSalesModuleForPath,
   createDefaultSalesModuleAccess,
+  createFullModuleAccess,
   SALES_MODULE_KEYS,
 } from "@/shared/auth/module-access/moduleCatalog";
 
@@ -11,6 +12,13 @@ describe("moduleCatalog", () => {
     const access = createDefaultSalesModuleAccess();
     for (const key of SALES_MODULE_KEYS) {
       expect(access[key]).toBe(false);
+    }
+  });
+
+  it("createFullModuleAccess enables all catalog modules", () => {
+    const access = createFullModuleAccess();
+    for (const key of SALES_MODULE_KEYS) {
+      expect(access[key]).toBe(true);
     }
   });
 
@@ -55,9 +63,16 @@ describe("moduleCatalog", () => {
     expect(isSalesModulePathBlocked("/expenses/dashboard", true, access)).toBe(false);
   });
 
-  it("does not block mandiri tenants", () => {
+  it("does not block when module gating is inactive", () => {
     const access = createDefaultSalesModuleAccess();
     expect(isSalesModulePathBlocked("/finance/bank-mutations", false, access)).toBe(false);
     expect(isSalesModulePathBlocked("/employees", false, access)).toBe(false);
+  });
+
+  it("blocks mandiri plan-gated tenant when module disabled", () => {
+    const access = createFullModuleAccess();
+    access.humanResources = false;
+    expect(isSalesModulePathBlocked("/employees", true, access)).toBe(true);
+    expect(isSalesModulePathBlocked("/", true, access)).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { metaGraphVersion } from "../_shared/metaPlatformScopes.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -8,8 +9,6 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
-
-const META_GRAPH_VERSION = "v21.0";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -66,7 +65,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: conv, error: convError } = await supabaseAdmin
       .from("instagram_conversations")
-      .select("organization_id, instagram_business_account_id, customer_ig_id")
+      .select("organization_id, instagram_business_account_id, customer_ig_id, customer_name")
       .eq("id", conversationId)
       .single();
 
@@ -102,15 +101,19 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     const isIgBusinessAccount = Boolean(linkedBizAcc?.instagram_business_account_id);
-    const profileField = isIgBusinessAccount ? "profile_picture_url" : "profile_pic";
+    const profileFields = isIgBusinessAccount
+      ? "name,username,profile_picture_url"
+      : "name,username,profile_pic";
 
     const graphUrl =
-      `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(conv.customer_ig_id)}` +
-      `?fields=${encodeURIComponent(profileField)}` +
+      `https://graph.facebook.com/${metaGraphVersion()}/${encodeURIComponent(conv.customer_ig_id)}` +
+      `?fields=${encodeURIComponent(profileFields)}` +
       `&access_token=${encodeURIComponent(accessToken)}`;
 
     const graphRes = await fetch(graphUrl, { method: "GET" });
     const graphData = await graphRes.json().catch(() => ({})) as {
+      name?: string;
+      username?: string;
       profile_pic?: string;
       profile_picture_url?: string;
       error?: { message?: string };
@@ -118,11 +121,37 @@ Deno.serve(async (req: Request) => {
 
     const profileUrlRaw = isIgBusinessAccount ? graphData.profile_picture_url : graphData.profile_pic;
     const profileUrl = typeof profileUrlRaw === "string" ? profileUrlRaw.trim() : "";
+    const username = typeof graphData.username === "string"
+      ? graphData.username.trim().replace(/^@/, "")
+      : "";
+    const name = typeof graphData.name === "string" ? graphData.name.trim() : "";
+    const displayName = username ? `@${username}` : name || null;
+
+    const existingName = (conv.customer_name ?? "").trim();
+    const placeholderNames = new Set(["", "instagram", "instagram contact"]);
+    if (
+      displayName &&
+      (!existingName || placeholderNames.has(existingName.toLowerCase()))
+    ) {
+      await supabaseAdmin
+        .from("instagram_conversations")
+        .update({ customer_name: displayName, updated_at: new Date().toISOString() })
+        .eq("id", conversationId);
+    }
+
     if (!graphRes.ok || !profileUrl) {
-      return new Response(JSON.stringify({ error: "Profile picture not available" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Profile picture not available",
+          username: username || null,
+          name: name || null,
+          display_name: displayName,
+        }),
+        {
+          status: profileUrl ? 200 : 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (wantStream) {
@@ -141,10 +170,18 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    return new Response(JSON.stringify({ url: profileUrl }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        url: profileUrl,
+        username: username || null,
+        name: name || null,
+        display_name: displayName,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     console.error("get-instagram-profile-photo error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {

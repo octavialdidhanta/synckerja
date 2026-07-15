@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
+import { invalidatePlanModuleAccessForOrg } from "@/10-subscription/shared/invalidatePlanModuleAccess";
 
 export function useSubscriptionExpiryRealtime() {
   const queryClient = useQueryClient();
@@ -46,6 +47,7 @@ export function useSubscriptionExpiryRealtime() {
             queryKey: subscriptionQueryKeys.status(organizationId),
             refetchType: "active",
           });
+          invalidatePlanModuleAccessForOrg(queryClient, organizationId);
         },
       )
       .subscribe();

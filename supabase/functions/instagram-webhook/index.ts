@@ -139,7 +139,7 @@ async function handleInstagramReadReceipt(
     if (mid) {
       await supabase
         .from("instagram_messages")
-        .update({ status: "read", status_updated_at: now })
+        .update({ status: "read", status_updated_at: now, read_at: now })
         .eq("conversation_id", convId)
         .eq("platform_message_id", mid)
         .eq("direction", "outbound");
@@ -152,7 +152,7 @@ async function handleInstagramReadReceipt(
       const wmIso = new Date(wmMs).toISOString();
       await supabase
         .from("instagram_messages")
-        .update({ status: "read", status_updated_at: now })
+        .update({ status: "read", status_updated_at: now, read_at: now })
         .eq("conversation_id", convId)
         .eq("direction", "outbound")
         .lte("created_at", wmIso);
@@ -200,7 +200,7 @@ async function fetchInstagramSenderDisplayName(
 
   const url =
     `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(igId)}` +
-    `?fields=${encodeURIComponent("name,username")}` +
+    `?fields=${encodeURIComponent("name,username,profile_pic,profile_picture_url")}` +
     `&access_token=${encodeURIComponent(token)}`;
 
   try {
@@ -1180,10 +1180,11 @@ Deno.serve(async (req: Request) => {
         let accessToken = (account.page_access_token ?? "").trim() || null;
         const ts = e.timestamp != null ? new Date(Number(e.timestamp)).toISOString() : new Date().toISOString();
 
-        // Read receipts (message_reads subscription)
-        if (e.read && !e.message && !e.postback) {
+        // Read / seen receipts (message_reads + messaging_seen subscriptions)
+        if ((e.read || e.seen) && !e.message && !e.postback) {
           const customerIgId = senderId;
           if (!customerIgId) continue;
+          const readPayload = (e.read ?? e.seen) as { watermark?: unknown; mid?: unknown };
           const { customerMessagingId, customerName } = await resolveInstagramCustomerIdentity(
             supabase,
             orgId,
@@ -1201,7 +1202,7 @@ Deno.serve(async (req: Request) => {
             customerName,
           );
           if (convForRead?.id) {
-            await handleInstagramReadReceipt(supabase, convForRead.id, e.read);
+            await handleInstagramReadReceipt(supabase, convForRead.id, readPayload);
             processedCount += 1;
           }
           continue;

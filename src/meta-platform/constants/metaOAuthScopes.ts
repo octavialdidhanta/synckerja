@@ -42,6 +42,56 @@ export const THREADS_OAUTH_SCOPES = THREADS_OAUTH_SCOPE_LIST.join(',');
 
 export type MetaBusinessOAuthScope = (typeof META_BUSINESS_OAUTH_SCOPE_LIST)[number];
 
+/**
+ * Meta App Review may return legacy or business-prefixed Instagram scope names.
+ * Treat each pair as equivalent when validating granted permissions.
+ */
+export const META_SCOPE_ALIASES: Record<string, readonly string[]> = {
+  instagram_manage_messages: ['instagram_business_manage_messages'],
+  instagram_business_manage_messages: ['instagram_manage_messages'],
+  instagram_basic: ['instagram_business_basic'],
+  instagram_business_basic: ['instagram_basic'],
+};
+
+/** Scopes not yet approved in Meta App Review (Jul 2026) — show amber in UI. */
+export const META_PENDING_APP_REVIEW_SCOPES = [
+  'instagram_manage_comments',
+  'pages_manage_engagement',
+  'instagram_manage_insights',
+  'pages_read_engagement',
+  'instagram_content_publish',
+  'pages_manage_posts',
+  'business_management',
+] as const;
+
+function scopeAliasVariants(scope: string): string[] {
+  const key = scope.toLowerCase();
+  const aliases = META_SCOPE_ALIASES[key] ?? [];
+  return [scope, ...aliases];
+}
+
+function isScopeGranted(grantedSet: Set<string>, requiredScope: string): boolean {
+  return scopeAliasVariants(requiredScope).some((s) => grantedSet.has(s.toLowerCase()));
+}
+
+/** Expand granted scopes with canonical aliases for storage and validation. */
+export function normalizeGrantedScopes(granted: string[]): string[] {
+  const result = new Set<string>();
+  for (const raw of granted) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    for (const variant of scopeAliasVariants(trimmed)) {
+      result.add(variant);
+    }
+  }
+  return [...result];
+}
+
+export function isPendingAppReviewScope(scope: string): boolean {
+  const lower = scope.toLowerCase();
+  return META_PENDING_APP_REVIEW_SCOPES.some((s) => s.toLowerCase() === lower);
+}
+
 export function hasThreadsScopes(granted: string[]): boolean {
   const grantedSet = new Set(granted.map((s) => s.toLowerCase()));
   return THREADS_OAUTH_SCOPE_LIST.some((s) => grantedSet.has(s.toLowerCase()));
@@ -73,13 +123,13 @@ export function missingScopesForFeature(
   feature: keyof typeof META_SCOPE_FEATURE_MAP,
 ): string[] {
   const required = META_SCOPE_FEATURE_MAP[feature];
-  const grantedSet = new Set(granted.map((s) => s.toLowerCase()));
-  return required.filter((s) => !grantedSet.has(s.toLowerCase()));
+  const grantedSet = new Set(normalizeGrantedScopes(granted).map((s) => s.toLowerCase()));
+  return required.filter((s) => !isScopeGranted(grantedSet, s));
 }
 
 export function hasAllScopes(granted: string[], required: readonly string[]): boolean {
-  const grantedSet = new Set(granted.map((s) => s.toLowerCase()));
-  return required.every((s) => grantedSet.has(s.toLowerCase()));
+  const grantedSet = new Set(normalizeGrantedScopes(granted).map((s) => s.toLowerCase()));
+  return required.every((s) => isScopeGranted(grantedSet, s));
 }
 
 export function missingScopesForInstagramPublish(granted: string[]): string[] {

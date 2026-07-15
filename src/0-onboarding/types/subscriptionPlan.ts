@@ -11,4 +11,5 @@ export type SubscriptionPlanRow = {
   annual_discount_percentage: number | null;
   member_discount_tiers: unknown;
   jumlah_hari_trial: number | null;
+  max_members: number | null;
 };

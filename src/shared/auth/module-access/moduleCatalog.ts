@@ -18,6 +18,9 @@ export const SALES_MODULE_KEYS = [
 
 export type SalesModuleKey = (typeof SALES_MODULE_KEYS)[number];
 
+/** Module enablement map — shared by sales org access and mandiri plan access. */
+export type ModuleAccessMap = Record<SalesModuleKey, boolean>;
+
 export type SalesModuleDefinition = {
   key: SalesModuleKey;
   labelKey: string;
@@ -52,19 +55,30 @@ export const SALES_MODULE_DEFINITIONS: SalesModuleDefinition[] = mainNavItems
     pathPrefixes: collectPathPrefixes(item),
   }));
 
-export function createDefaultSalesModuleAccess(): Record<SalesModuleKey, boolean> {
+export function createDefaultSalesModuleAccess(): ModuleAccessMap {
   return SALES_MODULE_KEYS.reduce(
     (acc, key) => {
       acc[key] = false;
       return acc;
     },
-    {} as Record<SalesModuleKey, boolean>,
+    {} as ModuleAccessMap,
+  );
+}
+
+/** Fail-open map for mandiri tenants without a configured plan (legacy / bootstrap). */
+export function createFullModuleAccess(): ModuleAccessMap {
+  return SALES_MODULE_KEYS.reduce(
+    (acc, key) => {
+      acc[key] = true;
+      return acc;
+    },
+    {} as ModuleAccessMap,
   );
 }
 
 export function mergeSalesModuleAccess(
   rows: Array<{ module_key: string; is_enabled: boolean }> | null | undefined,
-): Record<SalesModuleKey, boolean> {
+): ModuleAccessMap {
   const merged = createDefaultSalesModuleAccess();
   rows?.forEach((row) => {
     const key = row.module_key as SalesModuleKey;
@@ -110,10 +124,10 @@ export function resolveSalesModuleForPath(pathname: string): SalesModuleKey | nu
 
 export function isSalesModulePathBlocked(
   pathname: string,
-  isSalesTenant: boolean,
-  moduleAccess: Record<SalesModuleKey, boolean> | null | undefined,
+  isModuleGatedTenant: boolean,
+  moduleAccess: ModuleAccessMap | null | undefined,
 ): boolean {
-  if (!isSalesTenant || !moduleAccess) return false;
+  if (!isModuleGatedTenant || !moduleAccess) return false;
   const moduleKey = resolveSalesModuleForPath(pathname);
   if (!moduleKey) return false;
   return !moduleAccess[moduleKey];

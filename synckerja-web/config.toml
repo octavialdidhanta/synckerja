@@ -1,0 +1,326 @@
+# Minimal Supabase CLI config. Adjust project_id when linking.
+
+[api]
+enabled = true
+
+# Custom verification: Resend + OTP (`send-confirmation-email`, `confirm_email_verification_otp`).
+# When true, GoTrue also sends "Confirm your signup" (link) — duplicate of the Synckerja OTP email.
+# Hosted: set the same in Dashboard → Authentication → Sign In / Providers → Email → Confirm email = off.
+# Or: `npx supabase config push` after linking, if you manage auth through CLI.
+[auth.email]
+enable_confirmations = false
+
+# TOTP MFA for Owner/Admin step-up (Synckerja /settings/security).
+# Hosted: Dashboard → Authentication → MFA → enable TOTP.
+[auth.mfa]
+max_enrolled_factors = 10
+
+# Edge gateway validates JWT before your function runs. If JWT verification stays ON in the
+# hosted project, you get POST 401 with execution_id null and no function logs.
+#
+# Supabase Auth can issue user access tokens as ES256 (asymmetric). The dashboard toggle
+# "Verify JWT with legacy secret" only accepts HS256 (anon/service legacy) — so authenticated
+# browser calls fail at the gateway. Turn verify_jwt OFF for app-called functions and enforce
+# auth inside the function with supabase.auth.getUser(access_token) where needed.
+#
+# Deploy: `supabase functions deploy <name> --no-verify-jwt` (or MCP deploy with verify_jwt: false)
+[functions.send-confirmation-email]
+verify_jwt = false
+
+[functions.send-payroll-paid-email]
+verify_jwt = false
+
+[functions.send-recruitment-interview-email]
+verify_jwt = false
+
+[functions.notify-payroll-paid-batch]
+verify_jwt = false
+
+# Midtrans server-to-server notification has no user JWT
+[functions.process-midtrans-payment]
+verify_jwt = false
+
+# Dedicated notification URL (signature check + forward to process-midtrans-payment)
+[functions.midtrans-webhook]
+verify_jwt = false
+
+[functions.get-midtrans-config]
+verify_jwt = false
+
+# Public read of Maps JS API key (same pattern as get-midtrans-config); set GOOGLE_MAPS_API_KEY in project secrets.
+[functions.google-maps-key]
+verify_jwt = false
+
+# Native Google Sign-In (public web/iOS client ids for Capacitor; no user JWT).
+[functions.google-sso-public-config]
+verify_jwt = false
+
+[functions.calculate-prorate]
+verify_jwt = false
+
+[functions.create-midtrans-payment]
+verify_jwt = false
+
+[functions.check-midtrans-payment-status]
+verify_jwt = false
+
+[functions.get-midtrans-snap-token]
+verify_jwt = false
+
+[functions.cancel-pending-payment]
+verify_jwt = false
+
+# Browser invokes with user access_token (often ES256). Gateway JWT verify → 401, execution_id null.
+# Auth is enforced inside each handler (service role + auth.getUser(jwt)).
+[functions.generate-design-image]
+verify_jwt = false
+
+[functions.detect-digital-asset-image]
+verify_jwt = false
+
+[functions.generate-script-ai]
+verify_jwt = false
+
+[functions.analyze-expense-receipt-ai]
+verify_jwt = false
+
+# Browser calls with user JWT (ES256); auth enforced inside (getUser + token exchange).
+[functions.google-oauth-token]
+verify_jwt = false
+
+[functions.google-oauth-manage]
+verify_jwt = false
+
+[functions.google-drive-file-meta]
+verify_jwt = false
+
+[functions.google-drive-list-folder]
+verify_jwt = false
+
+[functions.google-drive-file-media]
+verify_jwt = false
+
+[functions.google-drive-file-thumbnail]
+verify_jwt = false
+
+# Browser calls with user JWT (ES256); auth enforced inside (getUser + service role).
+[functions.whatsapp-message-templates]
+verify_jwt = false
+
+[functions.whatsapp-template-header-upload]
+verify_jwt = false
+
+[functions.whatsapp-flows]
+verify_jwt = false
+
+[functions.send-whatsapp-flow-session]
+verify_jwt = false
+
+# User JWT + optional cron secret inside body/header; auth enforced in function.
+[functions.whatsapp-campaign-worker]
+verify_jwt = false
+
+# Cron / scheduler calls with x-customer-survey-dispatch-secret; dispatches pending survey WhatsApp messages (service role inside).
+[functions.dispatch-customer-survey-wa]
+verify_jwt = false
+
+# Google Ads per-tenant: user JWT validated inside; OAuth callback has no JWT.
+[functions.google-ads-upload-offline-conversion]
+verify_jwt = false
+
+[functions.google-ads-upload-pending-conversions]
+verify_jwt = false
+
+[functions.google-ads-oauth-start]
+verify_jwt = false
+
+[functions.google-ads-oauth-callback]
+verify_jwt = false
+
+[functions.google-ads-config]
+verify_jwt = false
+
+[functions.google-ads-metrics]
+verify_jwt = false
+
+# Meta Ads per-tenant: user JWT validated inside; OAuth callback has no JWT.
+[functions.meta-ads-upload-conversion]
+verify_jwt = false
+
+[functions.meta-ads-oauth-start]
+verify_jwt = false
+
+[functions.meta-ads-oauth-callback]
+verify_jwt = false
+
+[functions.meta-ads-config]
+verify_jwt = false
+
+[functions.meta-ads-metrics]
+verify_jwt = false
+
+# TikTok Ads per-tenant: user JWT validated inside; OAuth callback has no JWT.
+[functions.tiktok-ads-oauth-start]
+verify_jwt = false
+
+[functions.tiktok-ads-oauth-callback]
+verify_jwt = false
+
+[functions.tiktok-ads-config]
+verify_jwt = false
+
+[functions.tiktok-ads-metrics]
+verify_jwt = false
+
+# TikTok Content Insight: user JWT validated inside; OAuth callback has no JWT.
+[functions.tiktok-content-oauth-start]
+verify_jwt = false
+
+[functions.tiktok-content-oauth-callback]
+verify_jwt = false
+
+[functions.tiktok-content-config]
+verify_jwt = false
+
+[functions.tiktok-content-metrics]
+verify_jwt = false
+
+[functions.tiktok-content-publish]
+verify_jwt = false
+
+[functions.tiktok-content-scheduler]
+verify_jwt = false
+
+[functions.social-media-scheduler]
+verify_jwt = false
+
+# TikTok Shop: user JWT validated inside; OAuth callback has no JWT.
+[functions.tiktok-shop-oauth-start]
+verify_jwt = false
+
+[functions.tiktok-shop-oauth-callback]
+verify_jwt = false
+
+[functions.tiktok-shop-config]
+verify_jwt = false
+
+[functions.tiktok-shop-metrics]
+verify_jwt = false
+
+[functions.tiktok-shop-catalog]
+verify_jwt = false
+
+[functions.stock-management-api]
+verify_jwt = false
+
+# stock-sync-worker and stock-order-ingest merged into stock-management-api (processSyncQueue, pollTikTokOrders)
+
+# YouTube Content Insight: user JWT validated inside; OAuth callback has no JWT.
+[functions.youtube-content-oauth-start]
+verify_jwt = false
+
+[functions.youtube-content-oauth-callback]
+verify_jwt = false
+
+[functions.youtube-content-config]
+verify_jwt = false
+
+[functions.youtube-content-metrics]
+verify_jwt = false
+
+[functions.youtube-content-comments]
+verify_jwt = false
+
+[functions.linkedin-content-oauth-start]
+verify_jwt = false
+
+[functions.linkedin-content-oauth-callback]
+verify_jwt = false
+
+[functions.linkedin-content-config]
+verify_jwt = false
+
+[functions.linkedin-content-metrics]
+verify_jwt = false
+
+# Unified API: OAuth callback is GET without JWT; POST actions validate Bearer inside the handler.
+[functions.linkedin-content-api]
+verify_jwt = false
+
+# Cron / service role: apply_attendance_auto_checkout (also scheduled via pg_cron every 15 min).
+[functions.attendance-auto-checkout]
+verify_jwt = false
+
+# Meta / Instagram: webhook has no JWT; app-called functions enforce auth inside (getUser).
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.instagram-webhook]
+verify_jwt = false
+
+[functions.threads-webhook]
+verify_jwt = false
+
+[functions.meta-oauth-exchange]
+verify_jwt = false
+
+[functions.meta-threads-oauth-exchange]
+verify_jwt = false
+
+[functions.meta-content-config]
+verify_jwt = false
+
+[functions.meta-content-metrics]
+verify_jwt = false
+
+[functions.meta-content-comments]
+verify_jwt = false
+
+[functions.threads-content-api]
+verify_jwt = false
+
+[functions.list-instagram-accounts]
+verify_jwt = false
+
+[functions.send-instagram-message]
+verify_jwt = false
+
+[functions.instagram-subscribe-webhooks]
+verify_jwt = false
+
+[functions.resolve-instagram-media]
+verify_jwt = false
+
+[functions.get-instagram-profile-photo]
+verify_jwt = false
+
+[functions.xendit-api]
+verify_jwt = false
+
+# Webhook merged into xendit-api — delete xendit-webhook function in Dashboard to free quota.
+
+# Brick bank link/sync + VA webhook callbacks (no user JWT on webhook path).
+[functions.brick-bank-api]
+verify_jwt = false
+
+[functions.brick-oauth-start]
+verify_jwt = false
+
+[functions.brick-oauth-callback]
+verify_jwt = false
+
+[functions.omnichannel-public-api]
+verify_jwt = false
+
+[functions.omnichannel-api-manage]
+verify_jwt = false
+
+[functions.connect-email-imap]
+verify_jwt = false
+
+[functions.email-imap-sync]
+verify_jwt = false
+
+# CMS admin hard-delete organization (Auth + Storage cleanup after RPC).
+[functions.admin-delete-organization]
+verify_jwt = false

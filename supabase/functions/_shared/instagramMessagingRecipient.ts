@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isLikelyInstagramBusinessAccountId } from "./instagramAccountDedupe.ts";
-
-const META_GRAPH_VERSION = "v21.0";
+import { metaGraphVersion } from "./metaPlatformScopes.ts";
 
 type ConversationParticipant = { id?: string; username?: string; name?: string };
 
@@ -155,7 +154,7 @@ async function lookupParticipantViaUserIdConversation(
 ): Promise<string | null> {
   try {
     const url =
-      `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(pageId)}/conversations` +
+      `https://graph.facebook.com/${metaGraphVersion()}/${encodeURIComponent(pageId)}/conversations` +
       `?platform=instagram&user_id=${encodeURIComponent(userId)}&fields=participants&limit=10` +
       `&access_token=${encodeURIComponent(pageToken)}`;
     const res = await fetch(url);
@@ -213,7 +212,7 @@ async function lookupParticipantIgsidFromPageConversations(
 ): Promise<string | null> {
   try {
     let nextUrl: string | null =
-      `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(pageId)}/conversations` +
+      `https://graph.facebook.com/${metaGraphVersion()}/${encodeURIComponent(pageId)}/conversations` +
       `?platform=instagram&fields=participants&limit=50` +
       `&access_token=${encodeURIComponent(pageToken)}`;
 

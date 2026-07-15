@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import { findInProgressLeadStatusId } from '../constants/leadStatus';
+import { notifyMetaSendError } from '@/meta-platform/lib/notifyMetaSendError';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { FacebookMessage } from '../types';
 
 export interface SendFacebookMessageParams {
@@ -16,6 +18,7 @@ export interface SendFacebookMessageParams {
 
 export function useSendFacebookMessage() {
   const queryClient = useQueryClient();
+  const { t } = useAppTranslation();
 
   const mutation = useMutation({
     mutationFn: async (params: SendFacebookMessageParams) => {
@@ -38,10 +41,18 @@ export function useSendFacebookMessage() {
           caption: params.caption ?? null,
         }),
       });
-      const json = await res.json().catch(() => ({})) as { error?: string; code?: string; details?: { error?: { message?: string } } };
+      const json = await res.json().catch(() => ({})) as {
+        error?: string;
+        code?: string;
+        needs_reconnect?: boolean;
+        details?: { error?: { message?: string } };
+      };
       if (!res.ok) {
         if (json?.code === 'NOT_ASSIGNEE' && typeof json.error === 'string') {
           throw new Error(json.error);
+        }
+        if (json.needs_reconnect || json.code === 'META_TOKEN_INVALID') {
+          notifyMetaSendError(t, json, '/omnichannel/integrations/facebook');
         }
         const msg =
           (typeof json?.error === 'string' ? json.error : null) ??

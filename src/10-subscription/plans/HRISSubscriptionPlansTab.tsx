@@ -40,7 +40,7 @@ const HRISSubscriptionPlansTab = () => {
     catalogAddOnBillingChargeIdr,
     catalogAddOnForConfirmationModalIdr,
     isRenewEligibleBase,
-    getEmployeeLimitFromFeatures,
+    resolvePlanSliderMaxForPlan,
     isCurrentPlan,
     calculatePlanPrice,
     handleMemberCountChange,
@@ -84,8 +84,8 @@ const HRISSubscriptionPlansTab = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {activePlans.map((plan) => {
                     const isTrialPlan = plan.name === 'Trial' || plan.base_price_per_member === 0;
-                    const maxEmployees = isTrialPlan ? getEmployeeLimitFromFeatures(plan.features) : 100;
                     const isCurrent = isCurrentPlan(plan);
+                    const maxEmployees = resolvePlanSliderMaxForPlan(plan);
                     const isRenewEligible = isCurrent && isRenewEligibleBase;
                     
                     // Use memberCounts state value for slider - this makes it interactive

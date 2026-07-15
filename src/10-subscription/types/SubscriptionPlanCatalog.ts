@@ -1,5 +1,7 @@
 /** Active `subscription_plans` row + nested add-on links from DB. */
 
+import type { ModuleAccessMap } from "@/shared/auth/module-access/moduleCatalog";
+
 export type SubscriptionAddOnNested = {
   code: string;
   name: string;
@@ -26,6 +28,9 @@ export interface SubscriptionPlan {
   annual_discount_percentage: number | null;
   member_discount_tiers: unknown[] | null;
   jumlah_hari_trial: number | null;
+  max_members: number | null;
+  /** Per-plan module toggles from `subscription_plan_module_access` (mandiri catalog). */
+  plan_module_access?: ModuleAccessMap;
   /** From `subscription_plan_add_ons` join; empty = use legacy client eligibility + default price. */
   plan_add_ons?: SubscriptionPlanAddOnLink[] | null;
 }

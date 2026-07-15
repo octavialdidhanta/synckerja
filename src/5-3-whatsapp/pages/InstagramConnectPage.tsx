@@ -21,6 +21,9 @@ import { notifyMetaOAuthExchangeWarnings } from '@/meta-platform/lib/notifyMetaO
 import { META_BUSINESS_OAUTH_SCOPES } from '@/meta-platform/constants/metaOAuthScopes';
 import { getMetaInstagramOAuthConfigId } from '@/meta-platform/constants/metaOAuthEnv';
 import { META_GRAPH_VERSION } from '@/meta-platform/constants/metaGraphVersion';
+import { MetaReconnectBanner } from '@/meta-platform/components/MetaReconnectBanner';
+import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
+import { anyAccountNeedsMetaReconnect } from '@/meta-platform/lib/metaReconnectStatus';
 import { cn } from '@/shared/lib/utils';
 
 const META_OAUTH_SCOPE = META_BUSINESS_OAUTH_SCOPES;
@@ -132,7 +135,7 @@ export function InstagramConnectPage() {
     const checklist = [
       t('instagramConnect.zeroAccountsChecklist.pageLinked', 'Facebook Page must be linked to an Instagram Business Account in Meta Business Suite.'),
       t('instagramConnect.zeroAccountsChecklist.pageAdmin', 'Your Facebook login must have admin access to that Page.'),
-      t('instagramConnect.zeroAccountsChecklist.permissions', 'App permissions instagram_business_manage_messages and pages_show_list must be approved.'),
+      t('instagramConnect.zeroAccountsChecklist.permissions', 'Instagram DM permission (instagram_manage_messages) and pages_show_list must be approved in Meta App Review.'),
       t('instagramConnect.zeroAccountsChecklist.tryWhatsApp', 'If Connect WhatsApp is already set up, try Sync from WhatsApp token below.'),
     ].join('\n• ');
     toast.warning(t('instagramConnect.zeroAccountsWarning', 'Login succeeded but no Instagram Business account was found.'), {
@@ -194,7 +197,7 @@ export function InstagramConnectPage() {
 
   // Facebook Login for Business only: redirect_uri must match Valid OAuth Redirect URIs in Meta Developer → Facebook Login for Business → Configurations
   const openOAuthPopup = useCallback(
-    async () => {
+    async (options?: { rerequest?: boolean }) => {
       if (!hasOAuth || !redirectUri) {
         toast.error(t('instagramConnect.oauthNotConfigured', 'VITE_META_APP_ID not set.'));
         setOauthLoading(false);
@@ -219,6 +222,7 @@ export function InstagramConnectPage() {
         state,
         configId: metaOAuthConfigId,
         scope: META_OAUTH_SCOPE,
+        authTypeRerequest: options?.rerequest === true,
         graphVersion: META_OAUTH_VERSION,
       });
       try {
@@ -266,7 +270,7 @@ export function InstagramConnectPage() {
           isInvalidScope
             ? t(
                 'instagramConnect.oauthInvalidScope',
-                'Meta rejected permissions (invalid_scope). In App Dashboard → App Review → Permissions, ensure every permission in your Instagram config is Added, then try Connect again.',
+                'Meta rejected permissions (invalid_scope). Ensure every permission in your Business Login configuration is Added in Meta App Dashboard, then try Connect again.',
               )
             : data.error_description || data.error || t('instagramConnect.oauthDenied', 'Login cancelled or denied.'),
           { duration: isInvalidScope ? 14000 : 8000 },
@@ -410,6 +414,9 @@ export function InstagramConnectPage() {
 
   const connectedIds = new Set(connectedAccounts.map((a) => a.instagram_business_account_id));
   const availableToConnect = availableAccounts.filter((a) => !connectedIds.has(a.id));
+  const showReconnectBanner =
+    connectedAccounts.length > 0 &&
+    anyAccountNeedsMetaReconnect(connectedAccounts, 'instagram_dm');
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
@@ -445,6 +452,24 @@ export function InstagramConnectPage() {
                           </div>
                         </CardHeader>
                         <CardContent className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col space-y-6 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          {showReconnectBanner && (
+                            <MetaReconnectBanner
+                              variant="instagram"
+                              reconnecting={oauthLoading}
+                              onReconnect={() => {
+                                setOauthLoading(true);
+                                void openOAuthPopup({ rerequest: true });
+                              }}
+                            />
+                          )}
+                          {connectedAccounts.length > 0 && (
+                            <MetaScopeStatusCards
+                              accounts={connectedAccounts}
+                              features={['instagram_dm', 'pages', 'comments', 'insights', 'publish']}
+                              compact
+                              hideMissingDetails
+                            />
+                          )}
                           {!hasMetaConfig ? (
                             <div className="space-y-3">
                               {hasOAuth && (

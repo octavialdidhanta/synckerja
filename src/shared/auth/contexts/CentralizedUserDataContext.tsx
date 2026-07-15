@@ -14,6 +14,14 @@ import { logger } from '@/shared/lib/logger';
 import { pickHighestUserRoleFromRows } from '@/shared/lib/organizationRolePick';
 import { forceClearCache } from '@/shared/auth/page-access/departmentPageAccessCache';
 import { buildEffectiveAccessRoles, hasOwnerRole } from '@/shared/auth/page-access/accessRoleSet';
+import { mergeOrganizationState } from '@/shared/auth/organizationAccess/mergeOrganizationState';
+import { resolveOrganizationAccessState } from '@/shared/auth/organizationAccess/reconcileDeletedOrganization';
+import type { OrganizationAccessState } from '@/shared/auth/organizationAccess/organizationAccessTypes';
+import { clearCurrentOrgCacheForUser } from '@/shared/auth/hooks/useCurrentOrgCache';
+import { resetIdentityQueriesForAuthUser, clearOrganizationScopedQueries } from '@/shared/auth/identityQuerySync';
+import { useQueryClient } from '@tanstack/react-query';
+import { useOrganizationMembershipRealtime } from '@/shared/auth/hooks/useOrganizationMembershipRealtime';
+import { useOrganizationAccessFocusRefresh } from '@/shared/auth/hooks/useOrganizationAccessFocusRefresh';
 // Types - focus only on 5 core tables
 interface UserData {
   user_id: string;
@@ -49,15 +57,7 @@ interface Employee {
 type UserRole = 'owner' | 'admin' | 'employee' | 'hr' | 'manager' | 'member' | null;
 
 /** Jangan mengosongkan `organization` di state jika profil punya `active_organization_id` (hindari skeleton / flicker). */
-function mergeOrganizationState(
-  fetched: Organization | null | undefined,
-  activeOrganizationId: string | undefined,
-  previous: Organization | null
-): Organization | null {
-  if (fetched) return fetched;
-  if (activeOrganizationId) return previous;
-  return null;
-}
+// mergeOrganizationState lives in @/shared/auth/organizationAccess/mergeOrganizationState
 
 interface CentralizedUserDataContextType {
   // Auth data - focus only on 5 core tables
@@ -89,6 +89,8 @@ interface CentralizedUserDataContextType {
   // Actions
   refreshUserData: () => Promise<void>;
   forceRefreshUserData: () => Promise<void>;
+  clearOrganizationSession: () => void;
+  organizationAccessState: OrganizationAccessState;
 }
 
 // Create context
@@ -114,10 +116,13 @@ const DEFAULT_CENTRALIZED_USER_DATA: CentralizedUserDataContextType = {
   organizationName: '',
   refreshUserData: async () => {},
   forceRefreshUserData: async () => {},
+  clearOrganizationSession: () => {},
+  organizationAccessState: 'loading',
 };
 
 // Provider component
 export const CentralizedUserDataProvider = ({ children }: { children: React.ReactNode }) => {
+  const queryClient = useQueryClient();
   const { user, session, loading: authLoading } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -125,6 +130,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
   const [organizationMemberRoles, setOrganizationMemberRoles] = useState<string[]>([]);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(false);
+  const [organizationAccessState, setOrganizationAccessState] =
+    useState<OrganizationAccessState>('loading');
   const [centralProfileHydrated, setCentralProfileHydrated] = useState(() => !user?.id);
   const [error, setError] = useState<Error | null>(null);
   /** Snapshot org terakhir untuk callback async (timeout) — jangan setOrganization(null) saat refetch gagal. */
@@ -179,6 +186,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         setOrganizationMemberRoles([]);
         setEmployee(null);
         setLoading(false);
+        setOrganizationAccessState('loading');
         lastUserIdRef.current = '';
         setCentralProfileHydrated(true);
       }
@@ -452,6 +460,26 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       
       setUserData(fetchedUserData);
 
+      const accessResolution = await resolveOrganizationAccessState(user.id, organizationId ?? null);
+      setOrganizationAccessState(accessResolution.accessState);
+
+      if (accessResolution.accessState === 'no_membership') {
+        organizationId = undefined;
+        fetchedUserData = { ...fetchedUserData, active_organization_id: undefined };
+        setUserData(fetchedUserData);
+        hydrationOrgId = undefined;
+      } else if (accessResolution.organizationId) {
+        organizationId = accessResolution.organizationId;
+        if (organizationId !== fetchedUserData.active_organization_id) {
+          fetchedUserData = { ...fetchedUserData, active_organization_id: organizationId };
+          setUserData(fetchedUserData);
+        }
+        hydrationOrgId = organizationId;
+        if (accessResolution.accessState === 'orphan_recovering') {
+          setOrganization(null);
+        }
+      }
+
       if (organizationId) {
         setOrganization((prev) =>
           prev?.id === organizationId
@@ -577,7 +605,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             hydrationRole = null;
             hydrationMemberRoles = [];
             setOrganization((prev) =>
-              mergeOrganizationState(null, fetchedUserData.active_organization_id, prev)
+              mergeOrganizationState(null, fetchedUserData.active_organization_id, prev, true)
             );
           } else {
             const enrichedEmployeeData = employeeData ? {
@@ -613,13 +641,14 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
             setEmployee(enrichedEmployeeData);
             setUserRole(effectiveResolvedRole);
             setOrganization((prev) =>
-              mergeOrganizationState(orgData, fetchedUserData.active_organization_id, prev)
+              mergeOrganizationState(orgData, fetchedUserData.active_organization_id, prev, true)
             );
 
             const orgForCache = mergeOrganizationState(
               orgData,
               fetchedUserData.active_organization_id,
-              organizationStateRef.current
+              organizationStateRef.current,
+              true,
             );
 
             if (employeeData?.department_id) {
@@ -646,40 +675,14 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
           }
         } catch (orgError: any) {
           if (orgError.message === 'Organization data query timeout') {
-            // Timeout is handled gracefully with fallback, only log in dev mode
             if (import.meta.env.DEV) {
-              logger.debug('CentralizedUserDataContext: Organization data timeout - using fallback data');
+              logger.debug('CentralizedUserDataContext: Organization data timeout - keeping prior org snapshot');
             }
-            // Jangan setOrganization(null): profile masih punya active_organization_id → ProtectedRoute isLoadingOrgData + skeleton (debug D).
             setEmployee(null);
-
-            // Set a default role based on email or user metadata
-            if (user.email?.includes('owner') || user.email?.includes('admin')) {
-              setUserRole('owner');
-              logger.userData('CentralizedUserDataContext: Set fallback owner role based on email');
-            } else if (user.user_metadata?.role) {
-              setUserRole(user.user_metadata.role as UserRole);
-              logger.userData('CentralizedUserDataContext: Set fallback role from user metadata:', user.user_metadata.role);
-            } else {
-              setUserRole('employee'); // Default fallback
-              logger.userData('CentralizedUserDataContext: Set default employee role as fallback');
-            }
-
-            const fallbackRole = user.email?.includes('owner') || user.email?.includes('admin')
-              ? 'owner'
-              : (user.user_metadata?.role as UserRole || 'employee');
-            setOrganizationMemberRoles([String(fallbackRole)]);
-            hydrationRole = fallbackRole;
-            hydrationMemberRoles = [String(fallbackRole)];
-
-            userDataCacheRef.current = {
-              data: fetchedUserData,
-              organization: organizationStateRef.current,
-              userRole: fallbackRole,
-              organizationMemberRoles: [String(fallbackRole)],
-              employee: null,
-              timestamp: Date.now()
-            };
+            setUserRole(null);
+            setOrganizationMemberRoles([]);
+            hydrationRole = null;
+            hydrationMemberRoles = [];
           } else {
             throw orgError;
           }
@@ -688,7 +691,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         // No organization found (profile tanpa active_organization_id di cabang ini)
         setEmployee(null);
         setOrganization((prev) =>
-          mergeOrganizationState(null, fetchedUserData.active_organization_id, prev)
+          mergeOrganizationState(null, fetchedUserData.active_organization_id, prev, true)
         );
         setUserRole(null);
         setOrganizationMemberRoles([]);
@@ -698,7 +701,8 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         const orgForCache = mergeOrganizationState(
           null,
           fetchedUserData.active_organization_id,
-          organizationStateRef.current
+          organizationStateRef.current,
+          true,
         );
         userDataCacheRef.current = {
           data: fetchedUserData,
@@ -729,32 +733,22 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         };
         
         setUserData(fallbackUserData);
-        
-        // Try to set owner role if email suggests it
-        const fallbackRole = user.email?.includes('owner') || user.email?.includes('admin') 
-          ? 'owner' 
-          : (user.user_metadata?.role as UserRole || 'employee');
-        setUserRole(fallbackRole);
-        setOrganizationMemberRoles([String(fallbackRole)]);
-        hydrationRole = fallbackRole;
-        hydrationMemberRoles = [String(fallbackRole)];
+        setUserRole(null);
+        setOrganizationMemberRoles([]);
+        setEmployee(null);
+        hydrationRole = null;
+        hydrationMemberRoles = [];
 
-        // Update cache with fallback data
         userDataCacheRef.current = {
           data: fallbackUserData,
           organization: null,
-          userRole: fallbackRole,
-          organizationMemberRoles: [String(fallbackRole)],
+          userRole: null,
+          organizationMemberRoles: [],
           employee: null,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
-        
-        logger.userData('CentralizedUserDataContext: Fallback data created:', {
-          userData: fallbackUserData,
-          userRole: fallbackRole
-        });
-        
-        // Don't set error state for timeout, just finish loading
+
+        setOrganizationAccessState('loading');
         setError(null);
       } else {
         if (import.meta.env.DEV) {
@@ -783,8 +777,31 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         !roleForHydration &&
         memberRolesForHydration.length === 0;
       setCentralProfileHydrated(!rolesStillPending);
+      setOrganizationAccessState((prev) => {
+        if (prev === 'no_membership') return prev;
+        if (!activeOrgId) return prev === 'ready' ? 'no_membership' : prev;
+        return 'ready';
+      });
     }
   }, [authLoading]);
+
+  const clearOrganizationSession = useCallback(() => {
+    const userId = userRef.current?.id;
+    userDataCacheRef.current = null;
+    lastUserIdRef.current = '';
+    fetchingRef.current = false;
+    previousOrgIdRef.current = undefined;
+    setOrganization(null);
+    setEmployee(null);
+    setUserRole(null);
+    setOrganizationMemberRoles([]);
+    forceClearCache();
+    if (userId) {
+      clearCurrentOrgCacheForUser(userId);
+      resetIdentityQueriesForAuthUser(queryClient, userId);
+      clearOrganizationScopedQueries(queryClient);
+    }
+  }, [queryClient]);
 
   // Force refresh function that bypasses caching (e.g. after switch organization in drawer)
   const forceRefreshUserData = useCallback(async () => {
@@ -958,7 +975,20 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
     // Actions
     refreshUserData,
     forceRefreshUserData,
+    clearOrganizationSession,
+    organizationAccessState,
   };
+
+  useOrganizationMembershipRealtime({
+    userId: user?.id,
+    activeOrganizationId: userData?.active_organization_id,
+    onMembershipChanged: forceRefreshUserData,
+  });
+
+  useOrganizationAccessFocusRefresh({
+    organizationAccessState,
+    onRefresh: forceRefreshUserData,
+  });
 
   return (
     <CentralizedUserDataContext.Provider value={value}>

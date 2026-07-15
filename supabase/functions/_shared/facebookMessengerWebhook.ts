@@ -259,7 +259,7 @@ async function handleFacebookReadReceipt(
     if (mid) {
       await supabase
         .from("facebook_messages")
-        .update({ status: "read", status_updated_at: now })
+        .update({ status: "read", status_updated_at: now, read_at: now })
         .eq("conversation_id", convId)
         .eq("platform_message_id", mid)
         .eq("direction", "outbound");
@@ -272,7 +272,7 @@ async function handleFacebookReadReceipt(
       const wmIso = new Date(wmMs).toISOString();
       await supabase
         .from("facebook_messages")
-        .update({ status: "read", status_updated_at: now })
+        .update({ status: "read", status_updated_at: now, read_at: now })
         .eq("conversation_id", convId)
         .eq("direction", "outbound")
         .lte("created_at", wmIso);
@@ -342,10 +342,11 @@ export async function processFacebookMessengerEvents(
       continue;
     }
 
-    // Read receipts (message_reads subscription)
-    if (evt.read && !evt.message && !evt.postback) {
+    // Read / seen receipts (message_reads + messaging_seen subscriptions)
+    if ((evt.read || evt.seen) && !evt.message && !evt.postback) {
       const customerPsid = senderId;
       if (!customerPsid) continue;
+      const readPayload = (evt.read ?? evt.seen) as { watermark?: unknown; mid?: unknown };
       const { data: convForRead } = await supabase
         .from("facebook_conversations")
         .select("id")
@@ -354,7 +355,7 @@ export async function processFacebookMessengerEvents(
         .eq("customer_psid", customerPsid)
         .maybeSingle();
       if (convForRead?.id) {
-        await handleFacebookReadReceipt(supabase, convForRead.id, evt.read);
+        await handleFacebookReadReceipt(supabase, convForRead.id, readPayload);
         processedCount += 1;
       }
       continue;

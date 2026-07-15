@@ -6,6 +6,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
 import { useMidtransPayment } from "@/10-subscription/hooks/useMidtransPayment";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
+import { invalidatePlanModuleAccessForOrg } from "@/10-subscription/shared/invalidatePlanModuleAccess";
 import { formatIDR } from "@/10-subscription/shared/subscriptionUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
@@ -30,6 +31,7 @@ export function PaymentHistory() {
       queryClient.invalidateQueries({ queryKey: ["payment-pending", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-history", organizationId] });
       queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.status(organizationId) });
+      invalidatePlanModuleAccessForOrg(queryClient, organizationId);
     },
   });
 
@@ -79,6 +81,7 @@ export function PaymentHistory() {
         queryClient.invalidateQueries({ queryKey: ["payment-history", organizationId] });
         queryClient.invalidateQueries({ queryKey: ["payment-pending", organizationId] });
         queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.status(organizationId) });
+        invalidatePlanModuleAccessForOrg(queryClient, organizationId);
       }
     },
     onError: () => toast.error(t("subscription.management.payment.refreshFailed")),

@@ -362,20 +362,21 @@ function maskPhoneLast4(phone: string | null | undefined): string {
 }
 
 /** Checklist di sebelah pesan outbound: satu centang (terkirim), dua centang (delivered), dua centang biru (dibaca). */
-function MessageStatus({ status }: { status: WhatsAppMessage['status'] | 'sending' | null }) {
-  if (status === 'read') {
+function MessageStatus({ status }: { status: WhatsAppMessage['status'] | 'sending' | string | null }) {
+  const normalized = status === 'read' ? 'read' : status === 'delivered' ? 'delivered' : status === 'sending' ? 'sending' : status === 'sent' ? 'sent' : null;
+  if (normalized === 'read') {
     return <CheckCheck className="w-4 h-4 shrink-0 text-[#7dd3fc]" aria-label="Read" />;
   }
-  if (status === 'delivered') {
+  if (normalized === 'delivered') {
     return <CheckCheck className="w-4 h-4 shrink-0 text-white" aria-label="Delivered" />;
   }
-  if (status === 'sent' || status === 'sending' || !status) {
-    return <Check className="w-4 h-4 shrink-0 text-white" aria-label={status === 'sending' ? 'Sending' : 'Sent'} />;
+  if (normalized === 'sent' || normalized === 'sending' || !normalized) {
+    return <Check className="w-4 h-4 shrink-0 text-white" aria-label={normalized === 'sending' ? 'Sending' : 'Sent'} />;
   }
   return <span className="text-xs opacity-80">{status}</span>;
 }
 
-function messageStatusTitle(status: WhatsAppMessage['status'] | 'sending' | null) {
+function messageStatusTitle(status: WhatsAppMessage['status'] | 'sending' | string | null) {
   if (status === 'read') return 'Dibaca';
   if (status === 'delivered') return 'Terkirim';
   if (status === 'sending') return 'Mengirim...';

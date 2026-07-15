@@ -100,6 +100,7 @@ import {
 // Route elements are lazy-loaded below to keep the initial JS small.
 import { SubscriptionExpiryGuard } from "@/10-subscription/shared/SubscriptionExpiryGuard";
 import { SubscriptionRoleGuard } from "@/10-subscription/shared/SubscriptionRoleGuard";
+import { OrganizationAccessGuard } from "@/shared/components/OrganizationAccessGuard";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 import { AuthProvider } from "@/shared/auth/contexts/AuthContext";
 import { MfaStepUpProvider } from "@/shared/auth/mfa";
@@ -429,6 +430,7 @@ const CreateOrganizationRouteElement = lazy(() =>
     default: m.CreateOrganizationRouteElement,
   })),
 );
+const OrganizationUnavailablePage = lazy(() => import("@/0-auth/pages/OrganizationUnavailablePage"));
 const CreatePlanRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.CreatePlanRouteElement })),
 );
@@ -678,6 +680,7 @@ function AppRoutes() {
 
         <Route element={<RequireAuth />}>
           <Route element={<RequireMfaSession />}>
+          <Route element={<OrganizationAccessGuard />}>
           <Route element={<SubscriptionExpiryGuard />}>
             <Route element={<AdaptiveAppLayout />}>
               <Route
@@ -1496,8 +1499,17 @@ function AppRoutes() {
               }
             />
             <Route path="/create-organization" element={<CreateOrganizationRouteElement />} />
+            <Route
+              path="/organization-unavailable"
+              element={
+                <Suspense fallback={null}>
+                  <OrganizationUnavailablePage />
+                </Suspense>
+              }
+            />
             <Route path="/create-plan" element={<CreatePlanRouteElement />} />
             <Route path="/employee-welcome" element={<EmployeeWelcomeRouteElement />} />
+          </Route>
           </Route>
           </Route>
         </Route>
@@ -2524,6 +2536,7 @@ const App = () => (
 
                   <Route element={<RequireAuth />}>
                     <Route element={<RequireMfaSession />}>
+                    <Route element={<OrganizationAccessGuard />}>
                     <Route element={<SubscriptionExpiryGuard />}>
                       <Route element={<AdaptiveAppLayout />}>
                         <Route
@@ -4110,8 +4123,17 @@ const App = () => (
                         }
                       />
                       <Route path="/create-organization" element={<CreateOrganizationRouteElement />} />
+                      <Route
+                        path="/organization-unavailable"
+                        element={
+                          <Suspense fallback={null}>
+                            <OrganizationUnavailablePage />
+                          </Suspense>
+                        }
+                      />
                       <Route path="/create-plan" element={<CreatePlanRouteElement />} />
                       <Route path="/employee-welcome" element={<EmployeeWelcomeRouteElement />} />
+                    </Route>
                     </Route>
                     </Route>
                   </Route>

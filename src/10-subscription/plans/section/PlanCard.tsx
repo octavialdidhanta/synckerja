@@ -7,7 +7,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Slider } from "@/shared/components/ui/slider";
 import { Switch } from "@/shared/components/ui/switch";
 import { Label } from "@/shared/components/ui/label";
-import { Check, Loader2, type LucideIcon } from "lucide-react";
+import { Check, Loader2, X, type LucideIcon } from "lucide-react";
 import {
   OMNICHANNEL_ROSTER_ADD_ON_CODE,
   catalogAddOnListAmountForMidtransSplit,
@@ -17,7 +17,10 @@ import {
   sortPlanAddOnLinks,
   sumSelectedCatalogAddOnsListAmountIdr,
 } from "@/10-subscription/shared/subscriptionUtils";
+import { buildPlanModuleDisplayRows, isPlanModuleFeatureLine } from "@/10-subscription/shared/planModuleDisplay";
+import { filterPlanFeaturesForDisplay } from "@/0-onboarding/utils/subscriptionPlanUtils";
 import type { SubscriptionPlan } from "@/10-subscription/types/SubscriptionPlanCatalog";
+import { createDefaultSalesModuleAccess } from "@/shared/auth/module-access/moduleCatalog";
 import { cn } from "@/shared/lib/utils";
 
 interface PlanCardProps {
@@ -102,18 +105,34 @@ export const PlanCard = memo(
     isPrimaryActionLoading = false,
   }: PlanCardProps) => {
     const { t } = useTranslation();
-    const { featureRowsBeforeAddOnsSection, featureRowsAfterAddOnsSection, showAddOnsHeading } = useMemo(() => {
-      const list = plan.features ?? [];
-      const idx = list.findIndex((f) => /dedicated\s+support/i.test(String(f).trim()));
-      if (idx < 0) {
-        return { featureRowsBeforeAddOnsSection: list, featureRowsAfterAddOnsSection: [] as string[], showAddOnsHeading: false };
-      }
+    const {
+      coreFeaturesBeforeModules,
+      dashboardFeature,
+      featureRowsAfterAddOnsSection,
+      showAddOnsHeading,
+      planModuleRows,
+    } = useMemo(() => {
+      const filtered = filterPlanFeaturesForDisplay(plan.features ?? [], plan).filter(
+        (feature) => !isPlanModuleFeatureLine(feature),
+      );
+      const idx = filtered.findIndex((f) => /dedicated\s+support/i.test(String(f).trim()));
+      const beforeAddOns = idx < 0 ? filtered : filtered.slice(0, idx + 1);
+      const afterAddOns = idx < 0 ? ([] as string[]) : filtered.slice(idx + 1);
+      const dashboardIdx = beforeAddOns.findIndex((f) => /^Dashboard$/i.test(f.trim()));
+      const dashboardFeature = dashboardIdx >= 0 ? beforeAddOns[dashboardIdx] : null;
+      const coreFeaturesBeforeModules =
+        dashboardIdx >= 0 ? beforeAddOns.filter((_, i) => i !== dashboardIdx) : beforeAddOns;
+      const moduleRows = buildPlanModuleDisplayRows(
+        plan.plan_module_access ?? createDefaultSalesModuleAccess(),
+      );
       return {
-        featureRowsBeforeAddOnsSection: list.slice(0, idx + 1),
-        featureRowsAfterAddOnsSection: list.slice(idx + 1),
-        showAddOnsHeading: true,
+        coreFeaturesBeforeModules,
+        dashboardFeature,
+        featureRowsAfterAddOnsSection: afterAddOns,
+        showAddOnsHeading: idx >= 0,
+        planModuleRows: moduleRows,
       };
-    }, [plan.features]);
+    }, [plan.features, plan.base_price_per_member, plan.plan_module_access]);
 
     const catalogLinks = useMemo(() => sortPlanAddOnLinks(plan), [plan]);
     const showAddOnsBlockHeading = showAddOnsHeading || catalogLinks.length > 0;
@@ -314,10 +333,33 @@ export const PlanCard = memo(
           <div className="space-y-3 text-left">
             <h4 className="font-medium text-foreground">{t("subscription.plans.features.title")}</h4>
             <ul className="space-y-2">
-              {featureRowsBeforeAddOnsSection.map((feature, index) => (
+              {dashboardFeature && (
+                <li key="feat-dashboard" className="flex items-start space-x-2">
+                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
+                  <span className="text-sm text-muted-foreground">{dashboardFeature}</span>
+                </li>
+              )}
+              {coreFeaturesBeforeModules.map((feature, index) => (
                 <li key={`feat-core-${index}`} className="flex items-start space-x-2">
                   <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
                   <span className="text-sm text-muted-foreground">{feature}</span>
+                </li>
+              ))}
+              {planModuleRows.map((moduleRow) => (
+                <li key={`plan-mod-${moduleRow.key}`} className="flex items-start space-x-2">
+                  {moduleRow.enabled ? (
+                    <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
+                  ) : (
+                    <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
+                  )}
+                  <span
+                    className={cn(
+                      "text-sm",
+                      moduleRow.enabled ? "text-muted-foreground" : "text-muted-foreground/80",
+                    )}
+                  >
+                    {`Modul ${t(moduleRow.labelKey)}`}
+                  </span>
                 </li>
               ))}
             </ul>

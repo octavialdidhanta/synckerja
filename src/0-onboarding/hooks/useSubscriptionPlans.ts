@@ -8,7 +8,7 @@ async function fetchActivePlans(): Promise<SubscriptionPlanRow[]> {
   const { data, error } = await supabase
     .from("subscription_plans")
     .select(
-      "id, name, description, base_price_per_member, features, is_active, is_custom, demo_required, annual_discount_percentage, member_discount_tiers, jumlah_hari_trial",
+      "id, name, description, base_price_per_member, features, is_active, is_custom, demo_required, annual_discount_percentage, member_discount_tiers, jumlah_hari_trial, max_members",
     )
     .eq("is_active", true)
     .order("base_price_per_member", { ascending: true });

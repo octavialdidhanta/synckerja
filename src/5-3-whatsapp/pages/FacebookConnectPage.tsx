@@ -9,6 +9,9 @@ import { useFacebookPages } from '../hooks/useFacebookPages';
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
 import { notifyMetaOAuthExchangeWarnings } from '@/meta-platform/lib/notifyMetaOAuthExchangeResult';
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
+import { MetaReconnectBanner } from '@/meta-platform/components/MetaReconnectBanner';
+import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
+import { anyAccountNeedsMetaReconnect } from '@/meta-platform/lib/metaReconnectStatus';
 import { cn } from '@/shared/lib/utils';
 import { CONNECT_FACEBOOK_PATH } from '../constants/omnichannelIntegrationPaths';
 import { FacebookConnectPageSkeleton } from '../skeletons/FacebookConnectPageSkeleton';
@@ -103,6 +106,10 @@ export function FacebookConnectPage() {
     }
   };
 
+  const showReconnectBanner =
+    connectedPages.length > 0 &&
+    anyAccountNeedsMetaReconnect(connectedPages, 'messenger_dm');
+
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
       <div
@@ -136,6 +143,21 @@ export function FacebookConnectPage() {
                               </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
+                              {showReconnectBanner && (
+                                <MetaReconnectBanner
+                                  variant="facebook"
+                                  reconnecting={oauthLoading}
+                                  onReconnect={() => void startOAuth({ rerequest: true })}
+                                />
+                              )}
+                              {connectedPages.length > 0 && (
+                                <MetaScopeStatusCards
+                                  accounts={connectedPages}
+                                  features={['messenger_dm', 'pages', 'facebook_publish']}
+                                  compact
+                                  hideMissingDetails
+                                />
+                              )}
                               {!hasOAuth ? (
                                 <p className="text-xs text-amber-700">
                                   {t('instagramConnect.oauthNotConfigured', 'VITE_META_APP_ID not set.')}

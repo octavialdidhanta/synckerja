@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
+import { invalidatePlanModuleAccessForOrg } from "@/10-subscription/shared/invalidatePlanModuleAccess";
 import { fetchSubscriptionPlansWithAddOns } from "@/10-subscription/api/fetchSubscriptionPlansWithAddOns";
 import { deriveSubscriptionDaysRemaining } from "@/10-subscription/shared/subscriptionUtils";
 
@@ -262,6 +263,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         queryKey: ["payment-history-next-billing", organizationId],
         refetchType: "active",
       });
+      invalidatePlanModuleAccessForOrg(queryClient, organizationId);
     }
   }, [organizationId, queryClient]);
 

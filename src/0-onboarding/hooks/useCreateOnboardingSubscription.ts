@@ -1,7 +1,8 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import type { SubscriptionPlanRow } from "@/0-onboarding/types/subscriptionPlan";
 import { classifyOnboardingPlan } from "@/0-onboarding/utils/subscriptionPlanUtils";
+import { invalidatePlanModuleAccessForOrg } from "@/10-subscription/shared/invalidatePlanModuleAccess";
 
 export type CreateOnboardingSubscriptionInput = {
   organizationId: string;
@@ -69,7 +70,12 @@ async function insertOnboardingSubscription(input: CreateOnboardingSubscriptionI
 }
 
 export function useCreateOnboardingSubscription() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: insertOnboardingSubscription,
+    onSuccess: (_data, variables) => {
+      invalidatePlanModuleAccessForOrg(queryClient, variables.organizationId);
+    },
   });
 }

@@ -13,7 +13,7 @@ import {
 } from "./navConfig";
 import { useSidebarState } from "./useSidebarState";
 import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
-import { useSalesModuleAccess } from "@/shared/auth/hooks/useSalesModuleAccess";
+import { useEffectiveModuleAccess } from "@/shared/auth/hooks/useEffectiveModuleAccess";
 import type { SalesModuleKey } from "@/shared/auth/module-access/moduleCatalog";
 import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
 import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
@@ -138,10 +138,10 @@ export function AppSidebar() {
   const { t } = useTranslation();
   const currentPath = location.pathname;
   const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
-  const { isSalesTenant, isModuleEnabled } = useSalesModuleAccess();
+  const { isModuleGatingActive, isModuleEnabled } = useEffectiveModuleAccess();
 
   const isNavModuleLocked = (itemId: string) => {
-    if (!isSalesTenant || itemId === "dashboard" || itemId === "subscription") return false;
+    if (!isModuleGatingActive || itemId === "dashboard" || itemId === "subscription") return false;
     return !isModuleEnabled(itemId as SalesModuleKey);
   };
 

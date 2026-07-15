@@ -320,3 +320,6 @@ verify_jwt = false
 
 [functions.email-imap-sync]
 verify_jwt = false
+
+[functions.admin-delete-organization]
+verify_jwt = false

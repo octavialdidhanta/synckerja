@@ -31,6 +31,8 @@ import {
 import { type ProRatedData } from "@/10-subscription/plans/modals/UpgradeConfirmationModal";
 import { useSchedulePlanChange } from "@/10-subscription/hooks/useSchedulePlanChange";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
+import { invalidatePlanModuleAccessForOrg } from "@/10-subscription/shared/invalidatePlanModuleAccess";
+import { getPlanMaxMembers, resolvePlanSliderMax } from "@/0-onboarding/utils/subscriptionPlanUtils";
 import {
   organizationOmnichannelStaffQueryKey,
   useOrganizationOmnichannelStaff,
@@ -108,6 +110,7 @@ export function useHRISSubscriptionPlansController(
         queryClient.invalidateQueries({ queryKey: ["payment-history", organizationId] });
         queryClient.invalidateQueries({ queryKey: ["payment-pending", organizationId] });
         queryClient.invalidateQueries({ queryKey: organizationOmnichannelStaffQueryKey(organizationId) });
+        invalidatePlanModuleAccessForOrg(queryClient, organizationId);
       }
     },
   });
@@ -119,33 +122,20 @@ export function useHRISSubscriptionPlansController(
     subscriptionPlans?.find(p => p.name === subscriptionStatus.plan_name)?.id : null;
   const currentMemberCount = subscriptionStatus?.member_count || 0;
 
-  // Extract employee limit from plan features
-  const getEmployeeLimitFromFeatures = (features: string[]) => {
-    if (!features || !Array.isArray(features)) return 100;
-    
-    for (const feature of features) {
-      // Look for patterns like "1 Member Allowed", "12 employee limit", "5 karyawan", "10 orang", etc.
-      const patterns = [
-        /(\d+)\s*Member\s*Allowed/i,
-        /(\d+)\s*(employee\s*limit|karyawan|orang|employees?|members?)/i
-      ];
-      
-      for (const pattern of patterns) {
-        const match = feature.match(pattern);
-        if (match) {
-          return parseInt(match[1]);
-        }
-      }
-    }
-    return 100; // Default fallback for non-trial plans
-  };
+  const resolvePlanMaxMembers = (plan: SubscriptionPlan) => getPlanMaxMembers(plan);
 
   // Function to check if a plan is the current active plan
   const isCurrentPlan = (plan: SubscriptionPlan) => {
     if (!subscriptionStatus) return false;
-    
+
     // Only match by exact plan name - this ensures only ONE plan is current
     return subscriptionStatus.plan_name === plan.name;
+  };
+
+  const resolvePlanSliderMaxForPlan = (plan: SubscriptionPlan) => {
+    const planCap = resolvePlanMaxMembers(plan);
+    const subscribedSeats = isCurrentPlan(plan) ? subscriptionStatus?.member_count ?? 0 : 0;
+    return resolvePlanSliderMax(planCap, subscribedSeats);
   };
 
   // Initialize memberCounts state properly for each plan
@@ -157,7 +147,7 @@ export function useHRISSubscriptionPlansController(
     activePlans.forEach(plan => {
       const isTrialPlan = plan.name === 'Trial' || plan.base_price_per_member === 0;
       const isCurrent = isCurrentPlan(plan);
-      const maxEmployees = isTrialPlan ? getEmployeeLimitFromFeatures(plan.features) : 100;
+      const maxEmployees = resolvePlanMaxMembers(plan);
       
       let defaultCount;
       if (isCurrent) {
@@ -797,7 +787,8 @@ export function useHRISSubscriptionPlansController(
     isRenewEligibleBase,
     daysUntilExpiry,
     isRenewWindow,
-    getEmployeeLimitFromFeatures,
+    resolvePlanMaxMembers,
+    resolvePlanSliderMaxForPlan,
     isCurrentPlan,
     calculatePlanPrice,
     handleMemberCountChange,

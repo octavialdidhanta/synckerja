@@ -32,6 +32,9 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { cn } from '@/shared/lib/utils';
 import type { LiveChatConversation, WhatsAppConversation, InstagramConversation, FacebookConversation } from '../types';
 import { useOptimizedSubscription } from '@/10-subscription/hooks/useOptimizedSubscription';
+import { MetaReconnectBanner } from '@/meta-platform/components/MetaReconnectBanner';
+import { anyAccountNeedsMetaReconnect } from '@/meta-platform/lib/metaReconnectStatus';
+import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 
 type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `fb:${string}` | `email:${string}`;
 
@@ -112,6 +115,23 @@ export function WhatsAppInboxPage() {
   const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
   const initialConversationId = searchParams.get('conversation');
   const initialTicketId = searchParams.get('ticket_id');
+
+  const igNeedsReconnect = anyAccountNeedsMetaReconnect(igAccounts, 'instagram_dm');
+  const fbNeedsReconnect = anyAccountNeedsMetaReconnect(fbPages, 'messenger_dm');
+  const showLivechatReconnectBanner = igNeedsReconnect || fbNeedsReconnect;
+
+  const { startOAuth: startIgReconnect, oauthLoading: igReconnectLoading } = useMetaOAuthConnect({
+    flow: 'instagram',
+    onExchangeComplete: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['instagram-accounts'] });
+    },
+  });
+  const { startOAuth: startFbReconnect, oauthLoading: fbReconnectLoading } = useMetaOAuthConnect({
+    flow: 'facebook',
+    onExchangeComplete: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['facebook-pages'] });
+    },
+  });
 
   const allConversations: LiveChatConversation[] = useMemo(() => {
     const wa: LiveChatConversation[] = (waConversations as WhatsAppConversation[]).map((c) => ({ ...c, source: 'whatsapp' as const }));
@@ -227,8 +247,18 @@ export function WhatsAppInboxPage() {
         >
         <div className="flex min-h-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
             <div className="h-full flex flex-col">
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 space-y-2">
                 <HeaderAndTab />
+                {showLivechatReconnectBanner && (
+                  <MetaReconnectBanner
+                    variant={fbNeedsReconnect && !igNeedsReconnect ? 'facebook' : 'instagram'}
+                    reconnecting={igReconnectLoading || fbReconnectLoading}
+                    onReconnect={() => {
+                      if (igNeedsReconnect) void startIgReconnect({ rerequest: true });
+                      else if (fbNeedsReconnect) void startFbReconnect({ rerequest: true });
+                    }}
+                  />
+                )}
               </div>
               <ModuleShellContentGate pagePath="/omnichannel/livechat">
               <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-row max-w-full rounded-lg border border-gray-200 shadow-sm bg-white max-h-[calc(100vh-120px)]">

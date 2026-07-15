@@ -9,6 +9,8 @@ import { dedupeOrganizationInstagramAccountsByUsername, normalizeInstagramUserna
 import {
   fetchGrantedPermissions,
   metaGraphVersion,
+  missingScopesForFeature,
+  normalizeGrantedScopes,
 } from "../_shared/metaPlatformScopes.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -183,8 +185,11 @@ Deno.serve(async (req: Request) => {
       accessToken = await exchangeForLongLivedToken(accessToken, appId ?? "", appSecret ?? "");
     }
 
-    const grantedScopes = await fetchGrantedPermissions(accessToken, appId ?? undefined);
+    const grantedScopesRaw = await fetchGrantedPermissions(accessToken, appId ?? undefined);
+    const grantedScopes = normalizeGrantedScopes(grantedScopesRaw);
     const grantedScopesJson = grantedScopes;
+    const igDmScopesOk = missingScopesForFeature(grantedScopes, "instagram_dm").length === 0;
+    const messengerDmScopesOk = missingScopesForFeature(grantedScopes, "messenger_dm").length === 0;
 
     const fields = "id,name,access_token,instagram_business_account{id,username,name}";
     const pages: PageRow[] = [];
@@ -361,6 +366,10 @@ Deno.serve(async (req: Request) => {
       accounts_synced: accountsSynced,
       facebook_pages_synced: fbPagesSynced,
       granted_scopes: grantedScopes,
+      dm_scopes_ok: igDmScopesOk || messengerDmScopesOk,
+      instagram_dm_scopes_ok: igDmScopesOk,
+      messenger_dm_scopes_ok: messengerDmScopesOk,
+      needs_reconnect: !igDmScopesOk && !messengerDmScopesOk,
       webhook_subscribed_count: webhookSubscribedCount,
     };
     if (accountsSynced === 0 && fbPagesSynced === 0) {

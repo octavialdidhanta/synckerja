@@ -5,7 +5,7 @@ import { Switch } from "@/shared/components/ui/switch";
 import { cn } from "@/shared/lib/utils";
 import type { SubscriptionPlanRow } from "@/0-onboarding/types/subscriptionPlan";
 import type { OnboardingPlanKind } from "@/0-onboarding/utils/subscriptionPlanUtils";
-import { parseFeatures } from "@/0-onboarding/utils/subscriptionPlanUtils";
+import { filterPlanFeaturesForDisplay, parseFeatures } from "@/0-onboarding/utils/subscriptionPlanUtils";
 import { displayTotalForBillingCycle } from "@/0-onboarding/utils/subscriptionPlanPricing";
 
 const brandBlue = "hsl(var(--brand-blue))";
@@ -47,7 +47,7 @@ export function CreatePlanPlanCard({
   onSelect,
   t,
 }: CreatePlanPlanCardProps) {
-  const features = parseFeatures(plan.features);
+  const features = filterPlanFeaturesForDisplay(parseFeatures(plan.features), plan);
   const isYearly = billingCycle === "yearly";
   const total = displayTotalForBillingCycle(plan, memberCount, billingCycle);
   const monthlySubtotal = Number(plan.base_price_per_member) * memberCount;

@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
-import { CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import { CheckCircle2, AlertCircle, ExternalLink, Clock } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import {
   META_SCOPE_FEATURE_MAP,
+  isPendingAppReviewScope,
   missingScopesForFeature,
 } from '@/meta-platform/constants/metaOAuthScopes';
 import { cn } from '@/shared/lib/utils';
@@ -13,15 +14,16 @@ type ScopeStatusAccount = {
 
 type MetaScopeFeature = keyof typeof META_SCOPE_FEATURE_MAP;
 
+type FeatureStatus = 'ok' | 'pending_review' | 'reconnect' | 'inactive';
+
 type MetaScopeStatusCardsProps = {
   accounts: ScopeStatusAccount[];
-  /** When set, only these permission cards are shown. */
   features?: MetaScopeFeature[];
-  /** Hide section title for tighter layouts. */
   compact?: boolean;
-  /** Hide technical missing-scope lists (shorter copy for end users). */
   hideMissingDetails?: boolean;
 };
+
+const THREADS_FEATURES = new Set<MetaScopeFeature>(['threads_insights', 'threads_replies']);
 
 function parseGrantedScopes(account: ScopeStatusAccount): string[] {
   const raw = account.granted_scopes;
@@ -37,6 +39,14 @@ function parseGrantedScopes(account: ScopeStatusAccount): string[] {
   return [];
 }
 
+function resolveFeatureStatus(granted: string[], feature: MetaScopeFeature): FeatureStatus {
+  const missing = missingScopesForFeature(granted, feature);
+  if (missing.length === 0) return 'ok';
+  if (THREADS_FEATURES.has(feature)) return 'inactive';
+  if (missing.every((s) => isPendingAppReviewScope(s))) return 'pending_review';
+  return 'reconnect';
+}
+
 const FEATURE_LINKS: Record<keyof typeof META_SCOPE_FEATURE_MAP, string> = {
   instagram_dm: '/omnichannel/livechat',
   messenger_dm: '/omnichannel/livechat',
@@ -50,15 +60,26 @@ const FEATURE_LINKS: Record<keyof typeof META_SCOPE_FEATURE_MAP, string> = {
   threads_replies: '/digital-marketing/social-media-performance/manage-comments/threads',
 };
 
-export function MetaScopeStatusCards({ accounts, features: featuresFilter, compact, hideMissingDetails }: MetaScopeStatusCardsProps) {
+const STATUS_STYLES: Record<FeatureStatus, string> = {
+  ok: 'border-emerald-200 bg-emerald-50/60',
+  pending_review: 'border-amber-200 bg-amber-50/60',
+  reconnect: 'border-amber-200 bg-amber-50/60',
+  inactive: 'border-slate-200 bg-slate-50/80',
+};
+
+export function MetaScopeStatusCards({
+  accounts,
+  features: featuresFilter,
+  compact,
+  hideMissingDetails,
+}: MetaScopeStatusCardsProps) {
   const { t } = useAppTranslation();
   if (accounts.length === 0) return null;
 
   const primary = accounts[0];
   const granted = parseGrantedScopes(primary);
   const features =
-    featuresFilter ??
-    (Object.keys(META_SCOPE_FEATURE_MAP) as MetaScopeFeature[]);
+    featuresFilter ?? (Object.keys(META_SCOPE_FEATURE_MAP) as MetaScopeFeature[]);
 
   return (
     <div className={cn('space-y-2', !compact && 'border-t border-slate-200 pt-4')}>
@@ -69,8 +90,8 @@ export function MetaScopeStatusCards({ accounts, features: featuresFilter, compa
       )}
       <div className="grid gap-2 sm:grid-cols-2">
         {features.map((feature) => {
+          const status = resolveFeatureStatus(granted, feature);
           const missing = missingScopesForFeature(granted, feature);
-          const ok = missing.length === 0;
           const labels: Record<typeof feature, string> = {
             instagram_dm: t('metaPlatform.scopeStatus.instagramDm', 'Instagram DM'),
             messenger_dm: t('metaPlatform.scopeStatus.messengerDm', 'Messenger Live Chat'),
@@ -83,41 +104,52 @@ export function MetaScopeStatusCards({ accounts, features: featuresFilter, compa
             threads_insights: t('metaPlatform.scopeStatus.threadsInsights', 'Threads Insights'),
             threads_replies: t('metaPlatform.scopeStatus.threadsReplies', 'Threads Replies'),
           };
+
+          const statusIcon =
+            status === 'ok' ? (
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+            ) : status === 'pending_review' ? (
+              <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+            ) : status === 'inactive' ? (
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+            ) : (
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+            );
+
+          const statusMessage =
+            status === 'pending_review'
+              ? t(
+                  'metaPlatform.scopeStatus.pendingAppReview',
+                  'Waiting for Meta App Review approval for this permission.',
+                )
+              : status === 'reconnect'
+                ? hideMissingDetails
+                  ? t('metaPlatform.scopeStatus.reconnectRequired', 'Reconnect to grant this permission.')
+                  : `${t('metaPlatform.scopeStatus.missing', 'Missing')}: ${missing.join(', ')}`
+                : status === 'inactive'
+                  ? feature === 'threads_insights' || feature === 'threads_replies'
+                    ? t(
+                        'metaPlatform.scopeStatus.threadsReconnectHint',
+                        'Use Connect Threads on the Threads integration tab.',
+                      )
+                    : t('metaPlatform.scopeStatus.inactive', 'Not configured.')
+                  : null;
+
           return (
             <div
               key={feature}
               className={cn(
                 'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs',
-                ok ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/60',
+                STATUS_STYLES[status],
               )}
             >
-              {ok ? (
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-              ) : (
-                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-              )}
+              {statusIcon}
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-800">{labels[feature]}</p>
-                {!ok && (
-                  <p className="mt-0.5 text-slate-600">
-                    {hideMissingDetails
-                      ? t('metaPlatform.scopeStatus.reconnectRequired', 'Reconnect to grant this permission.')
-                      : (
-                        <>
-                          {t('metaPlatform.scopeStatus.missing', 'Missing')}: {missing.join(', ')}
-                          {(feature === 'threads_insights' || feature === 'threads_replies') && (
-                            <span className="block mt-0.5">
-                              {t(
-                                'metaPlatform.scopeStatus.threadsReconnectHint',
-                                'Use Connect Threads on the Threads integration tab.',
-                              )}
-                            </span>
-                          )}
-                        </>
-                      )}
-                  </p>
+                {statusMessage && (
+                  <p className="mt-0.5 text-slate-600">{statusMessage}</p>
                 )}
-                {ok && feature !== 'pages' && (
+                {status === 'ok' && feature !== 'pages' && (
                   <Link
                     to={FEATURE_LINKS[feature]}
                     className="mt-1 inline-flex items-center gap-1 text-primary hover:underline"

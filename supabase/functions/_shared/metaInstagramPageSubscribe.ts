@@ -1,7 +1,8 @@
-export const META_GRAPH_VERSION = "v21.0";
+import { metaGraphVersion } from "./metaPlatformScopes.ts";
 
-/** DM livechat fields for Page Subscribed Apps (not messaging_seen). */
-export const INSTAGRAM_DM_SUBSCRIBED_FIELDS = "messages,messaging_postbacks,message_reads";
+/** DM livechat fields for Page Subscribed Apps (includes messaging_seen for Instagram seen receipts). */
+export const INSTAGRAM_DM_SUBSCRIBED_FIELDS =
+  "messages,messaging_postbacks,message_reads,messaging_seen";
 
 /** Instagram comment webhook field (Manage Comments real-time inbox). */
 export const INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS = "comments";
@@ -33,7 +34,7 @@ export async function subscribeInstagramPageToWebhooks(
   }
 
   const url =
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(trimmedPageId)}/subscribed_apps` +
+    `https://graph.facebook.com/${metaGraphVersion()}/${encodeURIComponent(trimmedPageId)}/subscribed_apps` +
     `?subscribed_fields=${encodeURIComponent(INSTAGRAM_PAGE_SUBSCRIBED_FIELDS)}` +
     `&access_token=${encodeURIComponent(trimmedToken)}`;
 
@@ -69,7 +70,7 @@ export async function getInstagramPageSubscriptionStatus(
   }
 
   const url =
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(trimmedPageId)}/subscribed_apps` +
+    `https://graph.facebook.com/${metaGraphVersion()}/${encodeURIComponent(trimmedPageId)}/subscribed_apps` +
     `?access_token=${encodeURIComponent(trimmedToken)}`;
 
   try {

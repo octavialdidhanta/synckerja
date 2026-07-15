@@ -1,5 +1,9 @@
-import { supabase } from "@/shared/lib/supabaseClient";
+import {
+  resolvePlanModuleAccessForDisplay,
+} from "@/10-subscription/shared/planModuleDisplay";
 import type { SubscriptionPlan } from "@/10-subscription/types/SubscriptionPlanCatalog";
+import type { ModuleAccessMap } from "@/shared/auth/module-access/moduleCatalog";
+import { supabase } from "@/shared/lib/supabaseClient";
 
 const PLAN_ADD_ONS_SELECT =
   "*, subscription_plan_add_ons ( unit_price_override_per_month, display_order, subscription_add_ons ( code, name, default_unit_price_per_month, follows_plan_annual_discount, is_active ) )";
@@ -14,8 +18,33 @@ function toNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function toMaxMembers(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 1 ? Math.round(n) : null;
+}
+
+type PlanModuleAccessRow = {
+  subscription_plan_id: string;
+  module_key: string;
+  is_enabled: boolean;
+};
+
+function groupModuleRowsByPlanId(rows: PlanModuleAccessRow[]): Map<string, PlanModuleAccessRow[]> {
+  const grouped = new Map<string, PlanModuleAccessRow[]>();
+  for (const row of rows) {
+    const list = grouped.get(row.subscription_plan_id) ?? [];
+    list.push(row);
+    grouped.set(row.subscription_plan_id, list);
+  }
+  return grouped;
+}
+
 /** Normalizes Supabase nested `subscription_plan_add_ons` for `SubscriptionPlan`. */
-export function mapRowToSubscriptionPlan(row: Record<string, unknown>): SubscriptionPlan {
+export function mapRowToSubscriptionPlan(
+  row: Record<string, unknown>,
+  planModuleAccess?: ModuleAccessMap,
+): SubscriptionPlan {
   const rawLinks = row.subscription_plan_add_ons;
   const plan_add_ons = Array.isArray(rawLinks)
     ? rawLinks
@@ -43,11 +72,14 @@ export function mapRowToSubscriptionPlan(row: Record<string, unknown>): Subscrip
         .filter(Boolean)
     : [];
 
-  const { subscription_plan_add_ons: _omit, ...rest } = row;
+  const features = parseFeatures(row.features);
+  const { subscription_plan_add_ons: _omit, max_members: _rawMax, ...rest } = row;
   return {
-    ...(rest as Omit<SubscriptionPlan, "features" | "plan_add_ons">),
-    features: parseFeatures(row.features),
+    ...(rest as Omit<SubscriptionPlan, "features" | "plan_add_ons" | "max_members" | "plan_module_access">),
+    max_members: toMaxMembers(row.max_members),
+    features,
     plan_add_ons: (plan_add_ons.length ? plan_add_ons : null) as SubscriptionPlan["plan_add_ons"],
+    plan_module_access: planModuleAccess,
   };
 }
 
@@ -59,7 +91,32 @@ export async function fetchSubscriptionPlansWithAddOns(): Promise<SubscriptionPl
     .order("base_price_per_member", { ascending: true });
 
   if (error) throw error;
-  return (data || []).map((row) => mapRowToSubscriptionPlan(row as Record<string, unknown>));
+
+  const rows = (data || []).map((row) => row as Record<string, unknown>);
+  const planIds = rows.map((row) => String(row.id));
+
+  let moduleRows: PlanModuleAccessRow[] = [];
+  if (planIds.length > 0) {
+    const { data: moduleData, error: moduleError } = await supabase
+      .from("subscription_plan_module_access")
+      .select("subscription_plan_id, module_key, is_enabled")
+      .in("subscription_plan_id", planIds);
+
+    if (moduleError) throw moduleError;
+    moduleRows = (moduleData ?? []) as PlanModuleAccessRow[];
+  }
+
+  const modulesByPlan = groupModuleRowsByPlanId(moduleRows);
+
+  return rows.map((row) => {
+    const planId = String(row.id);
+    const features = parseFeatures(row.features);
+    const planModuleAccess = resolvePlanModuleAccessForDisplay(
+      features,
+      modulesByPlan.get(planId) ?? null,
+    );
+    return mapRowToSubscriptionPlan(row, planModuleAccess);
+  });
 }
 
 export { PLAN_ADD_ONS_SELECT };

@@ -14,6 +14,7 @@ export const ALLOWED_EXPIRED_ROUTES = [
   "/verify-email",
   "/email-verified",
   "/create-organization",
+  "/organization-unavailable",
   "/create-plan",
   "/subscription/plans",
   "/subscription/management",
