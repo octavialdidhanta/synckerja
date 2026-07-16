@@ -180,6 +180,9 @@ const LeadMagnetWizardPage = lazy(() =>
 const LeadMagnetAnalyticsPage = lazy(() =>
   import("@/6-1-lead-magnet/pages/LeadMagnetAnalyticsPage").then((m) => ({ default: m.LeadMagnetAnalyticsPage })),
 );
+const LeadMagnetActionPage = lazy(() =>
+  import("@/6-1-lead-magnet/pages/LeadMagnetActionPage").then((m) => ({ default: m.LeadMagnetActionPage })),
+);
 const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
 const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
 const MetaAdsMetricsPage = lazy(() => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"));
@@ -634,6 +637,34 @@ function AppRoutes() {
         <Route path="/policy/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/policy/terms" element={<TermsOfServicePage />} />
         <Route path="/policy/account-deletion" element={<AccountDeletionPage />} />
+        <Route
+          path="/digital-marketing/lead-magnet/action"
+          element={
+            <Suspense
+              fallback={
+                <div className="flex min-h-screen items-center justify-center bg-gray-100" aria-busy>
+                  <span className="sr-only">Loading</span>
+                </div>
+              }
+            >
+              <LeadMagnetActionPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/lead-magnet/action"
+          element={
+            <Suspense
+              fallback={
+                <div className="flex min-h-screen items-center justify-center bg-gray-100" aria-busy>
+                  <span className="sr-only">Loading</span>
+                </div>
+              }
+            >
+              <LeadMagnetActionPage />
+            </Suspense>
+          }
+        />
 
         <Route
           path="/candidate/apply"
@@ -2506,6 +2537,35 @@ const App = () => (
                   <Route path="/policy/privacy" element={<PrivacyPolicyPage />} />
                   <Route path="/policy/terms" element={<TermsOfServicePage />} />
                   <Route path="/policy/account-deletion" element={<AccountDeletionPage />} />
+
+                  <Route
+                    path="/digital-marketing/lead-magnet/action"
+                    element={
+                      <Suspense
+                        fallback={
+                          <div className="flex min-h-screen items-center justify-center bg-gray-100" aria-busy>
+                            <span className="sr-only">Loading</span>
+                          </div>
+                        }
+                      >
+                        <LeadMagnetActionPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/lead-magnet/action"
+                    element={
+                      <Suspense
+                        fallback={
+                          <div className="flex min-h-screen items-center justify-center bg-gray-100" aria-busy>
+                            <span className="sr-only">Loading</span>
+                          </div>
+                        }
+                      >
+                        <LeadMagnetActionPage />
+                      </Suspense>
+                    }
+                  />
 
                   <Route
                     path="/candidate/apply"

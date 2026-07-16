@@ -1,18 +1,18 @@
 import { metaGraphVersion } from "./metaPlatformScopes.ts";
 
-/** DM livechat fields for Page Subscribed Apps (includes messaging_seen for Instagram seen receipts). */
+/** DM livechat fields for Page Subscribed Apps (message_reads covers read receipts). */
 export const INSTAGRAM_DM_SUBSCRIBED_FIELDS =
-  "messages,messaging_postbacks,message_reads,messaging_seen";
+  "messages,messaging_postbacks,message_reads";
 
-/** Instagram comment webhook field (Manage Comments real-time inbox). */
+/** Instagram comment webhooks — configure `comments` on the Instagram object in Meta App Dashboard (not Page subscribed_apps). */
 export const INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS = "comments";
 
 /** Facebook Page feed comments (Lead Magnet + Manage Comments on Page posts). */
 export const FACEBOOK_FEED_SUBSCRIBED_FIELDS = "feed";
 
-/** Fields for Page Subscribed Apps — DM + IG comments + FB feed comments. */
+/** Valid Page subscribed_apps fields — DM + FB feed (IG comments use App Dashboard). */
 export const INSTAGRAM_PAGE_SUBSCRIBED_FIELDS =
-  `${INSTAGRAM_DM_SUBSCRIBED_FIELDS},${INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS},${FACEBOOK_FEED_SUBSCRIBED_FIELDS}`;
+  `${INSTAGRAM_DM_SUBSCRIBED_FIELDS},${FACEBOOK_FEED_SUBSCRIBED_FIELDS}`;
 
 export type InstagramPageSubscribeResult = {
   pageId: string;

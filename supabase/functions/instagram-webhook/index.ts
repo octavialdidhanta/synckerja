@@ -15,8 +15,8 @@ import { syncMetaManageCommentsInboundComments } from "../_shared/metaManageComm
 import {
   deferLeadMagnetWork,
   extractFacebookFeedCommentChangesFromEntry,
-  scheduleLeadMagnetPostbackTrigger,
 } from "../_shared/leadMagnet/webhookBridge.ts";
+import { canonicalFacebookPostMediaId } from "../_shared/leadMagnet/facebookPostMediaId.ts";
 import { runLeadMagnetRuntime } from "../_shared/leadMagnet/runLeadMagnetRuntime.ts";
 import { LEAD_MAGNET_PAYLOAD_PREFIX } from "../_shared/leadMagnet/types.ts";
 
@@ -1026,13 +1026,15 @@ async function processFacebookFeedCommentEvents(
     }
 
     try {
+      const mediaId = canonicalFacebookPostMediaId(evt.postId, pageId);
+
       if (accessToken && evt.authorScopedId) {
         await runLeadMagnetRuntime(supabase, {
           trigger: "comment",
           platform: "facebook",
           organizationId: orgId,
           accountId: pageId,
-          mediaId: evt.postId,
+          mediaId,
           commentId: evt.commentId,
           authorScopedId: evt.authorScopedId,
           authorUsername: evt.authorUsername,
@@ -1048,7 +1050,7 @@ async function processFacebookFeedCommentEvents(
           orgId,
           "facebook",
           pageId,
-          evt.postId,
+          mediaId,
           [evt.commentId],
         ).catch((e) => {
           console.error("[instagram-webhook] FB feed comment sync error", e);
@@ -1360,7 +1362,8 @@ Deno.serve(async (req: Request) => {
           const isLeadMagnetPostback = payload.startsWith(LEAD_MAGNET_PAYLOAD_PREFIX);
 
           if (isLeadMagnetPostback && accessToken) {
-            scheduleLeadMagnetPostbackTrigger({
+            await runLeadMagnetRuntime(supabase, {
+              trigger: "postback",
               platform: "instagram",
               organizationId: orgId,
               accountId: effectiveId,
@@ -1369,7 +1372,7 @@ Deno.serve(async (req: Request) => {
               payload,
               accessToken,
               pageId: pageIdStr,
-            }, supabase);
+            });
           }
 
           deferLeadMagnetWork((async () => {

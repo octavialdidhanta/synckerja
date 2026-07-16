@@ -80,8 +80,8 @@ async function postMetaMessage(
   return { ok: true, messageId: data.message_id ?? null, recipientId: data.recipient_id ?? null };
 }
 
-/** First DM after an IG comment must use comment_id so Meta delivers inbox + push notification. */
-async function postInstagramPrivateReply(
+/** First DM after a comment must use comment_id so Meta delivers to Messenger inbox. */
+async function postCommentPrivateReply(
   endpointId: string,
   accessToken: string,
   commentId: string,
@@ -160,7 +160,8 @@ function appendButtonsAsPlainText(text: string, buttons?: ButtonSpec[]): string 
   return `${text}\n\n${lines.join("\n")}`;
 }
 
-async function sendInstagramFirstContactPrivateReply(
+async function sendCommentPrivateReplyFirstContact(
+  platform: LeadMagnetPlatform,
   pageId: string,
   accountId: string,
   accessToken: string,
@@ -168,10 +169,9 @@ async function sendInstagramFirstContactPrivateReply(
   text: string,
   buttons?: ButtonSpec[],
 ): Promise<LeadMagnetSendResult> {
-  const endpoints: Array<{ id: string; label: string }> = [
-    { id: pageId, label: "page" },
-    { id: accountId, label: "ig_business" },
-  ];
+  const endpoints: Array<{ id: string; label: string }> = platform === "instagram"
+    ? [{ id: pageId, label: "page" }, { id: accountId, label: "ig_business" }]
+    : [{ id: pageId, label: "page" }];
   let lastError = "Private reply failed on all endpoints";
   let lastCode: number | undefined;
   let lastSub: number | undefined;
@@ -180,7 +180,7 @@ async function sendInstagramFirstContactPrivateReply(
   for (const ep of endpoints) {
     if (buttons?.length) {
       const buttonMessage = buildButtonTemplate(text, buttons);
-      const buttonResult = await postInstagramPrivateReply(ep.id, accessToken, commentId, buttonMessage);
+      const buttonResult = await postCommentPrivateReply(ep.id, accessToken, commentId, buttonMessage);
       if (buttonResult.ok) {
         return {
           ok: true,
@@ -197,7 +197,7 @@ async function sendInstagramFirstContactPrivateReply(
     }
 
     const textMessage = { text: appendButtonsAsPlainText(text, buttons).slice(0, 2000) };
-    const textResult = await postInstagramPrivateReply(ep.id, accessToken, commentId, textMessage);
+    const textResult = await postCommentPrivateReply(ep.id, accessToken, commentId, textMessage);
     if (textResult.ok) {
       return {
         ok: true,
@@ -400,14 +400,14 @@ export async function sendLeadMagnetDm(
       });
   }
 
-  const usePrivateReply = args.platform === "instagram"
-    && Boolean(args.commentIdForPrivateReply?.trim())
-    && !args.existingConversationId;
+  const usePrivateReply = (args.platform === "instagram" || args.platform === "facebook")
+    && Boolean(args.commentIdForPrivateReply?.trim());
 
   let result: LeadMagnetSendResult;
 
   if (usePrivateReply) {
-    result = await sendInstagramFirstContactPrivateReply(
+    result = await sendCommentPrivateReplyFirstContact(
+      args.platform,
       args.pageId,
       args.accountId,
       args.accessToken,
@@ -461,6 +461,17 @@ export async function sendLeadMagnetDm(
     } else {
       await persist;
     }
+  }
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      conversationId,
+      error: result.error,
+      isSessionExpired: result.isSessionExpired,
+      metaErrorCode: result.metaErrorCode,
+      metaErrorSubcode: result.metaErrorSubcode,
+    };
   }
 
   return { ok: true, messageId: result.messageId, conversationId, recipientId: result.recipientId, firstDmMethod: result.firstDmMethod, privateReplyEndpoint: result.privateReplyEndpoint };

@@ -4,7 +4,7 @@
 
 - [ ] Instagram Business account connected at `/omnichannel/integrations/instagram`
 - [ ] Facebook Page connected (for FB campaigns) at `/omnichannel/integrations/facebook`
-- [ ] Webhook subscribed: `comments`, `messages`, `messaging_postbacks` (+ `feed` for FB comments)
+- [ ] Webhook subscribed: `comments`, `messages`, `messaging_postbacks`, **`feed`** (wajib untuk komentar FB)
 - [ ] Meta test user (not business account) for commenting
 
 ## Setup
@@ -17,7 +17,9 @@
 
 1. [ ] Comment keyword from test user → public reply appears
 2. [ ] DM follow gate in Request tab (if not follower)
-3. [ ] Click `Sudah Follow` without following → same gate message
+3. [ ] **Facebook:** first `Sudah Follow` click (without following) → landing on office.synckerja.com + gate DM again, **no** material offer
+3b. [ ] **Facebook:** follow Page → second `Sudah Follow` → single material offer DM
+3c. [ ] **Instagram:** click `Sudah Follow` without following → same gate message (API check)
 4. [ ] Follow account → click `Sudah Follow` → material offer DM (or delivery DM if skip material offer)
 5. [ ] Click `Ambil Materi` → delivery DM + URL button (skip if material offer skipped)
 5e. [ ] **Skip material offer ON** — after follow gate, delivery DM sent directly (no offer step)
@@ -37,5 +39,6 @@
 |---------|--------|
 | No comment reply | Edge logs `lead-magnet-runtime`; campaign active + post bound |
 | No DM | 24h window / user must comment first; see `dm_failed` in analytics |
-| Postback ignored | Payload prefix `lm:`; webhook `messaging_postbacks` subscribed |
-| FB comment no trigger | Page webhook `feed` field; campaign platform = facebook |
+| Postback ignored | Payload prefix `lm:`; webhook `messaging_postbacks` subscribed (IG). FB uses action URLs on office.synckerja.com |
+| Duplicate offer DMs | Should not occur after idempotency fix; check enrollment status stuck at `framework_offered` |
+| FB comment no trigger | Page webhook **`feed`** belum subscribe — reconnect FB atau panggil subscribe di `/omnichannel/integrations/facebook`; cek `subscribedFields` harus ada `feed` |

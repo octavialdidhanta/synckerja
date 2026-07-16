@@ -45,6 +45,17 @@ const bundles = {
     "supabase/functions/_shared/omnichannelPublicApi/leadStatusMap.ts",
     ...leadMagnetShared,
   ],
+  "instagram-subscribe-webhooks": [
+    "supabase/functions/instagram-subscribe-webhooks/index.ts",
+    "supabase/functions/_shared/metaInstagramPageSubscribe.ts",
+    "supabase/functions/_shared/metaPlatformScopes.ts",
+  ],
+  "meta-oauth-exchange": [
+    "supabase/functions/meta-oauth-exchange/index.ts",
+    "supabase/functions/_shared/metaInstagramPageSubscribe.ts",
+    "supabase/functions/_shared/metaPlatformScopes.ts",
+    "supabase/functions/_shared/instagramAccountDedupe.ts",
+  ],
 };
 
 const defaultNames = ["lead-magnet-api", "lead-magnet-runtime", "instagram-webhook"];

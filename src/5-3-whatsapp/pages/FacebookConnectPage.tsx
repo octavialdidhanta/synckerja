@@ -83,12 +83,21 @@ export function FacebookConnectPage() {
       const sub = await subscribeMessengerWebhooks();
       const fields = sub.results?.flatMap((r) => r.subscribedFields ?? []) ?? [];
       const hasMessages = fields.includes('messages');
-      if (sub.success !== false && (sub.subscribed_count ?? 0) > 0 && hasMessages) {
+      const hasFeed = fields.includes('feed');
+      if (sub.success !== false && (sub.subscribed_count ?? 0) > 0 && hasMessages && hasFeed) {
         toast.success(
           t(
             'facebookConnect.webhookSubscribeSuccess',
-            'Messenger webhook enabled (messages). Send a test message to your Page via Facebook Messenger.',
+            'Page webhooks enabled (Messenger + FB comments). You can test Lead Magnet on Facebook posts.',
           ),
+        );
+      } else if (sub.success !== false && (sub.subscribed_count ?? 0) > 0 && hasMessages) {
+        toast.warning(
+          t(
+            'facebookConnect.webhookSubscribePartialFeed',
+            'Messenger webhook enabled, but "feed" field missing — FB comment automation will not work. Try again or reconnect Facebook.',
+          ),
+          { duration: 12000 },
         );
       } else if (sub.success !== false && (sub.subscribed_count ?? 0) > 0) {
         toast.warning(

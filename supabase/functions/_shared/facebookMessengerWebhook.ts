@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { LEAD_MAGNET_PAYLOAD_PREFIX } from "./leadMagnet/types.ts";
-import { deferLeadMagnetWork, scheduleLeadMagnetPostbackTrigger } from "./leadMagnet/webhookBridge.ts";
+import {
+  resolveLeadMagnetFacebookPostbackPayload,
+  resolveLeadMagnetFacebookTextPayload,
+  runLeadMagnetFacebookPostbackIfResolved,
+} from "./leadMagnet/facebookLeadMagnetInbound.ts";
 
 const META_GRAPH_VERSION = "v21.0";
 const MEDIA_BUCKET = "whatsapp-media";
@@ -318,33 +322,40 @@ export async function processFacebookMessengerEvents(
 
     if (evt.message?.is_echo) continue;
 
-    if (evt.postback && !evt.message) {
+    if (evt.postback) {
       if (!senderId) continue;
-      const payload = typeof evt.postback.payload === "string" ? evt.postback.payload.trim() : "";
+      const rawPayload = typeof evt.postback.payload === "string" ? evt.postback.payload.trim() : "";
       const title = typeof evt.postback.title === "string" ? evt.postback.title.trim() : "";
-      const bodyText = payload || title || "[Postback]";
+      const resolvedPayload = await resolveLeadMagnetFacebookPostbackPayload(supabase, {
+        organizationId: orgId,
+        participantScopedId: senderId,
+        payload: rawPayload,
+        title,
+      }) ?? "";
+      const bodyText = rawPayload || title || "[Postback]";
       const mid = `postback_${senderId}_${String(evt.timestamp ?? Date.now())}`;
-      const isLeadMagnetPostback = payload.startsWith(LEAD_MAGNET_PAYLOAD_PREFIX);
 
-      if (isLeadMagnetPostback && accessToken) {
-        scheduleLeadMagnetPostbackTrigger({
-          platform: "facebook",
+      if (resolvedPayload && accessToken) {
+        console.log("[facebook-messenger] lead-magnet postback", {
+          senderId,
+          rawPayload: rawPayload.slice(0, 80),
+          resolvedPayload: resolvedPayload.slice(0, 80),
+        });
+        await runLeadMagnetFacebookPostbackIfResolved(supabase, {
           organizationId: orgId,
           accountId: pageId,
-          participantScopedId: senderId,
-          participantUsername: null,
-          payload,
-          accessToken,
           pageId,
-        }, supabase);
+          participantScopedId: senderId,
+          payload: resolvedPayload,
+          accessToken,
+        });
       }
 
-      deferLeadMagnetWork((async () => {
-        try {
-          const convId = await upsertFacebookConversationInbound(
-            supabase, orgId, pageId, senderId, bodyText, ts, accessToken, displayName,
-          );
-          if (!convId) return;
+      try {
+        const convId = await upsertFacebookConversationInbound(
+          supabase, orgId, pageId, senderId, bodyText, ts, accessToken, displayName,
+        );
+        if (convId) {
           const pbPayload = {
             conversation_id: convId,
             direction: "inbound",
@@ -356,10 +367,10 @@ export async function processFacebookMessengerEvents(
           };
           await supabase.from("facebook_messages").insert(pbPayload);
           await notifyPush(pbPayload);
-        } catch (err) {
-          console.error("[facebook-messenger] postback inbox sync error", err);
         }
-      })());
+      } catch (err) {
+        console.error("[facebook-messenger] postback inbox sync error", err);
+      }
 
       processedCount += 1;
       continue;
@@ -388,6 +399,46 @@ export async function processFacebookMessengerEvents(
     if (!senderId || !mid) continue;
 
     const { body: bodyText, messageType } = getMessageBody(evt as Record<string, unknown>);
+    const msgRecord = (evt as Record<string, unknown>).message as Record<string, unknown> | undefined;
+    const quickReplyPayload = typeof (msgRecord?.quick_reply as { payload?: string } | undefined)?.payload === "string"
+      ? String((msgRecord?.quick_reply as { payload: string }).payload).trim()
+      : "";
+
+    if (accessToken) {
+      let leadMagnetPayload = quickReplyPayload.startsWith(LEAD_MAGNET_PAYLOAD_PREFIX)
+        ? quickReplyPayload
+        : await resolveLeadMagnetFacebookTextPayload(supabase, {
+          organizationId: orgId,
+          participantScopedId: senderId,
+          text: bodyText,
+        });
+
+      if (!leadMagnetPayload && quickReplyPayload) {
+        leadMagnetPayload = await resolveLeadMagnetFacebookPostbackPayload(supabase, {
+          organizationId: orgId,
+          participantScopedId: senderId,
+          payload: quickReplyPayload,
+          title: bodyText,
+        });
+      }
+
+      if (leadMagnetPayload) {
+        console.log("[facebook-messenger] lead-magnet inbound message action", {
+          senderId,
+          bodyText: bodyText.slice(0, 80),
+          leadMagnetPayload: leadMagnetPayload.slice(0, 80),
+        });
+        await runLeadMagnetFacebookPostbackIfResolved(supabase, {
+          organizationId: orgId,
+          accountId: pageId,
+          pageId,
+          participantScopedId: senderId,
+          payload: leadMagnetPayload,
+          accessToken,
+        });
+      }
+    }
+
     const lastBody = bodyText.slice(0, 200);
 
     const { data: existingConv } = await supabase
@@ -461,7 +512,6 @@ export async function processFacebookMessengerEvents(
     await extendFacebookMetaSession(supabase, conv.id, ts);
 
     let mediaUrl: string | null = null;
-    const msgRecord = (evt as Record<string, unknown>).message as Record<string, unknown> | undefined;
     const attachmentInfo = msgRecord ? getAttachmentInfo(msgRecord) : null;
     if (attachmentInfo && accessToken && ["image", "video"].includes(attachmentInfo.type)) {
       mediaUrl = await downloadAttachmentToStorage(

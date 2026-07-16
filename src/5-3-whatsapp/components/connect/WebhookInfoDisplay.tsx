@@ -164,7 +164,13 @@ export function WebhookInfoDisplay({ embedded, compact, variant = 'whatsapp' }: 
             <li>
               {t(
                 'facebookConnect.webhookPageStep3',
-                'Di tabel field Page, toggle Subscribe pada messages (jika tidak muncul: tambah product Messenger di App Dashboard).',
+                'Di tabel field Page, toggle Subscribe pada messages dan messaging_postbacks (jika tidak muncul: tambah product Messenger di App Dashboard).',
+              )}
+            </li>
+            <li>
+              {t(
+                'facebookConnect.webhookPageStep3b',
+                'Lead Magnet Facebook: tombol Sudah Follow/Ambil Materi buka halaman office.synckerja.com (two-step follow gate). Aktifkan messages di Meta jika ingin Livechat.',
               )}
             </li>
             <li>

@@ -16,6 +16,72 @@ function buildPublicCommentReply(text: string, username: string | null): string 
   return `${mention} ${text}`;
 }
 
+async function sendPublicCommentReply(
+  admin: SupabaseClient,
+  args: {
+    platform: LeadMagnetCommentTriggerInput["platform"];
+    commentId: string;
+    accessToken: string;
+    campaign: { id: string; comment_reply_text: string };
+    organizationId: string;
+    enrollmentId: string;
+    authorUsername: string | null;
+    retry?: boolean;
+  },
+): Promise<boolean> {
+  try {
+    const replyText = buildPublicCommentReply(args.campaign.comment_reply_text, args.authorUsername);
+    const replyResult = await replyMetaComment(args.platform, args.commentId, replyText, args.accessToken);
+    deferLeadMagnetWork((async () => {
+      await updateEnrollmentStatus(admin, args.enrollmentId, "comment_replied", {
+        comment_reply_id: replyResult.id,
+      });
+      await logLeadMagnetFunnelEvent(admin, {
+        enrollmentId: args.enrollmentId,
+        campaignId: args.campaign.id,
+        organizationId: args.organizationId,
+        eventType: "comment_reply_sent",
+        metadata: {
+          reply_id: replyResult.id,
+          comment_id: args.commentId,
+          ...(args.retry ? { retry: true } : {}),
+        },
+      });
+      await logLeadMagnetFunnelEvent(admin, {
+        enrollmentId: args.enrollmentId,
+        campaignId: args.campaign.id,
+        organizationId: args.organizationId,
+        eventType: "comment_replied",
+        metadata: args.retry ? { retry: true } : undefined,
+      });
+    })());
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[lead-magnet] comment reply failed:", msg);
+    deferLeadMagnetWork(updateEnrollmentStatus(admin, args.enrollmentId, "comment_replied", {
+      last_error: `comment_reply: ${msg}`,
+    }));
+    return false;
+  }
+}
+
+function scheduleFollowCheckAndDmFlow(
+  admin: SupabaseClient,
+  args: {
+    enrollment: LeadMagnetEnrollmentRow;
+    campaign: Parameters<typeof runFollowCheckAndDmFlow>[1]["campaign"];
+    accessToken: string;
+    pageId: string;
+  },
+): void {
+  deferLeadMagnetWork(
+    runFollowCheckAndDmFlow(admin, args).catch((err) => {
+      console.error("[lead-magnet] deferred DM flow failed:", err);
+    }),
+  );
+}
+
 export async function handleLeadMagnetCommentTrigger(
   admin: SupabaseClient,
   input: LeadMagnetCommentTriggerInput,
@@ -70,9 +136,68 @@ export async function handleLeadMagnetCommentTrigger(
         .eq("participant_scoped_id", input.authorScopedId)
         .maybeSingle();
 
-      const canRetryFailedFirstContact = existing?.status === "failed"
+      const canRetryFailedFirstContact = existing
         && !existing.private_reply_message_id
-        && input.platform === "instagram";
+        && (existing.status === "failed" || existing.status === "comment_replied")
+        && (input.platform === "instagram" || input.platform === "facebook");
+
+      const canResendFacebookFollowGate = existing
+        && input.platform === "facebook"
+        && existing.status === "follow_gate_sent";
+
+      if (canResendFacebookFollowGate && existing) {
+        console.log("[lead-magnet] resend FB follow gate after new comment", existing.id, input.commentId);
+        await admin.from("lead_magnet_enrollments").update({
+          comment_id: input.commentId,
+          media_id: input.mediaId,
+          participant_username: authorUsername ?? existing.participant_username,
+          status: "comment_matched",
+          private_reply_message_id: null,
+          private_reply_sent_at: null,
+          first_dm_method: null,
+          follow_confirm_attempts: 0,
+          last_error: null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", existing.id);
+
+        const enrollmentRow: LeadMagnetEnrollmentRow = {
+          id: existing.id as string,
+          organization_id: existing.organization_id as string,
+          campaign_id: existing.campaign_id as string,
+          platform: existing.platform as LeadMagnetEnrollmentRow["platform"],
+          participant_scoped_id: existing.participant_scoped_id as string,
+          participant_username: (authorUsername ?? existing.participant_username) as string | null,
+          comment_id: input.commentId,
+          media_id: input.mediaId,
+          conversation_id: (existing.conversation_id as string | null) ?? null,
+          conversation_table: (existing.conversation_table as string | null) ?? null,
+          lead_submission_id: (existing.lead_submission_id as string | null) ?? null,
+          lead_id: (existing.lead_id as string | null) ?? null,
+          status: "comment_matched",
+          paused_reason: (existing.paused_reason as string | null) ?? null,
+          is_follower_at_start: null,
+          last_error: null,
+        };
+
+        await sendPublicCommentReply(admin, {
+          platform: input.platform,
+          commentId: input.commentId,
+          accessToken: input.accessToken,
+          campaign,
+          organizationId: input.organizationId,
+          enrollmentId: existing.id as string,
+          authorUsername,
+          retry: true,
+        });
+
+        scheduleFollowCheckAndDmFlow(admin, {
+          enrollment: enrollmentRow,
+          campaign,
+          accessToken: input.accessToken,
+          pageId: input.pageId,
+        });
+        return true;
+      }
 
       if (canRetryFailedFirstContact && existing) {
         console.log("[lead-magnet] retry failed enrollment with new comment", existing.id, input.commentId);
@@ -104,49 +229,72 @@ export async function handleLeadMagnetCommentTrigger(
           last_error: null,
         };
 
-        await runFollowCheckAndDmFlow(admin, {
+        await sendPublicCommentReply(admin, {
+          platform: input.platform,
+          commentId: input.commentId,
+          accessToken: input.accessToken,
+          campaign,
+          organizationId: input.organizationId,
+          enrollmentId: existing.id as string,
+          authorUsername,
+          retry: true,
+        });
+
+        scheduleFollowCheckAndDmFlow(admin, {
           enrollment: enrollmentRow,
           campaign,
           accessToken: input.accessToken,
           pageId: input.pageId,
         });
-
-        try {
-          const replyText = buildPublicCommentReply(campaign.comment_reply_text, authorUsername);
-          const replyResult = await replyMetaComment(input.platform, input.commentId, replyText, input.accessToken);
-          deferLeadMagnetWork((async () => {
-            await updateEnrollmentStatus(admin, existing.id as string, "comment_replied", {
-              comment_reply_id: replyResult.id,
-            });
-            await logLeadMagnetFunnelEvent(admin, {
-              enrollmentId: existing.id as string,
-              campaignId: campaign.id,
-              organizationId: input.organizationId,
-              eventType: "comment_reply_sent",
-              metadata: { reply_id: replyResult.id, comment_id: input.commentId, retry: true },
-            });
-            await logLeadMagnetFunnelEvent(admin, {
-              enrollmentId: existing.id as string,
-              campaignId: campaign.id,
-              organizationId: input.organizationId,
-              eventType: "comment_replied",
-              metadata: { retry: true },
-            });
-          })());
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error("[lead-magnet] retry comment reply failed:", msg);
-        }
         return true;
       }
 
-      console.log("[lead-magnet] dedup enrollment, reply comment only", campaign.id, input.authorScopedId);
-      try {
-        const replyText = buildPublicCommentReply(campaign.comment_reply_text, authorUsername);
-        await replyMetaComment(input.platform, input.commentId, replyText, input.accessToken);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error("[lead-magnet] dedup comment reply failed:", msg);
+      console.log("[lead-magnet] dedup enrollment", campaign.id, input.authorScopedId);
+      await sendPublicCommentReply(admin, {
+        platform: input.platform,
+        commentId: input.commentId,
+        accessToken: input.accessToken,
+        campaign,
+        organizationId: input.organizationId,
+        enrollmentId: existing!.id as string,
+        authorUsername,
+      });
+
+      if (existing && !existing.private_reply_message_id) {
+        await admin.from("lead_magnet_enrollments").update({
+          comment_id: input.commentId,
+          media_id: input.mediaId,
+          participant_username: authorUsername ?? existing.participant_username,
+          last_error: null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", existing.id);
+
+        const enrollmentRow: LeadMagnetEnrollmentRow = {
+          id: existing.id as string,
+          organization_id: existing.organization_id as string,
+          campaign_id: existing.campaign_id as string,
+          platform: existing.platform as LeadMagnetEnrollmentRow["platform"],
+          participant_scoped_id: existing.participant_scoped_id as string,
+          participant_username: (authorUsername ?? existing.participant_username) as string | null,
+          comment_id: input.commentId,
+          media_id: input.mediaId,
+          conversation_id: (existing.conversation_id as string | null) ?? null,
+          conversation_table: (existing.conversation_table as string | null) ?? null,
+          lead_submission_id: (existing.lead_submission_id as string | null) ?? null,
+          lead_id: (existing.lead_id as string | null) ?? null,
+          status: existing.status as string,
+          paused_reason: (existing.paused_reason as string | null) ?? null,
+          is_follower_at_start: (existing.is_follower_at_start as boolean | null) ?? null,
+          last_error: null,
+          private_reply_message_id: null,
+        };
+
+        scheduleFollowCheckAndDmFlow(admin, {
+          enrollment: enrollmentRow,
+          campaign,
+          accessToken: input.accessToken,
+          pageId: input.pageId,
+        });
       }
       return true;
     }
@@ -183,43 +331,24 @@ export async function handleLeadMagnetCommentTrigger(
     last_error: null,
   };
 
-  // 1) Private reply DM first (sync) — strongest IG notification channel.
-  await runFollowCheckAndDmFlow(admin, {
+  // 1) Public comment reply first (sync) — user-visible; target <3s from webhook.
+  await sendPublicCommentReply(admin, {
+    platform: input.platform,
+    commentId: input.commentId,
+    accessToken: input.accessToken,
+    campaign,
+    organizationId: input.organizationId,
+    enrollmentId,
+    authorUsername,
+  });
+
+  // 2) Follow check + DM in background (profile fetch + Messenger API).
+  scheduleFollowCheckAndDmFlow(admin, {
     enrollment: enrollmentRow,
     campaign,
     accessToken: input.accessToken,
     pageId: input.pageId,
   });
-
-  // 2) Public comment reply second (sync).
-  try {
-    const replyText = buildPublicCommentReply(campaign.comment_reply_text, authorUsername);
-    const replyResult = await replyMetaComment(input.platform, input.commentId, replyText, input.accessToken);
-    deferLeadMagnetWork((async () => {
-      await updateEnrollmentStatus(admin, enrollmentId, "comment_replied", {
-        comment_reply_id: replyResult.id,
-      });
-      await logLeadMagnetFunnelEvent(admin, {
-        enrollmentId,
-        campaignId: campaign.id,
-        organizationId: input.organizationId,
-        eventType: "comment_reply_sent",
-        metadata: { reply_id: replyResult.id, comment_id: input.commentId },
-      });
-      await logLeadMagnetFunnelEvent(admin, {
-        enrollmentId,
-        campaignId: campaign.id,
-        organizationId: input.organizationId,
-        eventType: "comment_replied",
-      });
-    })());
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[lead-magnet] comment reply failed (DM already attempted):", msg);
-    deferLeadMagnetWork(updateEnrollmentStatus(admin, enrollmentId, "comment_replied", {
-      last_error: `comment_reply: ${msg}`,
-    }));
-  }
 
   deferLeadMagnetWork(createLeadMagnetLead(admin, {
     organizationId: input.organizationId,

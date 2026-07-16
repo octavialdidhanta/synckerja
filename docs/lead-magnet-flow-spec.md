@@ -6,11 +6,23 @@ ManyChat-style automation for Instagram and Facebook Page: comment keyword → p
 
 1. **Comment match** — Webhook `comments` (IG) or `feed` item=comment (FB Page)
 2. **Public comment reply** — `replyMetaComment`
-3. **Follow check** — Graph API `is_user_follow_business`
-4. **Follow gate DM** — Structured message + postback `Sudah Follow`
-5. **Follow re-validation** — On postback, re-check follow; loop if false
-6. **Material offer** — Postback `Ambil Materi` (optional; skippable via `skip_material_offer`)
+3. **Follow check** — Graph API `is_user_follow_business` (Instagram only; Facebook has no public follow API for Messenger PSID)
+4. **Follow gate DM** — IG: postback `Sudah Follow`. FB: two buttons — `Ikuti Page` (facebook.com) + `Sudah Follow` (action URL on `office.synckerja.com/digital-marketing/lead-magnet/action`)
+5. **Follow re-validation** — IG: API re-check on confirm; loop if false. FB: **two-step honor system** — first `Sudah Follow` click nudges + re-sends gate (no material); second click sends material offer
+6. **Material offer** — `Ambil Materi` action URL (FB) or postback (IG); skippable via `skip_material_offer`
 7. **Delivery** — DM with `web_url` button to HTTPS asset URL
+
+### Facebook follow gate limitation
+
+Meta does not expose `is_user_follow_business` for Facebook Page Messenger users (PSID). Synckerja uses a two-step flow: first confirm click opens landing page + re-sends gate; second confirm click advances to material offer. This adds friction similar to ManyChat fallbacks but cannot cryptographically prove a Page follow.
+
+### Action landing page
+
+Public route: `/digital-marketing/lead-magnet/action?e=&a=&t=&s=` (signed; legacy `/lead-magnet/action`). SPA calls `lead-magnet-runtime/action` with `Accept: application/json`.
+
+### Idempotency
+
+Enrollment status transitions use atomic `UPDATE … WHERE status = …` before sending offer/delivery DMs to prevent duplicate messages on double-tap.
 
 ### Skip options (campaign settings)
 
@@ -53,6 +65,7 @@ Both modes use the same runtime path: `sendDeliveryMessage` with a `web_url` but
 
 - `/digital-marketing/lead-magnet` — list & wizard
 - `/omnichannel/settings/lead-magnet` — quick link card
+- `/digital-marketing/lead-magnet/action` — public Messenger action landing (follow confirm / get framework)
 
 ## Deploy
 

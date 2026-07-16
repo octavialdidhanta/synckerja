@@ -18,7 +18,8 @@ export async function runLeadMagnetRuntime(
     if (input.trigger === "comment") {
       return await handleLeadMagnetCommentTrigger(admin, input);
     }
-    return await handleLeadMagnetPostbackTrigger(admin, input);
+    const result = await handleLeadMagnetPostbackTrigger(admin, input);
+    return result.handled;
   } catch (err) {
     console.error("[lead-magnet] runtime error:", err);
     return false;

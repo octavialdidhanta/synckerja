@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { facebookPostMediaIdCandidates } from "./facebookPostMediaId.ts";
 import type { LeadMagnetPlatform } from "./types.ts";
 import { commentMatchesKeyword } from "./types.ts";
 
@@ -105,6 +106,10 @@ export async function findMatchingLeadMagnetCampaign(
     commentText: string;
   },
 ): Promise<MatchedCampaign | null> {
+  const mediaIdCandidates = args.platform === "facebook"
+    ? facebookPostMediaIdCandidates(args.mediaId, args.accountId)
+    : [args.mediaId.trim()].filter(Boolean);
+
   const { data: rows, error } = await admin
     .from("lead_magnet_campaign_posts")
     .select(`
@@ -130,7 +135,7 @@ export async function findMatchingLeadMagnetCampaign(
       )
     `)
     .eq("platform", args.platform)
-    .eq("media_id", args.mediaId);
+    .in("media_id", mediaIdCandidates.length ? mediaIdCandidates : [args.mediaId]);
 
   if (error) {
     console.error("[lead-magnet] campaign match query failed:", error.message);
@@ -153,7 +158,7 @@ export async function findMatchingLeadMagnetCampaign(
     const matched = mapMatchedCampaign(campaign, {
       platform: args.platform,
       accountId: args.accountId,
-      mediaId: args.mediaId,
+      mediaId: String(row.media_id),
     });
     if (matched) return matched;
   }

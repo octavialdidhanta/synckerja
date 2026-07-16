@@ -74,6 +74,17 @@ export type LeadMagnetEnrollmentRow = {
   private_reply_message_id?: string | null;
   comment_reply_id?: string | null;
   first_dm_method?: LeadMagnetFirstDmMethod | null;
+  follow_confirm_attempts?: number;
+};
+
+export type FollowConfirmResult =
+  | { outcome: "already_processed" }
+  | { outcome: "blocked"; reason: "fb_first_confirm" | "ig_not_following" }
+  | { outcome: "material_sent" };
+
+export type LeadMagnetPostbackHandleResult = {
+  handled: boolean;
+  followConfirm?: FollowConfirmResult;
 };
 
 export type LeadMagnetCommentTriggerInput = {
