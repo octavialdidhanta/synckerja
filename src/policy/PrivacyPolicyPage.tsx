@@ -28,7 +28,7 @@ export default function PrivacyPolicyPage() {
         <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-8 shadow-sm md:p-10">
           <header className="mb-8">
             <h1 className="mb-2 text-2xl font-bold text-slate-900 md:text-3xl">{DOCUMENT_TITLE_PRIVACY}</h1>
-            <p className="text-sm text-slate-500">Last Updated: 23rd Jun, 2026</p>
+            <p className="text-sm text-slate-500">Last Updated: 16th Jul, 2026</p>
           </header>
 
           <section className={sectionClass}>
@@ -45,6 +45,9 @@ export default function PrivacyPolicyPage() {
             <h2 className={headingClass}>Who We Are</h2>
             <p className={paraClass}>
               Synckerja Office is a global SaaS platform specializing in advanced messaging automation and conversational marketing. We empower businesses of all sizes to engage with their customers across popular messaging platforms such as WhatsApp, Facebook Messenger, Instagram, Telegram, and Website Live Chat—using intelligent chatbot workflows, AI capabilities, and integrated marketing tools.
+            </p>
+            <p className={paraClass}>
+              Synckerja Office is operated by <strong>PT Integrasi Visual Digital Indonesia</strong>, a company based in <strong>Indonesia</strong>. For privacy-related requests, the data controller responsible for your personal information is PT Integrasi Visual Digital Indonesia, acting through the Synckerja Office service.
             </p>
             <p className={paraClass}>
               Our platform enables brands to generate leads, automate conversations, support sales, broadcast promotions, and build customer relationships—while complying with modern privacy and data protection standards.
@@ -90,17 +93,46 @@ export default function PrivacyPolicyPage() {
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Legal Bases for Processing (GDPR)</h2>
-            <p className={paraClass}>If you are located in the European Economic Area (EEA), the United Kingdom, or Switzerland, we process your personal information in accordance with the GDPR and other applicable data protection laws. We process your data based on legal bases including performance of a contract, your consent, legitimate interests, legal obligations, and protection of vital interests. For detailed information about our GDPR compliance, please visit our GDPR Policy.</p>
+            <p className={paraClass}>If you are located in the European Economic Area (EEA), the United Kingdom, or Switzerland, we process your personal information in accordance with the GDPR and other applicable data protection laws. We process your data based on legal bases including performance of a contract, your consent, legitimate interests, legal obligations, and protection of vital interests. Additional GDPR-related commitments may be set out in applicable Data Processing Agreements where required.</p>
           </section>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Sharing Your Data</h2>
-            <p className={paraClass}>We share data only when it is needed. We do not sell your personal information. We may share with: payment processors (e.g., Stripe, Paddle); email and CRM services; cloud providers and analytics tools; WhatsApp, Facebook, Instagram, Telegram APIs; and law enforcement if legally required.</p>
+            <p className={paraClass}>We share data only when it is needed. We do not sell your personal information. We may share with: payment processors (e.g., Midtrans); email and CRM services; infrastructure and data-processing providers (including Supabase, Inc., as described below); WhatsApp, Facebook, Instagram, and Telegram platform APIs when you connect those channels; and government or law enforcement authorities only as described in the Government and Law Enforcement Requests section below.</p>
+          </section>
+
+          <section className={sectionClass}>
+            <h2 className={headingClass}>Service Providers and Data Processors</h2>
+            <p className={paraClass}>
+              We use trusted third-party service providers to host, store, and process data on our behalf. These providers act as data processors and may only use your information to deliver services to Synckerja Office under our instructions and contractual safeguards.
+            </p>
+            <p className={paraClass}>
+              Our primary infrastructure and data-processing provider is <strong>Supabase, Inc.</strong>, which hosts our database, authentication, file storage, and serverless backend functions. Platform data received from connected channels (including Meta/Facebook and Instagram messages, comments, tokens, and related metadata) is stored and processed through Supabase on our behalf in <strong>India</strong> (South Asia region).
+            </p>
+            <p className={paraClass}>
+              We evaluate our service providers for appropriate security and privacy practices. We do not authorize processors to sell your personal information or use it for their own advertising purposes.
+            </p>
+          </section>
+
+          <section className={sectionClass}>
+            <h2 className={headingClass}>Government and Law Enforcement Requests</h2>
+            <p className={paraClass}>
+              We may disclose information when we believe disclosure is required by applicable law, regulation, legal process, or a valid governmental request. When we receive such requests, our practices include:
+            </p>
+            <ul className={listClass}>
+              <li><strong>Legal review:</strong> We review each request to assess its validity and scope under applicable law before disclosing data.</li>
+              <li><strong>Challenge unlawful requests:</strong> Where permitted by law, we may challenge, narrow, or refuse requests that we believe are unlawful, overbroad, or improperly issued.</li>
+              <li><strong>Data minimization:</strong> We disclose only the minimum information reasonably necessary to comply with a valid request.</li>
+              <li><strong>Documentation:</strong> We maintain internal records of government and law-enforcement requests and our responses, subject to legal restrictions on disclosure.</li>
+            </ul>
+            <p className={paraClass}>
+              We have not received national-security or government data-access requests relating to Synckerja Office user data in the past 12 months. If this changes, we will update this policy as appropriate and comply with applicable legal obligations regarding transparency.
+            </p>
           </section>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>International Data Transfers</h2>
-            <p className={paraClass}>Synckerja Office may operate globally. Your personal information may be transferred to, stored, and processed in countries other than your own. We take appropriate safeguards (e.g., Standard Contractual Clauses, adequacy decisions, or your explicit consent where required) to ensure your data remains protected in accordance with this Privacy Policy and applicable laws.</p>
+            <p className={paraClass}>Synckerja Office is operated from Indonesia. Your personal information may also be transferred to, stored, and processed in countries other than your own, including <strong>India</strong>, where our infrastructure provider (Supabase, Inc.) hosts and processes data on our behalf. We take appropriate safeguards (e.g., Standard Contractual Clauses, adequacy decisions, or your explicit consent where required) to ensure your data remains protected in accordance with this Privacy Policy and applicable laws.</p>
           </section>
 
           <section className={sectionClass}>
@@ -156,6 +188,19 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className={paraClass}>
               We use YouTube data solely to provide or improve these features within Synckerja Office for the organization that connected the channel. We do not sell YouTube user data, use it to build advertising profiles, or use it to develop, improve, or train generalized AI or machine learning models. OAuth tokens are stored encrypted on our servers. Organization administrators may disconnect YouTube at any time in settings, which deactivates stored tokens for that connection. Our use of YouTube APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
+            </p>
+          </section>
+
+          <section className={sectionClass}>
+            <h2 className={headingClass}>Meta Platform Data Disclosure</h2>
+            <p className={paraClass}>
+              When an organization administrator connects a Facebook Page or Instagram Business account through Meta OAuth in Omnichannel or Digital Marketing settings, Synckerja Office may access Meta platform data only to provide user-facing features for that organization. Depending on the permissions granted, this may include Page or account identifiers, profile information, posts and media metadata, comments on connected content, direct messages, webhook events, and OAuth access tokens needed to maintain the connection.
+            </p>
+            <p className={paraClass}>
+              We use Meta platform data to operate connected-channel features such as unified inbox and live chat (Facebook Messenger and Instagram Direct), comment management, lead-capture automations (including Lead Magnet campaigns that match keywords, send public replies, and deliver follow-up messages), and related engagement workflows initiated by the connected business. These features run only for Pages and accounts that the administrator has authorized. We do not perform background access outside the connected account scope.
+            </p>
+            <p className={paraClass}>
+              We use Meta platform data solely to provide or improve these features within Synckerja Office for the organization that connected the Page or account. We do not sell Meta platform data, use it to build advertising profiles for unrelated purposes, or use it to develop, improve, or train generalized AI or machine learning models. OAuth tokens and related credentials are stored encrypted on our servers through our infrastructure providers. Organization administrators may disconnect Facebook or Instagram at any time in settings, which deactivates stored tokens for that connection. Our use of Meta platform data complies with applicable Meta Platform Terms and Developer Policies.
             </p>
           </section>
 
