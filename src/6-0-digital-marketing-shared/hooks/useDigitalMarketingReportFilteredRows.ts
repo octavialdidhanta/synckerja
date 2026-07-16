@@ -18,10 +18,12 @@ export function useDigitalMarketingReportFilteredRows(
   tiktokServiceRows: ReportTikTokServiceRow[] = [],
 ) {
   const { reportServiceFilter, reportChartYear } = useDigitalMarketingPaidAdsFilters();
-  const { googleSeries, metaSeries, tiktokSeries, chartLoading } =
-    useDigitalMarketingReportMonthlySpend(reportChartYear);
-
   const useChartAlignedTotals = Boolean(reportServiceFilter);
+  const { googleSeries, metaSeries, tiktokSeries, chartLoading } =
+    useDigitalMarketingReportMonthlySpend(reportChartYear, {
+      enabled: useChartAlignedTotals,
+    });
+
   const chartTotalsReady =
     useChartAlignedTotals &&
     !chartLoading &&

@@ -7,7 +7,7 @@ import {
 } from "@/shared/auth/module-access/moduleCatalog";
 
 /** CMS `_plan_module_label` values — keep in sync with Supabase. */
-const CMS_MODULE_LABEL_TO_KEY: Record<string, SalesModuleKey> = {
+export const CMS_MODULE_LABEL_TO_KEY: Record<string, SalesModuleKey> = {
   OKR: "okr",
   "Human Resources": "humanResources",
   Finance: "finance",

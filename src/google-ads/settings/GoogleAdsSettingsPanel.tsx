@@ -346,6 +346,7 @@ export function GoogleAdsSettingsPanel({
               </div>
             </section>
 
+            {oauthConnected ? (
             <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">{t("omnichannel.settings.googleAds.accountsTitle")}</h3>
@@ -452,6 +453,7 @@ export function GoogleAdsSettingsPanel({
                 </ul>
               )}
             </section>
+            ) : null}
           </div>
         )}
       </div>

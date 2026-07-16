@@ -19,15 +19,32 @@ export type PageAccessContentGateProps = {
  */
 export function PageAccessContentGate({ pagePath, children, className }: PageAccessContentGateProps) {
   const { t } = useAppTranslation();
-  const { canAccessPage, accessDecisionPending, getDepartmentRestrictionMessage, getSalesModuleUpsellForPath } =
-    useDepartmentAccess();
+  const {
+    canAccessPage,
+    accessDecisionPending,
+    moduleAccessPending,
+    getDepartmentRestrictionMessage,
+    getSalesModuleUpsellForPath,
+  } = useDepartmentAccess();
   const { centralProfileHydrated } = useCentralizedUserData();
 
-  const pending = accessDecisionPending || !centralProfileHydrated;
-  const hasPageAccess = canAccessPage(pagePath);
+  const pending = accessDecisionPending || !centralProfileHydrated || moduleAccessPending;
 
-  // Sales module deny is resolved before permission-config fail-open — show upsell even while config bootstraps.
-  if (!hasPageAccess) {
+  if (pending) {
+    return (
+      <div
+        className={cn("flex min-h-[min(20rem,45vh)] flex-1 flex-col gap-3 p-4", className)}
+        aria-busy
+        aria-label={t("pageAccess.loading", "Loading…")}
+      >
+        <Skeleton className="h-10 w-full max-w-md rounded-md" />
+        <Skeleton className="h-4 w-4/5 max-w-lg" />
+        <Skeleton className="h-32 w-full flex-1 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (!canAccessPage(pagePath)) {
     const upsellModule = getSalesModuleUpsellForPath(pagePath);
     if (upsellModule) {
       return (
@@ -43,27 +60,11 @@ export function PageAccessContentGate({ pagePath, children, className }: PageAcc
       );
     }
 
-    if (!pending) {
-      return (
-        <AccessDeniedContentPanel
-          className={cn("h-full min-h-0", className)}
-          restrictionMessage={getDepartmentRestrictionMessage()}
-        />
-      );
-    }
-  }
-
-  if (pending) {
     return (
-      <div
-        className={cn("flex min-h-[min(20rem,45vh)] flex-1 flex-col gap-3 p-4", className)}
-        aria-busy
-        aria-label={t("pageAccess.loading", "Loading…")}
-      >
-        <Skeleton className="h-10 w-full max-w-md rounded-md" />
-        <Skeleton className="h-4 w-4/5 max-w-lg" />
-        <Skeleton className="h-32 w-full flex-1 rounded-lg" />
-      </div>
+      <AccessDeniedContentPanel
+        className={cn("h-full min-h-0", className)}
+        restrictionMessage={getDepartmentRestrictionMessage()}
+      />
     );
   }
 

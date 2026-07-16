@@ -2,10 +2,12 @@ import { computeSummaryCpc, computeSummaryCtr, formatMetaCtr } from "@/meta-ads/
 import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
 import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
 import type {
+  ReportChannelCost,
   ReportGoogleServiceRow,
   ReportMetaServiceRow,
   ReportTikTokServiceRow,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportCosts";
+import { DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY } from "@/6-0-digital-marketing-shared/reportDisplayCurrency";
 
 /** Metrics available as table columns (excludes channel, service, status, account). */
 export type ReportTableMetricKey =
@@ -125,6 +127,56 @@ export function aggregateReportTableMetrics(
     convertedLeads: totals.hasLeads ? totals.convertedLeads : null,
     primaryCurrency,
     blendedCpa,
+    blendedCpc,
+    ctr,
+  };
+}
+
+/** Fallback totals from channel-level costs when no per-service rows are available. */
+export function aggregateReportChannelCosts(
+  googleCost: ReportChannelCost,
+  metaCost: ReportChannelCost,
+  tiktokCost: ReportChannelCost,
+): ReportSummaryTotals {
+  const costByCurrency = new Map<string, number>();
+  let impressions = 0;
+  let clicks = 0;
+
+  const ingest = (cost: ReportChannelCost, defaultCurrency: string) => {
+    const currency = (cost.currency ?? defaultCurrency).trim() || defaultCurrency;
+    const amount = cost.amount ?? 0;
+    if (!Number.isFinite(amount)) return;
+    costByCurrency.set(currency, (costByCurrency.get(currency) ?? 0) + amount);
+    if (cost.connected) {
+      impressions += cost.impressions ?? 0;
+      clicks += cost.clicks ?? 0;
+    }
+  };
+
+  ingest(googleCost, DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY);
+  ingest(metaCost, DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY);
+  ingest(tiktokCost, DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY);
+
+  const costEntries = [...costByCurrency.entries()]
+    .map(([currency, amount]) => ({ currency, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const currencies = costEntries.map((e) => e.currency);
+  const primaryCurrency = currencies.length === 1 ? currencies[0]! : null;
+  const primaryCost = primaryCurrency ? (costByCurrency.get(primaryCurrency) ?? 0) : 0;
+
+  const blendedCpc =
+    primaryCurrency && clicks > 0 ? computeSummaryCpc(primaryCost, clicks) : null;
+
+  const ctr = impressions > 0 ? computeSummaryCtr(clicks, impressions) : null;
+
+  return {
+    costByCurrency: costEntries,
+    impressions,
+    clicks,
+    convertedLeads: null,
+    primaryCurrency,
+    blendedCpa: null,
     blendedCpc,
     ctr,
   };

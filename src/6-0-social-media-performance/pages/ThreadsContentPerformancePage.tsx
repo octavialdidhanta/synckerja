@@ -101,6 +101,7 @@ function ThreadsContentPerformancePageContent() {
               ) : (
                 <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
                   <ThreadsContentAccountNav
+                    organizationId={organizationId}
                     accounts={accounts}
                     accountId={accountId}
                     onAccountIdChange={setAccountId}

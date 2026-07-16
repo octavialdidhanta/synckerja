@@ -44,7 +44,12 @@ export const useDepartmentAccess = () => {
   } = useCentralizedUserData();
   const { configurations, loading: configLoading, configBootstrapPending } =
     usePermissionConfiguration();
-  const { isModuleGatingActive, moduleAccess, getUpsellModuleForPath } = useEffectiveModuleAccess();
+  const {
+    isModuleGatingActive,
+    moduleAccess,
+    moduleAccessPending,
+    getUpsellModuleForPath,
+  } = useEffectiveModuleAccess();
 
   const departmentAccess = useMemo(() => {
     const currentDepartmentId = employee?.department_id;
@@ -115,7 +120,10 @@ export const useDepartmentAccess = () => {
         return false;
       }
 
-      if (isSalesModulePathBlocked(current, isModuleGatingActive, moduleAccess)) {
+      if (
+        !moduleAccessPending &&
+        isSalesModulePathBlocked(current, isModuleGatingActive, moduleAccess)
+      ) {
         return false;
       }
 
@@ -336,6 +344,7 @@ export const useDepartmentAccess = () => {
       configHash,
       rolesResolutionPending,
       accessDecisionPending,
+      moduleAccessPending,
     };
   }, [
     userRole,
@@ -352,6 +361,7 @@ export const useDepartmentAccess = () => {
     t,
     isModuleGatingActive,
     moduleAccess,
+    moduleAccessPending,
     getUpsellModuleForPath,
   ]);
 

@@ -74,10 +74,12 @@ Deno.serve(async (req: Request) => {
       .eq("organization_id", organizationId)
       .maybeSingle();
 
+    const oauthConnected = Boolean(tokenRow?.organization_id);
+
     return tiktokAdsJson({
       connection: connection ?? null,
-      oauthConnected: Boolean(tokenRow?.organization_id),
-      accounts: accounts ?? [],
+      oauthConnected,
+      accounts: oauthConnected ? (accounts ?? []) : [],
       serverConfigured: isTikTokAdsPlatformConfigured(),
     }, 200);
   }
@@ -90,6 +92,10 @@ Deno.serve(async (req: Request) => {
       is_active: false,
       updated_at: new Date().toISOString(),
     }, { onConflict: "organization_id" });
+    await admin
+      .from("organization_tiktok_ads_accounts")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("organization_id", organizationId);
     return tiktokAdsJson({ ok: true }, 200);
   }
 

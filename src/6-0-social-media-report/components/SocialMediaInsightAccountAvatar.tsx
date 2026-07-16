@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { cn } from "@/shared/lib/utils";
 import { useMetaContentAvatarObjectUrl } from "@/meta-content/lib/useMetaContentAvatarObjectUrl";
+import { useThreadsContentAvatarObjectUrl } from "@/threads-content/lib/useThreadsContentAvatarObjectUrl";
 import type { SocialMediaPlatform } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
 
 type SocialMediaInsightAccountAvatarProps = {
@@ -15,7 +16,9 @@ type SocialMediaInsightAccountAvatarProps = {
 function accountInitials(accountLabel: string): string {
   return accountLabel
     .trim()
-    .split(/\s+/)
+    .replace(/^@/, "")
+    .split(/[\s._-]+/)
+    .filter(Boolean)
     .map((word) => word[0])
     .join("")
     .toUpperCase()
@@ -34,6 +37,8 @@ export function SocialMediaInsightAccountAvatar({
   const useMetaProxy =
     (platform === "instagram" || platform === "facebook")
     && Boolean(organizationId && accountId);
+  const useThreadsProxy =
+    platform === "threads" && Boolean(organizationId && accountId);
 
   const metaObjectUrl = useMetaContentAvatarObjectUrl({
     organizationId,
@@ -41,8 +46,17 @@ export function SocialMediaInsightAccountAvatar({
     accountId: accountId ?? "",
     enabled: useMetaProxy,
   });
+  const threadsObjectUrl = useThreadsContentAvatarObjectUrl({
+    organizationId,
+    accountId: accountId ?? "",
+    enabled: useThreadsProxy,
+  });
 
-  const displaySrc = useMetaProxy ? metaObjectUrl : avatarUrl;
+  const displaySrc = useMetaProxy
+    ? metaObjectUrl
+    : useThreadsProxy
+      ? threadsObjectUrl
+      : avatarUrl;
 
   return (
     <Avatar className={cn("h-8 w-8 shrink-0", className)}>

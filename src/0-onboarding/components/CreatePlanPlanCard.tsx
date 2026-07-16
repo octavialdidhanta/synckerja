@@ -14,6 +14,7 @@ export type CreatePlanPlanCardProps = {
   plan: SubscriptionPlanRow;
   kind: OnboardingPlanKind;
   maxMembers: number;
+  minMembers?: number;
   selected: boolean;
   catalogSelectable: boolean;
   canSubscribeWithoutPayment: boolean;
@@ -36,6 +37,7 @@ export function CreatePlanPlanCard({
   plan,
   kind,
   maxMembers,
+  minMembers = 1,
   selected,
   catalogSelectable,
   canSubscribeWithoutPayment,
@@ -146,15 +148,19 @@ export function CreatePlanPlanCard({
         </div>
         <Slider
           value={[memberCount]}
-          min={1}
+          min={minMembers}
           max={maxMembers}
           step={1}
           disabled={!canSubscribeWithoutPayment || comingSoon}
-          onValueChange={(v) => onMemberCountChange(v[0] ?? 1)}
+          onValueChange={(v) => onMemberCountChange(v[0] ?? minMembers)}
           className="w-full [&_[data-orientation=horizontal]_.bg-primary]:bg-[hsl(var(--brand-blue))]"
         />
         <div className="flex justify-between text-xs text-slate-500">
-          <span>{t("onboarding.plan.oneMember")}</span>
+          <span>
+            {minMembers > 1
+              ? t("onboarding.plan.nMembers", { n: minMembers })
+              : t("onboarding.plan.oneMember")}
+          </span>
           <span>{t("onboarding.plan.nMembers", { n: maxMembers })}</span>
         </div>
       </div>

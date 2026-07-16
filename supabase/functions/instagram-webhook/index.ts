@@ -12,6 +12,13 @@ import {
   normalizeInstagramUsername,
 } from "../_shared/instagramAccountDedupe.ts";
 import { syncMetaManageCommentsInboundComments } from "../_shared/metaManageCommentsInboxState.ts";
+import {
+  deferLeadMagnetWork,
+  extractFacebookFeedCommentChangesFromEntry,
+  scheduleLeadMagnetPostbackTrigger,
+} from "../_shared/leadMagnet/webhookBridge.ts";
+import { runLeadMagnetRuntime } from "../_shared/leadMagnet/runLeadMagnetRuntime.ts";
+import { LEAD_MAGNET_PAYLOAD_PREFIX } from "../_shared/leadMagnet/types.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -819,6 +826,8 @@ type InstagramCommentWebhookEvent = {
   commentId: string;
   mediaId: string;
   authorIgScopedId: string | null;
+  authorUsername: string | null;
+  commentText: string;
   parentCommentId: string | null;
   verb: string | null;
 };
@@ -844,13 +853,19 @@ function extractInstagramCommentChangesFromEntry(
     const from = val.from as Record<string, unknown> | undefined;
     const authorRaw = from?.id != null ? String(from.id).trim() : "";
     const authorIgScopedId = authorRaw || null;
+    const authorUsername = typeof from?.username === "string"
+      ? from.username.trim()
+      : typeof from?.name === "string"
+      ? from.name.trim()
+      : null;
+    const commentText = typeof val.text === "string" ? val.text.trim() : "";
     const parentRaw = val.parent_id != null ? String(val.parent_id).trim() : "";
     const parentCommentId = parentRaw || null;
     const verb = typeof val.verb === "string" ? val.verb.trim().toLowerCase() : null;
 
     if (!commentId || !mediaId) continue;
 
-    events.push({ commentId, mediaId, authorIgScopedId, parentCommentId, verb });
+    events.push({ commentId, mediaId, authorIgScopedId, authorUsername, commentText, parentCommentId, verb });
   }
 
   return events;
@@ -865,7 +880,6 @@ async function processInstagramCommentWebhookEvents(
   if (events.length === 0) return 0;
 
   if (webhookObject === "page") {
-    console.log("[instagram-webhook] ignored_page_comments_v1", { count: events.length, entryId });
     return 0;
   }
   if (webhookObject !== "instagram") return 0;
@@ -881,6 +895,8 @@ async function processInstagramCommentWebhookEvents(
 
   const businessIgId = String(account.instagram_business_account_id).trim();
   const orgId = account.organization_id;
+  const accessToken = (account.page_access_token ?? "").trim();
+  const pageId = String(account.facebook_page_id ?? "").trim();
   let processed = 0;
 
   for (const evt of events) {
@@ -910,14 +926,35 @@ async function processInstagramCommentWebhookEvents(
     }
 
     try {
-      await syncMetaManageCommentsInboundComments(
-        supabase,
-        orgId,
-        "instagram",
-        businessIgId,
-        evt.mediaId,
-        [evt.commentId],
+      if (accessToken && pageId && evt.authorIgScopedId) {
+        await runLeadMagnetRuntime(supabase, {
+          trigger: "comment",
+          platform: "instagram",
+          organizationId: orgId,
+          accountId: businessIgId,
+          mediaId: evt.mediaId,
+          commentId: evt.commentId,
+          authorScopedId: evt.authorIgScopedId,
+          authorUsername: evt.authorUsername,
+          commentText: evt.commentText,
+          accessToken,
+          pageId,
+        });
+      }
+
+      deferLeadMagnetWork(
+        syncMetaManageCommentsInboundComments(
+          supabase,
+          orgId,
+          "instagram",
+          businessIgId,
+          evt.mediaId,
+          [evt.commentId],
+        ).catch((e) => {
+          console.error("[instagram-webhook] syncMetaManageCommentsInboundComments error", e);
+        }),
       );
+
       console.log("[instagram-webhook] comments webhook received", {
         orgId,
         mediaId: evt.mediaId,
@@ -927,7 +964,99 @@ async function processInstagramCommentWebhookEvents(
       });
       processed += 1;
     } catch (e) {
-      console.error("[instagram-webhook] syncMetaManageCommentsInboundComments error", e);
+      console.error("[instagram-webhook] comment event error", e);
+    }
+  }
+
+  return processed;
+}
+
+async function processFacebookFeedCommentEvents(
+  supabase: ReturnType<typeof createClient>,
+  entryId: string | null,
+  events: ReturnType<typeof extractFacebookFeedCommentChangesFromEntry>,
+): Promise<number> {
+  if (events.length === 0 || !entryId) return 0;
+
+  let orgId: string | null = null;
+  let pageId = "";
+  let accessToken = "";
+
+  const { data: fbPage } = await supabase
+    .from("organization_facebook_pages")
+    .select("organization_id, facebook_page_id, page_access_token")
+    .eq("facebook_page_id", entryId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (fbPage?.organization_id && fbPage.facebook_page_id) {
+    orgId = String(fbPage.organization_id);
+    pageId = String(fbPage.facebook_page_id).trim();
+    accessToken = String(fbPage.page_access_token ?? "").trim();
+  } else {
+    const { data: igLinked } = await supabase
+      .from("organization_instagram_accounts")
+      .select("organization_id, facebook_page_id, page_access_token")
+      .eq("facebook_page_id", entryId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (igLinked?.organization_id && igLinked.facebook_page_id) {
+      orgId = String(igLinked.organization_id);
+      pageId = String(igLinked.facebook_page_id).trim();
+      accessToken = String(igLinked.page_access_token ?? "").trim();
+      console.log("[instagram-webhook] FB feed comment: matched page via linked IG account", entryId);
+    }
+  }
+
+  if (!orgId || !pageId) {
+    console.log("[instagram-webhook] FB feed comment: page not found", entryId);
+    return 0;
+  }
+
+  let processed = 0;
+
+  for (const evt of events) {
+    if (evt.verb === "remove") continue;
+    if (!evt.authorScopedId || !accessToken) continue;
+
+    if (evt.authorScopedId === pageId) {
+      console.log("[instagram-webhook] skip FB self-comment", evt.commentId);
+      continue;
+    }
+
+    try {
+      if (accessToken && evt.authorScopedId) {
+        await runLeadMagnetRuntime(supabase, {
+          trigger: "comment",
+          platform: "facebook",
+          organizationId: orgId,
+          accountId: pageId,
+          mediaId: evt.postId,
+          commentId: evt.commentId,
+          authorScopedId: evt.authorScopedId,
+          authorUsername: evt.authorUsername,
+          commentText: evt.commentText,
+          accessToken,
+          pageId,
+        });
+      }
+
+      deferLeadMagnetWork(
+        syncMetaManageCommentsInboundComments(
+          supabase,
+          orgId,
+          "facebook",
+          pageId,
+          evt.postId,
+          [evt.commentId],
+        ).catch((e) => {
+          console.error("[instagram-webhook] FB feed comment sync error", e);
+        }),
+      );
+      processed += 1;
+    } catch (e) {
+      console.error("[instagram-webhook] FB feed comment error", e);
     }
   }
 
@@ -1112,6 +1241,17 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      if (webhookObject === "page") {
+        const fbFeedEvents = extractFacebookFeedCommentChangesFromEntry(entryRecord);
+        if (fbFeedEvents.length > 0) {
+          commentProcessedCount += await processFacebookFeedCommentEvents(
+            supabase,
+            entryId,
+            fbFeedEvents,
+          );
+        }
+      }
+
       const messaging = extractMessagingFromEntry(entryRecord);
       if (messaging.length === 0) continue;
 
@@ -1216,55 +1356,33 @@ Deno.serve(async (req: Request) => {
           const title = typeof postback.title === "string" ? postback.title.trim() : "";
           const bodyText = payload || title || "[Postback]";
           const mid = `postback_${senderId}_${String(e.timestamp ?? Date.now())}`;
+          const pageIdStr = String(account.facebook_page_id ?? "").trim();
+          const isLeadMagnetPostback = payload.startsWith(LEAD_MAGNET_PAYLOAD_PREFIX);
 
-          const { customerMessagingId, customerName } = await resolveInstagramCustomerIdentity(
-            supabase,
-            orgId,
-            effectiveId,
-            senderId,
-            account.facebook_page_id,
-            accessToken,
-          );
-          const existingConvPb = await findExistingInstagramConversation(
-            supabase,
-            orgId,
-            effectiveId,
-            customerMessagingId,
-            senderId,
-            customerName,
-          );
+          if (isLeadMagnetPostback && accessToken) {
+            scheduleLeadMagnetPostbackTrigger({
+              platform: "instagram",
+              organizationId: orgId,
+              accountId: effectiveId,
+              participantScopedId: senderId,
+              participantUsername: null,
+              payload,
+              accessToken,
+              pageId: pageIdStr,
+            }, supabase);
+          }
 
-          let convPbId = existingConvPb?.id ?? null;
-          if (!convPbId) {
-            const newConvId = crypto.randomUUID();
-            const ticketId = "IG-" + newConvId.replace(/-/g, "").slice(0, 8).toUpperCase();
-            const orgOrGlobalPb = `organization_id.eq.${orgId},organization_id.is.null`;
-            const { data: openSt } = await supabase.from("lead_statuses").select("id").or(orgOrGlobalPb).eq("name", "Open").maybeSingle();
-            const { data: unreadSt } = openSt?.id
-              ? { data: null }
-              : await supabase.from("lead_statuses").select("id").or(orgOrGlobalPb).eq("name", "Unread").maybeSingle();
-            const { data: insertedPb, error: insertPbErr } = await supabase
-              .from("instagram_conversations")
-              .insert({
-                id: newConvId,
-                organization_id: orgId,
-                instagram_business_account_id: effectiveId,
-                customer_ig_id: customerMessagingId,
-                customer_external_id: senderId,
-                ...(customerName ? { customer_name: customerName } : {}),
-                ticket_id: ticketId,
-                lead_status_id: openSt?.id ?? unreadSt?.id ?? null,
-                last_message_at: ts,
-                last_message_body: bodyText.slice(0, 200),
-                last_message_direction: "inbound",
-                last_inbound_at: ts,
-                first_inbound_at: ts,
-                updated_at: ts,
-              })
-              .select("id")
-              .single();
-            if (insertPbErr) {
-              const retried = await findExistingInstagramConversation(
+          deferLeadMagnetWork((async () => {
+            try {
+              const { customerMessagingId, customerName } = await resolveInstagramCustomerIdentity(
+                supabase,
+                orgId,
+                effectiveId,
+                senderId,
+                account.facebook_page_id,
+                accessToken,
+              );
+              const existingConvPb = await findExistingInstagramConversation(
                 supabase,
                 orgId,
                 effectiveId,
@@ -1272,37 +1390,81 @@ Deno.serve(async (req: Request) => {
                 senderId,
                 customerName,
               );
-              convPbId = retried?.id ?? null;
-            } else {
-              convPbId = insertedPb?.id ?? null;
-            }
-          }
 
-          if (convPbId) {
-            await extendInstagramMetaSession(supabase, convPbId, ts);
-            await supabase
-              .from("instagram_conversations")
-              .update({
-                last_message_at: ts,
-                last_message_body: bodyText.slice(0, 200),
-                last_message_direction: "inbound",
-                last_inbound_at: ts,
-                updated_at: ts,
-              })
-              .eq("id", convPbId);
-            const pbPayload = {
-              conversation_id: convPbId,
-              direction: "inbound",
-              platform_message_id: mid,
-              body: bodyText,
-              message_type: "postback",
-              raw_metadata: evt,
-              created_at: ts,
-            };
-            await supabase.from("instagram_messages").insert(pbPayload);
-            await notifyLivechatInboundPush("instagram_messages", pbPayload);
-            processedCount += 1;
-          }
+              let convPbId = existingConvPb?.id ?? null;
+              if (!convPbId) {
+                const newConvId = crypto.randomUUID();
+                const ticketId = "IG-" + newConvId.replace(/-/g, "").slice(0, 8).toUpperCase();
+                const orgOrGlobalPb = `organization_id.eq.${orgId},organization_id.is.null`;
+                const { data: openSt } = await supabase.from("lead_statuses").select("id").or(orgOrGlobalPb).eq("name", "Open").maybeSingle();
+                const { data: unreadSt } = openSt?.id
+                  ? { data: null }
+                  : await supabase.from("lead_statuses").select("id").or(orgOrGlobalPb).eq("name", "Unread").maybeSingle();
+                const { data: insertedPb, error: insertPbErr } = await supabase
+                  .from("instagram_conversations")
+                  .insert({
+                    id: newConvId,
+                    organization_id: orgId,
+                    instagram_business_account_id: effectiveId,
+                    customer_ig_id: customerMessagingId,
+                    customer_external_id: senderId,
+                    ...(customerName ? { customer_name: customerName } : {}),
+                    ticket_id: ticketId,
+                    lead_status_id: openSt?.id ?? unreadSt?.id ?? null,
+                    last_message_at: ts,
+                    last_message_body: bodyText.slice(0, 200),
+                    last_message_direction: "inbound",
+                    last_inbound_at: ts,
+                    first_inbound_at: ts,
+                    updated_at: ts,
+                  })
+                  .select("id")
+                  .single();
+                if (insertPbErr) {
+                  const retried = await findExistingInstagramConversation(
+                    supabase,
+                    orgId,
+                    effectiveId,
+                    customerMessagingId,
+                    senderId,
+                    customerName,
+                  );
+                  convPbId = retried?.id ?? null;
+                } else {
+                  convPbId = insertedPb?.id ?? null;
+                }
+              }
+
+              if (!convPbId) return;
+
+              await extendInstagramMetaSession(supabase, convPbId, ts);
+              await supabase
+                .from("instagram_conversations")
+                .update({
+                  last_message_at: ts,
+                  last_message_body: bodyText.slice(0, 200),
+                  last_message_direction: "inbound",
+                  last_inbound_at: ts,
+                  updated_at: ts,
+                })
+                .eq("id", convPbId);
+              const pbPayload = {
+                conversation_id: convPbId,
+                direction: "inbound",
+                platform_message_id: mid,
+                body: bodyText,
+                message_type: "postback",
+                raw_metadata: evt,
+                created_at: ts,
+              };
+              await supabase.from("instagram_messages").insert(pbPayload);
+              await notifyLivechatInboundPush("instagram_messages", pbPayload);
+            } catch (err) {
+              console.error("[instagram-webhook] postback inbox sync error", err);
+            }
+          })());
+
+          processedCount += 1;
           continue;
         }
 

@@ -14,7 +14,7 @@ import { useDigitalMarketingPaidAdsFilters } from '@/6-0-digital-marketing-share
 import { MetaContentPerformanceAccountNav } from '@/6-0-social-media-performance/components/MetaContentPerformanceAccountNav';
 import { MetaContentSummaryBar } from '@/6-0-social-media-performance/components/MetaContentSummaryBar';
 import { MetaContentPostsTable } from '@/6-0-social-media-performance/components/MetaContentPostsTable';
-import { MetaContentPerformancePageSkeleton } from '@/6-0-social-media-performance/skeletons/MetaContentPerformancePageSkeleton';
+import { MetaContentPerformancePanelSkeleton } from '@/6-0-social-media-performance/skeletons/MetaContentPerformancePageSkeleton';
 import { useMetaContentTargetProgress } from '@/6-0-social-media-performance-shared/hooks/useMetaContentTargetProgress';
 import { useMetaContentConfig } from '@/meta-content/hooks/useMetaContentConfig';
 import {
@@ -398,10 +398,10 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
 
       {!showContent ? (
         <div
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-gray-100"
+          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
           aria-busy="true"
         >
-          <MetaContentPerformancePageSkeleton />
+          <MetaContentPerformancePanelSkeleton />
         </div>
       ) : null}
     </div>

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { dmReportTargetQueryKeys } from "@/6-0-digital-marketing-shared/dmReportTargetQueryKeys";
 import type { DmReportTargetAccountRef } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { useGoogleAdsSettings } from "@/google-ads/hooks/useGoogleAdsSettings";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
 import { useTikTokAdsSettings } from "@/tiktok-ads/hooks/useTikTokAdsSettings";
 import { supabase } from "@/shared/lib/supabaseClient";
@@ -19,6 +20,11 @@ const CHANNEL_ORDER = { google: 0, meta: 1, tiktok: 2 } as const;
 
 export function useDmReportTargetAccounts() {
   const { organizationId } = useCurrentOrg();
+
+  const { data: googleSettings, isPending: googleSettingsPending } = useGoogleAdsSettings(
+    organizationId,
+    { enabled: Boolean(organizationId) },
+  );
 
   const googleQuery = useQuery({
     queryKey: [...dmReportTargetQueryKeys.accounts(organizationId), "google"] as const,
@@ -39,7 +45,7 @@ export function useDmReportTargetAccounts() {
         sortOrder: row.sort_order ?? index,
       }));
     },
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && Boolean(googleSettings?.oauthConnected),
     staleTime: 60_000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -54,6 +60,7 @@ export function useDmReportTargetAccounts() {
   });
 
   const metaAccounts = useMemo((): DmReportTargetAccountRef[] => {
+    if (!metaSettings?.oauthConnected) return [];
     return (metaSettings?.accounts ?? [])
       .filter((a) => a.is_active && a.pixel_id !== "0")
       .map((row, index) => ({
@@ -63,9 +70,10 @@ export function useDmReportTargetAccounts() {
         currencyCode: null,
         sortOrder: row.sort_order ?? index,
       }));
-  }, [metaSettings?.accounts]);
+  }, [metaSettings?.accounts, metaSettings?.oauthConnected]);
 
   const tiktokAccounts = useMemo((): DmReportTargetAccountRef[] => {
+    if (!tiktokSettings?.oauthConnected) return [];
     return (tiktokSettings?.accounts ?? [])
       .filter((a) => a.is_active)
       .map((row, index) => ({
@@ -75,7 +83,7 @@ export function useDmReportTargetAccounts() {
         currencyCode: null,
         sortOrder: row.sort_order ?? index,
       }));
-  }, [tiktokSettings?.accounts]);
+  }, [tiktokSettings?.accounts, tiktokSettings?.oauthConnected]);
 
   const accounts = useMemo(() => {
     const merged = [
@@ -92,7 +100,7 @@ export function useDmReportTargetAccounts() {
 
   return {
     accounts,
-    isLoading: googleQuery.isLoading || metaPending || tiktokPending,
-    isPending: googleQuery.isPending || metaPending || tiktokPending,
+    isLoading: googleQuery.isLoading || googleSettingsPending || metaPending || tiktokPending,
+    isPending: googleQuery.isPending || googleSettingsPending || metaPending || tiktokPending,
   };
 }

@@ -30,6 +30,7 @@ import { useMetaAdsReportingEnabled } from "@/meta-ads/hooks/useMetaAdsReporting
 import { useMetaAdsMetricsQuery } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
 import { normalizeMetaAdsReportCurrency } from "@/meta-ads/lib/metaAdsReportCurrency";
+import { normalizeReportDisplayCurrency } from "@/6-0-digital-marketing-shared/reportDisplayCurrency";
 import { useTikTokAdsReportingEnabled } from "@/tiktok-ads/hooks/useTikTokAdsReportingEnabled";
 import { useTikTokAdsMetricsQuery } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
 import { useTikTokAdsSettings } from "@/tiktok-ads/hooks/useTikTokAdsSettings";
@@ -99,7 +100,7 @@ function emptyChannelStats(
     amount: 0,
     impressions: 0,
     clicks: 0,
-    currency: null,
+    currency: normalizeReportDisplayCurrency(),
     connected: false,
     loading,
     error: null,
@@ -121,7 +122,7 @@ export function useDigitalMarketingReportCosts() {
   const { data: tiktokReportingEnabled = false, isPending: tiktokReportingPending } =
     useTikTokAdsReportingEnabled(organizationId);
 
-  const { data: googleAccounts = [], isPending: googleAccountsPending } = useQuery({
+  const { data: googleAccountsRaw = [], isPending: googleAccountsPending } = useQuery({
     queryKey: googleAdsAccountsReportQueryKey(organizationId),
     queryFn: async () => {
       if (!organizationId) return [];
@@ -134,9 +135,17 @@ export function useDigitalMarketingReportCosts() {
       if (error) throw error;
       return data ?? [];
     },
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && googleReportingEnabled,
     staleTime: 60_000,
   });
+
+  const googleAccounts = useMemo(
+    () => (googleReportingEnabled ? googleAccountsRaw : []),
+    [googleReportingEnabled, googleAccountsRaw],
+  );
+
+  /** Disabled TanStack query stays `isPending` — only pend while Google reporting is enabled. */
+  const googleAccountsListPending = googleReportingEnabled && googleAccountsPending;
 
   const effectiveGoogleCustomerId = useMemo(() => {
     if (googleCustomerId) return googleCustomerId;
@@ -204,8 +213,10 @@ export function useDigitalMarketingReportCosts() {
 
   const metricsReadyMetaAccounts = useMemo(
     () =>
-      (metaSettings?.accounts ?? []).filter((a) => a.is_active && a.pixel_id !== "0"),
-    [metaSettings?.accounts],
+      metaSettings?.oauthConnected
+        ? (metaSettings?.accounts ?? []).filter((a) => a.is_active && a.pixel_id !== "0")
+        : [],
+    [metaSettings?.accounts, metaSettings?.oauthConnected],
   );
 
   const effectiveMetaAdAccountId = useMemo(() => {
@@ -228,8 +239,11 @@ export function useDigitalMarketingReportCosts() {
   );
 
   const metricsReadyTikTokAccounts = useMemo(
-    () => (tiktokSettings?.accounts ?? []).filter((a) => a.is_active),
-    [tiktokSettings?.accounts],
+    () =>
+      tiktokSettings?.oauthConnected
+        ? (tiktokSettings?.accounts ?? []).filter((a) => a.is_active)
+        : [],
+    [tiktokSettings?.accounts, tiktokSettings?.oauthConnected],
   );
 
   const effectiveTikTokAdvertiserId = useMemo(() => {
@@ -456,7 +470,7 @@ export function useDigitalMarketingReportCosts() {
       orgLoading ||
       !filtersHydrated ||
       googleReportingPending ||
-      googleAccountsPending ||
+      googleAccountsListPending ||
       (googleReportingEnabled && googleMetricsQuery.isLoading);
     if (!googleReportingEnabled) {
       return emptyChannelStats(loading, googleAccountLabel);
@@ -486,7 +500,7 @@ export function useDigitalMarketingReportCosts() {
     orgLoading,
     filtersHydrated,
     googleReportingPending,
-    googleAccountsPending,
+    googleAccountsListPending,
     googleReportingEnabled,
     googleMetricsQuery,
     googleAccountLabel,
@@ -594,7 +608,7 @@ export function useDigitalMarketingReportCosts() {
       impressions:
         impressions != null && Number.isFinite(impressions) ? impressions : 0,
       clicks: clicks != null && Number.isFinite(clicks) ? clicks : 0,
-      currency: summary?.currency ?? "USD",
+      currency: normalizeReportDisplayCurrency(summary?.currency),
       connected: true,
       loading,
       error: null,
@@ -755,7 +769,10 @@ export function useDigitalMarketingReportCosts() {
 
   const tiktokServiceRows: ReportTikTokServiceRow[] = useMemo(() => {
     if (!tiktokReportingEnabled || !tiktokCost.connected || tiktokCost.error) return [];
-    const currency = tiktokByServiceQuery.data?.currencyCode ?? tiktokCost.currency ?? "USD";
+    const currency =
+      normalizeReportDisplayCurrency(
+        tiktokByServiceQuery.data?.currencyCode ?? tiktokCost.currency,
+      );
     const aggregates = tiktokByServiceQuery.data?.aggregates ?? [];
     return aggregates.map((row) => ({
       ...row,
@@ -775,7 +792,7 @@ export function useDigitalMarketingReportCosts() {
     googleReportingPending ||
     metaReportingPending ||
     tiktokReportingPending ||
-    googleAccountsPending ||
+    googleAccountsListPending ||
     metaSettingsPending ||
     tiktokSettingsPending ||
     (googleReportingEnabled &&

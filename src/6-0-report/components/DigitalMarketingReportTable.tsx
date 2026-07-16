@@ -25,6 +25,7 @@ import { useDigitalMarketingReportFilteredRows } from "@/6-0-digital-marketing-s
 import { GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH } from "@/google-ads/settings/googleAdsSettingsPaths";
 import { META_ADS_DIGITAL_MARKETING_SETTINGS_PATH } from "@/meta-ads/settings/metaAdsSettingsPaths";
 import { TIKTOK_ADS_DIGITAL_MARKETING_SETTINGS_PATH } from "@/tiktok-ads/settings/tiktokAdsSettingsPaths";
+import { DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY } from "@/6-0-digital-marketing-shared/reportDisplayCurrency";
 
 const thClass =
   "h-10 whitespace-nowrap bg-gray-50 px-3 text-left align-middle text-sm font-medium text-muted-foreground";
@@ -80,21 +81,25 @@ function formatGoogleCpc(
   return formatMetricValue("avg_cpc", cpc, currency, "micros");
 }
 
-function formatMetaCpc(cost: ReportChannelCost): string {
-  if (!cost.connected || cost.amount == null) return "—";
-  const cpc = computeSummaryCpc(cost.amount, cost.clicks ?? 0);
-  if (cpc == null) return "—";
-  return formatMetaMetricValue("cpc", cpc, cost.currency);
+function formatChannelCpc(cost: ReportChannelCost): string {
+  return formatGoogleCpc(
+    cost.amount,
+    cost.clicks ?? 0,
+    cost.currency ?? DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY,
+    cost.connected,
+  );
 }
 
-function formatGoogleCost(amount: number | null, currency: string | null): string {
-  if (amount == null) return "—";
-  return formatMetricValue("spent", amount, currency, "micros");
-}
-
-function formatMetaCost(cost: ReportChannelCost): string {
-  if (cost.amount == null) return "—";
-  return formatMetaMetricValue("spend", cost.amount, cost.currency);
+function formatReportCost(
+  amount: number | null,
+  currency: string | null,
+): string {
+  return formatMetricValue(
+    "spent",
+    amount ?? 0,
+    currency ?? DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY,
+    "micros",
+  );
 }
 
 function formatCostPerLead(value: number | null | undefined, currency: string | null): string {
@@ -131,7 +136,8 @@ function MetaServiceTableRow({
 }: MetaServiceTableRowProps) {
   const { t } = useAppTranslation();
   const connected = channelCost.connected && !channelCost.error;
-  const currency = row.currency ?? channelCost.currency ?? "USD";
+  const currency =
+    row.currency ?? channelCost.currency ?? DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY;
 
   return (
     <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
@@ -148,7 +154,7 @@ function MetaServiceTableRow({
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="cursor-help">
-                {formatMetaMetricValue("spend", row.costPerLead, currency)}
+                {formatCostPerLead(row.costPerLead, currency)}
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs text-xs">
@@ -182,7 +188,7 @@ function MetaServiceTableRow({
         {channelCost.loading ? (
           <Skeleton className="ml-auto h-5 w-24" />
         ) : (
-          formatMetaMetricValue("spend", row.amount, currency)
+          formatReportCost(row.amount, currency)
         )}
       </td>
       <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
@@ -210,12 +216,7 @@ function MetaServiceTableRow({
         {channelCost.loading ? (
           <Skeleton className="ml-auto h-5 w-20" />
         ) : (
-          formatMetaCpc({
-            connected,
-            amount: row.amount,
-            clicks: row.clicks,
-            currency,
-          })
+          formatGoogleCpc(row.amount, row.clicks, currency, connected)
         )}
       </td>
     </tr>
@@ -230,7 +231,8 @@ function TikTokServiceTableRow({
 }: TikTokServiceTableRowProps) {
   const { t } = useAppTranslation();
   const connected = channelCost.connected && !channelCost.error;
-  const currency = row.currency ?? channelCost.currency ?? "USD";
+  const currency =
+    row.currency ?? channelCost.currency ?? DIGITAL_MARKETING_REPORT_DISPLAY_CURRENCY;
 
   return (
     <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
@@ -247,7 +249,7 @@ function TikTokServiceTableRow({
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="cursor-help">
-                {formatMetaMetricValue("spend", row.costPerLead, currency)}
+                {formatCostPerLead(row.costPerLead, currency)}
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs text-xs">
@@ -281,7 +283,7 @@ function TikTokServiceTableRow({
         {channelCost.loading ? (
           <Skeleton className="ml-auto h-5 w-24" />
         ) : (
-          formatMetaMetricValue("spend", row.amount, currency)
+          formatReportCost(row.amount, currency)
         )}
       </td>
       <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
@@ -309,12 +311,7 @@ function TikTokServiceTableRow({
         {channelCost.loading ? (
           <Skeleton className="ml-auto h-5 w-20" />
         ) : (
-          formatMetaCpc({
-            connected,
-            amount: row.amount,
-            clicks: row.clicks,
-            currency,
-          })
+          formatGoogleCpc(row.amount, row.clicks, currency, connected)
         )}
       </td>
     </tr>
@@ -380,7 +377,7 @@ function GoogleServiceTableRow({
         {channelCost.loading ? (
           <Skeleton className="ml-auto h-5 w-24" />
         ) : (
-          formatGoogleCost(row.amount, currency)
+          formatReportCost(row.amount, currency)
         )}
       </td>
       <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
@@ -455,9 +452,9 @@ function ChannelTableRow({
           <Skeleton className="h-4 w-16" />
         ) : !cost.connected ? (
           <span className="text-xs text-muted-foreground">
-            {t(notConnectedKey)}{" "}
+            {t(notConnectedKey, "This channel is not connected.")}{" "}
             <Link to={settingsPath} className="font-medium text-primary underline">
-              {t(settingsLinkKey)}
+              {t(settingsLinkKey, "Open settings")}
             </Link>
           </span>
         ) : (
@@ -474,14 +471,8 @@ function ChannelTableRow({
           <Skeleton className="ml-auto h-5 w-24" />
         ) : cost.error ? (
           <span className="text-destructive">{cost.error}</span>
-        ) : !cost.connected ? (
-          channel === "google"
-            ? formatMetricValue("spent", 0, cost.currency ?? "IDR", "micros")
-            : formatMetaMetricValue("spend", 0, cost.currency ?? "USD")
-        ) : channel === "google" ? (
-          formatGoogleCost(cost.amount, cost.currency)
         ) : (
-          formatMetaCost(cost)
+          formatReportCost(cost.connected ? cost.amount : 0, cost.currency)
         )}
       </td>
       <td className="px-3 py-3 align-middle text-right text-sm tabular-nums text-gray-900">
@@ -523,7 +514,7 @@ function ChannelTableRow({
         ) : channel === "google" ? (
           formatGoogleCpc(cost.amount, cost.clicks ?? 0, cost.currency, cost.connected)
         ) : (
-          formatMetaCpc(cost)
+          formatChannelCpc(cost)
         )}
       </td>
     </tr>

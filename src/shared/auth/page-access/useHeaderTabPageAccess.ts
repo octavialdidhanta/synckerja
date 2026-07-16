@@ -3,15 +3,16 @@ import { useDepartmentAccess } from "@/shared/auth/page-access/useDepartmentAcce
 
 /**
  * Lock icon on module HeaderAndTab: only when access is resolved and path is denied.
- * Avoids flashing lock while permission config is still loading.
+ * Avoids flashing lock while permission config or module access is still loading.
  */
 export function useHeaderTabPageAccess() {
-  const { canAccessPage, accessDecisionPending } = useDepartmentAccess();
+  const { canAccessPage, accessDecisionPending, moduleAccessPending } = useDepartmentAccess();
 
   const isTabLocked = useCallback(
-    (pagePath: string) => !accessDecisionPending && !canAccessPage(pagePath),
-    [accessDecisionPending, canAccessPage],
+    (pagePath: string) =>
+      !accessDecisionPending && !moduleAccessPending && !canAccessPage(pagePath),
+    [accessDecisionPending, moduleAccessPending, canAccessPage],
   );
 
-  return { isTabLocked, accessDecisionPending };
+  return { isTabLocked, accessDecisionPending, moduleAccessPending };
 }

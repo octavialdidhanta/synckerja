@@ -22,6 +22,11 @@ describe("moduleCatalog", () => {
     }
   });
 
+  it("includes leadMagnet in sales module keys", () => {
+    expect(SALES_MODULE_KEYS).toContain("leadMagnet");
+    expect(SALES_MODULE_KEYS).toHaveLength(9);
+  });
+
   it("resolves dashboard to null", () => {
     expect(resolveSalesModuleForPath("/")).toBeNull();
   });
@@ -32,6 +37,7 @@ describe("moduleCatalog", () => {
     expect(resolveSalesModuleForPath("/incomes/dashboard")).toBe("finance");
     expect(resolveSalesModuleForPath("/expenses/dashboard")).toBe("finance");
     expect(resolveSalesModuleForPath("/digital-marketing/traffic")).toBe("digitalMarketing");
+    expect(resolveSalesModuleForPath("/digital-marketing/lead-magnet")).toBe("digitalMarketing");
     expect(resolveSalesModuleForPath("/omnichannel/livechat")).toBe("omnichannel");
     expect(resolveSalesModuleForPath("/operations/sales/activities")).toBe("operations");
     expect(resolveSalesModuleForPath("/tools/daily-task")).toBe("tools");

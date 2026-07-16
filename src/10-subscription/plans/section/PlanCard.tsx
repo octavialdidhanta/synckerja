@@ -1,5 +1,4 @@
 import { memo, useMemo, type ReactNode } from "react";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
@@ -11,39 +10,69 @@ import { Check, Loader2, X, type LucideIcon } from "lucide-react";
 import {
   OMNICHANNEL_ROSTER_ADD_ON_CODE,
   catalogAddOnListAmountForMidtransSplit,
-  computePlanAddOnLineYearlyTotalIdr,
   formatIDR,
-  resolvePlanAddOnUnitMonthly,
+  buildEnterpriseSalesWhatsAppUrl,
   sortPlanAddOnLinks,
   sumSelectedCatalogAddOnsListAmountIdr,
 } from "@/10-subscription/shared/subscriptionUtils";
 import { buildPlanModuleDisplayRows, isPlanModuleFeatureLine } from "@/10-subscription/shared/planModuleDisplay";
-import { filterPlanFeaturesForDisplay } from "@/0-onboarding/utils/subscriptionPlanUtils";
+import {
+  filterPlanModuleRowsForCard,
+  formatPlanModuleLine,
+  planHasCustomModulesFeature,
+  translatePlanFeatureBullet,
+} from "@/10-subscription/shared/planFeatureDisplayI18n";
+import { resolvePlanCustomerSupportLabelKey } from "@/10-subscription/shared/planCustomerSupport";
+import { filterPlanFeaturesForDisplay, resolvePaidPlanSliderMin, shouldShowDynamicMemberAllowed } from "@/0-onboarding/utils/subscriptionPlanUtils";
 import type { SubscriptionPlan } from "@/10-subscription/types/SubscriptionPlanCatalog";
 import { createDefaultSalesModuleAccess } from "@/shared/auth/module-access/moduleCatalog";
 import { cn } from "@/shared/lib/utils";
+import { PlanAddOnCatalogRows } from "./PlanAddOnCatalogRows";
+import { PlanCardPriceBreakdown } from "./PlanCardPriceBreakdown";
+import { BillingTermSelector } from "./BillingTermSelector";
+import {
+  formatBillingTermLabel,
+  resolveTermDiscount,
+  resolveBillingPeriodMonths,
+  usesBillingTermSelector,
+  type BillingTermMonths,
+} from "@/10-subscription/shared/billingTermUtils";
 
 interface PlanCardProps {
   plan: SubscriptionPlan;
   memberCount: number;
   billingCycle: "monthly" | "yearly";
+  /** Billing term in months (Scale Up / Enterprise). */
+  billingTermMonths?: BillingTermMonths;
   totalPrice: number;
   monthlyPrice: number;
   maxEmployees: number;
+  /** Slider minimum — paid floor or enterprise min (Scale Up max + 1). */
+  memberSliderMin?: number;
   isTrialPlan: boolean;
+  isEnterprisePlan?: boolean;
   isCurrent: boolean;
   isPopular: boolean;
   canChange: boolean;
   buttonText: string;
   hasBillingCycleChange: boolean;
+  hasCheckoutableAddOnChanges?: boolean;
+  hasSchedulableDowngrade?: boolean;
+  /** Block member/billing downgrade while subscription period is still active. */
+  isMidCycleActive?: boolean;
+  /** Minimum member count for paid plans (freeMax + 1). */
+  paidMemberFloor?: number;
   IconComponent: LucideIcon;
   currentMemberCount: number;
   currentEmployeeCount: number;
   isRenewEligible: boolean;
   subscriptionStatus?: {
     is_trial?: boolean;
+    is_expired?: boolean;
     days_until_expiry?: number;
     billing_cycle?: string;
+    billing_term_months?: number;
+    lead_magnet_active?: boolean;
   };
   lastPaidAmount?: number | null;
   lastPaidMemberCount?: number | null;
@@ -56,6 +85,7 @@ interface PlanCardProps {
   omnichannelRosterActiveCount: number;
   onMemberCountChange: (planId: string, count: number) => void;
   onBillingCycleChange: (planId: string, isYearly: boolean) => void;
+  onBillingTermChange?: (planId: string, months: BillingTermMonths) => void;
   onUpgrade: (
     plan: SubscriptionPlan,
     memberCount: number,
@@ -70,6 +100,12 @@ interface PlanCardProps {
   ) => void;
   /** True while prorate fetch or Midtrans (renew) is in progress for this card's primary action. */
   isPrimaryActionLoading?: boolean;
+  /** Hide interactive add-on rows (managed in adjacent PlanAddOnsPanel). */
+  hideInlineAddOns?: boolean;
+  /** Compact add-on summary on current plan card when add-ons are in side panel. */
+  showCompactAddOnSummary?: boolean;
+  /** Add-on detail/pricing shown only in adjacent panel (HR-only on card). */
+  relocateAddOnDetail?: boolean;
 }
 
 export const PlanCard = memo(
@@ -77,15 +113,22 @@ export const PlanCard = memo(
     plan,
     memberCount,
     billingCycle,
+    billingTermMonths = 1,
     totalPrice,
     monthlyPrice,
     maxEmployees,
+    memberSliderMin: memberSliderMinProp,
     isTrialPlan,
+    isEnterprisePlan = false,
     isCurrent,
     isPopular,
     canChange,
     buttonText,
     hasBillingCycleChange,
+    hasCheckoutableAddOnChanges = false,
+    hasSchedulableDowngrade = false,
+    isMidCycleActive = false,
+    paidMemberFloor = 2,
     IconComponent,
     currentMemberCount,
     currentEmployeeCount,
@@ -100,9 +143,13 @@ export const PlanCard = memo(
     omnichannelRosterActiveCount,
     onMemberCountChange,
     onBillingCycleChange,
+    onBillingTermChange,
     onUpgrade,
     onRenew,
     isPrimaryActionLoading = false,
+    hideInlineAddOns = false,
+    showCompactAddOnSummary = false,
+    relocateAddOnDetail = false,
   }: PlanCardProps) => {
     const { t } = useTranslation();
     const {
@@ -112,6 +159,20 @@ export const PlanCard = memo(
       showAddOnsHeading,
       planModuleRows,
     } = useMemo(() => {
+      const moduleRows = buildPlanModuleDisplayRows(
+        plan.plan_module_access ?? createDefaultSalesModuleAccess(),
+      );
+
+      if (isEnterprisePlan) {
+        return {
+          coreFeaturesBeforeModules: [] as string[],
+          dashboardFeature: t("subscription.plans.features.dashboard"),
+          featureRowsAfterAddOnsSection: [] as string[],
+          showAddOnsHeading: false,
+          planModuleRows: filterPlanModuleRowsForCard(moduleRows, { excludeAddOnModules: true }),
+        };
+      }
+
       const filtered = filterPlanFeaturesForDisplay(plan.features ?? [], plan).filter(
         (feature) => !isPlanModuleFeatureLine(feature),
       );
@@ -119,26 +180,38 @@ export const PlanCard = memo(
       const beforeAddOns = idx < 0 ? filtered : filtered.slice(0, idx + 1);
       const afterAddOns = idx < 0 ? ([] as string[]) : filtered.slice(idx + 1);
       const dashboardIdx = beforeAddOns.findIndex((f) => /^Dashboard$/i.test(f.trim()));
-      const dashboardFeature = dashboardIdx >= 0 ? beforeAddOns[dashboardIdx] : null;
-      const coreFeaturesBeforeModules =
+      const rawDashboard = dashboardIdx >= 0 ? beforeAddOns[dashboardIdx] : null;
+      const rawCore =
         dashboardIdx >= 0 ? beforeAddOns.filter((_, i) => i !== dashboardIdx) : beforeAddOns;
-      const moduleRows = buildPlanModuleDisplayRows(
-        plan.plan_module_access ?? createDefaultSalesModuleAccess(),
-      );
       return {
-        coreFeaturesBeforeModules,
-        dashboardFeature,
-        featureRowsAfterAddOnsSection: afterAddOns,
+        coreFeaturesBeforeModules: rawCore.map((f) => translatePlanFeatureBullet(f, t)),
+        dashboardFeature: rawDashboard ? translatePlanFeatureBullet(rawDashboard, t) : null,
+        featureRowsAfterAddOnsSection: afterAddOns.map((f) => translatePlanFeatureBullet(f, t)),
         showAddOnsHeading: idx >= 0,
-        planModuleRows: moduleRows,
+        planModuleRows: filterPlanModuleRowsForCard(moduleRows, { excludeAddOnModules: true }),
       };
-    }, [plan.features, plan.base_price_per_member, plan.plan_module_access]);
+    }, [plan.features, plan.base_price_per_member, plan.plan_module_access, isEnterprisePlan, t]);
+
+    const customModulesEnabled = planHasCustomModulesFeature(plan);
+    const customerSupportLabelKey = resolvePlanCustomerSupportLabelKey(plan);
 
     const catalogLinks = useMemo(() => sortPlanAddOnLinks(plan), [plan]);
-    const showAddOnsBlockHeading = showAddOnsHeading || catalogLinks.length > 0;
+    const showDynamicMemberAllowed =
+      isEnterprisePlan || shouldShowDynamicMemberAllowed(plan);
+    const showAddOnsBlockHeading =
+      !hideInlineAddOns && !isEnterprisePlan && (showAddOnsHeading || catalogLinks.length > 0);
 
+    const usesTermSelector = usesBillingTermSelector(plan);
     const isYearly = billingCycle === "yearly";
     const cycleKey = isYearly ? "yearly" : "monthly";
+    const periodMonths = resolveBillingPeriodMonths(cycleKey, billingTermMonths);
+    const activeTermDiscount = resolveTermDiscount(plan, periodMonths);
+    const hrTermGross = monthlyPrice * periodMonths;
+    const hrTermDiscountAmount =
+      activeTermDiscount != null && activeTermDiscount > 0
+        ? hrTermGross * (activeTermDiscount / 100)
+        : 0;
+    const termLabel = formatBillingTermLabel(periodMonths, t);
 
     const selectedCatalogAddonTotal = useMemo(
       () =>
@@ -146,9 +219,10 @@ export const PlanCard = memo(
           plan,
           billingCycle: cycleKey,
           annualDiscountPercent: plan.annual_discount_percentage,
+          billingTermMonths: periodMonths,
           selections: addOnSelections,
         }),
-      [plan, cycleKey, addOnSelections],
+      [plan, cycleKey, periodMonths, addOnSelections],
     );
 
     const legacyFallbackAddonTotal = useMemo(
@@ -157,21 +231,50 @@ export const PlanCard = memo(
           plan,
           billingCycle: cycleKey,
           annualDiscountPercent: plan.annual_discount_percentage,
+          billingTermMonths: periodMonths,
           selections: {},
           legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
         }),
-      [plan, cycleKey, omnichannelPaidSeats],
+      [plan, cycleKey, periodMonths, omnichannelPaidSeats],
     );
 
     const addonTotalForHero = catalogLinks.length > 0 ? selectedCatalogAddonTotal : legacyFallbackAddonTotal;
-    const displayHeroTotal = totalPrice + addonTotalForHero;
+    const displayHeroTotal = hideInlineAddOns ? totalPrice : totalPrice + addonTotalForHero;
 
     const isComingSoon =
       plan.description?.toLowerCase().includes("coming soon") ||
       plan.description?.toLowerCase().includes("comming soon");
+    const currentBillingCycle = subscriptionStatus?.billing_cycle || "monthly";
+    const currentOrgTermMonths = (subscriptionStatus?.billing_term_months ??
+      (currentBillingCycle === "yearly" ? 12 : 1)) as BillingTermMonths;
+    const memberSliderMin = isEnterprisePlan
+      ? (memberSliderMinProp ?? 51)
+      : isTrialPlan
+        ? 1
+        : resolvePaidPlanSliderMin({
+            paidMemberFloor,
+            isCurrentPlan: isCurrent,
+            isMidCycleActive,
+            subscribedMemberCount: currentMemberCount,
+          });
+    const billingDowngradeBlocked =
+      isCurrent &&
+      isMidCycleActive &&
+      (usesTermSelector
+        ? billingTermMonths < currentOrgTermMonths
+        : currentBillingCycle === "yearly" && billingCycle === "monthly");
     const shouldRenew =
       isRenewEligible && isCurrent && memberCount === currentMemberCount && !hasBillingCycleChange;
     const handlePrimaryAction = () => {
+      if (isEnterprisePlan) {
+        const message = t("subscription.plans.enterprise.whatsappMessage", {
+          planName: plan.name,
+          memberCount,
+          billingTerm: formatBillingTermLabel(billingTermMonths, t),
+        });
+        window.open(buildEnterpriseSalesWhatsAppUrl(message), "_blank", "noopener,noreferrer");
+        return;
+      }
       if (shouldRenew && onRenew) {
         onRenew(plan, memberCount, billingCycle, addOnSelections);
       } else {
@@ -253,11 +356,14 @@ export const PlanCard = memo(
         {isCurrent && (
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 transform">
             <Badge className="bg-brand-blue px-4 py-1 text-brand-white hover:bg-brand-blue">
-              {subscriptionStatus?.is_trial
-                ? t("subscription.plans.badge.trial", {
-                    days: subscriptionStatus.days_until_expiry || 0,
-                  })
-                : t("subscription.plans.badge.current")}
+              {subscriptionStatus?.is_expired ||
+              (subscriptionStatus?.days_until_expiry ?? 0) <= 0
+                ? t("subscription.plans.badge.expired")
+                : subscriptionStatus?.is_trial
+                  ? t("subscription.plans.badge.trial", {
+                      days: subscriptionStatus.days_until_expiry || 0,
+                    })
+                  : t("subscription.plans.badge.current")}
             </Badge>
           </div>
         )}
@@ -265,6 +371,13 @@ export const PlanCard = memo(
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 transform">
             <Badge className="bg-brand-blue px-4 py-1 text-brand-white hover:bg-brand-blue">
               {t("subscription.plans.badge.popular")}
+            </Badge>
+          </div>
+        )}
+        {!isCurrent && isEnterprisePlan && (
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2 transform">
+            <Badge className="bg-muted-foreground px-4 py-1 text-brand-white hover:bg-muted-foreground">
+              {t("subscription.plans.badge.enterprise")}
             </Badge>
           </div>
         )}
@@ -286,16 +399,36 @@ export const PlanCard = memo(
 
           <div>
             <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
-            <CardDescription className="mt-2 text-base">{plan.description}</CardDescription>
+            <CardDescription className="mt-2 text-center text-base">
+              {isEnterprisePlan ? t("subscription.plans.enterprise.description") : plan.description}
+            </CardDescription>
           </div>
 
           <div className="space-y-2">
-            <div className="text-4xl font-bold text-foreground">{formatIDR(displayHeroTotal)}</div>
-            <div className="text-sm text-muted-foreground">
-              {isYearly
-                ? t("subscription.plans.pricing.perYear", { count: memberCount })
-                : t("subscription.plans.pricing.perMonth", { count: memberCount })}
-            </div>
+            {isEnterprisePlan ? (
+              <>
+                <div className="text-4xl font-bold text-foreground">
+                  {t("subscription.plans.enterprise.pricingLabel")}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t("subscription.plans.enterprise.memberCount", { count: memberCount })}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl font-bold text-foreground">{formatIDR(displayHeroTotal)}</div>
+                <div className="text-sm text-muted-foreground">
+                  {usesTermSelector && billingTermMonths !== 12
+                    ? t("subscription.plans.pricing.perTermMonths", {
+                        months: billingTermMonths,
+                        count: memberCount,
+                      })
+                    : isYearly
+                      ? t("subscription.plans.pricing.perYear", { count: memberCount })
+                      : t("subscription.plans.pricing.perMonth", { count: memberCount })}
+                </div>
+              </>
+            )}
           </div>
         </CardHeader>
 
@@ -307,28 +440,67 @@ export const PlanCard = memo(
             </Label>
             <Slider
               value={[memberCount]}
-              onValueChange={isTrialPlan ? undefined : (value) => onMemberCountChange(plan.id, value[0])}
+              onValueChange={
+                isTrialPlan
+                  ? undefined
+                  : (value) =>
+                      onMemberCountChange(
+                        plan.id,
+                        Math.max(memberSliderMin, Math.min(maxEmployees, value[0])),
+                      )
+              }
               max={maxEmployees}
-              min={1}
+              min={memberSliderMin}
               step={1}
               className={isTrialPlan ? "pointer-events-none opacity-50" : "w-full"}
               disabled={isTrialPlan}
             />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{t("subscription.plans.memberCount.min")}</span>
-              <span>{t("subscription.plans.memberCount.maxDisplay", { max: maxEmployees })}</span>
-            </div>
+            {isTrialPlan ? (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{t("subscription.plans.memberCount.sliderMin", { count: memberSliderMin })}</span>
+                <span>{t("subscription.plans.memberCount.sliderMax", { count: maxEmployees })}</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 items-center gap-1 text-xs text-muted-foreground">
+                <span className="text-left">
+                  {t("subscription.plans.memberCount.sliderMin", { count: memberSliderMin })}
+                </span>
+                <span className="text-center">
+                  {isEnterprisePlan
+                    ? t("subscription.plans.enterprise.pricingLabel")
+                    : t("subscription.plans.memberCount.sliderPerMember", {
+                        amount: formatIDR(plan.base_price_per_member),
+                      })}
+                </span>
+                <span className="text-right">
+                  {t("subscription.plans.memberCount.sliderMax", { count: maxEmployees })}
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">{t("subscription.plans.billingCycle.yearly")}</Label>
-            <Switch
-              checked={billingCycle === "yearly"}
-              onCheckedChange={isTrialPlan ? undefined : (checked) => onBillingCycleChange(plan.id, checked)}
-              disabled={isTrialPlan}
-              className={isTrialPlan ? "pointer-events-none opacity-50" : ""}
+          {usesTermSelector ? (
+            <BillingTermSelector
+              value={billingTermMonths}
+              onChange={(months) => onBillingTermChange?.(plan.id, months)}
+              disabledTerms={isEnterprisePlan ? [1] : []}
+              disabled={isTrialPlan || billingDowngradeBlocked}
             />
-          </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">{t("subscription.plans.billingCycle.yearly")}</Label>
+              <Switch
+                checked={billingCycle === "yearly"}
+                onCheckedChange={
+                  isTrialPlan || billingDowngradeBlocked
+                    ? undefined
+                    : (checked) => onBillingCycleChange(plan.id, checked)
+                }
+                disabled={isTrialPlan || billingDowngradeBlocked}
+                className={isTrialPlan || billingDowngradeBlocked ? "pointer-events-none opacity-50" : ""}
+              />
+            </div>
+          )}
 
           <div className="space-y-3 text-left">
             <h4 className="font-medium text-foreground">{t("subscription.plans.features.title")}</h4>
@@ -337,6 +509,14 @@ export const PlanCard = memo(
                 <li key="feat-dashboard" className="flex items-start space-x-2">
                   <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
                   <span className="text-sm text-muted-foreground">{dashboardFeature}</span>
+                </li>
+              )}
+              {showDynamicMemberAllowed && (
+                <li key="feat-member-allowed-dynamic" className="flex items-start space-x-2">
+                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
+                  <span className="text-sm text-muted-foreground">
+                    {t("subscription.plans.features.memberAllowed", { count: memberCount })}
+                  </span>
                 </li>
               )}
               {coreFeaturesBeforeModules.map((feature, index) => (
@@ -358,10 +538,31 @@ export const PlanCard = memo(
                       moduleRow.enabled ? "text-muted-foreground" : "text-muted-foreground/80",
                     )}
                   >
-                    {`Modul ${t(moduleRow.labelKey)}`}
+                    {formatPlanModuleLine(moduleRow.labelKey, t)}
                   </span>
                 </li>
               ))}
+              {customerSupportLabelKey && (
+                <li key="feat-customer-support" className="flex items-start space-x-2">
+                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
+                  <span className="text-sm text-muted-foreground">{t(customerSupportLabelKey)}</span>
+                </li>
+              )}
+              <li key="feat-custom-modules" className="flex items-start space-x-2">
+                {customModulesEnabled ? (
+                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-blue" />
+                ) : (
+                  <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
+                )}
+                <span
+                  className={cn(
+                    "text-sm",
+                    customModulesEnabled ? "text-muted-foreground" : "text-muted-foreground/80",
+                  )}
+                >
+                  {t("subscription.plans.features.customModules")}
+                </span>
+              </li>
             </ul>
             {featureRowsAfterAddOnsSection.length > 0 && (
               <ul className="space-y-2">
@@ -376,93 +577,22 @@ export const PlanCard = memo(
             {showAddOnsBlockHeading && (
               <h4 className="font-medium text-foreground">{t("subscription.plans.addOnsSectionTitle")}</h4>
             )}
-            {catalogLinks.length > 0 && (
-              <div className="space-y-3">
-                {catalogLinks.map((link) => {
-                  const code = link.subscription_add_ons.code;
-                  const sel = addOnSelections[code] ?? { included: false, quantity: 1 };
-                  const seatCap = Math.max(1, memberCount);
-                  const billedQty = Math.min(seatCap, Math.max(1, sel.quantity));
-                  const unit = resolvePlanAddOnUnitMonthly(link);
-                  const lineAmount = isYearly
-                    ? computePlanAddOnLineYearlyTotalIdr(
-                        billedQty,
-                        unit,
-                        link.subscription_add_ons.follows_plan_annual_discount !== false,
-                        plan.annual_discount_percentage,
-                      )
-                    : billedQty * unit;
-                  const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
-                  return (
-                    <div
-                      key={code}
-                      className="rounded-md border border-primary/20 bg-primary/5 p-3 text-left text-xs space-y-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 space-y-1">
-                          <div className="font-semibold text-foreground leading-snug">
-                            {link.subscription_add_ons.name}
-                          </div>
-                          <p className="text-muted-foreground">
-                            {t("subscription.plans.addOnPricePerUnit", { amount: formatIDR(unit) })}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
-                          <Label className="text-[10px] font-normal text-muted-foreground">
-                            {t("subscription.plans.addOnIncludeLabel")}
-                          </Label>
-                          <Switch
-                            checked={sel.included}
-                            onCheckedChange={(v) => onAddOnIncludedChange(code, v)}
-                            disabled={isTrialPlan}
-                            className={isTrialPlan ? "pointer-events-none opacity-50" : ""}
-                          />
-                        </div>
-                      </div>
-                      {isOmni && (
-                        <div className="space-y-1 border-t border-primary/10 pt-2 text-[11px] leading-snug">
-                          <p className="text-foreground">
-                            {t("subscription.plans.omnichannelPaidSeatsEntitled", { count: omnichannelPaidSeats })}
-                          </p>
-                          <p className="text-muted-foreground">
-                            {t("subscription.plans.omnichannelRosterActiveLine", { count: omnichannelRosterActiveCount })}
-                          </p>
-                          <Link to="/omnichannel/settings" className="inline-block font-medium text-primary underline">
-                            {t("subscription.plans.manageRosterLink")}
-                          </Link>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium">
-                          {t("subscription.plans.addOnQuantityLabel", { count: billedQty, max: seatCap })}
-                        </Label>
-                        <Slider
-                          value={[billedQty]}
-                          onValueChange={
-                            isTrialPlan || !sel.included
-                              ? undefined
-                              : (value) =>
-                                  onAddOnQuantityChange(code, Math.min(seatCap, Math.max(1, value[0])))
-                          }
-                          max={seatCap}
-                          min={1}
-                          step={1}
-                          className={isTrialPlan || !sel.included ? "pointer-events-none opacity-50" : "w-full"}
-                          disabled={isTrialPlan || !sel.included}
-                        />
-                        <div className="flex justify-between text-[11px] text-muted-foreground">
-                          <span>1</span>
-                          <span>{seatCap}</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between border-t border-primary/10 pt-2 font-medium text-foreground">
-                        <span>{t("subscription.plans.addOnLineSubtotal")}</span>
-                        <span>{formatIDR(sel.included ? lineAmount : 0)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            {!hideInlineAddOns && !isEnterprisePlan && catalogLinks.length > 0 && (
+              <PlanAddOnCatalogRows
+                plan={plan}
+                memberCount={memberCount}
+                billingCycle={billingCycle}
+                billingTermMonths={periodMonths}
+                addOnSelections={addOnSelections}
+                onAddOnIncludedChange={onAddOnIncludedChange}
+                onAddOnQuantityChange={onAddOnQuantityChange}
+                omnichannelPaidSeats={omnichannelPaidSeats}
+                omnichannelRosterActiveCount={omnichannelRosterActiveCount}
+                isTrialPlan={isTrialPlan}
+                isMidCycleActive={isMidCycleActive}
+                isExpired={subscriptionStatus?.is_expired ?? false}
+                leadMagnetActive={subscriptionStatus?.lead_magnet_active ?? false}
+              />
             )}
           </div>
 
@@ -476,9 +606,16 @@ export const PlanCard = memo(
               variant={isCurrent && memberCount === currentMemberCount ? "default" : "default"}
               onClick={handlePrimaryAction}
               disabled={
-                isComingSoon ||
+                isEnterprisePlan
+                  ? isComingSoon
+                  : isComingSoon ||
                 !canChange ||
-                (isCurrent && memberCount === currentMemberCount && !hasBillingCycleChange && !isRenewEligible) ||
+                (isCurrent &&
+                  memberCount === currentMemberCount &&
+                  !hasBillingCycleChange &&
+                  !isRenewEligible &&
+                  !hasCheckoutableAddOnChanges &&
+                  !hasSchedulableDowngrade) ||
                 isPrimaryActionLoading
               }
               aria-busy={isPrimaryActionLoading}
@@ -502,7 +639,7 @@ export const PlanCard = memo(
                 })}
               </div>
             )}
-            {isCurrent && (
+            {isCurrent && showCompactAddOnSummary && !relocateAddOnDetail && (
               <div className="mt-3 rounded-md border border-primary/15 bg-primary/5 px-3 py-2 text-left">
                 <p className="text-xs font-semibold text-primary">
                   {t("subscription.plans.currentPlan.addOnSectionTitle")}
@@ -523,88 +660,36 @@ export const PlanCard = memo(
             )}
           </div>
 
-          {isYearly && plan.annual_discount_percentage != null && (
+          {!isEnterprisePlan && activeTermDiscount != null && activeTermDiscount > 0 && (
             <div className="text-center text-sm font-medium text-brand-blue">
-              {t("subscription.plans.savings", { percentage: plan.annual_discount_percentage })}
+              {usesTermSelector
+                ? t("subscription.plans.savingsTerm", { percentage: activeTermDiscount })
+                : t("subscription.plans.savings", { percentage: activeTermDiscount })}
             </div>
           )}
 
-          <div className="space-y-2 text-sm text-muted-foreground">
-            {isCurrent && lastPaidAmount != null && lastPaidMemberCount != null && (
-              <div className="flex justify-between text-brand-blue">
-                <span>
-                  {t("subscription.plans.lastPaidForMembers", {
-                    amount: formatIDR(lastPaidAmount),
-                    count: lastPaidMemberCount,
-                  })}
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span>{t("subscription.plans.priceBreakdown.perMember")}</span>
-              <span>{formatIDR(plan.base_price_per_member)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>{t("subscription.plans.priceBreakdown.monthlySubtotal")}</span>
-              <span>{formatIDR(monthlyPrice)}</span>
-            </div>
-            {isYearly && plan.annual_discount_percentage != null && (
-              <div className="flex justify-between text-brand-red">
-                <span>
-                  {t("subscription.plans.priceBreakdown.yearlyDiscount", {
-                    percentage: plan.annual_discount_percentage,
-                  })}
-                </span>
-                <span>-{formatIDR(monthlyPrice * 12 * (plan.annual_discount_percentage / 100))}</span>
-              </div>
-            )}
-            {catalogLinks.map((link) => {
-              const code = link.subscription_add_ons.code;
-              const sel = addOnSelections[code] ?? { included: false, quantity: 1 };
-              if (!sel.included) return null;
-              const seatCap = Math.max(1, memberCount);
-              const billedQty = Math.min(seatCap, Math.max(1, sel.quantity));
-              const unit = resolvePlanAddOnUnitMonthly(link);
-              const amount = isYearly
-                ? computePlanAddOnLineYearlyTotalIdr(
-                    billedQty,
-                    unit,
-                    link.subscription_add_ons.follows_plan_annual_discount !== false,
-                    plan.annual_discount_percentage,
-                  )
-                : billedQty * unit;
-              return (
-                <div key={`bd-${code}`} className="flex justify-between text-muted-foreground">
-                  <span className="min-w-0 truncate pr-2">
-                    {t("subscription.plans.priceBreakdown.addOnLineLabel", {
-                      addOns: t("subscription.plans.addOnsSectionTitle"),
-                      name: link.subscription_add_ons.name,
-                    })}
-                  </span>
-                  <span className="shrink-0">{formatIDR(amount)}</span>
-                </div>
-              );
-            })}
-            {catalogLinks.length === 0 && addonTotalForHero > 0 && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>{t("subscription.plans.priceBreakdown.omnichannelAddonMonthly")}</span>
-                <span>{formatIDR(addonTotalForHero)}</span>
-              </div>
-            )}
-            <hr className="border-border" />
-            <div className="flex justify-between font-medium text-foreground">
-              <span>
-                {addonTotalForHero > 0
-                  ? isYearly
-                    ? t("subscription.plans.priceBreakdown.totalWithAddonYearly")
-                    : t("subscription.plans.priceBreakdown.totalWithAddonMonthly")
-                  : isYearly
-                    ? t("subscription.plans.priceBreakdown.totalYearly")
-                    : t("subscription.plans.priceBreakdown.totalMonthly")}
-              </span>
-              <span>{formatIDR(displayHeroTotal)}</span>
-            </div>
-          </div>
+          {!isEnterprisePlan && (
+            <PlanCardPriceBreakdown
+              plan={plan}
+              memberCount={memberCount}
+              billingCycle={billingCycle}
+              periodMonths={periodMonths}
+              termLabel={termLabel}
+              totalPrice={totalPrice}
+              hrTermGross={hrTermGross}
+              activeTermDiscount={activeTermDiscount}
+              catalogLinks={catalogLinks}
+              addOnSelections={addOnSelections}
+              selectedCatalogAddonTotal={selectedCatalogAddonTotal}
+              addonTotalForHero={addonTotalForHero}
+              relocateAddOnDetail={relocateAddOnDetail}
+              hideInlineAddOns={hideInlineAddOns}
+              displayHeroTotal={displayHeroTotal}
+              lastPaidAmount={lastPaidAmount}
+              lastPaidMemberCount={lastPaidMemberCount}
+              isCurrent={isCurrent}
+            />
+          )}
 
           {plan.demo_required && (
             <p className="text-center text-xs text-muted-foreground">{t("subscription.plans.demoRequired")}</p>

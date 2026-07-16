@@ -1,15 +1,15 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { supabase } from "@/shared/lib/supabaseClient";
 import {
-  createDefaultSalesModuleAccess,
   isSalesModulePathBlocked,
   mergeSalesModuleAccess,
   resolveSalesModuleForPath,
   salesModuleDefinition,
   type SalesModuleKey,
 } from "@/shared/auth/module-access/moduleCatalog";
+import { resolveSalesModuleGatingState } from "@/shared/auth/module-access/salesModuleGatingState";
 import { isSubscriptionSelfServiceEnabled } from "@/10-subscription/shared/subscriptionSelfService";
 
 async function fetchSalesModuleAccess(organizationId: string) {
@@ -34,20 +34,21 @@ export function useSalesModuleAccess() {
     queryFn: () => fetchSalesModuleAccess(organizationId!),
     enabled: isSalesTenant && !!organizationId,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 
-  const access = useMemo(
-    () => (isSalesTenant ? (moduleAccess ?? createDefaultSalesModuleAccess()) : null),
-    [isSalesTenant, moduleAccess],
+  const { isModuleGatingActive, moduleAccess: access, moduleAccessPending } = useMemo(
+    () => resolveSalesModuleGatingState(isSalesTenant, isLoading, moduleAccess),
+    [isSalesTenant, isLoading, moduleAccess],
   );
 
   const isModuleEnabled = (moduleKey: SalesModuleKey): boolean => {
-    if (!isSalesTenant || !access) return true;
+    if (!isModuleGatingActive || !access) return true;
     return access[moduleKey] ?? false;
   };
 
   const isPathBlocked = (pathname: string): boolean =>
-    isSalesModulePathBlocked(pathname, isSalesTenant, access);
+    isSalesModulePathBlocked(pathname, isModuleGatingActive, access);
 
   const getUpsellModuleForPath = (pathname: string): SalesModuleKey | null => {
     if (!isPathBlocked(pathname)) return null;
@@ -59,8 +60,10 @@ export function useSalesModuleAccess() {
 
   return {
     isSalesTenant,
+    isModuleGatingActive,
     moduleAccess: access,
-    isLoading: isSalesTenant && isLoading,
+    moduleAccessPending,
+    isLoading: moduleAccessPending,
     isModuleEnabled,
     isPathBlocked,
     getUpsellModuleForPath,

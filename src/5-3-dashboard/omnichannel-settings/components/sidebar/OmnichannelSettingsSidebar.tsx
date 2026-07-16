@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Lock } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
+import { useLeadMagnetEntitlement } from "@/6-1-lead-magnet/hooks/useLeadMagnetEntitlement";
 import {
   OMNICHANNEL_SETTINGS_SECTIONS,
   omnichannelSettingsSectionPagePath,
@@ -16,10 +17,18 @@ type OmnichannelSettingsSidebarProps = {
 export function OmnichannelSettingsSidebar({ activeSection, onSectionChange }: OmnichannelSettingsSidebarProps) {
   const { t } = useTranslation();
   const { isTabLocked } = useHeaderTabPageAccess();
+  const { hasEntitlement: hasLeadMagnetEntitlement, isPending: leadMagnetPending } =
+    useLeadMagnetEntitlement();
+
+  const visibleSections = OMNICHANNEL_SETTINGS_SECTIONS.filter((section) => {
+    if (section.id !== "lead-magnet") return true;
+    if (leadMagnetPending) return true;
+    return hasLeadMagnetEntitlement;
+  });
 
   return (
     <div className="space-y-2">
-      {OMNICHANNEL_SETTINGS_SECTIONS.map((section) => {
+      {visibleSections.map((section) => {
         const Icon = section.icon;
         const isActive = activeSection === section.id;
         const title = t(section.titleKey);

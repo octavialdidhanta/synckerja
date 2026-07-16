@@ -209,10 +209,21 @@ function MetaAdsMetricsPageContent() {
   const dateStart = dateRange.start;
   const dateEnd = dateRange.end;
 
+  const oauthConnected = settings?.oauthConnected ?? false;
+
   const allActiveAccounts = useMemo(
-    () => (settings?.accounts ?? []).filter((a) => a.is_active),
-    [settings?.accounts],
+    () =>
+      oauthConnected
+        ? (settings?.accounts ?? []).filter((a) => a.is_active)
+        : [],
+    [settings?.accounts, oauthConnected],
   );
+
+  useEffect(() => {
+    if (!oauthConnected && metaAdAccountId) {
+      setMetaAdAccountId("");
+    }
+  }, [oauthConnected, metaAdAccountId, setMetaAdAccountId]);
 
   /** Accounts with a real Pixel ID — required for insights API and CAPI. */
   const metricsReadyAccounts = useMemo(

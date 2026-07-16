@@ -185,8 +185,10 @@ export function useDigitalMarketingReportMonthlyLeadsByService(args: {
 
   const metricsReadyMetaAccounts = useMemo(
     () =>
-      (metaSettings?.accounts ?? []).filter((a) => a.is_active && a.pixel_id !== "0"),
-    [metaSettings?.accounts],
+      metaSettings?.oauthConnected
+        ? (metaSettings?.accounts ?? []).filter((a) => a.is_active && a.pixel_id !== "0")
+        : [],
+    [metaSettings?.accounts, metaSettings?.oauthConnected],
   );
 
   const effectiveMetaAdAccountId = useMemo(() => {

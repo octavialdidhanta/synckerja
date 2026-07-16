@@ -91,6 +91,12 @@ export function useGoogleAdsSettings(
         queryKey: ["google-ads-integration-enabled", organizationId],
       });
       void queryClient.invalidateQueries({ queryKey: ["google-ads-connected", organizationId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["google-ads-reporting-enabled", organizationId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["google-ads-accounts-picker-metrics", organizationId],
+      });
     }
   };
 

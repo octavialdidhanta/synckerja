@@ -205,10 +205,21 @@ function TikTokAdsMetricsPageContent() {
   const dateStart = dateRange.start;
   const dateEnd = dateRange.end;
 
+  const oauthConnected = settings?.oauthConnected ?? false;
+
   const activeAccounts = useMemo(
-    () => (settings?.accounts ?? []).filter((a) => a.is_active),
-    [settings?.accounts],
+    () =>
+      oauthConnected
+        ? (settings?.accounts ?? []).filter((a) => a.is_active)
+        : [],
+    [settings?.accounts, oauthConnected],
   );
+
+  useEffect(() => {
+    if (!oauthConnected && tiktokAdvertiserId) {
+      setTikTokAdvertiserId("");
+    }
+  }, [oauthConnected, tiktokAdvertiserId, setTikTokAdvertiserId]);
 
   const navAccounts: TikTokAdsNavAccount[] = useMemo(
     () =>

@@ -44,6 +44,12 @@ function coerceOrgBillingCycle(raw: unknown): "monthly" | "yearly" {
   return s === "yearly" ? "yearly" : "monthly";
 }
 
+function coerceBillingTermMonths(raw: unknown, billingCycle?: string): number {
+  const n = Number(raw);
+  if (n === 1 || n === 3 || n === 6 || n === 12) return n;
+  return billingCycle === "yearly" ? 12 : 1;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -61,6 +67,7 @@ Deno.serve(async (req) => {
       amount,
       memberCount,
       billingCycle,
+      billingTermMonths,
       proRateDetails,
       itemDetails,
       purchaseKind,
@@ -72,6 +79,7 @@ Deno.serve(async (req) => {
       amount?: number;
       memberCount?: number;
       billingCycle?: string;
+      billingTermMonths?: number;
       proRateDetails?: unknown;
       itemDetails?: Array<{ id?: string; name?: string; price?: number; quantity?: number }>;
       purchaseKind?: string;
@@ -102,6 +110,7 @@ Deno.serve(async (req) => {
     const orgId = profile.active_organization_id;
     /** Persisted on `payments.billing_cycle`; for omnichannel seat top-up, overridden from `organization_subscriptions`. */
     let billingCycleForPayment: "monthly" | "yearly" = coerceOrgBillingCycle(billingCycle);
+    let billingTermMonthsForPayment = coerceBillingTermMonths(billingTermMonths, billingCycleForPayment);
 
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 11);
@@ -171,6 +180,55 @@ Deno.serve(async (req) => {
           quantity: 1,
         },
       ];
+    } else if (purchaseKind === "lead_magnet_addon") {
+      const { data: orgSubRow, error: orgSubErr } = await supabase
+        .from("organization_subscriptions")
+        .select("subscription_plan_id, billing_cycle")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (orgSubErr || !orgSubRow?.subscription_plan_id) {
+        throw new Error("No subscription plan for organization");
+      }
+      const effectiveBillingCycle = coerceOrgBillingCycle(
+        (orgSubRow as { billing_cycle?: unknown }).billing_cycle,
+      );
+      billingCycleForPayment = effectiveBillingCycle;
+
+      const { data: expectedAmount, error: amtErr } = await supabase.rpc(
+        "compute_lead_magnet_addon_amount_service",
+        {
+          p_org_id: orgId,
+          p_billing_cycle: effectiveBillingCycle,
+          p_verified_user_id: user.id,
+        },
+      );
+      if (amtErr) throw new Error(amtErr.message || "Could not compute lead magnet add-on amount");
+      const expected = Math.round(Number(expectedAmount));
+      if (!Number.isFinite(expected) || expected <= 0) {
+        throw new Error("Invalid computed amount for lead magnet add-on");
+      }
+      if (amount != null && Number.isFinite(Number(amount))) {
+        const clientAmt = Math.round(Number(amount));
+        if (Math.abs(clientAmt - expected) > 2) {
+          throw new Error("Payment amount does not match server price");
+        }
+      }
+      grossAmount = expected;
+
+      resolvedPlanId = orgSubRow.subscription_plan_id as string;
+      resolvedPlanName = planName ?? "Lead Magnet add-on";
+      resolvedMemberCount = 1;
+      resolvedProRate = {
+        purchase_kind: "lead_magnet_addon",
+      };
+      resolvedItemDetails = [
+        {
+          id: "lead-magnet-addon",
+          name: `${resolvedPlanName} (${effectiveBillingCycle})`,
+          price: grossAmount,
+          quantity: 1,
+        },
+      ];
     } else {
       if (!planId || typeof planId !== "string") {
         throw new Error("planId is required");
@@ -182,6 +240,7 @@ Deno.serve(async (req) => {
         throw new Error("billingCycle must be monthly or yearly");
       }
       billingCycleForPayment = billingCycle as "monthly" | "yearly";
+      billingTermMonthsForPayment = coerceBillingTermMonths(billingTermMonths, billingCycleForPayment);
       if (grossAmount <= 0) {
         throw new Error(
           "Payment amount must be greater than 0. All payments must be processed through Midtrans.",
@@ -216,11 +275,14 @@ Deno.serve(async (req) => {
         amount: grossAmount,
         member_count: resolvedMemberCount,
         billing_cycle: billingCycleForPayment,
+        billing_term_months: billingTermMonthsForPayment,
         status: "pending",
         payment_type: "midtrans",
         prorate_details: resolvedProRate,
         omnichannel_seats_applied: false,
         bundled_omnichannel_units_applied: false,
+        lead_magnet_applied: false,
+        bundled_lead_magnet_applied: false,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -232,7 +294,7 @@ Deno.serve(async (req) => {
     }
 
     const planNameSafe = resolvedPlanName;
-    const itemName = `${planNameSafe} - ${resolvedMemberCount} members (${billingCycleForPayment})`;
+    const itemName = `${planNameSafe} - ${resolvedMemberCount} members (${billingTermMonthsForPayment} month${billingTermMonthsForPayment === 1 ? "" : "s"})`;
 
     const normalizedItemDetails = Array.isArray(resolvedItemDetails)
       ? resolvedItemDetails

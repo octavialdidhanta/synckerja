@@ -212,6 +212,7 @@ function ThreadsManageCommentsPageContent() {
           ) : (
             <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
               <ThreadsContentAccountNav
+                organizationId={organizationId}
                 accounts={accounts}
                 accountId={accountId}
                 onAccountIdChange={handleAccountChange}

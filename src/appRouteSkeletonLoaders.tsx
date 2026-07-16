@@ -500,3 +500,21 @@ export const BankMutationsPageSkeleton = createDeferredSkeleton(() =>
     default: m.BankMutationsPageSkeleton,
   })),
 );
+
+export const LeadMagnetListPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-1-lead-magnet/skeletons/LeadMagnetPageSkeletons").then((m) => ({
+    default: m.LeadMagnetListPageSkeleton,
+  })),
+);
+
+export const LeadMagnetWizardPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-1-lead-magnet/skeletons/LeadMagnetPageSkeletons").then((m) => ({
+    default: m.LeadMagnetWizardPageSkeleton,
+  })),
+);
+
+export const LeadMagnetAnalyticsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-1-lead-magnet/skeletons/LeadMagnetPageSkeletons").then((m) => ({
+    default: m.LeadMagnetAnalyticsPageSkeleton,
+  })),
+);

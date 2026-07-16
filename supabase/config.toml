@@ -258,6 +258,12 @@ verify_jwt = false
 [functions.instagram-webhook]
 verify_jwt = false
 
+[functions.lead-magnet-runtime]
+verify_jwt = false
+
+[functions.lead-magnet-api]
+verify_jwt = false
+
 [functions.threads-webhook]
 verify_jwt = false
 

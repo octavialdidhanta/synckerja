@@ -1,4 +1,4 @@
-import { ThreadsTabIcon } from '@/6-0-social-media-performance/components/ThreadsTabIcon';
+import { ThreadsContentAccountAvatar } from '@/6-0-social-media-performance/components/ThreadsContentAccountAvatar';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/shared/lib/utils';
 import type { ThreadsContentAccountRow } from '@/threads-content/hooks/useThreadsContentSettings';
@@ -8,6 +8,7 @@ import { CONNECT_INSTAGRAM_PATH } from '@/threads-content/settings/threadsConten
 const COLLAPSED_STORAGE_KEY = 'synckerja.threads-content-account-nav.collapsed';
 
 type ThreadsContentAccountNavProps = {
+  organizationId: string | null | undefined;
   accounts: ThreadsContentAccountRow[];
   accountId: string;
   onAccountIdChange: (accountId: string) => void;
@@ -15,6 +16,7 @@ type ThreadsContentAccountNavProps = {
 };
 
 export function ThreadsContentAccountNav({
+  organizationId,
   accounts,
   accountId,
   onAccountIdChange,
@@ -25,7 +27,7 @@ export function ThreadsContentAccountNav({
   return (
     <CollapsibleContentAccountNav
       storageKey={COLLAPSED_STORAGE_KEY}
-      sectionLabel={t('digitalMarketing.threadsContent.accounts', 'Threads accounts')}
+      sectionLabel={t('digitalMarketing.metaContent.accounts', 'Accounts')}
       collapseLabel={t('digitalMarketing.threadsContent.collapseAccounts', 'Collapse accounts')}
       expandLabel={t('digitalMarketing.threadsContent.expandAccounts', 'Expand accounts')}
       settingsLabel={t('digitalMarketing.threadsContent.connectSettings', 'Connect')}
@@ -49,13 +51,11 @@ export function ThreadsContentAccountNav({
               active ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-50',
             )}
           >
-            {acc.avatar_url ? (
-              <img src={acc.avatar_url} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
-            ) : (
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100">
-                <ThreadsTabIcon className="h-4 w-4 text-gray-600" />
-              </span>
-            )}
+            <ThreadsContentAccountAvatar
+              organizationId={organizationId}
+              accountId={acc.account_id}
+              accountLabel={label}
+            />
             <span className="min-w-0 truncate font-medium">{label}</span>
           </button>
         );

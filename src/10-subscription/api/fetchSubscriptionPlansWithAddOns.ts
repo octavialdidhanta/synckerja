@@ -1,12 +1,13 @@
 import {
   resolvePlanModuleAccessForDisplay,
 } from "@/10-subscription/shared/planModuleDisplay";
+import { sortSubscriptionPlansForDisplay } from "@/10-subscription/shared/subscriptionUtils";
 import type { SubscriptionPlan } from "@/10-subscription/types/SubscriptionPlanCatalog";
 import type { ModuleAccessMap } from "@/shared/auth/module-access/moduleCatalog";
 import { supabase } from "@/shared/lib/supabaseClient";
 
 const PLAN_ADD_ONS_SELECT =
-  "*, subscription_plan_add_ons ( unit_price_override_per_month, display_order, subscription_add_ons ( code, name, default_unit_price_per_month, follows_plan_annual_discount, is_active ) )";
+  "*, subscription_plan_add_ons ( unit_price_override_per_month, display_order, subscription_add_ons ( code, name, billing_unit, default_unit_price_per_month, follows_plan_annual_discount, is_active ) )";
 
 function parseFeatures(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String);
@@ -60,6 +61,10 @@ export function mapRowToSubscriptionPlan(
             subscription_add_ons: {
               code: String(nested.code ?? ""),
               name: String(nested.name ?? ""),
+              billing_unit:
+                nested.billing_unit == null || nested.billing_unit === undefined
+                  ? null
+                  : String(nested.billing_unit),
               default_unit_price_per_month: toNum(nested.default_unit_price_per_month),
               follows_plan_annual_discount:
                 nested.follows_plan_annual_discount === null || nested.follows_plan_annual_discount === undefined
@@ -108,15 +113,17 @@ export async function fetchSubscriptionPlansWithAddOns(): Promise<SubscriptionPl
 
   const modulesByPlan = groupModuleRowsByPlanId(moduleRows);
 
-  return rows.map((row) => {
-    const planId = String(row.id);
-    const features = parseFeatures(row.features);
-    const planModuleAccess = resolvePlanModuleAccessForDisplay(
-      features,
-      modulesByPlan.get(planId) ?? null,
-    );
-    return mapRowToSubscriptionPlan(row, planModuleAccess);
-  });
+  return sortSubscriptionPlansForDisplay(
+    rows.map((row) => {
+      const planId = String(row.id);
+      const features = parseFeatures(row.features);
+      const planModuleAccess = resolvePlanModuleAccessForDisplay(
+        features,
+        modulesByPlan.get(planId) ?? null,
+      );
+      return mapRowToSubscriptionPlan(row, planModuleAccess);
+    }),
+  );
 }
 
 export { PLAN_ADD_ONS_SELECT };

@@ -94,7 +94,12 @@ export function useMetaAdsSettings(
       if (!organizationId) throw new Error("No organization");
       await invokeConfig(organizationId, "disconnect");
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      void queryClient.invalidateQueries({
+        queryKey: ["meta-ads-reporting-enabled", organizationId],
+      });
+    },
   });
 
   const updateConnection = useMutation({

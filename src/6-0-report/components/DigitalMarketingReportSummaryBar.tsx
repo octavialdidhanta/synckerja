@@ -14,6 +14,7 @@ import {
   REPORT_SUMMARY_DEFAULT_SLOT_KEYS,
   REPORT_SUMMARY_METRIC_OPTIONS,
   REPORT_SUMMARY_SLOT_COUNT,
+  aggregateReportChannelCosts,
   aggregateReportTableMetrics,
   type ReportSummaryMetricOption,
   type ReportTableMetricKey,
@@ -49,7 +50,7 @@ export function DigitalMarketingReportSummaryBar({
   servicesLoading = false,
 }: Props) {
   const { t } = useAppTranslation();
-  const { googleCost } = useDigitalMarketingReportData();
+  const { googleCost, metaCost, tiktokCost } = useDigitalMarketingReportData();
 
   const [metricKeys, setMetricKeys] = useState<ReportTableMetricKey[]>(
     () => [...REPORT_SUMMARY_DEFAULT_SLOT_KEYS],
@@ -58,10 +59,27 @@ export function DigitalMarketingReportSummaryBar({
   const { filteredGoogleRows, filteredMetaRows, filteredTikTokRows, rowsLoading } =
     useDigitalMarketingReportFilteredRows(googleServiceRows, metaServiceRows, tiktokServiceRows);
 
-  const totals = useMemo(
-    () => aggregateReportTableMetrics(filteredGoogleRows, filteredMetaRows, filteredTikTokRows),
-    [filteredGoogleRows, filteredMetaRows, filteredTikTokRows],
-  );
+  const totals = useMemo(() => {
+    const hasServiceRows =
+      filteredGoogleRows.length > 0 ||
+      filteredMetaRows.length > 0 ||
+      filteredTikTokRows.length > 0;
+    if (hasServiceRows) {
+      return aggregateReportTableMetrics(
+        filteredGoogleRows,
+        filteredMetaRows,
+        filteredTikTokRows,
+      );
+    }
+    return aggregateReportChannelCosts(googleCost, metaCost, tiktokCost);
+  }, [
+    filteredGoogleRows,
+    filteredMetaRows,
+    filteredTikTokRows,
+    googleCost,
+    metaCost,
+    tiktokCost,
+  ]);
 
   const slots = useMemo(() => normalizeSlotKeys(metricKeys), [metricKeys]);
 

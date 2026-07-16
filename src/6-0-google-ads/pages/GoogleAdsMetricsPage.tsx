@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GoogleAdsMetricsPageSkeleton } from "@/6-0-google-ads/skeletons/GoogleAdsMetricsPageSkeleton";
+import { GoogleAdsMetricsPageSkeleton, GoogleAdsMetricsPanelSkeleton } from "@/6-0-google-ads/skeletons/GoogleAdsMetricsPageSkeleton";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { cn } from "@/shared/lib/utils";
 import { useTranslation } from "react-i18next";
@@ -155,10 +155,13 @@ function GoogleAdsMetricsPageContent() {
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
   const { data: reportingEnabled = false, isPending: reportingPending } =
     useGoogleAdsReportingEnabled(organizationId);
-  const { syncAccessibleAccounts } = useGoogleAdsSettings(organizationId, {
-    fetchSettings: false,
-    enabled: canManage && !gatePending,
-  });
+  const { data: settings, isPending: settingsPending, syncAccessibleAccounts } = useGoogleAdsSettings(
+    organizationId,
+    {
+      enabled: canManage && !gatePending,
+    },
+  );
+  const oauthConnected = settings?.oauthConnected ?? false;
 
   const [entity, setEntity] = useState<GoogleAdsMetricEntity>("campaign");
   const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState(() =>
@@ -209,7 +212,7 @@ function GoogleAdsMetricsPageContent() {
   );
 
   const {
-    data: accounts = [],
+    data: accountsRaw = [],
     isPending: accountsPending,
     isFetching: accountsFetching,
     dataUpdatedAt: accountsDataUpdatedAt,
@@ -226,8 +229,24 @@ function GoogleAdsMetricsPageContent() {
       if (error) throw error;
       return data ?? [];
     },
-    enabled: Boolean(organizationId) && canManage,
+    enabled: Boolean(organizationId) && canManage && oauthConnected,
   });
+
+  const accounts = useMemo(
+    () => (oauthConnected ? accountsRaw : []),
+    [oauthConnected, accountsRaw],
+  );
+
+  /** Disabled TanStack query stays `isPending` — only pend while settings/oauth resolve or accounts fetch when connected. */
+  const accountsListPending =
+    oauthConnected && (accountsPending || (accountsFetching && accountsDataUpdatedAt === 0));
+  const accountsNavPending = settingsPending || accountsListPending;
+
+  useEffect(() => {
+    if (!oauthConnected && googleCustomerId) {
+      setGoogleCustomerId("");
+    }
+  }, [oauthConnected, googleCustomerId, setGoogleCustomerId]);
 
   const effectiveCustomerId = useMemo(() => {
     if (customerId) return customerId;
@@ -294,7 +313,8 @@ function GoogleAdsMetricsPageContent() {
     isPending: prefsPending,
   } = useGoogleAdsMetricsPreferences(organizationId, entity, validMetricKeys);
 
-  const customerSelectReady = !accountsPending && accounts.length > 0 && Boolean(effectiveCustomerId);
+  const customerSelectReady =
+    !accountsNavPending && accounts.length > 0 && Boolean(effectiveCustomerId);
 
   const { data: accountDateBounds } = useGoogleAdsAccountDateBounds(
     organizationId,
@@ -874,6 +894,7 @@ function GoogleAdsMetricsPageContent() {
     Boolean(organizationId) &&
     canManage &&
     reportingEnabled &&
+    oauthConnected &&
     (accountsPending || (accountsFetching && accountsDataUpdatedAt === 0));
 
   const metricsPanelReady =
@@ -890,7 +911,7 @@ function GoogleAdsMetricsPageContent() {
       (metricsQuery.isFetching && metricsQuery.dataUpdatedAt === 0));
 
   const rawPageLoadPending = isSettingsView
-    ? orgBootstrapPending || gatePending
+    ? orgBootstrapPending || gatePending || (canManage && settingsPending)
     : orgBootstrapPending ||
       gatePending ||
       (Boolean(organizationId) && canManage && reportingPending) ||
@@ -997,7 +1018,7 @@ function GoogleAdsMetricsPageContent() {
                             accounts={accounts}
                             customerId={effectiveCustomerId}
                             customerSelectReady={customerSelectReady}
-                            accountsPending={accountsPending}
+                            accountsPending={accountsNavPending}
                             onCustomerIdChange={setCustomerId}
                             settingsActive={isSettingsView}
                             onSettingsSelect={() => navigate(GOOGLE_ADS_DIGITAL_MARKETING_SETTINGS_PATH)}
@@ -1451,7 +1472,7 @@ function GoogleAdsMetricsPageContent() {
           aria-busy
           aria-label={t("common.loading", "Loading")}
         >
-          <GoogleAdsMetricsPageSkeleton />
+          <GoogleAdsMetricsPanelSkeleton />
         </div>
       ) : null}
 

@@ -11,6 +11,7 @@ import { MetaCommentItem } from '@/6-0-social-media-manage-comments/components/m
 import type { ManageCommentsReplyControls } from '@/6-0-social-media-manage-comments/types/manageCommentsReplyControls';
 import type { ManageCommentsPostListItem } from '@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes';
 import { MANAGE_COMMENTS_THREAD_POLL_MS } from '@/6-0-social-media-manage-comments/lib/manageCommentsPolling';
+import { useLeadMagnetAutoCommentReplies } from '@/6-0-social-media-manage-comments/hooks/useLeadMagnetAutoCommentReplies';
 import { sortCommentsForThread } from '@/6-0-social-media-manage-comments/lib/sortCommentsForThread';
 import { useNewInboundCommentHighlights } from '@/6-0-social-media-manage-comments/hooks/useNewInboundCommentHighlights';
 import {
@@ -72,6 +73,13 @@ export function MetaCommentThreadPanel({
     refetchIntervalMs: MANAGE_COMMENTS_THREAD_POLL_MS,
   });
 
+  const autoRepliesQuery = useLeadMagnetAutoCommentReplies({
+    organizationId,
+    platform,
+    mediaId,
+    enabled: Boolean(mediaId && commentsScopesGranted),
+  });
+
   const { replyMutation } = useMetaContentCommentMutations({
     organizationId,
     platform,
@@ -95,6 +103,7 @@ export function MetaCommentThreadPanel({
     () => commentsQuery.data?.comments ?? [],
     [commentsQuery.data?.comments],
   );
+  const autoRepliesByCommentId = autoRepliesQuery.data ?? {};
   const commentIds = useMemo(() => comments.map((c) => c.id), [comments]);
   const commentsReady = commentsQuery.isFetched && !commentsQuery.isLoading;
 
@@ -354,6 +363,7 @@ export function MetaCommentThreadPanel({
                   accountId={accountId}
                   mediaId={mediaId}
                   replyControls={replyControls}
+                  autoReply={autoRepliesByCommentId[comment.id] ?? null}
                   isMutating={isMutating}
                   isNew={inboxEnabled && highlightedIds.has(comment.id)}
                 />

@@ -1,14 +1,11 @@
-import { Link } from "react-router-dom";
 import { UpgradeConfirmationModal } from "@/10-subscription/plans/modals/UpgradeConfirmationModal";
 import { PendingChangesCard } from "@/10-subscription/plans/section/PendingChangesCard";
 import { UpgradeOptionsModal } from "@/10-subscription/plans/modals/UpgradeOptionsModal";
-import { PlanCard, TrustIndicators } from "@/10-subscription/plans/section";
+import { PlanCard, PlanAddOnsPanel, TrustIndicators } from "@/10-subscription/plans/section";
 import { useHRISSubscriptionPlansController } from "@/10-subscription/plans/useHRISSubscriptionPlansController";
-import {
-  formatIDR,
-  getOmnichannelAddonMonthlyTotalIdr,
-  planEligibleForOmnichannelAddonDisplay,
-} from "@/10-subscription/shared/subscriptionUtils";
+import { isEnterpriseSubscriptionPlan } from "@/10-subscription/shared/subscriptionUtils";
+import { defaultPaidPlanMemberCount } from "@/0-onboarding/utils/subscriptionPlanUtils";
+import { usesBillingTermSelector } from "@/10-subscription/shared/billingTermUtils";
 
 const HRISSubscriptionPlansTab = () => {
   const {
@@ -18,7 +15,10 @@ const HRISSubscriptionPlansTab = () => {
     subscriptionPlans,
     memberCounts,
     billingCycles,
+    billingTerms,
     isYearly,
+    selectedBillingTermMonths,
+    currentOrgBillingTermMonths,
     selectedPlan,
     selectedMemberCount,
     isModalOpen,
@@ -30,8 +30,6 @@ const HRISSubscriptionPlansTab = () => {
     lastPaidMemberCount,
     omnichannelPaidSeats,
     rosterCount,
-    showOmnichannelAddonInsideScaleUpCard,
-    globalOmnichannelUnitPrice,
     currentPlanId,
     currentMemberCount,
     currentEmployeeCount,
@@ -40,11 +38,15 @@ const HRISSubscriptionPlansTab = () => {
     catalogAddOnBillingChargeIdr,
     catalogAddOnForConfirmationModalIdr,
     isRenewEligibleBase,
+    enterpriseSliderMin,
+    resolvePlanSliderMinForPlan,
     resolvePlanSliderMaxForPlan,
     isCurrentPlan,
     calculatePlanPrice,
     handleMemberCountChange,
     handleBillingCycleChange,
+    handleBillingTermChange,
+    resolveBillingForPlan,
     handleAddOnIncludedChange,
     handleAddOnQuantityChange,
     mergeSelections,
@@ -56,7 +58,14 @@ const HRISSubscriptionPlansTab = () => {
     getPlanIcon,
     canChangePlan,
     getButtonText,
+    hasCheckoutableAddOnChangesForPlan,
+    hasSchedulableDowngradeForPlan,
+    isMidCycleActive,
+    paidMemberFloor,
     planCardPrimaryPendingId,
+    showAddOnsSidebar,
+    sidebarAddOnContext,
+    relocateAddOnDetailForCurrent,
   } = useHRISSubscriptionPlansController();
 
   return (
@@ -81,105 +90,127 @@ const HRISSubscriptionPlansTab = () => {
                 <PendingChangesCard />
 
                 {/* Plans Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
                   {activePlans.map((plan) => {
-                    const isTrialPlan = plan.name === 'Trial' || plan.base_price_per_member === 0;
+                    const isEnterprisePlan = isEnterpriseSubscriptionPlan(plan);
+                    const isTrialPlan =
+                      !isEnterprisePlan &&
+                      (plan.name === "Trial" || plan.base_price_per_member === 0);
                     const isCurrent = isCurrentPlan(plan);
                     const maxEmployees = resolvePlanSliderMaxForPlan(plan);
+                    const memberSliderMin = resolvePlanSliderMinForPlan(plan);
                     const isRenewEligible = isCurrent && isRenewEligibleBase;
-                    
-                    // Use memberCounts state value for slider - this makes it interactive
-                    // Only use fallback if memberCounts[plan.id] is undefined
-                    const memberCount = memberCounts[plan.id] !== undefined 
-                      ? memberCounts[plan.id]
-                      : (isCurrent 
-                          ? (subscriptionStatus?.member_count || currentMemberCount || 1)
-                          : (isTrialPlan ? maxEmployees : 5)
-                        );
-                      
-                    const billingCycle = billingCycles[plan.id] || 'monthly';
-                    const isYearly = billingCycle === 'yearly';
-                    const totalPrice = calculatePlanPrice(plan, memberCount, isYearly);
+
+                    const memberCount = Math.min(
+                      maxEmployees,
+                      Math.max(
+                        memberSliderMin,
+                        memberCounts[plan.id] !== undefined
+                          ? memberCounts[plan.id]
+                          : isCurrent
+                            ? subscriptionStatus?.member_count || currentMemberCount || 1
+                            : isEnterprisePlan
+                              ? enterpriseSliderMin
+                              : isTrialPlan
+                                ? maxEmployees
+                                : defaultPaidPlanMemberCount(paidMemberFloor, maxEmployees),
+                      ),
+                    );
+
+                    const { billingCycle, billingTermMonths } = resolveBillingForPlan(plan);
+                    const isYearlyPlan = billingCycle === "yearly";
+                    const totalPrice = calculatePlanPrice(plan, memberCount, isYearlyPlan, billingTermMonths);
                     const monthlyPrice = plan.base_price_per_member * memberCount;
                     const IconComponent = getPlanIcon(plan.name);
-                    
-                    const isPopular = plan.name.toLowerCase().includes('professional');
-                    const canChange = canChangePlan(plan, memberCount);
-                    const buttonText = getButtonText(plan, memberCount, billingCycle, isRenewEligible);
-                    const currentBillingCycle = subscriptionStatus?.billing_cycle || 'monthly';
-                    const hasBillingCycleChange = isCurrent && billingCycle !== currentBillingCycle;
+
+                    const isPopular = plan.name.toLowerCase().includes("professional");
+                    const canChange = isEnterprisePlan ? true : canChangePlan(plan, memberCount);
+                    const currentBillingCycle = subscriptionStatus?.billing_cycle || "monthly";
+                    const hasBillingCycleChange = isCurrent && (
+                      usesBillingTermSelector(plan)
+                        ? billingTermMonths !== currentOrgBillingTermMonths
+                        : billingCycle !== currentBillingCycle
+                    );
 
                     const mergedAddOns = mergeSelections(plan, isCurrent, memberCount);
+                    const relocateAddOnDetail = isCurrent && relocateAddOnDetailForCurrent;
+                    const hasCheckoutableAddOnChanges = hasCheckoutableAddOnChangesForPlan(
+                      plan,
+                      memberCount,
+                      billingCycle,
+                      mergedAddOns,
+                    );
+
+                    const hasSchedulableDowngrade = hasSchedulableDowngradeForPlan(
+                      plan,
+                      memberCount,
+                      billingCycle,
+                      mergedAddOns,
+                    );
 
                     return (
-                      <PlanCard
-                        key={plan.id}
-                        plan={plan}
-                        memberCount={memberCount}
-                        billingCycle={billingCycle}
-                        totalPrice={totalPrice}
-                        monthlyPrice={monthlyPrice}
-                        maxEmployees={maxEmployees}
-                        isTrialPlan={isTrialPlan}
-                        isCurrent={isCurrent}
-                        isPopular={isPopular}
-                        canChange={canChange}
-                        buttonText={buttonText}
-                        hasBillingCycleChange={hasBillingCycleChange}
-                        IconComponent={IconComponent}
-                        currentMemberCount={currentMemberCount}
-                        currentEmployeeCount={currentEmployeeCount}
-                        isRenewEligible={isRenewEligible}
-                        subscriptionStatus={subscriptionStatus}
-                        lastPaidAmount={isCurrent ? lastPaidAmount : undefined}
-                        lastPaidMemberCount={isCurrent ? lastPaidMemberCount : undefined}
-                        addOnSelections={mergedAddOns}
-                        onAddOnIncludedChange={(code, inc) => handleAddOnIncludedChange(plan.id, code, inc)}
-                        onAddOnQuantityChange={(code, qty) =>
-                          handleAddOnQuantityChange(plan.id, code, qty, memberCount)
-                        }
-                        omnichannelPaidSeats={omnichannelPaidSeats}
-                        omnichannelRosterActiveCount={rosterCount}
-                        onRenew={handleRenew}
-                        onMemberCountChange={handleMemberCountChange}
-                        onBillingCycleChange={handleBillingCycleChange}
-                        onUpgrade={handleUpgrade}
-                        isPrimaryActionLoading={
-                          planCardPrimaryPendingId === plan.id &&
-                          (proRateCalculation.isPending || isMidtransConfirmLoading)
-                        }
-                      />
+                      <div key={plan.id}>
+                        <PlanCard
+                          plan={plan}
+                          memberCount={memberCount}
+                          billingCycle={billingCycle}
+                          billingTermMonths={billingTermMonths}
+                          totalPrice={totalPrice}
+                          monthlyPrice={monthlyPrice}
+                          maxEmployees={maxEmployees}
+                          memberSliderMin={memberSliderMin}
+                          isTrialPlan={isTrialPlan}
+                          isEnterprisePlan={isEnterprisePlan}
+                          isCurrent={isCurrent}
+                          isPopular={isPopular}
+                          canChange={canChange}
+                          buttonText={getButtonText(
+                            plan,
+                            memberCount,
+                            billingCycle,
+                            isRenewEligible,
+                            hasCheckoutableAddOnChanges,
+                            mergedAddOns,
+                            billingTermMonths,
+                          )}
+                          hasBillingCycleChange={hasBillingCycleChange}
+                          hasCheckoutableAddOnChanges={hasCheckoutableAddOnChanges}
+                          hasSchedulableDowngrade={hasSchedulableDowngrade}
+                          IconComponent={IconComponent}
+                          currentMemberCount={currentMemberCount}
+                          currentEmployeeCount={currentEmployeeCount}
+                          isRenewEligible={isRenewEligible}
+                          subscriptionStatus={subscriptionStatus}
+                          lastPaidAmount={isCurrent ? lastPaidAmount : undefined}
+                          lastPaidMemberCount={isCurrent ? lastPaidMemberCount : undefined}
+                          addOnSelections={mergedAddOns}
+                          onAddOnIncludedChange={(code, inc) =>
+                            handleAddOnIncludedChange(plan.id, code, inc)
+                          }
+                          onAddOnQuantityChange={(code, qty) =>
+                            handleAddOnQuantityChange(plan.id, code, qty, memberCount)
+                          }
+                          omnichannelPaidSeats={omnichannelPaidSeats}
+                          omnichannelRosterActiveCount={rosterCount}
+                          onRenew={handleRenew}
+                          onMemberCountChange={handleMemberCountChange}
+                          onBillingCycleChange={handleBillingCycleChange}
+                          onBillingTermChange={handleBillingTermChange}
+                          onUpgrade={handleUpgrade}
+                          isPrimaryActionLoading={
+                            planCardPrimaryPendingId === plan.id &&
+                            (proRateCalculation.isPending || isMidtransConfirmLoading)
+                          }
+                          hideInlineAddOns={isEnterprisePlan || (isCurrent && showAddOnsSidebar)}
+                          showCompactAddOnSummary={isCurrent && showAddOnsSidebar && !relocateAddOnDetail}
+                          relocateAddOnDetail={relocateAddOnDetail}
+                          isMidCycleActive={isMidCycleActive}
+                          paidMemberFloor={paidMemberFloor}
+                        />
+                      </div>
                     );
                   })}
                 </div>
-
-                {activePlans.some((p) => planEligibleForOmnichannelAddonDisplay(p)) &&
-                  !showOmnichannelAddonInsideScaleUpCard && (
-                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
-                    <h3 className="font-semibold text-foreground">{t("subscription.plans.omnichannelAddonTitle")}</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {t("subscription.plans.omnichannelAddonSubtitle", {
-                        amount: formatIDR(globalOmnichannelUnitPrice),
-                      })}
-                    </p>
-                    <p className="mt-2 text-foreground">
-                      {t("subscription.plans.omnichannelPaidSeatsEntitled", { count: omnichannelPaidSeats })}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {t("subscription.plans.omnichannelRosterActiveLine", { count: rosterCount })}
-                    </p>
-                    <p className="mt-1 text-foreground">
-                      {t("subscription.plans.omnichannelMonthlyLine", {
-                        amount: formatIDR(
-                          getOmnichannelAddonMonthlyTotalIdr(omnichannelPaidSeats, globalOmnichannelUnitPrice),
-                        ),
-                      })}
-                    </p>
-                      <Link to="/omnichannel/settings" className="mt-2 inline-block text-xs font-medium text-primary underline">
-                        {t("subscription.plans.manageRosterLink")}
-                      </Link>
-                    </div>
-                  )}
 
                 {/* Trust Indicators */}
                 <TrustIndicators />
@@ -200,66 +231,52 @@ const HRISSubscriptionPlansTab = () => {
         </div>
       </div>
 
-      {/* Sidebar Section */}
+      {/* Add-ons Sidebar */}
       <div className="col-span-12 flex min-h-0 flex-col md:col-span-3">
         <div className="flex max-md:min-h-[280px] min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-          {/* Sidebar Header */}
           <div className="flex-shrink-0 border-b border-border px-4 py-2">
-            <h3 className="text-sm font-semibold text-foreground">{t("subscription.plans.comparison.title")}</h3>
-            <p className="mt-1 text-xs text-muted-foreground">{t("subscription.plans.comparison.description")}</p>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t("subscription.plans.sidebar.addOns.title")}
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("subscription.plans.sidebar.addOns.description")}
+            </p>
           </div>
 
-          {/* Scrollable Sidebar Content - single scroll per panel (rule 3.1) */}
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="space-y-4">
-              {/* Current Plan Summary */}
-              {subscriptionStatus && (
-                <div className="rounded-lg border border-brand-blue/25 bg-brand-blue/5 p-3 dark:bg-brand-blue/10">
-                  <h4 className="mb-2 text-sm font-medium text-foreground">{t("subscription.plans.comparison.currentPlan")}</h4>
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <div className="flex justify-between">
-                      <span>{t("subscription.plans.comparison.plan")}</span>
-                      <span className="font-medium">{subscriptionStatus.plan_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>{t("subscription.plans.comparison.members")}</span>
-                      <span className="font-medium">{subscriptionStatus.member_count}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>{t("subscription.plans.comparison.billing")}</span>
-                      <span className="font-medium capitalize">{subscriptionStatus.billing_cycle}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Quick Stats */}
-              <div className="space-y-3">
-                <div className="text-xs font-medium text-gray-900">{t("subscription.plans.comparison.quickStats")}</div>
-                <div className="space-y-2 text-xs text-gray-600">
-                  <div className="flex justify-between">
-                    <span>{t("subscription.plans.comparison.totalPlans")}</span>
-                    <span className="font-medium">{activePlans.length || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t("subscription.plans.comparison.currentEmployees")}</span>
-                    <span className="font-medium">{currentEmployeeCount}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t("subscription.plans.comparison.activeFeatures")}</span>
-                    <span className="font-medium">{activePlans.length || 0}</span>
-                  </div>
-                </div>
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {sidebarAddOnContext ? (
+              <PlanAddOnsPanel
+                embeddedInSidebar
+                plan={sidebarAddOnContext.plan}
+                memberCount={sidebarAddOnContext.memberCount}
+                billingCycle={sidebarAddOnContext.billingCycle}
+                billingTermMonths={sidebarAddOnContext.billingTermMonths}
+                addOnSelections={sidebarAddOnContext.mergedAddOns}
+                onAddOnIncludedChange={(code, inc) =>
+                  handleAddOnIncludedChange(sidebarAddOnContext.plan.id, code, inc)
+                }
+                onAddOnQuantityChange={(code, qty) =>
+                  handleAddOnQuantityChange(
+                    sidebarAddOnContext.plan.id,
+                    code,
+                    qty,
+                    sidebarAddOnContext.memberCount,
+                  )
+                }
+                omnichannelPaidSeats={omnichannelPaidSeats}
+                omnichannelRosterActiveCount={rosterCount}
+                leadMagnetActive={subscriptionStatus?.lead_magnet_active ?? false}
+                isMidCycleActive={isMidCycleActive}
+                isTrialPlan={sidebarAddOnContext.isTrialPlan}
+                isExpired={subscriptionStatus?.is_expired ?? false}
+              />
+            ) : (
+              <div className="flex flex-1 flex-col p-4">
+                <p className="text-sm text-muted-foreground">
+                  {t("subscription.plans.sidebar.addOns.empty")}
+                </p>
               </div>
-            </div>
-          </div>
-
-          {/* Sidebar Footer — match overview sidebar footer bar */}
-          <div className="flex min-h-10 flex-shrink-0 items-center border-t border-border bg-muted/40 px-4 py-2">
-            <div className="flex min-h-7 w-full items-center justify-between gap-2 text-xs text-muted-foreground">
-              <span>{t("subscription.plans.comparison.footer.livePricing")}</span>
-              <span className="text-muted-foreground/80">{t("subscription.plans.comparison.footer.realTime")}</span>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -279,10 +296,10 @@ const HRISSubscriptionPlansTab = () => {
           currentEmployeeCount={currentEmployeeCount}
           proRatedData={proRatedData}
           isBillingCycleUpgradeOnly={
+            Boolean(selectedPlan) &&
             currentPlanId === selectedPlan.id &&
             currentMemberCount === selectedMemberCount &&
-            (subscriptionStatus?.billing_cycle || 'monthly') === 'monthly' &&
-            isYearly
+            selectedBillingTermMonths > currentOrgBillingTermMonths
           }
           catalogAddOnTotalIdr={catalogAddOnForConfirmationModalIdr}
           isConfirmLoading={isMidtransConfirmLoading}

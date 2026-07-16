@@ -55,6 +55,8 @@ export type NavSubItem = {
   matchSearch?: Record<string, string>;
   /** If the URL has these query values, this row is not active (e.g. hide “CRM” when `?view=report`) */
   inactiveWhenSearch?: Record<string, string>;
+  /** Sub-item requires Lead Magnet add-on entitlement (in addition to parent module). */
+  requiresLeadMagnetAddon?: boolean;
 };
 
 export type MainNavItem = {
@@ -151,6 +153,12 @@ export const mainNavItems: MainNavItem[] = [
         titleKey: "sidebar.digitalMarketing.socialMedia.title",
         path: "/digital-marketing/social-media/dashboard",
         activePathPrefixes: ["/digital-marketing/social-media"],
+      },
+      {
+        titleKey: "sidebar.digitalMarketing.leadMagnet.title",
+        path: "/digital-marketing/lead-magnet",
+        activePathPrefixes: ["/digital-marketing/lead-magnet"],
+        requiresLeadMagnetAddon: true,
       },
       {
         titleKey: "sidebar.digitalMarketing.socialMediaPerformance.title",

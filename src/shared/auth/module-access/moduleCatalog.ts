@@ -10,11 +10,19 @@ export const SALES_MODULE_KEYS = [
   "humanResources",
   "finance",
   "digitalMarketing",
+  "leadMagnet",
   "omnichannel",
   "operations",
   "tools",
   "requestForm",
+  "customModules",
+  "customerSupport",
 ] as const;
+
+/** Plan-card flags — stored in plan_module_access, not routed in office nav. */
+export const SALES_PLAN_FEATURE_KEYS = ["customModules", "customerSupport"] as const;
+
+export type SalesPlanFeatureKey = (typeof SALES_PLAN_FEATURE_KEYS)[number];
 
 export type SalesModuleKey = (typeof SALES_MODULE_KEYS)[number];
 

@@ -18,35 +18,93 @@ import {
   getYearlyPriceForMembers,
   formatIDR,
   buildMidtransExplicitHrAndAddonItemDetails,
+  buildCurrentAddonSnapshot,
+  buildTargetAddonSelectionsForSchedule,
   catalogAddonChargeForMidtransSplit,
   catalogAddOnListAmountForMidtransSplit,
   bundledOmnichannelRosterUnitsFromSelections,
+  bundledLeadMagnetFromSelections,
   getOmnichannelAddonMonthlyTotalIdr,
   getOmnichannelRosterAddonConfig,
   isScaleUpSubscriptionPlanName,
+  isEnterpriseSubscriptionPlan,
+  resolveEnterpriseSliderMin,
+  sortSubscriptionPlansForDisplay,
+  shouldShowAddOnsSidebar,
+  relocateAddOnDetailToPanel,
   mergePlanAddOnSelections,
+  mergePlanAddOnSelectionsForCheckout,
   planEligibleForOmnichannelAddonDisplay,
   OMNICHANNEL_ADDON_IDR_PER_STAFF_MONTHLY,
+  hasCheckoutableCatalogAddOnDelta,
+  hasSchedulableDowngrade,
+  isAddOnOnlyMidCycleCheckout,
+  isAddonSelectionDowngrade,
+  isMidCycleActiveSubscription,
+  isTargetPlanDowngrade,
+  resolveCheckoutRemainingDays,
 } from "@/10-subscription/shared/subscriptionUtils";
 import { type ProRatedData } from "@/10-subscription/plans/modals/UpgradeConfirmationModal";
-import { useSchedulePlanChange } from "@/10-subscription/hooks/useSchedulePlanChange";
+import { useSchedulePlanChange, type SchedulePlanChangeParams } from "@/10-subscription/hooks/useSchedulePlanChange";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
 import { invalidatePlanModuleAccessForOrg } from "@/10-subscription/shared/invalidatePlanModuleAccess";
-import { getPlanMaxMembers, resolvePlanSliderMax } from "@/0-onboarding/utils/subscriptionPlanUtils";
+import {
+  defaultPaidPlanMemberCount,
+  getPlanMaxMembers,
+  planUsesPerMemberPricing,
+  resolveFreePlanMaxMembers,
+  resolvePaidPlanMemberFloor,
+  resolvePlanSliderMax,
+  resolvePaidPlanSliderMin,
+} from "@/0-onboarding/utils/subscriptionPlanUtils";
 import {
   organizationOmnichannelStaffQueryKey,
   useOrganizationOmnichannelStaff,
 } from "@/shared/hooks/useOrganizationOmnichannelStaff";
+import {
+  billingCycleFromTerm,
+  billingTermMonthsFromLegacyCycle,
+  coerceBillingTermMonths,
+  computePlanTermPriceIdr,
+  defaultBillingTermForPlan,
+  resolvePlanBillingSelection,
+  usesBillingTermSelector,
+  type BillingTermMonths,
+} from "@/10-subscription/shared/billingTermUtils";
 
 export const RENEWAL_WINDOW_DAYS = 7;
 
-export type PlanChangeType = "upgrade" | "downgrade" | "member_increase" | "member_decrease" | "mixed";
+export type PlanChangeType =
+  | "upgrade"
+  | "downgrade"
+  | "member_increase"
+  | "member_decrease"
+  | "mixed"
+  | "addon_decrease"
+  | "addon_disable";
 
 function toPlanChangeType(value: unknown, fallback: PlanChangeType): PlanChangeType {
-  const allowed: PlanChangeType[] = ["upgrade", "downgrade", "member_increase", "member_decrease", "mixed"];
+  const allowed: PlanChangeType[] = [
+    "upgrade",
+    "downgrade",
+    "member_increase",
+    "member_decrease",
+    "mixed",
+    "addon_decrease",
+    "addon_disable",
+  ];
   return typeof value === "string" && allowed.includes(value as PlanChangeType)
     ? (value as PlanChangeType)
     : fallback;
+}
+
+function resolveScheduledDate(
+  subscriptionStatus: { subscription_end_date?: string } | null | undefined,
+  fromCalculation?: string | null,
+): string {
+  if (fromCalculation && String(fromCalculation).trim()) return String(fromCalculation).trim();
+  if (subscriptionStatus?.subscription_end_date) return subscriptionStatus.subscription_end_date;
+  return new Date().toISOString();
 }
 
 export type HRISSubscriptionPlansControllerOptions = {
@@ -62,7 +120,9 @@ export function useHRISSubscriptionPlansController(
   const queryClient = useQueryClient();
   const [memberCounts, setMemberCounts] = useState<{ [key: string]: number }>({});
   const [billingCycles, setBillingCycles] = useState<{ [key: string]: 'monthly' | 'yearly' }>({});
+  const [billingTerms, setBillingTerms] = useState<Record<string, BillingTermMonths>>({});
   const [isYearly, setIsYearly] = useState(false);
+  const [selectedBillingTermMonths, setSelectedBillingTermMonths] = useState<BillingTermMonths>(1);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [selectedMemberCount, setSelectedMemberCount] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,8 +145,12 @@ export function useHRISSubscriptionPlansController(
   const { data: omnichannelRoster = [] } = useOrganizationOmnichannelStaff();
   const rosterCount = omnichannelRoster.length;
   const omnichannelPaidSeats = subscriptionStatus?.omnichannel_paid_seat_count ?? 0;
+  const leadMagnetActive = subscriptionStatus?.lead_magnet_active ?? false;
   /** All rows returned for `is_active = true` (no extra client-side hiding). */
-  const activePlans = useMemo(() => plans ?? [], [plans]);
+  const activePlans = useMemo(
+    () => sortSubscriptionPlansForDisplay(plans ?? []),
+    [plans],
+  );
   const showOmnichannelAddonInsideScaleUpCard = useMemo(
     () =>
       activePlans.some(
@@ -132,11 +196,45 @@ export function useHRISSubscriptionPlansController(
     return subscriptionStatus.plan_name === plan.name;
   };
 
+  const enterpriseSliderMin = useMemo(
+    () => resolveEnterpriseSliderMin(activePlans),
+    [activePlans],
+  );
+
+  const resolvePlanSliderMinForPlan = (plan: SubscriptionPlan) => {
+    if (isEnterpriseSubscriptionPlan(plan)) {
+      return enterpriseSliderMin;
+    }
+    if (plan.name === "Trial" || plan.base_price_per_member === 0) {
+      return 1;
+    }
+    return resolvePaidPlanSliderMin({
+      paidMemberFloor,
+      isCurrentPlan: isCurrentPlan(plan),
+      isMidCycleActive,
+      subscribedMemberCount: subscriptionStatus?.member_count ?? 0,
+    });
+  };
+
   const resolvePlanSliderMaxForPlan = (plan: SubscriptionPlan) => {
     const planCap = resolvePlanMaxMembers(plan);
     const subscribedSeats = isCurrentPlan(plan) ? subscriptionStatus?.member_count ?? 0 : 0;
     return resolvePlanSliderMax(planCap, subscribedSeats);
   };
+
+  const paidMemberFloor = useMemo(
+    () => resolvePaidPlanMemberFloor(resolveFreePlanMaxMembers(activePlans)),
+    [activePlans],
+  );
+
+  const currentOrgBillingTermMonths = useMemo(
+    () =>
+      coerceBillingTermMonths(
+        subscriptionStatus?.billing_term_months ??
+          billingTermMonthsFromLegacyCycle(subscriptionStatus?.billing_cycle),
+      ),
+    [subscriptionStatus?.billing_term_months, subscriptionStatus?.billing_cycle],
+  );
 
   // Initialize memberCounts state properly for each plan
   useEffect(() => {
@@ -145,18 +243,29 @@ export function useHRISSubscriptionPlansController(
     const newMemberCounts: { [key: string]: number } = {};
 
     activePlans.forEach(plan => {
-      const isTrialPlan = plan.name === 'Trial' || plan.base_price_per_member === 0;
+      const isEnterprise = isEnterpriseSubscriptionPlan(plan);
+      const isTrialPlan =
+        !isEnterprise && (plan.name === 'Trial' || plan.base_price_per_member === 0);
       const isCurrent = isCurrentPlan(plan);
       const maxEmployees = resolvePlanMaxMembers(plan);
       
       let defaultCount;
-      if (isCurrent) {
-        // For current plan, use actual subscription member count
+      if (isEnterprise) {
+        defaultCount = isCurrent
+          ? Math.max(
+              enterpriseSliderMin,
+              subscriptionStatus.member_count || currentMemberCount || enterpriseSliderMin,
+            )
+          : enterpriseSliderMin;
+      } else if (isCurrent) {
         defaultCount = subscriptionStatus.member_count || currentMemberCount || 1;
+        if (planUsesPerMemberPricing(plan)) {
+          defaultCount = Math.max(defaultCount, paidMemberFloor);
+        }
       } else if (isTrialPlan) {
         defaultCount = maxEmployees;
       } else {
-        defaultCount = 5;
+        defaultCount = defaultPaidPlanMemberCount(paidMemberFloor, maxEmployees);
       }
       
       newMemberCounts[plan.id] = defaultCount;
@@ -165,11 +274,47 @@ export function useHRISSubscriptionPlansController(
     setMemberCounts(newMemberCounts);
     // Intentionally omit memberCounts / isCurrentPlan: one-time init when plans load; re-run would reset sliders.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [activePlans, subscriptionStatus, currentMemberCount]);
+  }, [activePlans, subscriptionStatus, currentMemberCount, paidMemberFloor, enterpriseSliderMin]);
+
+  useEffect(() => {
+    if (!activePlans.length || !subscriptionStatus || Object.keys(billingTerms).length > 0) return;
+
+    const newBillingTerms: Record<string, BillingTermMonths> = {};
+    const newBillingCycles: Record<string, "monthly" | "yearly"> = {};
+
+    activePlans.forEach((plan) => {
+      const isCurrent = isCurrentPlan(plan);
+      if (usesBillingTermSelector(plan)) {
+        const term = defaultBillingTermForPlan(
+          plan,
+          isCurrent ? currentOrgBillingTermMonths : undefined,
+        );
+        newBillingTerms[plan.id] = term;
+        newBillingCycles[plan.id] = billingCycleFromTerm(term);
+      } else {
+        const cycle =
+          isCurrent && subscriptionStatus.billing_cycle === "yearly" ? "yearly" : "monthly";
+        newBillingCycles[plan.id] = cycle;
+      }
+    });
+
+    setBillingTerms(newBillingTerms);
+    setBillingCycles((prev) => ({ ...newBillingCycles, ...prev }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time init
+  }, [activePlans, subscriptionStatus, currentOrgBillingTermMonths]);
 
   const handleMemberCountChange = (planId: string, count: number) => {
-    const cap = Math.max(1, Math.round(Number(count)) || 1);
-    setMemberCounts((prev) => ({ ...prev, [planId]: count }));
+    const plan = activePlans.find((p) => p.id === planId);
+    let cap = Math.max(1, Math.round(Number(count)) || 1);
+    if (plan && isEnterpriseSubscriptionPlan(plan)) {
+      const max = resolvePlanSliderMaxForPlan(plan);
+      cap = Math.max(enterpriseSliderMin, Math.min(max, cap));
+    } else if (plan && planUsesPerMemberPricing(plan)) {
+      const max = resolvePlanSliderMaxForPlan(plan);
+      const min = resolvePlanSliderMinForPlan(plan);
+      cap = Math.max(min, Math.min(max, Math.max(cap, paidMemberFloor)));
+    }
+    setMemberCounts((prev) => ({ ...prev, [planId]: cap }));
     setPlanAddOnUi((prev) => {
       const row = prev[planId];
       if (!row) return prev;
@@ -185,9 +330,25 @@ export function useHRISSubscriptionPlansController(
     });
   };
 
-  const handleBillingCycleChange = (planId: string, isYearly: boolean) => {
-    setBillingCycles(prev => ({ ...prev, [planId]: isYearly ? 'yearly' : 'monthly' }));
+  const handleBillingCycleChange = (planId: string, isYearlyToggle: boolean) => {
+    setBillingCycles((prev) => ({ ...prev, [planId]: isYearlyToggle ? "yearly" : "monthly" }));
   };
+
+  const handleBillingTermChange = (planId: string, months: BillingTermMonths) => {
+    setBillingTerms((prev) => ({ ...prev, [planId]: months }));
+    setBillingCycles((prev) => ({ ...prev, [planId]: billingCycleFromTerm(months) }));
+  };
+
+  const resolveBillingForPlan = useCallback(
+    (plan: SubscriptionPlan) =>
+      resolvePlanBillingSelection(
+        plan,
+        billingCycles,
+        billingTerms,
+        currentOrgBillingTermMonths,
+      ),
+    [billingCycles, billingTerms, currentOrgBillingTermMonths],
+  );
 
   const mergeSelections = useCallback(
     (plan: SubscriptionPlan, isCurrent: boolean, hrMemberCount: number) =>
@@ -197,8 +358,9 @@ export function useHRISSubscriptionPlansController(
         isCurrent,
         omnichannelPaidSeats,
         hrMemberCount,
+        leadMagnetActive,
       ),
-    [planAddOnUi, omnichannelPaidSeats],
+    [planAddOnUi, omnichannelPaidSeats, leadMagnetActive],
   );
 
   /** Merged add-on map for the open checkout (`selectedPlan`), preferring the card snapshot from click time. */
@@ -218,36 +380,40 @@ export function useHRISSubscriptionPlansController(
   /** Add-on portion that matches Midtrans gross (full list vs prorated incremental when HR prorate applies). */
   const catalogAddOnBillingChargeIdr = useMemo(() => {
     if (!selectedPlan) return 0;
-    const cycle = isYearly ? "yearly" : "monthly";
+    const { billingCycle, billingTermMonths } = resolveBillingForPlan(selectedPlan);
     return catalogAddonChargeForMidtransSplit({
       plan: selectedPlan,
-      billingCycle: cycle,
+      billingCycle,
       annualDiscountPercent: selectedPlan.annual_discount_percentage,
+      billingTermMonths,
       selections: mergeCheckoutSelectionsForSelectedPlan(),
       legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+      legacyLeadMagnetActive: leadMagnetActive,
       calculation: proRatedData?.calculation,
     });
   }, [
     selectedPlan,
-    isYearly,
+    resolveBillingForPlan,
     omnichannelPaidSeats,
     mergeCheckoutSelectionsForSelectedPlan,
     proRatedData?.calculation,
+    leadMagnetActive,
   ]);
 
-  /** Add-on line for confirmation modal (full yearly list when monthly→yearly same plan, else billing charge). */
+  /** Add-on line for confirmation modal (full term list when billing-term upgrade only, else billing charge). */
   const catalogAddOnForConfirmationModalIdr = useMemo(() => {
     if (!selectedPlan || !subscriptionStatus) return 0;
+    const { billingCycle, billingTermMonths } = resolveBillingForPlan(selectedPlan);
     const billingUpOnly =
       currentPlanId === selectedPlan.id &&
       currentMemberCount === selectedMemberCount &&
-      (subscriptionStatus.billing_cycle || "monthly") === "monthly" &&
-      isYearly;
+      billingTermMonths > currentOrgBillingTermMonths;
     if (billingUpOnly) {
       return catalogAddOnListAmountForMidtransSplit({
         plan: selectedPlan,
-        billingCycle: "yearly",
+        billingCycle,
         annualDiscountPercent: selectedPlan.annual_discount_percentage,
+        billingTermMonths,
         selections: mergeCheckoutSelectionsForSelectedPlan(),
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
       });
@@ -258,7 +424,9 @@ export function useHRISSubscriptionPlansController(
     subscriptionStatus,
     currentPlanId,
     currentMemberCount,
-    isYearly,
+    selectedMemberCount,
+    currentOrgBillingTermMonths,
+    resolveBillingForPlan,
     omnichannelPaidSeats,
     mergeCheckoutSelectionsForSelectedPlan,
     catalogAddOnBillingChargeIdr,
@@ -289,12 +457,21 @@ export function useHRISSubscriptionPlansController(
     [],
   );
 
-  const calculatePlanPrice = (plan: SubscriptionPlan, memberCount: number, isYearly: boolean) => {
+  const calculatePlanPrice = (
+    plan: SubscriptionPlan,
+    memberCount: number,
+    isYearlyPlan: boolean,
+    billingTermMonths?: BillingTermMonths,
+  ) => {
+    if (usesBillingTermSelector(plan)) {
+      const months = billingTermMonths ?? (isYearlyPlan ? 12 : 1);
+      return computePlanTermPriceIdr(plan, memberCount, months);
+    }
     const basePrice = plan.base_price_per_member * memberCount;
-    if (isYearly && plan.annual_discount_percentage) {
+    if (isYearlyPlan && plan.annual_discount_percentage) {
       return basePrice * 12 * (1 - plan.annual_discount_percentage / 100);
     }
-    return isYearly ? basePrice * 12 : basePrice;
+    return isYearlyPlan ? basePrice * 12 : basePrice;
   };
 
   const handleUpgrade = useCallback(
@@ -304,16 +481,81 @@ export function useHRISSubscriptionPlansController(
       billingCycleOverride?: "monthly" | "yearly",
       addOnAtClick?: Record<string, { included: boolean; quantity: number }>,
     ) => {
+      if (isEnterpriseSubscriptionPlan(plan)) return;
+
       const selectedBillingCycle = billingCycleOverride || billingCycles[plan.id] || "monthly";
+      const { billingTermMonths } = resolvePlanBillingSelection(
+        plan,
+        billingCycles,
+        billingTerms,
+        currentOrgBillingTermMonths,
+      );
       const mergedAtClick = addOnAtClick ?? mergeSelections(plan, isCurrentPlan(plan), memberCount);
       setCheckoutAddOnSnapshot({ planId: plan.id, selections: mergedAtClick });
       setSelectedPlan(plan);
       setSelectedMemberCount(memberCount);
-      // Update global isYearly state for modal consistency
+      setSelectedBillingTermMonths(billingTermMonths);
       setIsYearly(selectedBillingCycle === "yearly");
 
       setPlanCardPrimaryPendingId(plan.id);
       try {
+      if (planUsesPerMemberPricing(plan) && memberCount < paidMemberFloor) {
+        toast.error(t("subscription.plans.error.paidMemberFloor", { min: paidMemberFloor }));
+        return;
+      }
+
+      const midCycleActive = isMidCycleActiveSubscription(subscriptionStatus);
+      const currentBillingCycle = subscriptionStatus?.billing_cycle || "monthly";
+      const isCurrent = isCurrentPlan(plan);
+      const activePlanRow = subscriptionPlans?.find((p) => p.name === subscriptionStatus?.plan_name);
+      const isPlanDowngradeTarget =
+        Boolean(activePlanRow && !isCurrent && isTargetPlanDowngrade(activePlanRow, plan));
+
+      const schedDowngradePrecheck = hasSchedulableDowngrade({
+        isCurrentPlan: isCurrent,
+        memberCount,
+        currentMemberCount,
+        billingCycle: selectedBillingCycle,
+        currentBillingCycle,
+        plan,
+        selections: mergedAtClick,
+        legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        legacyLeadMagnetActive: leadMagnetActive,
+        isTargetPlanDowngrade: isPlanDowngradeTarget,
+        currentEmployeeCount,
+        rosterCount,
+        isExpired: subscriptionStatus?.is_expired,
+        isRenewWindow:
+          isCurrent &&
+          Boolean(subscriptionStatus) &&
+          (subscriptionStatus?.is_expired ||
+            (!subscriptionStatus?.is_trial &&
+              typeof subscriptionStatus?.days_until_expiry === "number" &&
+              subscriptionStatus.days_until_expiry >= 0 &&
+              subscriptionStatus.days_until_expiry <= RENEWAL_WINDOW_DAYS)),
+      });
+
+      if (schedDowngradePrecheck && memberCount < currentMemberCount && currentEmployeeCount > memberCount) {
+        toast.error(t("subscription.plans.downgrade.error", { count: currentEmployeeCount }));
+        return;
+      }
+      if (
+        schedDowngradePrecheck &&
+        isAddonSelectionDowngrade(plan, mergedAtClick, {
+          omnichannelPaidSeats,
+          leadMagnetActive,
+        }) &&
+        rosterCount > bundledOmnichannelRosterUnitsFromSelections(mergedAtClick)
+      ) {
+        toast.error(
+          t("subscription.plans.downgrade.rosterExceedsMembers", {
+            roster: rosterCount,
+            members: bundledOmnichannelRosterUnitsFromSelections(mergedAtClick),
+          }),
+        );
+        return;
+      }
+
       // Selalu hitung prorate untuk semua skenario (plan change / member change)
       const calculation = await proRateCalculation.mutateAsync({
         new_member_count: memberCount,
@@ -330,18 +572,71 @@ export function useHRISSubscriptionPlansController(
           calculation.calculation.remaining_days = 0;
         }
 
-        // ✅ Billing cycle upgrade only: same plan, same members, monthly→yearly.
-        // Override charge_now so we show "Confirm & Pay" instead of "Schedule Member Change"
-        const isBillingCycleUpgradeOnly =
+        // ✅ Billing term upgrade only: same plan, same members, longer term.
+        const isBillingTermUpgradeOnly =
           currentPlanId === plan.id &&
           currentMemberCount === memberCount &&
-          (subscriptionStatus?.billing_cycle || 'monthly') === 'monthly' &&
-          selectedBillingCycle === 'yearly';
-        if (isBillingCycleUpgradeOnly && calculation.calculation) {
+          billingTermMonths > currentOrgBillingTermMonths;
+        if (isBillingTermUpgradeOnly && calculation.calculation) {
           calculation.calculation.charge_now = true;
         }
 
+        // ✅ Add-on-only mid-cycle: same plan/members/billing with incremental add-ons to purchase.
+        const effectiveRemainingDays = resolveCheckoutRemainingDays({
+          subscriptionStatus,
+          prorateRemainingDays: calculation.calculation?.remaining_days,
+        });
+        const isAddOnOnlyCheckout =
+          calculation.calculation &&
+          isAddOnOnlyMidCycleCheckout({
+            isCurrentPlan: isCurrentPlan(plan),
+            memberCount,
+            currentMemberCount,
+            billingCycle: selectedBillingCycle,
+            currentBillingCycle: subscriptionStatus?.billing_cycle || "monthly",
+            plan,
+            annualDiscountPercent: plan.annual_discount_percentage,
+            selections: mergedAtClick,
+            legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+            legacyLeadMagnetActive: leadMagnetActive,
+            isExpired: subscriptionStatus?.is_expired,
+            remainingDays: effectiveRemainingDays,
+          });
+        if (isAddOnOnlyCheckout && calculation.calculation) {
+          calculation.calculation.remaining_days = effectiveRemainingDays;
+          calculation.calculation.charge_now = true;
+          calculation.calculation.prorate_amount = 0;
+          (calculation.calculation as { addon_only_checkout?: boolean }).addon_only_checkout = true;
+        }
+
+        const schedDowngrade =
+          !isExpired &&
+          schedDowngradePrecheck &&
+          !isAddOnOnlyCheckout &&
+          calculation.calculation &&
+          (midCycleActive || !calculation.calculation.charge_now);
+
+        if (schedDowngrade && calculation.calculation) {
+          calculation.calculation.charge_now = false;
+          calculation.calculation.prorate_amount = 0;
+          calculation.calculation.scheduled_date = resolveScheduledDate(
+            subscriptionStatus,
+            calculation.calculation.scheduled_date,
+          );
+          (calculation.calculation as { schedule_only_downgrade?: boolean }).schedule_only_downgrade = true;
+        }
+
         setProRatedData(calculation as ProRatedData);
+
+        if (isAddOnOnlyCheckout) {
+          setIsModalOpen(true);
+          return;
+        }
+
+        if (schedDowngrade) {
+          setIsModalOpen(true);
+          return;
+        }
 
         // Check if this is a member increase (scale-up) without plan change
         const isMemberIncrease = calculation.calculation?.member_difference > 0 && 
@@ -366,7 +661,7 @@ export function useHRISSubscriptionPlansController(
     } finally {
       setPlanCardPrimaryPendingId(null);
     }
-  }, [proRateCalculation, billingCycles, subscriptionStatus, currentPlanId, currentMemberCount, mergeSelections]);
+  }, [proRateCalculation, billingCycles, billingTerms, currentOrgBillingTermMonths, subscriptionStatus, subscriptionPlans, currentPlanId, currentMemberCount, mergeSelections, omnichannelPaidSeats, leadMagnetActive, isCurrentPlan, paidMemberFloor, currentEmployeeCount, rosterCount, t]);
 
   const schedulePlanChange = useSchedulePlanChange();
   useEffect(() => {
@@ -386,16 +681,24 @@ export function useHRISSubscriptionPlansController(
       billingCycle: "monthly" | "yearly",
       addOnAtClick?: Record<string, { included: boolean; quantity: number }>,
     ) => {
-      if (!subscriptionStatus) return;
+      if (!subscriptionStatus || isEnterpriseSubscriptionPlan(plan)) return;
 
       setPlanCardPrimaryPendingId(plan.id);
       try {
-        const selections = addOnAtClick ?? mergeSelections(plan, isCurrentPlan(plan), memberCount);
+        const selections =
+          addOnAtClick ??
+          mergePlanAddOnSelectionsForCheckout(plan, planAddOnUi[plan.id], memberCount);
 
-        const chargeCycle = subscriptionStatus.billing_cycle === "yearly" ? "yearly" : billingCycle;
+        const { billingCycle: chargeCycle, billingTermMonths } = resolvePlanBillingSelection(
+          plan,
+          billingCycles,
+          billingTerms,
+          currentOrgBillingTermMonths,
+        );
         const basePrice = plan.base_price_per_member;
-        const finalAmount =
-          chargeCycle === "yearly"
+        const finalAmount = usesBillingTermSelector(plan)
+          ? computePlanTermPriceIdr(plan, memberCount, billingTermMonths)
+          : chargeCycle === "yearly"
             ? getYearlyPriceForMembers(basePrice, memberCount, plan.annual_discount_percentage)
             : getMonthlyPriceForMembers(basePrice, memberCount);
 
@@ -403,6 +706,7 @@ export function useHRISSubscriptionPlansController(
           plan,
           billingCycle: chargeCycle,
           annualDiscountPercent: plan.annual_discount_percentage,
+          billingTermMonths,
           selections,
           legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
         });
@@ -421,6 +725,7 @@ export function useHRISSubscriptionPlansController(
           amount: grossRenew,
           memberCount,
           billingCycle: chargeCycle,
+          billingTermMonths,
           proRateDetails: {
             is_member_upgrade: false,
             previous_member_count: memberCount,
@@ -429,6 +734,8 @@ export function useHRISSubscriptionPlansController(
             prorate_amount: 0,
             prorate_percentage: 0,
             bundled_omnichannel_roster_units: bundledOmnichannelRosterUnitsFromSelections(selections),
+            bundled_lead_magnet_included: bundledLeadMagnetFromSelections(selections),
+            renewal_full_period: true,
           },
           ...(itemDetails ? { itemDetails } : {}),
         });
@@ -437,46 +744,52 @@ export function useHRISSubscriptionPlansController(
       } finally {
         setPlanCardPrimaryPendingId(null);
       }
-  }, [subscriptionStatus, initiateMidtransPayment, t, omnichannelPaidSeats, mergeSelections]);
+  }, [subscriptionStatus, initiateMidtransPayment, t, omnichannelPaidSeats, planAddOnUi, billingCycles, billingTerms, currentOrgBillingTermMonths]);
 
   const handleConfirmUpgrade = useCallback(async () => {
-    if (!selectedPlan) return;
+    if (!selectedPlan || isEnterpriseSubscriptionPlan(selectedPlan)) return;
+
+    if (planUsesPerMemberPricing(selectedPlan) && selectedMemberCount < paidMemberFloor) {
+      toast.error(t("subscription.plans.error.paidMemberFloor", { min: paidMemberFloor }));
+      return;
+    }
+
+    const { billingCycle: selectedBillingCycle, billingTermMonths } = resolveBillingForPlan(selectedPlan);
 
     try {
-      // ✅ Billing cycle upgrade only: same plan, same members, monthly→yearly.
-      // Skip schedule, proceed with full yearly payment (no proRateDetails)
-      const isBillingCycleUpgradeOnly =
+      const isBillingTermUpgradeOnly =
         currentPlanId === selectedPlan.id &&
         currentMemberCount === selectedMemberCount &&
-        (subscriptionStatus?.billing_cycle || 'monthly') === 'monthly' &&
-        isYearly;
-      if (isBillingCycleUpgradeOnly) {
-        const fullYearlyPrice = getYearlyPriceForMembers(
-          selectedPlan.base_price_per_member,
+        billingTermMonths > currentOrgBillingTermMonths;
+      if (isBillingTermUpgradeOnly) {
+        const fullTermPrice = computePlanTermPriceIdr(
+          selectedPlan,
           selectedMemberCount,
-          selectedPlan.annual_discount_percentage
+          billingTermMonths,
         );
-        const catalogAddonYearly = catalogAddOnListAmountForMidtransSplit({
+        const catalogAddonTerm = catalogAddOnListAmountForMidtransSplit({
           plan: selectedPlan,
-          billingCycle: "yearly",
+          billingCycle: selectedBillingCycle,
           annualDiscountPercent: selectedPlan.annual_discount_percentage,
+          billingTermMonths,
           selections: mergeCheckoutSelectionsForSelectedPlan(),
           legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
         });
-        const grossYearly = fullYearlyPrice + catalogAddonYearly;
-        const itemDetailsYearly = buildMidtransExplicitHrAndAddonItemDetails({
-          hrChargeAmountIdr: fullYearlyPrice,
-          catalogAddOnsListAmountIdr: catalogAddonYearly,
-          billingCycle: "yearly",
+        const grossTerm = fullTermPrice + catalogAddonTerm;
+        const itemDetailsTerm = buildMidtransExplicitHrAndAddonItemDetails({
+          hrChargeAmountIdr: fullTermPrice,
+          catalogAddOnsListAmountIdr: catalogAddonTerm,
+          billingCycle: selectedBillingCycle,
           planName: selectedPlan.name,
           memberCount: selectedMemberCount,
         });
         await initiateMidtransPayment({
           planId: selectedPlan.id,
           planName: selectedPlan.name,
-          amount: grossYearly,
+          amount: grossTerm,
           memberCount: selectedMemberCount,
-          billingCycle: 'yearly',
+          billingCycle: selectedBillingCycle,
+          billingTermMonths,
           proRateDetails: {
             is_member_upgrade: false,
             previous_member_count: selectedMemberCount,
@@ -487,8 +800,70 @@ export function useHRISSubscriptionPlansController(
             bundled_omnichannel_roster_units: bundledOmnichannelRosterUnitsFromSelections(
               mergeCheckoutSelectionsForSelectedPlan(),
             ),
+            bundled_lead_magnet_included: bundledLeadMagnetFromSelections(
+              mergeCheckoutSelectionsForSelectedPlan(),
+            ),
           },
-          ...(itemDetailsYearly ? { itemDetails: itemDetailsYearly } : {}),
+          ...(itemDetailsTerm ? { itemDetails: itemDetailsTerm } : {}),
+        });
+        setIsModalOpen(false);
+        setSelectedPlan(null);
+        setProRatedData(null);
+        return;
+      }
+
+      // ✅ Add-on-only mid-cycle: charge prorated incremental add-ons only (HR = 0).
+      const isAddOnOnlyCheckout = Boolean(
+        (proRatedData?.calculation as { addon_only_checkout?: boolean } | undefined)?.addon_only_checkout,
+      );
+      if (isAddOnOnlyCheckout && proRatedData?.calculation) {
+        const catalogAddonOnly = catalogAddonChargeForMidtransSplit({
+          plan: selectedPlan,
+          billingCycle: selectedBillingCycle,
+          annualDiscountPercent: selectedPlan.annual_discount_percentage,
+          billingTermMonths,
+          selections: mergeCheckoutSelectionsForSelectedPlan(),
+          legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyLeadMagnetActive: leadMagnetActive,
+          calculation: proRatedData.calculation,
+        });
+        if (catalogAddonOnly <= 0) {
+          setIsModalOpen(false);
+          setSelectedPlan(null);
+          setProRatedData(null);
+          return;
+        }
+        const itemDetailsAddonOnly = buildMidtransExplicitHrAndAddonItemDetails({
+          hrChargeAmountIdr: 0,
+          catalogAddOnsListAmountIdr: catalogAddonOnly,
+          billingCycle: selectedBillingCycle,
+          planName: selectedPlan.name,
+          memberCount: selectedMemberCount,
+        });
+        const bundledUnitsAddonOnly = bundledOmnichannelRosterUnitsFromSelections(
+          mergeCheckoutSelectionsForSelectedPlan(),
+        );
+        const bundledLeadMagnetAddonOnly = bundledLeadMagnetFromSelections(
+          mergeCheckoutSelectionsForSelectedPlan(),
+        );
+        await initiateMidtransPayment({
+          planId: selectedPlan.id,
+          planName: selectedPlan.name,
+          amount: catalogAddonOnly,
+          memberCount: selectedMemberCount,
+          billingCycle: selectedBillingCycle,
+          billingTermMonths,
+          ...(itemDetailsAddonOnly ? { itemDetails: itemDetailsAddonOnly } : {}),
+          proRateDetails: {
+            is_member_upgrade: false,
+            previous_member_count: selectedMemberCount,
+            member_difference: 0,
+            remaining_days: proRatedData.calculation.remaining_days,
+            prorate_amount: 0,
+            prorate_percentage: 0,
+            bundled_omnichannel_roster_units: bundledUnitsAddonOnly,
+            bundled_lead_magnet_included: bundledLeadMagnetAddonOnly,
+          },
         });
         setIsModalOpen(false);
         setSelectedPlan(null);
@@ -501,20 +876,36 @@ export function useHRISSubscriptionPlansController(
       
       // If prorate says no charge now AND subscription is NOT expired, schedule the change
       if (proRatedData?.calculation && proRatedData.calculation.charge_now === false && !isExpired) {
-        await schedulePlanChange.mutateAsync({
-          current_plan_id: proRatedData.current_plan.id,
-          target_plan_id: proRatedData.target_plan.id,
+        const checkoutSelections = mergeCheckoutSelectionsForSelectedPlan();
+        const schedulePayload: SchedulePlanChangeParams = {
+          current_plan_id: proRatedData.current_plan.id ?? currentPlanId ?? "",
+          target_plan_id: proRatedData.target_plan.id ?? selectedPlan.id,
           current_member_count: proRatedData.current_plan.member_count,
           target_member_count: proRatedData.calculation.new_member_count,
           change_type: toPlanChangeType(proRatedData.calculation.change_type, "downgrade"),
-          scheduled_date: proRatedData.calculation.scheduled_date,
+          scheduled_date: resolveScheduledDate(
+            subscriptionStatus,
+            proRatedData.calculation.scheduled_date,
+          ),
           prorate_amount: 0,
           charge_now: false,
-        });
+          target_billing_cycle: selectedBillingCycle,
+          target_billing_term_months: billingTermMonths,
+          target_addon_selections: buildTargetAddonSelectionsForSchedule(selectedPlan, checkoutSelections),
+          current_addon_snapshot: buildCurrentAddonSnapshot({
+            omnichannelPaidSeats,
+            leadMagnetActive,
+          }),
+        };
+
+        await schedulePlanChange.mutateAsync(schedulePayload);
 
         setIsModalOpen(false);
         setSelectedPlan(null);
         setProRatedData(null);
+        if (organizationId) {
+          queryClient.invalidateQueries({ queryKey: ["subscription-change-requests", organizationId] });
+        }
         return;
       }
 
@@ -522,29 +913,36 @@ export function useHRISSubscriptionPlansController(
       const basePrice = selectedPlan.base_price_per_member;
       // Use prorate_amount if it exists and > 0, otherwise use full price
       const prorateAmount = proRatedData?.calculation?.prorate_amount;
-      const fullPrice = isYearly
-        ? getYearlyPriceForMembers(basePrice, selectedMemberCount, selectedPlan.annual_discount_percentage)
-        : getMonthlyPriceForMembers(basePrice, selectedMemberCount);
+      const fullPrice = usesBillingTermSelector(selectedPlan)
+        ? computePlanTermPriceIdr(selectedPlan, selectedMemberCount, billingTermMonths)
+        : selectedBillingCycle === "yearly"
+          ? getYearlyPriceForMembers(basePrice, selectedMemberCount, selectedPlan.annual_discount_percentage)
+          : getMonthlyPriceForMembers(basePrice, selectedMemberCount);
       const finalAmount = (prorateAmount !== undefined && prorateAmount > 0) ? prorateAmount : fullPrice;
 
       const catalogAddonMain = catalogAddonChargeForMidtransSplit({
         plan: selectedPlan,
-        billingCycle: isYearly ? "yearly" : "monthly",
+        billingCycle: selectedBillingCycle,
         annualDiscountPercent: selectedPlan.annual_discount_percentage,
+        billingTermMonths,
         selections: mergeCheckoutSelectionsForSelectedPlan(),
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        legacyLeadMagnetActive: leadMagnetActive,
         calculation: proRatedData?.calculation,
       });
       const grossMain = finalAmount + catalogAddonMain;
       const itemDetailsMain = buildMidtransExplicitHrAndAddonItemDetails({
         hrChargeAmountIdr: finalAmount,
         catalogAddOnsListAmountIdr: catalogAddonMain,
-        billingCycle: isYearly ? "yearly" : "monthly",
+        billingCycle: selectedBillingCycle,
         planName: selectedPlan.name,
         memberCount: selectedMemberCount,
       });
 
       const bundledUnitsPay = bundledOmnichannelRosterUnitsFromSelections(
+        mergeCheckoutSelectionsForSelectedPlan(),
+      );
+      const bundledLeadMagnetPay = bundledLeadMagnetFromSelections(
         mergeCheckoutSelectionsForSelectedPlan(),
       );
 
@@ -553,7 +951,8 @@ export function useHRISSubscriptionPlansController(
         planName: selectedPlan.name,
         amount: grossMain,
         memberCount: selectedMemberCount,
-        billingCycle: isYearly ? 'yearly' : 'monthly',
+        billingCycle: selectedBillingCycle,
+        billingTermMonths,
         ...(itemDetailsMain ? { itemDetails: itemDetailsMain } : {}),
         proRateDetails: proRatedData?.calculation
           ? {
@@ -566,6 +965,7 @@ export function useHRISSubscriptionPlansController(
               prorate_amount: proRatedData.calculation.prorate_amount,
               prorate_percentage: proRatedData.calculation.prorate_percentage ?? 0,
               bundled_omnichannel_roster_units: bundledUnitsPay,
+              bundled_lead_magnet_included: bundledLeadMagnetPay,
             }
           : {
               is_member_upgrade: false,
@@ -575,6 +975,7 @@ export function useHRISSubscriptionPlansController(
               prorate_amount: 0,
               prorate_percentage: 0,
               bundled_omnichannel_roster_units: bundledUnitsPay,
+              bundled_lead_magnet_included: bundledLeadMagnetPay,
             },
       });
       
@@ -584,41 +985,48 @@ export function useHRISSubscriptionPlansController(
     } catch {
       // Error surfaced via toast from payment/schedule
     }
-  }, [selectedPlan, selectedMemberCount, isYearly, initiateMidtransPayment, proRatedData, schedulePlanChange, subscriptionStatus, currentPlanId, currentMemberCount, omnichannelPaidSeats, mergeCheckoutSelectionsForSelectedPlan]);
+  }, [selectedPlan, selectedMemberCount, selectedBillingTermMonths, initiateMidtransPayment, proRatedData, schedulePlanChange, subscriptionStatus, currentPlanId, currentMemberCount, currentOrgBillingTermMonths, omnichannelPaidSeats, leadMagnetActive, mergeCheckoutSelectionsForSelectedPlan, paidMemberFloor, organizationId, queryClient, t, resolveBillingForPlan]);
 
   const handleChooseImmediate = useCallback(async () => {
     setIsOptionsModalOpen(false);
     
     if (!selectedPlan) return;
 
+    const { billingCycle: selectedBillingCycle, billingTermMonths } = resolveBillingForPlan(selectedPlan);
+
     try {
-      // Directly proceed with immediate payment
       const basePrice = selectedPlan.base_price_per_member;
-      // Use prorate_amount if it exists and > 0, otherwise use full price
       const prorateAmount = proRatedData?.calculation?.prorate_amount;
-      const fullPrice = isYearly
-        ? getYearlyPriceForMembers(basePrice, selectedMemberCount, selectedPlan.annual_discount_percentage)
-        : getMonthlyPriceForMembers(basePrice, selectedMemberCount);
+      const fullPrice = usesBillingTermSelector(selectedPlan)
+        ? computePlanTermPriceIdr(selectedPlan, selectedMemberCount, billingTermMonths)
+        : selectedBillingCycle === "yearly"
+          ? getYearlyPriceForMembers(basePrice, selectedMemberCount, selectedPlan.annual_discount_percentage)
+          : getMonthlyPriceForMembers(basePrice, selectedMemberCount);
       const finalAmount = (prorateAmount !== undefined && prorateAmount > 0) ? prorateAmount : fullPrice;
 
       const catalogAddonImmediate = catalogAddonChargeForMidtransSplit({
         plan: selectedPlan,
-        billingCycle: isYearly ? "yearly" : "monthly",
+        billingCycle: selectedBillingCycle,
         annualDiscountPercent: selectedPlan.annual_discount_percentage,
+        billingTermMonths,
         selections: mergeCheckoutSelectionsForSelectedPlan(),
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        legacyLeadMagnetActive: leadMagnetActive,
         calculation: proRatedData?.calculation,
       });
       const grossImmediate = finalAmount + catalogAddonImmediate;
       const itemDetailsImmediate = buildMidtransExplicitHrAndAddonItemDetails({
         hrChargeAmountIdr: finalAmount,
         catalogAddOnsListAmountIdr: catalogAddonImmediate,
-        billingCycle: isYearly ? "yearly" : "monthly",
+        billingCycle: selectedBillingCycle,
         planName: selectedPlan.name,
         memberCount: selectedMemberCount,
       });
 
       const bundledUnitsImmediate = bundledOmnichannelRosterUnitsFromSelections(
+        mergeCheckoutSelectionsForSelectedPlan(),
+      );
+      const bundledLeadMagnetImmediate = bundledLeadMagnetFromSelections(
         mergeCheckoutSelectionsForSelectedPlan(),
       );
 
@@ -627,7 +1035,8 @@ export function useHRISSubscriptionPlansController(
         planName: selectedPlan.name,
         amount: grossImmediate,
         memberCount: selectedMemberCount,
-        billingCycle: isYearly ? 'yearly' : 'monthly',
+        billingCycle: selectedBillingCycle,
+        billingTermMonths,
         ...(itemDetailsImmediate ? { itemDetails: itemDetailsImmediate } : {}),
         proRateDetails: proRatedData?.calculation
           ? {
@@ -640,6 +1049,7 @@ export function useHRISSubscriptionPlansController(
               prorate_amount: proRatedData.calculation.prorate_amount,
               prorate_percentage: proRatedData.calculation.prorate_percentage ?? 0,
               bundled_omnichannel_roster_units: bundledUnitsImmediate,
+              bundled_lead_magnet_included: bundledLeadMagnetImmediate,
             }
           : {
               is_member_upgrade: false,
@@ -649,6 +1059,7 @@ export function useHRISSubscriptionPlansController(
               prorate_amount: 0,
               prorate_percentage: 0,
               bundled_omnichannel_roster_units: bundledUnitsImmediate,
+              bundled_lead_magnet_included: bundledLeadMagnetImmediate,
             },
       });
       
@@ -657,7 +1068,7 @@ export function useHRISSubscriptionPlansController(
     } catch {
       // Error surfaced via toast from payment
     }
-  }, [selectedPlan, selectedMemberCount, isYearly, initiateMidtransPayment, proRatedData, omnichannelPaidSeats, mergeCheckoutSelectionsForSelectedPlan]);
+  }, [selectedPlan, selectedMemberCount, initiateMidtransPayment, proRatedData, omnichannelPaidSeats, leadMagnetActive, mergeCheckoutSelectionsForSelectedPlan, resolveBillingForPlan]);
 
   const handleChooseScheduled = useCallback(async () => {
     if (!selectedPlan || !proRatedData?.calculation) return;
@@ -694,58 +1105,245 @@ export function useHRISSubscriptionPlansController(
   const canChangePlan = (plan: SubscriptionPlan, newMemberCount: number) => {
     if (!subscriptionStatus) return true;
     if (rosterCount > newMemberCount) return false;
-
-    const isCurrent = isCurrentPlan(plan);
-    const currentMemberLimit = subscriptionStatus.member_count || 0;
-    
-    if (isCurrent) {
-      // For current plan, always allow upgrade (increase member count)
-      // For downgrade, check if new member count >= actual employee count
-      if (newMemberCount < currentMemberLimit) {
-        // This is a downgrade - check if we have enough room
-        return currentEmployeeCount <= newMemberCount;
-      }
-      // This is an upgrade or same count - always allowed
-      return true;
-    }
-    
-    // For different plans, check if the new plan can accommodate current employees
     return currentEmployeeCount <= newMemberCount;
   };
 
-  const getButtonText = (plan: SubscriptionPlan, memberCount: number, billingCycle: string, isRenewEligible: boolean) => {
+  const hasSchedulableDowngradeForPlan = useCallback(
+    (
+      plan: SubscriptionPlan,
+      memberCount: number,
+      billingCycle: string,
+      selections: Record<string, { included: boolean; quantity: number }>,
+    ) => {
+      const activePlanRow = subscriptionPlans?.find((p) => p.name === subscriptionStatus?.plan_name);
+      const isCurrent = isCurrentPlan(plan);
+      return hasSchedulableDowngrade({
+        isCurrentPlan: isCurrent,
+        memberCount,
+        currentMemberCount,
+        billingCycle,
+        currentBillingCycle: subscriptionStatus?.billing_cycle || "monthly",
+        plan,
+        selections,
+        legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        legacyLeadMagnetActive: leadMagnetActive,
+        isTargetPlanDowngrade: Boolean(
+          activePlanRow && !isCurrent && isTargetPlanDowngrade(activePlanRow, plan),
+        ),
+        currentEmployeeCount,
+        rosterCount,
+        isExpired: subscriptionStatus?.is_expired,
+        isRenewWindow:
+          isCurrent &&
+          Boolean(subscriptionStatus) &&
+          (subscriptionStatus?.is_expired ||
+            (!subscriptionStatus?.is_trial &&
+              typeof subscriptionStatus?.days_until_expiry === "number" &&
+              subscriptionStatus.days_until_expiry >= 0 &&
+              subscriptionStatus.days_until_expiry <= RENEWAL_WINDOW_DAYS)),
+      });
+    },
+    [
+      subscriptionPlans,
+      subscriptionStatus?.plan_name,
+      subscriptionStatus?.billing_cycle,
+      subscriptionStatus?.is_expired,
+      isCurrentPlan,
+      currentMemberCount,
+      omnichannelPaidSeats,
+      leadMagnetActive,
+      currentEmployeeCount,
+      rosterCount,
+    ],
+  );
+
+  const subscriptionRemainingDays = resolveCheckoutRemainingDays({
+    subscriptionStatus,
+  });
+
+  const isMidCycleActive = isMidCycleActiveSubscription(subscriptionStatus);
+
+  const getButtonText = (
+    plan: SubscriptionPlan,
+    memberCount: number,
+    billingCycle: string,
+    isRenewEligible: boolean,
+    hasCheckoutableAddOnChanges = false,
+    selections: Record<string, { included: boolean; quantity: number }> = {},
+    billingTermMonths?: BillingTermMonths,
+  ) => {
+    if (isEnterpriseSubscriptionPlan(plan)) {
+      return t("subscription.plans.button.contactSales");
+    }
+
     const isCurrent = isCurrentPlan(plan);
     const currentMemberLimit = subscriptionStatus?.member_count || 0;
     const currentBillingCycle = subscriptionStatus?.billing_cycle || 'monthly';
+    const planTermMonths =
+      billingTermMonths ?? billingTermMonthsFromLegacyCycle(billingCycle);
+    const sameBillingSelection = usesBillingTermSelector(plan)
+      ? planTermMonths === currentOrgBillingTermMonths
+      : billingCycle === currentBillingCycle;
+    const isExpired = Boolean(subscriptionStatus?.is_expired);
+    const schedDowngrade = hasSchedulableDowngradeForPlan(plan, memberCount, billingCycle, selections);
+    const renewBase =
+      isRenewEligible &&
+      memberCount === currentMemberLimit &&
+      sameBillingSelection &&
+      !schedDowngrade;
+    const renewAddonsChanged =
+      renewBase &&
+      (hasCheckoutableAddOnChanges ||
+        isAddonSelectionDowngrade(plan, selections, {
+          omnichannelPaidSeats,
+          leadMagnetActive,
+        }));
     
     if (isCurrent) {
-      if (isRenewEligible && memberCount === currentMemberLimit && billingCycle === currentBillingCycle) {
-        return t("subscription.plans.button.renew");
+      if (renewBase) {
+        return renewAddonsChanged
+          ? t("subscription.plans.button.renewWithChanges")
+          : t("subscription.plans.button.renew");
+      }
+      if (isExpired && (subscriptionStatus?.base_price_per_member ?? 0) > 0) {
+        const addonDiff =
+          hasCheckoutableAddOnChanges ||
+          isAddonSelectionDowngrade(plan, selections, {
+            omnichannelPaidSeats,
+            leadMagnetActive,
+          });
+        return addonDiff
+          ? t("subscription.plans.button.renewWithChanges")
+          : t("subscription.plans.button.renew");
       }
       if (memberCount > currentMemberLimit) {
         return t("subscription.plans.button.upgrade");
-      } else if (memberCount < currentMemberLimit) {
+      }
+      if (schedDowngrade) {
         return canChangePlan(plan, memberCount)
-          ? t("subscription.plans.button.downgrade")
+          ? t("subscription.plans.button.scheduleChange")
           : t("subscription.plans.button.cannotDowngrade");
-      } else if (billingCycle !== currentBillingCycle) {
+      }
+      if (usesBillingTermSelector(plan) && planTermMonths !== currentOrgBillingTermMonths) {
+        return planTermMonths > currentOrgBillingTermMonths
+          ? t("subscription.plans.button.upgradeToYearly")
+          : t("subscription.plans.button.switchToMonthly");
+      }
+      if (billingCycle !== currentBillingCycle) {
         return billingCycle === "yearly"
           ? t("subscription.plans.button.upgradeToYearly")
           : t("subscription.plans.button.switchToMonthly");
-      } else {
-        return t("subscription.plans.button.current");
       }
+      if (hasCheckoutableAddOnChanges) {
+        return t("subscription.plans.button.purchaseAddOns");
+      }
+      return t("subscription.plans.button.current");
+    }
+
+    if (schedDowngrade) {
+      return canChangePlan(plan, memberCount)
+        ? t("subscription.plans.button.scheduleChange")
+        : t("subscription.plans.button.cannotDowngrade");
     }
 
     return t("subscription.plans.button.select");
   };
+
+  const hasCheckoutableAddOnChangesForPlan = useCallback(
+    (
+      plan: SubscriptionPlan,
+      memberCount: number,
+      billingCycle: string,
+      selections: Record<string, { included: boolean; quantity: number }>,
+    ) =>
+      hasCheckoutableCatalogAddOnDelta({
+        isCurrentPlan: isCurrentPlan(plan),
+        memberCount,
+        currentMemberCount,
+        billingCycle,
+        currentBillingCycle: subscriptionStatus?.billing_cycle || "monthly",
+        plan,
+        annualDiscountPercent: plan.annual_discount_percentage,
+        selections,
+        legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+        legacyLeadMagnetActive: leadMagnetActive,
+        isExpired: subscriptionStatus?.is_expired,
+        remainingDays: subscriptionRemainingDays,
+      }),
+    [
+      isCurrentPlan,
+      currentMemberCount,
+      subscriptionStatus?.billing_cycle,
+      subscriptionStatus?.is_expired,
+      omnichannelPaidSeats,
+      leadMagnetActive,
+      subscriptionRemainingDays,
+    ],
+  );
   
   const daysUntilExpiry = subscriptionStatus?.days_until_expiry ?? null;
   const isRenewWindow = typeof daysUntilExpiry === 'number' && daysUntilExpiry >= 0 && daysUntilExpiry <= RENEWAL_WINDOW_DAYS;
-  // Allow renewal if: (1) within renewal window OR (2) subscription is expired (not trial)
-  const isRenewEligibleBase = Boolean(subscriptionStatus) && 
-    (isRenewWindow || subscriptionStatus?.is_expired) && 
-    !subscriptionStatus?.is_trial;
+  const isPaidExpired =
+    Boolean(subscriptionStatus?.is_expired) &&
+    (subscriptionStatus?.base_price_per_member ?? 0) > 0;
+  // Allow renewal if: (1) within renewal window OR (2) paid subscription expired (incl. stale is_trial flag)
+  const isRenewEligibleBase =
+    Boolean(subscriptionStatus) &&
+    (isRenewWindow || isPaidExpired) &&
+    (!subscriptionStatus?.is_trial || isPaidExpired);
+
+  const currentPlanRow = useMemo(
+    () => activePlans.find((p) => isCurrentPlan(p)) ?? null,
+    [activePlans, isCurrentPlan],
+  );
+
+  const showAddOnsSidebar = useMemo(
+    () => (currentPlanRow ? shouldShowAddOnsSidebar(currentPlanRow, true) : false),
+    [currentPlanRow],
+  );
+
+  const sidebarAddOnContext = useMemo(() => {
+    if (!currentPlanRow || !showAddOnsSidebar) return null;
+    const memberCount =
+      memberCounts[currentPlanRow.id] !== undefined
+        ? memberCounts[currentPlanRow.id]
+        : subscriptionStatus?.member_count || currentMemberCount || 1;
+    const { billingCycle, billingTermMonths } = resolvePlanBillingSelection(
+      currentPlanRow,
+      billingCycles,
+      billingTerms,
+      currentOrgBillingTermMonths,
+    );
+    const isTrialPlan =
+      !isEnterpriseSubscriptionPlan(currentPlanRow) &&
+      (currentPlanRow.name === "Trial" || currentPlanRow.base_price_per_member === 0);
+    return {
+      plan: currentPlanRow,
+      memberCount,
+      billingCycle,
+      billingTermMonths,
+      isTrialPlan,
+      mergedAddOns: mergeSelections(currentPlanRow, true, memberCount),
+      isRenewEligible: isRenewEligibleBase,
+    };
+  }, [
+    currentPlanRow,
+    showAddOnsSidebar,
+    memberCounts,
+    billingCycles,
+    billingTerms,
+    subscriptionStatus?.member_count,
+    currentMemberCount,
+    isRenewEligibleBase,
+    mergeSelections,
+  ]);
+
+  const relocateAddOnDetailForCurrent = relocateAddOnDetailToPanel({
+    showAddOnsSidebar,
+    isExpired: subscriptionStatus?.is_expired,
+    isRenewEligible:
+      Boolean(currentPlanRow && isCurrentPlan(currentPlanRow)) && isRenewEligibleBase,
+  });
 
   return {
     t,
@@ -764,7 +1362,9 @@ export function useHRISSubscriptionPlansController(
     rosterCount,
     memberCounts,
     billingCycles,
+    billingTerms,
     isYearly,
+    selectedBillingTermMonths,
     selectedPlan,
     setSelectedPlan,
     selectedMemberCount,
@@ -779,6 +1379,7 @@ export function useHRISSubscriptionPlansController(
     planCardPrimaryPendingId,
     currentPlanId,
     currentMemberCount,
+    currentOrgBillingTermMonths,
     currentEmployeeCount,
     isMidtransConfirmLoading,
     proRateCalculation,
@@ -787,12 +1388,21 @@ export function useHRISSubscriptionPlansController(
     isRenewEligibleBase,
     daysUntilExpiry,
     isRenewWindow,
+    isMidCycleActive,
+    paidMemberFloor,
+    showAddOnsSidebar,
+    sidebarAddOnContext,
+    relocateAddOnDetailForCurrent,
+    enterpriseSliderMin,
+    resolvePlanSliderMinForPlan,
     resolvePlanMaxMembers,
     resolvePlanSliderMaxForPlan,
     isCurrentPlan,
     calculatePlanPrice,
     handleMemberCountChange,
     handleBillingCycleChange,
+    handleBillingTermChange,
+    resolveBillingForPlan,
     handleAddOnIncludedChange,
     handleAddOnQuantityChange,
     mergeSelections,
@@ -804,5 +1414,7 @@ export function useHRISSubscriptionPlansController(
     getPlanIcon,
     canChangePlan,
     getButtonText,
+    hasCheckoutableAddOnChangesForPlan,
+    hasSchedulableDowngradeForPlan,
   };
 }

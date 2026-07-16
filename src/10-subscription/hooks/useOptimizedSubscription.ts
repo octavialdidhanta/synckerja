@@ -72,6 +72,7 @@ export interface SubscriptionStatus {
   days_remaining?: number;
   needs_renewal: boolean;
   billing_cycle?: "monthly" | "yearly";
+  billing_term_months?: number;
   base_price_per_member?: number;
   annual_discount_percentage?: number;
   next_payment_date?: string;
@@ -79,6 +80,12 @@ export interface SubscriptionStatus {
   omnichannel_paid_seat_count?: number;
   /** Cap for roster rows = min(HR member_limit, paid omnichannel seats). */
   omnichannel_roster_seat_cap?: number;
+  /** Purchased Lead Magnet add-on (flat per org). */
+  lead_magnet_active?: boolean;
+  /** Grace period end for existing campaigns at launch. */
+  lead_magnet_grace_until?: string | null;
+  /** Computed: active OR grace still valid. */
+  lead_magnet_entitled?: boolean;
 }
 
 export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptions) {
@@ -149,7 +156,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         }),
         supabase
           .from("organization_subscriptions")
-          .select("omnichannel_paid_seat_count, member_count")
+          .select("omnichannel_paid_seat_count, member_count, lead_magnet_active, lead_magnet_grace_until")
           .eq("organization_id", organizationId)
           .maybeSingle(),
       ]);
@@ -179,6 +186,20 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
           : memberLimRpc;
       const rosterCap = Math.min(memberLim, paidOmni);
 
+      const lmActiveRpc = Boolean(raw.lead_magnet_active);
+      const lmActiveTable = Boolean(osRes.data?.lead_magnet_active);
+      const leadMagnetActive = lmActiveTable || lmActiveRpc;
+      const graceRaw = (raw.lead_magnet_grace_until ?? osRes.data?.lead_magnet_grace_until) as
+        | string
+        | null
+        | undefined;
+      const graceValid =
+        graceRaw != null && graceRaw !== "" && new Date(graceRaw).getTime() > Date.now();
+      const leadMagnetEntitled =
+        typeof raw.lead_magnet_entitled === "boolean"
+          ? raw.lead_magnet_entitled
+          : leadMagnetActive || graceValid;
+
       const isExpired = Boolean(raw.is_expired);
       const isTrial = Boolean(raw.is_trial ?? raw.status === "trial");
       const mapped: SubscriptionStatus = {
@@ -197,6 +218,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         subscription_end_date: raw.subscription_end_date as string | undefined,
         trial_end_date: raw.trial_end_date as string | undefined,
         billing_cycle: (raw.billing_cycle as "monthly" | "yearly") || "monthly",
+        billing_term_months: Number(raw.billing_term_months ?? (raw.billing_cycle === "yearly" ? 12 : 1)),
         base_price_per_member: Number(raw.base_price_per_member ?? 0),
         next_payment_date: raw.next_payment_date as string | undefined,
         employee_count: Number(raw.employee_count ?? 0),
@@ -205,11 +227,14 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         days_remaining: 0,
         omnichannel_paid_seat_count: paidOmni,
         omnichannel_roster_seat_cap: rosterCap,
+        lead_magnet_active: leadMagnetActive,
+        lead_magnet_grace_until: graceRaw ?? null,
+        lead_magnet_entitled: leadMagnetEntitled,
       };
-      const daysRem = deriveSubscriptionDaysRemaining(mapped);
+      const daysRem = isExpired ? 0 : deriveSubscriptionDaysRemaining(mapped);
       mapped.days_until_expiry = daysRem;
       mapped.days_remaining = daysRem;
-      mapped.needs_renewal = daysRem >= 0 && daysRem <= 7;
+      mapped.needs_renewal = !isExpired && daysRem >= 0 && daysRem <= 7;
       return mapped;
     },
     enabled: !!organizationId,

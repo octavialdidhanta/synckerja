@@ -74,6 +74,7 @@ export type MetaContentMetricsPayload = {
     engagement_rate: number | null;
     caption: string | null;
     media_url: string | null;
+    thumbnail_url?: string | null;
     permalink: string | null;
     plan_id: string | null;
     service_name: string | null;

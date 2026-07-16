@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardList, Code2, Megaphone, Target, Timer, Users } from "lucide-react";
+import { ClipboardList, Code2, Magnet, Megaphone, Target, Timer, Users } from "lucide-react";
 import { FlowBuilderIcon } from "@/5-3-dashboard/omnichannel-settings/components/icons/FlowBuilderIcon";
 
 export type OmnichannelSettingsSectionId =
@@ -9,7 +9,8 @@ export type OmnichannelSettingsSectionId =
   | "flow"
   | "target"
   | "offline-conversion"
-  | "api-integration";
+  | "api-integration"
+  | "lead-magnet";
 
 export type OmnichannelSettingsSectionMeta = {
   id: OmnichannelSettingsSectionId;
@@ -76,6 +77,14 @@ export const OMNICHANNEL_SETTINGS_SECTIONS: OmnichannelSettingsSectionMeta[] = [
     icon: Code2,
     titleKey: "omnichannel.settings.apiIntegration.sidebarTitle",
     descriptionKey: "omnichannel.settings.apiIntegration.sidebarDescription",
+    status: "active",
+  },
+  {
+    id: "lead-magnet",
+    urlSlug: "lead-magnet",
+    icon: Magnet,
+    titleKey: "omnichannel.settings.leadMagnet.sidebarTitle",
+    descriptionKey: "omnichannel.settings.leadMagnet.sidebarDescription",
     status: "active",
   },
 ];

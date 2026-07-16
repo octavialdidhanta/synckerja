@@ -1,7 +1,7 @@
 /// <reference path="../deno-globals.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { addMonths, addYears } from "https://esm.sh/date-fns@2";
+import { addMonths } from "https://esm.sh/date-fns@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,11 +9,20 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const addBillingInterval = (baseDate: Date, billingCycle: string): Date => {
-  if (billingCycle === "yearly") {
-    return addYears(baseDate, 1);
-  }
-  return addMonths(baseDate, 1);
+function coerceBillingTermMonthsForPayment(raw: unknown, billingCycle?: string): number {
+  const n = Number(raw);
+  if (n === 1 || n === 3 || n === 6 || n === 12) return n;
+  return billingCycle === "yearly" ? 12 : 1;
+}
+
+const addBillingInterval = (baseDate: Date, billingCycle: string, billingTermMonths?: number | null): Date => {
+  const months =
+    billingTermMonths != null && [1, 3, 6, 12].includes(Number(billingTermMonths))
+      ? Number(billingTermMonths)
+      : billingCycle === "yearly"
+        ? 12
+        : 1;
+  return addMonths(baseDate, months);
 };
 
 Deno.serve(async (req) => {
@@ -99,8 +108,30 @@ Deno.serve(async (req) => {
       } | null;
 
       const isOmnichannelSeatPurchase = prorateDetails?.purchase_kind === "omnichannel_seats";
+      const isLeadMagnetAddonPurchase = prorateDetails?.purchase_kind === "lead_magnet_addon";
 
-      if (isOmnichannelSeatPurchase) {
+      if (isLeadMagnetAddonPurchase) {
+        const alreadyApplied = (payment as { lead_magnet_applied?: boolean }).lead_magnet_applied === true;
+        if (!alreadyApplied) {
+          const { data: claimedRows } = await supabase
+            .from("payments")
+            .update({ lead_magnet_applied: true })
+            .eq("id", payment.id)
+            .eq("lead_magnet_applied", false)
+            .select("id");
+
+          if (claimedRows && claimedRows.length > 0) {
+            await supabase
+              .from("organization_subscriptions")
+              .update({
+                lead_magnet_active: true,
+                last_payment_id: payment.id,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("organization_id", payment.organization_id);
+          }
+        }
+      } else if (isOmnichannelSeatPurchase) {
         const alreadyApplied = (payment as { omnichannel_seats_applied?: boolean }).omnichannel_seats_applied === true;
         if (!alreadyApplied) {
           const delta = Math.round(
@@ -167,7 +198,11 @@ Deno.serve(async (req) => {
             : new Date(payment.created_at as string);
 
           const startDate = baseStartDate;
-          const endDate = addBillingInterval(startDate, payment.billing_cycle as string);
+          const endDate = addBillingInterval(
+            startDate,
+            payment.billing_cycle as string,
+            payment.billing_term_months as number | null | undefined,
+          );
 
           if (existingSubscription) {
             await supabase
@@ -176,6 +211,10 @@ Deno.serve(async (req) => {
                 subscription_plan_id: payment.plan_id,
                 member_count: payment.member_count,
                 billing_cycle: payment.billing_cycle,
+                billing_term_months: coerceBillingTermMonthsForPayment(
+                  payment.billing_term_months,
+                  payment.billing_cycle as string,
+                ),
                 status: "active",
                 subscription_start_date: startDate.toISOString(),
                 subscription_end_date: endDate.toISOString(),
@@ -195,6 +234,10 @@ Deno.serve(async (req) => {
               subscription_end_date: endDate.toISOString(),
               member_count: payment.member_count,
               billing_cycle: payment.billing_cycle,
+              billing_term_months: coerceBillingTermMonthsForPayment(
+                payment.billing_term_months,
+                payment.billing_cycle as string,
+              ),
               last_payment_id: payment.id,
               is_trial: false,
             });
@@ -218,7 +261,15 @@ Deno.serve(async (req) => {
           })
           .eq("id", payment.organization_id);
 
-        const prorateForBundled = payment.prorate_details as { bundled_omnichannel_roster_units?: number | string } | null;
+        const prorateForBundled = payment.prorate_details as {
+          bundled_omnichannel_roster_units?: number | string;
+          renewal_full_period?: boolean | string;
+        } | null;
+        const isRenewalFullPeriod =
+          prorateForBundled?.renewal_full_period === true ||
+          prorateForBundled?.renewal_full_period === "true" ||
+          prorateForBundled?.renewal_full_period === 1 ||
+          prorateForBundled?.renewal_full_period === "1";
         const rawBundled = prorateForBundled?.bundled_omnichannel_roster_units;
         const bundledUnits =
           typeof rawBundled === "number" && Number.isFinite(rawBundled)
@@ -227,7 +278,7 @@ Deno.serve(async (req) => {
               ? Math.round(Number(rawBundled))
               : 0;
 
-        if (bundledUnits > 0) {
+        if (bundledUnits > 0 || isRenewalFullPeriod) {
           const alreadyBundled =
             (payment as { bundled_omnichannel_units_applied?: boolean }).bundled_omnichannel_units_applied === true;
           if (!alreadyBundled) {
@@ -240,7 +291,9 @@ Deno.serve(async (req) => {
 
             if (claimedBundled && claimedBundled.length > 0) {
               const memberCap = Math.max(0, Math.round(Number(payment.member_count ?? 0)));
-              const targetPaid = Math.min(memberCap, bundledUnits);
+              const targetPaid = isRenewalFullPeriod
+                ? Math.min(memberCap, Math.max(0, bundledUnits))
+                : Math.min(memberCap, bundledUnits);
               const { data: subPaid } = await supabase
                 .from("organization_subscriptions")
                 .select("omnichannel_paid_seat_count")
@@ -249,11 +302,51 @@ Deno.serve(async (req) => {
               const curPaid = Number(
                 (subPaid as { omnichannel_paid_seat_count?: number } | null)?.omnichannel_paid_seat_count ?? 0,
               );
-              const nextPaid = Math.max(curPaid, targetPaid);
+              const nextPaid = isRenewalFullPeriod ? targetPaid : Math.max(curPaid, targetPaid);
               await supabase
                 .from("organization_subscriptions")
                 .update({
                   omnichannel_paid_seat_count: nextPaid,
+                  last_payment_id: payment.id,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("organization_id", payment.organization_id);
+            }
+          }
+        }
+
+        const prorateForBundledLm = payment.prorate_details as {
+          bundled_lead_magnet_included?: boolean | string;
+          renewal_full_period?: boolean | string;
+        } | null;
+        const rawBundledLm = prorateForBundledLm?.bundled_lead_magnet_included;
+        const bundledLeadMagnet =
+          rawBundledLm === true ||
+          rawBundledLm === "true" ||
+          rawBundledLm === 1 ||
+          rawBundledLm === "1";
+        const isRenewalLm =
+          prorateForBundledLm?.renewal_full_period === true ||
+          prorateForBundledLm?.renewal_full_period === "true" ||
+          prorateForBundledLm?.renewal_full_period === 1 ||
+          prorateForBundledLm?.renewal_full_period === "1";
+
+        if (bundledLeadMagnet || isRenewalLm) {
+          const alreadyBundledLm =
+            (payment as { bundled_lead_magnet_applied?: boolean }).bundled_lead_magnet_applied === true;
+          if (!alreadyBundledLm) {
+            const { data: claimedBundledLm } = await supabase
+              .from("payments")
+              .update({ bundled_lead_magnet_applied: true })
+              .eq("id", payment.id)
+              .eq("bundled_lead_magnet_applied", false)
+              .select("id");
+
+            if (claimedBundledLm && claimedBundledLm.length > 0) {
+              await supabase
+                .from("organization_subscriptions")
+                .update({
+                  lead_magnet_active: isRenewalLm ? bundledLeadMagnet : true,
                   last_payment_id: payment.id,
                   updated_at: new Date().toISOString(),
                 })

@@ -17,11 +17,12 @@ import { useEffectiveModuleAccess } from "@/shared/auth/hooks/useEffectiveModule
 import type { SalesModuleKey } from "@/shared/auth/module-access/moduleCatalog";
 import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
 import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
-import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
+import { useLeadMagnetEntitlement } from "@/6-1-lead-magnet/hooks/useLeadMagnetEntitlement";
 
 interface SubSidebarPanelProps {
   items: NavSubItem[];
   titleKey: string;
+  isSubItemLocked?: (item: NavSubItem) => boolean;
 }
 
 /** Logo + label: same `/pwa-192.png` expanded/collapsed; label animates when rail expands (mobile sheet always shows label). */
@@ -74,7 +75,7 @@ function SidebarBrandHeader() {
   );
 }
 
-function SubSidebarPanel({ items, titleKey }: SubSidebarPanelProps) {
+function SubSidebarPanel({ items, titleKey, isSubItemLocked }: SubSidebarPanelProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -93,16 +94,23 @@ function SubSidebarPanel({ items, titleKey }: SubSidebarPanelProps) {
           <nav className="space-y-0">
             {items.map((item) => {
               const isActive = isNavSubItemActive(item, location.pathname, location.search);
+              const locked = isSubItemLocked?.(item) ?? false;
 
               return (
                 <button
                   key={`${item.titleKey}-${item.path}`}
                   type="button"
+                  title={
+                    locked
+                      ? t("leadMagnet.sidebar.lockedHint", "Lead Magnet add-on is not activated")
+                      : undefined
+                  }
                   onMouseEnter={() => prefetchAppRoute(item.path)}
                   onFocus={() => prefetchAppRoute(item.path)}
                   onClick={() => navigate(item.path)}
                   className={cn(
                     "group relative flex w-full transform-none items-center gap-3 px-4 py-3 text-left text-[15px] font-normal transition-colors duration-200",
+                    locked && "opacity-70",
                     isActive
                       ? "bg-brand-blue/10 text-brand-blue"
                       : "text-foreground hover:bg-brand-blue/10 hover:text-brand-blue",
@@ -119,6 +127,7 @@ function SubSidebarPanel({ items, titleKey }: SubSidebarPanelProps) {
                     )}
                   />
                   <span className="flex-1 truncate">{t(item.titleKey)}</span>
+                  {locked ? <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
                   {isActive && (
                     <div className="absolute bottom-0 left-0 top-0 w-1 bg-brand-blue" aria-hidden />
                   )}
@@ -139,6 +148,16 @@ export function AppSidebar() {
   const currentPath = location.pathname;
   const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const { isModuleGatingActive, isModuleEnabled } = useEffectiveModuleAccess();
+  const { hasEntitlement: hasLeadMagnetEntitlement, isPending: leadMagnetPending } =
+    useLeadMagnetEntitlement();
+
+  const isSubItemLocked = (item: NavSubItem) => {
+    if (!item.requiresLeadMagnetAddon) return false;
+    if (leadMagnetPending) return false;
+    if (!isModuleGatingActive) return false;
+    if (!isModuleEnabled("digitalMarketing")) return false;
+    return !hasLeadMagnetEntitlement;
+  };
 
   const isNavModuleLocked = (itemId: string) => {
     if (!isModuleGatingActive || itemId === "dashboard" || itemId === "subscription") return false;
@@ -429,6 +448,7 @@ export function AppSidebar() {
               key={panelContentMenu.id}
               items={panelContentMenu.subItems}
               titleKey={panelContentMenu.titleKey}
+              isSubItemLocked={isSubItemLocked}
             />
           )}
         </div>

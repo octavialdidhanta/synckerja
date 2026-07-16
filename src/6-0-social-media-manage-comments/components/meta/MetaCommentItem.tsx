@@ -5,6 +5,7 @@ import { cn } from '@/shared/lib/utils';
 import { formatCommentRelativeTimeFromIso } from '@/6-0-social-media-manage-comments/lib/formatCommentRelativeTime';
 import { ManageCommentsInlineReplyComposer } from '@/6-0-social-media-manage-comments/components/shared/ManageCommentsInlineReplyComposer';
 import { MetaCommentReplyThread } from '@/6-0-social-media-manage-comments/components/meta/MetaCommentReplyThread';
+import type { LeadMagnetAutoCommentReply } from '@/6-0-social-media-manage-comments/hooks/useLeadMagnetAutoCommentReplies';
 import type { ManageCommentsReplyControls } from '@/6-0-social-media-manage-comments/types/manageCommentsReplyControls';
 import type { MetaContentCommentRow, MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 
@@ -15,6 +16,7 @@ type MetaCommentItemProps = {
   accountId: string;
   mediaId: string;
   replyControls: ManageCommentsReplyControls;
+  autoReply?: LeadMagnetAutoCommentReply | null;
   isMutating?: boolean;
   isNew?: boolean;
   nested?: boolean;
@@ -27,6 +29,7 @@ export function MetaCommentItem({
   accountId,
   mediaId,
   replyControls,
+  autoReply = null,
   isMutating,
   isNew,
   nested,
@@ -37,11 +40,14 @@ export function MetaCommentItem({
   const initials = name.slice(0, 2).toUpperCase();
   const timeLabel = formatCommentRelativeTimeFromIso(comment.published_at, i18n.language);
   const isReplyTarget = replyControls.replyToCommentId === comment.id;
-  const repliesExpanded = showReplies || isReplyTarget;
+  const hasAutoReply = Boolean(autoReply);
+  const repliesExpanded = showReplies || isReplyTarget || comment.reply_count > 0 || hasAutoReply;
 
   useEffect(() => {
-    if (isReplyTarget) setShowReplies(true);
-  }, [isReplyTarget]);
+    if (isReplyTarget || comment.reply_count > 0 || hasAutoReply) {
+      setShowReplies(true);
+    }
+  }, [isReplyTarget, comment.reply_count, hasAutoReply]);
 
   return (
     <div
@@ -87,7 +93,7 @@ export function MetaCommentItem({
                 {t('digitalMarketing.manageComments.reply', 'Reply')}
               </button>
             ) : null}
-            {comment.reply_count > 0 ? (
+            {comment.reply_count > 0 || hasAutoReply ? (
               <button
                 type="button"
                 className="hover:text-foreground"
@@ -96,8 +102,8 @@ export function MetaCommentItem({
                 {repliesExpanded
                   ? t('digitalMarketing.manageComments.hideReplies', 'Hide replies')
                   : t('digitalMarketing.manageComments.viewReplies', {
-                      count: comment.reply_count,
-                      defaultValue: `View ${comment.reply_count} replies`,
+                      count: Math.max(comment.reply_count, hasAutoReply ? 1 : 0),
+                      defaultValue: `View ${Math.max(comment.reply_count, hasAutoReply ? 1 : 0)} replies`,
                     })}
               </button>
             ) : null}
@@ -111,6 +117,7 @@ export function MetaCommentItem({
               mediaId={mediaId}
               commentId={comment.id}
               replyControls={replyControls}
+              autoReply={autoReply}
               isMutating={isMutating}
               forceOpen={repliesExpanded}
             />

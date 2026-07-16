@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowUp, ImageOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MetaContentMetricsPayload } from '@/meta-platform/types/metaContentTypes';
+import { resolveMetaPostThumbnailUrl } from '@/6-0-social-media-performance/lib/resolveMetaPostThumbnailUrl';
 import { cn } from '@/shared/lib/utils';
 
 type MetaContentPostRow = MetaContentMetricsPayload['posts'][number];
@@ -22,6 +23,42 @@ function formatCount(n: number): string {
 function formatPercent(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return '—';
   return `${n.toFixed(2)}%`;
+}
+
+function PostThumbnail({ row }: { row: MetaContentPostRow }) {
+  const initialSrc = resolveMetaPostThumbnailUrl(row);
+  const [src, setSrc] = useState<string | null>(initialSrc);
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <div
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-400"
+        aria-hidden
+      >
+        <ImageOff className="h-4 w-4" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      className="h-10 w-10 shrink-0 rounded object-cover"
+      onError={() => {
+        const fallback = resolveMetaPostThumbnailUrl({
+          thumbnail_url: row.thumbnail_url,
+          media_url: row.media_url === src ? null : row.media_url,
+        });
+        if (fallback && fallback !== src) {
+          setSrc(fallback);
+          return;
+        }
+        setFailed(true);
+      }}
+    />
+  );
 }
 
 function formatDate(iso: string | null): string {
@@ -221,13 +258,10 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
               <tr key={row.content_id} className="border-b border-gray-100 hover:bg-gray-50/50">
                 <td className="max-w-[168px] overflow-hidden px-3 py-2">
                   <div className="flex min-w-0 items-center gap-2">
-                    {row.media_url ? (
-                      <img
-                        src={row.media_url}
-                        alt=""
-                        className="h-10 w-10 shrink-0 rounded object-cover"
-                      />
-                    ) : null}
+                    <PostThumbnail
+                      key={`${row.content_id}:${resolveMetaPostThumbnailUrl(row) ?? ''}`}
+                      row={row}
+                    />
                     <p className="truncate font-medium text-gray-900" title={caption}>
                       {caption}
                     </p>

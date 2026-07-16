@@ -26,7 +26,7 @@ import {
   TIKTOK_CONTENT_DIGITAL_MARKETING_BASE_PATH,
   TIKTOK_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH,
 } from "@/tiktok-content/settings/tiktokContentSettingsPaths";
-import { TikTokContentPerformancePageSkeleton } from "@/6-0-social-media-performance/skeletons/TikTokContentPerformancePageSkeleton";
+import { TikTokContentPerformancePanelSkeleton } from "@/6-0-social-media-performance/skeletons/TikTokContentPerformancePageSkeleton";
 import { TikTokContentAccountNav } from "@/6-0-social-media-performance/components/TikTokContentAccountNav";
 import { getTikTokAccountDisplayLabel } from "@/tiktok-content/lib/tiktokAccountDisplayLabel";
 import { TikTokContentSummaryBar } from "@/6-0-social-media-performance/components/TikTokContentSummaryBar";
@@ -334,10 +334,10 @@ function TikTokContentPerformancePageContent() {
 
       {!showContent ? (
         <div
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden bg-gray-100"
+          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
           aria-busy="true"
         >
-          <TikTokContentPerformancePageSkeleton />
+          <TikTokContentPerformancePanelSkeleton />
         </div>
       ) : null}
     </div>

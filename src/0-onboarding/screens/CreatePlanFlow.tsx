@@ -12,8 +12,12 @@ import type { SubscriptionPlanRow } from "@/0-onboarding/types/subscriptionPlan"
 import {
   classifyOnboardingPlan,
   defaultMemberCountForKind,
+  defaultPaidPlanMemberCount,
   onboardingCanSubscribeWithoutPayment,
   planSelectable,
+  planUsesPerMemberPricing,
+  resolveFreePlanMaxMembers,
+  resolvePaidPlanMemberFloor,
   sliderMaxMembers,
 } from "@/0-onboarding/utils/subscriptionPlanUtils";
 import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
@@ -62,6 +66,11 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
 
   const { data: plans = [], isLoading: plansLoading, isError: plansIsError, error: plansError } = useSubscriptionPlans(
     gatePhase === "ready" && !!orgId,
+  );
+
+  const paidMemberFloor = useMemo(
+    () => resolvePaidPlanMemberFloor(resolveFreePlanMaxMembers(plans)),
+    [plans],
   );
 
   const { mutateAsync: createSubscription, isPending: creating } = useCreateOnboardingSubscription();
@@ -167,7 +176,10 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
     for (const p of plans) {
       const kind = classifyOnboardingPlan(p);
       const max = sliderMaxMembers(p, kind);
-      nextCounts[p.id] = defaultMemberCountForKind(kind, max);
+      nextCounts[p.id] =
+        kind === "paid_requires_billing"
+          ? defaultPaidPlanMemberCount(paidMemberFloor, max)
+          : defaultMemberCountForKind(kind, max);
       nextBilling[p.id] = "monthly";
       if (!firstChoice && planSelectable(p) && onboardingCanSubscribeWithoutPayment(p)) {
         firstChoice = p.id;
@@ -178,7 +190,7 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
     setBillingCycles(nextBilling);
     setSelectedId(firstChoice ?? plans.find((p) => planSelectable(p))?.id ?? plans[0]?.id ?? null);
     setCountsReady(true);
-  }, [plans, countsReady]);
+  }, [plans, countsReady, paidMemberFloor]);
 
   useEffect(() => {
     if (!plans.length || !countsReady) return;
@@ -188,15 +200,19 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
       for (const p of plans) {
         const kind = classifyOnboardingPlan(p);
         const max = sliderMaxMembers(p, kind);
-        const v = next[p.id] ?? 1;
+        const minMembers = kind === "paid_requires_billing" ? paidMemberFloor : 1;
+        const v = next[p.id] ?? minMembers;
         if (v > max) {
           next[p.id] = max;
+          changed = true;
+        } else if (v < minMembers) {
+          next[p.id] = minMembers;
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [plans, countsReady]);
+  }, [plans, countsReady, paidMemberFloor]);
 
   const selectedPlan = useMemo(
     () => plans.find((p) => p.id === selectedId) ?? null,
@@ -305,7 +321,8 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
             const max = sliderMaxMembers(p, kind);
             const catalogSelectable = planSelectable(p);
             const canSub = onboardingCanSubscribeWithoutPayment(p);
-            const count = Math.min(max, Math.max(1, memberCounts[p.id] ?? 1));
+            const minMembers = planUsesPerMemberPricing(p) ? paidMemberFloor : 1;
+            const count = Math.min(max, Math.max(minMembers, memberCounts[p.id] ?? minMembers));
             const cycle = billingCycles[p.id] ?? "monthly";
             return (
               <div
@@ -316,12 +333,16 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
                   plan={p}
                   kind={kind}
                   maxMembers={max}
+                  minMembers={minMembers}
                   selected={p.id === selectedId}
                   catalogSelectable={catalogSelectable}
                   canSubscribeWithoutPayment={canSub}
                   memberCount={count}
                   onMemberCountChange={(n) =>
-                    setMemberCounts((prev) => ({ ...prev, [p.id]: Math.min(max, Math.max(1, n)) }))
+                    setMemberCounts((prev) => ({
+                      ...prev,
+                      [p.id]: Math.min(max, Math.max(minMembers, n)),
+                    }))
                   }
                   billingCycle={cycle}
                   onBillingCycleChange={(yearly) =>

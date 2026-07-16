@@ -813,6 +813,7 @@ export type FacebookMetricsPostRow = {
   engagement_rate: number | null;
   caption: string | null;
   media_url: string | null;
+  thumbnail_url: string | null;
   permalink: string | null;
 };
 
@@ -846,6 +847,7 @@ export async function buildFacebookMetricsPostRows(
         ?? computeMetaEngagementRate(m.like_count, m.comment_count, m.view_count, m.share_count),
       caption: p.caption,
       media_url: p.media_url ?? p.thumbnail_url,
+      thumbnail_url: p.thumbnail_url ?? p.media_url,
       permalink: p.permalink,
     };
   });
@@ -884,7 +886,8 @@ export async function buildInstagramMetricsPostRows(
       total_interactions: totalInteractions,
       engagement_rate: computeInstagramEngagementRateFromApi(totalInteractions, viewCount),
       caption: p.caption,
-      media_url: p.media_url ?? p.thumbnail_url,
+      media_url: pickInstagramPostPreviewUrl(p),
+      thumbnail_url: pickInstagramPostPreviewUrl(p),
       permalink: p.permalink,
     };
   });
@@ -1009,6 +1012,27 @@ export async function fetchFacebookPosts(
   return resolveFacebookPostsForMetrics(pageId, accessToken, limit);
 }
 
+function looksLikeVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) || /\/video\//i.test(url);
+}
+
+/** URL suitable for <img> preview — Reels/VIDEO must use thumbnail, not MP4 media_url. */
+export function pickInstagramPostPreviewUrl(
+  p: Pick<MetaContentPost, "media_type" | "media_url" | "thumbnail_url">,
+): string | null {
+  const thumb = p.thumbnail_url?.trim() || null;
+  const media = p.media_url?.trim() || null;
+  const type = (p.media_type ?? "").toUpperCase();
+
+  if (type === "VIDEO" || type === "REELS" || type === "STORY") {
+    return thumb;
+  }
+  if (media && looksLikeVideoUrl(media)) {
+    return thumb;
+  }
+  return media ?? thumb;
+}
+
 function mapIgMedia(row: Record<string, unknown>): MetaContentPost {
   return {
     id: String(row.id ?? ""),
@@ -1060,6 +1084,49 @@ function mapFbPost(row: Record<string, unknown>): MetaContentPost {
   };
 }
 
+export type MetaMediaPreview = {
+  caption: string | null;
+  thumbnail_url: string | null;
+  permalink: string | null;
+};
+
+/** Fetch caption/thumbnail for a single IG or FB post by media/post id. */
+export async function fetchMetaMediaPreviewById(
+  mediaId: string,
+  platform: MetaContentPlatform,
+  accessToken: string,
+): Promise<MetaMediaPreview | null> {
+  const id = mediaId.trim();
+  if (!id) return null;
+  try {
+    if (platform === "instagram") {
+      const data = await graphGet<Record<string, unknown>>(
+        graphUrl(id, { fields: "caption,media_type,media_url,thumbnail_url,permalink" }),
+        accessToken,
+      );
+      const post = mapIgMedia(data);
+      return {
+        caption: post.caption,
+        thumbnail_url: pickInstagramPostPreviewUrl(post),
+        permalink: post.permalink,
+      };
+    }
+    const data = await graphGet<Record<string, unknown>>(
+      graphUrl(id, { fields: "message,full_picture,permalink_url" }),
+      accessToken,
+    );
+    const post = mapFbPost(data);
+    return {
+      caption: post.caption,
+      thumbnail_url: post.thumbnail_url ?? post.media_url,
+      permalink: post.permalink,
+    };
+  } catch (err) {
+    console.warn("[metaContent] fetchMetaMediaPreviewById failed:", id, platform, err);
+    return null;
+  }
+}
+
 export async function fetchInstagramComments(
   mediaId: string,
   accessToken: string,
@@ -1068,9 +1135,10 @@ export async function fetchInstagramComments(
   const url = graphUrl(`${mediaId}/comments`, { fields });
   const data = await graphGet<{ data?: Array<Record<string, unknown>> }>(url, accessToken);
   const topLevel = (data.data ?? []).flatMap((row) => {
-    const parent = mapIgComment(row, mediaId, null);
+    const parentId = String(row.id ?? "");
     const replies = row.replies as { data?: Array<Record<string, unknown>> } | undefined;
-    const replyRows = (replies?.data ?? []).map((r) => mapIgComment(r, mediaId, parent.id));
+    const replyRows = (replies?.data ?? []).map((r) => mapIgComment(r, mediaId, parentId));
+    const parent = mapIgComment(row, mediaId, null, replyRows.length);
     return [parent, ...replyRows];
   });
   return topLevel;
@@ -1080,6 +1148,7 @@ function mapIgComment(
   row: Record<string, unknown>,
   mediaId: string,
   parentId: string | null,
+  replyCount = 0,
 ): MetaContentComment {
   return {
     id: String(row.id ?? ""),
@@ -1088,7 +1157,7 @@ function mapIgComment(
     author_name: typeof row.username === "string" ? row.username : "Unknown",
     author_id: null,
     like_count: Number(row.like_count ?? 0),
-    reply_count: 0,
+    reply_count: parentId ? 0 : replyCount,
     parent_comment_id: parentId,
     published_at: typeof row.timestamp === "string" ? row.timestamp : null,
     is_owner: false,

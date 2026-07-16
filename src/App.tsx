@@ -82,6 +82,9 @@ import {
   DigitalMarketingReportTargetsSettingsPageSkeleton,
   IncomeXenditPageSkeleton,
   BankMutationsPageSkeleton,
+  LeadMagnetListPageSkeleton,
+  LeadMagnetWizardPageSkeleton,
+  LeadMagnetAnalyticsPageSkeleton,
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
@@ -168,6 +171,15 @@ const SocialMediaContentCalendarPage = lazy(() => import("@/6-1-content-calendar
 const SocialMediaProductKnowledgePage = lazy(() => import("@/6-1-product-knowledge/ProductKnowledgePage"));
 const SocialMediaScriptGeneratorPage = lazy(() => import("@/6-1-script-generator/ScriptGeneratorPage"));
 const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings/SettingsPage"));
+const LeadMagnetListPage = lazy(() =>
+  import("@/6-1-lead-magnet/pages/LeadMagnetListPage").then((m) => ({ default: m.LeadMagnetListPage })),
+);
+const LeadMagnetWizardPage = lazy(() =>
+  import("@/6-1-lead-magnet/pages/LeadMagnetWizardPage").then((m) => ({ default: m.LeadMagnetWizardPage })),
+);
+const LeadMagnetAnalyticsPage = lazy(() =>
+  import("@/6-1-lead-magnet/pages/LeadMagnetAnalyticsPage").then((m) => ({ default: m.LeadMagnetAnalyticsPage })),
+);
 const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
 const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
 const MetaAdsMetricsPage = lazy(() => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"));
@@ -1892,6 +1904,42 @@ const SocialMediaDashboardSuspense = ({ children }: { children: ReactNode }) => 
   </Suspense>
 );
 
+const LeadMagnetListSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <LeadMagnetListPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const LeadMagnetWizardSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <LeadMagnetWizardPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const LeadMagnetAnalyticsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <LeadMagnetAnalyticsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
 const TrafficSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
@@ -3555,6 +3603,62 @@ const App = () => (
                               <SocialMediaSettingsSuspense>
                                 <SocialMediaDmSettingsPage />
                               </SocialMediaSettingsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/lead-magnet"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/lead-magnet"
+                              loadingShell={<LeadMagnetListPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <LeadMagnetListSuspense>
+                                <LeadMagnetListPage />
+                              </LeadMagnetListSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/lead-magnet/new"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/lead-magnet"
+                              loadingShell={<LeadMagnetWizardPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <LeadMagnetWizardSuspense>
+                                <LeadMagnetWizardPage />
+                              </LeadMagnetWizardSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/lead-magnet/:campaignId/edit"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/lead-magnet"
+                              loadingShell={<LeadMagnetWizardPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <LeadMagnetWizardSuspense>
+                                <LeadMagnetWizardPage />
+                              </LeadMagnetWizardSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/lead-magnet/:campaignId/analytics"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/lead-magnet"
+                              loadingShell={<LeadMagnetAnalyticsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <LeadMagnetAnalyticsSuspense>
+                                <LeadMagnetAnalyticsPage />
+                              </LeadMagnetAnalyticsSuspense>
                             </PageAccessGuard>
                           }
                         />

@@ -1,13 +1,9 @@
+import { defaultPaidPlanMemberCount } from "@/0-onboarding/utils/subscriptionPlanUtils";
 import { memo } from "react";
-import { Link } from "react-router-dom";
 import { PendingChangesCard } from "@/10-subscription/plans/section/PendingChangesCard";
-import { PlanCard, TrustIndicators } from "@/10-subscription/plans/section";
+import { PlanCard, PlanAddOnsPanel, TrustIndicators } from "@/10-subscription/plans/section";
 import { useHRISSubscriptionPlansController } from "@/10-subscription/plans/useHRISSubscriptionPlansController";
-import {
-  formatIDR,
-  getOmnichannelAddonMonthlyTotalIdr,
-  planEligibleForOmnichannelAddonDisplay,
-} from "@/10-subscription/shared/subscriptionUtils";
+import { isEnterpriseSubscriptionPlan } from "@/10-subscription/shared/subscriptionUtils";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/mobile-app/components/ui/card";
 import { MobileUpgradeConfirmationModal } from "./modal/MobileUpgradeConfirmationModal";
 import { MobileUpgradeOptionsModal } from "./modal/MobileUpgradeOptionsModal";
@@ -37,8 +33,6 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
     lastPaidMemberCount,
     omnichannelPaidSeats,
     rosterCount,
-    showOmnichannelAddonInsideScaleUpCard,
-    globalOmnichannelUnitPrice,
     currentPlanId,
     currentMemberCount,
     currentEmployeeCount,
@@ -47,7 +41,6 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
     catalogAddOnBillingChargeIdr,
     catalogAddOnForConfirmationModalIdr,
     isRenewEligibleBase,
-    getEmployeeLimitFromFeatures,
     isCurrentPlan,
     calculatePlanPrice,
     handleMemberCountChange,
@@ -63,7 +56,16 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
     getPlanIcon,
     canChangePlan,
     getButtonText,
+    hasCheckoutableAddOnChangesForPlan,
+    isMidCycleActive,
     planCardPrimaryPendingId,
+    showAddOnsSidebar,
+    sidebarAddOnContext,
+    relocateAddOnDetailForCurrent,
+    enterpriseSliderMin,
+    resolvePlanSliderMinForPlan,
+    resolvePlanSliderMaxForPlan,
+    paidMemberFloor,
   } = useHRISSubscriptionPlansController({ refetchRef });
 
   if (plansError) {
@@ -86,19 +88,29 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
 
         <div className="space-y-1">
           {activePlans.map((plan) => {
-            const isTrialPlan = plan.name === "Trial" || plan.base_price_per_member === 0;
-            const maxEmployees = isTrialPlan ? getEmployeeLimitFromFeatures(plan.features) : 100;
+            const isEnterprisePlan = isEnterpriseSubscriptionPlan(plan);
+            const isTrialPlan =
+              !isEnterprisePlan && (plan.name === "Trial" || plan.base_price_per_member === 0);
+            const maxEmployees = resolvePlanSliderMaxForPlan(plan);
+            const memberSliderMin = resolvePlanSliderMinForPlan(plan);
             const isCurrent = isCurrentPlan(plan);
             const isRenewEligible = isCurrent && isRenewEligibleBase;
 
-            const memberCount =
-              memberCounts[plan.id] !== undefined
-                ? memberCounts[plan.id]
-                : isCurrent
-                  ? subscriptionStatus?.member_count || currentMemberCount || 1
-                  : isTrialPlan
-                    ? maxEmployees
-                    : 5;
+            const memberCount = Math.min(
+              maxEmployees,
+              Math.max(
+                memberSliderMin,
+                memberCounts[plan.id] !== undefined
+                  ? memberCounts[plan.id]
+                  : isCurrent
+                    ? subscriptionStatus?.member_count || currentMemberCount || 1
+                    : isEnterprisePlan
+                      ? enterpriseSliderMin
+                      : isTrialPlan
+                        ? maxEmployees
+                        : defaultPaidPlanMemberCount(paidMemberFloor, maxEmployees),
+              ),
+            );
 
             const billingCycle = billingCycles[plan.id] || "monthly";
             const isYearlyPlan = billingCycle === "yearly";
@@ -106,14 +118,20 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
             const monthlyPrice = plan.base_price_per_member * memberCount;
             const IconComponent = getPlanIcon(plan.name);
             const isPopular = plan.name.toLowerCase().includes("professional");
-            const canChange = canChangePlan(plan, memberCount);
-            const buttonText = getButtonText(plan, memberCount, billingCycle, isRenewEligible);
+            const canChange = isEnterprisePlan ? true : canChangePlan(plan, memberCount);
             const currentBillingCycle = subscriptionStatus?.billing_cycle || "monthly";
             const hasBillingCycleChange = isCurrent && billingCycle !== currentBillingCycle;
             const mergedAddOns = mergeSelections(plan, isCurrent, memberCount);
+            const relocateAddOnDetail = isCurrent && relocateAddOnDetailForCurrent;
+            const hasCheckoutableAddOnChanges = hasCheckoutableAddOnChangesForPlan(
+              plan,
+              memberCount,
+              billingCycle,
+              mergedAddOns,
+            );
 
             return (
-              <div key={plan.id} className="[&_.rounded-lg]:rounded-2xl">
+              <div key={plan.id} className="space-y-1 [&_.rounded-lg]:rounded-2xl">
                 <PlanCard
                   plan={plan}
                   memberCount={memberCount}
@@ -121,12 +139,22 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
                   totalPrice={totalPrice}
                   monthlyPrice={monthlyPrice}
                   maxEmployees={maxEmployees}
+                  memberSliderMin={memberSliderMin}
                   isTrialPlan={isTrialPlan}
+                  isEnterprisePlan={isEnterprisePlan}
                   isCurrent={isCurrent}
                   isPopular={isPopular}
                   canChange={canChange}
-                  buttonText={buttonText}
+                  buttonText={getButtonText(
+                    plan,
+                    memberCount,
+                    billingCycle,
+                    isRenewEligible,
+                    hasCheckoutableAddOnChanges,
+                    mergedAddOns,
+                  )}
                   hasBillingCycleChange={hasBillingCycleChange}
+                  hasCheckoutableAddOnChanges={hasCheckoutableAddOnChanges}
                   IconComponent={IconComponent}
                   currentMemberCount={currentMemberCount}
                   currentEmployeeCount={currentEmployeeCount}
@@ -149,44 +177,50 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
                     planCardPrimaryPendingId === plan.id &&
                     (proRateCalculation.isPending || isMidtransConfirmLoading)
                   }
+                  hideInlineAddOns={isEnterprisePlan || (isCurrent && showAddOnsSidebar)}
+                  showCompactAddOnSummary={isCurrent && showAddOnsSidebar && !relocateAddOnDetail}
+                  relocateAddOnDetail={relocateAddOnDetail}
+                  isMidCycleActive={isMidCycleActive}
                 />
               </div>
             );
           })}
-        </div>
 
-        {activePlans.some((p) => planEligibleForOmnichannelAddonDisplay(p)) &&
-          !showOmnichannelAddonInsideScaleUpCard && (
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm">
-              <h3 className="font-semibold text-foreground">
-                {t("subscription.plans.omnichannelAddonTitle")}
+          {sidebarAddOnContext ? (
+            <div className="space-y-1 rounded-2xl border border-border bg-card p-3">
+              <h3 className="text-sm font-semibold text-foreground">
+                {t("subscription.plans.sidebar.addOns.title")}
               </h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t("subscription.plans.omnichannelAddonSubtitle", {
-                  amount: formatIDR(globalOmnichannelUnitPrice),
-                })}
+              <p className="text-xs text-muted-foreground">
+                {t("subscription.plans.sidebar.addOns.description")}
               </p>
-              <p className="mt-2 text-foreground">
-                {t("subscription.plans.omnichannelPaidSeatsEntitled", { count: omnichannelPaidSeats })}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t("subscription.plans.omnichannelRosterActiveLine", { count: rosterCount })}
-              </p>
-              <p className="mt-1 text-foreground">
-                {t("subscription.plans.omnichannelMonthlyLine", {
-                  amount: formatIDR(
-                    getOmnichannelAddonMonthlyTotalIdr(omnichannelPaidSeats, globalOmnichannelUnitPrice),
-                  ),
-                })}
-              </p>
-              <Link
-                to="/omnichannel/settings"
-                className="mt-2 inline-block text-xs font-medium text-primary underline"
-              >
-                {t("subscription.plans.manageRosterLink")}
-              </Link>
+              <PlanAddOnsPanel
+                embeddedInSidebar
+                plan={sidebarAddOnContext.plan}
+                memberCount={sidebarAddOnContext.memberCount}
+                billingCycle={sidebarAddOnContext.billingCycle}
+                addOnSelections={sidebarAddOnContext.mergedAddOns}
+                onAddOnIncludedChange={(code, inc) =>
+                  handleAddOnIncludedChange(sidebarAddOnContext.plan.id, code, inc)
+                }
+                onAddOnQuantityChange={(code, qty) =>
+                  handleAddOnQuantityChange(
+                    sidebarAddOnContext.plan.id,
+                    code,
+                    qty,
+                    sidebarAddOnContext.memberCount,
+                  )
+                }
+                omnichannelPaidSeats={omnichannelPaidSeats}
+                omnichannelRosterActiveCount={rosterCount}
+                leadMagnetActive={subscriptionStatus?.lead_magnet_active ?? false}
+                isMidCycleActive={isMidCycleActive}
+                isTrialPlan={sidebarAddOnContext.isTrialPlan}
+                isExpired={subscriptionStatus?.is_expired ?? false}
+              />
             </div>
-          )}
+          ) : null}
+        </div>
 
         <TrustIndicators />
       </div>

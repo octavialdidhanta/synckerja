@@ -7,9 +7,12 @@ export const INSTAGRAM_DM_SUBSCRIBED_FIELDS =
 /** Instagram comment webhook field (Manage Comments real-time inbox). */
 export const INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS = "comments";
 
-/** Fields for Page Subscribed Apps — DM + Instagram comments. */
+/** Facebook Page feed comments (Lead Magnet + Manage Comments on Page posts). */
+export const FACEBOOK_FEED_SUBSCRIBED_FIELDS = "feed";
+
+/** Fields for Page Subscribed Apps — DM + IG comments + FB feed comments. */
 export const INSTAGRAM_PAGE_SUBSCRIBED_FIELDS =
-  `${INSTAGRAM_DM_SUBSCRIBED_FIELDS},${INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS}`;
+  `${INSTAGRAM_DM_SUBSCRIBED_FIELDS},${INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS},${FACEBOOK_FEED_SUBSCRIBED_FIELDS}`;
 
 export type InstagramPageSubscribeResult = {
   pageId: string;

@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { LEAD_MAGNET_PAYLOAD_PREFIX } from "./leadMagnet/types.ts";
+import { deferLeadMagnetWork, scheduleLeadMagnetPostbackTrigger } from "./leadMagnet/webhookBridge.ts";
 
 const META_GRAPH_VERSION = "v21.0";
 const MEDIA_BUCKET = "whatsapp-media";
@@ -322,23 +324,44 @@ export async function processFacebookMessengerEvents(
       const title = typeof evt.postback.title === "string" ? evt.postback.title.trim() : "";
       const bodyText = payload || title || "[Postback]";
       const mid = `postback_${senderId}_${String(evt.timestamp ?? Date.now())}`;
-      const convId = await upsertFacebookConversationInbound(
-        supabase, orgId, pageId, senderId, bodyText, ts, accessToken, displayName,
-      );
-      if (convId) {
-        const pbPayload = {
-          conversation_id: convId,
-          direction: "inbound",
-          platform_message_id: mid,
-          body: bodyText,
-          message_type: "postback",
-          raw_metadata: evt,
-          created_at: ts,
-        };
-        await supabase.from("facebook_messages").insert(pbPayload);
-        await notifyPush(pbPayload);
-        processedCount += 1;
+      const isLeadMagnetPostback = payload.startsWith(LEAD_MAGNET_PAYLOAD_PREFIX);
+
+      if (isLeadMagnetPostback && accessToken) {
+        scheduleLeadMagnetPostbackTrigger({
+          platform: "facebook",
+          organizationId: orgId,
+          accountId: pageId,
+          participantScopedId: senderId,
+          participantUsername: null,
+          payload,
+          accessToken,
+          pageId,
+        }, supabase);
       }
+
+      deferLeadMagnetWork((async () => {
+        try {
+          const convId = await upsertFacebookConversationInbound(
+            supabase, orgId, pageId, senderId, bodyText, ts, accessToken, displayName,
+          );
+          if (!convId) return;
+          const pbPayload = {
+            conversation_id: convId,
+            direction: "inbound",
+            platform_message_id: mid,
+            body: bodyText,
+            message_type: "postback",
+            raw_metadata: evt,
+            created_at: ts,
+          };
+          await supabase.from("facebook_messages").insert(pbPayload);
+          await notifyPush(pbPayload);
+        } catch (err) {
+          console.error("[facebook-messenger] postback inbox sync error", err);
+        }
+      })());
+
+      processedCount += 1;
       continue;
     }
 

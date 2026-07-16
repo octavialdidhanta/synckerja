@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLeadMagnetEntitlement } from "@/6-1-lead-magnet/hooks/useLeadMagnetEntitlement";
 import {
   OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO,
   parseOmnichannelSettingsPathname,
@@ -18,6 +19,7 @@ import { CustomerSurveyTargetSettingsShell } from "@/features/customer-survey/se
 import { OfflineConversionSettingsShell } from "@/meta-ads/settings/OfflineConversionSettingsShell";
 import { ApiIntegrationSection } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiIntegrationSection";
 import { FlowBuilderSettingsShell } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/FlowBuilderSettingsShell";
+import { LeadMagnetOmnichannelSettingsPage } from "@/6-1-lead-magnet/pages/LeadMagnetOmnichannelSettingsPage";
 import { cn } from "@/shared/lib/utils";
 import {
   OMNICHANNEL_SETTINGS_CARD_HEADER_BASE,
@@ -34,6 +36,9 @@ export function OmnichannelSettingsWorkspace() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const { hasEntitlement: hasLeadMagnetEntitlement, isPending: leadMagnetPending } =
+    useLeadMagnetEntitlement();
+
   const activeSection = useMemo(
     () =>
       parseOmnichannelSettingsPathname(location.pathname) ??
@@ -44,8 +49,16 @@ export function OmnichannelSettingsWorkspace() {
   useEffect(() => {
     if (!activeSection) {
       navigate(OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO, { replace: true });
+      return;
     }
-  }, [activeSection, navigate]);
+    if (
+      activeSection === "lead-magnet" &&
+      !leadMagnetPending &&
+      !hasLeadMagnetEntitlement
+    ) {
+      navigate(OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO, { replace: true });
+    }
+  }, [activeSection, navigate, leadMagnetPending, hasLeadMagnetEntitlement]);
 
   const handleSectionChange = (id: OmnichannelSettingsSectionId) => {
     navigate(omnichannelSettingsPath(id));
@@ -92,6 +105,7 @@ export function OmnichannelSettingsWorkspace() {
               {activeSection === "target" ? <CustomerSurveyTargetSettingsShell /> : null}
               {activeSection === "offline-conversion" ? <OfflineConversionSettingsShell /> : null}
               {activeSection === "api-integration" ? <ApiIntegrationSection /> : null}
+              {activeSection === "lead-magnet" ? <LeadMagnetOmnichannelSettingsPage /> : null}
             </div>
           </ModuleShellContentGate>
         </div>

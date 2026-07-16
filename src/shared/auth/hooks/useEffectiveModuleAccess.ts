@@ -10,6 +10,7 @@ export type EffectiveModuleAccess = {
   isModuleGatingActive: boolean;
   moduleAccess: ModuleAccessMap | null;
   isLoading: boolean;
+  moduleAccessPending: boolean;
   isModuleEnabled: (moduleKey: SalesModuleKey) => boolean;
   isPathBlocked: (pathname: string) => boolean;
   getUpsellModuleForPath: (pathname: string) => SalesModuleKey | null;
@@ -24,9 +25,10 @@ export function useEffectiveModuleAccess(): EffectiveModuleAccess {
   if (sales.isSalesTenant) {
     return {
       gatingMode: "sales",
-      isModuleGatingActive: true,
+      isModuleGatingActive: sales.isModuleGatingActive,
       moduleAccess: sales.moduleAccess,
       isLoading: sales.isLoading,
+      moduleAccessPending: sales.moduleAccessPending,
       isModuleEnabled: sales.isModuleEnabled,
       isPathBlocked: sales.isPathBlocked,
       getUpsellModuleForPath: sales.getUpsellModuleForPath,
@@ -41,6 +43,7 @@ export function useEffectiveModuleAccess(): EffectiveModuleAccess {
       isModuleGatingActive: true,
       moduleAccess: plan.moduleAccess,
       isLoading: plan.isLoading,
+      moduleAccessPending: plan.isLoading,
       isModuleEnabled: plan.isModuleEnabled,
       isPathBlocked: plan.isPathBlocked,
       getUpsellModuleForPath: plan.getUpsellModuleForPath,
@@ -54,6 +57,7 @@ export function useEffectiveModuleAccess(): EffectiveModuleAccess {
     isModuleGatingActive: false,
     moduleAccess: null,
     isLoading: plan.isLoading,
+    moduleAccessPending: false,
     isModuleEnabled: () => true,
     isPathBlocked: () => false,
     getUpsellModuleForPath: () => null,

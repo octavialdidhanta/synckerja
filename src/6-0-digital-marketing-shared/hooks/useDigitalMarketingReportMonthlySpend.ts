@@ -13,6 +13,7 @@ import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAc
 import { useMetaAdsReportingEnabled } from "@/meta-ads/hooks/useMetaAdsReportingEnabled";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
 import { useTikTokAdsReportingEnabled } from "@/tiktok-ads/hooks/useTikTokAdsReportingEnabled";
+import { normalizeReportDisplayCurrency } from "@/6-0-digital-marketing-shared/reportDisplayCurrency";
 import { useTikTokAdsSettings } from "@/tiktok-ads/hooks/useTikTokAdsSettings";
 import {
   isReportMetaRangeUnavailableForCharts,
@@ -607,7 +608,7 @@ export function useDigitalMarketingReportMonthlySpend(
   const { data: tiktokReportingEnabled = false, isPending: tiktokReportingPending } =
     useTikTokAdsReportingEnabled(organizationId);
 
-  const { data: googleAccounts = [], isPending: googleAccountsPending } = useQuery({
+  const { data: googleAccountsRaw = [], isPending: googleAccountsPending } = useQuery({
     queryKey: googleAdsAccountsReportQueryKey(organizationId),
     queryFn: async () => {
       if (!organizationId) return [];
@@ -620,9 +621,17 @@ export function useDigitalMarketingReportMonthlySpend(
       if (error) throw error;
       return data ?? [];
     },
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && googleReportingEnabled,
     staleTime: 60_000,
   });
+
+  const googleAccounts = useMemo(
+    () => (googleReportingEnabled ? googleAccountsRaw : []),
+    [googleReportingEnabled, googleAccountsRaw],
+  );
+
+  /** Disabled TanStack query stays `isPending` — only pend while Google reporting is enabled. */
+  const googleAccountsListPending = googleReportingEnabled && googleAccountsPending;
 
   const effectiveGoogleCustomerId = useMemo(() => {
     if (googleCustomerId) return googleCustomerId;
@@ -711,8 +720,10 @@ export function useDigitalMarketingReportMonthlySpend(
 
   const metricsReadyMetaAccounts = useMemo(
     () =>
-      (metaSettings?.accounts ?? []).filter((a) => a.is_active && a.pixel_id !== "0"),
-    [metaSettings?.accounts],
+      metaSettings?.oauthConnected
+        ? (metaSettings?.accounts ?? []).filter((a) => a.is_active && a.pixel_id !== "0")
+        : [],
+    [metaSettings?.accounts, metaSettings?.oauthConnected],
   );
 
   const effectiveMetaAdAccountId = useMemo(() => {
@@ -728,8 +739,11 @@ export function useDigitalMarketingReportMonthlySpend(
   );
 
   const metricsReadyTikTokAccounts = useMemo(
-    () => (tiktokSettings?.accounts ?? []).filter((a) => a.is_active),
-    [tiktokSettings?.accounts],
+    () =>
+      tiktokSettings?.oauthConnected
+        ? (tiktokSettings?.accounts ?? []).filter((a) => a.is_active)
+        : [],
+    [tiktokSettings?.accounts, tiktokSettings?.oauthConnected],
   );
 
   const effectiveTikTokAdvertiserId = useMemo(() => {
@@ -876,7 +890,7 @@ export function useDigitalMarketingReportMonthlySpend(
       (orgLoading ||
         !filtersHydrated ||
         googleReportingPending ||
-        googleAccountsPending ||
+        googleAccountsListPending ||
         (googleReportingEnabled && googleMonthlyQuery.isLoading));
     if (!chartsQueryEnabled) {
       return {
@@ -933,7 +947,7 @@ export function useDigitalMarketingReportMonthlySpend(
     orgLoading,
     filtersHydrated,
     googleReportingPending,
-    googleAccountsPending,
+    googleAccountsListPending,
     googleReportingEnabled,
     googleMonthlyQuery,
     chartDateOverlap,
@@ -1089,7 +1103,7 @@ export function useDigitalMarketingReportMonthlySpend(
       connected: true,
       loading,
       error: null,
-      currency: data?.currency ?? data?.currency_code ?? "USD",
+      currency: normalizeReportDisplayCurrency(data?.currency ?? data?.currency_code),
       months,
       periodSummary: effectivePeriodSummary(months, parsePeriodSummary(data?.period_summary)),
     };
@@ -1112,7 +1126,7 @@ export function useDigitalMarketingReportMonthlySpend(
     googleReportingPending ||
     metaReportingPending ||
     tiktokReportingPending ||
-    googleAccountsPending ||
+    googleAccountsListPending ||
     metaSettingsPending ||
     tiktokSettingsPending;
 

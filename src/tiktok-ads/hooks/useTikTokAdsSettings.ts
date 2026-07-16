@@ -94,7 +94,12 @@ export function useTikTokAdsSettings(
       if (!organizationId) throw new Error("No organization");
       await invokeConfig(organizationId, "disconnect");
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      void queryClient.invalidateQueries({
+        queryKey: ["tiktok-ads-reporting-enabled", organizationId],
+      });
+    },
   });
 
   const updateConnection = useMutation({

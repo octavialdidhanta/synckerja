@@ -1,6 +1,7 @@
 /** Active `subscription_plans` row + nested add-on links from DB. */
 
 import type { ModuleAccessMap } from "@/shared/auth/module-access/moduleCatalog";
+import type { BillingTermDiscounts } from "@/10-subscription/shared/billingTermUtils";
 
 export type SubscriptionAddOnNested = {
   code: string;
@@ -8,6 +9,7 @@ export type SubscriptionAddOnNested = {
   default_unit_price_per_month: number;
   follows_plan_annual_discount: boolean;
   is_active: boolean;
+  billing_unit?: string | null;
 };
 
 export type SubscriptionPlanAddOnLink = {
@@ -26,6 +28,7 @@ export interface SubscriptionPlan {
   is_custom: boolean;
   demo_required: boolean;
   annual_discount_percentage: number | null;
+  billing_term_discounts?: BillingTermDiscounts | null;
   member_discount_tiers: unknown[] | null;
   jumlah_hari_trial: number | null;
   max_members: number | null;

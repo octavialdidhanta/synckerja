@@ -36,6 +36,7 @@ export interface ProRatedData {
     prorate_percentage?: number;
     skip_prorate?: boolean;
     current_plan_credit?: number;
+    addon_only_checkout?: boolean;
   };
 }
 
@@ -75,8 +76,14 @@ export function UpgradeConfirmationModal({
   const isYearly = billingCycle === "yearly";
 
   const isProRate = proRatedData?.calculation;
-  const isScheduledChange = isProRate && proRatedData.calculation && !proRatedData.calculation.charge_now;
-  const isImmediateCharge = isProRate && proRatedData.calculation && proRatedData.calculation.charge_now;
+  const isAddonOnlyCheckout = Boolean(proRatedData?.calculation?.addon_only_checkout);
+  const isScheduledChange =
+    isProRate && proRatedData.calculation && !proRatedData.calculation.charge_now && !isAddonOnlyCheckout;
+  const isScheduleOnlyDowngrade = Boolean(
+    (proRatedData?.calculation as { schedule_only_downgrade?: boolean } | undefined)?.schedule_only_downgrade,
+  );
+  const isImmediateCharge =
+    isProRate && proRatedData.calculation && (proRatedData.calculation.charge_now || isAddonOnlyCheckout);
   const prorateAmount = proRatedData?.calculation?.prorate_amount;
   const fullPrice = isYearly
     ? getYearlyPriceForMembers(
@@ -86,18 +93,22 @@ export function UpgradeConfirmationModal({
       )
     : getMonthlyPriceForMembers(newPlan.base_price_per_member, newMemberCount);
   const addon = Math.max(0, Math.round(Number(catalogAddOnTotalIdr)));
-  const baseHrAmount = isBillingCycleUpgradeOnly
-    ? fullPrice
-    : isImmediateCharge && prorateAmount !== undefined && prorateAmount > 0
-      ? prorateAmount
-      : fullPrice;
+  const baseHrAmount = isAddonOnlyCheckout
+    ? 0
+    : isBillingCycleUpgradeOnly
+      ? fullPrice
+      : isImmediateCharge && prorateAmount !== undefined && prorateAmount > 0
+        ? prorateAmount
+        : fullPrice;
   const totalAmount = baseHrAmount + addon;
 
   const title = isScheduledChange
     ? t("subscription.plans.modal.title.schedule")
-    : isBillingCycleUpgradeOnly
-      ? t("subscription.plans.modal.title.confirmYearly")
-      : t("subscription.plans.modal.title.confirm");
+    : isAddonOnlyCheckout
+      ? t("subscription.plans.modal.title.confirmAddOns")
+      : isBillingCycleUpgradeOnly
+        ? t("subscription.plans.modal.title.confirmYearly")
+        : t("subscription.plans.modal.title.confirm");
 
   const buttonText = isScheduledChange
     ? t("subscription.plans.modal.button.schedule")
@@ -116,27 +127,59 @@ export function UpgradeConfirmationModal({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 text-sm text-muted-foreground">
-          <p>
-            {t("subscription.plans.modal.summaryPlan", {
-              from: currentPlan.name,
-              to: newPlan.name,
-            })}
-          </p>
-          <p>
-            {t("subscription.plans.modal.summaryMembers", {
-              count: newMemberCount,
-            })}
-          </p>
-          {proRatedData?.calculation && (
-            <p>
-              {t("subscription.plans.modal.summaryProrate", {
-                days: proRatedData.calculation.remaining_days,
-                amount: formatIDR(totalAmount),
-              })}
-            </p>
+          {isAddonOnlyCheckout ? (
+            <>
+              <p className="font-medium text-foreground">
+                {t("subscription.plans.modal.summaryAddOnOnly", { plan: newPlan.name })}
+              </p>
+              {addon > 0 && (
+                <p>
+                  {t("subscription.plans.modal.addOnProrate", {
+                    days: proRatedData?.calculation?.remaining_days ?? 0,
+                    amount: formatIDR(addon),
+                  })}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p>
+                {t("subscription.plans.modal.summaryPlan", {
+                  from: currentPlan.name,
+                  to: newPlan.name,
+                })}
+              </p>
+              <p>
+                {t("subscription.plans.modal.summaryMembers", {
+                  count: newMemberCount,
+                })}
+              </p>
+              {proRatedData?.calculation && !isScheduledChange && (
+                <p>
+                  {t("subscription.plans.modal.summaryProrate", {
+                    days: proRatedData.calculation.remaining_days,
+                    amount: formatIDR(totalAmount),
+                  })}
+                </p>
+              )}
+              {isScheduledChange && proRatedData?.calculation?.scheduled_date && (
+                <>
+                  <p>
+                    {t("subscription.plans.modal.scheduled.effectiveDate")}{" "}
+                    {new Date(proRatedData.calculation.scheduled_date).toLocaleDateString()}
+                  </p>
+                  <p className="text-xs">{t("subscription.plans.modal.scheduled.policy")}</p>
+                  {isScheduleOnlyDowngrade && (
+                    <p className="text-xs">{t("subscription.plans.modal.payment.noAdditionalCost")}</p>
+                  )}
+                </>
+              )}
+            </>
           )}
           {!isScheduledChange && (
-            <p className="font-semibold text-foreground">{t("subscription.plans.modal.amount", { amount: formatIDR(totalAmount) })}</p>
+            <p className="font-semibold text-foreground">
+              {t("subscription.plans.modal.amount", { amount: formatIDR(totalAmount) })}
+            </p>
           )}
         </div>
         <DialogFooter className="gap-2 sm:gap-0">

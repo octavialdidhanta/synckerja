@@ -34,6 +34,8 @@ export interface PaymentParams {
   memberCount: number;
   /** Always `"monthly"` or `"yearly"`. For `purchaseKind: "omnichannel_seats"`, must match HR `organization_subscriptions.billing_cycle`; `create-midtrans-payment` recomputes from DB and ignores a mismatched client value. */
   billingCycle: "monthly" | "yearly";
+  /** Billing term in months (1, 3, 6, or 12). Required for Scale Up HR checkout. */
+  billingTermMonths?: 1 | 3 | 6 | 12;
   /** Optional Midtrans line items; server uses them only if prices sum to `amount`. */
   itemDetails?: Array<{ id: string; name: string; price: number; quantity: number }>;
   proRateDetails?: {
@@ -45,8 +47,12 @@ export interface PaymentParams {
     prorate_percentage: number;
     /** Declared omnichannel roster seats in this checkout; webhook applies to org entitlement. */
     bundled_omnichannel_roster_units?: number;
+    /** Lead Magnet flat add-on included in bundled HR checkout. */
+    bundled_lead_magnet_included?: boolean;
+    /** Full-period renewal checkout — webhook assigns add-on entitlements (not max with prior). */
+    renewal_full_period?: boolean;
   };
-  purchaseKind?: "omnichannel_seats";
+  purchaseKind?: "omnichannel_seats" | "lead_magnet_addon";
   additionalSeats?: number;
   /** Midtrans `finish` redirect path (must start with `/`). */
   checkoutSuccessRelativePath?: string;
@@ -160,6 +166,7 @@ export function useMidtransPayment(options?: UseMidtransPaymentOptions) {
           amount: params.amount,
           memberCount: params.memberCount,
           billingCycle: params.billingCycle,
+          billingTermMonths: params.billingTermMonths,
           proRateDetails: params.proRateDetails,
           itemDetails: params.itemDetails,
           purchaseKind: params.purchaseKind,
