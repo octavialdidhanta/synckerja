@@ -24,6 +24,13 @@
     "register": {
       "title": "Synckerja Office",
       "subtitle": "Start your free trial. No credit card required.",
+      "cancelAnytime": "Cancel Anytime",
+      "cancelBadgeSub": "FLEXIBLE",
+      "cancelBadgeFoot": "No lock-in",
+      "metaBadgeTitle": "Business Partner",
+      "metaBadgeFoot": "Official Meta",
+      "metaBusinessPartner": "Official Meta Business Partner",
+      "trustSignalsAria": "Trust and partnership signals",
       "fullName": "Full name *",
       "email": "Email *",
       "password": "Password *",

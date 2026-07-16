@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseLeadMagnetPostbackPayload } from "./types.ts";
 import type { LeadMagnetPostbackTriggerInput, LeadMagnetPostbackHandleResult } from "./types.ts";
-import { handleFollowConfirmPostback, sendDeliveryMessage } from "./followGateRuntime.ts";
+import { handleFollowConfirmPostback, resendFrameworkOfferDm, resendLeadMagnetDeliveryDm, sendDeliveryMessage } from "./followGateRuntime.ts";
 import type { LeadMagnetCampaignRow, LeadMagnetEnrollmentRow } from "./types.ts";
 
 type EnrollmentWithCampaign = LeadMagnetEnrollmentRow & {
@@ -38,6 +38,25 @@ export async function handleLeadMagnetPostbackTrigger(
   }
 
   if (parsed.action === "follow_confirm") {
+    if (row.status === "framework_offered" || row.status === "follow_validated") {
+      await resendFrameworkOfferDm(admin, {
+        enrollment: row,
+        campaign: campaignRow,
+        accessToken: input.accessToken,
+        pageId: input.pageId,
+      });
+      return { handled: true, followConfirm: { outcome: "material_sent" } };
+    }
+    if (row.status === "delivered") {
+      await resendLeadMagnetDeliveryDm(admin, {
+        enrollment: row,
+        campaign: campaignRow,
+        accessToken: input.accessToken,
+        pageId: input.pageId,
+      });
+      return { handled: true, followConfirm: { outcome: "material_sent" } };
+    }
+
     const followConfirm = await handleFollowConfirmPostback(admin, {
       enrollment: row,
       campaign: campaignRow,

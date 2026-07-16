@@ -79,8 +79,9 @@ export type LeadMagnetEnrollmentRow = {
 
 export type FollowConfirmResult =
   | { outcome: "already_processed" }
-  | { outcome: "blocked"; reason: "fb_first_confirm" | "ig_not_following" }
-  | { outcome: "material_sent" };
+  | { outcome: "blocked"; reason: "fb_first_confirm" | "ig_first_confirm" | "ig_not_following" }
+  | { outcome: "material_sent" }
+  | { outcome: "dm_failed" };
 
 export type LeadMagnetPostbackHandleResult = {
   handled: boolean;

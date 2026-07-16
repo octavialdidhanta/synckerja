@@ -3,6 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runLeadMagnetRuntime } from "../_shared/leadMagnet/runLeadMagnetRuntime.ts";
 import { handleLeadMagnetPostbackTrigger } from "../_shared/leadMagnet/postbackHandler.ts";
+import { resendLeadMagnetDeliveryDm } from "../_shared/leadMagnet/followGateRuntime.ts";
 import { resolveLeadMagnetEntitlement } from "../_shared/leadMagnet/leadMagnetEntitlement.ts";
 import {
   buildLeadMagnetPostbackPayload,
@@ -11,7 +12,11 @@ import {
 } from "../_shared/leadMagnet/types.ts";
 import {
   verifyLeadMagnetActionUrl,
+  buildSpaRedirectHtml,
+  buildDownloadLandingHtml,
+  wantsJsonActionApi,
   type LeadMagnetAction,
+  type DownloadLandingBody,
 } from "../_shared/leadMagnet/leadMagnetActionUrl.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -19,6 +24,29 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
+
+function isAuthorizedServiceCall(req: Request): boolean {
+  const serviceRoleKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) return false;
+  if (serviceRoleKey && token === serviceRoleKey) return true;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))) as {
+      role?: string;
+      ref?: string;
+      iss?: string;
+    };
+    const projectRef = (Deno.env.get("SUPABASE_URL") ?? "").match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? "";
+    const roleOk = payload.role === "service_role";
+    const refOk = !projectRef || payload.ref === projectRef || (payload.iss ?? "").includes(projectRef);
+    return roleOk && refOk;
+  } catch {
+    return false;
+  }
+}
 
 type ActionResponseBody = {
   ok: boolean;
@@ -94,6 +122,15 @@ function mapFollowConfirmResult(
       pageUrl: null,
     };
   }
+  if (result.outcome === "dm_failed") {
+    return {
+      ok: false,
+      code: "dm_failed",
+      title: "Pesan belum terkirim",
+      message: "Messenger menolak pengiriman DM. Kembali ke Messenger, klik tombol Sudah Follow di chat (bukan link browser), lalu coba lagi.",
+      pageUrl: null,
+    };
+  }
   if (result.outcome === "already_processed") {
     return {
       ok: true,
@@ -160,6 +197,16 @@ async function handleActionGet(req: Request): Promise<Response> {
   const action = (url.searchParams.get("a") ?? "").trim() as LeadMagnetAction;
   const expiry = (url.searchParams.get("t") ?? "").trim();
   const sig = (url.searchParams.get("s") ?? "").trim();
+
+  // Messenger / browser opened edge URL directly (legacy buttons) → redirect to SPA.
+  if (!wantsJsonActionApi(req)) {
+    const qs = url.searchParams.toString();
+    const html = buildSpaRedirectHtml(qs);
+    return new Response(html, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders },
+    });
+  }
 
   if (!enrollmentId || !action || !expiry || !sig) {
     return actionResponse(req, {
@@ -232,15 +279,6 @@ async function handleActionGet(req: Request): Promise<Response> {
     }, 403);
   }
 
-  if (action === "follow_confirm" && enrollment.status !== "follow_gate_sent") {
-    return actionResponse(req, {
-      ok: true,
-      code: "already_processed",
-      title: "Sudah diproses",
-      message: "Permintaan sudah pernah diproses. Cek Messenger Anda.",
-    });
-  }
-
   if (action === "get_framework" && enrollment.status === "delivered") {
     return actionResponse(req, {
       ok: true,
@@ -290,6 +328,129 @@ async function handleActionGet(req: Request): Promise<Response> {
   });
 }
 
+type DownloadResponseBody = DownloadLandingBody;
+
+function downloadFileNameFromUrl(fileUrl: string): string {
+  try {
+    const name = decodeURIComponent(new URL(fileUrl).pathname.split("/").pop() ?? "");
+    return name || "materi";
+  } catch {
+    return "materi";
+  }
+}
+
+function downloadHtmlResponse(body: DownloadResponseBody, status = 200): Response {
+  return new Response(buildDownloadLandingHtml(body), {
+    status,
+    headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders },
+  });
+}
+
+async function resolveDownloadBody(
+  enrollmentId: string,
+  expiry: string,
+  sig: string,
+): Promise<{ status: number; body: DownloadResponseBody }> {
+  const action: LeadMagnetAction = "download";
+
+  if (!enrollmentId || !expiry || !sig) {
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        code: "invalid_params",
+        title: "Link tidak valid",
+        message: "Parameter tautan tidak lengkap.",
+      },
+    };
+  }
+
+  const valid = await verifyLeadMagnetActionUrl(enrollmentId, action, expiry, sig);
+  if (!valid) {
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        code: "expired",
+        title: "Link kedaluwarsa",
+        message: "Silakan kembali ke Messenger dan minta link baru.",
+      },
+    };
+  }
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const admin = createClient(supabaseUrl, serviceRoleKey);
+
+  const { data: enrollment, error } = await admin
+    .from("lead_magnet_enrollments")
+    .select("*, campaign:lead_magnet_campaigns(*)")
+    .eq("id", enrollmentId)
+    .maybeSingle();
+
+  if (error || !enrollment) {
+    return {
+      status: 404,
+      body: {
+        ok: false,
+        code: "not_found",
+        title: "Tidak ditemukan",
+        message: "Enrollment tidak ditemukan.",
+      },
+    };
+  }
+
+  const campaignRaw = (enrollment as { campaign?: unknown }).campaign;
+  const campaign = Array.isArray(campaignRaw) ? campaignRaw[0] : campaignRaw;
+  const fileUrl = String(campaign?.delivery_url ?? "").trim();
+  if (!fileUrl) {
+    return {
+      status: 404,
+      body: {
+        ok: false,
+        code: "file_missing",
+        title: "Materi tidak tersedia",
+        message: "File materi belum dikonfigurasi untuk kampanye ini.",
+      },
+    };
+  }
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      code: "ready",
+      title: "Materi siap diunduh",
+      message: "Klik tombol di bawah untuk mengunduh file materi Anda.",
+      fileUrl,
+      buttonLabel: String(campaign?.delivery_button_label ?? "Unduh"),
+      fileName: downloadFileNameFromUrl(fileUrl),
+    },
+  };
+}
+
+async function handleDownloadGet(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const enrollmentId = (url.searchParams.get("e") ?? "").trim();
+  const expiry = (url.searchParams.get("t") ?? "").trim();
+  const sig = (url.searchParams.get("s") ?? "").trim();
+
+  const resolved = await resolveDownloadBody(enrollmentId, expiry, sig);
+
+  if (!wantsJsonActionApi(req)) {
+    // Legacy buttons still open Supabase edge URL — redirect to file; gateway serves HTML as text/plain.
+    if (resolved.body.ok && resolved.body.fileUrl) {
+      return Response.redirect(resolved.body.fileUrl, 302);
+    }
+    return downloadHtmlResponse(resolved.body, resolved.status);
+  }
+
+  return new Response(JSON.stringify(resolved.body), {
+    status: resolved.status,
+    headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders },
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -299,6 +460,78 @@ Deno.serve(async (req: Request) => {
   if (req.method === "GET" && pathname.endsWith("/action")) {
     return handleActionGet(req);
   }
+  if (req.method === "GET" && pathname.endsWith("/download")) {
+    return handleDownloadGet(req);
+  }
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+
+  if (req.method === "POST" && pathname.endsWith("/resend-delivery")) {
+    if (!isAuthorizedServiceCall(req)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let payload: { enrollmentId?: string };
+    try {
+      payload = await req.json() as { enrollmentId?: string };
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const enrollmentId = (payload.enrollmentId ?? "").trim();
+    if (!enrollmentId) {
+      return new Response(JSON.stringify({ error: "Missing enrollmentId" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const admin = createClient(supabaseUrl, serviceRoleKey);
+    const { data: enrollment, error } = await admin
+      .from("lead_magnet_enrollments")
+      .select("*, campaign:lead_magnet_campaigns(*)")
+      .eq("id", enrollmentId)
+      .maybeSingle();
+    if (error || !enrollment) {
+      return new Response(JSON.stringify({ error: "Enrollment not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const campaignRaw = (enrollment as { campaign?: unknown }).campaign;
+    const campaign = Array.isArray(campaignRaw) ? campaignRaw[0] : campaignRaw;
+    if (!campaign) {
+      return new Response(JSON.stringify({ error: "Campaign not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const orgId = String(enrollment.organization_id);
+    const accountId = String(campaign.account_id);
+    const creds = await resolvePageCredentials(admin, orgId, accountId);
+    if (!creds) {
+      return new Response(JSON.stringify({ error: "Page credentials missing" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const result = await resendLeadMagnetDeliveryDm(admin, {
+      enrollment: enrollment as Parameters<typeof resendLeadMagnetDeliveryDm>[1]["enrollment"],
+      campaign,
+      accessToken: creds.accessToken,
+      pageId: creds.pageId,
+    });
+    return new Response(JSON.stringify({ success: result.ok, ...result }), {
+      status: result.ok ? 200 : 502,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -307,10 +540,7 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!token || token !== serviceRoleKey) {
+  if (!isAuthorizedServiceCall(req)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

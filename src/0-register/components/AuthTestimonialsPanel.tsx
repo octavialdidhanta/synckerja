@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { AuthRegisterTrustSignals } from "@/0-register/components/AuthRegisterTrustSignals";
 
 interface PerformanceBadge {
   id: string;
@@ -31,20 +32,6 @@ export function AuthTestimonialsPanel({ compact = false }: AuthTestimonialsPanel
       subtitleKey: "auth.panel.badgeBestSub",
       periodKey: "auth.panel.badgeBestPeriod",
     },
-    {
-      id: "leader",
-      type: "lead",
-      titleKey: "auth.panel.badgeLeadTitle",
-      subtitleKey: "auth.panel.badgeLeadSub",
-      periodKey: "auth.panel.badgeLeadPeriod",
-    },
-    {
-      id: "easiest",
-      type: "easy",
-      titleKey: "auth.panel.badgeEasyTitle",
-      subtitleKey: "auth.panel.badgeEasySub",
-      periodKey: "auth.panel.badgeEasyPeriod",
-    },
   ];
 
   const testimonials: Testimonial[] = [
@@ -54,8 +41,8 @@ export function AuthTestimonialsPanel({ compact = false }: AuthTestimonialsPanel
   ];
 
   const badgeShell = compact
-    ? "inline-flex flex-col items-start rounded-xl px-3 py-2 shadow-sm border border-black/[0.06]"
-    : "inline-flex flex-col items-center rounded-xl px-3 py-2 text-center shadow-sm border border-black/[0.06]";
+    ? "inline-flex w-[5.5rem] shrink-0 flex-col items-start rounded-xl px-2.5 py-2 shadow-sm border border-black/[0.06] bg-[hsl(var(--brand-white))]"
+    : "inline-flex w-[5.5rem] shrink-0 flex-col items-center rounded-xl px-2.5 py-2 text-center shadow-sm border border-black/[0.06] bg-[hsl(var(--brand-white))]";
 
   const PerformanceBadge = ({ badge }: { badge: PerformanceBadge }) => (
     <div className={badgeShell}>
@@ -70,26 +57,26 @@ export function AuthTestimonialsPanel({ compact = false }: AuthTestimonialsPanel
       >
         {t(badge.subtitleKey)}
       </span>
-      <span className="text-xs font-semibold text-slate-800 mt-0.5">{t(badge.titleKey)}</span>
-      <span className="text-[10px] text-slate-500">{t(badge.periodKey)}</span>
+      <span className="mt-0.5 text-xs font-semibold leading-snug text-slate-800">{t(badge.titleKey)}</span>
+      <span className="mt-0.5 text-[8px] leading-tight text-slate-500">{t(badge.periodKey)}</span>
     </div>
   );
 
   const TestimonialQuote = ({ item }: { item: Testimonial }) => (
     <div
-      className={`rounded-xl bg-[hsl(var(--brand-white))] p-5 shadow-md border border-slate-200/80 ${compact ? "text-left" : "text-center"}`}
+      className={`rounded-xl bg-[hsl(var(--brand-white))] px-4 py-3 shadow-sm border border-slate-200/80 ${compact ? "text-left" : "text-center"}`}
     >
-      <blockquote className="text-slate-800 text-base leading-relaxed font-medium">
+      <blockquote className="text-sm font-medium leading-snug text-slate-800">
         &ldquo;{t(item.quoteKey)}&rdquo;
       </blockquote>
-      <p className="mt-3 text-sm text-slate-600">
+      <p className="mt-1.5 text-[10px] leading-tight text-slate-500">
         — {t(item.authorKey)}, <span className="text-[hsl(var(--brand-blue))]">{t(item.positionKey)}</span>
       </p>
     </div>
   );
 
   const inner = (
-    <div className={compact ? "mx-auto w-full max-w-lg space-y-8" : "mx-auto w-full max-w-lg space-y-8 text-center"}>
+    <div className={compact ? "mx-auto w-full max-w-lg space-y-8" : "mx-auto w-full max-w-3xl space-y-8 text-center"}>
       <header>
         <h2
           className={
@@ -101,12 +88,19 @@ export function AuthTestimonialsPanel({ compact = false }: AuthTestimonialsPanel
           {t("auth.panel.headline")}
         </h2>
       </header>
-      <section className={compact ? "flex flex-wrap gap-3" : "flex flex-wrap justify-center gap-3"}>
+      <section
+        className={
+          compact
+            ? "flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide"
+            : "flex flex-nowrap items-stretch justify-center gap-2"
+        }
+      >
         {performanceBadges.map((badge) => (
           <PerformanceBadge key={badge.id} badge={badge} />
         ))}
+        <AuthRegisterTrustSignals variant="panel" compact={compact} />
       </section>
-      <section className="space-y-4">
+      <section className="mx-auto w-full max-w-lg space-y-2.5">
         {testimonials.map((item) => (
           <TestimonialQuote key={item.id} item={item} />
         ))}

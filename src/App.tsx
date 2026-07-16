@@ -183,6 +183,9 @@ const LeadMagnetAnalyticsPage = lazy(() =>
 const LeadMagnetActionPage = lazy(() =>
   import("@/6-1-lead-magnet/pages/LeadMagnetActionPage").then((m) => ({ default: m.LeadMagnetActionPage })),
 );
+const LeadMagnetDownloadPage = lazy(() =>
+  import("@/6-1-lead-magnet/pages/LeadMagnetDownloadPage").then((m) => ({ default: m.LeadMagnetDownloadPage })),
+);
 const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
 const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
 const MetaAdsMetricsPage = lazy(() => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"));
@@ -662,6 +665,34 @@ function AppRoutes() {
               }
             >
               <LeadMagnetActionPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/digital-marketing/lead-magnet/download"
+          element={
+            <Suspense
+              fallback={
+                <div className="flex min-h-screen items-center justify-center bg-gray-100" aria-busy>
+                  <span className="sr-only">Loading</span>
+                </div>
+              }
+            >
+              <LeadMagnetDownloadPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/lead-magnet/download"
+          element={
+            <Suspense
+              fallback={
+                <div className="flex min-h-screen items-center justify-center bg-gray-100" aria-busy>
+                  <span className="sr-only">Loading</span>
+                </div>
+              }
+            >
+              <LeadMagnetDownloadPage />
             </Suspense>
           }
         />
@@ -2563,6 +2594,34 @@ const App = () => (
                         }
                       >
                         <LeadMagnetActionPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/digital-marketing/lead-magnet/download"
+                    element={
+                      <Suspense
+                        fallback={
+                          <div className="flex min-h-screen items-center justify-center bg-gray-100" aria-busy>
+                            <span className="sr-only">Loading</span>
+                          </div>
+                        }
+                      >
+                        <LeadMagnetDownloadPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/lead-magnet/download"
+                    element={
+                      <Suspense
+                        fallback={
+                          <div className="flex min-h-screen items-center justify-center bg-gray-100" aria-busy>
+                            <span className="sr-only">Loading</span>
+                          </div>
+                        }
+                      >
+                        <LeadMagnetDownloadPage />
                       </Suspense>
                     }
                   />

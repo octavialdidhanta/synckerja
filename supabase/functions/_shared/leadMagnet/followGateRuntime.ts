@@ -2,7 +2,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { LeadMagnetCampaignRow, LeadMagnetEnrollmentRow } from "./types.ts";
 import { interpolateLeadMagnetText } from "./types.ts";
 import type { FollowConfirmResult } from "./types.ts";
-import { buildFacebookFollowGateButtons, buildLeadMagnetActionButton } from "./leadMagnetActionButtons.ts";
+import { buildFacebookFollowGateButtons, buildLeadMagnetActionButton, buildLeadMagnetDeliveryButton } from "./leadMagnetActionButtons.ts";
 import { fetchParticipantProfile } from "./fetchParticipantProfile.ts";
 import { logLeadMagnetFunnelEvent, updateEnrollmentStatus } from "./funnelAnalytics.ts";
 import { sendLeadMagnetDm, type LeadMagnetSendResult } from "./sendLeadMagnetMessage.ts";
@@ -103,8 +103,33 @@ async function recordPrivateReplyOutcome(
 const FB_FOLLOW_RETRY_TEXT =
   "Sepertinya Page belum di-follow. Ikuti Page dulu lewat tombol Ikuti Page, lalu klik Sudah Follow lagi di Messenger.";
 
+const IG_FOLLOW_RETRY_TEXT =
+  "Pastikan kamu sudah follow akun Instagram kami, lalu klik Sudah Follow sekali lagi di DM.";
+
 function postFollowGateStatuses(): LeadMagnetEnrollmentRow["status"][] {
   return ["follow_validated", "framework_offered", "material_offer_skipped", "delivered"];
+}
+
+/** Re-comment can downgrade status to comment_replied — restore before handling stale postbacks. */
+async function restoreFollowGateStatusIfStale(
+  admin: SupabaseClient,
+  enrollment: LeadMagnetEnrollmentRow,
+): Promise<LeadMagnetEnrollmentRow> {
+  const restorable = new Set(["comment_replied", "comment_matched", "follow_checked"]);
+  if (!restorable.has(enrollment.status)) return enrollment;
+  if (!enrollment.private_reply_message_id?.trim()) return enrollment;
+
+  const now = new Date().toISOString();
+  const { data } = await admin
+    .from("lead_magnet_enrollments")
+    .update({ status: "follow_gate_sent", updated_at: now })
+    .eq("id", enrollment.id)
+    .in("status", [...restorable])
+    .select("id")
+    .maybeSingle();
+
+  if (!data?.id) return enrollment;
+  return { ...enrollment, status: "follow_gate_sent" };
 }
 
 type DmButton = { type: "postback"; title: string; payload: string }
@@ -310,9 +335,9 @@ export async function sendFrameworkOffer(
     accessToken: string;
     pageId: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   if (args.enrollment.status === "framework_offered" || args.enrollment.status === "delivered") {
-    return;
+    return true;
   }
 
   const now = new Date().toISOString();
@@ -324,7 +349,7 @@ export async function sendFrameworkOffer(
     .select("id")
     .maybeSingle();
 
-  if (!claimed?.id) return;
+  if (!claimed?.id) return false;
 
   const text = interpolateLeadMagnetText(args.campaign.framework_offer_text, args.enrollment.participant_username);
   const buttons = [await buildLeadMagnetActionButton(
@@ -368,7 +393,7 @@ export async function sendFrameworkOffer(
       eventType: "dm_failed",
       metadata: { step: "framework_offer", error: sendResult.error, session_expired: sendResult.isSessionExpired },
     }));
-    return;
+    return false;
   }
 
   const privateReplyPatch = buildPrivateReplyEnrollmentPatch(sendResult);
@@ -387,6 +412,44 @@ export async function sendFrameworkOffer(
       eventType: "framework_offered",
     });
   })());
+  return true;
+}
+
+export async function resendFrameworkOfferDm(
+  admin: SupabaseClient,
+  args: {
+    enrollment: LeadMagnetEnrollmentRow;
+    campaign: LeadMagnetCampaignRow;
+    accessToken: string;
+    pageId: string;
+  },
+): Promise<{ ok: boolean; messageId?: string | null; error?: string }> {
+  const text = interpolateLeadMagnetText(args.campaign.framework_offer_text, args.enrollment.participant_username);
+  const buttons = [await buildLeadMagnetActionButton(
+    args.enrollment,
+    args.campaign.framework_button_label,
+    "get_framework",
+  )];
+
+  const sendResult = await sendLeadMagnetDm(admin, {
+    platform: args.enrollment.platform,
+    organizationId: args.enrollment.organization_id,
+    accountId: args.campaign.account_id,
+    pageId: args.pageId,
+    accessToken: args.accessToken,
+    recipientScopedId: args.enrollment.participant_scoped_id,
+    participantUsername: args.enrollment.participant_username,
+    text,
+    buttons,
+    existingConversationId: args.enrollment.conversation_id,
+    deferPersistence: false,
+  });
+
+  return {
+    ok: sendResult.ok,
+    messageId: sendResult.messageId,
+    error: sendResult.error,
+  };
 }
 
 async function sendMaterialOfferOrDelivery(
@@ -397,7 +460,7 @@ async function sendMaterialOfferOrDelivery(
     accessToken: string;
     pageId: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   if (args.campaign.skip_material_offer) {
     deferFollowGateWork(logLeadMagnetFunnelEvent(admin, {
       enrollmentId: args.enrollment.id,
@@ -406,10 +469,9 @@ async function sendMaterialOfferOrDelivery(
       eventType: "material_offer_skipped",
       metadata: { reason: "campaign_setting" },
     }));
-    await sendDeliveryMessage(admin, args);
-    return;
+    return sendDeliveryMessage(admin, args);
   }
-  await sendFrameworkOffer(admin, args);
+  return sendFrameworkOffer(admin, args);
 }
 
 export async function sendDeliveryMessage(
@@ -420,9 +482,9 @@ export async function sendDeliveryMessage(
     accessToken: string;
     pageId: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   if (args.enrollment.status === "delivered") {
-    return;
+    return true;
   }
 
   const now = new Date().toISOString();
@@ -434,14 +496,13 @@ export async function sendDeliveryMessage(
     .select("id")
     .maybeSingle();
 
-  if (!claimed?.id) return;
+  if (!claimed?.id) return false;
 
   const text = interpolateLeadMagnetText(args.campaign.delivery_text, args.enrollment.participant_username);
-  const buttons = [{
-    type: "web_url" as const,
-    title: args.campaign.delivery_button_label,
-    url: args.campaign.delivery_url,
-  }];
+  const buttons = [await buildLeadMagnetDeliveryButton(
+    args.enrollment,
+    args.campaign.delivery_button_label,
+  )];
 
   const sendResult = needsFirstContactDm(args.enrollment)
     ? await sendFirstContactDm(admin, {
@@ -478,7 +539,7 @@ export async function sendDeliveryMessage(
       eventType: "dm_failed",
       metadata: { step: "delivery", error: sendResult.error, session_expired: sendResult.isSessionExpired },
     }));
-    return;
+    return false;
   }
 
   const privateReplyPatch = buildPrivateReplyEnrollmentPatch(sendResult);
@@ -497,6 +558,7 @@ export async function sendDeliveryMessage(
       eventType: "delivered",
     });
   })());
+  return true;
 }
 
 export async function handleFollowConfirmPostback(
@@ -512,59 +574,93 @@ export async function handleFollowConfirmPostback(
     return { outcome: "already_processed" };
   }
 
-  if (postFollowGateStatuses().includes(args.enrollment.status)) {
+  const enrollment = await restoreFollowGateStatusIfStale(admin, args.enrollment);
+  const flowArgs = { ...args, enrollment };
+
+  if (postFollowGateStatuses().includes(flowArgs.enrollment.status)) {
     return { outcome: "already_processed" };
   }
 
-  if (args.enrollment.status !== "follow_gate_sent") {
+  if (flowArgs.enrollment.status !== "follow_gate_sent") {
     return { outcome: "already_processed" };
   }
 
-  const attempts = args.enrollment.follow_confirm_attempts ?? 0;
+  const attempts = flowArgs.enrollment.follow_confirm_attempts ?? 0;
 
-  if (args.enrollment.platform === "facebook" && attempts < 1) {
+  // IG + FB: 2-step honor flow. Meta is_user_follow_business is often false even when user follows.
+  if (attempts < 1) {
     const now = new Date().toISOString();
     await admin
       .from("lead_magnet_enrollments")
       .update({ follow_confirm_attempts: attempts + 1, updated_at: now })
-      .eq("id", args.enrollment.id)
+      .eq("id", flowArgs.enrollment.id)
       .eq("status", "follow_gate_sent");
 
-    await logLeadMagnetFunnelEvent(admin, {
-      enrollmentId: args.enrollment.id,
-      campaignId: args.campaign.id,
-      organizationId: args.enrollment.organization_id,
-      eventType: "follow_retry",
-      metadata: { platform: "facebook", attempt: attempts + 1 },
-    });
+    const retryText = flowArgs.enrollment.platform === "facebook"
+      ? FB_FOLLOW_RETRY_TEXT
+      : IG_FOLLOW_RETRY_TEXT;
 
-    await sendFollowGate(admin, {
-      ...args,
-      textOverride: FB_FOLLOW_RETRY_TEXT,
-    });
-
-    return { outcome: "blocked", reason: "fb_first_confirm" };
+    if (flowArgs.enrollment.platform === "instagram") {
+      const profile = await fetchParticipantProfile(
+        flowArgs.enrollment.participant_scoped_id,
+        flowArgs.accessToken,
+      );
+      if (profile.isFollower === true) {
+        // API confirms follow on first click — skip friction, proceed below.
+      } else {
+        await logLeadMagnetFunnelEvent(admin, {
+          enrollmentId: flowArgs.enrollment.id,
+          campaignId: flowArgs.campaign.id,
+          organizationId: flowArgs.enrollment.organization_id,
+          eventType: "follow_retry",
+          metadata: {
+            platform: "instagram",
+            attempt: attempts + 1,
+            is_follower: profile.isFollower,
+            username: profile.username,
+          },
+        });
+        await sendFollowGate(admin, { ...flowArgs, textOverride: retryText });
+        return { outcome: "blocked", reason: "ig_first_confirm" };
+      }
+    } else {
+      await logLeadMagnetFunnelEvent(admin, {
+        enrollmentId: flowArgs.enrollment.id,
+        campaignId: flowArgs.campaign.id,
+        organizationId: flowArgs.enrollment.organization_id,
+        eventType: "follow_retry",
+        metadata: { platform: "facebook", attempt: attempts + 1 },
+      });
+      await sendFollowGate(admin, { ...flowArgs, textOverride: retryText });
+      return { outcome: "blocked", reason: "fb_first_confirm" };
+    }
   }
 
-  if (args.enrollment.platform === "instagram") {
-    const profile = await fetchParticipantProfile(args.enrollment.participant_scoped_id, args.accessToken);
-    if (profile.isFollower !== true) {
-      await logLeadMagnetFunnelEvent(admin, {
-        enrollmentId: args.enrollment.id,
-        campaignId: args.campaign.id,
-        organizationId: args.enrollment.organization_id,
-        eventType: "follow_retry",
-      });
-      await sendFollowGate(admin, args);
-      return { outcome: "blocked", reason: "ig_not_following" };
-    }
+  if (flowArgs.enrollment.platform === "instagram") {
+    const profile = await fetchParticipantProfile(
+      flowArgs.enrollment.participant_scoped_id,
+      flowArgs.accessToken,
+    );
+    await logLeadMagnetFunnelEvent(admin, {
+      enrollmentId: flowArgs.enrollment.id,
+      campaignId: flowArgs.campaign.id,
+      organizationId: flowArgs.enrollment.organization_id,
+      eventType: "follow_validated",
+      metadata: {
+        platform: "instagram",
+        attempt: attempts + 1,
+        is_follower: profile.isFollower,
+        username: profile.username,
+        honor_bypass: profile.isFollower !== true,
+      },
+    });
   }
 
   const now = new Date().toISOString();
   const becameFollowerPatch: Record<string, unknown> = {};
   if (
-    args.enrollment.is_follower_at_start === false &&
-    !args.enrollment.became_follower_at
+    flowArgs.enrollment.is_follower_at_start === false &&
+    !flowArgs.enrollment.became_follower_at
   ) {
     becameFollowerPatch.became_follower_at = now;
   }
@@ -577,7 +673,7 @@ export async function handleFollowConfirmPostback(
       updated_at: now,
       ...becameFollowerPatch,
     })
-    .eq("id", args.enrollment.id)
+    .eq("id", flowArgs.enrollment.id)
     .eq("status", "follow_gate_sent")
     .select("id")
     .maybeSingle();
@@ -587,23 +683,60 @@ export async function handleFollowConfirmPostback(
   }
 
   await logLeadMagnetFunnelEvent(admin, {
-    enrollmentId: args.enrollment.id,
-    campaignId: args.campaign.id,
-    organizationId: args.enrollment.organization_id,
+    enrollmentId: flowArgs.enrollment.id,
+    campaignId: flowArgs.campaign.id,
+    organizationId: flowArgs.enrollment.organization_id,
     eventType: "follow_validated",
-    metadata: { platform: args.enrollment.platform, attempt: attempts + 1 },
+    metadata: { platform: flowArgs.enrollment.platform, attempt: attempts + 1 },
   });
 
   const validatedEnrollment: LeadMagnetEnrollmentRow = {
-    ...args.enrollment,
+    ...flowArgs.enrollment,
     status: "follow_validated",
     follow_confirm_attempts: attempts + 1,
   };
 
-  await sendMaterialOfferOrDelivery(admin, {
-    ...args,
+  const materialSent = await sendMaterialOfferOrDelivery(admin, {
+    ...flowArgs,
     enrollment: validatedEnrollment,
   });
 
-  return { outcome: "material_sent" };
+  return materialSent ? { outcome: "material_sent" } : { outcome: "dm_failed" };
+}
+
+/** Admin/helper resend — uses campaign delivery_url with signed download button. */
+export async function resendLeadMagnetDeliveryDm(
+  admin: SupabaseClient,
+  args: {
+    enrollment: LeadMagnetEnrollmentRow;
+    campaign: LeadMagnetCampaignRow;
+    accessToken: string;
+    pageId: string;
+  },
+): Promise<{ ok: boolean; messageId?: string | null; error?: string }> {
+  const text = interpolateLeadMagnetText(args.campaign.delivery_text, args.enrollment.participant_username);
+  const buttons = [await buildLeadMagnetDeliveryButton(
+    args.enrollment,
+    args.campaign.delivery_button_label,
+  )];
+
+  const sendResult = await sendLeadMagnetDm(admin, {
+    platform: args.enrollment.platform,
+    organizationId: args.enrollment.organization_id,
+    accountId: args.campaign.account_id,
+    pageId: args.pageId,
+    accessToken: args.accessToken,
+    recipientScopedId: args.enrollment.participant_scoped_id,
+    participantUsername: args.enrollment.participant_username,
+    text,
+    buttons,
+    existingConversationId: args.enrollment.conversation_id,
+    deferPersistence: false,
+  });
+
+  return {
+    ok: sendResult.ok,
+    messageId: sendResult.messageId,
+    error: sendResult.error,
+  };
 }

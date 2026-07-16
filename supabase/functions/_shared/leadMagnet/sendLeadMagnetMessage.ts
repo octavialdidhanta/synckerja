@@ -455,7 +455,10 @@ export async function sendLeadMagnetDm(
   }
 
   if (conversationId) {
-    const persist = persistOutboundMessage(admin, args.platform, conversationId, args.text, result.messageId);
+    const persistBody = args.buttons?.length
+      ? `${args.text}\n\n[Tombol: ${args.buttons.map((b) => b.title).join(", ")}]`
+      : args.text;
+    const persist = persistOutboundMessage(admin, args.platform, conversationId, persistBody, result.messageId);
     if (args.deferPersistence) {
       deferDmPersistence(persist);
     } else {

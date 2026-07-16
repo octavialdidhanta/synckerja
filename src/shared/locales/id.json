@@ -24,6 +24,13 @@
     "register": {
       "title": "Synckerja Office",
       "subtitle": "Mulai uji coba gratis. Tanpa kartu kredit.",
+      "cancelAnytime": "Batalkan Kapan Saja",
+      "cancelBadgeSub": "FLEKSIBEL",
+      "cancelBadgeFoot": "Tanpa ikatan",
+      "metaBadgeTitle": "Business Partner",
+      "metaBadgeFoot": "Official Meta",
+      "metaBusinessPartner": "Official Meta Business Partner",
+      "trustSignalsAria": "Sinyal kepercayaan dan kemitraan",
       "fullName": "Nama lengkap *",
       "email": "Email *",
       "password": "Kata sandi *",

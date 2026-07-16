@@ -24,13 +24,19 @@ export async function fetchParticipantProfile(
       error?: { message?: string };
     };
     if (!res.ok) {
-      console.warn("[lead-magnet] profile fetch failed:", data.error?.message ?? res.status);
+      console.warn("[lead-magnet] profile fetch failed:", data.error?.message ?? res.status, scopedUserId);
       return { username: null, name: null, isFollower: null };
     }
+    const isFollower = typeof data.is_user_follow_business === "boolean" ? data.is_user_follow_business : null;
+    console.log("[lead-magnet] profile follow check:", {
+      scopedUserId,
+      username: data.username ?? null,
+      is_user_follow_business: isFollower,
+    });
     return {
       username: typeof data.username === "string" ? data.username : null,
       name: typeof data.name === "string" ? data.name : null,
-      isFollower: typeof data.is_user_follow_business === "boolean" ? data.is_user_follow_business : null,
+      isFollower,
     };
   } catch (err) {
     console.warn("[lead-magnet] profile fetch error:", err);

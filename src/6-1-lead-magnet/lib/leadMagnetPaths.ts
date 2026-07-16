@@ -4,6 +4,7 @@ export const LEAD_MAGNET_PATHS = {
   list: '/digital-marketing/lead-magnet',
   new: '/digital-marketing/lead-magnet/new',
   action: '/digital-marketing/lead-magnet/action',
+  download: '/digital-marketing/lead-magnet/download',
   edit: (id: string) => `/digital-marketing/lead-magnet/${id}/edit`,
   analytics: (id: string) => `/digital-marketing/lead-magnet/${id}/analytics`,
   omnichannelSettings: '/omnichannel/settings/lead-magnet',

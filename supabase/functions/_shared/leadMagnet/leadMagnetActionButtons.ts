@@ -1,6 +1,6 @@
 import type { LeadMagnetEnrollmentRow } from "./types.ts";
 import { buildLeadMagnetPostbackPayload } from "./types.ts";
-import { buildLeadMagnetActionUrl, type LeadMagnetAction } from "./leadMagnetActionUrl.ts";
+import { buildLeadMagnetDownloadUrl, type LeadMagnetAction } from "./leadMagnetActionUrl.ts";
 
 export type LeadMagnetDmButton = { type: "postback"; title: string; payload: string }
   | { type: "web_url"; title: string; url: string };
@@ -10,23 +10,28 @@ export function buildFacebookPageUrl(pageId: string): string {
   return id ? `https://www.facebook.com/${encodeURIComponent(id)}` : "https://www.facebook.com";
 }
 
-/** Facebook Messenger postbacks need App-level messaging_postbacks webhook — use web_url instead. */
+/** FB: postback keeps Messenger 24h window open; web_url opens external browser and breaks follow-up DMs. */
 export async function buildLeadMagnetActionButton(
   enrollment: LeadMagnetEnrollmentRow,
   title: string,
   action: LeadMagnetAction,
 ): Promise<LeadMagnetDmButton> {
-  if (enrollment.platform === "facebook") {
-    return {
-      type: "web_url",
-      title,
-      url: await buildLeadMagnetActionUrl(enrollment.id, action),
-    };
-  }
   return {
     type: "postback",
     title,
     payload: buildLeadMagnetPostbackPayload(enrollment.id, action),
+  };
+}
+
+/** Delivery button — branded Synckerja URL, not raw storage link. */
+export async function buildLeadMagnetDeliveryButton(
+  enrollment: LeadMagnetEnrollmentRow,
+  title: string,
+): Promise<LeadMagnetDmButton> {
+  return {
+    type: "web_url",
+    title,
+    url: await buildLeadMagnetDownloadUrl(enrollment.id),
   };
 }
 

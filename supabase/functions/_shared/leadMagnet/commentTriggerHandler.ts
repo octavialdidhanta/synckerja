@@ -29,11 +29,28 @@ async function sendPublicCommentReply(
     retry?: boolean;
   },
 ): Promise<boolean> {
+  const advancedStatuses = new Set([
+    "follow_gate_sent",
+    "follow_checked",
+    "follow_validated",
+    "framework_offered",
+    "material_offer_skipped",
+    "delivered",
+  ]);
+
   try {
     const replyText = buildPublicCommentReply(args.campaign.comment_reply_text, args.authorUsername);
     const replyResult = await replyMetaComment(args.platform, args.commentId, replyText, args.accessToken);
     deferLeadMagnetWork((async () => {
-      await updateEnrollmentStatus(admin, args.enrollmentId, "comment_replied", {
+      const { data: current } = await admin
+        .from("lead_magnet_enrollments")
+        .select("status")
+        .eq("id", args.enrollmentId)
+        .maybeSingle();
+      const currentStatus = (current?.status as string | undefined) ?? "comment_replied";
+      const nextStatus = advancedStatuses.has(currentStatus) ? currentStatus : "comment_replied";
+
+      await updateEnrollmentStatus(admin, args.enrollmentId, nextStatus, {
         comment_reply_id: replyResult.id,
       });
       await logLeadMagnetFunnelEvent(admin, {
@@ -80,6 +97,18 @@ function scheduleFollowCheckAndDmFlow(
       console.error("[lead-magnet] deferred DM flow failed:", err);
     }),
   );
+}
+
+function isFacebookSessionExpiredError(lastError: string | null | undefined): boolean {
+  const err = (lastError ?? "").toLowerCase();
+  return err.includes("outside the allowed window") || err.includes("(#10)");
+}
+
+function canRestartFacebookDmFlow(existing: Record<string, unknown>): boolean {
+  const status = String(existing.status ?? "");
+  if (status === "follow_gate_sent") return true;
+  if (!isFacebookSessionExpiredError(existing.last_error as string | null)) return false;
+  return ["follow_validated", "framework_offered", "failed"].includes(status);
 }
 
 export async function handleLeadMagnetCommentTrigger(
@@ -143,10 +172,10 @@ export async function handleLeadMagnetCommentTrigger(
 
       const canResendFacebookFollowGate = existing
         && input.platform === "facebook"
-        && existing.status === "follow_gate_sent";
+        && canRestartFacebookDmFlow(existing);
 
       if (canResendFacebookFollowGate && existing) {
-        console.log("[lead-magnet] resend FB follow gate after new comment", existing.id, input.commentId);
+        console.log("[lead-magnet] restart FB DM flow after new comment", existing.id, input.commentId, existing.status);
         await admin.from("lead_magnet_enrollments").update({
           comment_id: input.commentId,
           media_id: input.mediaId,
