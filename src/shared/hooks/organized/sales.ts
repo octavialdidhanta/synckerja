@@ -27,7 +27,7 @@ import {
 import { dedupeInstagramConversations } from '@/5-3-whatsapp/lib/dedupeInstagramConversations';
 import {
   applyLeadMagnetAssigneeOverlay,
-  buildLeadMagnetLinkedConversationIdSet,
+  buildLeadMagnetVirtualDedupeContext,
   enrichLeadRowWithLeadMagnetMeta,
   fetchConversationAssigneeMap,
   fetchLeadMagnetMetaByLeadIds,
@@ -1953,7 +1953,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         }
       }
       const leadMagnetAssigneeByConv = await fetchConversationAssigneeMap(leadMagnetAssigneeEntries);
-      const linkedLeadMagnetConversationIds = buildLeadMagnetLinkedConversationIdSet(leadMagnetMetaByLeadId);
+      const leadMagnetDedupeCtx = buildLeadMagnetVirtualDedupeContext(leadMagnetMetaByLeadId);
 
       // Fetch all lead statuses for this organization + global (org_id null) so Resolve/Unread etc. resolve correctly
       let statusMap = new Map<string, { id: string; name: string; color: string }>();
@@ -2231,11 +2231,20 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       if (!whatsappError && whatsappConvs && whatsappConvs.length > 0) {
         const waConvsWithoutLead = whatsappConvs.filter((c: any) => {
-          if (shouldHideVirtualConversationForLeadMagnet(String(c.id), linkedLeadMagnetConversationIds)) {
-            return false;
-          }
           const isInstagram = (c.channel ?? '').toLowerCase() === 'instagram';
           const waTicketId = c.ticket_id ?? ((isInstagram ? 'IG-' : 'WA-') + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          if (
+            shouldHideVirtualConversationForLeadMagnet(
+              {
+                conversationId: String(c.id),
+                ticketId: waTicketId,
+                customerWaId: isInstagram ? c.customer_wa_id : undefined,
+              },
+              leadMagnetDedupeCtx,
+            )
+          ) {
+            return false;
+          }
           return !ticketIdsInLeadsTable.has(normTicket(waTicketId));
         });
         const whatsappAsLeads = waConvsWithoutLead.map((c: any) => {
@@ -2282,10 +2291,19 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       if (!facebookError && facebookConvs && facebookConvs.length > 0) {
         const fbConvsWithoutLead = facebookConvs.filter((c: any) => {
-          if (shouldHideVirtualConversationForLeadMagnet(String(c.id), linkedLeadMagnetConversationIds)) {
+          const fbTicketId = c.ticket_id ?? ('FB-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          if (
+            shouldHideVirtualConversationForLeadMagnet(
+              {
+                conversationId: String(c.id),
+                ticketId: fbTicketId,
+                customerPsid: c.customer_psid,
+              },
+              leadMagnetDedupeCtx,
+            )
+          ) {
             return false;
           }
-          const fbTicketId = c.ticket_id ?? ('FB-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
           return !ticketIdsInLeadsTable.has(normTicket(fbTicketId));
         });
         const facebookAsLeads = fbConvsWithoutLead.map((c: any) => {
@@ -2329,10 +2347,19 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       if (!instagramError && instagramConvs && instagramConvs.length > 0) {
         const igConvsWithoutLead = instagramConvs.filter((c: any) => {
-          if (shouldHideVirtualConversationForLeadMagnet(String(c.id), linkedLeadMagnetConversationIds)) {
+          const igTicketId = c.ticket_id ?? ('IG-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
+          if (
+            shouldHideVirtualConversationForLeadMagnet(
+              {
+                conversationId: String(c.id),
+                ticketId: igTicketId,
+                customerIgId: c.customer_ig_id,
+              },
+              leadMagnetDedupeCtx,
+            )
+          ) {
             return false;
           }
-          const igTicketId = c.ticket_id ?? ('IG-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
           return !ticketIdsInLeadsTable.has(normTicket(igTicketId));
         });
         const instagramAsLeads = igConvsWithoutLead.map((c: any) => {

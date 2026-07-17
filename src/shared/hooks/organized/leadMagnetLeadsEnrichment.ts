@@ -15,37 +15,36 @@ export type LeadMagnetLeadMeta = {
   _leadMagnetCampaignName: string | null;
   _leadMagnetKeyword: string | null;
   _leadMagnetPlatform: 'instagram' | 'facebook' | null;
+  _leadMagnetParticipantScopedId: string | null;
 };
 
-type EnrollmentJoinRow = {
+export type LeadMagnetVirtualDedupeContext = {
+  linkedConversationIds: Set<string>;
+  linkedTicketSuffixes: Set<string>;
+  linkedParticipantScopedIds: Set<string>;
+};
+
+type SubmissionRow = {
+  lead_id: string | null;
+  lead_magnet_enrollment_id: string | null;
+  lead_magnet_campaign_id: string | null;
+};
+
+type EnrollmentRow = {
+  id: string;
   conversation_id: string | null;
   conversation_table: string | null;
   platform: string | null;
   status: string | null;
   campaign_id: string | null;
-  lead_magnet_campaigns: { name: string; keyword: string } | { name: string; keyword: string }[] | null;
+  participant_scoped_id: string | null;
 };
 
-type SubmissionJoinRow = {
-  lead_id: string | null;
-  lead_magnet_enrollment_id: string | null;
-  lead_magnet_campaign_id: string | null;
-  lead_magnet_enrollments: EnrollmentJoinRow | EnrollmentJoinRow[] | null;
+type CampaignRow = {
+  id: string;
+  name: string;
+  keyword: string;
 };
-
-function unwrapEnrollment(raw: SubmissionJoinRow['lead_magnet_enrollments']): EnrollmentJoinRow | null {
-  if (!raw) return null;
-  return Array.isArray(raw) ? raw[0] ?? null : raw;
-}
-
-function unwrapCampaign(
-  raw: EnrollmentJoinRow['lead_magnet_campaigns'],
-): { name: string; keyword: string } | null {
-  if (!raw) return null;
-  const row = Array.isArray(raw) ? raw[0] : raw;
-  if (!row) return null;
-  return { name: row.name, keyword: row.keyword };
-}
 
 function normalizeConversationTable(value: string | null | undefined): LeadMagnetConversationTable | null {
   const t = (value ?? '').trim();
@@ -59,10 +58,43 @@ function normalizeConversationTable(value: string | null | undefined): LeadMagne
   return null;
 }
 
+function buildMetaFromRows(
+  submission: SubmissionRow,
+  enrollment: EnrollmentRow | undefined,
+  campaign: CampaignRow | undefined,
+): LeadMagnetLeadMeta {
+  const platformRaw = (enrollment?.platform ?? '').trim();
+  const platform = platformRaw === 'instagram' || platformRaw === 'facebook' ? platformRaw : null;
+
+  return {
+    _fromLeadMagnet: true,
+    _leadMagnetEnrollmentId: submission.lead_magnet_enrollment_id ?? null,
+    _leadMagnetConversationId: enrollment?.conversation_id ?? null,
+    _leadMagnetConversationTable: normalizeConversationTable(enrollment?.conversation_table),
+    _leadMagnetEnrollmentStatus: enrollment?.status ?? null,
+    _leadMagnetCampaignId: submission.lead_magnet_campaign_id ?? enrollment?.campaign_id ?? null,
+    _leadMagnetCampaignName: campaign?.name ?? null,
+    _leadMagnetKeyword: campaign?.keyword ?? null,
+    _leadMagnetPlatform: platform,
+    _leadMagnetParticipantScopedId: enrollment?.participant_scoped_id ?? null,
+  };
+}
+
 export function isLeadMagnetSourceLead(lead: { source?: string | null; category?: string | null }): boolean {
   const source = (lead.source ?? '').trim();
   const category = (lead.category ?? '').trim();
   return source === 'Lead Magnet' || category === 'Lead Magnet';
+}
+
+/** First 8 hex chars of a UUID (uppercase), used in IG-/FB-/WA- ticket ids. */
+export function conversationUuidToTicketSuffix(conversationId: string): string {
+  return conversationId.replace(/-/g, '').slice(0, 8).toUpperCase();
+}
+
+/** Parse IG-414717FE / FB-13231239 / WA-XXXXXXXX ticket suffix. */
+export function parseVirtualChannelTicketSuffix(ticketId: string): string | null {
+  const match = ticketId.trim().match(/^(?:IG|FB|WA)-([0-9A-F]{8})$/i);
+  return match ? match[1].toUpperCase() : null;
 }
 
 /** Conversation IDs already represented by a Lead Magnet CRM row — hide duplicate virtual inbox rows. */
@@ -77,11 +109,75 @@ export function buildLeadMagnetLinkedConversationIdSet(
   return ids;
 }
 
+export function buildLeadMagnetLinkedTicketSuffixSet(
+  metaByLeadId: Map<string, LeadMagnetLeadMeta>,
+): Set<string> {
+  const suffixes = new Set<string>();
+  for (const meta of metaByLeadId.values()) {
+    const convId = (meta._leadMagnetConversationId ?? '').trim();
+    if (convId) suffixes.add(conversationUuidToTicketSuffix(convId));
+  }
+  return suffixes;
+}
+
+export function buildLeadMagnetParticipantScopedIdSet(
+  metaByLeadId: Map<string, LeadMagnetLeadMeta>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const meta of metaByLeadId.values()) {
+    const participantId = (meta._leadMagnetParticipantScopedId ?? '').trim();
+    if (participantId) ids.add(participantId);
+  }
+  return ids;
+}
+
+export function buildLeadMagnetVirtualDedupeContext(
+  metaByLeadId: Map<string, LeadMagnetLeadMeta>,
+): LeadMagnetVirtualDedupeContext {
+  return {
+    linkedConversationIds: buildLeadMagnetLinkedConversationIdSet(metaByLeadId),
+    linkedTicketSuffixes: buildLeadMagnetLinkedTicketSuffixSet(metaByLeadId),
+    linkedParticipantScopedIds: buildLeadMagnetParticipantScopedIdSet(metaByLeadId),
+  };
+}
+
+export type VirtualConversationDedupeArgs = {
+  conversationId: string;
+  ticketId?: string | null;
+  customerIgId?: string | null;
+  customerPsid?: string | null;
+  customerWaId?: string | null;
+};
+
 export function shouldHideVirtualConversationForLeadMagnet(
-  conversationId: string,
-  linkedConversationIds: Set<string>,
+  args: VirtualConversationDedupeArgs | string,
+  ctxOrLinkedIds: LeadMagnetVirtualDedupeContext | Set<string>,
 ): boolean {
-  return linkedConversationIds.has(conversationId);
+  const normalizedArgs: VirtualConversationDedupeArgs =
+    typeof args === 'string' ? { conversationId: args } : args;
+
+  const ctx: LeadMagnetVirtualDedupeContext =
+    ctxOrLinkedIds instanceof Set
+      ? { linkedConversationIds: ctxOrLinkedIds, linkedTicketSuffixes: new Set(), linkedParticipantScopedIds: new Set() }
+      : ctxOrLinkedIds;
+
+  const convId = normalizedArgs.conversationId.trim();
+  if (convId && ctx.linkedConversationIds.has(convId)) return true;
+
+  const ticketSuffix =
+    (normalizedArgs.ticketId ? parseVirtualChannelTicketSuffix(normalizedArgs.ticketId) : null) ??
+    (convId ? conversationUuidToTicketSuffix(convId) : null);
+  if (ticketSuffix && ctx.linkedTicketSuffixes.has(ticketSuffix)) return true;
+
+  const participantId = (
+    normalizedArgs.customerIgId ??
+    normalizedArgs.customerPsid ??
+    normalizedArgs.customerWaId ??
+    ''
+  ).trim();
+  if (participantId && ctx.linkedParticipantScopedIds.has(participantId)) return true;
+
+  return false;
 }
 
 export async function fetchLeadMagnetMetaByLeadIds(
@@ -91,57 +187,101 @@ export async function fetchLeadMagnetMetaByLeadIds(
   const result = new Map<string, LeadMagnetLeadMeta>();
   if (!organizationId || leadIds.length === 0) return result;
 
-  const { data, error } = await supabase
+  const { data: submissionRows, error: submissionError } = await supabase
     .from('lead_submissions')
-    .select(
-      `lead_id,
-      lead_magnet_enrollment_id,
-      lead_magnet_campaign_id,
-      lead_magnet_enrollments (
-        conversation_id,
-        conversation_table,
-        platform,
-        status,
-        campaign_id,
-        lead_magnet_campaigns ( name, keyword )
-      )`,
-    )
+    .select('lead_id, lead_magnet_enrollment_id, lead_magnet_campaign_id')
     .eq('organization_id', organizationId)
     .eq('is_active', true)
     .in('lead_id', leadIds)
     .not('lead_magnet_enrollment_id', 'is', null);
 
-  if (error) {
-    console.error('Error fetching lead magnet enrollments for leads:', error);
+  if (submissionError) {
+    console.error('Error fetching lead magnet submissions for leads:', submissionError);
     return result;
   }
 
-  for (const row of (data ?? []) as SubmissionJoinRow[]) {
-    const leadId = String(row.lead_id ?? '').trim();
+  const submissions = (submissionRows ?? []) as SubmissionRow[];
+  if (submissions.length === 0) return result;
+
+  const enrollmentIds = [
+    ...new Set(
+      submissions
+        .map((row) => String(row.lead_magnet_enrollment_id ?? '').trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  const { data: enrollmentRows, error: enrollmentError } = await supabase
+    .from('lead_magnet_enrollments')
+    .select('id, conversation_id, conversation_table, platform, status, campaign_id, participant_scoped_id')
+    .eq('organization_id', organizationId)
+    .in('id', enrollmentIds);
+
+  if (enrollmentError) {
+    console.error('Error fetching lead magnet enrollments for leads:', enrollmentError);
+    return result;
+  }
+
+  const enrollmentById = new Map<string, EnrollmentRow>();
+  for (const row of (enrollmentRows ?? []) as EnrollmentRow[]) {
+    enrollmentById.set(String(row.id), row);
+  }
+
+  const campaignIds = new Set<string>();
+  for (const submission of submissions) {
+    const campaignId = String(submission.lead_magnet_campaign_id ?? '').trim();
+    if (campaignId) campaignIds.add(campaignId);
+    const enrollmentId = String(submission.lead_magnet_enrollment_id ?? '').trim();
+    const enrollment = enrollmentId ? enrollmentById.get(enrollmentId) : undefined;
+    const enrollCampaignId = String(enrollment?.campaign_id ?? '').trim();
+    if (enrollCampaignId) campaignIds.add(enrollCampaignId);
+  }
+
+  const campaignById = new Map<string, CampaignRow>();
+  if (campaignIds.size > 0) {
+    const { data: campaignRows, error: campaignError } = await supabase
+      .from('lead_magnet_campaigns')
+      .select('id, name, keyword')
+      .eq('organization_id', organizationId)
+      .in('id', [...campaignIds]);
+
+    if (campaignError) {
+      console.error('Error fetching lead magnet campaigns for leads:', campaignError);
+    } else {
+      for (const row of (campaignRows ?? []) as CampaignRow[]) {
+        campaignById.set(String(row.id), row);
+      }
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    for (const submission of submissions) {
+      const enrollmentId = String(submission.lead_magnet_enrollment_id ?? '').trim();
+      if (enrollmentId && !enrollmentById.has(enrollmentId)) {
+        console.warn(
+          '[leadMagnetLeadsEnrichment] submission references missing enrollment',
+          { leadId: submission.lead_id, enrollmentId },
+        );
+      }
+    }
+  }
+
+  for (const submission of submissions) {
+    const leadId = String(submission.lead_id ?? '').trim();
     if (!leadId || result.has(leadId)) continue;
 
-    const enrollment = unwrapEnrollment(row.lead_magnet_enrollments);
-    const campaign = unwrapCampaign(enrollment?.lead_magnet_campaigns ?? null);
-    const platformRaw = (enrollment?.platform ?? '').trim();
-    const platform = platformRaw === 'instagram' || platformRaw === 'facebook' ? platformRaw : null;
+    const enrollmentId = String(submission.lead_magnet_enrollment_id ?? '').trim();
+    const enrollment = enrollmentId ? enrollmentById.get(enrollmentId) : undefined;
+    const campaignId = String(
+      submission.lead_magnet_campaign_id ?? enrollment?.campaign_id ?? '',
+    ).trim();
+    const campaign = campaignId ? campaignById.get(campaignId) : undefined;
 
-    result.set(leadId, {
-      _fromLeadMagnet: true,
-      _leadMagnetEnrollmentId: row.lead_magnet_enrollment_id ?? null,
-      _leadMagnetConversationId: enrollment?.conversation_id ?? null,
-      _leadMagnetConversationTable: normalizeConversationTable(enrollment?.conversation_table),
-      _leadMagnetEnrollmentStatus: enrollment?.status ?? null,
-      _leadMagnetCampaignId: row.lead_magnet_campaign_id ?? enrollment?.campaign_id ?? null,
-      _leadMagnetCampaignName: campaign?.name ?? null,
-      _leadMagnetKeyword: campaign?.keyword ?? null,
-      _leadMagnetPlatform: platform,
-    });
+    result.set(leadId, buildMetaFromRows(submission, enrollment, campaign));
   }
 
   return result;
 }
-
-type ConversationAssignee = { assignee_id: string | null };
 
 export async function fetchConversationAssigneeMap(
   entries: Array<{ conversationId: string; table: LeadMagnetConversationTable }>,

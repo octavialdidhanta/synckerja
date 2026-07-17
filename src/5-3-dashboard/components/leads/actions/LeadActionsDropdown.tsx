@@ -23,7 +23,14 @@ interface LeadActionsDropdownProps {
   onTemplateFollowUp?: (lead: NewLead) => void;
 }
 
-function buildLivechatUrl(lead: LeadActionsDropdownProps['lead']): string | null {
+function isLeadMagnetWithLinkedConversation(lead: LeadActionsDropdownProps['lead']): boolean {
+  return (
+    lead._fromLeadMagnet === true &&
+    Boolean(String(lead._leadMagnetConversationId ?? '').trim())
+  );
+}
+
+export function buildLivechatUrl(lead: LeadActionsDropdownProps['lead']): string | null {
   const leadMagnetConvId = String((lead as { _leadMagnetConversationId?: string | null })._leadMagnetConversationId ?? '').trim();
   if (leadMagnetConvId) {
     return `/omnichannel/livechat?conversation=${encodeURIComponent(leadMagnetConvId)}`;
@@ -62,7 +69,10 @@ function buildLivechatUrl(lead: LeadActionsDropdownProps['lead']): string | null
 export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete, onTemplateFollowUp }: LeadActionsDropdownProps) => {
   const { t } = useAppTranslation();
   const openChatUrl = buildLivechatUrl(lead);
-  const isManualLead = (lead.created_by ?? '').trim() !== '' && lead.created_by !== ZERO_UUID;
+  const isManualLead =
+    !isLeadMagnetWithLinkedConversation(lead) &&
+    (lead.created_by ?? '').trim() !== '' &&
+    lead.created_by !== ZERO_UUID;
 
   if (openChatUrl) {
     return (

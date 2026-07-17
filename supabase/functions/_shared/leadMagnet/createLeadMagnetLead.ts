@@ -16,6 +16,19 @@ export async function createLeadMagnetLead(
   },
 ): Promise<{ leadId: string; leadSubmissionId: string } | null> {
   try {
+    const { data: existingEnrollment } = await admin
+      .from("lead_magnet_enrollments")
+      .select("id, lead_id, lead_submission_id")
+      .eq("id", args.enrollmentId)
+      .maybeSingle();
+
+    if (existingEnrollment?.lead_id) {
+      return {
+        leadId: String(existingEnrollment.lead_id),
+        leadSubmissionId: String(existingEnrollment.lead_submission_id ?? ""),
+      };
+    }
+
     const actor = await getOrCreateSystemActor(admin, args.organizationId);
     const statusId = await resolveLeadStatusId(admin, args.organizationId, "new");
     const accountLabel = await resolveLeadMagnetAccountLabel(admin, {
