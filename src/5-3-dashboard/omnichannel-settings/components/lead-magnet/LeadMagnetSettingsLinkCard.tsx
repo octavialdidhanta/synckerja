@@ -13,7 +13,7 @@ export function LeadMagnetSettingsLinkCard() {
           <div>
             <h3 className="font-semibold">Lead Magnet Automation</h3>
             <p className="text-sm text-muted-foreground">
-              ManyChat-style flow: keyword di komentar → auto DM follow gate → kirim link framework.
+              Keyword di komentar → auto DM follow gate → kirim link framework.
             </p>
           </div>
           <Button asChild size="sm">

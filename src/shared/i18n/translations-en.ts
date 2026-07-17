@@ -157,7 +157,7 @@ export const enTranslations: TranslationDictionary = {
   "sidebar.digitalMarketing.socialMedia.title": "Social Media Management",
   "sidebar.digitalMarketing.socialMedia.description": "Manage and analyze social media performance",
   "sidebar.digitalMarketing.leadMagnet.title": "Lead Magnet",
-  "sidebar.digitalMarketing.leadMagnet.description": "Comment → DM automation (ManyChat-style)",
+  "sidebar.digitalMarketing.leadMagnet.description": "Comment → DM automation",
   "leadMagnet.sidebar.lockedHint": "Lead Magnet add-on is not activated",
   "leadMagnet.upsell.title": "Activate Lead Magnet add-on",
   "leadMagnet.upsell.addOnName": "Lead Magnet",

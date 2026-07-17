@@ -23,7 +23,7 @@ export function LeadMagnetHeaderAndTab() {
         <p className="text-xs text-muted-foreground">
           {t(
             'sidebar.digitalMarketing.leadMagnet.description',
-            'Automation comment → DM ManyChat-style',
+            'Automation comment → DM',
           )}
         </p>
       </div>

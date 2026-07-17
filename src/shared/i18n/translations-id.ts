@@ -157,7 +157,7 @@ export const idTranslations: TranslationDictionary = {
   "sidebar.digitalMarketing.socialMedia.title": "Manajemen Media Sosial",
   "sidebar.digitalMarketing.socialMedia.description": "Kelola dan analisis performa media sosial",
   "sidebar.digitalMarketing.leadMagnet.title": "Lead Magnet",
-  "sidebar.digitalMarketing.leadMagnet.description": "Automation comment → DM ManyChat-style",
+  "sidebar.digitalMarketing.leadMagnet.description": "Automation comment → DM",
   "leadMagnet.sidebar.lockedHint": "Add-on Lead Magnet belum diaktifkan",
   "leadMagnet.upsell.title": "Aktifkan add-on Lead Magnet",
   "leadMagnet.upsell.addOnName": "Lead Magnet",
