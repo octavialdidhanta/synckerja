@@ -22,7 +22,7 @@ import {
   isResolvedLeadStatusName,
 } from '@/5-1-leads-management/utils/leadStatusDisplay';
 import {
-  formatLeadWebPropertyDisplay,
+  formatLeadWebPropertyCell,
   normalizeApiLeadCreatedByDisplay,
   normalizeApiLeadSourceDisplay,
   resolveApiLeadSourceColorKey,
@@ -466,7 +466,8 @@ export default function LeadsTableNew({
     const name = normalizeApiLeadCreatedByDisplay(createdByName);
     if (/whatsapp/i.test(name)) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (/email/i.test(name)) return 'bg-blue-50 text-blue-700 border-blue-200';
-    if (/instagram/i.test(name)) return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (/instagram/i.test(name) || name.startsWith('@')) return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (/facebook|messenger|page /i.test(name)) return 'bg-sky-50 text-sky-700 border-sky-200';
     const customPalette = [
       'bg-violet-50 text-violet-700 border-violet-200',
       'bg-rose-50 text-rose-700 border-rose-200',
@@ -1261,7 +1262,7 @@ export default function LeadsTableNew({
                   </TableCell>
                   <TableCell className="whitespace-nowrap max-w-[160px]">
                     {(() => {
-                      const webLabel = formatLeadWebPropertyDisplay(lead.web_id);
+                      const webLabel = formatLeadWebPropertyCell(lead);
                       return webLabel ? (
                         <Badge
                           className="bg-slate-50 text-slate-700 border-slate-200 text-xs px-3 py-1 rounded-sm font-medium border max-w-[150px] inline-flex items-center justify-center"

@@ -56,6 +56,28 @@ export function normalizeApiLeadCreatedByDisplay(name?: string | null): string {
   return raw;
 }
 
+/** Lead Magnet / omnichannel social leads are not website analytics properties. */
+export function shouldShowLeadWebPropertyAsEmpty(lead: {
+  source?: string | null;
+  category?: string | null;
+  _fromLeadMagnet?: boolean;
+}): boolean {
+  if (lead._fromLeadMagnet === true) return true;
+  const source = (lead.source ?? "").trim();
+  const category = (lead.category ?? "").trim();
+  return source === "Lead Magnet" || category === "Lead Magnet";
+}
+
+export function formatLeadWebPropertyCell(lead: {
+  web_id?: string | null;
+  source?: string | null;
+  category?: string | null;
+  _fromLeadMagnet?: boolean;
+}): string {
+  if (shouldShowLeadWebPropertyAsEmpty(lead)) return "";
+  return formatLeadWebPropertyDisplay(lead.web_id);
+}
+
 /** Map source string to LeadsTable color key (legacy → canonical bucket). */
 export function resolveApiLeadSourceColorKey(source?: string | null): string {
   const normalized = normalizeApiLeadSourceDisplay(source);

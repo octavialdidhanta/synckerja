@@ -25,6 +25,14 @@ import {
   type WizardLocationPayload,
 } from '@/shared/lib/sales/scheduleVisitFromWizard';
 import { dedupeInstagramConversations } from '@/5-3-whatsapp/lib/dedupeInstagramConversations';
+import {
+  applyLeadMagnetAssigneeOverlay,
+  buildLeadMagnetLinkedConversationIdSet,
+  enrichLeadRowWithLeadMagnetMeta,
+  fetchConversationAssigneeMap,
+  fetchLeadMagnetMetaByLeadIds,
+  shouldHideVirtualConversationForLeadMagnet,
+} from '@/shared/hooks/organized/leadMagnetLeadsEnrichment';
 
 const invalidateClientVisitQueries = (
   queryClient: QueryClient,
@@ -1932,6 +1940,21 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         }
       }
 
+      const leadMagnetMetaByLeadId = await fetchLeadMagnetMetaByLeadIds(organizationId, leadIds);
+      const leadMagnetAssigneeEntries: Array<{
+        conversationId: string;
+        table: 'instagram_conversations' | 'facebook_conversations' | 'whatsapp_conversations';
+      }> = [];
+      for (const meta of leadMagnetMetaByLeadId.values()) {
+        const convId = (meta._leadMagnetConversationId ?? '').trim();
+        const table = meta._leadMagnetConversationTable;
+        if (convId && table) {
+          leadMagnetAssigneeEntries.push({ conversationId: convId, table });
+        }
+      }
+      const leadMagnetAssigneeByConv = await fetchConversationAssigneeMap(leadMagnetAssigneeEntries);
+      const linkedLeadMagnetConversationIds = buildLeadMagnetLinkedConversationIdSet(leadMagnetMetaByLeadId);
+
       // Fetch all lead statuses for this organization + global (org_id null) so Resolve/Unread etc. resolve correctly
       let statusMap = new Map<string, { id: string; name: string; color: string }>();
       const { data: statusesData, error: statusesError } = await supabase
@@ -1969,11 +1992,13 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       let leadsWithStatus = rawLeads.map((lead: any) => {
         const status = statusMap.get(normId(lead.status_id));
         const whatsappConversationId = waConversationByLeadId.get(String(lead.id)) ?? null;
-        return {
+        const leadMagnetMeta = leadMagnetMetaByLeadId.get(String(lead.id));
+        const base = {
           ...lead,
           lead_status: status || null,
           ...(whatsappConversationId ? { whatsapp_conversation_id: whatsappConversationId } : {}),
         };
+        return enrichLeadRowWithLeadMagnetMeta(base, leadMagnetMeta);
       });
 
       // 2) Fetch leads from whatsapp_conversations (same org; includes channel: whatsapp | instagram) and map to lead-like rows
@@ -2007,7 +2032,14 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
       const assigneeIdsFromWa = (whatsappConvs ?? []).map((c: any) => c.assignee_id).filter(Boolean) as string[];
       const assigneeIdsFromFb = (facebookConvs ?? []).map((c: any) => c.assignee_id).filter(Boolean) as string[];
       const assigneeIdsFromIg = (instagramConvs ?? []).map((c: any) => c.assignee_id).filter(Boolean) as string[];
-      const allAssigneeIds = [...new Set([...assigneeIdsFromLeads, ...assigneeIdsFromWa, ...assigneeIdsFromFb, ...assigneeIdsFromIg])];
+      const assigneeIdsFromLeadMagnet = [...leadMagnetAssigneeByConv.values()].filter(Boolean) as string[];
+      const allAssigneeIds = [...new Set([
+        ...assigneeIdsFromLeads,
+        ...assigneeIdsFromWa,
+        ...assigneeIdsFromFb,
+        ...assigneeIdsFromIg,
+        ...assigneeIdsFromLeadMagnet,
+      ])];
       const assigneeNameMap = new Map<string, string>();
       if (allAssigneeIds.length > 0) {
         const { data: assigneeRows } = await supabase
@@ -2018,10 +2050,22 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           assigneeNameMap.set(normId(e.id), e.full_name || e.email || '');
         });
       }
-      leadsWithStatus = leadsWithStatus.map((lead: any) => ({
-        ...lead,
-        assignee: (lead.assignee && String(lead.assignee).trim()) ? lead.assignee : (lead.assignee_id ? assigneeNameMap.get(normId(lead.assignee_id)) ?? null : null),
-      }));
+      leadsWithStatus = leadsWithStatus.map((lead: any) => {
+        const withAssignee = {
+          ...lead,
+          assignee: (lead.assignee && String(lead.assignee).trim())
+            ? lead.assignee
+            : (lead.assignee_id ? assigneeNameMap.get(normId(lead.assignee_id)) ?? null : null),
+        };
+        const meta = leadMagnetMetaByLeadId.get(String(lead.id));
+        return applyLeadMagnetAssigneeOverlay(
+          withAssignee,
+          meta,
+          leadMagnetAssigneeByConv,
+          assigneeNameMap,
+          normId,
+        );
+      });
 
       // Ensure statusMap has all statuses used by WhatsApp/Instagram so overwrite below can resolve Resolve/Closed etc.
       if (whatsappConvs && whatsappConvs.length > 0) {
@@ -2187,6 +2231,9 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       if (!whatsappError && whatsappConvs && whatsappConvs.length > 0) {
         const waConvsWithoutLead = whatsappConvs.filter((c: any) => {
+          if (shouldHideVirtualConversationForLeadMagnet(String(c.id), linkedLeadMagnetConversationIds)) {
+            return false;
+          }
           const isInstagram = (c.channel ?? '').toLowerCase() === 'instagram';
           const waTicketId = c.ticket_id ?? ((isInstagram ? 'IG-' : 'WA-') + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
           return !ticketIdsInLeadsTable.has(normTicket(waTicketId));
@@ -2235,6 +2282,9 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       if (!facebookError && facebookConvs && facebookConvs.length > 0) {
         const fbConvsWithoutLead = facebookConvs.filter((c: any) => {
+          if (shouldHideVirtualConversationForLeadMagnet(String(c.id), linkedLeadMagnetConversationIds)) {
+            return false;
+          }
           const fbTicketId = c.ticket_id ?? ('FB-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
           return !ticketIdsInLeadsTable.has(normTicket(fbTicketId));
         });
@@ -2279,6 +2329,9 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
 
       if (!instagramError && instagramConvs && instagramConvs.length > 0) {
         const igConvsWithoutLead = instagramConvs.filter((c: any) => {
+          if (shouldHideVirtualConversationForLeadMagnet(String(c.id), linkedLeadMagnetConversationIds)) {
+            return false;
+          }
           const igTicketId = c.ticket_id ?? ('IG-' + String(c.id).replace(/-/g, '').slice(0, 8).toUpperCase());
           return !ticketIdsInLeadsTable.has(normTicket(igTicketId));
         });

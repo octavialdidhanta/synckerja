@@ -10,8 +10,11 @@ const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 interface LeadActionsDropdownProps {
   lead: NewLead & {
     _fromWhatsApp?: boolean;
+    _fromInstagram?: boolean;
     _fromEmail?: boolean;
     _fromFacebook?: boolean;
+    _fromLeadMagnet?: boolean;
+    _leadMagnetConversationId?: string | null;
     whatsapp_conversation_id?: string | null;
   };
   onEdit: (lead: NewLead) => void;
@@ -20,30 +23,53 @@ interface LeadActionsDropdownProps {
   onTemplateFollowUp?: (lead: NewLead) => void;
 }
 
+function buildLivechatUrl(lead: LeadActionsDropdownProps['lead']): string | null {
+  const leadMagnetConvId = String((lead as { _leadMagnetConversationId?: string | null })._leadMagnetConversationId ?? '').trim();
+  if (leadMagnetConvId) {
+    return `/omnichannel/livechat?conversation=${encodeURIComponent(leadMagnetConvId)}`;
+  }
+
+  const idStr = String(lead.id ?? '');
+  const fromWhatsApp = lead._fromWhatsApp === true || idStr.startsWith('wa-');
+  const fromFacebook = lead._fromFacebook === true || idStr.startsWith('fb-');
+  const fromInstagram = lead._fromInstagram === true || idStr.startsWith('ig-');
+  const fromEmail = lead._fromEmail === true || idStr.startsWith('email-');
+  const hasVirtualConversationId = fromWhatsApp || fromFacebook || fromInstagram || fromEmail;
+
+  if (hasVirtualConversationId) {
+    const convId = idStr
+      .replace(/^wa-/, '')
+      .replace(/^fb-/, '')
+      .replace(/^ig-/, '')
+      .replace(/^email-/, '');
+    return `/omnichannel/livechat?conversation=${encodeURIComponent(convId)}`;
+  }
+
+  const waConversationId = (lead.whatsapp_conversation_id ?? '').trim();
+  if (waConversationId) {
+    return `/omnichannel/livechat?conversation=${encodeURIComponent(waConversationId)}`;
+  }
+
+  const ticketId = (lead.ticket_id ?? '').trim();
+  if (/^(WA-|IG-|FB-|EMAIL-)/i.test(ticketId)) {
+    return `/omnichannel/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
+  }
+
+  return null;
+}
+
 /** Lead from channel: Open in Live Chat. Manual lead: dropdown with Edit, View Detail, Delete. */
 export const LeadActionsDropdown = ({ lead, onEdit, onViewDetail, onDelete, onTemplateFollowUp }: LeadActionsDropdownProps) => {
   const { t } = useAppTranslation();
-  const fromWhatsApp = (lead as any)._fromWhatsApp === true;
-  const fromFacebook = (lead as any)._fromFacebook === true || (typeof lead.id === 'string' && lead.id.startsWith('fb-'));
-  const fromEmail = (lead as any)._fromEmail === true || (typeof lead.id === 'string' && lead.id.startsWith('email-'));
-  const hasConversationId = fromWhatsApp || fromEmail || fromFacebook;
-  const ticketId = (lead.ticket_id ?? '').trim();
-  const hasTicketId = /^(WA-|IG-|FB-|EMAIL-)/i.test(ticketId);
-  const waConversationId = (lead.whatsapp_conversation_id ?? '').trim();
-  const canOpenChat = hasConversationId || hasTicketId || Boolean(waConversationId);
+  const openChatUrl = buildLivechatUrl(lead);
   const isManualLead = (lead.created_by ?? '').trim() !== '' && lead.created_by !== ZERO_UUID;
 
-  if (canOpenChat) {
-    const url = hasConversationId
-      ? `/omnichannel/livechat?conversation=${String(lead.id).replace(/^wa-/, '').replace(/^fb-/, '').replace(/^email-/, '')}`
-      : waConversationId
-        ? `/omnichannel/livechat?conversation=${encodeURIComponent(waConversationId)}`
-        : `/omnichannel/livechat?ticket_id=${encodeURIComponent(ticketId)}`;
+  if (openChatUrl) {
     return (
       <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-medium" asChild>
-        <Link to={url}>
+        <Link to={openChatUrl}>
           <MessageCircle className="h-4 w-4" />
-          Open Chat
+          {t('leadsManagement.dialog.openChat', 'Open Chat')}
         </Link>
       </Button>
     );

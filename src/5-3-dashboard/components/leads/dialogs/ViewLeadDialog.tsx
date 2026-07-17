@@ -1,14 +1,16 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
-import { X, User, Calendar, BarChart3, Activity, Megaphone } from "lucide-react";
+import { X, User, Calendar, BarChart3, Activity, Megaphone, MessageCircle, Magnet } from "lucide-react";
 import { format } from "date-fns";
 import { NewLead } from '@/shared/types/leads';
 import {
   getLeadStatusDisplayName,
 } from '@/5-1-leads-management/utils/leadStatusDisplay';
 import {
-  formatLeadWebPropertyDisplay,
+  formatLeadWebPropertyCell,
   normalizeApiLeadCreatedByDisplay,
   normalizeApiLeadSourceDisplay,
   resolveApiLeadSourceColorKey,
@@ -17,7 +19,15 @@ import {
 interface ViewLeadDialogProps {
   open: boolean;
   onClose: () => void;
-  lead: NewLead | null;
+  lead: (NewLead & {
+    _fromLeadMagnet?: boolean;
+    _leadMagnetConversationId?: string | null;
+    _leadMagnetCampaignName?: string | null;
+    _leadMagnetKeyword?: string | null;
+    _leadMagnetEnrollmentStatus?: string | null;
+    _leadMagnetPlatform?: 'instagram' | 'facebook' | null;
+    _leadMagnetCampaignId?: string | null;
+  }) | null;
 }
 
 export const ViewLeadDialog = ({
@@ -119,7 +129,7 @@ export const ViewLeadDialog = ({
               <div>
                 <label className="text-sm font-medium text-gray-500">Web / Property</label>
                 <p className="text-sm font-medium mt-1">
-                  {formatLeadWebPropertyDisplay(lead.web_id) || '—'}
+                  {formatLeadWebPropertyCell(lead) || '—'}
                 </p>
               </div>
               <div>
@@ -224,6 +234,58 @@ export const ViewLeadDialog = ({
                     <label className="text-sm font-medium text-gray-500">Landing URL</label>
                     <p className="text-sm font-medium mt-1 break-all">{lead.landing_url}</p>
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {(lead._fromLeadMagnet || lead.source === 'Lead Magnet') && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium flex items-center gap-2">
+                <Magnet className="h-5 w-5 text-gray-500" />
+                Lead Magnet
+              </h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {lead._leadMagnetCampaignName && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Campaign</label>
+                    <p className="text-sm font-medium mt-1">{lead._leadMagnetCampaignName}</p>
+                  </div>
+                )}
+                {lead._leadMagnetKeyword && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Keyword</label>
+                    <p className="text-sm font-medium mt-1">{lead._leadMagnetKeyword}</p>
+                  </div>
+                )}
+                {lead._leadMagnetPlatform && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Platform</label>
+                    <p className="text-sm font-medium mt-1 capitalize">{lead._leadMagnetPlatform}</p>
+                  </div>
+                )}
+                {lead._leadMagnetEnrollmentStatus && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Funnel status</label>
+                    <p className="text-sm font-medium mt-1">{lead._leadMagnetEnrollmentStatus.replace(/_/g, ' ')}</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {lead._leadMagnetConversationId && (
+                  <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                    <Link to={`/omnichannel/livechat?conversation=${encodeURIComponent(lead._leadMagnetConversationId)}`}>
+                      <MessageCircle className="h-4 w-4" />
+                      Open Chat
+                    </Link>
+                  </Button>
+                )}
+                {lead._leadMagnetCampaignId && (
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to={`/digital-marketing/lead-magnet/${lead._leadMagnetCampaignId}/analytics`}>
+                      Campaign analytics
+                    </Link>
+                  </Button>
                 )}
               </div>
             </div>
