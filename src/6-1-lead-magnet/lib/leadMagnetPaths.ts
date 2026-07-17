@@ -13,6 +13,8 @@ export const LEAD_MAGNET_PATHS = {
 export const LEAD_MAGNET_FUNNEL_STEPS = [
   { key: 'comment_matched', label: 'Komentar match' },
   { key: 'comment_replied', label: 'Balas komentar' },
+  { key: 'follow_rechecked_after_opener', label: 'Follow re-check (opener)' },
+  { key: 'follow_gate_skipped_follower', label: 'Follow gate skipped' },
   { key: 'follow_gate_sent', label: 'DM follow gate' },
   { key: 'follow_validated', label: 'Follow valid' },
   { key: 'framework_offered', label: 'Material offer' },

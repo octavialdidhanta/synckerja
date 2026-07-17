@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildLeadMagnetButtonsMetadata } from "./leadMagnetLivechatDisplay.ts";
 import type { LeadMagnetFirstDmMethod, LeadMagnetPlatform } from "./types.ts";
 
 const META_GRAPH_VERSION = "v21.0";
@@ -344,23 +345,31 @@ async function persistOutboundMessage(
   conversationId: string,
   body: string,
   messageId: string | null | undefined,
+  buttonTitles?: string[],
 ): Promise<void> {
   const now = new Date().toISOString();
   const table = platform === "instagram" ? "instagram_messages" : "facebook_messages";
+  const hasButtons = Boolean(buttonTitles?.length);
   const payload: Record<string, unknown> = {
     conversation_id: conversationId,
     direction: "outbound",
     body: body.slice(0, 4000),
-    message_type: "text",
+    message_type: hasButtons ? "lead_magnet_buttons" : "text",
     created_at: now,
   };
   if (messageId) payload.platform_message_id = messageId;
+  if (hasButtons && buttonTitles) {
+    payload.raw_metadata = buildLeadMagnetButtonsMetadata(buttonTitles);
+  }
 
   await admin.from(table).insert(payload);
   const convTable = platform === "instagram" ? "instagram_conversations" : "facebook_conversations";
+  const previewBody = hasButtons && buttonTitles?.length
+    ? `${body.slice(0, 160)} · ${buttonTitles[0]}`
+    : body;
   await admin.from(convTable).update({
     last_message_at: now,
-    last_message_body: body.slice(0, 200),
+    last_message_body: previewBody.slice(0, 200),
     last_message_direction: "outbound",
     updated_at: now,
   }).eq("id", conversationId);
@@ -455,10 +464,15 @@ export async function sendLeadMagnetDm(
   }
 
   if (conversationId) {
-    const persistBody = args.buttons?.length
-      ? `${args.text}\n\n[Tombol: ${args.buttons.map((b) => b.title).join(", ")}]`
-      : args.text;
-    const persist = persistOutboundMessage(admin, args.platform, conversationId, persistBody, result.messageId);
+    const buttonTitles = args.buttons?.map((b) => b.title).filter(Boolean) ?? [];
+    const persist = persistOutboundMessage(
+      admin,
+      args.platform,
+      conversationId,
+      args.text,
+      result.messageId,
+      buttonTitles.length ? buttonTitles : undefined,
+    );
     if (args.deferPersistence) {
       deferDmPersistence(persist);
     } else {

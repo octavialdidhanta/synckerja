@@ -465,18 +465,26 @@ export function LeadMagnetWizardPage() {
                       label={t('leadMagnet.wizard.skipFollowGate')}
                       info={t('leadMagnet.wizard.skipFollowGateHint')}
                     />
-                    <MessageField
-                      label={t('leadMagnet.wizard.followGate')}
-                      value={form.follow_gate_text}
-                      onChange={(v) => patch({ follow_gate_text: v })}
-                      hideLabel
-                    />
-                    <WizardButtonLabelField
-                      variant="follow"
-                      label={t('leadMagnet.wizard.followButtonLabel')}
-                      value={form.follow_button_label}
-                      onChange={(v) => patch({ follow_button_label: v })}
-                    />
+                    <div
+                      className={
+                        form.skip_follow_gate_if_follower
+                          ? 'pointer-events-none space-y-3 opacity-50'
+                          : 'space-y-3'
+                      }
+                    >
+                      <MessageField
+                        label={t('leadMagnet.wizard.followGate')}
+                        value={form.follow_gate_text}
+                        onChange={(v) => patch({ follow_gate_text: v })}
+                        hideLabel
+                      />
+                      <WizardButtonLabelField
+                        variant="follow"
+                        label={t('leadMagnet.wizard.followButtonLabel')}
+                        value={form.follow_button_label}
+                        onChange={(v) => patch({ follow_button_label: v })}
+                      />
+                    </div>
                   </WizardFieldSection>
 
                   <WizardFieldSection title={t('leadMagnet.wizard.frameworkOffer')}>

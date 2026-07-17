@@ -22,6 +22,12 @@ import type {
 } from '../../types';
 import { isMediaMessageType, isStickerMessageType, formatWhatsAppMediaPreviewLabel, WHATSAPP_MEDIA_TYPES } from '../../utils/whatsappLivechatMedia';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import {
+  extractLeadMagnetButtonTitles,
+  humanizeLeadMagnetPostbackBody,
+  isLeadMagnetPostbackMessage,
+  resolveLegacyLeadMagnetOutboundDisplay,
+} from '@/shared/lib/leadMagnetLivechatDisplay';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { isBlockedImageUrl } from '@/shared/components/ui/avatar';
@@ -815,6 +821,30 @@ function getTemplateDisplayBody(body: string | null | undefined): string {
   return withoutPrefix || raw;
 }
 
+function LeadMagnetButtonChips({
+  titles,
+  isOutbound,
+}: {
+  titles: string[];
+  isOutbound: boolean;
+}) {
+  if (!titles.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {titles.map((title) => (
+        <span
+          key={title}
+          className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+            isOutbound ? 'border-white/30 bg-white/10 text-white' : 'border-border bg-background text-foreground'
+          }`}
+        >
+          {title}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function MediaPreview({
   messageType,
   mediaUrl,
@@ -848,6 +878,30 @@ function MediaPreview({
     messageId &&
     direction === 'inbound' &&
     MEDIA_TYPES.includes(messageType);
+
+  if (messageType === 'lead_magnet_buttons' || (messageType === 'text' && (body ?? '').includes('[Tombol:'))) {
+    const legacy = resolveLegacyLeadMagnetOutboundDisplay(body, rawMetadata);
+    const buttonTitles =
+      messageType === 'lead_magnet_buttons'
+        ? extractLeadMagnetButtonTitles(rawMetadata)
+        : legacy.buttonTitles;
+    const displayText = legacy.body || body || '—';
+    return (
+      <div className="min-w-0">
+        {isOutbound ? (
+          <span
+            className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              isOutbound ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {t('whatsappInbox.leadMagnetAutomatedMessage', 'Pesan otomatis')}
+          </span>
+        ) : null}
+        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{displayText}</p>
+        <LeadMagnetButtonChips titles={buttonTitles} isOutbound={isOutbound} />
+      </div>
+    );
+  }
 
   if (messageType === 'template') {
     return (
@@ -940,14 +994,21 @@ function MediaPreview({
   }
 
   if (messageType === 'quick_reply' || messageType === 'postback' || messageType === 'list_reply' || messageType === 'button_reply') {
+    const leadMagnetClicked =
+      messageType === 'postback' && isLeadMagnetPostbackMessage(body, rawMetadata);
     const chipLabel =
-      messageType === 'quick_reply'
-        ? t('whatsappInbox.quickReplyLabel', 'Quick reply')
-        : messageType === 'list_reply'
-          ? t('whatsappInbox.listReplyLabel', 'List reply')
-          : messageType === 'button_reply'
-            ? t('whatsappInbox.buttonReplyLabel', 'Button reply')
-            : t('whatsappInbox.postbackLabel', 'Postback');
+      leadMagnetClicked
+        ? t('whatsappInbox.leadMagnetButtonClicked', 'Tombol diklik')
+        : messageType === 'quick_reply'
+          ? t('whatsappInbox.quickReplyLabel', 'Quick reply')
+          : messageType === 'list_reply'
+            ? t('whatsappInbox.listReplyLabel', 'List reply')
+            : messageType === 'button_reply'
+              ? t('whatsappInbox.buttonReplyLabel', 'Button reply')
+              : t('whatsappInbox.postbackLabel', 'Postback');
+    const displayBody = leadMagnetClicked
+      ? humanizeLeadMagnetPostbackBody(body, rawMetadata)
+      : (body || '—');
     return (
       <div className="min-w-0">
         <span
@@ -957,7 +1018,7 @@ function MediaPreview({
         >
           {chipLabel}
         </span>
-        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{body || '—'}</p>
+        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{displayBody}</p>
       </div>
     );
   }

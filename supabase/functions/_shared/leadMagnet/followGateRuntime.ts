@@ -3,7 +3,16 @@ import type { LeadMagnetCampaignRow, LeadMagnetEnrollmentRow } from "./types.ts"
 import { interpolateLeadMagnetText } from "./types.ts";
 import type { FollowConfirmResult } from "./types.ts";
 import { buildFacebookFollowGateButtons, buildLeadMagnetActionButton, buildLeadMagnetDeliveryButton } from "./leadMagnetActionButtons.ts";
-import { fetchParticipantProfile } from "./fetchParticipantProfile.ts";
+import {
+  fetchParticipantFollowCheck,
+} from "./fetchParticipantProfile.ts";
+import {
+  followStatusToLegacyBoolean,
+  LEAD_MAGNET_CONSENT_OPENER_TEXT,
+  needsMessagingConsentRecheck,
+  shouldSkipFollowGate,
+  type FollowStatus,
+} from "./followCheckStatus.ts";
 import { logLeadMagnetFunnelEvent, updateEnrollmentStatus } from "./funnelAnalytics.ts";
 import { sendLeadMagnetDm, type LeadMagnetSendResult } from "./sendLeadMagnetMessage.ts";
 
@@ -160,7 +169,7 @@ export async function sendFirstContactDm(
     pageId: string;
     text: string;
     buttons?: DmButton[];
-    step: "follow_gate" | "framework_offer" | "delivery";
+    step: "follow_gate" | "framework_offer" | "delivery" | "consent_opener";
   },
 ): Promise<LeadMagnetSendResult> {
   const sendResult = await sendLeadMagnetDm(admin, {
@@ -188,6 +197,151 @@ export async function sendFirstContactDm(
   }
 
   return sendResult;
+}
+
+async function reloadEnrollmentRow(
+  admin: SupabaseClient,
+  enrollmentId: string,
+): Promise<LeadMagnetEnrollmentRow | null> {
+  const { data } = await admin
+    .from("lead_magnet_enrollments")
+    .select("*")
+    .eq("id", enrollmentId)
+    .maybeSingle();
+  return (data as LeadMagnetEnrollmentRow | null) ?? null;
+}
+
+async function logInitialFollowCheck(
+  admin: SupabaseClient,
+  args: {
+    enrollment: LeadMagnetEnrollmentRow;
+    campaign: LeadMagnetCampaignRow;
+    followStatus: FollowStatus;
+  },
+): Promise<void> {
+  const legacyFollower = followStatusToLegacyBoolean(args.followStatus);
+  await updateEnrollmentStatus(admin, args.enrollment.id, "follow_checked", {
+    is_follower_at_start: legacyFollower,
+  });
+  await logLeadMagnetFunnelEvent(admin, {
+    enrollmentId: args.enrollment.id,
+    campaignId: args.campaign.id,
+    organizationId: args.enrollment.organization_id,
+    eventType: args.followStatus === "unknown" ? "follow_check_failed" : "follow_checked",
+    metadata: {
+      is_follower: legacyFollower,
+      follow_status: args.followStatus,
+    },
+  });
+}
+
+async function skipFollowGateAndSendMaterial(
+  admin: SupabaseClient,
+  args: {
+    enrollment: LeadMagnetEnrollmentRow;
+    campaign: LeadMagnetCampaignRow;
+    accessToken: string;
+    pageId: string;
+  },
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  await updateEnrollmentStatus(admin, args.enrollment.id, "follow_validated");
+  await logLeadMagnetFunnelEvent(admin, {
+    enrollmentId: args.enrollment.id,
+    campaignId: args.campaign.id,
+    organizationId: args.enrollment.organization_id,
+    eventType: "follow_gate_skipped_follower",
+    metadata,
+  });
+  await sendMaterialOfferOrDelivery(admin, {
+    ...args,
+    enrollment: { ...args.enrollment, status: "follow_validated" },
+  });
+}
+
+async function runSkipFollowGateOpenerRecheckFlow(
+  admin: SupabaseClient,
+  args: {
+    enrollment: LeadMagnetEnrollmentRow;
+    campaign: LeadMagnetCampaignRow;
+    accessToken: string;
+    pageId: string;
+  },
+  initialStatus: FollowStatus,
+): Promise<void> {
+  const openerText = interpolateLeadMagnetText(
+    LEAD_MAGNET_CONSENT_OPENER_TEXT,
+    args.enrollment.participant_username,
+  );
+  const openerResult = await sendFirstContactDm(admin, {
+    enrollment: args.enrollment,
+    campaign: args.campaign,
+    accessToken: args.accessToken,
+    pageId: args.pageId,
+    text: openerText,
+    step: "consent_opener",
+  });
+
+  if (!openerResult.ok) {
+    await sendFollowGate(admin, args);
+    return;
+  }
+
+  const privateReplyPatch = buildPrivateReplyEnrollmentPatch(openerResult);
+  await updateEnrollmentStatus(admin, args.enrollment.id, "follow_checked", {
+    ...privateReplyPatch,
+    conversation_id: openerResult.conversationId ?? args.enrollment.conversation_id,
+    conversation_table: "instagram_conversations",
+  });
+
+  const enrollmentAfterOpener = await reloadEnrollmentRow(admin, args.enrollment.id);
+  const flowEnrollment = enrollmentAfterOpener ?? {
+    ...args.enrollment,
+    ...privateReplyPatch,
+    private_reply_message_id: openerResult.messageId ?? args.enrollment.private_reply_message_id ?? null,
+    conversation_id: openerResult.conversationId ?? args.enrollment.conversation_id,
+  };
+
+  const recheck = await fetchParticipantFollowCheck(
+    args.enrollment.participant_scoped_id,
+    args.accessToken,
+    { messagingWindowOpen: true },
+  );
+  const afterLegacy = followStatusToLegacyBoolean(recheck.status);
+
+  await updateEnrollmentStatus(admin, args.enrollment.id, "follow_checked", {
+    is_follower_at_start: followStatusToLegacyBoolean(initialStatus),
+  });
+
+  await logLeadMagnetFunnelEvent(admin, {
+    enrollmentId: args.enrollment.id,
+    campaignId: args.campaign.id,
+    organizationId: args.enrollment.organization_id,
+    eventType: "follow_rechecked_after_opener",
+    metadata: {
+      follow_status_before: initialStatus,
+      follow_status_after: recheck.status,
+      is_follower_before: followStatusToLegacyBoolean(initialStatus),
+      is_follower_after: afterLegacy,
+      username: recheck.username,
+    },
+  });
+
+  if (recheck.status === "follower") {
+    await skipFollowGateAndSendMaterial(admin, {
+      ...args,
+      enrollment: flowEnrollment,
+    }, {
+      reason: "recheck_after_opener",
+      follow_status_after: recheck.status,
+    });
+    return;
+  }
+
+  await sendFollowGate(admin, {
+    ...args,
+    enrollment: flowEnrollment,
+  });
 }
 
 async function recordFollowGateSent(
@@ -229,28 +383,29 @@ export async function runFollowCheckAndDmFlow(
   }
 
   const username = args.enrollment.participant_username;
-  let profile = await fetchParticipantProfile(args.enrollment.participant_scoped_id, args.accessToken);
+  let profile = await fetchParticipantFollowCheck(
+    args.enrollment.participant_scoped_id,
+    args.accessToken,
+  );
   if (!profile.username && username) profile = { ...profile, username };
 
-  const isFollower = profile.isFollower;
-  await updateEnrollmentStatus(admin, args.enrollment.id, "follow_checked", {
-    is_follower_at_start: isFollower,
-  });
-  await logLeadMagnetFunnelEvent(admin, {
-    enrollmentId: args.enrollment.id,
-    campaignId: args.campaign.id,
-    organizationId: args.enrollment.organization_id,
-    eventType: isFollower === null ? "follow_check_failed" : "follow_checked",
-    metadata: { is_follower: isFollower },
+  const followStatus = profile.status;
+  await logInitialFollowCheck(admin, {
+    enrollment: args.enrollment,
+    campaign: args.campaign,
+    followStatus,
   });
 
-  if (isFollower === true && args.campaign.skip_follow_gate_if_follower) {
-    await sendMaterialOfferOrDelivery(admin, {
-      enrollment: args.enrollment,
-      campaign: args.campaign,
-      accessToken: args.accessToken,
-      pageId: args.pageId,
+  if (shouldSkipFollowGate(args.campaign, followStatus)) {
+    await skipFollowGateAndSendMaterial(admin, args, {
+      reason: "follower_at_comment_check",
+      follow_status: followStatus,
     });
+    return;
+  }
+
+  if (needsMessagingConsentRecheck(args.enrollment, args.campaign, followStatus)) {
+    await runSkipFollowGateOpenerRecheckFlow(admin, args, followStatus);
     return;
   }
 
@@ -601,11 +756,12 @@ export async function handleFollowConfirmPostback(
       : IG_FOLLOW_RETRY_TEXT;
 
     if (flowArgs.enrollment.platform === "instagram") {
-      const profile = await fetchParticipantProfile(
+      const profile = await fetchParticipantFollowCheck(
         flowArgs.enrollment.participant_scoped_id,
         flowArgs.accessToken,
+        { messagingWindowOpen: true },
       );
-      if (profile.isFollower === true) {
+      if (profile.status === "follower") {
         // API confirms follow on first click — skip friction, proceed below.
       } else {
         await logLeadMagnetFunnelEvent(admin, {
@@ -617,6 +773,7 @@ export async function handleFollowConfirmPostback(
             platform: "instagram",
             attempt: attempts + 1,
             is_follower: profile.isFollower,
+            follow_status: profile.status,
             username: profile.username,
           },
         });
@@ -637,9 +794,10 @@ export async function handleFollowConfirmPostback(
   }
 
   if (flowArgs.enrollment.platform === "instagram") {
-    const profile = await fetchParticipantProfile(
+    const profile = await fetchParticipantFollowCheck(
       flowArgs.enrollment.participant_scoped_id,
       flowArgs.accessToken,
+      { messagingWindowOpen: true },
     );
     await logLeadMagnetFunnelEvent(admin, {
       enrollmentId: flowArgs.enrollment.id,
@@ -650,8 +808,9 @@ export async function handleFollowConfirmPostback(
         platform: "instagram",
         attempt: attempts + 1,
         is_follower: profile.isFollower,
+        follow_status: profile.status,
         username: profile.username,
-        honor_bypass: profile.isFollower !== true,
+        honor_bypass: profile.status !== "follower",
       },
     });
   }

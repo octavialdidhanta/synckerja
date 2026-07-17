@@ -28,7 +28,9 @@ export type LeadMagnetFunnelEventType =
   | "material_offer_skipped"
   | "delivered"
   | "dm_failed"
-  | "follow_check_failed";
+  | "follow_check_failed"
+  | "follow_rechecked_after_opener"
+  | "follow_gate_skipped_follower";
 
 export type LeadMagnetFirstDmMethod = "private_reply_button" | "private_reply_text" | "standard";
 

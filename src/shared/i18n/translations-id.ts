@@ -2872,6 +2872,8 @@ export const idTranslations: TranslationDictionary = {
   "whatsappInbox.listMessageLabel": "List message",
   "whatsappInbox.listMessageButton": "Pilih opsi",
   "whatsappInbox.postbackLabel": "Postback",
+  "whatsappInbox.leadMagnetButtonClicked": "Tombol diklik",
+  "whatsappInbox.leadMagnetAutomatedMessage": "Pesan otomatis",
   "whatsappInbox.quickAction": "Quick Action",
   "whatsappInbox.enableNotifications": "Aktifkan notifikasi",
   "whatsappInbox.collapseQuickAction": "Tutup sidebar",

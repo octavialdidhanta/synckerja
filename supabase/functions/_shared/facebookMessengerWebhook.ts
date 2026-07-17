@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { LEAD_MAGNET_PAYLOAD_PREFIX } from "./leadMagnet/types.ts";
+import { resolveLeadMagnetPostbackDisplayBody } from "./leadMagnet/leadMagnetLivechatDisplay.ts";
 import {
   resolveLeadMagnetFacebookPostbackPayload,
   resolveLeadMagnetFacebookTextPayload,
@@ -332,7 +333,10 @@ export async function processFacebookMessengerEvents(
         payload: rawPayload,
         title,
       }) ?? "";
-      const bodyText = rawPayload || title || "[Postback]";
+      const bodyText = resolveLeadMagnetPostbackDisplayBody({
+        payload: rawPayload || resolvedPayload,
+        title,
+      });
       const mid = `postback_${senderId}_${String(evt.timestamp ?? Date.now())}`;
 
       if (resolvedPayload && accessToken) {

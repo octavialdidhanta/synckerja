@@ -283,6 +283,48 @@ export async function fetchLeadMagnetMetaByLeadIds(
   return result;
 }
 
+export type LeadMagnetConversationSyncTarget = {
+  conversationId: string;
+  table: LeadMagnetConversationTable;
+};
+
+export function resolveLeadMagnetConversationSyncTargetFromMeta(
+  meta:
+    | Pick<LeadMagnetLeadMeta, '_leadMagnetConversationId' | '_leadMagnetConversationTable'>
+    | undefined
+    | null,
+): LeadMagnetConversationSyncTarget | null {
+  const conversationId = (meta?._leadMagnetConversationId ?? '').trim();
+  const table = normalizeConversationTable(meta?._leadMagnetConversationTable);
+  if (!conversationId || !table) return null;
+  return { conversationId, table };
+}
+
+/** Resolve linked omnichannel conversation from Lead Magnet meta on a lead row payload. */
+export function resolveLeadMagnetConversationSyncTarget(
+  lead: Record<string, unknown>,
+): LeadMagnetConversationSyncTarget | null {
+  return resolveLeadMagnetConversationSyncTargetFromMeta({
+    _leadMagnetConversationId: lead._leadMagnetConversationId as string | null | undefined,
+    _leadMagnetConversationTable: lead._leadMagnetConversationTable as string | null | undefined,
+  });
+}
+
+/** Payload first; fallback fetch by lead id (e.g. Edit Lead dialog without enrichment meta). */
+export async function resolveLeadMagnetConversationSyncTargetAsync(
+  organizationId: string,
+  leadId: string,
+  lead?: Record<string, unknown>,
+): Promise<LeadMagnetConversationSyncTarget | null> {
+  if (lead) {
+    const fromPayload = resolveLeadMagnetConversationSyncTarget(lead);
+    if (fromPayload) return fromPayload;
+  }
+  if (!organizationId || !leadId.trim()) return null;
+  const metaMap = await fetchLeadMagnetMetaByLeadIds(organizationId, [leadId]);
+  return resolveLeadMagnetConversationSyncTargetFromMeta(metaMap.get(leadId));
+}
+
 export async function fetchConversationAssigneeMap(
   entries: Array<{ conversationId: string; table: LeadMagnetConversationTable }>,
 ): Promise<Map<string, string | null>> {

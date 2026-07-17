@@ -1,15 +1,20 @@
+import {
+  followStatusToLegacyBoolean,
+  isConsentRequiredMetaError,
+  resolveFollowStatus,
+  type FollowCheckResult,
+} from "./followCheckStatus.ts";
+
 const META_GRAPH_VERSION = "v21.0";
 
-export type ParticipantProfile = {
-  username: string | null;
-  name: string | null;
-  isFollower: boolean | null;
-};
+/** @deprecated Prefer FollowCheckResult.status — kept for call sites that read isFollower. */
+export type ParticipantProfile = FollowCheckResult;
 
-export async function fetchParticipantProfile(
+export async function fetchParticipantFollowCheck(
   scopedUserId: string,
   accessToken: string,
-): Promise<ParticipantProfile> {
+  opts?: { messagingWindowOpen?: boolean },
+): Promise<FollowCheckResult> {
   const fields = "username,name,is_user_follow_business";
   const url =
     `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(scopedUserId)}?fields=${fields}`;
@@ -21,27 +26,50 @@ export async function fetchParticipantProfile(
       username?: string;
       name?: string;
       is_user_follow_business?: boolean;
-      error?: { message?: string };
+      error?: { message?: string; code?: number; error_subcode?: number };
     };
     if (!res.ok) {
-      console.warn("[lead-magnet] profile fetch failed:", data.error?.message ?? res.status, scopedUserId);
-      return { username: null, name: null, isFollower: null };
+      const consentRequired = isConsentRequiredMetaError(data.error);
+      console.warn("[lead-magnet] profile fetch failed:", data.error?.message ?? res.status, scopedUserId, {
+        consentRequired,
+      });
+      return {
+        username: null,
+        name: null,
+        status: "unknown",
+        isFollower: null,
+      };
     }
-    const isFollower = typeof data.is_user_follow_business === "boolean" ? data.is_user_follow_business : null;
+    const rawFollow = typeof data.is_user_follow_business === "boolean"
+      ? data.is_user_follow_business
+      : null;
+    const status = rawFollow === null
+      ? "unknown"
+      : resolveFollowStatus(rawFollow, opts);
     console.log("[lead-magnet] profile follow check:", {
       scopedUserId,
       username: data.username ?? null,
-      is_user_follow_business: isFollower,
+      is_user_follow_business: rawFollow,
+      follow_status: status,
+      messagingWindowOpen: Boolean(opts?.messagingWindowOpen),
     });
     return {
       username: typeof data.username === "string" ? data.username : null,
       name: typeof data.name === "string" ? data.name : null,
-      isFollower,
+      status,
+      isFollower: followStatusToLegacyBoolean(status),
     };
   } catch (err) {
     console.warn("[lead-magnet] profile fetch error:", err);
-    return { username: null, name: null, isFollower: null };
+    return { username: null, name: null, status: "unknown", isFollower: null };
   }
+}
+
+export async function fetchParticipantProfile(
+  scopedUserId: string,
+  accessToken: string,
+): Promise<FollowCheckResult> {
+  return fetchParticipantFollowCheck(scopedUserId, accessToken);
 }
 
 export async function fetchCommentText(

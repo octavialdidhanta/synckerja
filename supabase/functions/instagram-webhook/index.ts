@@ -19,6 +19,7 @@ import {
 import { canonicalFacebookPostMediaId } from "../_shared/leadMagnet/facebookPostMediaId.ts";
 import { runLeadMagnetRuntime } from "../_shared/leadMagnet/runLeadMagnetRuntime.ts";
 import { LEAD_MAGNET_PAYLOAD_PREFIX } from "../_shared/leadMagnet/types.ts";
+import { resolveLeadMagnetPostbackDisplayBody } from "../_shared/leadMagnet/leadMagnetLivechatDisplay.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -1356,7 +1357,7 @@ Deno.serve(async (req: Request) => {
           if (!senderId) continue;
           const payload = typeof postback.payload === "string" ? postback.payload.trim() : "";
           const title = typeof postback.title === "string" ? postback.title.trim() : "";
-          const bodyText = payload || title || "[Postback]";
+          const bodyText = resolveLeadMagnetPostbackDisplayBody({ payload, title });
           const mid = `postback_${senderId}_${String(e.timestamp ?? Date.now())}`;
           const pageIdStr = String(account.facebook_page_id ?? "").trim();
           const isLeadMagnetPostback = payload.startsWith(LEAD_MAGNET_PAYLOAD_PREFIX);

@@ -31,6 +31,7 @@ import {
   enrichLeadRowWithLeadMagnetMeta,
   fetchConversationAssigneeMap,
   fetchLeadMagnetMetaByLeadIds,
+  resolveLeadMagnetConversationSyncTargetAsync,
   shouldHideVirtualConversationForLeadMagnet,
 } from '@/shared/hooks/organized/leadMagnetLeadsEnrichment';
 
@@ -3288,45 +3289,66 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         const tid = rawTid == null ? '' : String(rawTid).trim();
         const tidUpper = tid.toUpperCase();
 
-        if (!targetConvId && tid && (tidUpper.startsWith('WA-') || tidUpper.startsWith('IG-'))) {
-          const { data: convByIlike } = await supabase
-            .from('whatsapp_conversations')
-            .select('id')
-            .eq('organization_id', organizationIdForHistory)
-            .ilike('ticket_id', tid)
-            .maybeSingle();
-          targetConvId = (convByIlike?.id as string | undefined) ?? null;
-          if (!targetConvId) {
-            const { data: convByEq } = await supabase
+        let igSyncId: string | null = null;
+        let fbSyncId: string | null = null;
+        let emailSyncId: string | null = null;
+
+        const lmConvTarget = await resolveLeadMagnetConversationSyncTargetAsync(
+          organizationIdForHistory,
+          String(id),
+          lead as Record<string, unknown>,
+        );
+        if (lmConvTarget) {
+          if (lmConvTarget.table === 'instagram_conversations') {
+            igSyncId = lmConvTarget.conversationId;
+          } else if (lmConvTarget.table === 'facebook_conversations') {
+            fbSyncId = lmConvTarget.conversationId;
+          } else if (lmConvTarget.table === 'whatsapp_conversations') {
+            targetConvId = lmConvTarget.conversationId;
+          }
+        } else {
+          if (!targetConvId && tid && (tidUpper.startsWith('WA-') || tidUpper.startsWith('IG-'))) {
+            const { data: convByIlike } = await supabase
               .from('whatsapp_conversations')
               .select('id')
               .eq('organization_id', organizationIdForHistory)
-              .eq('ticket_id', tid)
+              .ilike('ticket_id', tid)
               .maybeSingle();
-            targetConvId = (convByEq?.id as string | undefined) ?? null;
+            targetConvId = (convByIlike?.id as string | undefined) ?? null;
+            if (!targetConvId) {
+              const { data: convByEq } = await supabase
+                .from('whatsapp_conversations')
+                .select('id')
+                .eq('organization_id', organizationIdForHistory)
+                .eq('ticket_id', tid)
+                .maybeSingle();
+              targetConvId = (convByEq?.id as string | undefined) ?? null;
+            }
           }
+
+          igSyncId =
+            tidUpper.startsWith('IG-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
+              ? whatsappConvId.trim()
+              : null;
+          if (!igSyncId && tid && tidUpper.startsWith('IG-') && organizationIdForHistory) {
+            igSyncId = await resolveInstagramConversationIdByTicket(organizationIdForHistory, tid);
+          }
+
+          fbSyncId =
+            tidUpper.startsWith('FB-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
+              ? whatsappConvId.trim()
+              : null;
+          if (!fbSyncId && tid && tidUpper.startsWith('FB-') && organizationIdForHistory) {
+            fbSyncId = await resolveFacebookConversationIdByTicket(organizationIdForHistory, tid);
+          }
+
+          emailSyncId =
+            tidUpper.startsWith('EMAIL-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
+              ? whatsappConvId.trim()
+              : null;
         }
 
-        let igSyncId: string | null =
-          tidUpper.startsWith('IG-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
-            ? whatsappConvId.trim()
-            : null;
-        if (!igSyncId && tid && tidUpper.startsWith('IG-') && organizationIdForHistory) {
-          igSyncId = await resolveInstagramConversationIdByTicket(organizationIdForHistory, tid);
-        }
-
-        let fbSyncId: string | null =
-          tidUpper.startsWith('FB-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
-            ? whatsappConvId.trim()
-            : null;
-        if (!fbSyncId && tid && tidUpper.startsWith('FB-') && organizationIdForHistory) {
-          fbSyncId = await resolveFacebookConversationIdByTicket(organizationIdForHistory, tid);
-        }
-
-        let emailSyncId: string | null =
-          tidUpper.startsWith('EMAIL-') && typeof whatsappConvId === 'string' && whatsappConvId.trim() !== ''
-            ? whatsappConvId.trim()
-            : null;
+        let omniConversationSynced = false;
 
         const nowIsoForConv = new Date().toISOString();
         const convPatch: Record<string, unknown> = { updated_at: nowIsoForConv };
@@ -3396,6 +3418,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             .eq('id', igSyncId);
           if (igConvSyncErr) console.error('Sync lead → instagram_conversations failed:', igConvSyncErr);
           else {
+            omniConversationSynced = true;
             queryClient.invalidateQueries({ queryKey: ['instagram-conversation-status', igSyncId] });
           }
         } else if (fbSyncId) {
@@ -3405,6 +3428,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             .eq('id', fbSyncId);
           if (fbConvSyncErr) console.error('Sync lead → facebook_conversations failed:', fbConvSyncErr);
           else {
+            omniConversationSynced = true;
             queryClient.invalidateQueries({ queryKey: ['facebook-conversation-status', fbSyncId] });
           }
         } else if (emailSyncId) {
@@ -3414,6 +3438,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             .eq('id', emailSyncId);
           if (emConvSyncErr) console.error('Sync lead → email_conversations failed:', emConvSyncErr);
           else {
+            omniConversationSynced = true;
             queryClient.invalidateQueries({ queryKey: ['email-conversation-status', emailSyncId] });
           }
         } else if (targetConvId) {
@@ -3423,8 +3448,14 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
             .eq('id', targetConvId);
           if (waConvSyncErr) console.error('Sync lead → whatsapp_conversations failed:', waConvSyncErr);
           else {
+            omniConversationSynced = true;
             queryClient.invalidateQueries({ queryKey: ['whatsapp-conversation-status', targetConvId] });
           }
+        }
+
+        if (omniConversationSynced && organizationIdForHistory) {
+          queryClient.invalidateQueries({ queryKey: ['leads', organizationIdForHistory], refetchType: 'active' });
+          queryClient.invalidateQueries({ queryKey: ['lead-by-ticket'] });
         }
       }
       // Close omnichannel conversation cycles when status → Resolve/Closed from leads row path.
@@ -3541,7 +3572,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           }
         }
       }
-      if (whatsappConvId) {
+      if (whatsappConvId || hadAssigneeUpdate) {
         queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['lead-by-ticket'] });
       }

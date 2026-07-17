@@ -6,11 +6,25 @@ ManyChat-style automation for Instagram and Facebook Page: comment keyword → p
 
 1. **Comment match** — Webhook `comments` (IG) or `feed` item=comment (FB Page)
 2. **Public comment reply** — `replyMetaComment`
-3. **Follow check** — Graph API `is_user_follow_business` (Instagram only; Facebook has no public follow API for Messenger PSID)
+3. **Follow check** — Graph API `is_user_follow_business` (Instagram only; Facebook has no public follow API for Messenger PSID). Pre-DM `false` is treated as **unknown** (Meta often lacks messaging consent right after a comment). When `skip_follow_gate_if_follower` is enabled on IG, runtime sends a short **consent opener** private reply, re-checks follow status, then either skips to material/delivery or sends follow gate via standard DM.
 4. **Follow gate DM** — IG: postback `Sudah Follow`. FB: two buttons — `Ikuti Page` (facebook.com) + `Sudah Follow` (action URL on `office.synckerja.com/digital-marketing/lead-magnet/action`)
 5. **Follow re-validation** — IG: API re-check on confirm; loop if false. FB: **two-step honor system** — first `Sudah Follow` click nudges + re-sends gate (no material); second click sends material offer
 6. **Material offer** — `Ambil Materi` action URL (FB) or postback (IG); skippable via `skip_material_offer`
 7. **Delivery** — DM with `web_url` button to HTTPS asset URL
+
+### Instagram skip-if-follower (Meta consent timing)
+
+Meta User Profile `is_user_follow_business` requires messaging consent. A comment alone often yields `false` even when the user already follows the account.
+
+When `skip_follow_gate_if_follower` is **on** for an Instagram campaign:
+
+1. Initial follow check runs (true → skip straight to material/delivery).
+2. If not confirmed follower, send one **text-only private reply** opener (`Hai {{username}}! Sebentar ya…`) to open the messaging window (uses the single allowed private reply per comment).
+3. Re-check `is_user_follow_business` with messaging window open.
+4. Follower → skip follow gate (`follow_gate_skipped_follower` funnel event) and send material/delivery via standard DM.
+5. Non-follower or still unknown → send follow gate via standard DM (conservative fallback for non-followers).
+
+Funnel events: `follow_rechecked_after_opener`, `follow_gate_skipped_follower` (metadata includes `follow_status_before` / `follow_status_after`).
 
 ### Facebook follow gate limitation
 
@@ -28,7 +42,7 @@ Enrollment status transitions use atomic `UPDATE … WHERE status = …` before 
 
 | Flag | Effect |
 |------|--------|
-| `skip_follow_gate_if_follower` | Follower at comment time skips follow gate DM |
+| `skip_follow_gate_if_follower` | Skip follow gate DM when user is a confirmed follower (IG: includes post-opener re-check) |
 | `skip_material_offer` | After follow gate (or directly for follower + skip follow gate), send delivery DM without material-offer step |
 
 ### Delivery modes (wizard Delivery step)

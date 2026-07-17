@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyLeadMagnetAssigneeOverlay,
   buildLeadMagnetLinkedConversationIdSet,
   buildLeadMagnetLinkedTicketSuffixSet,
   buildLeadMagnetParticipantScopedIdSet,
@@ -7,6 +8,8 @@ import {
   conversationUuidToTicketSuffix,
   isLeadMagnetSourceLead,
   parseVirtualChannelTicketSuffix,
+  resolveLeadMagnetConversationSyncTarget,
+  resolveLeadMagnetConversationSyncTargetFromMeta,
   shouldHideVirtualConversationForLeadMagnet,
 } from './leadMagnetLeadsEnrichment';
 import type { LeadMagnetLeadMeta } from './leadMagnetLeadsEnrichment';
