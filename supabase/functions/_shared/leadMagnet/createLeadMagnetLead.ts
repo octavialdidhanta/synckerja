@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getOrCreateSystemActor, resolveLeadStatusId } from "../omnichannelPublicApi/leadStatusMap.ts";
 import { resolveLeadMagnetAccountLabel } from "./resolveLeadMagnetAccountLabel.ts";
+import {
+  getParticipantProfile,
+  upsertParticipantContactField,
+} from "./contactGate/participantProfile.ts";
 import type { LeadMagnetCampaignRow, LeadMagnetPlatform } from "./types.ts";
 
 export async function createLeadMagnetLead(
@@ -26,6 +30,27 @@ export async function createLeadMagnetLead(
       return {
         leadId: String(existingEnrollment.lead_id),
         leadSubmissionId: String(existingEnrollment.lead_submission_id ?? ""),
+      };
+    }
+
+    const canonicalProfile = await getParticipantProfile(admin, {
+      organizationId: args.organizationId,
+      platform: args.platform,
+      participantScopedId: args.participantScopedId,
+    });
+
+    if (canonicalProfile?.canonical_lead_id && canonicalProfile.canonical_submission_id) {
+      await admin
+        .from("lead_magnet_enrollments")
+        .update({
+          lead_id: canonicalProfile.canonical_lead_id,
+          lead_submission_id: canonicalProfile.canonical_submission_id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", args.enrollmentId);
+      return {
+        leadId: canonicalProfile.canonical_lead_id,
+        leadSubmissionId: canonicalProfile.canonical_submission_id,
       };
     }
 
@@ -95,6 +120,16 @@ export async function createLeadMagnetLead(
       .from("lead_magnet_enrollments")
       .update({ lead_id: leadId, lead_submission_id: submissionId, updated_at: now })
       .eq("id", args.enrollmentId);
+
+    await upsertParticipantContactField(admin, {
+      organizationId: args.organizationId,
+      platform: args.platform,
+      participantScopedId: args.participantScopedId,
+      canonicalLeadId: leadId,
+      canonicalSubmissionId: submissionId,
+      phoneNumber: canonicalProfile?.phone_number ?? null,
+      email: canonicalProfile?.email ?? null,
+    });
 
     return { leadId, leadSubmissionId: submissionId };
   } catch (err) {

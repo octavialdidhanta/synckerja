@@ -161,6 +161,10 @@ interface LeadsTableNewProps {
   gclidColumnFilter?: UtmStringColumnFilterConfig | null;
   fbclidColumnFilter?: UtmStringColumnFilterConfig | null;
   landingUrlContainsColumnFilter?: LandingUrlContainsColumnFilterConfig | null;
+  /** Lead Magnet campaign snapshot (recipient picker only). */
+  leadMagnetCampaignColumnFilter?: UtmStringColumnFilterConfig | null;
+  /** Lead Magnet target market snapshot (recipient picker only). */
+  leadMagnetTargetMarketColumnFilter?: UtmStringColumnFilterConfig | null;
   /** Latest customer survey per WhatsApp conversation (leads page hook or RPC fields in picker). */
   getSurveyForLead?: (lead: NewLead) => LatestCustomerSurvey | null;
   onOpenSurveyHistory?: (lead: NewLead) => void;
@@ -176,6 +180,8 @@ interface LeadsTableNewProps {
     replaceTitleColumnWithPhone?: boolean;
     /** Recipient list contact picker: show Email column immediately after phone (`_display_email`). */
     showEmailColumn?: boolean;
+    /** Recipient list contact picker: show Lead Magnet Campaign + Target Market columns. */
+    showLeadMagnetColumns?: boolean;
   } | null;
   /** Google Ads offline conversion sync status (omnichannel leads table). */
   showGoogleAdsSyncColumn?: boolean;
@@ -223,6 +229,8 @@ export default function LeadsTableNew({
   gclidColumnFilter,
   fbclidColumnFilter,
   landingUrlContainsColumnFilter,
+  leadMagnetCampaignColumnFilter,
+  leadMagnetTargetMarketColumnFilter,
   getSurveyForLead,
   onOpenSurveyHistory,
   surveyColumnFilter,
@@ -524,6 +532,21 @@ export default function LeadsTableNew({
             },
           ]
         : [];
+    const leadMagnetCols: TableHeadCol[] =
+      pickerSelection?.showLeadMagnetColumns === true
+        ? [
+            {
+              key: "lead_magnet_campaign",
+              label: t("omnichannel.contact.colCampaign", "Campaign"),
+              width: "w-[180px] max-w-[200px]",
+            },
+            {
+              key: "lead_magnet_target_market",
+              label: t("omnichannel.contact.colTargetMarket", "Target Market"),
+              width: "w-[180px] max-w-[200px]",
+            },
+          ]
+        : [];
     return [
       ...pick,
       { key: "created", label: "Created", width: "w-[100px]", sortKey: "created_at" },
@@ -531,6 +554,7 @@ export default function LeadsTableNew({
       { key: "client", label: "Client", width: "w-[150px]", sortKey: "client" },
       { key: "title", label: titleLabel, width: "w-[200px]", sortKey: "title" },
       ...contactEmailCol,
+      ...leadMagnetCols,
       { key: "services", label: "Services", width: "w-[280px] max-w-[280px]", sortKey: "services" },
       { key: "category", label: "Category", width: "w-[200px] max-w-[200px]", sortKey: "category" },
       { key: "created_by", label: "Created By", width: "w-[120px]", sortKey: "created_by_name" },
@@ -961,6 +985,42 @@ export default function LeadsTableNew({
         </div>
       );
     }
+    if (header.key === "lead_magnet_campaign" && leadMagnetCampaignColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {header.label}
+          {renderLeadColumnFilterDropdown(
+            leadMagnetCampaignColumnFilter.value,
+            leadMagnetCampaignColumnFilter.onChange,
+            t("omnichannel.contact.filterAllCampaigns", "All campaigns"),
+            leadMagnetCampaignColumnFilter.options.map((name, i) => ({
+              key: `lm-cmp-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("omnichannel.contact.filterCampaign", "Filter campaign"),
+          )}
+        </div>
+      );
+    }
+    if (header.key === "lead_magnet_target_market" && leadMagnetTargetMarketColumnFilter) {
+      return (
+        <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
+          {header.label}
+          {renderLeadColumnFilterDropdown(
+            leadMagnetTargetMarketColumnFilter.value,
+            leadMagnetTargetMarketColumnFilter.onChange,
+            t("omnichannel.contact.filterAllTargetMarkets", "All target markets"),
+            leadMagnetTargetMarketColumnFilter.options.map((name, i) => ({
+              key: `lm-tm-${i}-${name}`,
+              value: name,
+              label: name,
+            })),
+            t("omnichannel.contact.filterTargetMarket", "Filter target market"),
+          )}
+        </div>
+      );
+    }
     if (header.key === "utm_medium" && utmMediumColumnFilter) {
       return (
         <div className="inline-flex max-w-full min-w-0 items-center gap-0.5">
@@ -1167,6 +1227,11 @@ export default function LeadsTableNew({
                 const phoneKey = pickerSelection ? pickerSelection.getPhoneKey(lead) : "";
                 const showPhoneInsteadOfTitle = pickerSelection?.replaceTitleColumnWithPhone === true;
                 const showEmailColumn = pickerSelection?.showEmailColumn === true;
+                const showLeadMagnetColumns = pickerSelection?.showLeadMagnetColumns === true;
+                const rpcLead = lead as NewLead & {
+                  lead_magnet_campaign_name?: string | null;
+                  lead_magnet_target_market?: string | null;
+                };
                 const rowDisplayPhone = showPhoneInsteadOfTitle
                   ? (lead as NewLead & { _display_phone?: string | null })._display_phone
                   : undefined;
@@ -1239,6 +1304,26 @@ export default function LeadsTableNew({
                         title={rowDisplayEmail?.trim() ? rowDisplayEmail : undefined}
                       >
                         {rowDisplayEmail?.trim() ? rowDisplayEmail : "—"}
+                      </span>
+                    </TableCell>
+                  ) : null}
+                  {showLeadMagnetColumns ? (
+                    <TableCell className="w-[180px] max-w-[200px] min-w-0 overflow-hidden align-middle text-sm">
+                      <span
+                        className="block truncate leading-normal"
+                        title={rpcLead.lead_magnet_campaign_name?.trim() || undefined}
+                      >
+                        {rpcLead.lead_magnet_campaign_name?.trim() ? rpcLead.lead_magnet_campaign_name : "—"}
+                      </span>
+                    </TableCell>
+                  ) : null}
+                  {showLeadMagnetColumns ? (
+                    <TableCell className="w-[180px] max-w-[200px] min-w-0 overflow-hidden align-middle text-sm">
+                      <span
+                        className="block truncate leading-normal"
+                        title={rpcLead.lead_magnet_target_market?.trim() || undefined}
+                      >
+                        {rpcLead.lead_magnet_target_market?.trim() ? rpcLead.lead_magnet_target_market : "—"}
                       </span>
                     </TableCell>
                   ) : null}

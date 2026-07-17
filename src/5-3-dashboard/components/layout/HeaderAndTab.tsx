@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Users, MessageCircle, Instagram, Facebook, Mail, Inbox, FileText, ListChecks, Megaphone, Settings, History, AtSign } from "lucide-react";
+import { LayoutDashboard, Users, MessageCircle, Instagram, Facebook, Mail, Inbox, FileText, ListChecks, Megaphone, Settings, History, AtSign, Contact } from "lucide-react";
 import { Lock } from "lucide-react";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
@@ -73,6 +73,14 @@ const tabs: CrmHeaderTab[] = [
     icon: Inbox,
   },
   {
+    key: "omnichannel-contact",
+    path: "/omnichannel/contact",
+    accessPath: "/omnichannel/contact",
+    title: "Contact",
+    titleKey: "sidebar.operations.contact.title",
+    icon: Contact,
+  },
+  {
     key: "template-followups",
     path: "/omnichannel/livechat/template-follow-ups",
     accessPath: "/omnichannel/livechat",
@@ -124,9 +132,11 @@ export const HeaderAndTab = () => {
 
   const isLiveChatSection =
     location.pathname === "/omnichannel/livechat" ||
-    location.pathname.startsWith("/omnichannel/livechat/");
+    location.pathname.startsWith("/omnichannel/livechat/") ||
+    location.pathname === "/omnichannel/contact" ||
+    location.pathname.startsWith("/omnichannel/contact/");
 
-  const livechatTabKeys = new Set<string>(["livechat", "template-followups"]);
+  const livechatTabKeys = new Set<string>(["livechat", "omnichannel-contact", "template-followups"]);
 
   const isCampaignCrmSection =
     location.pathname === "/omnichannel/campaign/whatsapp" ||

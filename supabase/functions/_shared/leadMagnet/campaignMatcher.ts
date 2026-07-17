@@ -23,9 +23,21 @@ export type MatchedCampaign = {
   framework_button_label: string;
   delivery_text: string;
   delivery_button_label: string;
+  delivery_fallback_text: string | null;
   delivery_url: string;
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
+  contact_gate_enabled: boolean;
+  contact_prompt_text: string | null;
+  contact_invalid_text: string | null;
+  contact_ack_text: string | null;
+  whatsapp_account_id: string | null;
+  whatsapp_template_name: string | null;
+  whatsapp_template_language: string | null;
+  whatsapp_template_params: Record<string, unknown>;
+  email_subject: string | null;
+  email_html_body: string | null;
+  email_from_name: string | null;
   platform: LeadMagnetPlatform;
   account_id: string;
   posts: Array<{ media_id: string; platform: LeadMagnetPlatform }>;
@@ -49,9 +61,21 @@ type CampaignFromPostJoin = {
   framework_button_label: string;
   delivery_text: string;
   delivery_button_label: string;
+  delivery_fallback_text: string | null;
   delivery_url: string;
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
+  contact_gate_enabled: boolean;
+  contact_prompt_text: string | null;
+  contact_invalid_text: string | null;
+  contact_ack_text: string | null;
+  whatsapp_account_id: string | null;
+  whatsapp_template_name: string | null;
+  whatsapp_template_language: string | null;
+  whatsapp_template_params: Record<string, unknown>;
+  email_subject: string | null;
+  email_html_body: string | null;
+  email_from_name: string | null;
   lead_magnet_campaign_accounts: CampaignAccountRow | CampaignAccountRow[] | null;
 };
 
@@ -87,9 +111,23 @@ function mapMatchedCampaign(
     framework_button_label: String(campaign.framework_button_label),
     delivery_text: String(campaign.delivery_text),
     delivery_button_label: String(campaign.delivery_button_label),
+    delivery_fallback_text: campaign.delivery_fallback_text != null
+      ? String(campaign.delivery_fallback_text)
+      : null,
     delivery_url: String(campaign.delivery_url),
     skip_follow_gate_if_follower: Boolean(campaign.skip_follow_gate_if_follower),
     skip_material_offer: Boolean(campaign.skip_material_offer),
+    contact_gate_enabled: Boolean(campaign.contact_gate_enabled),
+    contact_prompt_text: campaign.contact_prompt_text ?? null,
+    contact_invalid_text: campaign.contact_invalid_text ?? null,
+    contact_ack_text: campaign.contact_ack_text ?? null,
+    whatsapp_account_id: campaign.whatsapp_account_id ?? null,
+    whatsapp_template_name: campaign.whatsapp_template_name ?? null,
+    whatsapp_template_language: campaign.whatsapp_template_language ?? null,
+    whatsapp_template_params: (campaign.whatsapp_template_params ?? {}) as Record<string, unknown>,
+    email_subject: campaign.email_subject ?? null,
+    email_html_body: campaign.email_html_body ?? null,
+    email_from_name: campaign.email_from_name ?? null,
     platform: args.platform,
     account_id: String(binding.account_id),
     posts: [{ media_id: args.mediaId, platform: args.platform }],
@@ -128,9 +166,21 @@ export async function findMatchingLeadMagnetCampaign(
         framework_button_label,
         delivery_text,
         delivery_button_label,
+        delivery_fallback_text,
         delivery_url,
         skip_follow_gate_if_follower,
         skip_material_offer,
+        contact_gate_enabled,
+        contact_prompt_text,
+        contact_invalid_text,
+        contact_ack_text,
+        whatsapp_account_id,
+        whatsapp_template_name,
+        whatsapp_template_language,
+        whatsapp_template_params,
+        email_subject,
+        email_html_body,
+        email_from_name,
         lead_magnet_campaign_accounts (platform, account_id)
       )
     `)

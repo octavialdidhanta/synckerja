@@ -30,6 +30,8 @@ export type LeadMagnetCampaign = {
   id: string;
   organization_id: string;
   name: string;
+  /** Free-text target market label; required at publish. */
+  target_market: string;
   /** @deprecated use lead_magnet_campaign_accounts */
   platform?: LeadMagnetPlatform | null;
   /** @deprecated use lead_magnet_campaign_accounts */
@@ -43,6 +45,7 @@ export type LeadMagnetCampaign = {
   framework_button_label: string;
   delivery_text: string;
   delivery_button_label: string;
+  delivery_fallback_text: string;
   delivery_url: string;
   delivery_mode: LeadMagnetDeliveryMode;
   delivery_storage_path: string | null;
@@ -51,6 +54,17 @@ export type LeadMagnetCampaign = {
   delivery_file_size_bytes: number | null;
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
+  contact_gate_enabled: boolean;
+  contact_prompt_text: string;
+  contact_invalid_text: string;
+  contact_ack_text: string;
+  whatsapp_account_id: string | null;
+  whatsapp_template_name: string | null;
+  whatsapp_template_language: string | null;
+  whatsapp_template_params: Record<string, unknown>;
+  email_subject: string;
+  email_html_body: string;
+  email_from_name: string | null;
   published_at: string | null;
   created_at: string;
   updated_at: string;
@@ -81,6 +95,7 @@ export type LeadMagnetEnrollment = {
 
 export type LeadMagnetCampaignForm = {
   name: string;
+  target_market: string;
   accounts: LeadMagnetCampaignAccount[];
   keyword: string;
   comment_reply_text: string;
@@ -90,6 +105,7 @@ export type LeadMagnetCampaignForm = {
   framework_button_label: string;
   delivery_text: string;
   delivery_button_label: string;
+  delivery_fallback_text: string;
   delivery_url: string;
   delivery_mode: LeadMagnetDeliveryMode;
   delivery_storage_path: string | null;
@@ -98,11 +114,23 @@ export type LeadMagnetCampaignForm = {
   delivery_file_size_bytes: number | null;
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
+  contact_gate_enabled: boolean;
+  contact_prompt_text: string;
+  contact_invalid_text: string;
+  contact_ack_text: string;
+  whatsapp_account_id: string | null;
+  whatsapp_template_name: string | null;
+  whatsapp_template_language: string | null;
+  whatsapp_template_params: Record<string, unknown>;
+  email_subject: string;
+  email_html_body: string;
+  email_from_name: string | null;
   posts: LeadMagnetCampaignPost[];
 };
 
 export const DEFAULT_LEAD_MAGNET_FORM: LeadMagnetCampaignForm = {
   name: '',
+  target_market: '',
   accounts: [],
   keyword: '',
   comment_reply_text:
@@ -115,6 +143,8 @@ export const DEFAULT_LEAD_MAGNET_FORM: LeadMagnetCampaignForm = {
   framework_button_label: 'Ambil Materi',
   delivery_text: 'Hai {{username}}, ini materinya. Semoga bermanfaat! 🙏',
   delivery_button_label: 'Unduh',
+  delivery_fallback_text:
+    'Hai {{username}}, WhatsApp kami belum bisa mengirim materi. Unduh langsung di sini ya:',
   delivery_url: '',
   delivery_mode: 'link',
   delivery_storage_path: null,
@@ -123,6 +153,20 @@ export const DEFAULT_LEAD_MAGNET_FORM: LeadMagnetCampaignForm = {
   delivery_file_size_bytes: null,
   skip_follow_gate_if_follower: false,
   skip_material_offer: false,
+  contact_gate_enabled: false,
+  contact_prompt_text:
+    'Hai {{username}},\n\nTerima kasih atas minat Anda pada materi kami.\n\nUntuk mengirimkan file, silakan balas chat ini dengan:\n• Nomor WhatsApp aktif (contoh: 08123456789) — materi dikirim via WhatsApp, atau\n• Alamat email aktif (contoh: nama@perusahaan.com) — materi dikirim ke email Anda.\n\nKami hanya menggunakan kontak ini untuk pengiriman materi yang Anda minta.',
+  contact_invalid_text:
+    'Mohon maaf, format nomor atau email belum dapat kami baca.\n\nSilakan kirim nomor WhatsApp (contoh: 08123456789) atau email (contoh: nama@perusahaan.com).',
+  contact_ack_text: '',
+  whatsapp_account_id: null,
+  whatsapp_template_name: null,
+  whatsapp_template_language: null,
+  whatsapp_template_params: {},
+  email_subject: '',
+  email_html_body:
+    'Hai {{username}},\n\nTerima kasih! Berikut link materi {{campaign_name}}:\n{{delivery_url}}',
+  email_from_name: null,
   posts: [],
 };
 

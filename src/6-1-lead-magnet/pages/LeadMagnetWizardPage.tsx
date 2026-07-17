@@ -27,6 +27,9 @@ import {
   type LeadMagnetPlatform,
 } from '../types/leadMagnet.types';
 import { LeadMagnetDeliveryStep } from '../components/LeadMagnetDeliveryStep';
+import { LeadMagnetContactChannelStep } from '../components/wizard/LeadMagnetContactChannelStep';
+import { validateContactGateStep } from '../lib/contactGate/validateContactGateStep';
+import { useLeadMagnetWhatsAppAccounts } from '../hooks/useLeadMagnetWhatsAppAccounts';
 import { updateLeadMagnetCampaign } from '../lib/leadMagnetApi';
 import { parseLeadMagnetDeliveryMode, validateLeadMagnetDeliveryForm } from '../lib/leadMagnetDeliveryAsset';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -45,7 +48,7 @@ import {
 } from '@/shared/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 
-const STEPS = ['Dasar', 'Post', 'Keyword', 'Pesan', 'Delivery', 'Review'] as const;
+const STEPS = ['Dasar', 'Post', 'Keyword', 'Pesan', 'Kontak & Channel', 'Delivery', 'Review'] as const;
 
 function campaignToForm(c: LeadMagnetCampaign): LeadMagnetCampaignForm {
   const accounts = getCampaignAccounts(c);
@@ -58,6 +61,7 @@ function campaignToForm(c: LeadMagnetCampaign): LeadMagnetCampaignForm {
   }));
   return {
     name: c.name,
+    target_market: c.target_market ?? '',
     accounts,
     keyword: c.keyword,
     comment_reply_text: c.comment_reply_text,
@@ -67,6 +71,7 @@ function campaignToForm(c: LeadMagnetCampaign): LeadMagnetCampaignForm {
     framework_button_label: c.framework_button_label,
     delivery_text: c.delivery_text,
     delivery_button_label: c.delivery_button_label,
+    delivery_fallback_text: c.delivery_fallback_text ?? DEFAULT_LEAD_MAGNET_FORM.delivery_fallback_text,
     delivery_url: c.delivery_url,
     delivery_mode: parseLeadMagnetDeliveryMode(c.delivery_mode),
     delivery_storage_path: c.delivery_storage_path ?? null,
@@ -75,6 +80,17 @@ function campaignToForm(c: LeadMagnetCampaign): LeadMagnetCampaignForm {
     delivery_file_size_bytes: c.delivery_file_size_bytes ?? null,
     skip_follow_gate_if_follower: c.skip_follow_gate_if_follower,
     skip_material_offer: c.skip_material_offer ?? false,
+    contact_gate_enabled: c.contact_gate_enabled ?? false,
+    contact_prompt_text: c.contact_prompt_text ?? DEFAULT_LEAD_MAGNET_FORM.contact_prompt_text,
+    contact_invalid_text: c.contact_invalid_text ?? DEFAULT_LEAD_MAGNET_FORM.contact_invalid_text,
+    contact_ack_text: c.contact_ack_text ?? DEFAULT_LEAD_MAGNET_FORM.contact_ack_text,
+    whatsapp_account_id: c.whatsapp_account_id ?? null,
+    whatsapp_template_name: c.whatsapp_template_name ?? null,
+    whatsapp_template_language: c.whatsapp_template_language ?? null,
+    whatsapp_template_params: (c.whatsapp_template_params ?? {}) as Record<string, unknown>,
+    email_subject: c.email_subject ?? '',
+    email_html_body: c.email_html_body ?? '',
+    email_from_name: c.email_from_name ?? null,
     posts,
   };
 }
@@ -123,6 +139,7 @@ export function LeadMagnetWizardPage() {
   );
 
   const { organizationId } = useCurrentOrg();
+  const { orgHasWhatsApp } = useLeadMagnetWhatsAppAccounts();
 
   const createMut = useCreateLeadMagnetCampaign();
   const updateMut = useUpdateLeadMagnetCampaign(effectiveCampaignId ?? '');
@@ -230,6 +247,9 @@ export function LeadMagnetWizardPage() {
       return t('leadMagnet.wizard.validation.keywordRequired');
     }
     if (stepIndex === 4) {
+      return validateContactGateStep(form, orgHasWhatsApp);
+    }
+    if (stepIndex === 5) {
       const deliveryErr = validateLeadMagnetDeliveryForm(form);
       if (deliveryErr) return t(`leadMagnet.wizard.validation.${deliveryErr}`);
     }
@@ -276,8 +296,20 @@ export function LeadMagnetWizardPage() {
     }
   };
 
+  const validateTargetMarketForPublish = (): string | null => {
+    const tm = form.target_market.trim();
+    if (tm.length < 2) return t('leadMagnet.wizard.validation.targetMarketRequired');
+    if (tm.length > 120) return t('leadMagnet.wizard.validation.targetMarketTooLong');
+    return null;
+  };
+
   const handlePublish = async () => {
-    const err = validateStep(0) ?? validateStep(1) ?? validateStep(2) ?? validateStep(4);
+    const err = validateStep(0)
+      ?? validateStep(1)
+      ?? validateStep(2)
+      ?? validateStep(4)
+      ?? validateStep(5)
+      ?? validateTargetMarketForPublish();
     if (err) {
       toast.error(err);
       return;
@@ -346,6 +378,18 @@ export function LeadMagnetWizardPage() {
                     value={form.name}
                     onChange={(v) => patch({ name: v })}
                   />
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="target_market">{t('leadMagnet.wizard.targetMarket')}</Label>
+                    <Input
+                      id="target_market"
+                      value={form.target_market}
+                      onChange={(e) => patch({ target_market: e.target.value.slice(0, 120) })}
+                      placeholder={t('leadMagnet.wizard.targetMarketPlaceholder')}
+                      maxLength={120}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('leadMagnet.wizard.targetMarketHint')}</p>
+                  </div>
 
                   <PlatformAccountSection
                     platform="instagram"
@@ -494,9 +538,14 @@ export function LeadMagnetWizardPage() {
                       onCheckedChange={(checked) => patch({ skip_material_offer: checked })}
                       label={t('leadMagnet.wizard.skipMaterialOffer')}
                       info={t('leadMagnet.wizard.skipMaterialOfferHint')}
+                      disabled={form.contact_gate_enabled}
                     />
                     <div
-                      className={form.skip_material_offer ? 'pointer-events-none space-y-3 opacity-50' : 'space-y-3'}
+                      className={
+                        form.skip_material_offer || form.contact_gate_enabled
+                          ? 'pointer-events-none space-y-3 opacity-50'
+                          : 'space-y-3'
+                      }
                     >
                       <MessageField
                         label={t('leadMagnet.wizard.frameworkOffer')}
@@ -517,6 +566,10 @@ export function LeadMagnetWizardPage() {
               )}
 
               {step === 4 && (
+                <LeadMagnetContactChannelStep form={form} onChange={patch} />
+              )}
+
+              {step === 5 && (
                 <div className="space-y-5">
                   <MessageField
                     label={t('leadMagnet.wizard.deliveryMessage')}
@@ -540,10 +593,13 @@ export function LeadMagnetWizardPage() {
                 </div>
               )}
 
-              {step === 5 && (
+              {step === 6 && (
                 <div className="space-y-2 text-sm">
                   <p>
                     <strong>{form.name}</strong> · keyword <code>{form.keyword}</code>
+                  </p>
+                  <p className="text-muted-foreground">
+                    {t('leadMagnet.wizard.targetMarket')}: {form.target_market.trim() || '—'}
                   </p>
                   <ul className="list-inside list-disc text-muted-foreground">
                     {igEnabled ? (
@@ -559,6 +615,12 @@ export function LeadMagnetWizardPage() {
                       </li>
                     ) : null}
                   </ul>
+                  <p className="text-muted-foreground">
+                    Contact Gate: {form.contact_gate_enabled ? 'ON' : 'OFF'}
+                    {form.contact_gate_enabled && form.whatsapp_template_name
+                      ? ` · WA template: ${form.whatsapp_template_name}`
+                      : ''}
+                  </p>
                   <p className="text-muted-foreground">
                     {t('leadMagnet.wizard.reviewSkipMaterialOffer', {
                       enabled: form.skip_material_offer
@@ -819,16 +881,23 @@ function WizardSkipOption({
   onCheckedChange,
   label,
   info,
+  disabled,
 }: {
   id: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   label: string;
   info: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2">
-      <Checkbox id={id} checked={checked} onCheckedChange={(c) => onCheckedChange(c === true)} />
+      <Checkbox
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={(c) => onCheckedChange(c === true)}
+      />
       <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer text-sm leading-tight">
         {label}
       </label>

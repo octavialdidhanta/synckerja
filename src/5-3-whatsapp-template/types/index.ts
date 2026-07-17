@@ -89,6 +89,8 @@ export type TemplateTableRow = {
   hasFlowButton: boolean;
   /** Meta Flow IDs linked via FLOW buttons. */
   linkedFlowIds: string[];
+  /** Raw Meta `components` array — used for template parameter slot mapping. */
+  componentsJson: MetaMessageTemplate["components"];
 };
 
 /** `all` = no date window (show every template that passes other filters). */

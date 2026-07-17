@@ -13,9 +13,27 @@ import path from "path";
 const PROJECT_REF = "wqdzqqshoifwyrltzgvx";
 const root = process.cwd();
 
-const leadMagnetShared = fs
-  .readdirSync("supabase/functions/_shared/leadMagnet")
-  .map((f) => `supabase/functions/_shared/leadMagnet/${f}`);
+function collectTsFilesRecursive(dirRel) {
+  const abs = path.join(root, dirRel);
+  const out = [];
+  for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
+    const rel = `${dirRel}/${entry.name}`.replace(/\\/g, "/");
+    if (entry.isDirectory()) {
+      out.push(...collectTsFilesRecursive(rel));
+    } else if (entry.name.endsWith(".ts")) {
+      out.push(rel);
+    }
+  }
+  return out;
+}
+
+const leadMagnetShared = collectTsFilesRecursive("supabase/functions/_shared/leadMagnet");
+
+const leadMagnetWaPersist = [
+  "supabase/functions/_shared/omnichannelPublicApi/persistLeadWhatsAppThread.ts",
+  "supabase/functions/_shared/omnichannelPublicApi/whatsappConversationForLead.ts",
+  "supabase/functions/_shared/omnichannelPublicApi/syncOmnichannelWhatsAppDelivery.ts",
+];
 
 const bundles = {
   "lead-magnet-runtime": [
@@ -23,7 +41,9 @@ const bundles = {
     "supabase/functions/_shared/metaContentApi.ts",
     "supabase/functions/_shared/metaContentAuth.ts",
     "supabase/functions/_shared/metaPlatformScopes.ts",
+    "supabase/functions/_shared/waTemplateGraph.ts",
     "supabase/functions/_shared/omnichannelPublicApi/leadStatusMap.ts",
+    ...leadMagnetWaPersist,
     ...leadMagnetShared,
   ],
   "lead-magnet-api": [
@@ -31,6 +51,7 @@ const bundles = {
     "supabase/functions/_shared/metaContentApi.ts",
     "supabase/functions/_shared/metaContentAuth.ts",
     "supabase/functions/_shared/metaPlatformScopes.ts",
+    "supabase/functions/_shared/waTemplateGraph.ts",
     ...leadMagnetShared,
   ],
   "instagram-webhook": [
@@ -42,7 +63,9 @@ const bundles = {
     "supabase/functions/_shared/instagramAccountDedupe.ts",
     "supabase/functions/_shared/instagramMessagingRecipient.ts",
     "supabase/functions/_shared/facebookMessengerWebhook.ts",
+    "supabase/functions/_shared/waTemplateGraph.ts",
     "supabase/functions/_shared/omnichannelPublicApi/leadStatusMap.ts",
+    ...leadMagnetWaPersist,
     ...leadMagnetShared,
   ],
   "instagram-subscribe-webhooks": [

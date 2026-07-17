@@ -16,6 +16,8 @@ export type RecipientPickerRpcItem = NewLead & {
   latest_survey_rating?: number | null;
   latest_survey_comment?: string | null;
   latest_survey_submitted_at?: string | null;
+  lead_magnet_campaign_name?: string | null;
+  lead_magnet_target_market?: string | null;
 };
 
 export function surveyFromRpcItem(item: RecipientPickerRpcItem): LatestCustomerSurvey | null {
@@ -72,5 +74,6 @@ export function rpcItemToRecipientPickerCandidate(item: RecipientPickerRpcItem):
     lead_source: item.source ?? null,
     origin: item._picker_origin === "lead" ? "lead" : "livechat",
     priority: item._picker_origin === "lead" ? 100_000 : 50_000,
+    leadMagnetTargetMarket: item.lead_magnet_target_market?.trim() || null,
   };
 }

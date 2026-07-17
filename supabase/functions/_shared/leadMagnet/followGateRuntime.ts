@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { LeadMagnetCampaignRow, LeadMagnetEnrollmentRow } from "./types.ts";
-import { interpolateLeadMagnetText } from "./types.ts";
+import { interpolateLeadMagnetText, LEAD_MAGNET_DEFAULT_MESSAGES } from "./types.ts";
 import type { FollowConfirmResult } from "./types.ts";
 import { buildFacebookFollowGateButtons, buildLeadMagnetActionButton, buildLeadMagnetDeliveryButton } from "./leadMagnetActionButtons.ts";
 import {
@@ -116,7 +116,21 @@ const IG_FOLLOW_RETRY_TEXT =
   "Pastikan kamu sudah follow akun Instagram kami, lalu klik Sudah Follow sekali lagi di DM.";
 
 function postFollowGateStatuses(): LeadMagnetEnrollmentRow["status"][] {
-  return ["follow_validated", "framework_offered", "material_offer_skipped", "delivered"];
+  return [
+    "follow_validated",
+    "framework_offered",
+    "material_offer_skipped",
+    "awaiting_contact",
+    "contact_collected",
+    "delivered",
+    "delivered_whatsapp",
+    "delivered_email",
+    "delivered_instagram",
+  ];
+}
+
+export function isPostContactGateEnrollmentStatus(status: string): boolean {
+  return postFollowGateStatuses().includes(status as LeadMagnetEnrollmentRow["status"]);
 }
 
 /** Re-comment can downgrade status to comment_replied — restore before handling stale postbacks. */
@@ -235,6 +249,20 @@ async function logInitialFollowCheck(
   });
 }
 
+async function advanceAfterFollowValidated(
+  admin: SupabaseClient,
+  args: {
+    enrollment: LeadMagnetEnrollmentRow;
+    campaign: LeadMagnetCampaignRow;
+    accessToken: string;
+    pageId: string;
+    isFollower?: boolean;
+  },
+): Promise<boolean> {
+  const { advanceAfterFollowValidated: route } = await import("./contactGate/advanceContactGate.ts");
+  return route(admin, args);
+}
+
 async function skipFollowGateAndSendMaterial(
   admin: SupabaseClient,
   args: {
@@ -253,9 +281,10 @@ async function skipFollowGateAndSendMaterial(
     eventType: "follow_gate_skipped_follower",
     metadata,
   });
-  await sendMaterialOfferOrDelivery(admin, {
+  await advanceAfterFollowValidated(admin, {
     ...args,
     enrollment: { ...args.enrollment, status: "follow_validated" },
+    isFollower: true,
   });
 }
 
@@ -378,39 +407,48 @@ export async function runFollowCheckAndDmFlow(
     pageId: string;
   },
 ): Promise<void> {
-  if (args.enrollment.status === "paused" || args.enrollment.status === "delivered" || args.enrollment.status === "failed") {
+  const reloaded = await reloadEnrollmentRow(admin, args.enrollment.id);
+  const enrollment = reloaded ?? args.enrollment;
+
+  if (enrollment.status === "paused" || enrollment.status === "failed") {
+    return;
+  }
+  if (isPostContactGateEnrollmentStatus(enrollment.status)) {
+    return;
+  }
+  if (enrollment.status === "delivered") {
     return;
   }
 
-  const username = args.enrollment.participant_username;
+  const username = enrollment.participant_username;
   let profile = await fetchParticipantFollowCheck(
-    args.enrollment.participant_scoped_id,
+    enrollment.participant_scoped_id,
     args.accessToken,
   );
   if (!profile.username && username) profile = { ...profile, username };
 
   const followStatus = profile.status;
   await logInitialFollowCheck(admin, {
-    enrollment: args.enrollment,
+    enrollment,
     campaign: args.campaign,
     followStatus,
   });
 
   if (shouldSkipFollowGate(args.campaign, followStatus)) {
-    await skipFollowGateAndSendMaterial(admin, args, {
+    await skipFollowGateAndSendMaterial(admin, { ...args, enrollment }, {
       reason: "follower_at_comment_check",
       follow_status: followStatus,
     });
     return;
   }
 
-  if (needsMessagingConsentRecheck(args.enrollment, args.campaign, followStatus)) {
-    await runSkipFollowGateOpenerRecheckFlow(admin, args, followStatus);
+  if (needsMessagingConsentRecheck(enrollment, args.campaign, followStatus)) {
+    await runSkipFollowGateOpenerRecheckFlow(admin, { ...args, enrollment }, followStatus);
     return;
   }
 
   await sendFollowGate(admin, {
-    enrollment: args.enrollment,
+    enrollment,
     campaign: args.campaign,
     accessToken: args.accessToken,
     pageId: args.pageId,
@@ -607,7 +645,7 @@ export async function resendFrameworkOfferDm(
   };
 }
 
-async function sendMaterialOfferOrDelivery(
+export async function sendMaterialOfferOrDelivery(
   admin: SupabaseClient,
   args: {
     enrollment: LeadMagnetEnrollmentRow;
@@ -636,24 +674,48 @@ export async function sendDeliveryMessage(
     campaign: LeadMagnetCampaignRow;
     accessToken: string;
     pageId: string;
+    deliveryChannel?: "instagram";
+    isFallback?: boolean;
   },
 ): Promise<boolean> {
-  if (args.enrollment.status === "delivered") {
+  const deliveredStatuses = new Set([
+    "delivered",
+    "delivered_instagram",
+    "delivered_whatsapp",
+    "delivered_email",
+  ]);
+  if (deliveredStatuses.has(args.enrollment.status)) {
     return true;
   }
+
+  const targetStatus = args.deliveryChannel === "instagram" ? "delivered_instagram" : "delivered";
+  const claimFrom = [
+    "framework_offered",
+    "follow_validated",
+    "material_offer_skipped",
+    "contact_collected",
+    "awaiting_contact",
+  ];
 
   const now = new Date().toISOString();
   const { data: claimed } = await admin
     .from("lead_magnet_enrollments")
-    .update({ status: "delivered", updated_at: now })
+    .update({ status: targetStatus, updated_at: now })
     .eq("id", args.enrollment.id)
-    .in("status", ["framework_offered", "follow_validated", "material_offer_skipped"])
+    .in("status", claimFrom)
     .select("id")
     .maybeSingle();
 
   if (!claimed?.id) return false;
 
-  const text = interpolateLeadMagnetText(args.campaign.delivery_text, args.enrollment.participant_username);
+  const deliveryTemplate = args.isFallback
+    ? String(
+      args.campaign.delivery_fallback_text
+        ?? LEAD_MAGNET_DEFAULT_MESSAGES.delivery_fallback_text
+        ?? args.campaign.delivery_text,
+    )
+    : args.campaign.delivery_text;
+  const text = interpolateLeadMagnetText(deliveryTemplate, args.enrollment.participant_username);
   const buttons = [await buildLeadMagnetDeliveryButton(
     args.enrollment,
     args.campaign.delivery_button_label,
@@ -699,7 +761,7 @@ export async function sendDeliveryMessage(
 
   const privateReplyPatch = buildPrivateReplyEnrollmentPatch(sendResult);
   deferFollowGateWork((async () => {
-    await updateEnrollmentStatus(admin, args.enrollment.id, "delivered", {
+    await updateEnrollmentStatus(admin, args.enrollment.id, targetStatus, {
       conversation_id: sendResult.conversationId ?? args.enrollment.conversation_id,
       conversation_table: args.enrollment.platform === "instagram"
         ? "instagram_conversations"
@@ -710,7 +772,10 @@ export async function sendDeliveryMessage(
       enrollmentId: args.enrollment.id,
       campaignId: args.campaign.id,
       organizationId: args.enrollment.organization_id,
-      eventType: "delivered",
+      eventType: targetStatus === "delivered_instagram" ? "delivery_instagram_sent" : "delivered",
+      metadata: args.deliveryChannel === "instagram"
+        ? { channel: "instagram", fallback: args.isFallback === true }
+        : undefined,
     });
   })());
   return true;
@@ -855,9 +920,10 @@ export async function handleFollowConfirmPostback(
     follow_confirm_attempts: attempts + 1,
   };
 
-  const materialSent = await sendMaterialOfferOrDelivery(admin, {
+  const materialSent = await advanceAfterFollowValidated(admin, {
     ...flowArgs,
     enrollment: validatedEnrollment,
+    isFollower: true,
   });
 
   return materialSent ? { outcome: "material_sent" } : { outcome: "dm_failed" };

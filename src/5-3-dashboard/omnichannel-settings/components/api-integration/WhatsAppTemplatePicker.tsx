@@ -31,7 +31,7 @@ type WhatsAppTemplatePickerProps = {
   id: string;
   value: WhatsAppTemplateSelection | null;
   onChange: (next: WhatsAppTemplateSelection | null) => void;
-  purpose: "invoice" | "lead";
+  purpose: "invoice" | "lead" | "lead_magnet";
   disabled?: boolean;
   queryEnabled?: boolean;
   /** When lead mapping is complete in API Integration, hide fixed-7 fallback warning. */
@@ -58,7 +58,7 @@ function findMatchingRow(
 }
 
 function slotWarning(
-  purpose: "invoice" | "lead",
+  purpose: "invoice" | "lead" | "lead_magnet",
   slotCount: number,
   t: (key: string, opts?: Record<string, unknown>) => string,
 ): string | null {
@@ -70,6 +70,13 @@ function slotWarning(
   if (purpose === "lead" && slotCount !== LEAD_FALLBACK_BODY_SLOTS) {
     return t("omnichannel.settings.apiIntegration.waTemplatePickerSlotWarningLead", {
       count: slotCount,
+    });
+  }
+  if (purpose === "lead_magnet" && slotCount !== 2) {
+    return t("leadMagnet.contactGate.waTemplatePickerHint", {
+      count: slotCount,
+      defaultValue:
+        "Template ini punya {{count}} variabel body. Ideal: 2 variabel (username + link). Map semua slot di bawah.",
     });
   }
   return null;
@@ -114,7 +121,11 @@ export function WhatsAppTemplatePicker({
     : "";
 
   const warningText =
-    matchedRow != null && !(purpose === "lead" && leadMappingComplete)
+    matchedRow != null &&
+    !(
+      (purpose === "lead" || purpose === "lead_magnet") &&
+      leadMappingComplete
+    )
       ? slotWarning(purpose, countTemplateBodySlots(matchedRow), t)
       : null;
 

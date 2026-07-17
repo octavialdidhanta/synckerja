@@ -14,6 +14,7 @@ import {
   resolveMetaContentAccount,
 } from "../_shared/metaContentAuth.ts";
 import { LEAD_MAGNET_DEFAULT_MESSAGES } from "../_shared/leadMagnet/types.ts";
+import { validateWhatsAppTemplateParamsForPublish } from "../_shared/leadMagnet/delivery/buildLeadMagnetWhatsAppComponents.ts";
 import { resolveLeadMagnetEntitlement } from "../_shared/leadMagnet/leadMagnetEntitlement.ts";
 import {
   buildLeadMagnetAssetPublicUrl,
@@ -217,6 +218,7 @@ type PostPayload = {
 
 type CampaignPayload = {
   name?: string;
+  target_market?: string;
   platform?: string;
   account_id?: string;
   accounts?: AccountPayload[];
@@ -228,6 +230,7 @@ type CampaignPayload = {
   framework_button_label?: string;
   delivery_text?: string;
   delivery_button_label?: string;
+  delivery_fallback_text?: string | null;
   delivery_url?: string;
   delivery_mode?: string;
   delivery_storage_path?: string | null;
@@ -236,6 +239,17 @@ type CampaignPayload = {
   delivery_file_size_bytes?: number | null;
   skip_follow_gate_if_follower?: boolean;
   skip_material_offer?: boolean;
+  contact_gate_enabled?: boolean;
+  contact_prompt_text?: string | null;
+  contact_invalid_text?: string | null;
+  contact_ack_text?: string | null;
+  whatsapp_account_id?: string | null;
+  whatsapp_template_name?: string | null;
+  whatsapp_template_language?: string | null;
+  whatsapp_template_params?: Record<string, unknown> | null;
+  email_subject?: string | null;
+  email_html_body?: string | null;
+  email_from_name?: string | null;
   posts?: PostPayload[];
 };
 
@@ -289,6 +303,7 @@ function normalizeCampaignPayload(body: CampaignPayload) {
 
   return {
     name: String(body.name ?? "").trim(),
+    target_market: body.target_market != null ? String(body.target_market).trim().slice(0, 120) : "",
     accounts,
     keyword: String(body.keyword ?? "").trim(),
     comment_reply_text: String(body.comment_reply_text ?? LEAD_MAGNET_DEFAULT_MESSAGES.comment_reply_text).trim(),
@@ -298,6 +313,9 @@ function normalizeCampaignPayload(body: CampaignPayload) {
     framework_button_label: String(body.framework_button_label ?? LEAD_MAGNET_DEFAULT_MESSAGES.framework_button_label).trim(),
     delivery_text: String(body.delivery_text ?? LEAD_MAGNET_DEFAULT_MESSAGES.delivery_text).trim(),
     delivery_button_label: String(body.delivery_button_label ?? LEAD_MAGNET_DEFAULT_MESSAGES.delivery_button_label).trim(),
+    delivery_fallback_text: body.delivery_fallback_text != null
+      ? String(body.delivery_fallback_text).trim() || null
+      : null,
     delivery_url: String(body.delivery_url ?? "").trim(),
     delivery_mode: deliveryMode,
     delivery_storage_path: storagePath || null,
@@ -309,7 +327,38 @@ function normalizeCampaignPayload(body: CampaignPayload) {
       : null,
     delivery_file_size_bytes: fileSize,
     skip_follow_gate_if_follower: body.skip_follow_gate_if_follower === true,
-    skip_material_offer: body.skip_material_offer === true,
+    skip_material_offer: body.contact_gate_enabled === true
+      ? true
+      : body.skip_material_offer === true,
+    contact_gate_enabled: body.contact_gate_enabled === true,
+    contact_prompt_text: body.contact_prompt_text != null
+      ? String(body.contact_prompt_text).trim() || null
+      : null,
+    contact_invalid_text: body.contact_invalid_text != null
+      ? String(body.contact_invalid_text).trim() || null
+      : null,
+    contact_ack_text: body.contact_ack_text != null
+      ? String(body.contact_ack_text).trim() || null
+      : null,
+    whatsapp_account_id: body.whatsapp_account_id != null
+      ? String(body.whatsapp_account_id).trim() || null
+      : null,
+    whatsapp_template_name: body.whatsapp_template_name != null
+      ? String(body.whatsapp_template_name).trim() || null
+      : null,
+    whatsapp_template_language: body.whatsapp_template_language != null
+      ? String(body.whatsapp_template_language).trim() || null
+      : null,
+    whatsapp_template_params: body.whatsapp_template_params && typeof body.whatsapp_template_params === "object"
+      ? body.whatsapp_template_params
+      : {},
+    email_subject: body.email_subject != null ? String(body.email_subject).trim() || null : null,
+    email_html_body: body.email_html_body != null
+      ? String(body.email_html_body).trim() || null
+      : null,
+    email_from_name: body.email_from_name != null
+      ? String(body.email_from_name).trim() || null
+      : null,
     posts: normalizePosts(body),
   };
 }
@@ -366,6 +415,15 @@ function validateDeliveryAsset(
   return null;
 }
 
+function validateTargetMarketForPublish(
+  payload: ReturnType<typeof normalizeCampaignPayload>,
+): string | null {
+  const tm = payload.target_market.trim();
+  if (tm.length < 2) return "Target Market wajib diisi (min. 2 karakter) saat publish";
+  if (tm.length > 120) return "Target Market maksimal 120 karakter";
+  return null;
+}
+
 function validateCampaignPayload(
   payload: ReturnType<typeof normalizeCampaignPayload>,
   requirePosts: boolean,
@@ -382,6 +440,14 @@ function validateCampaignPayload(
   if (!payload.skip_material_offer) {
     if (!payload.framework_offer_text || !payload.framework_button_label) {
       return "Teks dan label material offer wajib diisi";
+    }
+  }
+  if (payload.contact_gate_enabled) {
+    if (!payload.contact_prompt_text) {
+      return "Teks DM minta kontak wajib diisi saat Contact Gate aktif";
+    }
+    if (!payload.contact_invalid_text) {
+      return "Teks DM invalid kontak wajib diisi saat Contact Gate aktif";
     }
   }
   const deliveryErr = validateDeliveryAsset(payload, orgId, campaignId, supabaseUrl, requirePosts);
@@ -405,7 +471,74 @@ function validateCampaignPayload(
       return "Post platform harus sesuai platform yang aktif";
     }
   }
+  if (requirePosts) {
+    const tmErr = validateTargetMarketForPublish(payload);
+    if (tmErr) return tmErr;
+  }
   return null;
+}
+
+async function orgHasActiveWhatsAppAccount(
+  admin: ReturnType<typeof createClient>,
+  organizationId: string,
+): Promise<boolean> {
+  const { count } = await admin
+    .from("organization_whatsapp_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .eq("is_active", true);
+  return (count ?? 0) > 0;
+}
+
+async function validateContactGatePublish(
+  admin: ReturnType<typeof createClient>,
+  organizationId: string,
+  payload: ReturnType<typeof normalizeCampaignPayload>,
+): Promise<string | null> {
+  if (!payload.contact_gate_enabled) return null;
+
+  const hasWa = await orgHasActiveWhatsAppAccount(admin, organizationId);
+  if (hasWa) {
+    if (!payload.whatsapp_account_id) {
+      return "Pilih akun WhatsApp untuk Contact Gate";
+    }
+    if (!payload.whatsapp_template_name?.trim()) {
+      return "Template WhatsApp APPROVED wajib dipilih saat org punya akun WA";
+    }
+    const templateParamsErr = validateWhatsAppTemplateParamsForPublish(
+      payload.whatsapp_template_params as Record<string, unknown>,
+    );
+    if (templateParamsErr) return templateParamsErr;
+  }
+
+  const hasEmailConfig = Boolean(
+    payload.email_subject?.trim() || payload.email_html_body?.trim(),
+  );
+  if (!hasWa && !hasEmailConfig) {
+    return "Contact Gate membutuhkan template WA atau konfigurasi email";
+  }
+
+  return null;
+}
+
+function campaignContactGateDbFields(payload: ReturnType<typeof normalizeCampaignPayload>) {
+  return {
+    contact_gate_enabled: payload.contact_gate_enabled,
+    contact_prompt_text: payload.contact_prompt_text
+      ?? (payload.contact_gate_enabled ? LEAD_MAGNET_DEFAULT_MESSAGES.contact_prompt_text : null),
+    contact_invalid_text: payload.contact_invalid_text
+      ?? (payload.contact_gate_enabled ? LEAD_MAGNET_DEFAULT_MESSAGES.contact_invalid_text : null),
+    contact_ack_text: payload.contact_ack_text ?? null,
+    delivery_fallback_text: payload.delivery_fallback_text
+      ?? (payload.contact_gate_enabled ? LEAD_MAGNET_DEFAULT_MESSAGES.delivery_fallback_text : null),
+    whatsapp_account_id: payload.whatsapp_account_id,
+    whatsapp_template_name: payload.whatsapp_template_name,
+    whatsapp_template_language: payload.whatsapp_template_language,
+    whatsapp_template_params: payload.whatsapp_template_params,
+    email_subject: payload.email_subject,
+    email_html_body: payload.email_html_body,
+    email_from_name: payload.email_from_name,
+  };
 }
 
 function legacyMirrorFromAccounts(accounts: AccountPayload[]): {
@@ -509,6 +642,7 @@ function campaignPayloadFromRow(row: Record<string, unknown>): CampaignPayload {
   const posts = (row.lead_magnet_campaign_posts as PostPayload[] | null) ?? [];
   return {
     name: String(row.name ?? ""),
+    target_market: row.target_market != null ? String(row.target_market) : "",
     accounts: accounts.length
       ? accounts.map((a) => ({ platform: a.platform, account_id: String(a.account_id) }))
       : row.platform && row.account_id
@@ -522,6 +656,7 @@ function campaignPayloadFromRow(row: Record<string, unknown>): CampaignPayload {
     framework_button_label: String(row.framework_button_label ?? ""),
     delivery_text: String(row.delivery_text ?? ""),
     delivery_button_label: String(row.delivery_button_label ?? ""),
+    delivery_fallback_text: row.delivery_fallback_text != null ? String(row.delivery_fallback_text) : null,
     delivery_url: String(row.delivery_url ?? ""),
     delivery_mode: parseLeadMagnetDeliveryMode(row.delivery_mode),
     delivery_storage_path: row.delivery_storage_path != null
@@ -534,6 +669,19 @@ function campaignPayloadFromRow(row: Record<string, unknown>): CampaignPayload {
       : null,
     skip_follow_gate_if_follower: row.skip_follow_gate_if_follower === true,
     skip_material_offer: row.skip_material_offer === true,
+    contact_gate_enabled: row.contact_gate_enabled === true,
+    contact_prompt_text: row.contact_prompt_text != null ? String(row.contact_prompt_text) : null,
+    contact_invalid_text: row.contact_invalid_text != null ? String(row.contact_invalid_text) : null,
+    contact_ack_text: row.contact_ack_text != null ? String(row.contact_ack_text) : null,
+    whatsapp_account_id: row.whatsapp_account_id != null ? String(row.whatsapp_account_id) : null,
+    whatsapp_template_name: row.whatsapp_template_name != null ? String(row.whatsapp_template_name) : null,
+    whatsapp_template_language: row.whatsapp_template_language != null
+      ? String(row.whatsapp_template_language)
+      : null,
+    whatsapp_template_params: (row.whatsapp_template_params ?? {}) as Record<string, unknown>,
+    email_subject: row.email_subject != null ? String(row.email_subject) : null,
+    email_html_body: row.email_html_body != null ? String(row.email_html_body) : null,
+    email_from_name: row.email_from_name != null ? String(row.email_from_name) : null,
     posts: posts.map((p) => ({
       platform: parsePlatform(p.platform) ?? "instagram",
       media_id: String(p.media_id),
@@ -708,6 +856,7 @@ Deno.serve(async (req: Request) => {
         .insert({
           organization_id: orgId,
           name: payload.name,
+          target_market: payload.target_market,
           platform: legacy.platform,
           account_id: legacy.account_id,
           keyword: payload.keyword,
@@ -720,6 +869,7 @@ Deno.serve(async (req: Request) => {
           delivery_text: payload.delivery_text,
           delivery_button_label: payload.delivery_button_label,
           ...campaignDeliveryDbFields(payload),
+          ...campaignContactGateDbFields(payload),
           skip_follow_gate_if_follower: payload.skip_follow_gate_if_follower,
           skip_material_offer: payload.skip_material_offer,
           created_by: userRes.userId,
@@ -757,6 +907,7 @@ Deno.serve(async (req: Request) => {
         .from("lead_magnet_campaigns")
         .update({
           name: payload.name,
+          target_market: payload.target_market,
           platform: legacy.platform,
           account_id: legacy.account_id,
           keyword: payload.keyword,
@@ -768,6 +919,7 @@ Deno.serve(async (req: Request) => {
           delivery_text: payload.delivery_text,
           delivery_button_label: payload.delivery_button_label,
           ...campaignDeliveryDbFields(payload),
+          ...campaignContactGateDbFields(payload),
           skip_follow_gate_if_follower: payload.skip_follow_gate_if_follower,
           skip_material_offer: payload.skip_material_offer,
         })
@@ -793,14 +945,20 @@ Deno.serve(async (req: Request) => {
       if (fetchErr) return metaContentJson({ error: fetchErr.message }, 500);
       if (!existing) return metaContentJson({ error: "Not found" }, 404);
 
+      const normalized = normalizeCampaignPayload(
+        campaignPayloadFromRow(existing as Record<string, unknown>),
+      );
       const errMsg = validateCampaignPayload(
-        normalizeCampaignPayload(campaignPayloadFromRow(existing as Record<string, unknown>)),
+        normalized,
         true,
         orgId,
         campaignId,
         supabaseUrl,
       );
       if (errMsg) return metaContentJson({ error: errMsg }, 400);
+
+      const contactGateErr = await validateContactGatePublish(admin, orgId, normalized);
+      if (contactGateErr) return metaContentJson({ error: contactGateErr }, 400);
 
       const { error } = await admin
         .from("lead_magnet_campaigns")

@@ -34,6 +34,10 @@ export type RecipientPickerFiltersJson = {
   sortColumn?: string;
   sortDir?: "asc" | "desc";
   surveyRating: LeadsFilters["surveyRating"];
+  /** Lead Magnet snapshot campaign name (distinct from UTM utmCampaign). */
+  leadMagnetCampaign: string;
+  /** Lead Magnet snapshot target market segment. */
+  leadMagnetTargetMarket: string;
 };
 
 export const defaultRecipientPickerFiltersJson = (): RecipientPickerFiltersJson => ({
@@ -59,6 +63,8 @@ export const defaultRecipientPickerFiltersJson = (): RecipientPickerFiltersJson 
   dateRangeFrom: null,
   dateRangeTo: null,
   surveyRating: "all",
+  leadMagnetCampaign: "all",
+  leadMagnetTargetMarket: "all",
 });
 
 export function leadsFiltersStateToJson(filters: LeadsFilters): RecipientPickerFiltersJson {
@@ -98,6 +104,8 @@ export function leadsFiltersStateToJson(filters: LeadsFilters): RecipientPickerF
     dateRangeFrom: from,
     dateRangeTo: to,
     surveyRating: filters.surveyRating ?? "all",
+    leadMagnetCampaign: filters.leadMagnetCampaign ?? "all",
+    leadMagnetTargetMarket: filters.leadMagnetTargetMarket ?? "all",
   };
 }
 
@@ -130,5 +138,7 @@ export function jsonToLeadsFiltersState(j: RecipientPickerFiltersJson, prev: Lea
     landingUrlContains: j.landingUrlContains,
     dateRange,
     surveyRating: j.surveyRating ?? "all",
+    leadMagnetCampaign: j.leadMagnetCampaign ?? "all",
+    leadMagnetTargetMarket: j.leadMagnetTargetMarket ?? "all",
   };
 }

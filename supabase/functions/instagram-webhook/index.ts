@@ -1903,6 +1903,26 @@ Deno.serve(async (req: Request) => {
         }
 
         console.log("[instagram-webhook] message saved", { convId: conv.id, mid });
+
+        if (bodyText.trim() && senderId) {
+          try {
+            await runLeadMagnetRuntime(supabase, {
+              trigger: "inbound_message",
+              platform: "instagram",
+              organizationId: orgId,
+              accountId: effectiveId,
+              participantScopedId: senderId,
+              participantUsername: customerName?.replace(/^@/, "") ?? null,
+              messageBody: bodyText,
+              conversationId: conv.id,
+              accessToken,
+              pageId: account.facebook_page_id ?? "",
+            });
+          } catch (lmErr) {
+            console.error("[instagram-webhook] lead magnet inbound contact error", lmErr);
+          }
+        }
+
         processedCount += 1;
       }
     }

@@ -45,6 +45,53 @@ Enrollment status transitions use atomic `UPDATE … WHERE status = …` before 
 | `skip_follow_gate_if_follower` | Skip follow gate DM when user is a confirmed follower (IG: includes post-opener re-check) |
 | `skip_material_offer` | After follow gate (or directly for follower + skip follow gate), send delivery DM without material-offer step |
 
+### Contact Gate (optional, default OFF)
+
+When `contact_gate_enabled` is **on** for a campaign:
+
+1. Material offer is **always skipped** (`skip_material_offer` forced true on save/publish).
+2. After follow validation (or skip-follow path), runtime checks canonical profile (`lead_magnet_participant_profiles` per org + PSID).
+3. **Skip matrix** (Instagram v1):
+   - Not follower → follow gate → contact prompt → async delivery
+   - Follower, no WA/email → single DM asks for phone **or** email (WA priority if both empty across campaigns)
+   - Follower gives phone **this enrollment** → WhatsApp template delivery → **enrollment ends** (no follow-up IG DM for email)
+   - Follower gives email **this enrollment** → Resend email delivery → **enrollment ends** (no follow-up IG DM for phone)
+   - Follower, WA only **in canonical profile** (returning user / **new enrollment**) → ask email → email delivery
+   - Follower, email only **in canonical profile** (returning user / **new enrollment**) → ask WA → WhatsApp template delivery
+   - Follower, WA + email complete → **DM IG link only** (direct delivery, no contact ask)
+4. Inbound IG text while enrollment `awaiting_contact` → `parseContactReply` → **no IG ack DM** → WA template or Resend email async via `waitUntil`; on failure → fallback DM IG with download link (`delivery_fallback_text`).
+5. After `delivered_whatsapp` or `delivered_email`, further inbound IG messages on **the same enrollment** are ignored (terminal state).
+6. No skip keyword (`lewati` / `skip` not supported). Unlimited retry on invalid format until 24h window expires.
+
+**Instagram native UI:** When a user sends a phone number, Instagram may show a client-side "Phone number" card with WhatsApp/Call buttons and label the chat as Lead ("Auto-detected outcome"). This is **not** sent by Synckerja and cannot be disabled via Messaging API. Synckerja does not send a second confirmation DM after valid contact.
+
+**Default contact prompt copy** (professional ID, configurable in wizard):
+- **Both WA/email:** explains materi dikirim via WhatsApp or email after user replies
+- **Phone-only / email-only scenarios:** runtime uses dedicated templates (not the campaign `contact_prompt_text` field)
+
+**Wizard:** step **Kontak & Channel** (between Pesan & Delivery) — prompt texts, APPROVED WA template picker with **per-slot variable mapping**, optional email HTML, and **IG fallback copy** (`delivery_fallback_text`). Publish requires WA template + complete mapping if org has active WA account.
+
+**WhatsApp template params** (`whatsapp_template_params` JSON on campaign):
+
+```json
+{
+  "components_json": [ /* Meta template components at save time */ ],
+  "parameter_values": ["{{username}}", "-", "…", "{{delivery_url}}"]
+}
+```
+
+- Slots follow Meta order: HEADER text vars → BODY vars → dynamic URL button vars.
+- Supported tokens per slot: `{{username}}`, `{{delivery_url}}`, `{{campaign_name}}`, static text, or `-` (empty).
+- **Recommended:** UTILITY template with **2 body variables** (username + link). Multi-var business templates (e.g. 7 vars) are supported when all slots are mapped.
+- Legacy `{ "body": ["{{username}}", "{{delivery_url}}"] }` still works for old campaigns; re-publish with mapper after upgrade.
+- Runtime uses `buildGraphTemplateComponents` (canonical Graph API builder) — publish rejects slot count mismatch.
+
+**Fallback IG copy:** when async WA/email fails after valid contact, runtime sends `delivery_fallback_text` (not the normal `delivery_text`) with the download button.
+
+**Funnel events:** `contact_prompt_sent`, `contact_collected`, `contact_invalid`, `delivery_whatsapp_sent|failed`, `delivery_email_sent|failed`, `delivery_instagram_sent`.
+
+**SLA metric:** log `delivery_channel` on `contact_collected` funnel metadata; async WA/email delivery logs `lm_delivery_latency_ms` on success events.
+
 ### Delivery modes (wizard Delivery step)
 
 | Mode | Source | `delivery_url` |
@@ -73,6 +120,7 @@ Both modes use the same runtime path: `sendDeliveryMessage` with a `web_url` but
 - `lead_magnet_campaign_posts`
 - `lead_magnet_enrollments`
 - `lead_magnet_funnel_events`
+- `lead_magnet_participant_profiles` (canonical WA/email per PSID)
 - Extended `lead_submissions` (`lead_magnet_*` columns)
 
 ## UI

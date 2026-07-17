@@ -7,7 +7,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { Loader2, Edit, Save, X, User, Phone, Mail, Hash, Briefcase, MapPin } from 'lucide-react';
+import { Loader2, Edit, Save, X, User, Phone, Mail, Hash, Briefcase, MapPin, Megaphone, Target } from 'lucide-react';
 import {
   fetchLeadDisplayFallback,
   fetchLeadSubmissionForProfile,
@@ -97,6 +97,8 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
   const [saving, setSaving] = useState(false);
   const [canEditSubmission, setCanEditSubmission] = useState(false);
   const [formData, setFormData] = useState<Record<string, unknown> | null>(null);
+  const [leadMagnetCampaignName, setLeadMagnetCampaignName] = useState<string | null>(null);
+  const [leadMagnetTargetMarket, setLeadMagnetTargetMarket] = useState<string | null>(null);
   const { toast } = useToast();
 
   const [profile, setProfile] = useState<ClientProfile>({
@@ -125,6 +127,8 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
     setLoading(true);
     setCanEditSubmission(false);
     setFormData(null);
+    setLeadMagnetCampaignName(null);
+    setLeadMagnetTargetMarket(null);
     try {
       if (isEmail) {
         setProfile({
@@ -186,6 +190,23 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
       if (submission) {
         setCanEditSubmission(true);
         setFormData(normalizeFormDataRecord(submission.form_data));
+
+        let campaignName = submission.lead_magnet_campaign_name?.trim() || null;
+        const targetMarket = submission.lead_magnet_target_market?.trim() || null;
+        if (!campaignName && submission.lead_magnet_campaign_id) {
+          const { data: campaignRow } = await supabase
+            .from('lead_magnet_campaigns')
+            .select('name')
+            .eq('id', submission.lead_magnet_campaign_id)
+            .eq('organization_id', organizationId)
+            .maybeSingle();
+          campaignName = campaignRow?.name?.trim() || null;
+        }
+        if (submission.lead_magnet_campaign_id || campaignName || targetMarket) {
+          setLeadMagnetCampaignName(campaignName);
+          setLeadMagnetTargetMarket(targetMarket);
+        }
+
         setProfile({
           submissionId: submission.id,
           lead_id: leadId,
@@ -420,6 +441,28 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
                 </div>
               </div>
             </section>
+
+            {!isWhatsApp && !isEmail && (leadMagnetCampaignName || leadMagnetTargetMarket) ? (
+              <section className={spaceBetween}>
+                <h3 className={sectionLabelClass}>Lead Magnet</h3>
+                <div className={`rounded-xl border border-border bg-white ${spacing} ${spaceBetween}`}>
+                  <div className={spaceBetween}>
+                    <Label className="text-sm font-medium text-foreground">Campaign</Label>
+                    <div className={fieldViewClass}>
+                      <Megaphone className={fieldIconClass} />
+                      {leadMagnetCampaignName || '—'}
+                    </div>
+                  </div>
+                  <div className={spaceBetween}>
+                    <Label className="text-sm font-medium text-foreground">Target Market</Label>
+                    <div className={fieldViewClass}>
+                      <Target className={fieldIconClass} />
+                      {leadMagnetTargetMarket || '—'}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             <section className={spaceBetween}>
               <h3 className={sectionLabelClass}>Profile details</h3>

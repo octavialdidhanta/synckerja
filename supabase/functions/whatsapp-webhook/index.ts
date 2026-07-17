@@ -6,6 +6,7 @@ import {
 } from "../_shared/omnichannelPublicApi/mergeWaInboundAttribution.ts";
 import { resolveWebIdForInboundWhatsApp } from "../_shared/omnichannelPublicApi/resolveWebIdFromWhatsAppAccount.ts";
 import { syncOmnichannelWhatsAppDelivery } from "../_shared/omnichannelPublicApi/syncOmnichannelWhatsAppDelivery.ts";
+import { handleLeadMagnetWhatsAppDeliveryFailed } from "../_shared/leadMagnet/delivery/handleLeadMagnetWhatsAppDeliveryFailed.ts";
 import { extractInboundWhatsAppBody } from "../_shared/omnichannelFlow/sendMessageRuntime.ts";
 import { persistWaFlowSubmissionToLead } from "../_shared/omnichannelFlow/persistWaFlowSubmission.ts";
 
@@ -1180,6 +1181,10 @@ Deno.serve(async (req: Request) => {
                 if (status.trim().toLowerCase() === "failed") {
                   await markConversationExpiredFromFailedStatus({
                     supabase,
+                    waMessageId,
+                    statusPayload: st as Record<string, unknown>,
+                  });
+                  await handleLeadMagnetWhatsAppDeliveryFailed(supabase, {
                     waMessageId,
                     statusPayload: st as Record<string, unknown>,
                   });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Search, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -63,7 +63,10 @@ export type TemplateListToolbarProps = {
   whatsappAccountsLoading: boolean;
   selectedWhatsappAccountId: string | null;
   onSelectedWhatsappAccountIdChange: (id: string) => void;
+  catalogFilterSlot?: ReactNode;
 };
+
+const filterBtnClass = "h-9 shrink-0 gap-1 px-2.5 font-normal";
 
 export function TemplateListToolbar({
   searchQuery,
@@ -86,6 +89,7 @@ export function TemplateListToolbar({
   whatsappAccountsLoading,
   selectedWhatsappAccountId,
   onSelectedWhatsappAccountIdChange,
+  catalogFilterSlot,
 }: TemplateListToolbarProps) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusDraft, setStatusDraft] = useState<Set<StatusFilterOption>>(() => new Set(statusFilters));
@@ -175,48 +179,54 @@ export function TemplateListToolbar({
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-        {whatsappAccounts.length > 0 ? (
-          <Select
-            value={selectedWhatsappAccountId ?? whatsappAccounts[0]?.id ?? ""}
-            onValueChange={onSelectedWhatsappAccountIdChange}
-            disabled={whatsappAccountsLoading}
+    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-w-0 items-center gap-1.5 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {catalogFilterSlot ? (
+        <>
+          {catalogFilterSlot}
+          <div className="mx-0.5 h-6 w-px shrink-0 bg-border" aria-hidden />
+        </>
+      ) : null}
+
+      {whatsappAccounts.length > 0 ? (
+        <Select
+          value={selectedWhatsappAccountId ?? whatsappAccounts[0]?.id ?? ""}
+          onValueChange={onSelectedWhatsappAccountIdChange}
+          disabled={whatsappAccountsLoading}
+        >
+          <SelectTrigger
+            className="h-9 w-[11.5rem] shrink-0 justify-between gap-1 font-normal text-left text-sm text-foreground [&>span]:truncate [&>span]:text-left"
+            aria-label="WhatsApp account"
           >
-            <SelectTrigger
-              className="h-9 w-auto max-w-full min-w-[11rem] shrink-0 justify-between gap-2 font-normal text-left text-sm text-foreground [&>span]:!line-clamp-none [&>span]:overflow-visible [&>span]:whitespace-nowrap [&>span]:text-left"
-              aria-label="WhatsApp account"
-            >
-              <SelectValue placeholder="Akun WhatsApp" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              {whatsappAccounts.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {whatsAppAccountLabel(a)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
+            <SelectValue placeholder="Akun WhatsApp" />
+          </SelectTrigger>
+          <SelectContent align="start">
+            {whatsappAccounts.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {whatsAppAccountLabel(a)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
 
-        <div className="relative min-w-[140px] max-w-xs flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search"
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => onSearchQueryChange(e.target.value)}
-            aria-label="Search templates"
-          />
-        </div>
+      <div className="relative h-9 w-36 shrink-0">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search"
+          className="h-9 pl-9"
+          value={searchQuery}
+          onChange={(e) => onSearchQueryChange(e.target.value)}
+          aria-label="Search templates"
+        />
+      </div>
 
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="min-w-[7rem] justify-between gap-1 font-normal">
-              Category
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
-            </Button>
-          </PopoverTrigger>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className={filterBtnClass}>
+            Category
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+          </Button>
+        </PopoverTrigger>
           <PopoverContent className="w-52 p-2" align="start">
             <div className="space-y-2">
               {CATEGORY_OPTIONS.map((c) => (
@@ -230,12 +240,12 @@ export function TemplateListToolbar({
         </Popover>
 
         <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="min-w-[7rem] justify-between gap-1 font-normal">
-              Language
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
-            </Button>
-          </PopoverTrigger>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className={filterBtnClass}>
+            Language
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+          </Button>
+        </PopoverTrigger>
           <PopoverContent className="w-56 p-2" align="start">
             <div className="scrollbar-hide seamless-scroll max-h-56 space-y-2 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {languageOptions.length === 0 ? (
@@ -254,9 +264,9 @@ export function TemplateListToolbar({
 
         <Popover open={statusOpen} onOpenChange={setStatusOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("min-w-[8rem] max-w-[11rem] justify-between gap-1 truncate font-normal")}>
+            <Button variant="outline" size="sm" className={cn(filterBtnClass, "max-w-[7rem]")}>
               <span className="truncate">{statusSummary}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-72 p-0" align="start">
@@ -285,9 +295,9 @@ export function TemplateListToolbar({
 
         <Popover open={qualityOpen} onOpenChange={setQualityOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("min-w-[8rem] max-w-[11rem] justify-between gap-1 truncate font-normal")}>
+            <Button variant="outline" size="sm" className={cn(filterBtnClass, "max-w-[7rem]")}>
               <span className="truncate">{qualitySummary}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-64 p-0" align="start">
@@ -319,12 +329,12 @@ export function TemplateListToolbar({
             <Button
               variant="outline"
               size="sm"
-              className="min-w-[8rem] justify-between gap-1 font-normal"
+              className={filterBtnClass}
               disabled={dateFilterDisabled}
               title={dateFilterDisabled ? "Tanggal terakhir diubah tidak tersedia dari API template untuk saat ini." : undefined}
             >
               {DATE_LABELS[datePreset]}
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-52 p-3" align="start">
@@ -346,26 +356,25 @@ export function TemplateListToolbar({
           </PopoverContent>
         </Popover>
 
-        <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={onResetFilters} title="Reset filters">
-          <SlidersHorizontal className="h-4 w-4" />
-        </Button>
-      </div>
+      <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={onResetFilters} title="Reset filters">
+        <SlidersHorizontal className="h-4 w-4" />
+      </Button>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="sticky right-0 ml-auto flex shrink-0 items-center gap-1.5 bg-white pl-1">
         <Button
           type="button"
           variant="outline"
           size="sm"
           disabled
           title="Compare (coming soon)"
-          className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 hover:text-brand-blue disabled:opacity-50"
+          className="h-9 shrink-0 border-brand-blue/20 px-2.5 text-brand-blue hover:bg-brand-blue/10 hover:text-brand-blue disabled:opacity-50"
         >
           Compare
         </Button>
         <Button
           type="button"
           size="sm"
-          className="bg-brand-blue text-white hover:bg-brand-blue/90"
+          className="h-9 shrink-0 bg-brand-blue px-3 text-white hover:bg-brand-blue/90"
           onClick={onCreateClick}
         >
           Create Template

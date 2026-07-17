@@ -19,6 +19,12 @@ export const LEAD_MAGNET_FUNNEL_STEPS = [
   { key: 'follow_validated', label: 'Follow valid' },
   { key: 'framework_offered', label: 'Material offer' },
   { key: 'material_offer_skipped', label: 'Material offer skipped' },
+  { key: 'contact_prompt_sent', label: 'Contact prompt' },
+  { key: 'contact_collected', label: 'Contact collected' },
+  { key: 'contact_invalid', label: 'Contact invalid' },
+  { key: 'delivery_whatsapp_sent', label: 'Delivered (WA)' },
+  { key: 'delivery_email_sent', label: 'Delivered (email)' },
+  { key: 'delivery_instagram_sent', label: 'Delivered (IG DM)' },
   { key: 'delivered', label: 'Delivered' },
   { key: 'dm_failed', label: 'DM gagal' },
 ] as const;

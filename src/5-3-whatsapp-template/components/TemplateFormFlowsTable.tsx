@@ -1,5 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 import {
   Table,
   TableBody,
@@ -123,20 +124,27 @@ export function TemplateCatalogFilterChips({
   ];
 
   return (
-    <div className="mb-3 flex flex-wrap gap-2">
+    <div
+      role="tablist"
+      aria-label="Template catalog type"
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-slate-200 bg-slate-100/80 p-0.5"
+    >
       {chips.map((chip) => (
         <button
           key={chip.id}
           type="button"
+          role="tab"
+          aria-selected={value === chip.id}
           onClick={() => onChange(chip.id)}
-          className={
+          className={cn(
+            "shrink-0 whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium leading-tight transition-colors sm:px-2.5 sm:text-xs",
             value === chip.id
-              ? "rounded-full border border-brand-blue/40 bg-brand-blue/10 px-3 py-1 text-xs font-medium text-brand-blue"
-              : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
-          }
+              ? "bg-white text-brand-blue shadow-sm"
+              : "text-slate-600 hover:bg-white/60 hover:text-foreground",
+          )}
         >
           {chip.label}
-          <span className="ml-1 tabular-nums text-muted-foreground">({chip.count})</span>
+          <span className="ml-0.5 tabular-nums text-muted-foreground sm:ml-1">({chip.count})</span>
         </button>
       ))}
     </div>

@@ -18,6 +18,7 @@ import type { SalesModuleKey } from "@/shared/auth/module-access/moduleCatalog";
 import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadgeSync";
 import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
 import { useLeadMagnetEntitlement } from "@/6-1-lead-magnet/hooks/useLeadMagnetEntitlement";
+import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
 
 interface SubSidebarPanelProps {
   items: NavSubItem[];

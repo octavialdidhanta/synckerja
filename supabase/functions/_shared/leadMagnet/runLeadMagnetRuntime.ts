@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleLeadMagnetCommentTrigger } from "./commentTriggerHandler.ts";
+import { handleLeadMagnetInboundMessage } from "./inbound/handleInboundMessage.ts";
 import { handleLeadMagnetPostbackTrigger } from "./postbackHandler.ts";
 import { resolveLeadMagnetEntitlement } from "./leadMagnetEntitlement.ts";
 import type { LeadMagnetRuntimeInput } from "./types.ts";
@@ -17,6 +18,9 @@ export async function runLeadMagnetRuntime(
 
     if (input.trigger === "comment") {
       return await handleLeadMagnetCommentTrigger(admin, input);
+    }
+    if (input.trigger === "inbound_message") {
+      return await handleLeadMagnetInboundMessage(admin, input);
     }
     const result = await handleLeadMagnetPostbackTrigger(admin, input);
     return result.handled;

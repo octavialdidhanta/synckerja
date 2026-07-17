@@ -33,10 +33,24 @@
 9. [ ] Lead appears in CRM with source Lead Magnet
 10. [ ] Assign agent in livechat → enrollment paused
 
+## Contact Gate E2E (optional — `contact_gate_enabled`)
+
+1. [ ] **Gate OFF** — existing flow unchanged (regression)
+2. [ ] **Gate ON, new user** — after follow → DM asks WA/email → reply phone → **no IG ack from bot** → WA template received (no IG Unduh unless WA fails)
+3. [ ] **Gate ON, email path** — reply email → Resend delivery (or IG fallback if Resend missing)
+4. [ ] **Complete profile** — second campaign comment → DM IG link only (no contact ask)
+5. [ ] **Invalid contact** — garbage reply → invalid DM, unlimited retry
+6. [ ] **WA fail fallback** — broken/incomplete template mapping → IG DM with `delivery_fallback_text` + `delivery_whatsapp_failed` funnel event
+7. [ ] Publish blocked without APPROVED WA template when org has WA account
+8. [ ] Publish blocked when template slot count ≠ mapped `parameter_values` length
+9. [ ] Re-save campaign with 7-var template — map all slots → WA delivers successfully (funnel `delivery_whatsapp_sent`)
+
 ## Troubleshooting
 
 | Symptom | Check |
 |---------|--------|
+| WA not received, IG Unduh instead | Funnel `delivery_whatsapp_failed` — usually template param mismatch (#132000). Re-map all slots in Kontak & Channel or use 2-var UTILITY template |
+| White "Phone number" card in IG after user sends number | **Instagram native UI** (Lead auto-detection) — not sent by Synckerja. Optional: review Lead labeling settings in Instagram Professional Inbox / Meta Business Suite |
 | No comment reply | Edge logs `lead-magnet-runtime`; campaign active + post bound |
 | No DM | 24h window / user must comment first; see `dm_failed` in analytics |
 | Postback ignored | Payload prefix `lm:`; webhook `messaging_postbacks` subscribed (IG). FB uses action URLs on office.synckerja.com |

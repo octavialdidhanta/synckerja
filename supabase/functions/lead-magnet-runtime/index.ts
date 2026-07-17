@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runLeadMagnetRuntime } from "../_shared/leadMagnet/runLeadMagnetRuntime.ts";
 import { handleLeadMagnetPostbackTrigger } from "../_shared/leadMagnet/postbackHandler.ts";
 import { resendLeadMagnetDeliveryDm } from "../_shared/leadMagnet/followGateRuntime.ts";
+import { runAsyncDelivery } from "../_shared/leadMagnet/delivery/deliveryOrchestrator.ts";
 import { resolveLeadMagnetEntitlement } from "../_shared/leadMagnet/leadMagnetEntitlement.ts";
 import {
   buildLeadMagnetPostbackPayload,
@@ -529,6 +530,98 @@ Deno.serve(async (req: Request) => {
     });
     return new Response(JSON.stringify({ success: result.ok, ...result }), {
       status: result.ok ? 200 : 502,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (req.method === "POST" && pathname.endsWith("/resend-email-delivery")) {
+    if (!isAuthorizedServiceCall(req)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let payload: { enrollmentId?: string; email?: string };
+    try {
+      payload = await req.json() as { enrollmentId?: string; email?: string };
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const enrollmentId = (payload.enrollmentId ?? "").trim();
+    if (!enrollmentId) {
+      return new Response(JSON.stringify({ error: "Missing enrollmentId" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const admin = createClient(supabaseUrl, serviceRoleKey);
+    const { data: enrollment, error } = await admin
+      .from("lead_magnet_enrollments")
+      .select("*, campaign:lead_magnet_campaigns(*)")
+      .eq("id", enrollmentId)
+      .maybeSingle();
+    if (error || !enrollment) {
+      return new Response(JSON.stringify({ error: "Enrollment not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const campaignRaw = (enrollment as { campaign?: unknown }).campaign;
+    const campaign = Array.isArray(campaignRaw) ? campaignRaw[0] : campaignRaw;
+    if (!campaign) {
+      return new Response(JSON.stringify({ error: "Campaign not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let email = (payload.email ?? "").trim().toLowerCase();
+    if (!email.includes("@") && enrollment.lead_submission_id) {
+      const { data: submission } = await admin
+        .from("lead_submissions")
+        .select("email")
+        .eq("id", enrollment.lead_submission_id)
+        .maybeSingle();
+      email = String(submission?.email ?? "").trim().toLowerCase();
+    }
+    if (!email.includes("@")) {
+      const { data: profile } = await admin
+        .from("lead_magnet_participant_profiles")
+        .select("email")
+        .eq("organization_id", enrollment.organization_id)
+        .eq("platform", enrollment.platform)
+        .eq("participant_scoped_id", enrollment.participant_scoped_id)
+        .maybeSingle();
+      email = String(profile?.email ?? "").trim().toLowerCase();
+    }
+    if (!email.includes("@")) {
+      return new Response(JSON.stringify({ error: "Missing recipient email" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const orgId = String(enrollment.organization_id);
+    const accountId = String(campaign.account_id);
+    const creds = await resolvePageCredentials(admin, orgId, accountId);
+    await runAsyncDelivery(admin, {
+      enrollment: enrollment as Parameters<typeof runAsyncDelivery>[1]["enrollment"],
+      campaign,
+      accessToken: creds?.accessToken ?? "",
+      pageId: creds?.pageId ?? "",
+      channel: "email",
+      email,
+    });
+    const { data: refreshed } = await admin
+      .from("lead_magnet_enrollments")
+      .select("status")
+      .eq("id", enrollmentId)
+      .maybeSingle();
+    const ok = refreshed?.status === "delivered_email";
+    return new Response(JSON.stringify({ success: ok, status: refreshed?.status ?? null }), {
+      status: ok ? 200 : 502,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

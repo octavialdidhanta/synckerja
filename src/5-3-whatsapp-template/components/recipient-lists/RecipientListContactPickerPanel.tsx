@@ -70,6 +70,8 @@ const defaultFilters = (): LeadsFiltersState => ({
   emailPresence: "all",
   landingUrlContains: "",
   surveyRating: "all",
+  leadMagnetCampaign: "all",
+  leadMagnetTargetMarket: "all",
 });
 
 export function RecipientListContactPickerPanel({
@@ -192,6 +194,22 @@ export function RecipientListContactPickerPanel({
   const utmMediumFilterOptions = useMemo(() => filterOptions?.utmMediums ?? [], [filterOptions?.utmMediums]);
   const utmContentFilterOptions = useMemo(() => filterOptions?.utmContents ?? [], [filterOptions?.utmContents]);
   const utmTermFilterOptions = useMemo(() => filterOptions?.utmTerms ?? [], [filterOptions?.utmTerms]);
+  const leadMagnetCampaignFilterOptions = useMemo(() => {
+    const set = new Set<string>(filterOptions?.leadMagnetCampaignNames ?? []);
+    for (const row of tableRows) {
+      const name = (row as RecipientPickerRpcItem).lead_magnet_campaign_name?.trim();
+      if (name) set.add(name);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [tableRows, filterOptions?.leadMagnetCampaignNames]);
+  const leadMagnetTargetMarketFilterOptions = useMemo(() => {
+    const set = new Set<string>(filterOptions?.leadMagnetTargetMarkets ?? []);
+    for (const row of tableRows) {
+      const market = (row as RecipientPickerRpcItem).lead_magnet_target_market?.trim();
+      if (market) set.add(market);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [tableRows, filterOptions?.leadMagnetTargetMarkets]);
   const attributionLabelOptionsEmbedded = useMemo(
     () => filterOptions?.attributionLabels ?? [],
     [filterOptions?.attributionLabels],
@@ -440,6 +458,7 @@ export function RecipientListContactPickerPanel({
                     getPhoneKey: (lead) => String(lead.id),
                     replaceTitleColumnWithPhone: true,
                     showEmailColumn: true,
+                    showLeadMagnetColumns: true,
                   }}
                   categoryColumnFilter={{
                     value: filters.category,
@@ -510,6 +529,16 @@ export function RecipientListContactPickerPanel({
                     value: filters.gclid ?? "all",
                     onChange: (v) => setFilters((f) => ({ ...f, gclid: v })),
                     options: gclidFilterOptions,
+                  }}
+                  leadMagnetCampaignColumnFilter={{
+                    value: filters.leadMagnetCampaign ?? "all",
+                    onChange: (v) => setFilters((f) => ({ ...f, leadMagnetCampaign: v })),
+                    options: leadMagnetCampaignFilterOptions,
+                  }}
+                  leadMagnetTargetMarketColumnFilter={{
+                    value: filters.leadMagnetTargetMarket ?? "all",
+                    onChange: (v) => setFilters((f) => ({ ...f, leadMagnetTargetMarket: v })),
+                    options: leadMagnetTargetMarketFilterOptions,
                   }}
                   landingUrlContainsColumnFilter={{
                     value: filters.landingUrlContains,

@@ -318,6 +318,11 @@ const WhatsAppCampaignPage = lazy(() =>
     default: m.WhatsAppCampaignPage,
   })),
 );
+const OmnichannelContactPage = lazy(() =>
+  import("@/5-3-whatsapp/pages/OmnichannelContactPage").then((m) => ({
+    default: m.OmnichannelContactPage,
+  })),
+);
 
 // Keep initial bundle small: lazy-load large desktop modules/pages.
 import { OkrRouteElement } from "@/1-OKR/OkrRouteElement";
@@ -1474,6 +1479,20 @@ function AppRoutes() {
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
                     <ConsultantLivechatRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/omnichannel/contact"
+                element={
+                  <PageAccessGuard
+                    pagePath="/omnichannel/contact"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                    loadingShellWrapperClassName="bg-surface-muted"
+                  >
+                    <Suspense fallback={PAGE_GUARD_LOADING_SHELL}>
+                      <OmnichannelContactPage />
+                    </Suspense>
                   </PageAccessGuard>
                 }
               />
@@ -3492,6 +3511,20 @@ const App = () => (
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
                               <ConsultantLivechatRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/omnichannel/contact"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/omnichannel/contact"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShellWrapperClassName="bg-surface-muted"
+                            >
+                              <Suspense fallback={PAGE_GUARD_LOADING_SHELL}>
+                                <OmnichannelContactPage />
+                              </Suspense>
                             </PageAccessGuard>
                           }
                         />

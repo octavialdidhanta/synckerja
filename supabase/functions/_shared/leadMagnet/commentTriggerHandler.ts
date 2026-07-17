@@ -4,7 +4,7 @@ import { findMatchingLeadMagnetCampaign } from "./campaignMatcher.ts";
 import { createLeadMagnetLead } from "./createLeadMagnetLead.ts";
 import { fetchCommentText } from "./fetchParticipantProfile.ts";
 import { logLeadMagnetFunnelEvent, updateEnrollmentStatus } from "./funnelAnalytics.ts";
-import { runFollowCheckAndDmFlow } from "./followGateRuntime.ts";
+import { runFollowCheckAndDmFlow, isPostContactGateEnrollmentStatus } from "./followGateRuntime.ts";
 import { deferLeadMagnetWork } from "./webhookBridge.ts";
 import type { LeadMagnetCommentTriggerInput, LeadMagnetEnrollmentRow } from "./types.ts";
 
@@ -35,7 +35,12 @@ async function sendPublicCommentReply(
     "follow_validated",
     "framework_offered",
     "material_offer_skipped",
+    "awaiting_contact",
+    "contact_collected",
     "delivered",
+    "delivered_whatsapp",
+    "delivered_email",
+    "delivered_instagram",
   ]);
 
   try {
@@ -290,6 +295,14 @@ export async function handleLeadMagnetCommentTrigger(
       });
 
       if (existing && !existing.private_reply_message_id) {
+        const { data: freshExisting } = await admin
+          .from("lead_magnet_enrollments")
+          .select("*")
+          .eq("id", existing.id)
+          .maybeSingle();
+        const enrollmentForFlow = (freshExisting ?? existing) as Record<string, unknown>;
+        const flowStatus = String(enrollmentForFlow.status ?? "");
+
         await admin.from("lead_magnet_enrollments").update({
           comment_id: input.commentId,
           media_id: input.mediaId,
@@ -298,32 +311,34 @@ export async function handleLeadMagnetCommentTrigger(
           updated_at: new Date().toISOString(),
         }).eq("id", existing.id);
 
-        const enrollmentRow: LeadMagnetEnrollmentRow = {
-          id: existing.id as string,
-          organization_id: existing.organization_id as string,
-          campaign_id: existing.campaign_id as string,
-          platform: existing.platform as LeadMagnetEnrollmentRow["platform"],
-          participant_scoped_id: existing.participant_scoped_id as string,
-          participant_username: (authorUsername ?? existing.participant_username) as string | null,
-          comment_id: input.commentId,
-          media_id: input.mediaId,
-          conversation_id: (existing.conversation_id as string | null) ?? null,
-          conversation_table: (existing.conversation_table as string | null) ?? null,
-          lead_submission_id: (existing.lead_submission_id as string | null) ?? null,
-          lead_id: (existing.lead_id as string | null) ?? null,
-          status: existing.status as string,
-          paused_reason: (existing.paused_reason as string | null) ?? null,
-          is_follower_at_start: (existing.is_follower_at_start as boolean | null) ?? null,
-          last_error: null,
-          private_reply_message_id: null,
-        };
+        if (!isPostContactGateEnrollmentStatus(flowStatus)) {
+          const enrollmentRow: LeadMagnetEnrollmentRow = {
+            id: existing.id as string,
+            organization_id: existing.organization_id as string,
+            campaign_id: existing.campaign_id as string,
+            platform: existing.platform as LeadMagnetEnrollmentRow["platform"],
+            participant_scoped_id: existing.participant_scoped_id as string,
+            participant_username: (authorUsername ?? existing.participant_username) as string | null,
+            comment_id: input.commentId,
+            media_id: input.mediaId,
+            conversation_id: (enrollmentForFlow.conversation_id as string | null) ?? null,
+            conversation_table: (enrollmentForFlow.conversation_table as string | null) ?? null,
+            lead_submission_id: (enrollmentForFlow.lead_submission_id as string | null) ?? null,
+            lead_id: (enrollmentForFlow.lead_id as string | null) ?? null,
+            status: flowStatus as LeadMagnetEnrollmentRow["status"],
+            paused_reason: (enrollmentForFlow.paused_reason as string | null) ?? null,
+            is_follower_at_start: (enrollmentForFlow.is_follower_at_start as boolean | null) ?? null,
+            last_error: null,
+            private_reply_message_id: null,
+          };
 
-        scheduleFollowCheckAndDmFlow(admin, {
-          enrollment: enrollmentRow,
-          campaign,
-          accessToken: input.accessToken,
-          pageId: input.pageId,
-        });
+          scheduleFollowCheckAndDmFlow(admin, {
+            enrollment: enrollmentRow,
+            campaign,
+            accessToken: input.accessToken,
+            pageId: input.pageId,
+          });
+        }
       }
       return true;
     }

@@ -10,7 +10,12 @@ export type LeadMagnetEnrollmentStatus =
   | "follow_validated"
   | "framework_offered"
   | "material_offer_skipped"
+  | "awaiting_contact"
+  | "contact_collected"
   | "delivered"
+  | "delivered_whatsapp"
+  | "delivered_email"
+  | "delivered_instagram"
   | "failed"
   | "paused";
 
@@ -26,6 +31,15 @@ export type LeadMagnetFunnelEventType =
   | "follow_validated"
   | "framework_offered"
   | "material_offer_skipped"
+  | "contact_prompt_sent"
+  | "contact_collected"
+  | "contact_invalid"
+  | "contact_window_expired"
+  | "delivery_whatsapp_sent"
+  | "delivery_whatsapp_failed"
+  | "delivery_email_sent"
+  | "delivery_email_failed"
+  | "delivery_instagram_sent"
   | "delivered"
   | "dm_failed"
   | "follow_check_failed"
@@ -38,6 +52,7 @@ export type LeadMagnetCampaignRow = {
   id: string;
   organization_id: string;
   name: string;
+  target_market: string;
   platform: LeadMagnetPlatform;
   account_id: string;
   keyword: string;
@@ -49,9 +64,22 @@ export type LeadMagnetCampaignRow = {
   framework_button_label: string;
   delivery_text: string;
   delivery_button_label: string;
+  delivery_fallback_text: string | null;
   delivery_url: string;
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
+  contact_gate_enabled: boolean;
+  contact_prompt_text: string | null;
+  contact_invalid_text: string | null;
+  contact_ack_text: string | null;
+  whatsapp_account_id: string | null;
+  whatsapp_template_name: string | null;
+  whatsapp_template_language: string | null;
+  whatsapp_template_params: Record<string, unknown>;
+  email_subject: string | null;
+  email_html_body: string | null;
+  email_from_name: string | null;
+  delivery_storage_path?: string | null;
 };
 
 export type LeadMagnetEnrollmentRow = {
@@ -117,7 +145,23 @@ export type LeadMagnetPostbackTriggerInput = {
   pageId: string;
 };
 
-export type LeadMagnetRuntimeInput = LeadMagnetCommentTriggerInput | LeadMagnetPostbackTriggerInput;
+export type LeadMagnetInboundMessageTriggerInput = {
+  trigger: "inbound_message";
+  platform: LeadMagnetPlatform;
+  organizationId: string;
+  accountId: string;
+  participantScopedId: string;
+  participantUsername: string | null;
+  messageBody: string;
+  conversationId?: string | null;
+  accessToken: string;
+  pageId: string;
+};
+
+export type LeadMagnetRuntimeInput =
+  | LeadMagnetCommentTriggerInput
+  | LeadMagnetPostbackTriggerInput
+  | LeadMagnetInboundMessageTriggerInput;
 
 export const LEAD_MAGNET_PAYLOAD_PREFIX = "lm:";
 
@@ -160,4 +204,11 @@ export const LEAD_MAGNET_DEFAULT_MESSAGES = {
   framework_button_label: "Ambil Materi",
   delivery_text: "Hai {{username}}, ini materinya. Semoga bermanfaat! 🙏",
   delivery_button_label: "Unduh",
+  delivery_fallback_text:
+    "Hai {{username}}, WhatsApp kami belum bisa mengirim materi. Unduh langsung di sini ya:",
+  contact_prompt_text:
+    "Hai {{username}},\n\nTerima kasih atas minat Anda pada materi kami.\n\nUntuk mengirimkan file, silakan balas chat ini dengan:\n• Nomor WhatsApp aktif (contoh: 08123456789) — materi dikirim via WhatsApp, atau\n• Alamat email aktif (contoh: nama@perusahaan.com) — materi dikirim ke email Anda.\n\nKami hanya menggunakan kontak ini untuk pengiriman materi yang Anda minta.",
+  contact_invalid_text:
+    "Mohon maaf, format nomor atau email belum dapat kami baca.\n\nSilakan kirim nomor WhatsApp (contoh: 08123456789) atau email (contoh: nama@perusahaan.com).",
+  contact_ack_text: "Terima kasih {{username}}! Materi sedang kami kirim ke kontak kamu ✅",
 } as const;

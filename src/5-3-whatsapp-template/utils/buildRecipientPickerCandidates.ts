@@ -11,6 +11,8 @@ export type RecipientPickerCandidate = {
   lead_source: string | null;
   origin: PickerCandidateOrigin;
   priority: number;
+  /** Lead Magnet target market snapshot (maps to import_company on list create). */
+  leadMagnetTargetMarket?: string | null;
 };
 
 type LeadRow = {

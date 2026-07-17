@@ -378,12 +378,13 @@ export function WhatsAppTemplatePage() {
                         whatsappAccountsLoading={whatsappAccountsLoading}
                         selectedWhatsappAccountId={selectedWhatsappAccountId}
                         onSelectedWhatsappAccountIdChange={setSelectedWhatsappAccountId}
-                      />
-
-                      <TemplateCatalogFilterChips
-                        value={catalogView}
-                        onChange={setCatalogView}
-                        counts={catalogCounts}
+                        catalogFilterSlot={
+                          <TemplateCatalogFilterChips
+                            value={catalogView}
+                            onChange={setCatalogView}
+                            counts={catalogCounts}
+                          />
+                        }
                       />
 
                       {catalogView === "form_flows" ? (

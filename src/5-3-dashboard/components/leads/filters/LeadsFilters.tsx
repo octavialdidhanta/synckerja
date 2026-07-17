@@ -42,6 +42,10 @@ export interface LeadsFilters {
   landingUrlContains: string;
   /** Recipient picker / server RPC: exact latest survey rating 1–5, or all. */
   surveyRating: "all" | "none" | "1" | "2" | "3" | "4" | "5";
+  /** Recipient picker only: Lead Magnet campaign snapshot filter. */
+  leadMagnetCampaign?: string;
+  /** Recipient picker only: Lead Magnet target market snapshot filter. */
+  leadMagnetTargetMarket?: string;
 }
 
 interface LeadsFiltersProps {

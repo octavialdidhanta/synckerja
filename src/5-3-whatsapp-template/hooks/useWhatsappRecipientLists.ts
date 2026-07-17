@@ -120,6 +120,8 @@ export function useRecipientPickerFilterOptions(organizationId: string | null | 
         gclids: toStrArr("gclids"),
         serviceNames: toStrArr("service_names"),
         sources: toStrArr("sources"),
+        leadMagnetCampaignNames: toStrArr("lead_magnet_campaign_names"),
+        leadMagnetTargetMarkets: toStrArr("lead_magnet_target_markets"),
       };
     },
     staleTime: 60_000,
@@ -299,6 +301,9 @@ export function useCreateRecipientListFromSelection(organizationId: string | nul
         lead_id: p.lead_id,
         conversation_id: p.conversation_id,
         origin: p.lead_id ? ("lead" as const) : ("livechat" as const),
+        import_full_name: p.displayName,
+        import_customer_name: p.displayName,
+        import_company: p.leadMagnetTargetMarket ?? null,
       }));
 
       for (const part of chunk(rows, 500)) {

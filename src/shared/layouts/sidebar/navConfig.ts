@@ -201,6 +201,11 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: ["/omnichannel/livechat"],
       },
       {
+        titleKey: "sidebar.operations.contact.title",
+        path: "/omnichannel/contact",
+        activePathPrefixes: ["/omnichannel/contact"],
+      },
+      {
         titleKey: "sidebar.operations.integrations.title",
         path: "/omnichannel/integrations/whatsapp",
         activePathPrefixes: [

@@ -330,5 +330,6 @@ export function mapMetaTemplateToRow(meta: MetaMessageTemplate): TemplateTableRo
     mediaFormat,
     hasFlowButton,
     linkedFlowIds,
+    componentsJson: meta.components ?? [],
   };
 }

@@ -2,7 +2,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 
 /** Columns used by Client Profile modal and completeness checks. */
 export const LEAD_SUBMISSION_PROFILE_SELECT =
-  'id, lead_id, organization_id, name, phone_number, email, code, gender, age, occupation, location, industry, notes, form_data, status, submitted_at, updated_at, is_active';
+  'id, lead_id, organization_id, name, phone_number, email, code, gender, age, occupation, location, industry, notes, form_data, status, submitted_at, updated_at, is_active, lead_magnet_campaign_id, lead_magnet_campaign_name, lead_magnet_target_market';
 
 export type LeadSubmissionProfileRow = {
   id: string;
@@ -23,6 +23,9 @@ export type LeadSubmissionProfileRow = {
   submitted_at: string | null;
   updated_at: string;
   is_active: boolean;
+  lead_magnet_campaign_id: string | null;
+  lead_magnet_campaign_name: string | null;
+  lead_magnet_target_market: string | null;
 };
 
 export type ClientProfileCompleteness = 'full' | 'partial' | 'empty';

@@ -19,6 +19,11 @@ export type PersistLeadWhatsAppThreadArgs = {
   rawMetadata?: Record<string, unknown> | null;
   whatsappAccountId: string;
   phoneNumberId: string;
+  /** When set, tags outbound as Lead Magnet (webhook fallback + debugging). */
+  leadMagnetMeta?: {
+    enrollmentId: string;
+    campaignId: string;
+  };
 };
 
 export type PersistLeadWhatsAppThreadResult =
@@ -150,6 +155,7 @@ export async function persistLeadWhatsAppThread(
       updated_at: now,
     };
     if (unreadStatusId) convUpdate.lead_status_id = unreadStatusId;
+    if (lead.assignee_id) convUpdate.assignee_id = lead.assignee_id;
 
     const expSec = parseWabaExpirationUnixSeconds(args.rawMetadata ?? null);
     if (expSec != null) {
@@ -184,14 +190,29 @@ export async function persistLeadWhatsAppThread(
         message_type: "template",
         raw_metadata: {
           ...(args.rawMetadata ?? {}),
-          synckerja_lead_api: {
-            lead_id: args.leadId,
-            web_id: args.webId,
-            template_name: args.templateName,
-            template_language: args.templateLanguage,
-            parameter_values: args.bodyParams ?? [],
-            whatsapp_account_id: args.whatsappAccountId,
-          },
+          ...(args.leadMagnetMeta
+            ? {
+                synckerja_lead_magnet: {
+                  lead_id: args.leadId,
+                  enrollment_id: args.leadMagnetMeta.enrollmentId,
+                  campaign_id: args.leadMagnetMeta.campaignId,
+                  organization_id: args.organizationId,
+                  template_name: args.templateName,
+                  template_language: args.templateLanguage,
+                  parameter_values: args.bodyParams ?? [],
+                  whatsapp_account_id: args.whatsappAccountId,
+                },
+              }
+            : {
+                synckerja_lead_api: {
+                  lead_id: args.leadId,
+                  web_id: args.webId,
+                  template_name: args.templateName,
+                  template_language: args.templateLanguage,
+                  parameter_values: args.bodyParams ?? [],
+                  whatsapp_account_id: args.whatsappAccountId,
+                },
+              }),
         },
         status: "sent",
       };
@@ -207,6 +228,7 @@ export async function persistLeadWhatsAppThread(
     const leadUpdate: Record<string, unknown> = {
       ticket_id: waTicketId,
       phone_number: phoneDigits,
+      services: "WhatsApp",
       updated_at: now,
     };
     if (unreadStatusId) leadUpdate.status_id = unreadStatusId;
