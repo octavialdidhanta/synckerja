@@ -319,6 +319,20 @@ async function handleActionGet(req: Request): Promise<Response> {
     });
   }
 
+  const dmFlowVersion = Number((enrollment as { dm_flow_version?: number }).dm_flow_version ?? 1);
+  const isOpeningFirst = dmFlowVersion === 2;
+
+  if (isOpeningFirst) {
+    return actionResponse(req, {
+      ok: result.handled,
+      code: result.handled ? "next_step_sent" : "failed",
+      title: result.handled ? "Langkah berikutnya dikirim!" : "Gagal",
+      message: result.handled
+        ? "Langkah selanjutnya dikirim ke Messenger. Cek chat Anda."
+        : "Permintaan tidak dapat diproses.",
+    });
+  }
+
   return actionResponse(req, {
     ok: result.handled,
     code: result.handled ? "delivery_sent" : "failed",
@@ -351,8 +365,12 @@ async function resolveDownloadBody(
   enrollmentId: string,
   expiry: string,
   sig: string,
+  linkIndexRaw?: string | null,
 ): Promise<{ status: number; body: DownloadResponseBody }> {
   const action: LeadMagnetAction = "download";
+  const { parseDownloadLinkIndex, resolveCampaignDeliveryLinks, getDeliveryUrlAtIndex } =
+    await import("../_shared/leadMagnet/deliveryLinks.ts");
+  const linkIndex = parseDownloadLinkIndex(linkIndexRaw);
 
   if (!enrollmentId || !expiry || !sig) {
     return {
@@ -366,7 +384,7 @@ async function resolveDownloadBody(
     };
   }
 
-  const valid = await verifyLeadMagnetActionUrl(enrollmentId, action, expiry, sig);
+  const valid = await verifyLeadMagnetActionUrl(enrollmentId, action, expiry, sig, linkIndex);
   if (!valid) {
     return {
       status: 400,
@@ -403,7 +421,12 @@ async function resolveDownloadBody(
 
   const campaignRaw = (enrollment as { campaign?: unknown }).campaign;
   const campaign = Array.isArray(campaignRaw) ? campaignRaw[0] : campaignRaw;
-  const fileUrl = String(campaign?.delivery_url ?? "").trim();
+  const links = resolveCampaignDeliveryLinks(campaign ?? {});
+  const fileUrl = getDeliveryUrlAtIndex(
+    links,
+    linkIndex,
+    campaign?.delivery_url,
+  );
   if (!fileUrl) {
     return {
       status: 404,
@@ -416,6 +439,9 @@ async function resolveDownloadBody(
     };
   }
 
+  const buttonLabel = links[linkIndex]?.label?.trim()
+    || String(campaign?.delivery_button_label ?? "Unduh");
+
   return {
     status: 200,
     body: {
@@ -424,7 +450,7 @@ async function resolveDownloadBody(
       title: "Materi siap diunduh",
       message: "Klik tombol di bawah untuk mengunduh file materi Anda.",
       fileUrl,
-      buttonLabel: String(campaign?.delivery_button_label ?? "Unduh"),
+      buttonLabel,
       fileName: downloadFileNameFromUrl(fileUrl),
     },
   };
@@ -435,8 +461,9 @@ async function handleDownloadGet(req: Request): Promise<Response> {
   const enrollmentId = (url.searchParams.get("e") ?? "").trim();
   const expiry = (url.searchParams.get("t") ?? "").trim();
   const sig = (url.searchParams.get("s") ?? "").trim();
+  const linkIndex = url.searchParams.get("i");
 
-  const resolved = await resolveDownloadBody(enrollmentId, expiry, sig);
+  const resolved = await resolveDownloadBody(enrollmentId, expiry, sig, linkIndex);
 
   if (!wantsJsonActionApi(req)) {
     // Legacy buttons still open Supabase edge URL — redirect to file; gateway serves HTML as text/plain.

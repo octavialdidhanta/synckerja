@@ -11,7 +11,7 @@ import {
 describe('leadMagnetLivechatDisplay', () => {
   it('humanizes lead magnet postback payload', () => {
     expect(humanizeLeadMagnetPayload('lm:abc-123:follow_confirm')).toBe('Sudah Follow');
-    expect(humanizeLeadMagnetPayload('lm:abc-123:get_framework')).toBe('Ambil Materi');
+    expect(humanizeLeadMagnetPayload('lm:abc-123:get_framework')).toBe('Kirimkan saya link-nya 😊');
   });
 
   it('prefers postback title over payload', () => {
@@ -24,10 +24,10 @@ describe('leadMagnetLivechatDisplay', () => {
 
   it('strips legacy outbound button suffix', () => {
     const result = stripLeadMagnetButtonSuffix(
-      'Hai user!\n\n[Tombol: Sudah Follow, Ambil Materi]',
+      'Hai user!\n\n[Tombol: Sudah Follow, Kirimkan saya link-nya 😊]',
     );
     expect(result.body).toBe('Hai user!');
-    expect(result.buttonTitles).toEqual(['Sudah Follow', 'Ambil Materi']);
+    expect(result.buttonTitles).toEqual(['Sudah Follow', 'Kirimkan saya link-nya 😊']);
   });
 
   it('reads button titles from metadata', () => {

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { facebookPostMediaIdCandidates } from "./facebookPostMediaId.ts";
+import { normalizeCommentReplyTexts } from "./commentReplyVariants.ts";
 import type { LeadMagnetPlatform } from "./types.ts";
 import { commentMatchesKeyword } from "./types.ts";
 
@@ -16,6 +17,8 @@ export type MatchedCampaign = {
   name: string;
   keyword: string;
   status: string;
+  comment_reply_enabled: boolean;
+  comment_reply_texts: string[];
   comment_reply_text: string;
   follow_gate_text: string;
   follow_button_label: string;
@@ -25,9 +28,11 @@ export type MatchedCampaign = {
   delivery_button_label: string;
   delivery_fallback_text: string | null;
   delivery_url: string;
+  delivery_links: Array<{ label: string; url: string }>;
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
   contact_gate_enabled: boolean;
+  email_collection_enabled: boolean;
   contact_prompt_text: string | null;
   contact_invalid_text: string | null;
   contact_ack_text: string | null;
@@ -54,6 +59,8 @@ type CampaignFromPostJoin = {
   name: string;
   keyword: string;
   status: string;
+  comment_reply_enabled: boolean;
+  comment_reply_texts: string[];
   comment_reply_text: string;
   follow_gate_text: string;
   follow_button_label: string;
@@ -63,9 +70,11 @@ type CampaignFromPostJoin = {
   delivery_button_label: string;
   delivery_fallback_text: string | null;
   delivery_url: string;
+  delivery_links: Array<{ label: string; url: string }>;
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
   contact_gate_enabled: boolean;
+  email_collection_enabled: boolean;
   contact_prompt_text: string | null;
   contact_invalid_text: string | null;
   contact_ack_text: string | null;
@@ -104,6 +113,11 @@ function mapMatchedCampaign(
     name: String(campaign.name),
     keyword: String(campaign.keyword),
     status: String(campaign.status),
+    comment_reply_enabled: campaign.comment_reply_enabled !== false,
+    comment_reply_texts: normalizeCommentReplyTexts(
+      campaign.comment_reply_texts,
+      campaign.comment_reply_text,
+    ),
     comment_reply_text: String(campaign.comment_reply_text),
     follow_gate_text: String(campaign.follow_gate_text),
     follow_button_label: String(campaign.follow_button_label),
@@ -115,9 +129,13 @@ function mapMatchedCampaign(
       ? String(campaign.delivery_fallback_text)
       : null,
     delivery_url: String(campaign.delivery_url),
+    delivery_links: Array.isArray(campaign.delivery_links)
+      ? (campaign.delivery_links as Array<{ label: string; url: string }>)
+      : [],
     skip_follow_gate_if_follower: Boolean(campaign.skip_follow_gate_if_follower),
     skip_material_offer: Boolean(campaign.skip_material_offer),
     contact_gate_enabled: Boolean(campaign.contact_gate_enabled),
+    email_collection_enabled: Boolean(campaign.email_collection_enabled),
     contact_prompt_text: campaign.contact_prompt_text ?? null,
     contact_invalid_text: campaign.contact_invalid_text ?? null,
     contact_ack_text: campaign.contact_ack_text ?? null,
@@ -159,6 +177,8 @@ export async function findMatchingLeadMagnetCampaign(
         name,
         keyword,
         status,
+        comment_reply_enabled,
+        comment_reply_texts,
         comment_reply_text,
         follow_gate_text,
         follow_button_label,
@@ -168,9 +188,11 @@ export async function findMatchingLeadMagnetCampaign(
         delivery_button_label,
         delivery_fallback_text,
         delivery_url,
+        delivery_links,
         skip_follow_gate_if_follower,
         skip_material_offer,
         contact_gate_enabled,
+        email_collection_enabled,
         contact_prompt_text,
         contact_invalid_text,
         contact_ack_text,

@@ -44,6 +44,11 @@ export function followStatusToLegacyBoolean(status: FollowStatus): boolean | nul
   return null;
 }
 
+/** Strict follow confirm: advance only when Meta reports follower (unknown stays blocked). */
+export function shouldAdvanceFollowConfirm(status: FollowStatus): boolean {
+  return status === "follower";
+}
+
 export function isFirstContactCommentPrivateReply(enrollment: {
   platform: string;
   comment_id?: string | null;
@@ -55,19 +60,29 @@ export function isFirstContactCommentPrivateReply(enrollment: {
   return enrollment.platform === "instagram" || enrollment.platform === "facebook";
 }
 
+/**
+ * Follow Gate skip rules (wizard "Aktifkan Follow Gate"):
+ * - skip_follow_gate_if_follower=true (toggle OFF) → never send Follow Gate
+ * - skip_follow_gate_if_follower=false (toggle ON) → skip only when Meta status is follower
+ */
 export function shouldSkipFollowGate(
   campaign: Pick<LeadMagnetCampaignRow, "skip_follow_gate_if_follower">,
   followStatus: FollowStatus,
 ): boolean {
-  return campaign.skip_follow_gate_if_follower === true && followStatus === "follower";
+  if (campaign.skip_follow_gate_if_follower === true) return true;
+  return followStatus === "follower";
 }
 
+/**
+ * Legacy/v1 first-contact: when Follow Gate is ON, open messaging window then recheck
+ * so confirmed followers can skip the gate accurately.
+ */
 export function needsMessagingConsentRecheck(
   enrollment: Pick<LeadMagnetEnrollmentRow, "platform" | "comment_id" | "private_reply_message_id">,
   campaign: Pick<LeadMagnetCampaignRow, "skip_follow_gate_if_follower">,
   followStatus: FollowStatus,
 ): boolean {
-  return campaign.skip_follow_gate_if_follower === true
+  return campaign.skip_follow_gate_if_follower === false
     && enrollment.platform === "instagram"
     && isFirstContactCommentPrivateReply(enrollment)
     && followStatus !== "follower";

@@ -3,8 +3,11 @@ import { useMemo, useState } from 'react';
 import { Plus, BarChart3, Pause, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { CampaignFollowerMetricCell } from '../components/CampaignFollowerMetricCell';
+import { CampaignLeadMagnetCell } from '../components/CampaignLeadMagnetCell';
+import { CampaignLeadMagnetSheet } from '../components/CampaignLeadMagnetSheet';
+import { CampaignMetricCell } from '../components/CampaignMetricCell';
 import { CampaignPostsPreview } from '../components/CampaignPostsPreview';
+import { LeadMagnetListMetricCards } from '../components/LeadMagnetListMetricCards';
 import { LeadMagnetPageShell } from '../components/LeadMagnetPageShell';
 import { LeadMagnetTableFooter } from '../components/LeadMagnetTableFooter';
 import {
@@ -12,8 +15,11 @@ import {
   useLeadMagnetCampaigns,
   usePauseLeadMagnetCampaign,
 } from '../hooks/useLeadMagnetCampaigns';
+import { useLeadMagnetListDateRange } from '../hooks/useLeadMagnetListDateRange';
 import { LEAD_MAGNET_PATHS } from '../lib/leadMagnetPaths';
 import { LEAD_MAGNET_MAIN_GRID, LEAD_MAGNET_TABLE_SECTION } from '../lib/leadMagnetLayout';
+import { TikTokAdsDateRangePicker } from '@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker';
+import { buildTikTokAdsCalendarYearPresetYears } from '@/tiktok-ads/lib/clampTikTokAdsDateRange';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import {
@@ -34,7 +40,11 @@ import {
   TableRow,
 } from '@/shared/components/ui/table';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { getCampaignAccounts, formatCampaignPlatformsLabel } from '../types/leadMagnet.types';
+import {
+  getCampaignAccounts,
+  formatCampaignPlatformsLabel,
+  type LeadMagnetCampaign,
+} from '../types/leadMagnet.types';
 
 function statusVariant(status: string) {
   if (status === 'active') return 'default';
@@ -46,23 +56,40 @@ function statusVariant(status: string) {
 export function LeadMagnetListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { loading: orgLoading } = useCurrentOrg();
-  const { data: campaigns = [], isLoading } = useLeadMagnetCampaigns(!orgLoading);
+  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const { selection, setSelection, dateStart, dateEnd } = useLeadMagnetListDateRange(organizationId);
+
+  const { data, isLoading } = useLeadMagnetCampaigns(!orgLoading, { dateStart, dateEnd });
+  const campaigns = data?.campaigns ?? [];
+  const totals = data?.totals ?? { new_followers: 0, new_emails: 0, new_phones: 0 };
   const pauseMut = usePauseLeadMagnetCampaign();
   const deleteMut = useDeleteLeadMagnetCampaign();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [pauseTarget, setPauseTarget] = useState<{ id: string; name: string } | null>(null);
+  const [previewCampaign, setPreviewCampaign] = useState<LeadMagnetCampaign | null>(null);
 
   const activeCampaigns = useMemo(
     () => campaigns.filter((c) => c.status === 'active').length,
     [campaigns],
   );
 
-  const handlePause = async (id: string) => {
+  const metricCards = useMemo(
+    () => [
+      { key: 'new_followers' as const, label: t('leadMagnet.list.cardNewFollowers') },
+      { key: 'new_emails' as const, label: t('leadMagnet.list.cardNewEmails') },
+      { key: 'new_phones' as const, label: t('leadMagnet.list.cardNewPhones') },
+    ],
+    [t],
+  );
+
+  const handleConfirmPause = async () => {
+    if (!pauseTarget) return;
     try {
-      await pauseMut.mutateAsync(id);
-      toast.success('Campaign di-pause');
+      await pauseMut.mutateAsync(pauseTarget.id);
+      toast.success(t('leadMagnet.list.pauseSuccess'));
+      setPauseTarget(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Gagal pause');
+      toast.error(e instanceof Error ? e.message : t('leadMagnet.list.pauseFailed'));
     }
   };
 
@@ -85,11 +112,22 @@ export function LeadMagnetListPage() {
             <p className="text-xs text-muted-foreground">
               Buat campaign dengan keyword di komentar IG/FB → auto DM follow gate → kirim link framework.
             </p>
-            <Button size="sm" className="h-8 gap-1.5 px-3 text-xs" onClick={() => navigate(LEAD_MAGNET_PATHS.new)}>
-              <Plus className="h-3.5 w-3.5" />
-              Campaign baru
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <TikTokAdsDateRangePicker
+                value={selection}
+                onChange={setSelection}
+                calendarYearPresetYears={buildTikTokAdsCalendarYearPresetYears()}
+                calendarYearFilterHint={t('leadMagnet.list.dateFilterHint')}
+                className="h-8"
+              />
+              <Button size="sm" className="h-8 gap-1.5 px-3 text-xs" onClick={() => navigate(LEAD_MAGNET_PATHS.new)}>
+                <Plus className="h-3.5 w-3.5" />
+                Campaign baru
+              </Button>
+            </div>
           </div>
+
+          <LeadMagnetListMetricCards totals={totals} cards={metricCards} loading={isLoading} />
 
           <div className={LEAD_MAGNET_TABLE_SECTION}>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -120,11 +158,20 @@ export function LeadMagnetListPage() {
                             <TableHead className="bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                               Keyword
                             </TableHead>
+                            <TableHead className="min-w-[140px] bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
+                              {t('leadMagnet.list.columnLeadMagnet')}
+                            </TableHead>
                             <TableHead className="bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                               Status
                             </TableHead>
                             <TableHead className="bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
                               {t('leadMagnet.list.columnNewFollowers')}
+                            </TableHead>
+                            <TableHead className="bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                              {t('leadMagnet.list.columnNewEmails')}
+                            </TableHead>
+                            <TableHead className="bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                              {t('leadMagnet.list.columnNewPhones')}
                             </TableHead>
                             <TableHead className="bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
                               Aksi
@@ -146,12 +193,33 @@ export function LeadMagnetListPage() {
                               </TableCell>
                               <TableCell className="px-3 py-2 align-middle">{c.keyword}</TableCell>
                               <TableCell className="px-3 py-2 align-middle">
+                                <CampaignLeadMagnetCell
+                                  campaign={c}
+                                  onOpen={() => setPreviewCampaign(c)}
+                                />
+                              </TableCell>
+                              <TableCell className="px-3 py-2 align-middle">
                                 <Badge variant={statusVariant(c.status)} className="text-[11px]">
                                   {c.status}
                                 </Badge>
                               </TableCell>
                               <TableCell className="px-3 py-2 align-middle text-right">
-                                <CampaignFollowerMetricCell metrics={c.metrics} />
+                                <CampaignMetricCell
+                                  value={c.metrics?.new_followers ?? 0}
+                                  tooltipKey="leadMagnet.list.newFollowersTooltip"
+                                />
+                              </TableCell>
+                              <TableCell className="px-3 py-2 align-middle text-right">
+                                <CampaignMetricCell
+                                  value={c.metrics?.new_emails ?? 0}
+                                  tooltipKey="leadMagnet.list.newEmailsTooltip"
+                                />
+                              </TableCell>
+                              <TableCell className="px-3 py-2 align-middle text-right">
+                                <CampaignMetricCell
+                                  value={c.metrics?.new_phones ?? 0}
+                                  tooltipKey="leadMagnet.list.newPhonesTooltip"
+                                />
                               </TableCell>
                               <TableCell className="px-3 py-2 align-middle text-right">
                                 <div className="flex justify-end gap-0.5">
@@ -168,7 +236,7 @@ export function LeadMagnetListPage() {
                                       variant="ghost"
                                       size="icon"
                                       className="h-8 w-8"
-                                      onClick={() => handlePause(c.id)}
+                                      onClick={() => setPauseTarget({ id: c.id, name: c.name })}
                                     >
                                       <Pause className="h-4 w-4" />
                                     </Button>
@@ -187,7 +255,7 @@ export function LeadMagnetListPage() {
                           ))}
                         </TableBody>
                       </table>
-                </div>
+                  </div>
                   <LeadMagnetTableFooter
                     totalCampaigns={campaigns.length}
                     activeCampaigns={activeCampaigns}
@@ -198,6 +266,39 @@ export function LeadMagnetListPage() {
           </div>
         </div>
       </div>
+
+      <CampaignLeadMagnetSheet
+        campaign={previewCampaign}
+        open={previewCampaign != null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewCampaign(null);
+        }}
+      />
+
+      <AlertDialog open={pauseTarget != null} onOpenChange={(open) => !open && setPauseTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('leadMagnet.list.pauseTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('leadMagnet.list.pauseDescription', { name: pauseTarget?.name ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pauseMut.isPending}>
+              {t('common.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={pauseMut.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmPause();
+              }}
+            >
+              {pauseMut.isPending ? t('leadMagnet.list.pausing') : t('leadMagnet.list.pauseConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteTarget != null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

@@ -75,7 +75,7 @@ export async function createLeadMagnetLead(
       id: leadId,
       ticket_id: ticketId,
       client: displayName,
-      title: `Lead Magnet — ${args.campaign.name}`.slice(0, 120),
+      title: String(args.campaign.name ?? "").trim().slice(0, 120) || "Campaign",
       category: "Lead Magnet",
       source: "Lead Magnet",
       services: channelLabel,

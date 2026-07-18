@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileText, Loader2, Upload, X } from 'lucide-react';
+import { CircleHelp, FileText, Loader2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import {
   formatLeadMagnetFileSize,
   LEAD_MAGNET_DELIVERY_ALLOWED_EXTENSIONS,
@@ -37,6 +38,27 @@ type LeadMagnetDeliveryStepProps = {
     campaignId: string,
   ) => Promise<void>;
 };
+
+function InfoHint({ info }: { info: string }) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground"
+            aria-label={info}
+          >
+            <CircleHelp className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs leading-snug">
+          {info}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 export function LeadMagnetDeliveryStep({
   form,
@@ -142,10 +164,17 @@ export function LeadMagnetDeliveryStep({
   };
 
   return (
-    <div className="space-y-3 rounded-md border border-border/50 bg-muted/15 p-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t('leadMagnet.wizard.deliverySourceTitle')}
-      </h3>
+    <div className="space-y-3 rounded-lg border border-border/60 bg-background p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <h3 className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('leadMagnet.wizard.deliverySourceTitle')}
+        </h3>
+        {form.delivery_mode === 'link' ? (
+          <InfoHint info={t('leadMagnet.wizard.deliveryLinkHint')} />
+        ) : (
+          <InfoHint info={t('leadMagnet.wizard.deliveryPublicLinkWarning')} />
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <ModeButton
@@ -165,12 +194,9 @@ export function LeadMagnetDeliveryStep({
           <Label className="leading-tight">{t('leadMagnet.wizard.deliveryUrl')}</Label>
           <Input
             value={form.delivery_url}
-            placeholder="https://drive.google.com/..."
+            placeholder={t('leadMagnet.wizard.deliveryUrlPlaceholder')}
             onChange={(e) => onPatch({ delivery_url: e.target.value })}
           />
-          <p className="text-xs leading-snug text-muted-foreground">
-            {t('leadMagnet.wizard.deliveryLinkHint')}
-          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -221,7 +247,7 @@ export function LeadMagnetDeliveryStep({
               type="button"
               disabled={uploading}
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-background px-4 py-8 text-sm text-muted-foreground transition hover:bg-muted/40 disabled:opacity-60"
+              className="flex w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-muted/20 px-4 py-8 text-sm text-muted-foreground transition hover:bg-muted/40 disabled:opacity-60"
             >
               {uploading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -230,14 +256,12 @@ export function LeadMagnetDeliveryStep({
               )}
               <span>{t('leadMagnet.wizard.deliveryUploadHint')}</span>
               <span className="text-xs">
-                PDF, DOCX, XLSX, PPTX · max {Math.round(LEAD_MAGNET_DELIVERY_MAX_BYTES / (1024 * 1024))} MB
+                {t('leadMagnet.wizard.deliveryFileTypesHint', {
+                  maxMb: Math.round(LEAD_MAGNET_DELIVERY_MAX_BYTES / (1024 * 1024)),
+                })}
               </span>
             </button>
           )}
-
-          <p className="text-xs leading-snug text-amber-700 dark:text-amber-400">
-            {t('leadMagnet.wizard.deliveryPublicLinkWarning')}
-          </p>
         </div>
       )}
     </div>

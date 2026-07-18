@@ -12,6 +12,7 @@ import type { LeadMagnetPlatform } from '../types/leadMagnet.types';
 export type LeadMagnetMetaAccountOption = {
   id: string;
   label: string;
+  avatarUrl: string | null;
   platform: LeadMagnetPlatform;
   scopesOk: boolean;
   missingScopes: string[];
@@ -43,6 +44,7 @@ function mapAccountOption(account: MetaContentAccount): LeadMagnetMetaAccountOpt
   return {
     id: account.account_id,
     label: account.account_label || account.account_id,
+    avatarUrl: account.avatar_url?.trim() || null,
     platform: account.platform,
     scopesOk: ok,
     missingScopes: missing,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ArrowRight, CircleHelp, ImageIcon, Loader2 } from 'lucide-react';
@@ -26,12 +26,25 @@ import {
   type LeadMagnetMediaPost,
   type LeadMagnetPlatform,
 } from '../types/leadMagnet.types';
-import { LeadMagnetDeliveryStep } from '../components/LeadMagnetDeliveryStep';
 import { LeadMagnetContactChannelStep } from '../components/wizard/LeadMagnetContactChannelStep';
-import { validateContactGateStep } from '../lib/contactGate/validateContactGateStep';
+import { LeadMagnetCommentReplyVariantsStep } from '../components/wizard/LeadMagnetCommentReplyVariantsStep';
+import { LeadMagnetDeliveryLinksStep } from '../components/wizard/LeadMagnetDeliveryLinksStep';
+import { LeadMagnetPhonePreview } from '../components/wizard/phonePreview/LeadMagnetPhonePreview';
+import {
+  filledCommentReplyTexts,
+  hasDuplicateCommentReplies,
+  syncCommentReplyLegacyMirror,
+  toCommentReplySlots,
+} from '../lib/commentReplyVariants';
+import { validateEmailCollectionStep, validateWhatsAppDeliveryStep } from '../lib/contactGate/validateContactGateStep';
 import { useLeadMagnetWhatsAppAccounts } from '../hooks/useLeadMagnetWhatsAppAccounts';
 import { updateLeadMagnetCampaign } from '../lib/leadMagnetApi';
 import { parseLeadMagnetDeliveryMode, validateLeadMagnetDeliveryForm } from '../lib/leadMagnetDeliveryAsset';
+import {
+  DEFAULT_DELIVERY_LINK_LABEL,
+  mirrorDeliveryFieldsFromLinks,
+  resolveDeliveryLinks,
+} from '../lib/deliveryLinks';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/components/ui/button';
@@ -39,6 +52,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Checkbox } from '@/shared/components/ui/checkbox';
+import { Switch } from '@/shared/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -48,7 +62,43 @@ import {
 } from '@/shared/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 
-const STEPS = ['Dasar', 'Post', 'Keyword', 'Pesan', 'Kontak & Channel', 'Delivery', 'Review'] as const;
+const STEP_CONFIG = [
+  { labelKey: 'leadMagnet.wizard.steps.basics' },
+  { labelKey: 'leadMagnet.wizard.steps.post' },
+  { labelKey: 'leadMagnet.wizard.steps.keyword' },
+  { labelKey: 'leadMagnet.wizard.steps.messages' },
+  { labelKey: 'leadMagnet.wizard.steps.contactChannel' },
+  { labelKey: 'leadMagnet.wizard.steps.delivery' },
+  { labelKey: 'leadMagnet.wizard.steps.review' },
+] as const;
+
+function isLegacyWaOrEmailContactCopy(text: string): boolean {
+  const value = text.trim();
+  if (!value) return true;
+  return /whatsapp|nomor\s*wa|\bwa\b|contoh\s*wa|\b081\d|atau\s+email/i.test(value);
+}
+
+function normalizeEmailCollectionCopy(
+  prompt: string | null | undefined,
+  invalid: string | null | undefined,
+): { contact_prompt_text: string; contact_invalid_text: string } {
+  const promptText = prompt?.trim() ?? '';
+  const invalidText = invalid?.trim() ?? '';
+  return {
+    contact_prompt_text: isLegacyWaOrEmailContactCopy(promptText)
+      ? DEFAULT_LEAD_MAGNET_FORM.contact_prompt_text
+      : promptText,
+    contact_invalid_text: isLegacyWaOrEmailContactCopy(invalidText)
+      ? DEFAULT_LEAD_MAGNET_FORM.contact_invalid_text
+      : invalidText,
+  };
+}
+
+function isLegacyFollowGateCopy(text: string): boolean {
+  const value = text.trim();
+  if (!value) return true;
+  return /tab\s*permintaan|makasih sudah komen|supaya materi masuk inbox/i.test(value);
+}
 
 function campaignToForm(c: LeadMagnetCampaign): LeadMagnetCampaignForm {
   const accounts = getCampaignAccounts(c);
@@ -59,20 +109,60 @@ function campaignToForm(c: LeadMagnetCampaign): LeadMagnetCampaignForm {
     media_caption: p.media_caption ?? null,
     media_thumbnail_url: p.media_thumbnail_url ?? null,
   }));
+  const replySlots = toCommentReplySlots(c.comment_reply_texts, c.comment_reply_text);
+  const emailCopy = normalizeEmailCollectionCopy(c.contact_prompt_text, c.contact_invalid_text);
+  const followGate = c.follow_gate_text?.trim() ?? '';
+  const openingOffer = c.framework_offer_text?.trim() ?? '';
+  const openingButton = c.framework_button_label?.trim() ?? '';
+  const isLegacyOpeningOffer =
+    !openingOffer ||
+    /senang banget kamu di sini|klik di bawah ya|klik tombol di bawah, link-nya kami kirim sebentar lagi ✨/i.test(
+      openingOffer,
+    );
+  const isLegacyOpeningButton =
+    !openingButton || /^ambil materi$/i.test(openingButton);
+  const deliveryTextRaw = c.delivery_text?.trim() ?? '';
+  const isLegacyDeliveryText =
+    !deliveryTextRaw
+    || /ini materinya\.?\s*semoga bermanfaat/i.test(deliveryTextRaw);
+  const resolvedLinks = resolveDeliveryLinks({
+    delivery_links: c.delivery_links,
+    delivery_button_label: c.delivery_button_label,
+    delivery_url: c.delivery_url,
+  }).map((link) => {
+    const isLegacyLabel =
+      !link.label.trim() || /^unduh$/i.test(link.label.trim());
+    return {
+      ...link,
+      label: isLegacyLabel ? DEFAULT_DELIVERY_LINK_LABEL : link.label,
+    };
+  });
+  const mirrored = mirrorDeliveryFieldsFromLinks(resolvedLinks);
   return {
     name: c.name,
     target_market: c.target_market ?? '',
     accounts,
     keyword: c.keyword,
-    comment_reply_text: c.comment_reply_text,
-    follow_gate_text: c.follow_gate_text,
-    follow_button_label: c.follow_button_label,
-    framework_offer_text: c.framework_offer_text,
-    framework_button_label: c.framework_button_label,
-    delivery_text: c.delivery_text,
-    delivery_button_label: c.delivery_button_label,
+    comment_reply_enabled: c.comment_reply_enabled ?? true,
+    comment_reply_texts: replySlots,
+    comment_reply_text: syncCommentReplyLegacyMirror(replySlots),
+    follow_gate_text: isLegacyFollowGateCopy(followGate)
+      ? DEFAULT_LEAD_MAGNET_FORM.follow_gate_text
+      : followGate,
+    follow_button_label: c.follow_button_label || DEFAULT_LEAD_MAGNET_FORM.follow_button_label,
+    framework_offer_text: isLegacyOpeningOffer
+      ? DEFAULT_LEAD_MAGNET_FORM.framework_offer_text
+      : openingOffer,
+    framework_button_label: isLegacyOpeningButton
+      ? DEFAULT_LEAD_MAGNET_FORM.framework_button_label
+      : openingButton,
+    delivery_text: isLegacyDeliveryText
+      ? DEFAULT_LEAD_MAGNET_FORM.delivery_text
+      : deliveryTextRaw,
+    delivery_button_label: mirrored.delivery_button_label,
     delivery_fallback_text: c.delivery_fallback_text ?? DEFAULT_LEAD_MAGNET_FORM.delivery_fallback_text,
-    delivery_url: c.delivery_url,
+    delivery_url: mirrored.delivery_url,
+    delivery_links: resolvedLinks,
     delivery_mode: parseLeadMagnetDeliveryMode(c.delivery_mode),
     delivery_storage_path: c.delivery_storage_path ?? null,
     delivery_file_name: c.delivery_file_name ?? null,
@@ -81,15 +171,16 @@ function campaignToForm(c: LeadMagnetCampaign): LeadMagnetCampaignForm {
     skip_follow_gate_if_follower: c.skip_follow_gate_if_follower,
     skip_material_offer: c.skip_material_offer ?? false,
     contact_gate_enabled: c.contact_gate_enabled ?? false,
-    contact_prompt_text: c.contact_prompt_text ?? DEFAULT_LEAD_MAGNET_FORM.contact_prompt_text,
-    contact_invalid_text: c.contact_invalid_text ?? DEFAULT_LEAD_MAGNET_FORM.contact_invalid_text,
+    email_collection_enabled: c.email_collection_enabled ?? false,
+    contact_prompt_text: emailCopy.contact_prompt_text,
+    contact_invalid_text: emailCopy.contact_invalid_text,
     contact_ack_text: c.contact_ack_text ?? DEFAULT_LEAD_MAGNET_FORM.contact_ack_text,
     whatsapp_account_id: c.whatsapp_account_id ?? null,
     whatsapp_template_name: c.whatsapp_template_name ?? null,
     whatsapp_template_language: c.whatsapp_template_language ?? null,
     whatsapp_template_params: (c.whatsapp_template_params ?? {}) as Record<string, unknown>,
-    email_subject: c.email_subject ?? '',
-    email_html_body: c.email_html_body ?? '',
+    email_subject: c.email_subject?.trim() || DEFAULT_LEAD_MAGNET_FORM.email_subject,
+    email_html_body: c.email_html_body?.trim() || DEFAULT_LEAD_MAGNET_FORM.email_html_body,
     email_from_name: c.email_from_name ?? null,
     posts,
   };
@@ -144,6 +235,23 @@ export function LeadMagnetWizardPage() {
   const createMut = useCreateLeadMagnetCampaign();
   const updateMut = useUpdateLeadMagnetCampaign(effectiveCampaignId ?? '');
   const publishMut = usePublishLeadMagnetCampaign();
+  const appliedNewCampaignReplyDefaults = useRef(false);
+
+  useEffect(() => {
+    if (existing || isEdit || appliedNewCampaignReplyDefaults.current) return;
+    appliedNewCampaignReplyDefaults.current = true;
+    setForm((f) => ({
+      ...f,
+      comment_reply_texts: [
+        t('leadMagnet.wizard.commentReplyDefault1'),
+        t('leadMagnet.wizard.commentReplyDefault2'),
+        t('leadMagnet.wizard.commentReplyDefault3'),
+      ],
+      comment_reply_text: t('leadMagnet.wizard.commentReplyDefault1'),
+      framework_offer_text: t('leadMagnet.wizard.openingDmDefault'),
+      framework_button_label: DEFAULT_LEAD_MAGNET_FORM.framework_button_label,
+    }));
+  }, [existing, isEdit, t]);
 
   useEffect(() => {
     if (existing) setForm(campaignToForm(existing));
@@ -243,11 +351,22 @@ export function LeadMagnetWizardPage() {
         return t('leadMagnet.wizard.validation.fbPostRequired');
       }
     }
-    if (stepIndex === 2 && !form.keyword.trim()) {
-      return t('leadMagnet.wizard.validation.keywordRequired');
+    if (stepIndex === 2) {
+      if (!form.keyword.trim()) return t('leadMagnet.wizard.validation.keywordRequired');
+      if (form.comment_reply_enabled) {
+        if (filledCommentReplyTexts(form.comment_reply_texts).length === 0) {
+          return t('leadMagnet.wizard.validation.commentReplyRequired');
+        }
+        if (hasDuplicateCommentReplies(form.comment_reply_texts)) {
+          return t('leadMagnet.wizard.validation.commentReplyDuplicate');
+        }
+      }
+    }
+    if (stepIndex === 3) {
+      return validateEmailCollectionStep(form, t);
     }
     if (stepIndex === 4) {
-      return validateContactGateStep(form, orgHasWhatsApp);
+      return validateWhatsAppDeliveryStep(form, orgHasWhatsApp, t);
     }
     if (stepIndex === 5) {
       const deliveryErr = validateLeadMagnetDeliveryForm(form);
@@ -332,7 +451,7 @@ export function LeadMagnetWizardPage() {
   };
 
   const next = async () => {
-    if (step === STEPS.length - 1) {
+    if (step === STEP_CONFIG.length - 1) {
       await handlePublish();
       return;
     }
@@ -341,7 +460,7 @@ export function LeadMagnetWizardPage() {
       toast.error(err);
       return;
     }
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    setStep((s) => Math.min(s + 1, STEP_CONFIG.length - 1));
   };
 
   const accountLabelById = useMemo(() => {
@@ -350,218 +469,290 @@ export function LeadMagnetWizardPage() {
     return map;
   }, [igAccounts, fbAccounts]);
 
+  const previewAccount = useMemo(() => {
+    const ig = igAccountId
+      ? igAccounts.find((a) => a.id === igAccountId)
+      : undefined;
+    if (ig) {
+      return { label: ig.label, avatarUrl: ig.avatarUrl };
+    }
+    const fb = fbAccountId
+      ? fbAccounts.find((a) => a.id === fbAccountId)
+      : undefined;
+    if (fb) {
+      return { label: fb.label, avatarUrl: fb.avatarUrl };
+    }
+    return { label: 'brand', avatarUrl: null as string | null };
+  }, [igAccountId, fbAccountId, igAccounts, fbAccounts]);
+
   if (isEdit && loadingExisting) {
     return null;
   }
 
   return (
     <LeadMagnetPageShell>
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col gap-3">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-3 xl:max-w-7xl">
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate(LEAD_MAGNET_PATHS.list)}>
             <ArrowLeft className="mr-1 h-4 w-4" />
             {t('leadMagnet.wizard.back')}
           </Button>
           <div className="flex min-w-0 flex-1 flex-wrap gap-1">
-            {STEPS.map((label, i) => (
-              <BadgeStep key={label} active={i === step} done={i < step} label={label} />
+            {STEP_CONFIG.map((stepConfig, i) => (
+              <BadgeStep
+                key={stepConfig.labelKey}
+                active={i === step}
+                done={i < step}
+                label={t(stepConfig.labelKey)}
+              />
             ))}
           </div>
         </div>
 
+        <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div
+            className={cn(
+              'scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+              step === 1
+                ? 'flex flex-col overflow-hidden'
+                : 'overflow-y-auto',
+            )}
+          >
               {step === 0 && (
-                <div className="space-y-5">
-                  <WizardInputField
-                    label={t('leadMagnet.wizard.campaignName')}
-                    value={form.name}
-                    onChange={(v) => patch({ name: v })}
-                  />
+                <div className="min-h-full rounded-lg bg-[#F5F5F5] p-4">
+                  <div className="space-y-5">
+                      <WizardInputField
+                        label={t('leadMagnet.wizard.campaignName')}
+                        value={form.name}
+                        onChange={(v) => patch({ name: v })}
+                        placeholder={t('leadMagnet.wizard.campaignNamePlaceholder')}
+                      />
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="target_market">{t('leadMagnet.wizard.targetMarket')}</Label>
-                    <Input
-                      id="target_market"
-                      value={form.target_market}
-                      onChange={(e) => patch({ target_market: e.target.value.slice(0, 120) })}
-                      placeholder={t('leadMagnet.wizard.targetMarketPlaceholder')}
-                      maxLength={120}
-                    />
-                    <p className="text-xs text-muted-foreground">{t('leadMagnet.wizard.targetMarketHint')}</p>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="target_market">{t('leadMagnet.wizard.targetMarket')}</Label>
+                        <Input
+                          id="target_market"
+                          value={form.target_market}
+                          onChange={(e) => patch({ target_market: e.target.value.slice(0, 120) })}
+                          placeholder={t('leadMagnet.wizard.targetMarketPlaceholder')}
+                          maxLength={120}
+                        />
+                        <p className="text-xs text-muted-foreground">{t('leadMagnet.wizard.targetMarketHint')}</p>
+                      </div>
+
+                      <PlatformAccountSection
+                        platform="instagram"
+                        title={t('leadMagnet.wizard.platformInstagram')}
+                        enabled={igEnabled}
+                        accountId={igAccountId}
+                        accounts={igAccounts}
+                        loading={loadingAccounts}
+                        settingsPath={instagramSettingsPath}
+                        emptyHint={t('leadMagnet.wizard.emptyInstagramAccounts')}
+                        scopeHint={t('leadMagnet.wizard.scopeWarning')}
+                        onEnabledChange={(checked) => setPlatformEnabled('instagram', checked)}
+                        onAccountChange={(id) => setPlatformAccount('instagram', id)}
+                      />
+
+                      <PlatformAccountSection
+                        platform="facebook"
+                        title={t('leadMagnet.wizard.platformFacebook')}
+                        enabled={fbEnabled}
+                        accountId={fbAccountId}
+                        accounts={fbAccounts}
+                        loading={loadingAccounts}
+                        settingsPath={facebookSettingsPath}
+                        emptyHint={t('leadMagnet.wizard.emptyFacebookAccounts')}
+                        scopeHint={t('leadMagnet.wizard.scopeWarning')}
+                        onEnabledChange={(checked) => setPlatformEnabled('facebook', checked)}
+                        onAccountChange={(id) => setPlatformAccount('facebook', id)}
+                      />
+
+                      <p className="text-xs text-muted-foreground">{t('leadMagnet.wizard.platformHint')}</p>
+                    </div>
                   </div>
-
-                  <PlatformAccountSection
-                    platform="instagram"
-                    title={t('leadMagnet.wizard.platformInstagram')}
-                    enabled={igEnabled}
-                    accountId={igAccountId}
-                    accounts={igAccounts}
-                    loading={loadingAccounts}
-                    settingsPath={instagramSettingsPath}
-                    emptyHint={t('leadMagnet.wizard.emptyInstagramAccounts')}
-                    scopeHint={t('leadMagnet.wizard.scopeWarning')}
-                    onEnabledChange={(checked) => setPlatformEnabled('instagram', checked)}
-                    onAccountChange={(id) => setPlatformAccount('instagram', id)}
-                  />
-
-                  <PlatformAccountSection
-                    platform="facebook"
-                    title={t('leadMagnet.wizard.platformFacebook')}
-                    enabled={fbEnabled}
-                    accountId={fbAccountId}
-                    accounts={fbAccounts}
-                    loading={loadingAccounts}
-                    settingsPath={facebookSettingsPath}
-                    emptyHint={t('leadMagnet.wizard.emptyFacebookAccounts')}
-                    scopeHint={t('leadMagnet.wizard.scopeWarning')}
-                    onEnabledChange={(checked) => setPlatformEnabled('facebook', checked)}
-                    onAccountChange={(id) => setPlatformAccount('facebook', id)}
-                  />
-
-                  <p className="text-xs text-muted-foreground">{t('leadMagnet.wizard.platformHint')}</p>
-                </div>
               )}
 
               {step === 1 && (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
+                <div className="flex min-h-0 flex-1 flex-col gap-3">
+                  <p className="shrink-0 text-sm text-muted-foreground">
                     {t('leadMagnet.wizard.postStepHint', { count: form.posts.length })}
                   </p>
-                  {!igEnabled && !fbEnabled ? (
-                    <p className="text-sm text-amber-600">{t('leadMagnet.wizard.selectPlatformFirst')}</p>
-                  ) : igEnabled && fbEnabled ? (
-                    <Tabs defaultValue="instagram">
-                      <TabsList className="mb-2">
-                        <TabsTrigger value="instagram">
-                          Instagram ({countPostsForPlatform(form.posts, 'instagram')})
-                        </TabsTrigger>
-                        <TabsTrigger value="facebook">
-                          Facebook ({countPostsForPlatform(form.posts, 'facebook')})
-                        </TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="instagram">
+                  <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-[#F5F5F5] p-3">
+                    {!igEnabled && !fbEnabled ? (
+                      <p className="text-sm text-amber-600">{t('leadMagnet.wizard.selectPlatformFirst')}</p>
+                    ) : igEnabled && fbEnabled ? (
+                      <Tabs defaultValue="instagram" className="flex min-h-0 flex-1 flex-col">
+                        <TabsList className="mb-2 shrink-0 bg-background">
+                          <TabsTrigger value="instagram">
+                            {t('leadMagnet.wizard.tabInstagram', {
+                              count: countPostsForPlatform(form.posts, 'instagram'),
+                            })}
+                          </TabsTrigger>
+                          <TabsTrigger value="facebook">
+                            {t('leadMagnet.wizard.tabFacebook', {
+                              count: countPostsForPlatform(form.posts, 'facebook'),
+                            })}
+                          </TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="instagram" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
+                          <PostPicker
+                            platform="instagram"
+                            accountId={igAccountId}
+                            posts={igMediaPosts}
+                            loading={loadingIgPosts}
+                            selected={form.posts}
+                            onToggle={togglePost}
+                            selectAccountHint={t('leadMagnet.wizard.selectIgAccountFirst')}
+                          />
+                        </TabsContent>
+                        <TabsContent value="facebook" className="mt-0 min-h-0 flex-1 overflow-hidden focus-visible:outline-none">
+                          <PostPicker
+                            platform="facebook"
+                            accountId={fbAccountId}
+                            posts={fbMediaPosts}
+                            loading={loadingFbPosts}
+                            selected={form.posts}
+                            onToggle={togglePost}
+                            selectAccountHint={t('leadMagnet.wizard.selectFbAccountFirst')}
+                          />
+                        </TabsContent>
+                      </Tabs>
+                    ) : (
+                      <div className="min-h-0 flex-1">
                         <PostPicker
-                          platform="instagram"
-                          accountId={igAccountId}
-                          posts={igMediaPosts}
-                          loading={loadingIgPosts}
+                          platform={igEnabled ? 'instagram' : 'facebook'}
+                          accountId={igEnabled ? igAccountId : fbAccountId}
+                          posts={igEnabled ? igMediaPosts : fbMediaPosts}
+                          loading={igEnabled ? loadingIgPosts : loadingFbPosts}
                           selected={form.posts}
                           onToggle={togglePost}
-                          selectAccountHint={t('leadMagnet.wizard.selectIgAccountFirst')}
+                          selectAccountHint={
+                            igEnabled
+                              ? t('leadMagnet.wizard.selectIgAccountFirst')
+                              : t('leadMagnet.wizard.selectFbAccountFirst')
+                          }
                         />
-                      </TabsContent>
-                      <TabsContent value="facebook">
-                        <PostPicker
-                          platform="facebook"
-                          accountId={fbAccountId}
-                          posts={fbMediaPosts}
-                          loading={loadingFbPosts}
-                          selected={form.posts}
-                          onToggle={togglePost}
-                          selectAccountHint={t('leadMagnet.wizard.selectFbAccountFirst')}
-                        />
-                      </TabsContent>
-                    </Tabs>
-                  ) : (
-                    <PostPicker
-                      platform={igEnabled ? 'instagram' : 'facebook'}
-                      accountId={igEnabled ? igAccountId : fbAccountId}
-                      posts={igEnabled ? igMediaPosts : fbMediaPosts}
-                      loading={igEnabled ? loadingIgPosts : loadingFbPosts}
-                      selected={form.posts}
-                      onToggle={togglePost}
-                      selectAccountHint={
-                        igEnabled
-                          ? t('leadMagnet.wizard.selectIgAccountFirst')
-                          : t('leadMagnet.wizard.selectFbAccountFirst')
-                      }
-                    />
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
               {step === 2 && (
-                <div className="space-y-1.5">
-                  <WizardInputField
-                    label={t('leadMagnet.wizard.keywordLabel')}
-                    value={form.keyword}
-                    onChange={(v) => patch({ keyword: v })}
-                    placeholder={t('leadMagnet.wizard.keywordPlaceholder')}
-                    hint={t('leadMagnet.wizard.keywordHint')}
-                  />
+                <div className="min-h-full rounded-lg bg-[#F5F5F5] p-4">
+                  <div className="space-y-5">
+                    <WizardInputField
+                      label={t('leadMagnet.wizard.keywordLabel')}
+                      value={form.keyword}
+                      onChange={(v) => patch({ keyword: v })}
+                      placeholder={t('leadMagnet.wizard.keywordPlaceholder')}
+                      hint={t('leadMagnet.wizard.keywordHint')}
+                    />
+                    <LeadMagnetCommentReplyVariantsStep
+                      enabled={form.comment_reply_enabled}
+                      texts={form.comment_reply_texts}
+                      onChange={patch}
+                    />
+                  </div>
                 </div>
               )}
 
               {step === 3 && (
-                <div className="space-y-5">
-                  <MessageField
-                    label={t('leadMagnet.wizard.commentReply')}
-                    value={form.comment_reply_text}
-                    onChange={(v) => patch({ comment_reply_text: v })}
-                  />
+                <div className="min-h-full rounded-lg bg-[#F5F5F5] p-4">
+                  <div className="space-y-5">
+                    <WizardFieldSection title={t('leadMagnet.wizard.frameworkOffer')}>
+                      <WizardSkipOption
+                        id="enable-opening-dm"
+                        checked={!form.skip_material_offer}
+                        onCheckedChange={(enabled) => patch({ skip_material_offer: !enabled })}
+                        label={t('leadMagnet.wizard.enableOpeningDm')}
+                        info={t('leadMagnet.wizard.enableOpeningDmHint')}
+                      />
+                      {!form.skip_material_offer ? (
+                        <div className="space-y-3">
+                          <MessageField
+                            label={t('leadMagnet.wizard.frameworkOffer')}
+                            value={form.framework_offer_text}
+                            onChange={(v) => patch({ framework_offer_text: v })}
+                            hint={t('leadMagnet.wizard.openingDmHint')}
+                            hideLabel
+                          />
+                          <WizardButtonLabelField
+                            variant="offer"
+                            label={t('leadMagnet.wizard.frameworkButtonLabel')}
+                            value={form.framework_button_label}
+                            onChange={(v) => patch({ framework_button_label: v })}
+                          />
+                        </div>
+                      ) : null}
+                    </WizardFieldSection>
 
-                  <WizardFieldSection title={t('leadMagnet.wizard.followGate')}>
-                    <WizardSkipOption
-                      id="skip-follow-gate"
-                      checked={form.skip_follow_gate_if_follower}
-                      onCheckedChange={(checked) => patch({ skip_follow_gate_if_follower: checked })}
-                      label={t('leadMagnet.wizard.skipFollowGate')}
-                      info={t('leadMagnet.wizard.skipFollowGateHint')}
-                    />
-                    <div
-                      className={
-                        form.skip_follow_gate_if_follower
-                          ? 'pointer-events-none space-y-3 opacity-50'
-                          : 'space-y-3'
-                      }
-                    >
-                      <MessageField
-                        label={t('leadMagnet.wizard.followGate')}
-                        value={form.follow_gate_text}
-                        onChange={(v) => patch({ follow_gate_text: v })}
-                        hideLabel
+                    <WizardFieldSection title={t('leadMagnet.wizard.followGate')}>
+                      <WizardSkipOption
+                        id="enable-follow-gate"
+                        checked={!form.skip_follow_gate_if_follower}
+                        onCheckedChange={(enabled) => patch({ skip_follow_gate_if_follower: !enabled })}
+                        label={t('leadMagnet.wizard.enableFollowGate')}
+                        info={t('leadMagnet.wizard.enableFollowGateHint')}
                       />
-                      <WizardButtonLabelField
-                        variant="follow"
-                        label={t('leadMagnet.wizard.followButtonLabel')}
-                        value={form.follow_button_label}
-                        onChange={(v) => patch({ follow_button_label: v })}
-                      />
-                    </div>
-                  </WizardFieldSection>
+                      {!form.skip_follow_gate_if_follower ? (
+                        <div className="space-y-3">
+                          <MessageField
+                            label={t('leadMagnet.wizard.followGate')}
+                            value={form.follow_gate_text}
+                            onChange={(v) => patch({ follow_gate_text: v })}
+                            hideLabel
+                          />
+                          <WizardButtonLabelField
+                            variant="follow"
+                            label={t('leadMagnet.wizard.followButtonLabel')}
+                            value={form.follow_button_label}
+                            onChange={(v) => patch({ follow_button_label: v })}
+                          />
+                        </div>
+                      ) : null}
+                    </WizardFieldSection>
 
-                  <WizardFieldSection title={t('leadMagnet.wizard.frameworkOffer')}>
-                    <WizardSkipOption
-                      id="skip-material-offer"
-                      checked={form.skip_material_offer}
-                      onCheckedChange={(checked) => patch({ skip_material_offer: checked })}
-                      label={t('leadMagnet.wizard.skipMaterialOffer')}
-                      info={t('leadMagnet.wizard.skipMaterialOfferHint')}
-                      disabled={form.contact_gate_enabled}
-                    />
-                    <div
-                      className={
-                        form.skip_material_offer || form.contact_gate_enabled
-                          ? 'pointer-events-none space-y-3 opacity-50'
-                          : 'space-y-3'
-                      }
-                    >
-                      <MessageField
-                        label={t('leadMagnet.wizard.frameworkOffer')}
-                        value={form.framework_offer_text}
-                        onChange={(v) => patch({ framework_offer_text: v })}
-                        hint={t('leadMagnet.wizard.usernameHint')}
-                        hideLabel
+                    <WizardFieldSection title={t('leadMagnet.wizard.emailCollection')}>
+                      <WizardSkipOption
+                        id="enable-email-collection"
+                        checked={form.email_collection_enabled}
+                        onCheckedChange={(enabled) => {
+                          if (!enabled) {
+                            patch({ email_collection_enabled: false });
+                            return;
+                          }
+                          const emailCopy = normalizeEmailCollectionCopy(
+                            form.contact_prompt_text,
+                            form.contact_invalid_text,
+                          );
+                          patch({
+                            email_collection_enabled: true,
+                            contact_prompt_text: emailCopy.contact_prompt_text,
+                            contact_invalid_text: emailCopy.contact_invalid_text,
+                          });
+                        }}
+                        label={t('leadMagnet.wizard.enableEmailCollection')}
+                        info={t('leadMagnet.wizard.enableEmailCollectionHint')}
                       />
-                      <WizardButtonLabelField
-                        variant="offer"
-                        label={t('leadMagnet.wizard.frameworkButtonLabel')}
-                        value={form.framework_button_label}
-                        onChange={(v) => patch({ framework_button_label: v })}
-                      />
-                    </div>
-                  </WizardFieldSection>
+                      {form.email_collection_enabled ? (
+                        <div className="space-y-3">
+                          <MessageField
+                            label={t('leadMagnet.wizard.emailPromptLabel')}
+                            value={form.contact_prompt_text}
+                            onChange={(v) => patch({ contact_prompt_text: v })}
+                          />
+                          <MessageField
+                            label={t('leadMagnet.wizard.emailInvalidLabel')}
+                            value={form.contact_invalid_text}
+                            onChange={(v) => patch({ contact_invalid_text: v })}
+                          />
+                        </div>
+                      ) : null}
+                    </WizardFieldSection>
+                  </div>
                 </div>
               )}
 
@@ -570,74 +761,156 @@ export function LeadMagnetWizardPage() {
               )}
 
               {step === 5 && (
-                <div className="space-y-5">
-                  <MessageField
-                    label={t('leadMagnet.wizard.deliveryMessage')}
-                    value={form.delivery_text}
-                    onChange={(v) => patch({ delivery_text: v })}
-                  />
-                  <WizardButtonLabelField
-                    variant="delivery"
-                    label={t('leadMagnet.wizard.deliveryButtonLabel')}
-                    value={form.delivery_button_label}
-                    onChange={(v) => patch({ delivery_button_label: v })}
-                  />
-                  <LeadMagnetDeliveryStep
-                    form={form}
-                    onPatch={patch}
-                    organizationId={organizationId}
-                    campaignId={effectiveCampaignId}
-                    ensureCampaignId={saveDraft}
-                    onPersistAfterUpload={persistFormSnapshot}
-                  />
+                <div className="min-h-full rounded-lg bg-[#F5F5F5] p-4">
+                  <div className="space-y-5">
+                    <div className="space-y-3 rounded-lg border border-border/60 bg-background p-4 shadow-sm">
+                      <MessageField
+                        label={t('leadMagnet.wizard.deliveryMessage')}
+                        value={form.delivery_text}
+                        onChange={(v) => patch({ delivery_text: v })}
+                      />
+                    </div>
+                    <LeadMagnetDeliveryLinksStep
+                      form={form}
+                      onPatch={patch}
+                      organizationId={organizationId}
+                      campaignId={effectiveCampaignId}
+                      ensureCampaignId={saveDraft}
+                      onPersistAfterUpload={persistFormSnapshot}
+                    />
+                  </div>
                 </div>
               )}
 
               {step === 6 && (
-                <div className="space-y-2 text-sm">
-                  <p>
-                    <strong>{form.name}</strong> · keyword <code>{form.keyword}</code>
-                  </p>
-                  <p className="text-muted-foreground">
-                    {t('leadMagnet.wizard.targetMarket')}: {form.target_market.trim() || '—'}
-                  </p>
-                  <ul className="list-inside list-disc text-muted-foreground">
-                    {igEnabled ? (
-                      <li>
-                        Instagram: {accountLabelById.get(igAccountId) ?? igAccountId} ·{' '}
-                        {countPostsForPlatform(form.posts, 'instagram')} post
-                      </li>
-                    ) : null}
-                    {fbEnabled ? (
-                      <li>
-                        Facebook: {accountLabelById.get(fbAccountId) ?? fbAccountId} ·{' '}
-                        {countPostsForPlatform(form.posts, 'facebook')} post
-                      </li>
-                    ) : null}
-                  </ul>
-                  <p className="text-muted-foreground">
-                    Contact Gate: {form.contact_gate_enabled ? 'ON' : 'OFF'}
-                    {form.contact_gate_enabled && form.whatsapp_template_name
-                      ? ` · WA template: ${form.whatsapp_template_name}`
-                      : ''}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {t('leadMagnet.wizard.reviewSkipMaterialOffer', {
-                      enabled: form.skip_material_offer
-                        ? t('leadMagnet.wizard.reviewOn')
-                        : t('leadMagnet.wizard.reviewOff'),
-                    })}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {form.delivery_mode === 'upload'
-                      ? t('leadMagnet.wizard.reviewDeliveryUpload', {
-                          file: form.delivery_file_name ?? '—',
-                        })
-                      : t('leadMagnet.wizard.reviewDeliveryLink', {
-                          url: form.delivery_url || '—',
-                        })}
-                  </p>
-                  <p className="text-muted-foreground">{t('leadMagnet.wizard.reviewPublishHint')}</p>
+                <div className="min-h-full rounded-lg bg-[#F5F5F5] p-4">
+                  <div className="space-y-4">
+                    <section className="rounded-lg border border-border/60 bg-background p-4 shadow-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t('leadMagnet.wizard.reviewSectionCampaign')}
+                      </p>
+                      <h3 className="mt-1 truncate text-base font-semibold text-foreground">
+                        {form.name.trim() || '—'}
+                      </h3>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <ReviewMetaRow
+                          label={t('leadMagnet.wizard.reviewKeyword')}
+                          value={form.keyword.trim() || '—'}
+                          mono
+                        />
+                        <ReviewMetaRow
+                          label={t('leadMagnet.wizard.targetMarket')}
+                          value={form.target_market.trim() || '—'}
+                        />
+                      </div>
+                    </section>
+
+                    <section className="rounded-lg border border-border/60 bg-background p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t('leadMagnet.wizard.reviewSectionPlatforms')}
+                      </p>
+                      <ul className="space-y-2">
+                        {igEnabled ? (
+                          <li className="flex items-start justify-between gap-3 rounded-md border border-border/50 bg-muted/30 px-3 py-2.5 text-sm">
+                            <span className="font-medium text-foreground">Instagram</span>
+                            <span className="text-right text-muted-foreground">
+                              {accountLabelById.get(igAccountId) ?? igAccountId}
+                              <span className="mt-0.5 block text-xs">
+                                {t('leadMagnet.wizard.reviewPostsCount', {
+                                  count: countPostsForPlatform(form.posts, 'instagram'),
+                                })}
+                              </span>
+                            </span>
+                          </li>
+                        ) : null}
+                        {fbEnabled ? (
+                          <li className="flex items-start justify-between gap-3 rounded-md border border-border/50 bg-muted/30 px-3 py-2.5 text-sm">
+                            <span className="font-medium text-foreground">Facebook</span>
+                            <span className="text-right text-muted-foreground">
+                              {accountLabelById.get(fbAccountId) ?? fbAccountId}
+                              <span className="mt-0.5 block text-xs">
+                                {t('leadMagnet.wizard.reviewPostsCount', {
+                                  count: countPostsForPlatform(form.posts, 'facebook'),
+                                })}
+                              </span>
+                            </span>
+                          </li>
+                        ) : null}
+                        {!igEnabled && !fbEnabled ? (
+                          <li className="text-sm text-muted-foreground">—</li>
+                        ) : null}
+                      </ul>
+                    </section>
+
+                    <section className="rounded-lg border border-border/60 bg-background p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t('leadMagnet.wizard.reviewSectionFlow')}
+                      </p>
+                      <ul className="divide-y divide-border/60">
+                        <ReviewToggleRow
+                          label={t('leadMagnet.wizard.enableOpeningDm')}
+                          on={!form.skip_material_offer}
+                          onLabel={t('leadMagnet.wizard.reviewOn')}
+                          offLabel={t('leadMagnet.wizard.reviewOff')}
+                        />
+                        <ReviewToggleRow
+                          label={t('leadMagnet.wizard.enableFollowGate')}
+                          on={!form.skip_follow_gate_if_follower}
+                          onLabel={t('leadMagnet.wizard.reviewOn')}
+                          offLabel={t('leadMagnet.wizard.reviewOff')}
+                        />
+                        <ReviewToggleRow
+                          label={t('leadMagnet.wizard.enableEmailCollection')}
+                          on={form.email_collection_enabled}
+                          onLabel={t('leadMagnet.wizard.reviewOn')}
+                          offLabel={t('leadMagnet.wizard.reviewOff')}
+                        />
+                        <ReviewToggleRow
+                          label={t('leadMagnet.wizard.reviewWhatsAppDeliveryLabel')}
+                          on={form.contact_gate_enabled}
+                          onLabel={t('leadMagnet.wizard.reviewContactGateOn')}
+                          offLabel={t('leadMagnet.wizard.reviewContactGateOff')}
+                          detail={
+                            form.contact_gate_enabled && form.whatsapp_template_name
+                              ? form.whatsapp_template_name
+                              : undefined
+                          }
+                        />
+                      </ul>
+                    </section>
+
+                    <section className="rounded-lg border border-border/60 bg-background p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t('leadMagnet.wizard.reviewSectionDelivery')}
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        <ReviewMetaRow
+                          label={t('leadMagnet.wizard.deliveryMessage')}
+                          value={form.delivery_text.trim() || '—'}
+                        />
+                        <ReviewMetaRow
+                          label={t('leadMagnet.wizard.dmWithLink')}
+                          value={t('leadMagnet.wizard.reviewDeliveryLinks', {
+                            count: form.delivery_links?.length || (form.delivery_url ? 1 : 0),
+                            first:
+                              form.delivery_links?.[0]?.label
+                              || form.delivery_button_label
+                              || '—',
+                          })}
+                        />
+                        {form.delivery_mode === 'upload' && form.delivery_file_name ? (
+                          <ReviewMetaRow
+                            label={t('leadMagnet.wizard.deliveryModeUpload')}
+                            value={form.delivery_file_name}
+                          />
+                        ) : null}
+                      </div>
+                    </section>
+
+                    <p className="rounded-md border border-sky-200/80 bg-sky-50 px-3 py-2 text-xs leading-snug text-sky-900">
+                      {t('leadMagnet.wizard.reviewPublishHint')}
+                    </p>
+                  </div>
                 </div>
               )}
           </div>
@@ -655,11 +928,22 @@ export function LeadMagnetWizardPage() {
                 {t('leadMagnet.wizard.saveDraft')}
               </Button>
               <Button onClick={next} disabled={publishMut.isPending || createMut.isPending}>
-                {step === STEPS.length - 1 ? t('leadMagnet.wizard.publish') : t('leadMagnet.wizard.next')}
-                {step < STEPS.length - 1 ? <ArrowRight className="ml-1 h-4 w-4" /> : null}
+                {step === STEP_CONFIG.length - 1 ? t('leadMagnet.wizard.publish') : t('leadMagnet.wizard.next')}
+                {step < STEP_CONFIG.length - 1 ? <ArrowRight className="ml-1 h-4 w-4" /> : null}
               </Button>
             </div>
           </div>
+        </div>
+
+        <aside className="hidden min-h-0 self-start xl:block">
+          <div className="sticky top-4 overflow-hidden">
+            <LeadMagnetPhonePreview
+              form={form}
+              accountLabel={previewAccount.label}
+              accountAvatarUrl={previewAccount.avatarUrl}
+            />
+          </div>
+        </aside>
         </div>
 
         <div
@@ -696,18 +980,19 @@ function PlatformAccountSection({
   onEnabledChange: (checked: boolean) => void;
   onAccountChange: (accountId: string) => void;
 }) {
+  const { t } = useTranslation();
   const toggleId = `lead-magnet-platform-${platform}`;
   return (
-    <div className="space-y-3 rounded-md border p-3">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <Checkbox
-          id={toggleId}
-          checked={enabled}
-          onCheckedChange={(c) => onEnabledChange(c === true)}
-        />
-        <label htmlFor={toggleId} className="cursor-pointer select-none">
+    <div className="space-y-3 rounded-md border border-border/60 bg-background p-3 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor={toggleId} className="cursor-pointer select-none text-sm font-medium">
           {title}
         </label>
+        <Switch
+          id={toggleId}
+          checked={enabled}
+          onCheckedChange={onEnabledChange}
+        />
       </div>
       {enabled ? (
         loading ? (
@@ -716,15 +1001,15 @@ function PlatformAccountSection({
           <p className="text-sm text-muted-foreground">
             {emptyHint}{' '}
             <Link to={settingsPath} className="text-primary underline">
-              Settings
+              {t('settings.page.title')}
             </Link>
           </p>
         ) : (
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Akun</Label>
+            <Label className="text-xs text-muted-foreground">{t('leadMagnet.wizard.accountLabel')}</Label>
             <Select value={accountId || undefined} onValueChange={onAccountChange}>
               <SelectTrigger>
-                <SelectValue placeholder="Pilih akun" />
+                <SelectValue placeholder={t('leadMagnet.wizard.selectAccount')} />
               </SelectTrigger>
               <SelectContent>
                 {accounts.map((o) => (
@@ -765,22 +1050,23 @@ function PostPicker({
   ) => void;
   selectAccountHint: string;
 }) {
+  const { t } = useTranslation();
   if (!accountId) {
     return <p className="text-sm text-amber-600">{selectAccountHint}</p>;
   }
   if (loading) return <Loader2 className="h-5 w-5 animate-spin" />;
   if (posts.length === 0) {
-    return <p className="text-sm text-muted-foreground">Tidak ada post ditemukan untuk akun ini.</p>;
+    return <p className="text-sm text-muted-foreground">{t('leadMagnet.wizard.noPostsForAccount')}</p>;
   }
   return (
-    <div className="max-h-96 space-y-2 overflow-y-auto">
+    <div className="h-full min-h-0 space-y-2 overflow-y-auto">
       {posts.map((p) => {
         const checked = selected.some((x) => x.platform === platform && x.media_id === p.media_id);
         const thumbUrl = (p.thumbnail_url ?? p.media_url)?.trim() || null;
         return (
           <label
             key={p.media_id}
-            className="flex cursor-pointer items-start gap-3 rounded border p-2 hover:bg-muted/40"
+            className="flex cursor-pointer items-start gap-3 rounded-md border border-border/60 bg-background p-2 shadow-sm transition hover:border-border"
           >
             <Checkbox
               className="mt-1 shrink-0"
@@ -796,7 +1082,7 @@ function PostPicker({
             <PostThumbnail url={thumbUrl} mediaType={p.media_type} alt={p.caption ?? p.media_id} />
             <div className="min-w-0 flex-1 text-sm">
               <p className="font-mono text-xs text-muted-foreground">{p.media_id}</p>
-              <p className="line-clamp-2">{p.caption || '(tanpa caption)'}</p>
+              <p className="line-clamp-2">{p.caption || t('leadMagnet.wizard.noCaption')}</p>
               {p.timestamp ? (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {new Date(p.timestamp).toLocaleDateString()}
@@ -868,10 +1154,69 @@ function WizardFieldSection({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-3 rounded-md border border-border/50 bg-muted/15 p-3">
+    <section className="space-y-3 rounded-lg border border-border/60 bg-background p-4 shadow-sm">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
       <div className="space-y-3">{children}</div>
     </section>
+  );
+}
+
+function ReviewMetaRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'mt-0.5 break-words text-sm text-foreground',
+          mono && 'rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[13px]',
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ReviewToggleRow({
+  label,
+  on,
+  onLabel,
+  offLabel,
+  detail,
+}: {
+  label: string;
+  on: boolean;
+  onLabel: string;
+  offLabel: string;
+  detail?: string;
+}) {
+  return (
+    <li className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <p className="text-sm text-foreground">{label}</p>
+        {detail ? (
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{detail}</p>
+        ) : null}
+      </div>
+      <span
+        className={cn(
+          'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
+          on
+            ? 'bg-emerald-100 text-emerald-800'
+            : 'bg-muted text-muted-foreground',
+        )}
+      >
+        {on ? onLabel : offLabel}
+      </span>
+    </li>
   );
 }
 
@@ -891,32 +1236,34 @@ function WizardSkipOption({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2">
-      <Checkbox
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-muted/20 px-3 py-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer text-sm leading-tight">
+          {label}
+        </label>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground"
+                aria-label={info}
+              >
+                <CircleHelp className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-xs leading-snug">
+              {info}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+      <Switch
         id={id}
         checked={checked}
         disabled={disabled}
-        onCheckedChange={(c) => onCheckedChange(c === true)}
+        onCheckedChange={onCheckedChange}
       />
-      <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer text-sm leading-tight">
-        {label}
-      </label>
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground"
-              aria-label={info}
-            >
-              <CircleHelp className="h-3.5 w-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs text-xs leading-snug">
-            {info}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
     </div>
   );
 }
@@ -990,7 +1337,9 @@ function WizardButtonLabelField({
   return (
     <div className={cn('rounded-lg border px-3 py-2.5', styles.shell)}>
       <div className="mb-2 flex items-center gap-2">
-        <Label className={cn('text-xs font-semibold uppercase tracking-wide', styles.label)}>{label}</Label>
+        <Label className={cn('min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide', styles.label)}>
+          {label}
+        </Label>
         <span
           className={cn(
             'rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset',
@@ -999,6 +1348,22 @@ function WizardButtonLabelField({
         >
           {t('leadMagnet.wizard.buttonBadge')}
         </span>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground"
+                aria-label={t('leadMagnet.wizard.buttonLabelHint')}
+              >
+                <CircleHelp className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs text-xs leading-snug">
+              {t('leadMagnet.wizard.buttonLabelHint')}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <Input
         value={value}
@@ -1007,7 +1372,6 @@ function WizardButtonLabelField({
         aria-label={label}
         className={styles.input}
       />
-      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{t('leadMagnet.wizard.buttonLabelHint')}</p>
     </div>
   );
 }

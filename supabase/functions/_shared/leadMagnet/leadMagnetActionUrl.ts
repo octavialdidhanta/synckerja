@@ -150,18 +150,23 @@ export function buildDownloadLandingHtml(body: DownloadLandingBody): string {
 </html>`;
 }
 
-export async function buildLeadMagnetDownloadUrl(enrollmentId: string): Promise<string> {
+export async function buildLeadMagnetDownloadUrl(
+  enrollmentId: string,
+  linkIndex = 0,
+): Promise<string> {
   const secret = actionSecret();
   if (!secret) throw new Error("Missing action signing secret");
 
+  const i = Math.max(0, Math.min(2, Math.floor(Number(linkIndex) || 0)));
   const expiry = String(Date.now() + ACTION_TTL_MS);
-  const canonical = `${enrollmentId}:download:${expiry}`;
+  const canonical = `${enrollmentId}:download:${i}:${expiry}`;
   const sig = await hmacSha256Hex(secret, canonical);
   const params = new URLSearchParams({
     e: enrollmentId,
     a: "download",
     t: expiry,
     s: sig,
+    i: String(i),
   });
   // Edge /download → 302 langsung ke file PDF (tidak bergantung deploy SPA office.synckerja.com).
   return `${supabaseFunctionsOrigin()}${leadMagnetDownloadApiPath()}?${params.toString()}`;
@@ -196,6 +201,7 @@ export async function verifyLeadMagnetActionUrl(
   action: LeadMagnetAction,
   expiryRaw: string,
   sigRaw: string,
+  linkIndex?: number,
 ): Promise<boolean> {
   const secret = actionSecret();
   if (!secret) return false;
@@ -205,7 +211,20 @@ export async function verifyLeadMagnetActionUrl(
   if (action !== "follow_confirm" && action !== "get_framework" && action !== "download") return false;
   if (!enrollmentId.trim()) return false;
 
+  const expectedSig = sigRaw.trim();
+  if (action === "download") {
+    const i = Math.max(0, Math.min(2, Math.floor(Number(linkIndex) || 0)));
+    const indexed = await hmacSha256Hex(secret, `${enrollmentId}:download:${i}:${expiryRaw}`);
+    if (indexed === expectedSig) return true;
+    // Legacy single-link signatures (no index in HMAC).
+    if (i === 0) {
+      const legacy = await hmacSha256Hex(secret, `${enrollmentId}:download:${expiryRaw}`);
+      return legacy === expectedSig;
+    }
+    return false;
+  }
+
   const canonical = `${enrollmentId}:${action}:${expiryRaw}`;
   const expected = await hmacSha256Hex(secret, canonical);
-  return expected === sigRaw.trim();
+  return expected === expectedSig;
 }

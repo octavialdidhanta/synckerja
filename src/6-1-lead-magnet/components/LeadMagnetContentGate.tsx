@@ -46,5 +46,5 @@ export function LeadMagnetContentGate({ children, className }: LeadMagnetContent
     );
   }
 
-  return <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}>{children}</div>;
+  return <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}>{children}</div>;
 }

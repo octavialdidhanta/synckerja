@@ -4,7 +4,7 @@ export type LeadMagnetPostbackAction = 'follow_confirm' | 'get_framework' | 'dow
 
 const ACTION_LABELS: Record<LeadMagnetPostbackAction, string> = {
   follow_confirm: 'Sudah Follow',
-  get_framework: 'Ambil Materi',
+  get_framework: 'Kirimkan saya link-nya 😊',
   download: 'Unduh',
 };
 

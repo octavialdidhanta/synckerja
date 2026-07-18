@@ -10,60 +10,73 @@ export type FlowPreviewBranch =
   | { branch: 'follow_gate' }
   | { branch: 'contact'; ask: MissingContactField }
   | { branch: 'deliver_ig' }
-  | { branch: 'deliver_wa' }
-  | { branch: 'deliver_email' };
-
-export function getMissingContactFields(
-  profile: ParticipantProfilePreview,
-): MissingContactField | null {
-  const hasPhone = Boolean(profile.phone_number?.trim());
-  const hasEmail = Boolean(profile.email?.trim());
-  if (hasPhone && hasEmail) return null;
-  if (hasPhone && !hasEmail) return 'email';
-  if (!hasPhone && hasEmail) return 'phone';
-  return 'any';
-}
+  | { branch: 'deliver_wa' };
 
 export function previewFlowBranch(args: {
+  emailCollectionEnabled: boolean;
   contactGateEnabled: boolean;
-  skipFollowGateIfFollower: boolean;
   isFollower: boolean;
   profile: ParticipantProfilePreview;
 }): FlowPreviewBranch {
-  if (!args.contactGateEnabled) return { branch: 'legacy' };
+  if (!args.emailCollectionEnabled && !args.contactGateEnabled) {
+    return { branch: 'legacy' };
+  }
   if (!args.isFollower) return { branch: 'follow_gate' };
-  const missing = getMissingContactFields(args.profile);
-  if (!missing) return { branch: 'deliver_ig' };
-  if (missing === 'any') return { branch: 'contact', ask: 'any' };
-  if (missing === 'email') return { branch: 'contact', ask: 'email' };
-  return { branch: 'contact', ask: 'phone' };
+
+  const hasEmail = Boolean(args.profile.email?.trim());
+  const hasPhone = Boolean(args.profile.phone_number?.trim());
+
+  if (args.emailCollectionEnabled && !hasEmail) {
+    return { branch: 'contact', ask: 'email' };
+  }
+  if (args.contactGateEnabled && hasEmail && !hasPhone) {
+    return { branch: 'contact', ask: 'phone' };
+  }
+  if (args.contactGateEnabled && hasPhone && hasEmail) {
+    return { branch: 'deliver_ig' };
+  }
+  return { branch: 'deliver_ig' };
 }
 
 export const FLOW_PREVIEW_SCENARIOS = [
-  { id: 'new_user', label: 'Pengikut baru (belum ada kontak)', isFollower: true, profile: { phone_number: null, email: null } },
-  { id: 'has_wa', label: 'Sudah punya WA (kampanye berikutnya)', isFollower: true, profile: { phone_number: '628123456789', email: null } },
-  { id: 'has_email', label: 'Sudah punya email', isFollower: true, profile: { phone_number: null, email: 'user@example.com' } },
-  { id: 'complete', label: 'Profil lengkap', isFollower: true, profile: { phone_number: '628123456789', email: 'user@example.com' } },
-  { id: 'non_follower', label: 'Belum follow', isFollower: false, profile: { phone_number: null, email: null } },
+  {
+    id: 'new_user',
+    labelKey: 'leadMagnet.contactGate.previewScenario.newUser',
+    isFollower: true,
+    profile: { phone_number: null, email: null },
+  },
+  {
+    id: 'has_email',
+    labelKey: 'leadMagnet.contactGate.previewScenario.hasEmail',
+    isFollower: true,
+    profile: { phone_number: null, email: 'user@example.com' },
+  },
+  {
+    id: 'complete',
+    labelKey: 'leadMagnet.contactGate.previewScenario.complete',
+    isFollower: true,
+    profile: { phone_number: '628123456789', email: 'user@example.com' },
+  },
+  {
+    id: 'non_follower',
+    labelKey: 'leadMagnet.contactGate.previewScenario.nonFollower',
+    isFollower: false,
+    profile: { phone_number: null, email: null },
+  },
 ] as const;
 
-export function branchLabel(branch: FlowPreviewBranch): string {
+export function branchLabelKey(branch: FlowPreviewBranch): string {
   switch (branch.branch) {
     case 'legacy':
-      return 'Flow lama (Material Offer / Delivery)';
+      return 'leadMagnet.contactGate.previewBranch.legacy';
     case 'follow_gate':
-      return 'Follow gate → kontak → delivery';
+      return 'leadMagnet.contactGate.previewBranch.followGate';
     case 'contact':
-      if (branch.ask === 'any') return 'Minta WA atau email → delivery async';
-      if (branch.ask === 'email') return 'Minta email (kampanye berikutnya) → delivery email';
-      return 'Minta WA saja (kampanye berikutnya) → delivery WhatsApp';
+      if (branch.ask === 'email') return 'leadMagnet.contactGate.previewBranch.contactEmail';
+      return 'leadMagnet.contactGate.previewBranch.contactPhone';
     case 'deliver_ig':
-      return 'Skip kontak → DM IG link (≤3s)';
+      return 'leadMagnet.contactGate.previewBranch.deliverIg';
     case 'deliver_wa':
-      return 'Delivery WhatsApp template';
-    case 'deliver_email':
-      return 'Delivery email Resend';
-    default:
-      return '';
+      return 'leadMagnet.contactGate.previewBranch.deliverWa';
   }
 }

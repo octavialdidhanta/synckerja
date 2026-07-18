@@ -9,7 +9,8 @@ type LeadMagnetPageShellProps = {
 };
 
 /**
- * AppShell child: header ikut scroll lewat scroll container AppShell (tanpa nested scroll / fixed height).
+ * Fill-height shell: content area uses remaining viewport so list footer can stick to
+ * the bottom of the table card (no clipping). AppShell may still scroll if needed.
  */
 export function LeadMagnetPageShell({ children }: LeadMagnetPageShellProps) {
   return (
@@ -22,7 +23,9 @@ export function LeadMagnetPageShell({ children }: LeadMagnetPageShellProps) {
 
           <ModuleShellContentGate pagePath={LEAD_MAGNET_BASE_PATH}>
             <LeadMagnetContentGate>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+              <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
+                {children}
+              </div>
             </LeadMagnetContentGate>
           </ModuleShellContentGate>
         </div>

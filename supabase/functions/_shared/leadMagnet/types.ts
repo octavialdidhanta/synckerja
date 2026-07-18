@@ -58,6 +58,8 @@ export type LeadMagnetCampaignRow = {
   keyword: string;
   status: LeadMagnetCampaignStatus;
   comment_reply_text: string;
+  comment_reply_enabled: boolean;
+  comment_reply_texts: string[];
   follow_gate_text: string;
   follow_button_label: string;
   framework_offer_text: string;
@@ -66,9 +68,11 @@ export type LeadMagnetCampaignRow = {
   delivery_button_label: string;
   delivery_fallback_text: string | null;
   delivery_url: string;
+  delivery_links: Array<{ label: string; url: string }>;
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
   contact_gate_enabled: boolean;
+  email_collection_enabled: boolean;
   contact_prompt_text: string | null;
   contact_invalid_text: string | null;
   contact_ack_text: string | null;
@@ -105,7 +109,21 @@ export type LeadMagnetEnrollmentRow = {
   comment_reply_id?: string | null;
   first_dm_method?: LeadMagnetFirstDmMethod | null;
   follow_confirm_attempts?: number;
+  /** 1 = legacy (follow gate then offer), 2 = opening-first (offer then follow gate). */
+  dm_flow_version?: number;
+  /** When status is awaiting_contact: email (first-time) or phone (returning user WA). */
+  awaiting_contact_kind?: "email" | "phone" | null;
 };
+
+export const LEAD_MAGNET_DM_FLOW_VERSION_LEGACY = 1;
+export const LEAD_MAGNET_DM_FLOW_VERSION_OPENING_FIRST = 2;
+
+export function isOpeningFirstDmFlow(
+  enrollment: Pick<LeadMagnetEnrollmentRow, "dm_flow_version">,
+): boolean {
+  return (enrollment.dm_flow_version ?? LEAD_MAGNET_DM_FLOW_VERSION_LEGACY)
+    === LEAD_MAGNET_DM_FLOW_VERSION_OPENING_FIRST;
+}
 
 export type FollowConfirmResult =
   | { outcome: "already_processed" }
@@ -113,9 +131,16 @@ export type FollowConfirmResult =
   | { outcome: "material_sent" }
   | { outcome: "dm_failed" };
 
+export type OpeningClickResult =
+  | { outcome: "already_processed" }
+  | { outcome: "follow_gate_sent" }
+  | { outcome: "material_sent" }
+  | { outcome: "dm_failed" };
+
 export type LeadMagnetPostbackHandleResult = {
   handled: boolean;
   followConfirm?: FollowConfirmResult;
+  openingClick?: OpeningClickResult;
 };
 
 export type LeadMagnetCommentTriggerInput = {
@@ -197,18 +222,17 @@ export function commentMatchesKeyword(commentText: string, keyword: string): boo
 export const LEAD_MAGNET_DEFAULT_MESSAGES = {
   comment_reply_text: "✅ Sudah kami balas! Cek DM ya 📩",
   follow_gate_text:
-    "Hai {{username}}! Makasih sudah komen 😊\n\nFollow dulu supaya materi masuk inbox, bukan tab Permintaan.\n\nSudah follow? Klik tombol di bawah 👇",
+    "Hai {{username}}! Makasih sudah tertarik 💕\n\nMateri ini khusus buat yang udah follow ya — follow dulu, nanti langsung kami kirim!",
   follow_button_label: "Sudah Follow",
   framework_offer_text:
-    "Hai {{username}}! Klik tombol di bawah untuk download materinya 👇",
-  framework_button_label: "Ambil Materi",
-  delivery_text: "Hai {{username}}, ini materinya. Semoga bermanfaat! 🙏",
-  delivery_button_label: "Unduh",
+    "Hai {{username}}! Makasih sudah tertarik 😊\n\nKlik tombol di bawah, link-nya kami kirim sebentar lagi!",
+  framework_button_label: "Kirimkan saya link-nya 😊",
+  delivery_text: "Hai {{username}}! Klik tombol di bawah ya 👇",
+  delivery_button_label: "Kirim link-nya 😊",
   delivery_fallback_text:
     "Hai {{username}}, WhatsApp kami belum bisa mengirim materi. Unduh langsung di sini ya:",
-  contact_prompt_text:
-    "Hai {{username}},\n\nTerima kasih atas minat Anda pada materi kami.\n\nUntuk mengirimkan file, silakan balas chat ini dengan:\n• Nomor WhatsApp aktif (contoh: 08123456789) — materi dikirim via WhatsApp, atau\n• Alamat email aktif (contoh: nama@perusahaan.com) — materi dikirim ke email Anda.\n\nKami hanya menggunakan kontak ini untuk pengiriman materi yang Anda minta.",
+  contact_prompt_text: "Hai {{username}}! Kirim email kamu ya supaya bisa dapat link-nya 📩",
   contact_invalid_text:
-    "Mohon maaf, format nomor atau email belum dapat kami baca.\n\nSilakan kirim nomor WhatsApp (contoh: 08123456789) atau email (contoh: nama@perusahaan.com).",
+    "Format email belum valid 😅 Kirim email aktif ya (contoh: nama@email.com).",
   contact_ack_text: "Terima kasih {{username}}! Materi sedang kami kirim ke kontak kamu ✅",
 } as const;

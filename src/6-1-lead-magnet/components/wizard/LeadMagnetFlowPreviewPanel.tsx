@@ -1,53 +1,48 @@
 import { useTranslation } from 'react-i18next';
+import type { LeadMagnetCampaignForm } from '../../types/leadMagnet.types';
 import {
-  branchLabel,
   FLOW_PREVIEW_SCENARIOS,
+  branchLabelKey,
   previewFlowBranch,
 } from '../../lib/contactGate/skipMatrixPreview';
-import type { LeadMagnetCampaignForm } from '../../types/leadMagnet.types';
 
 type LeadMagnetFlowPreviewPanelProps = {
-  form: Pick<LeadMagnetCampaignForm, 'contact_gate_enabled' | 'skip_follow_gate_if_follower'>;
+  form: Pick<
+    LeadMagnetCampaignForm,
+    'email_collection_enabled' | 'contact_gate_enabled' | 'skip_follow_gate_if_follower'
+  >;
 };
 
 export function LeadMagnetFlowPreviewPanel({ form }: LeadMagnetFlowPreviewPanelProps) {
   const { t } = useTranslation();
 
-  if (!form.contact_gate_enabled) {
+  if (!form.email_collection_enabled && !form.contact_gate_enabled) {
     return (
-      <p className="text-sm text-muted-foreground">
-        {t('leadMagnet.contactGate.previewOff', 'Contact Gate nonaktif — flow mengikuti pengaturan Pesan & Delivery.')}
-      </p>
+      <p className="text-sm text-muted-foreground">{t('leadMagnet.contactGate.previewOff')}</p>
     );
   }
 
   return (
-    <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-      <p className="text-sm font-medium">
-        {t('leadMagnet.contactGate.previewTitle', 'Preview alur (Contact Gate ON)')}
-      </p>
-      <ul className="space-y-1.5 text-sm">
+    <div className="space-y-2 rounded-lg border border-border/60 bg-background p-4 shadow-sm">
+      <p className="text-sm font-medium">{t('leadMagnet.contactGate.previewTitle')}</p>
+      <ul className="space-y-1 text-sm">
         {FLOW_PREVIEW_SCENARIOS.map((scenario) => {
           const branch = previewFlowBranch({
+            emailCollectionEnabled: form.email_collection_enabled,
             contactGateEnabled: form.contact_gate_enabled,
-            skipFollowGateIfFollower: form.skip_follow_gate_if_follower,
             isFollower: scenario.isFollower,
             profile: scenario.profile,
           });
           return (
-            <li key={scenario.id} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
-              <span className="font-medium text-foreground">{scenario.label}</span>
-              <span className="text-muted-foreground">→ {branchLabel(branch)}</span>
+            <li key={scenario.id} className="flex flex-wrap gap-x-2 text-muted-foreground">
+              <span className="font-medium text-foreground">{t(scenario.labelKey)}</span>
+              <span aria-hidden>→</span>
+              <span>{t(branchLabelKey(branch))}</span>
             </li>
           );
         })}
       </ul>
-      <p className="text-xs text-muted-foreground">
-        {t(
-          'leadMagnet.contactGate.previewNote',
-          'Material Offer selalu dilewati saat Contact Gate aktif. Setelah kontak valid, materi dikirim via WA/email — tanpa DM konfirmasi IG. Profil lengkap (WA+email) menerima link via DM IG saja.',
-        )}
-      </p>
+      <p className="text-xs text-muted-foreground">{t('leadMagnet.contactGate.previewNote')}</p>
     </div>
   );
 }

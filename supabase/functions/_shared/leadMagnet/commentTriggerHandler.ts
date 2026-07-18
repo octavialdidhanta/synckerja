@@ -4,6 +4,7 @@ import { findMatchingLeadMagnetCampaign } from "./campaignMatcher.ts";
 import { createLeadMagnetLead } from "./createLeadMagnetLead.ts";
 import { fetchCommentText } from "./fetchParticipantProfile.ts";
 import { logLeadMagnetFunnelEvent, updateEnrollmentStatus } from "./funnelAnalytics.ts";
+import { pickRandomCommentReply } from "./commentReplyVariants.ts";
 import { runFollowCheckAndDmFlow, isPostContactGateEnrollmentStatus } from "./followGateRuntime.ts";
 import { deferLeadMagnetWork } from "./webhookBridge.ts";
 import type { LeadMagnetCommentTriggerInput, LeadMagnetEnrollmentRow } from "./types.ts";
@@ -22,7 +23,12 @@ async function sendPublicCommentReply(
     platform: LeadMagnetCommentTriggerInput["platform"];
     commentId: string;
     accessToken: string;
-    campaign: { id: string; comment_reply_text: string };
+    campaign: {
+      id: string;
+      comment_reply_enabled?: boolean;
+      comment_reply_texts?: string[];
+      comment_reply_text: string;
+    };
     organizationId: string;
     enrollmentId: string;
     authorUsername: string | null;
@@ -44,7 +50,17 @@ async function sendPublicCommentReply(
   ]);
 
   try {
-    const replyText = buildPublicCommentReply(args.campaign.comment_reply_text, args.authorUsername);
+    if (args.campaign.comment_reply_enabled === false) {
+      return true;
+    }
+
+    const replyPool = args.campaign.comment_reply_texts?.length
+      ? args.campaign.comment_reply_texts
+      : [args.campaign.comment_reply_text];
+    const picked = pickRandomCommentReply(replyPool);
+    if (!picked) return true;
+
+    const replyText = buildPublicCommentReply(picked, args.authorUsername);
     const replyResult = await replyMetaComment(args.platform, args.commentId, replyText, args.accessToken);
     deferLeadMagnetWork((async () => {
       const { data: current } = await admin
@@ -57,6 +73,7 @@ async function sendPublicCommentReply(
 
       await updateEnrollmentStatus(admin, args.enrollmentId, nextStatus, {
         comment_reply_id: replyResult.id,
+        comment_reply_sent_text: replyText,
       });
       await logLeadMagnetFunnelEvent(admin, {
         enrollmentId: args.enrollmentId,
@@ -157,6 +174,7 @@ export async function handleLeadMagnetCommentTrigger(
     comment_id: input.commentId,
     media_id: input.mediaId,
     status: "comment_matched",
+    dm_flow_version: 2,
     created_at: now,
     updated_at: now,
   });
@@ -370,6 +388,7 @@ export async function handleLeadMagnetCommentTrigger(
     lead_submission_id: null,
     lead_id: null,
     status: "comment_matched",
+    dm_flow_version: 2,
     paused_reason: null,
     is_follower_at_start: null,
     last_error: null,

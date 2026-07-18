@@ -1,34 +1,59 @@
 # Lead Magnet Automation — Product Spec
 
-ManyChat-style automation for Instagram and Facebook Page: comment keyword → public reply → DM follow gate → framework delivery.
+ManyChat-style automation for Instagram and Facebook Page: comment keyword → public reply → Opening DM → follow gate → delivery.
 
-## Workflow
+## Workflow (opening-first, `dm_flow_version = 2`)
 
 1. **Comment match** — Webhook `comments` (IG) or `feed` item=comment (FB Page)
 2. **Public comment reply** — `replyMetaComment`
-3. **Follow check** — Graph API `is_user_follow_business` (Instagram only; Facebook has no public follow API for Messenger PSID). Pre-DM `false` is treated as **unknown** (Meta often lacks messaging consent right after a comment). When `skip_follow_gate_if_follower` is enabled on IG, runtime sends a short **consent opener** private reply, re-checks follow status, then either skips to material/delivery or sends follow gate via standard DM.
-4. **Follow gate DM** — IG: postback `Sudah Follow`. FB: two buttons — `Ikuti Page` (facebook.com) + `Sudah Follow` (action URL on `office.synckerja.com/digital-marketing/lead-magnet/action`)
-5. **Follow re-validation** — IG: API re-check on confirm; loop if false. FB: **two-step honor system** — first `Sudah Follow` click nudges + re-sends gate (no material); second click sends material offer
-6. **Material offer** — `Ambil Materi` action URL (FB) or postback (IG); skippable via `skip_material_offer`
-7. **Delivery** — DM with `web_url` button to HTTPS asset URL
+3. **Opening DM** — ManyChat-style first DM with CTA button (`framework_offer_text` / `get_framework` postback). Uses Instagram private reply when first contact (replaces legacy consent opener). Skippable via `skip_material_offer` → go straight to follow gate at comment time.
+4. **Opening button click** — Follow check runs with messaging window open. Confirmed Meta follower → skip follow gate (even when Follow Gate toggle is ON) and advance to delivery/contact gate. Non-follower / unknown → follow gate DM (when Follow Gate toggle is ON). When Follow Gate toggle is OFF (`skip_follow_gate_if_follower = true`), follow gate is never sent.
+5. **Follow gate DM** — IG: postback `Sudah Follow`. FB: two buttons — `Ikuti Page` + `Sudah Follow` (action URL)
+6. **Follow re-validation** — IG + FB: Meta API re-check on every confirm click; retry until follower (no honor bypass)
+7. **Delivery** — DM with download link (or Contact Gate async channels)
 
-### Instagram skip-if-follower (Meta consent timing)
+### Legacy flow (`dm_flow_version = 1`)
+
+Enrollments created before opening-first rollout keep the old order: follow gate → material offer → delivery. Postback routing branches on `dm_flow_version`.
+
+## Workflow (detail)
+
+1. **Comment match** — Webhook `comments` (IG) or `feed` item=comment (FB Page)
+2. **Public comment reply** — `replyMetaComment`
+3. **Opening DM (v2)** or **Follow check + follow gate (v1 / skip opening)** — see above
+4. **Follow gate DM** — when required after Opening click or when opening skipped
+5. **Follow re-validation** — IG + FB: API re-check on every confirm; loop retry DM if not follower (or unknown). No honor bypass.
+6. **Delivery** — DM with `web_url` button to HTTPS asset URL (v2: after follow validated; v1: after material offer click)
+
+### Instagram Follow Gate skip (v2)
+
+Flag `skip_follow_gate_if_follower` maps to the wizard **Aktifkan Follow Gate** toggle (inverted):
+
+- **Toggle ON** (`skip_follow_gate_if_follower = false`): after Opening button click (messaging window open), Meta `follower` → skip Follow Gate DM and advance to email/delivery matrix; `non_follower` / `unknown` → send Follow Gate.
+- **Toggle OFF** (`skip_follow_gate_if_follower = true`): never send Follow Gate; always advance to email/delivery matrix.
+- When `skip_material_offer` is on (no Opening), the same skip rules run at comment time (with consent opener recheck on IG first contact when gate is ON and status is not yet `follower`).
+
+Legacy v1 enrollments use the same `shouldSkipFollowGate` helper.
+
+### Instagram Follow Gate consent recheck (v1 / skip-opening)
 
 Meta User Profile `is_user_follow_business` requires messaging consent. A comment alone often yields `false` even when the user already follows the account.
 
-When `skip_follow_gate_if_follower` is **on** for an Instagram campaign:
+When Follow Gate is **ON** for a **v1** / skip-opening Instagram path and status is not yet `follower`:
 
-1. Initial follow check runs (true → skip straight to material/delivery).
-2. If not confirmed follower, send one **text-only private reply** opener (`Hai {{username}}! Sebentar ya…`) to open the messaging window (uses the single allowed private reply per comment).
+1. Initial follow check runs (`follower` → skip straight to material/delivery).
+2. If not confirmed follower, send one **text-only private reply** opener (`Hai {{username}}! Sebentar ya…`) to open the messaging window.
 3. Re-check `is_user_follow_business` with messaging window open.
-4. Follower → skip follow gate (`follow_gate_skipped_follower` funnel event) and send material/delivery via standard DM.
-5. Non-follower or still unknown → send follow gate via standard DM (conservative fallback for non-followers).
+4. Follower → skip follow gate and send material/delivery via standard DM.
+5. Non-follower → send follow gate via standard DM.
 
-Funnel events: `follow_rechecked_after_opener`, `follow_gate_skipped_follower` (metadata includes `follow_status_before` / `follow_status_after`).
+When Follow Gate is **OFF**, step 2–5 are skipped (no Follow Gate DM).
+
+Funnel events: `follow_rechecked_after_opener`, `follow_gate_skipped_follower`.
 
 ### Facebook follow gate limitation
 
-Meta does not expose `is_user_follow_business` for Facebook Page Messenger users (PSID). Synckerja uses a two-step flow: first confirm click opens landing page + re-sends gate; second confirm click advances to material offer. This adds friction similar to ManyChat fallbacks but cannot cryptographically prove a Page follow.
+Meta often does not expose a reliable `is_user_follow_business` for Facebook Page Messenger users (PSID). Synckerja still re-checks Meta on every confirm click and retries when status is not `follower` (including `unknown`). Page follow cannot always be proven cryptographically; if Meta never returns `follower`, the gate will keep sending the retry DM.
 
 ### Action landing page
 
@@ -42,34 +67,42 @@ Enrollment status transitions use atomic `UPDATE … WHERE status = …` before 
 
 | Flag | Effect |
 |------|--------|
-| `skip_follow_gate_if_follower` | Skip follow gate DM when user is a confirmed follower (IG: includes post-opener re-check) |
-| `skip_material_offer` | After follow gate (or directly for follower + skip follow gate), send delivery DM without material-offer step |
+| `skip_material_offer` | Skip Opening DM; send follow gate right after comment |
+| `skip_follow_gate_if_follower` | Wizard inverted: `true` = Follow Gate OFF (never send). `false` = Follow Gate ON — skip DM only when Meta confirms `follower`; otherwise send Follow Gate |
+| `email_collection_enabled` | After follow validated, ask for email; material sent via **IG DM** after valid email (email stored as lead) |
+| `contact_gate_enabled` | **WhatsApp Delivery** for returning users who already have email — ask phone → WA template |
 
-### Contact Gate (optional, default OFF)
+### Email Collection (wizard step **Pesan**, default OFF)
 
-When `contact_gate_enabled` is **on** for a campaign:
+When `email_collection_enabled` is **on**:
 
-1. Material offer is **always skipped** (`skip_material_offer` forced true on save/publish).
-2. After follow validation (or skip-follow path), runtime checks canonical profile (`lead_magnet_participant_profiles` per org + PSID).
-3. **Skip matrix** (Instagram v1):
-   - Not follower → follow gate → contact prompt → async delivery
-   - Follower, no WA/email → single DM asks for phone **or** email (WA priority if both empty across campaigns)
-   - Follower gives phone **this enrollment** → WhatsApp template delivery → **enrollment ends** (no follow-up IG DM for email)
-   - Follower gives email **this enrollment** → Resend email delivery → **enrollment ends** (no follow-up IG DM for phone)
-   - Follower, WA only **in canonical profile** (returning user / **new enrollment**) → ask email → email delivery
-   - Follower, email only **in canonical profile** (returning user / **new enrollment**) → ask WA → WhatsApp template delivery
-   - Follower, WA + email complete → **DM IG link only** (direct delivery, no contact ask)
-4. Inbound IG text while enrollment `awaiting_contact` → `parseContactReply` → **no IG ack DM** → WA template or Resend email async via `waitUntil`; on failure → fallback DM IG with download link (`delivery_fallback_text`).
-5. After `delivered_whatsapp` or `delivered_email`, further inbound IG messages on **the same enrollment** are ignored (terminal state).
-6. No skip keyword (`lewati` / `skip` not supported). Unlimited retry on invalid format until 24h window expires.
+1. Compatible with Opening DM and Follow Gate (no forced skip).
+2. After follow validation (`follow_validated`) and confirmed follower, runtime sends email prompt DM → `awaiting_contact` (`awaiting_contact_kind = email`).
+3. User replies with valid email → profile upsert → **IG DM delivery** (`sendDeliveryMessage`) — material is **not** sent before email is collected.
+4. Invalid email → unlimited retry via `contact_invalid_text` until 24h window expires.
+5. Email is lead capture only; first-time delivery is always via Instagram DM link button.
 
-**Instagram native UI:** When a user sends a phone number, Instagram may show a client-side "Phone number" card with WhatsApp/Call buttons and label the chat as Lead ("Auto-detected outcome"). This is **not** sent by Synckerja and cannot be disabled via Messaging API. Synckerja does not send a second confirmation DM after valid contact.
+### WhatsApp Delivery (wizard step **Kontak & Channel**, default OFF)
 
-**Default contact prompt copy** (professional ID, configurable in wizard):
-- **Both WA/email:** explains materi dikirim via WhatsApp or email after user replies
-- **Phone-only / email-only scenarios:** runtime uses dedicated templates (not the campaign `contact_prompt_text` field)
+When `contact_gate_enabled` is **on** (returning-user path):
 
-**Wizard:** step **Kontak & Channel** (between Pesan & Delivery) — prompt texts, APPROVED WA template picker with **per-slot variable mapping**, optional email HTML, and **IG fallback copy** (`delivery_fallback_text`). Publish requires WA template + complete mapping if org has active WA account.
+1. After follow validated, if canonical profile **already has email** but no phone → ask WhatsApp number → template delivery.
+2. Requires APPROVED WA template + mapping when org has active WhatsApp account.
+3. On WA failure → fallback IG DM with `delivery_fallback_text`.
+
+**Combined skip matrix (v2, after follow validated):**
+
+| Follower | Profile | Next step |
+|----------|---------|-----------|
+| No | any | Follow gate (no email prompt) |
+| Yes | no email + email collection ON | Ask email → IG DM delivery |
+| Yes | has email, no phone + WA gate ON | Ask phone → WA template |
+| Yes | email + phone complete | Direct IG DM delivery |
+| Yes | gates OFF | Direct IG DM delivery (standard v2) |
+
+**Wizard:** step **Pesan** — toggle Koleksi Email, email prompt/invalid copy. Step **Kontak & Channel** — WhatsApp Delivery toggle, WA template mapper, IG fallback copy.
+
+**Legacy note:** Campaigns with old `contact_gate_enabled` were migrated to also enable `email_collection_enabled`. First-time email delivery no longer uses Resend — IG DM only.
 
 **WhatsApp template params** (`whatsapp_template_params` JSON on campaign):
 
@@ -94,12 +127,20 @@ When `contact_gate_enabled` is **on** for a campaign:
 
 ### Delivery modes (wizard Delivery step)
 
-| Mode | Source | `delivery_url` |
-|------|--------|----------------|
-| `link` | User-entered HTTPS URL (Drive, Notion, landing page) | Same URL |
-| `upload` | File in public bucket `lead-magnet-assets` (PDF/DOCX/XLSX/PPTX, max 25 MB) | Public Supabase Storage URL after upload |
+ManyChat-style: one delivery DM text + up to **3** link buttons (`delivery_links` jsonb: `{ label, url }[]`).
 
-Both modes use the same runtime path: `sendDeliveryMessage` with a `web_url` button. Upload mode stores file metadata on `lead_magnet_campaigns` (`delivery_storage_path`, `delivery_file_name`, etc.).
+| Source | Behavior |
+|--------|----------|
+| HTTPS URL | Manual URL per slot (Drive, Notion, landing page) |
+| Upload (slot #1 only) | File in public bucket `lead-magnet-assets` → public URL fills link #1 |
+
+**Publish rules:** min 1 / max 3 links; each needs non-empty label (≤20 Meta chars) + valid HTTPS URL.
+
+**Runtime:** `sendDeliveryMessage` builds one IG/FB `button_template` with up to 3 `web_url` buttons. Each button uses a signed download URL with index `i=0|1|2` that 302-redirects to `delivery_links[i].url`.
+
+**Legacy mirror:** `delivery_url` and `delivery_button_label` always mirror link #1 for WA template `{{delivery_url}}` and older code paths.
+
+Upload mode still stores file metadata on `lead_magnet_campaigns` (`delivery_storage_path`, `delivery_file_name`, etc.) when slot #1 was filled via upload.
 
 ## Storage
 
@@ -133,8 +174,12 @@ Both modes use the same runtime path: `sendDeliveryMessage` with a `web_url` but
 
 ```bash
 npm run supabase:db:push
-npx supabase functions deploy lead-magnet-api lead-magnet-runtime instagram-webhook --no-verify-jwt
+npm run supabase:functions:deploy:lead-magnet-all
+# or: node scripts/deploy-lead-magnet-functions.mjs
+# requires SUPABASE_ACCESS_TOKEN (sbp_...) from https://supabase.com/dashboard/account/tokens
 ```
+
+Functions to redeploy after delivery multi-link changes: `lead-magnet-api`, `lead-magnet-runtime`, `instagram-webhook` (shared `deliveryLinks` / signed download index).
 
 ## Meta permissions
 

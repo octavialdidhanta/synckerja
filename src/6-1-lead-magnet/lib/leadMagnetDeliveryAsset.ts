@@ -1,3 +1,8 @@
+import {
+  resolveDeliveryLinks,
+  validateDeliveryLinksForPublish,
+} from './deliveryLinks';
+
 export const LEAD_MAGNET_ASSETS_BUCKET = 'lead-magnet-assets';
 
 export const LEAD_MAGNET_DELIVERY_MAX_BYTES = 25 * 1024 * 1024;
@@ -71,20 +76,23 @@ export function validateLeadMagnetDeliveryFile(file: File): LeadMagnetDeliveryFi
 export function validateLeadMagnetDeliveryForm(params: {
   delivery_mode: LeadMagnetDeliveryMode;
   delivery_url: string;
+  delivery_links?: Array<{ label: string; url: string }>;
+  delivery_button_label?: string;
   delivery_storage_path?: string | null;
   delivery_file_name?: string | null;
 }): string | null {
-  if (params.delivery_mode === 'link') {
-    if (!params.delivery_url.startsWith('https://')) {
-      return 'deliveryUrlHttps';
+  const links = resolveDeliveryLinks({
+    delivery_links: params.delivery_links,
+    delivery_button_label: params.delivery_button_label,
+    delivery_url: params.delivery_url,
+  });
+  const linksErr = validateDeliveryLinksForPublish(links);
+  if (linksErr) return linksErr;
+
+  if (params.delivery_mode === 'upload') {
+    if (!params.delivery_storage_path || !params.delivery_file_name) {
+      return 'deliveryFileRequired';
     }
-    return null;
-  }
-  if (!params.delivery_storage_path || !params.delivery_file_name) {
-    return 'deliveryFileRequired';
-  }
-  if (!params.delivery_url.startsWith('https://')) {
-    return 'deliveryUrlHttps';
   }
   return null;
 }

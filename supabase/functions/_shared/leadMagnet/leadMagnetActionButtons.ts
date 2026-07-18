@@ -27,11 +27,12 @@ export async function buildLeadMagnetActionButton(
 export async function buildLeadMagnetDeliveryButton(
   enrollment: LeadMagnetEnrollmentRow,
   title: string,
+  linkIndex = 0,
 ): Promise<LeadMagnetDmButton> {
   return {
     type: "web_url",
     title,
-    url: await buildLeadMagnetDownloadUrl(enrollment.id),
+    url: await buildLeadMagnetDownloadUrl(enrollment.id, linkIndex),
   };
 }
 

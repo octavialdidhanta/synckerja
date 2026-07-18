@@ -83,26 +83,31 @@ export function isLeadMagnetTemplateMappingComplete(
   return false;
 }
 
+export type LeadMagnetTemplateMappingErrorCode =
+  | { type: 'selectTemplateAndMap' }
+  | { type: 'needsMoreVars'; expected: number; actual: number }
+  | { type: 'fillAllVars'; expected: number };
+
 export function leadMagnetTemplateMappingError(
   params: Record<string, unknown> | null | undefined,
-): string | null {
+): LeadMagnetTemplateMappingErrorCode | null {
   const parsed = parseLeadMagnetWhatsAppTemplateParams(params);
   const components = parsed.components_json;
   const values = parsed.parameter_values;
 
   if (!Array.isArray(components) || components.length === 0) {
     if (Array.isArray(parsed.body) && parsed.body.length > 0) return null;
-    return 'Pilih template WhatsApp dan lengkapi mapping variabel';
+    return { type: 'selectTemplateAndMap' };
   }
 
   const expected = countTemplateParameterSlots(components);
   const actual = Array.isArray(values) ? values.length : 0;
   if (expected <= 0) return null;
   if (actual < expected) {
-    return `Template membutuhkan ${expected} variabel, hanya ${actual} yang diisi`;
+    return { type: 'needsMoreVars', expected, actual };
   }
   const missing = values!.slice(0, expected).some((v) => !String(v ?? '').trim());
-  if (missing) return `Lengkapi semua ${expected} variabel template WhatsApp`;
+  if (missing) return { type: 'fillAllVars', expected };
   return null;
 }
 

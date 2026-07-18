@@ -1,50 +1,61 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
-  getMissingContactFields,
-  resolveFlowBranch,
   isContactGateEnabled,
-} from "../../../../supabase/functions/_shared/leadMagnet/contactGate/skipMatrix.ts";
+  isEmailCollectionEnabled,
+  isAnyContactFlowActive,
+  resolveFlowBranch,
+} from '../../../../supabase/functions/_shared/leadMagnet/contactGate/skipMatrix.ts';
+import { previewFlowBranch } from './skipMatrixPreview.ts';
 
-describe("skipMatrix", () => {
-  it("contact gate off uses legacy branch", () => {
+describe('skipMatrix dual flags', () => {
+  it('legacy when both flags off', () => {
+    expect(
+      previewFlowBranch({
+        emailCollectionEnabled: false,
+        contactGateEnabled: false,
+        isFollower: true,
+        profile: { phone_number: null, email: null },
+      }).branch,
+    ).toBe('legacy');
+  });
+
+  it('email ask for new follower when email collection on', () => {
+    const branch = previewFlowBranch({
+      emailCollectionEnabled: true,
+      contactGateEnabled: false,
+      isFollower: true,
+      profile: { phone_number: null, email: null },
+    });
+    expect(branch.branch).toBe('contact');
+    if (branch.branch === 'contact') expect(branch.ask).toBe('email');
+  });
+
+  it('phone ask for returning user when WA gate on', () => {
+    const branch = previewFlowBranch({
+      emailCollectionEnabled: true,
+      contactGateEnabled: true,
+      isFollower: true,
+      profile: { phone_number: null, email: 'a@b.com' },
+    });
+    expect(branch.branch).toBe('contact');
+    if (branch.branch === 'contact') expect(branch.ask).toBe('phone');
+  });
+
+  it('runtime resolve matches preview', () => {
     expect(
       resolveFlowBranch({
-        campaign: { contact_gate_enabled: false },
+        campaign: { contact_gate_enabled: true, email_collection_enabled: true },
         profile: { phone_number: null, email: null },
         isFollower: true,
       }).branch,
-    ).toBe("legacy_material_or_delivery");
+    ).toBe('needs_contact');
   });
 
-  it("non-follower needs follow gate when contact gate on", () => {
-    expect(
-      resolveFlowBranch({
-        campaign: { contact_gate_enabled: true },
-        profile: { phone_number: null, email: null },
-        isFollower: false,
-      }).branch,
-    ).toBe("needs_follow_gate");
-  });
-
-  it("complete profile delivers instagram", () => {
-    expect(
-      resolveFlowBranch({
-        campaign: { contact_gate_enabled: true },
-        profile: { phone_number: "628123", email: "a@b.com" },
-        isFollower: true,
-      }).branch,
-    ).toBe("deliver_instagram");
-  });
-
-  it("progressive missing fields", () => {
-    expect(getMissingContactFields({ phone_number: null, email: null })).toBe("any");
-    expect(getMissingContactFields({ phone_number: "6281", email: null })).toBe("email");
-    expect(getMissingContactFields({ phone_number: null, email: "a@b.com" })).toBe("phone");
-    expect(getMissingContactFields({ phone_number: "6281", email: "a@b.com" })).toBe(null);
-  });
-
-  it("isContactGateEnabled default false", () => {
-    expect(isContactGateEnabled({ contact_gate_enabled: false })).toBe(false);
+  it('helpers', () => {
     expect(isContactGateEnabled({ contact_gate_enabled: true })).toBe(true);
+    expect(isEmailCollectionEnabled({ email_collection_enabled: true })).toBe(true);
+    expect(
+      isAnyContactFlowActive({ contact_gate_enabled: false, email_collection_enabled: true }),
+    ).toBe(true);
   });
 });

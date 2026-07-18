@@ -34,7 +34,11 @@ describe('leadMagnetWhatsAppTemplateParams', () => {
       parameter_values: ['{{username}}', '{{delivery_url}}'],
     };
     expect(isLeadMagnetTemplateMappingComplete(params)).toBe(false);
-    expect(leadMagnetTemplateMappingError(params)).toMatch(/7 variabel/);
+    expect(leadMagnetTemplateMappingError(params)).toEqual({
+      type: 'needsMoreVars',
+      expected: 7,
+      actual: 2,
+    });
   });
 
   it('accepts complete mapping for 2-var template', () => {

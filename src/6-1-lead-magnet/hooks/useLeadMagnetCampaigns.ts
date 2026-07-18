@@ -14,17 +14,24 @@ import type { LeadMagnetCampaignForm, LeadMagnetPlatform } from '../types/leadMa
 
 export const leadMagnetQueryKeys = {
   all: ['lead-magnet-campaigns'] as const,
+  list: (dateStart: string, dateEnd: string) =>
+    ['lead-magnet-campaigns', dateStart, dateEnd] as const,
   detail: (id: string) => ['lead-magnet-campaign', id] as const,
   media: (platform: LeadMagnetPlatform, accountId: string) =>
     ['lead-magnet-media', platform, accountId] as const,
   analytics: (id: string) => ['lead-magnet-analytics', id] as const,
 };
 
-export function useLeadMagnetCampaigns(enabled = true) {
+export function useLeadMagnetCampaigns(
+  enabled = true,
+  opts?: { dateStart?: string; dateEnd?: string },
+) {
+  const dateStart = opts?.dateStart ?? '';
+  const dateEnd = opts?.dateEnd ?? '';
   return useQuery({
-    queryKey: leadMagnetQueryKeys.all,
-    enabled,
-    queryFn: fetchLeadMagnetCampaigns,
+    queryKey: leadMagnetQueryKeys.list(dateStart, dateEnd),
+    enabled: enabled && Boolean(dateStart && dateEnd),
+    queryFn: () => fetchLeadMagnetCampaigns({ dateStart, dateEnd }),
   });
 }
 

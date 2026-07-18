@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { buildLeadMagnetPublicCommentReply } from '@/6-0-social-media-manage-comments/lib/buildLeadMagnetPublicCommentReply';
+import { normalizeCommentReplyTexts } from '@/6-1-lead-magnet/lib/commentReplyVariants';
 import { MANAGE_COMMENTS_THREAD_POLL_MS } from '@/6-0-social-media-manage-comments/lib/manageCommentsPolling';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 
@@ -15,9 +16,13 @@ type EnrollmentRow = {
   comment_id: string | null;
   participant_username: string | null;
   comment_reply_id: string | null;
+  comment_reply_sent_text: string | null;
   updated_at: string;
   status: string;
-  campaign: { comment_reply_text: string } | { comment_reply_text: string }[] | null;
+  campaign:
+    | { comment_reply_text: string; comment_reply_texts: string[] | null }
+    | { comment_reply_text: string; comment_reply_texts: string[] | null }[]
+    | null;
 };
 
 const REPLY_SENT_STATUSES = new Set([
@@ -44,7 +49,7 @@ export function useLeadMagnetAutoCommentReplies(args: {
       const { data, error } = await supabase
         .from('lead_magnet_enrollments')
         .select(
-          'comment_id, participant_username, comment_reply_id, updated_at, status, campaign:lead_magnet_campaigns!inner(comment_reply_text)',
+          'comment_id, participant_username, comment_reply_id, comment_reply_sent_text, updated_at, status, campaign:lead_magnet_campaigns!inner(comment_reply_text, comment_reply_texts)',
         )
         .eq('organization_id', organizationId)
         .eq('platform', platform)
@@ -59,7 +64,12 @@ export function useLeadMagnetAutoCommentReplies(args: {
         if (!commentId) continue;
 
         const campaign = Array.isArray(row.campaign) ? row.campaign[0] : row.campaign;
-        const template = campaign?.comment_reply_text?.trim();
+        const sentText = row.comment_reply_sent_text?.trim();
+        const fallbackTemplate = normalizeCommentReplyTexts(
+          campaign?.comment_reply_texts,
+          campaign?.comment_reply_text,
+        )[0];
+        const template = sentText || fallbackTemplate?.trim();
         if (!template) continue;
 
         const shouldShow =
@@ -68,7 +78,7 @@ export function useLeadMagnetAutoCommentReplies(args: {
 
         map[commentId] = {
           commentId,
-          text: buildLeadMagnetPublicCommentReply(template, row.participant_username),
+          text: sentText || buildLeadMagnetPublicCommentReply(template, row.participant_username),
           replyId: row.comment_reply_id,
           sentAt: row.updated_at ?? null,
         };

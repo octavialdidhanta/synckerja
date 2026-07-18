@@ -69,20 +69,10 @@ function PostThumb({
   );
 }
 
-function headlineFromPost(post: LeadMagnetCampaignPost): string {
+function captionPreview(post: LeadMagnetCampaignPost): string {
   const caption = post.media_caption?.trim();
-  if (caption) {
-    const firstLine = caption.split('\n').map((l) => l.trim()).find(Boolean);
-    return firstLine ?? caption;
-  }
+  if (caption) return caption;
   return `Post ${post.media_id.slice(-8)}`;
-}
-
-function captionPreview(post: LeadMagnetCampaignPost): string | null {
-  const caption = post.media_caption?.trim();
-  if (!caption) return null;
-  const normalized = caption.replace(/\s+/g, ' ').trim();
-  return normalized.length > 120 ? `${normalized.slice(0, 117)}…` : normalized;
 }
 
 type Props = {
@@ -128,7 +118,6 @@ export function CampaignPostsPreview({ posts, accounts = [] }: Props) {
   return (
     <div className="flex max-w-sm flex-col gap-1.5">
       {displayPosts.map((post) => {
-        const headline = headlineFromPost(post);
         const caption = captionPreview(post);
         const link = post.media_permalink?.trim() || null;
         const stillLoading = isEnriching && postNeedsEnrich(post);
@@ -136,7 +125,7 @@ export function CampaignPostsPreview({ posts, accounts = [] }: Props) {
           <div key={`${post.platform}-${post.media_id}`} className="flex min-w-0 items-start gap-2">
             <PostThumb
               url={post.media_thumbnail_url}
-              alt={headline}
+              alt={caption}
               loading={stillLoading && !post.media_thumbnail_url?.trim()}
             />
             <div className="min-w-0 flex-1">
@@ -146,22 +135,17 @@ export function CampaignPostsPreview({ posts, accounts = [] }: Props) {
                   <div className="h-3 w-[65%] animate-pulse rounded bg-muted/80" />
                 </div>
               ) : (
-                <>
-                  <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground" title={headline}>
-                    {headline}
-                  </p>
-                  {caption && caption !== headline ? (
-                    <p
-                      className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground"
-                      title={post.media_caption ?? undefined}
-                    >
-                      {caption}
-                    </p>
-                  ) : null}
-                </>
+                <p
+                  className="line-clamp-2 whitespace-pre-line text-xs font-normal leading-snug text-foreground"
+                  title={caption}
+                >
+                  {caption}
+                </p>
               )}
-              <p className="mt-0.5 text-[10px] text-muted-foreground">
-                {post.platform === 'instagram' ? 'Instagram' : 'Facebook'}
+              <p className="mt-0.5 text-[10px] font-normal text-muted-foreground">
+                {post.platform === 'instagram'
+                  ? t('leadMagnet.platform.instagram')
+                  : t('leadMagnet.platform.facebook')}
                 {link ? (
                   <>
                     {' · '}

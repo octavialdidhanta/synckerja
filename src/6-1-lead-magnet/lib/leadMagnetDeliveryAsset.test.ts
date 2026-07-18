@@ -56,7 +56,7 @@ describe('leadMagnetDeliveryAsset', () => {
     expect(sanitizeLeadMagnetAssetFileName('')).toBe('framework');
   });
 
-  it('validateLeadMagnetDeliveryForm enforces link vs upload rules', () => {
+  it('validateLeadMagnetDeliveryForm enforces delivery_links rules', () => {
     expect(
       validateLeadMagnetDeliveryForm({
         delivery_mode: 'link',
@@ -67,7 +67,16 @@ describe('leadMagnetDeliveryAsset', () => {
     expect(
       validateLeadMagnetDeliveryForm({
         delivery_mode: 'link',
+        delivery_url: '',
+        delivery_links: [],
+      }),
+    ).toBe('deliveryLinkRequired');
+
+    expect(
+      validateLeadMagnetDeliveryForm({
+        delivery_mode: 'link',
         delivery_url: 'https://drive.google.com/file',
+        delivery_links: [{ label: 'Kirim link-nya 😊', url: 'https://drive.google.com/file' }],
       }),
     ).toBeNull();
 
@@ -75,6 +84,10 @@ describe('leadMagnetDeliveryAsset', () => {
       validateLeadMagnetDeliveryForm({
         delivery_mode: 'upload',
         delivery_url: 'https://example.supabase.co/storage/v1/object/public/lead-magnet-assets/a/b/c.pdf',
+        delivery_links: [{
+          label: 'Kirim link-nya 😊',
+          url: 'https://example.supabase.co/storage/v1/object/public/lead-magnet-assets/a/b/c.pdf',
+        }],
         delivery_storage_path: null,
         delivery_file_name: null,
       }),
@@ -84,6 +97,10 @@ describe('leadMagnetDeliveryAsset', () => {
       validateLeadMagnetDeliveryForm({
         delivery_mode: 'upload',
         delivery_url: 'https://example.supabase.co/storage/v1/object/public/lead-magnet-assets/a/b/c.pdf',
+        delivery_links: [{
+          label: 'Kirim link-nya 😊',
+          url: 'https://example.supabase.co/storage/v1/object/public/lead-magnet-assets/a/b/c.pdf',
+        }],
         delivery_storage_path: 'org/camp/uuid_file.pdf',
         delivery_file_name: 'file.pdf',
       }),

@@ -17,7 +17,7 @@ export const LEAD_MAGNET_FUNNEL_STEPS = [
   { key: 'follow_gate_skipped_follower', label: 'Follow gate skipped' },
   { key: 'follow_gate_sent', label: 'DM follow gate' },
   { key: 'follow_validated', label: 'Follow valid' },
-  { key: 'framework_offered', label: 'Material offer' },
+  { key: 'framework_offered', label: 'Opening DM terkirim' },
   { key: 'material_offer_skipped', label: 'Material offer skipped' },
   { key: 'contact_prompt_sent', label: 'Contact prompt' },
   { key: 'contact_collected', label: 'Contact collected' },

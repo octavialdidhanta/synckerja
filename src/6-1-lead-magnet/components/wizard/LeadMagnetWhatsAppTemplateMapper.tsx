@@ -30,12 +30,12 @@ import {
 const MAPPER_ROW_CLASS =
   'grid grid-cols-[3rem_minmax(140px,1fr)_minmax(180px,1.2fr)] items-center gap-x-2 gap-y-1';
 
-const TOKEN_OPTIONS = [
-  { value: LEAD_MAGNET_WA_PARAM_TOKENS.username, label: '{{username}}' },
-  { value: LEAD_MAGNET_WA_PARAM_TOKENS.deliveryUrl, label: '{{delivery_url}}' },
-  { value: LEAD_MAGNET_WA_PARAM_TOKENS.campaignName, label: '{{campaign_name}}' },
-  { value: LEAD_MAGNET_WA_PARAM_TOKENS.empty, label: '- (kosong)' },
-  { value: '__static__', label: 'Teks statis…' },
+const TOKEN_VALUE_OPTIONS = [
+  LEAD_MAGNET_WA_PARAM_TOKENS.username,
+  LEAD_MAGNET_WA_PARAM_TOKENS.deliveryUrl,
+  LEAD_MAGNET_WA_PARAM_TOKENS.campaignName,
+  LEAD_MAGNET_WA_PARAM_TOKENS.empty,
+  '__static__',
 ] as const;
 
 function rowLanguageCode(languageCode: string): string {
@@ -64,6 +64,19 @@ export function LeadMagnetWhatsAppTemplateMapper({
   disabled = false,
 }: LeadMagnetWhatsAppTemplateMapperProps) {
   const { t } = useTranslation();
+  const tokenOptions = useMemo(
+    () =>
+      TOKEN_VALUE_OPTIONS.map((value) => {
+        if (value === LEAD_MAGNET_WA_PARAM_TOKENS.empty) {
+          return { value, label: t('leadMagnet.contactGate.waTokenEmpty') };
+        }
+        if (value === '__static__') {
+          return { value, label: t('leadMagnet.contactGate.waTokenStatic') };
+        }
+        return { value, label: value };
+      }),
+    [t],
+  );
   const { rows, isLoading } = useApprovedWhatsAppTemplatesFlat({
     enabled: Boolean(whatsappAccountId),
     whatsappAccountId,
@@ -108,7 +121,7 @@ export function LeadMagnetWhatsAppTemplateMapper({
     const modes: Record<number, boolean> = {};
     for (let i = 0; i < slots.length; i++) {
       const v = next[i] ?? '';
-      const isKnownToken = TOKEN_OPTIONS.some((o) => o.value !== '__static__' && o.value === v);
+      const isKnownToken = tokenOptions.some((o) => o.value !== '__static__' && o.value === v);
       modes[i + 1] = Boolean(v) && !isKnownToken;
     }
     setStaticModes(modes);
@@ -183,19 +196,16 @@ export function LeadMagnetWhatsAppTemplateMapper({
         <div className="flex flex-wrap items-center gap-2">
           {idealTemplate ? (
             <Badge variant="secondary" className="text-xs">
-              {t('leadMagnet.contactGate.waTemplateIdeal', 'Ideal untuk Lead Magnet (2 variabel)')}
+              {t('leadMagnet.contactGate.waTemplateIdeal')}
             </Badge>
           ) : (
             <Badge variant="outline" className="text-xs text-amber-800">
-              {t('leadMagnet.contactGate.waTemplateManyVars', {
-                count: slots.length,
-                defaultValue: '{{count}} variabel — map semua slot sebelum publish',
-              })}
+              {t('leadMagnet.contactGate.waTemplateManyVars', { count: slots.length })}
             </Badge>
           )}
           {matchedRow.mediaFormat ? (
             <Badge variant="outline" className="text-xs">
-              {t('leadMagnet.contactGate.waMediaHeader', 'Header media — pastikan template valid')}
+              {t('leadMagnet.contactGate.waMediaHeader')}
             </Badge>
           ) : null}
         </div>
@@ -203,9 +213,7 @@ export function LeadMagnetWhatsAppTemplateMapper({
 
       {slots.length > 0 ? (
         <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-          <Label className="text-sm">
-            {t('leadMagnet.contactGate.waVarMapping', 'Mapping variabel template')}
-          </Label>
+          <Label className="text-sm">{t('leadMagnet.contactGate.waVarMapping')}</Label>
           <div className="space-y-2">
             {slots.map((slot) => {
               const idx = slot.index - 1;
@@ -218,8 +226,8 @@ export function LeadMagnetWhatsAppTemplateMapper({
                   <span className="font-mono text-xs text-muted-foreground">{slot.label}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {slot.region === 'header'
-                      ? t('leadMagnet.contactGate.waSlotHeader', 'Header')
-                      : t('leadMagnet.contactGate.waSlotBody', 'Body')}
+                      ? t('leadMagnet.contactGate.waSlotHeader')
+                      : t('leadMagnet.contactGate.waSlotBody')}
                   </span>
                   <div className="flex min-w-0 flex-col gap-1 sm:flex-row">
                     <Select
@@ -227,7 +235,7 @@ export function LeadMagnetWhatsAppTemplateMapper({
                       onValueChange={(v) => {
                         if (v === '__static__') {
                           setStaticModes((m) => ({ ...m, [slot.index]: true }));
-                          updateSlot(slot.index, current && !TOKEN_OPTIONS.some((o) => o.value === current) ? current : '');
+                          updateSlot(slot.index, current && !tokenOptions.some((o) => o.value === current) ? current : '');
                           return;
                         }
                         setStaticModes((m) => ({ ...m, [slot.index]: false }));
@@ -239,7 +247,7 @@ export function LeadMagnetWhatsAppTemplateMapper({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {TOKEN_OPTIONS.map((opt) => (
+                        {tokenOptions.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value} className="font-mono text-sm">
                             {opt.label}
                           </SelectItem>
@@ -250,7 +258,7 @@ export function LeadMagnetWhatsAppTemplateMapper({
                       <Input
                         value={current}
                         onChange={(e) => updateSlot(slot.index, e.target.value)}
-                        placeholder={t('leadMagnet.contactGate.waStaticPlaceholder', 'Teks statis')}
+                        placeholder={t('leadMagnet.contactGate.waStaticPlaceholder')}
                         disabled={disabled}
                         className="h-9 min-w-0 flex-1 font-mono text-sm"
                       />
@@ -261,12 +269,7 @@ export function LeadMagnetWhatsAppTemplateMapper({
             })}
           </div>
           {!mappingComplete ? (
-            <p className="text-xs text-amber-700">
-              {t(
-                'leadMagnet.contactGate.waMappingIncomplete',
-                'Lengkapi semua variabel template sebelum publish.',
-              )}
-            </p>
+            <p className="text-xs text-amber-700">{t('leadMagnet.contactGate.waMappingIncomplete')}</p>
           ) : null}
         </div>
       ) : null}

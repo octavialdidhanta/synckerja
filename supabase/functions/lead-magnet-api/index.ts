@@ -14,6 +14,11 @@ import {
   resolveMetaContentAccount,
 } from "../_shared/metaContentAuth.ts";
 import { LEAD_MAGNET_DEFAULT_MESSAGES } from "../_shared/leadMagnet/types.ts";
+import {
+  filledCommentReplyTexts,
+  hasDuplicateCommentReplies,
+  normalizeCommentReplyTexts,
+} from "../_shared/leadMagnet/commentReplyVariants.ts";
 import { validateWhatsAppTemplateParamsForPublish } from "../_shared/leadMagnet/delivery/buildLeadMagnetWhatsAppComponents.ts";
 import { resolveLeadMagnetEntitlement } from "../_shared/leadMagnet/leadMagnetEntitlement.ts";
 import {
@@ -22,46 +27,72 @@ import {
   LEAD_MAGNET_DELIVERY_MAX_BYTES,
   parseLeadMagnetDeliveryMode,
 } from "../_shared/leadMagnet/deliveryAsset.ts";
+import {
+  mirrorDeliveryFieldsFromLinks,
+  resolveCampaignDeliveryLinks,
+  validateDeliveryLinksForPublish,
+  validateDeliveryLinksLoose,
+} from "../_shared/leadMagnet/deliveryLinks.ts";
+import {
+  applyContactCollectedEventsToMetrics,
+  applyEnrollmentRowsToMetrics,
+  EMPTY_CAMPAIGN_LIST_METRICS,
+  parseListMetricsDateRange,
+  sumCampaignListMetricTotals,
+  type CampaignListMetrics,
+} from "../_shared/leadMagnet/campaignListMetrics.ts";
 
 const CAMPAIGN_SELECT =
   "*, lead_magnet_campaign_posts(*), lead_magnet_campaign_accounts(*)";
 
-type CampaignMetrics = {
-  new_followers: number;
-  non_follower_at_start: number;
-  total_enrollments: number;
-};
+type CampaignMetrics = CampaignListMetrics;
 
-const EMPTY_METRICS: CampaignMetrics = {
-  new_followers: 0,
-  non_follower_at_start: 0,
-  total_enrollments: 0,
-};
+const EMPTY_METRICS: CampaignMetrics = { ...EMPTY_CAMPAIGN_LIST_METRICS };
 
 async function fetchCampaignMetricsByOrg(
   admin: ReturnType<typeof createClient>,
   organizationId: string,
-): Promise<Map<string, CampaignMetrics>> {
-  const { data, error } = await admin
-    .from("lead_magnet_enrollments")
-    .select("campaign_id, is_follower_at_start, became_follower_at")
-    .eq("organization_id", organizationId);
-  if (error) throw error;
-
+  dateRange: { startIso: string; endIso: string },
+): Promise<{ map: Map<string, CampaignMetrics>; totals: ReturnType<typeof sumCampaignListMetricTotals> }> {
   const map = new Map<string, CampaignMetrics>();
-  for (const row of data ?? []) {
-    const campaignId = String(row.campaign_id);
-    const current = map.get(campaignId) ?? { ...EMPTY_METRICS };
-    current.total_enrollments += 1;
-    if (row.is_follower_at_start === false) {
-      current.non_follower_at_start += 1;
-    }
-    if (row.became_follower_at != null) {
-      current.new_followers += 1;
-    }
-    map.set(campaignId, current);
-  }
-  return map;
+
+  const [{ data: enrollments, error: enErr }, { data: contactEvents, error: evErr }] = await Promise.all([
+    admin
+      .from("lead_magnet_enrollments")
+      .select("campaign_id, is_follower_at_start, became_follower_at")
+      .eq("organization_id", organizationId),
+    admin
+      .from("lead_magnet_funnel_events")
+      .select("campaign_id, enrollment_id, created_at, metadata")
+      .eq("organization_id", organizationId)
+      .eq("event_type", "contact_collected")
+      .gte("created_at", dateRange.startIso)
+      .lte("created_at", dateRange.endIso),
+  ]);
+  if (enErr) throw enErr;
+  if (evErr) throw evErr;
+
+  applyEnrollmentRowsToMetrics(
+    map,
+    (enrollments ?? []).map((row) => ({
+      campaign_id: String(row.campaign_id),
+      is_follower_at_start: (row.is_follower_at_start as boolean | null) ?? null,
+      became_follower_at: (row.became_follower_at as string | null) ?? null,
+    })),
+    dateRange,
+  );
+
+  applyContactCollectedEventsToMetrics(
+    map,
+    (contactEvents ?? []).map((row) => ({
+      campaign_id: String(row.campaign_id),
+      enrollment_id: String(row.enrollment_id),
+      created_at: String(row.created_at),
+      metadata: (row.metadata as Record<string, unknown> | null) ?? null,
+    })),
+  );
+
+  return { map, totals: sumCampaignListMetricTotals(map) };
 }
 
 function metricsForCampaign(
@@ -223,6 +254,8 @@ type CampaignPayload = {
   account_id?: string;
   accounts?: AccountPayload[];
   keyword?: string;
+  comment_reply_enabled?: boolean;
+  comment_reply_texts?: string[];
   comment_reply_text?: string;
   follow_gate_text?: string;
   follow_button_label?: string;
@@ -232,6 +265,7 @@ type CampaignPayload = {
   delivery_button_label?: string;
   delivery_fallback_text?: string | null;
   delivery_url?: string;
+  delivery_links?: Array<{ label?: string; url?: string }> | unknown;
   delivery_mode?: string;
   delivery_storage_path?: string | null;
   delivery_file_name?: string | null;
@@ -240,6 +274,7 @@ type CampaignPayload = {
   skip_follow_gate_if_follower?: boolean;
   skip_material_offer?: boolean;
   contact_gate_enabled?: boolean;
+  email_collection_enabled?: boolean;
   contact_prompt_text?: string | null;
   contact_invalid_text?: string | null;
   contact_ack_text?: string | null;
@@ -290,6 +325,21 @@ function normalizePosts(body: CampaignPayload): PostPayload[] {
     .filter((p): p is PostPayload => p != null);
 }
 
+function normalizeCommentReplyFields(body: CampaignPayload) {
+  const enabled = body.comment_reply_enabled !== false;
+  const texts = normalizeCommentReplyTexts(
+    body.comment_reply_texts,
+    body.comment_reply_text ?? LEAD_MAGNET_DEFAULT_MESSAGES.comment_reply_text,
+  );
+  const legacy = texts[0]
+    ?? String(body.comment_reply_text ?? LEAD_MAGNET_DEFAULT_MESSAGES.comment_reply_text).trim();
+  return {
+    comment_reply_enabled: enabled,
+    comment_reply_texts: texts,
+    comment_reply_text: legacy,
+  };
+}
+
 function normalizeCampaignPayload(body: CampaignPayload) {
   const accounts = normalizeAccounts(body);
   const deliveryMode = parseLeadMagnetDeliveryMode(body.delivery_mode);
@@ -301,22 +351,30 @@ function normalizeCampaignPayload(body: CampaignPayload) {
     ? Math.round(Number(fileSizeRaw))
     : null;
 
+  const deliveryLinks = resolveCampaignDeliveryLinks({
+    delivery_links: body.delivery_links,
+    delivery_button_label: body.delivery_button_label,
+    delivery_url: body.delivery_url,
+  });
+  const mirrored = mirrorDeliveryFieldsFromLinks(deliveryLinks);
+
   return {
     name: String(body.name ?? "").trim(),
     target_market: body.target_market != null ? String(body.target_market).trim().slice(0, 120) : "",
     accounts,
     keyword: String(body.keyword ?? "").trim(),
-    comment_reply_text: String(body.comment_reply_text ?? LEAD_MAGNET_DEFAULT_MESSAGES.comment_reply_text).trim(),
+    ...normalizeCommentReplyFields(body),
     follow_gate_text: String(body.follow_gate_text ?? LEAD_MAGNET_DEFAULT_MESSAGES.follow_gate_text).trim(),
     follow_button_label: String(body.follow_button_label ?? LEAD_MAGNET_DEFAULT_MESSAGES.follow_button_label).trim(),
     framework_offer_text: String(body.framework_offer_text ?? LEAD_MAGNET_DEFAULT_MESSAGES.framework_offer_text).trim(),
     framework_button_label: String(body.framework_button_label ?? LEAD_MAGNET_DEFAULT_MESSAGES.framework_button_label).trim(),
     delivery_text: String(body.delivery_text ?? LEAD_MAGNET_DEFAULT_MESSAGES.delivery_text).trim(),
-    delivery_button_label: String(body.delivery_button_label ?? LEAD_MAGNET_DEFAULT_MESSAGES.delivery_button_label).trim(),
+    delivery_button_label: mirrored.delivery_button_label,
     delivery_fallback_text: body.delivery_fallback_text != null
       ? String(body.delivery_fallback_text).trim() || null
       : null,
-    delivery_url: String(body.delivery_url ?? "").trim(),
+    delivery_url: mirrored.delivery_url,
+    delivery_links: deliveryLinks,
     delivery_mode: deliveryMode,
     delivery_storage_path: storagePath || null,
     delivery_file_name: body.delivery_file_name != null
@@ -327,10 +385,9 @@ function normalizeCampaignPayload(body: CampaignPayload) {
       : null,
     delivery_file_size_bytes: fileSize,
     skip_follow_gate_if_follower: body.skip_follow_gate_if_follower === true,
-    skip_material_offer: body.contact_gate_enabled === true
-      ? true
-      : body.skip_material_offer === true,
+    skip_material_offer: body.skip_material_offer === true,
     contact_gate_enabled: body.contact_gate_enabled === true,
+    email_collection_enabled: body.email_collection_enabled === true,
     contact_prompt_text: body.contact_prompt_text != null
       ? String(body.contact_prompt_text).trim() || null
       : null,
@@ -370,21 +427,16 @@ function validateDeliveryAsset(
   supabaseUrl: string,
   strict: boolean,
 ): string | null {
+  const linksErr = strict
+    ? validateDeliveryLinksForPublish(payload.delivery_links)
+    : validateDeliveryLinksLoose(payload.delivery_links);
+  if (linksErr) return linksErr;
+
   if (payload.delivery_mode === "link") {
-    if (strict) {
-      if (!payload.delivery_url || !isValidHttpsUrl(payload.delivery_url)) {
-        return "delivery_url harus HTTPS valid";
-      }
-    } else if (payload.delivery_url && !isValidHttpsUrl(payload.delivery_url)) {
-      return "delivery_url harus HTTPS valid";
-    }
     return null;
   }
 
   if (!strict) {
-    if (payload.delivery_url && !isValidHttpsUrl(payload.delivery_url)) {
-      return "delivery_url harus HTTPS valid";
-    }
     return null;
   }
 
@@ -434,7 +486,14 @@ function validateCampaignPayload(
   if (!payload.name) return "name wajib diisi";
   if (payload.accounts.length === 0) return "Minimal satu platform dengan akun wajib dipilih";
   if (!payload.keyword) return "keyword wajib diisi";
-  if (!payload.comment_reply_text || !payload.follow_gate_text || !payload.delivery_text) {
+  if (payload.comment_reply_enabled) {
+    const filled = filledCommentReplyTexts(payload.comment_reply_texts);
+    if (filled.length === 0) return "Minimal satu balasan komentar publik wajib diisi";
+    if (hasDuplicateCommentReplies(payload.comment_reply_texts)) {
+      return "Setiap balasan komentar publik harus unik";
+    }
+  }
+  if (!payload.follow_gate_text || !payload.delivery_text) {
     return "Semua teks pesan wajib diisi";
   }
   if (!payload.skip_material_offer) {
@@ -442,12 +501,17 @@ function validateCampaignPayload(
       return "Teks dan label material offer wajib diisi";
     }
   }
-  if (payload.contact_gate_enabled) {
+  if (payload.email_collection_enabled) {
     if (!payload.contact_prompt_text) {
-      return "Teks DM minta kontak wajib diisi saat Contact Gate aktif";
+      return "Teks DM minta email wajib diisi saat Koleksi Email aktif";
     }
     if (!payload.contact_invalid_text) {
-      return "Teks DM invalid kontak wajib diisi saat Contact Gate aktif";
+      return "Teks DM invalid email wajib diisi saat Koleksi Email aktif";
+    }
+  }
+  if (payload.contact_gate_enabled) {
+    if (!payload.delivery_fallback_text) {
+      return "Teks fallback IG wajib diisi saat WhatsApp Delivery aktif";
     }
   }
   const deliveryErr = validateDeliveryAsset(payload, orgId, campaignId, supabaseUrl, requirePosts);
@@ -500,7 +564,7 @@ async function validateContactGatePublish(
   const hasWa = await orgHasActiveWhatsAppAccount(admin, organizationId);
   if (hasWa) {
     if (!payload.whatsapp_account_id) {
-      return "Pilih akun WhatsApp untuk Contact Gate";
+      return "Pilih akun WhatsApp untuk WhatsApp Delivery";
     }
     if (!payload.whatsapp_template_name?.trim()) {
       return "Template WhatsApp APPROVED wajib dipilih saat org punya akun WA";
@@ -511,23 +575,17 @@ async function validateContactGatePublish(
     if (templateParamsErr) return templateParamsErr;
   }
 
-  const hasEmailConfig = Boolean(
-    payload.email_subject?.trim() || payload.email_html_body?.trim(),
-  );
-  if (!hasWa && !hasEmailConfig) {
-    return "Contact Gate membutuhkan template WA atau konfigurasi email";
-  }
-
   return null;
 }
 
 function campaignContactGateDbFields(payload: ReturnType<typeof normalizeCampaignPayload>) {
   return {
     contact_gate_enabled: payload.contact_gate_enabled,
+    email_collection_enabled: payload.email_collection_enabled,
     contact_prompt_text: payload.contact_prompt_text
-      ?? (payload.contact_gate_enabled ? LEAD_MAGNET_DEFAULT_MESSAGES.contact_prompt_text : null),
+      ?? (payload.email_collection_enabled ? LEAD_MAGNET_DEFAULT_MESSAGES.contact_prompt_text : null),
     contact_invalid_text: payload.contact_invalid_text
-      ?? (payload.contact_gate_enabled ? LEAD_MAGNET_DEFAULT_MESSAGES.contact_invalid_text : null),
+      ?? (payload.email_collection_enabled ? LEAD_MAGNET_DEFAULT_MESSAGES.contact_invalid_text : null),
     contact_ack_text: payload.contact_ack_text ?? null,
     delivery_fallback_text: payload.delivery_fallback_text
       ?? (payload.contact_gate_enabled ? LEAD_MAGNET_DEFAULT_MESSAGES.delivery_fallback_text : null),
@@ -617,10 +675,12 @@ async function resolveAccountToken(
 }
 
 function campaignDeliveryDbFields(payload: ReturnType<typeof normalizeCampaignPayload>) {
+  const links = payload.delivery_links;
   if (payload.delivery_mode === "link") {
     return {
       delivery_mode: "link" as const,
       delivery_url: payload.delivery_url,
+      delivery_links: links,
       delivery_storage_path: null,
       delivery_file_name: null,
       delivery_file_mime: null,
@@ -630,6 +690,7 @@ function campaignDeliveryDbFields(payload: ReturnType<typeof normalizeCampaignPa
   return {
     delivery_mode: "upload" as const,
     delivery_url: payload.delivery_url,
+    delivery_links: links,
     delivery_storage_path: payload.delivery_storage_path,
     delivery_file_name: payload.delivery_file_name,
     delivery_file_mime: payload.delivery_file_mime,
@@ -649,6 +710,11 @@ function campaignPayloadFromRow(row: Record<string, unknown>): CampaignPayload {
       ? [{ platform: parsePlatform(row.platform)!, account_id: String(row.account_id) }]
       : [],
     keyword: String(row.keyword ?? ""),
+    comment_reply_enabled: row.comment_reply_enabled !== false,
+    comment_reply_texts: normalizeCommentReplyTexts(
+      row.comment_reply_texts as string[] | null,
+      row.comment_reply_text != null ? String(row.comment_reply_text) : null,
+    ),
     comment_reply_text: String(row.comment_reply_text ?? ""),
     follow_gate_text: String(row.follow_gate_text ?? ""),
     follow_button_label: String(row.follow_button_label ?? ""),
@@ -658,6 +724,11 @@ function campaignPayloadFromRow(row: Record<string, unknown>): CampaignPayload {
     delivery_button_label: String(row.delivery_button_label ?? ""),
     delivery_fallback_text: row.delivery_fallback_text != null ? String(row.delivery_fallback_text) : null,
     delivery_url: String(row.delivery_url ?? ""),
+    delivery_links: resolveCampaignDeliveryLinks({
+      delivery_links: row.delivery_links,
+      delivery_button_label: row.delivery_button_label != null ? String(row.delivery_button_label) : null,
+      delivery_url: row.delivery_url != null ? String(row.delivery_url) : null,
+    }),
     delivery_mode: parseLeadMagnetDeliveryMode(row.delivery_mode),
     delivery_storage_path: row.delivery_storage_path != null
       ? String(row.delivery_storage_path)
@@ -670,6 +741,7 @@ function campaignPayloadFromRow(row: Record<string, unknown>): CampaignPayload {
     skip_follow_gate_if_follower: row.skip_follow_gate_if_follower === true,
     skip_material_offer: row.skip_material_offer === true,
     contact_gate_enabled: row.contact_gate_enabled === true,
+    email_collection_enabled: row.email_collection_enabled === true,
     contact_prompt_text: row.contact_prompt_text != null ? String(row.contact_prompt_text) : null,
     contact_invalid_text: row.contact_invalid_text != null ? String(row.contact_invalid_text) : null,
     contact_ack_text: row.contact_ack_text != null ? String(row.contact_ack_text) : null,
@@ -732,21 +804,33 @@ Deno.serve(async (req: Request) => {
     const action = subPath[1] ?? null;
 
     if (req.method === "GET" && !campaignId) {
-      const [{ data, error }, metricsMap] = await Promise.all([
+      const dateRange = parseListMetricsDateRange(
+        url.searchParams.get("date_start"),
+        url.searchParams.get("date_end"),
+      );
+      const [{ data, error }, metricsResult] = await Promise.all([
         admin
           .from("lead_magnet_campaigns")
           .select(CAMPAIGN_SELECT)
           .eq("organization_id", orgId)
           .order("updated_at", { ascending: false }),
-        fetchCampaignMetricsByOrg(admin, orgId),
+        fetchCampaignMetricsByOrg(admin, orgId, {
+          startIso: dateRange.startIso,
+          endIso: dateRange.endIso,
+        }),
       ]);
       if (error) return metaContentJson({ error: error.message }, 500);
       const enriched = await enrichCampaignsPostPreviews(admin, orgId, (data ?? []) as CampaignListRow[]);
       const campaigns = enriched.map((row) => ({
         ...row,
-        metrics: metricsForCampaign(metricsMap, String(row.id)),
+        metrics: metricsForCampaign(metricsResult.map, String(row.id)),
       }));
-      return metaContentJson({ campaigns }, 200);
+      return metaContentJson({
+        campaigns,
+        totals: metricsResult.totals,
+        date_start: dateRange.dateStart,
+        date_end: dateRange.dateEnd,
+      }, 200);
     }
 
     if (req.method === "GET" && campaignId && action === "analytics") {
@@ -782,6 +866,8 @@ Deno.serve(async (req: Request) => {
 
       const metrics = {
         new_followers: (metricRows ?? []).filter((e) => e.became_follower_at != null).length,
+        new_emails: 0,
+        new_phones: 0,
         non_follower_at_start: (metricRows ?? []).filter((e) => e.is_follower_at_start === false).length,
         total_enrollments: metricRows?.length ?? 0,
       };
@@ -861,6 +947,8 @@ Deno.serve(async (req: Request) => {
           account_id: legacy.account_id,
           keyword: payload.keyword,
           status: "draft",
+          comment_reply_enabled: payload.comment_reply_enabled,
+          comment_reply_texts: payload.comment_reply_texts,
           comment_reply_text: payload.comment_reply_text,
           follow_gate_text: payload.follow_gate_text,
           follow_button_label: payload.follow_button_label,
@@ -911,6 +999,8 @@ Deno.serve(async (req: Request) => {
           platform: legacy.platform,
           account_id: legacy.account_id,
           keyword: payload.keyword,
+          comment_reply_enabled: payload.comment_reply_enabled,
+          comment_reply_texts: payload.comment_reply_texts,
           comment_reply_text: payload.comment_reply_text,
           follow_gate_text: payload.follow_gate_text,
           follow_button_label: payload.follow_button_label,

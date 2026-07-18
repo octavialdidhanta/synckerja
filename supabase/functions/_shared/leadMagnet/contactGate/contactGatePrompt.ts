@@ -12,10 +12,10 @@ export const DEFAULT_CONTACT_PROMPT_PHONE =
   "Hai {{username}},\n\nAgar kami dapat mengirim materi langsung ke WhatsApp Anda, silakan balas chat ini dengan nomor WhatsApp aktif (contoh: 08123456789).\n\nMateri akan kami kirim melalui WhatsApp setelah nomor kami terima.";
 
 export const DEFAULT_CONTACT_PROMPT_EMAIL =
-  "Hai {{username}},\n\nAgar kami dapat mengirim materi ke email Anda, silakan balas chat ini dengan alamat email aktif (contoh: nama@perusahaan.com).\n\nMateri akan kami kirim ke inbox email setelah alamat kami terima.";
+  "Hai {{username}}! Kirim email kamu ya supaya bisa dapat link-nya 📩";
 
 export const DEFAULT_CONTACT_INVALID =
-  "Mohon maaf, format nomor atau email belum dapat kami baca.\n\nSilakan kirim nomor WhatsApp (contoh: 08123456789) atau email (contoh: nama@perusahaan.com).";
+  "Format email belum valid 😅 Kirim email aktif ya (contoh: nama@email.com).";
 
 function needsFirstContactDm(enrollment: LeadMagnetEnrollmentRow): boolean {
   const commentId = enrollment.comment_id?.trim();
@@ -72,7 +72,10 @@ export function contactPromptForMissing(
     return interpolateCampaignText(DEFAULT_CONTACT_PROMPT_PHONE, username);
   }
   if (ask === "email") {
-    return interpolateCampaignText(DEFAULT_CONTACT_PROMPT_EMAIL, username);
+    const base = campaign.contact_prompt_text?.trim()
+      || LEAD_MAGNET_DEFAULT_MESSAGES.contact_prompt_text
+      || DEFAULT_CONTACT_PROMPT_EMAIL;
+    return interpolateCampaignText(base, username);
   }
   const base = campaign.contact_prompt_text?.trim()
     || LEAD_MAGNET_DEFAULT_MESSAGES.contact_prompt_text
@@ -98,10 +101,16 @@ export async function sendContactPrompt(
   const now = new Date().toISOString();
   let claimed = false;
 
+  const awaitingKind = args.ask === "phone" ? "phone" : args.ask === "email" ? "email" : null;
+
   if (args.enrollment.status !== "awaiting_contact") {
     const { data: claimRow } = await admin
       .from("lead_magnet_enrollments")
-      .update({ status: "awaiting_contact", updated_at: now })
+      .update({
+        status: "awaiting_contact",
+        awaiting_contact_kind: awaitingKind,
+        updated_at: now,
+      })
       .eq("id", args.enrollment.id)
       .in("status", [...CONTACT_PROMPT_CLAIM_STATUSES])
       .select("id")
@@ -112,7 +121,11 @@ export async function sendContactPrompt(
     if (!claimed) {
       const forceClaim = await admin
         .from("lead_magnet_enrollments")
-        .update({ status: "awaiting_contact", updated_at: now })
+        .update({
+          status: "awaiting_contact",
+          awaiting_contact_kind: awaitingKind,
+          updated_at: now,
+        })
         .eq("id", args.enrollment.id)
         .in("status", [...CONTACT_PROMPT_FORCE_CLAIM_STATUSES])
         .select("id")
@@ -120,6 +133,11 @@ export async function sendContactPrompt(
       claimed = Boolean(forceClaim.data?.id);
       if (!claimed) return false;
     }
+  } else if (awaitingKind) {
+    await admin
+      .from("lead_magnet_enrollments")
+      .update({ awaiting_contact_kind: awaitingKind, updated_at: now })
+      .eq("id", args.enrollment.id);
   }
 
   const text = contactPromptForMissing(

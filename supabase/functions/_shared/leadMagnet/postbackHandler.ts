@@ -1,7 +1,18 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  resolveFollowConfirmPostbackRoute,
+  resolveGetFrameworkPostbackRoute,
+} from "./openingFirstFlowRouting.ts";
 import { parseLeadMagnetPostbackPayload } from "./types.ts";
 import type { LeadMagnetPostbackTriggerInput, LeadMagnetPostbackHandleResult } from "./types.ts";
-import { handleFollowConfirmPostback, resendFrameworkOfferDm, resendLeadMagnetDeliveryDm, sendDeliveryMessage } from "./followGateRuntime.ts";
+import {
+  handleFollowConfirmPostback,
+  handleOpeningClickPostback,
+  resendFrameworkOfferDm,
+  resendLeadMagnetDeliveryDm,
+  sendDeliveryMessage,
+  sendFrameworkOffer,
+} from "./followGateRuntime.ts";
 import type { LeadMagnetCampaignRow, LeadMagnetEnrollmentRow } from "./types.ts";
 
 type EnrollmentWithCampaign = LeadMagnetEnrollmentRow & {
@@ -38,7 +49,8 @@ export async function handleLeadMagnetPostbackTrigger(
   }
 
   if (parsed.action === "follow_confirm") {
-    if (row.status === "framework_offered" || row.status === "follow_validated") {
+    const route = resolveFollowConfirmPostbackRoute(row);
+    if (route === "resend_opening" || route === "resend_legacy_offer") {
       await resendFrameworkOfferDm(admin, {
         enrollment: row,
         campaign: campaignRow,
@@ -47,7 +59,7 @@ export async function handleLeadMagnetPostbackTrigger(
       });
       return { handled: true, followConfirm: { outcome: "material_sent" } };
     }
-    if (row.status === "delivered") {
+    if (route === "resend_delivery") {
       await resendLeadMagnetDeliveryDm(admin, {
         enrollment: row,
         campaign: campaignRow,
@@ -67,7 +79,26 @@ export async function handleLeadMagnetPostbackTrigger(
   }
 
   if (parsed.action === "get_framework") {
-    if (row.status === "delivered") {
+    const route = resolveGetFrameworkPostbackRoute(row);
+    if (route === "noop") {
+      return { handled: true };
+    }
+    if (route === "opening_click") {
+      const openingResult = await handleOpeningClickPostback(admin, {
+        enrollment: row,
+        campaign: campaignRow,
+        accessToken: input.accessToken,
+        pageId: input.pageId,
+      });
+      return { handled: true, openingClick: openingResult };
+    }
+    if (route === "legacy_framework_offer") {
+      await sendFrameworkOffer(admin, {
+        enrollment: row,
+        campaign: campaignRow,
+        accessToken: input.accessToken,
+        pageId: input.pageId,
+      });
       return { handled: true };
     }
     await sendDeliveryMessage(admin, {

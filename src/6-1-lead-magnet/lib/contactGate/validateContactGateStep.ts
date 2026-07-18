@@ -1,55 +1,100 @@
+import type { TFunction } from 'i18next';
 import type { LeadMagnetCampaignForm } from '../../types/leadMagnet.types';
 import type { MissingContactField } from './skipMatrixPreview';
 import {
   isLeadMagnetTemplateMappingComplete,
   leadMagnetTemplateMappingError,
+  type LeadMagnetTemplateMappingErrorCode,
 } from './leadMagnetWhatsAppTemplateParams';
 
-export type ContactGateFormSlice = Pick<
+function translateTemplateMappingError(
+  err: LeadMagnetTemplateMappingErrorCode,
+  t: TFunction,
+): string {
+  switch (err.type) {
+    case 'selectTemplateAndMap':
+      return t('leadMagnet.contactGate.validation.templateSelectAndMap');
+    case 'needsMoreVars':
+      return t('leadMagnet.contactGate.validation.templateNeedsVars', {
+        expected: err.expected,
+        actual: err.actual,
+      });
+    case 'fillAllVars':
+      return t('leadMagnet.contactGate.validation.templateFillAllVars', {
+        expected: err.expected,
+      });
+  }
+}
+
+export type EmailCollectionFormSlice = Pick<
+  LeadMagnetCampaignForm,
+  'email_collection_enabled' | 'contact_prompt_text' | 'contact_invalid_text'
+>;
+
+export type WhatsAppDeliveryFormSlice = Pick<
   LeadMagnetCampaignForm,
   | 'contact_gate_enabled'
-  | 'contact_prompt_text'
-  | 'contact_invalid_text'
   | 'delivery_fallback_text'
   | 'whatsapp_account_id'
   | 'whatsapp_template_name'
   | 'whatsapp_template_language'
   | 'whatsapp_template_params'
-  | 'email_subject'
-  | 'email_html_body'
-  | 'email_from_name'
 >;
 
-export function validateContactGateStep(
-  form: ContactGateFormSlice,
+export function validateEmailCollectionStep(
+  form: EmailCollectionFormSlice,
+  t: TFunction,
+): string | null {
+  if (!form.email_collection_enabled) return null;
+  if (!form.contact_prompt_text?.trim()) {
+    return t('leadMagnet.wizard.validation.emailPromptRequired');
+  }
+  if (!form.contact_invalid_text?.trim()) {
+    return t('leadMagnet.wizard.validation.emailInvalidRequired');
+  }
+  return null;
+}
+
+export function validateWhatsAppDeliveryStep(
+  form: WhatsAppDeliveryFormSlice,
   orgHasWhatsApp: boolean,
+  t: TFunction,
 ): string | null {
   if (!form.contact_gate_enabled) return null;
-  if (!form.contact_prompt_text?.trim()) return 'Teks DM minta kontak wajib diisi';
-  if (!form.contact_invalid_text?.trim()) return 'Teks DM invalid wajib diisi';
-  if (!form.delivery_fallback_text?.trim()) return 'Teks DM fallback IG wajib diisi';
+  if (!form.delivery_fallback_text?.trim()) {
+    return t('leadMagnet.contactGate.validation.fallbackRequired');
+  }
   if (orgHasWhatsApp) {
-    if (!form.whatsapp_account_id?.trim()) return 'Pilih akun WhatsApp';
-    if (!form.whatsapp_template_name?.trim()) return 'Pilih template WhatsApp APPROVED';
+    if (!form.whatsapp_account_id?.trim()) {
+      return t('leadMagnet.contactGate.validation.waAccountRequired');
+    }
+    if (!form.whatsapp_template_name?.trim()) {
+      return t('leadMagnet.contactGate.validation.waTemplateRequired');
+    }
     const mappingErr = leadMagnetTemplateMappingError(form.whatsapp_template_params);
-    if (mappingErr) return mappingErr;
+    if (mappingErr) return translateTemplateMappingError(mappingErr, t);
     if (!isLeadMagnetTemplateMappingComplete(form.whatsapp_template_params)) {
-      return 'Lengkapi mapping variabel template WhatsApp';
+      return t('leadMagnet.contactGate.validation.mappingIncomplete');
     }
   }
   return null;
 }
 
-export function contactGatePublishWarnings(
-  form: ContactGateFormSlice,
+/** @deprecated Use validateWhatsAppDeliveryStep */
+export function validateContactGateStep(
+  form: WhatsAppDeliveryFormSlice,
   orgHasWhatsApp: boolean,
+  t: TFunction,
+): string | null {
+  return validateWhatsAppDeliveryStep(form, orgHasWhatsApp, t);
+}
+
+export function contactGatePublishWarnings(
+  _form: WhatsAppDeliveryFormSlice,
+  _orgHasWhatsApp: boolean,
+  _t: TFunction,
 ): string[] {
-  const warnings: string[] = [];
-  if (!form.contact_gate_enabled) return warnings;
-  if (!orgHasWhatsApp && !form.email_html_body?.trim()) {
-    warnings.push('Email belum dikonfigurasi — delivery hanya via fallback DM IG jika WA tidak tersedia.');
-  }
-  return warnings;
+  return [];
 }
 
 export type { MissingContactField };

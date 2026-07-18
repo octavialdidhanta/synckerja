@@ -4,7 +4,7 @@ export type LeadMagnetAction = "follow_confirm" | "get_framework" | "download";
 
 const ACTION_LABELS: Record<LeadMagnetAction, string> = {
   follow_confirm: "Sudah Follow",
-  get_framework: "Ambil Materi",
+  get_framework: "Kirimkan saya link-nya 😊",
   download: "Unduh",
 };
 

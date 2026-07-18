@@ -1,11 +1,21 @@
+import type { CommentReplyTextsTuple } from '../lib/commentReplyVariants';
+
 export type LeadMagnetPlatform = 'instagram' | 'facebook';
 
 export type LeadMagnetCampaignStatus = 'draft' | 'active' | 'paused' | 'archived';
 
 export type LeadMagnetCampaignMetrics = {
   new_followers: number;
+  new_emails: number;
+  new_phones: number;
   non_follower_at_start: number;
   total_enrollments: number;
+};
+
+export type LeadMagnetCampaignMetricTotals = {
+  new_followers: number;
+  new_emails: number;
+  new_phones: number;
 };
 
 export type LeadMagnetCampaignAccount = {
@@ -38,6 +48,8 @@ export type LeadMagnetCampaign = {
   account_id?: string | null;
   keyword: string;
   status: LeadMagnetCampaignStatus;
+  comment_reply_enabled: boolean;
+  comment_reply_texts: CommentReplyTextsTuple;
   comment_reply_text: string;
   follow_gate_text: string;
   follow_button_label: string;
@@ -47,6 +59,7 @@ export type LeadMagnetCampaign = {
   delivery_button_label: string;
   delivery_fallback_text: string;
   delivery_url: string;
+  delivery_links: Array<{ label: string; url: string }>;
   delivery_mode: LeadMagnetDeliveryMode;
   delivery_storage_path: string | null;
   delivery_file_name: string | null;
@@ -55,6 +68,7 @@ export type LeadMagnetCampaign = {
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
   contact_gate_enabled: boolean;
+  email_collection_enabled: boolean;
   contact_prompt_text: string;
   contact_invalid_text: string;
   contact_ack_text: string;
@@ -98,6 +112,8 @@ export type LeadMagnetCampaignForm = {
   target_market: string;
   accounts: LeadMagnetCampaignAccount[];
   keyword: string;
+  comment_reply_enabled: boolean;
+  comment_reply_texts: CommentReplyTextsTuple;
   comment_reply_text: string;
   follow_gate_text: string;
   follow_button_label: string;
@@ -107,6 +123,7 @@ export type LeadMagnetCampaignForm = {
   delivery_button_label: string;
   delivery_fallback_text: string;
   delivery_url: string;
+  delivery_links: Array<{ label: string; url: string }>;
   delivery_mode: LeadMagnetDeliveryMode;
   delivery_storage_path: string | null;
   delivery_file_name: string | null;
@@ -115,6 +132,7 @@ export type LeadMagnetCampaignForm = {
   skip_follow_gate_if_follower: boolean;
   skip_material_offer: boolean;
   contact_gate_enabled: boolean;
+  email_collection_enabled: boolean;
   contact_prompt_text: string;
   contact_invalid_text: string;
   contact_ack_text: string;
@@ -133,19 +151,25 @@ export const DEFAULT_LEAD_MAGNET_FORM: LeadMagnetCampaignForm = {
   target_market: '',
   accounts: [],
   keyword: '',
-  comment_reply_text:
+  comment_reply_enabled: true,
+  comment_reply_texts: [
     '✅ Sudah kami balas! Cek DM ya 📩',
+    'Hai! Materinya sudah dikirim ke DM kamu 📩',
+    'Selesai! Silakan cek pesan masuk ya 👇',
+  ],
+  comment_reply_text: '✅ Sudah kami balas! Cek DM ya 📩',
   follow_gate_text:
-    'Hai {{username}}! Makasih sudah komen 😊\n\nFollow dulu supaya materi masuk inbox, bukan tab Permintaan.\n\nSudah follow? Klik tombol di bawah 👇',
+    'Hai {{username}}! Makasih sudah tertarik 💕\n\nMateri ini khusus buat yang udah follow ya — follow dulu, nanti langsung kami kirim!',
   follow_button_label: 'Sudah Follow',
   framework_offer_text:
-    'Hai {{username}}! Klik tombol di bawah untuk download materinya 👇',
-  framework_button_label: 'Ambil Materi',
-  delivery_text: 'Hai {{username}}, ini materinya. Semoga bermanfaat! 🙏',
-  delivery_button_label: 'Unduh',
+    'Hai {{username}}! Makasih sudah tertarik 😊\n\nKlik tombol di bawah, link-nya kami kirim sebentar lagi!',
+  framework_button_label: 'Kirimkan saya link-nya 😊',
+  delivery_text: 'Hai {{username}}! Klik tombol di bawah ya 👇',
+  delivery_button_label: 'Kirim link-nya 😊',
   delivery_fallback_text:
     'Hai {{username}}, WhatsApp kami belum bisa mengirim materi. Unduh langsung di sini ya:',
   delivery_url: '',
+  delivery_links: [],
   delivery_mode: 'link',
   delivery_storage_path: null,
   delivery_file_name: null,
@@ -154,18 +178,18 @@ export const DEFAULT_LEAD_MAGNET_FORM: LeadMagnetCampaignForm = {
   skip_follow_gate_if_follower: false,
   skip_material_offer: false,
   contact_gate_enabled: false,
-  contact_prompt_text:
-    'Hai {{username}},\n\nTerima kasih atas minat Anda pada materi kami.\n\nUntuk mengirimkan file, silakan balas chat ini dengan:\n• Nomor WhatsApp aktif (contoh: 08123456789) — materi dikirim via WhatsApp, atau\n• Alamat email aktif (contoh: nama@perusahaan.com) — materi dikirim ke email Anda.\n\nKami hanya menggunakan kontak ini untuk pengiriman materi yang Anda minta.',
+  email_collection_enabled: false,
+  contact_prompt_text: 'Hai {{username}}! Kirim email kamu ya supaya bisa dapat link-nya 📩',
   contact_invalid_text:
-    'Mohon maaf, format nomor atau email belum dapat kami baca.\n\nSilakan kirim nomor WhatsApp (contoh: 08123456789) atau email (contoh: nama@perusahaan.com).',
+    'Format email belum valid 😅 Kirim email aktif ya (contoh: nama@email.com).',
   contact_ack_text: '',
   whatsapp_account_id: null,
   whatsapp_template_name: null,
   whatsapp_template_language: null,
   whatsapp_template_params: {},
-  email_subject: '',
+  email_subject: 'Materi {{campaign_name}}',
   email_html_body:
-    'Hai {{username}},\n\nTerima kasih! Berikut link materi {{campaign_name}}:\n{{delivery_url}}',
+    '<p>Hai {{username}},</p>\n<p>Terima kasih! Berikut link materi {{campaign_name}}:</p>\n<p><a href="{{delivery_url}}">{{delivery_url}}</a></p>',
   email_from_name: null,
   posts: [],
 };

@@ -3,7 +3,7 @@ import { deliverViaInstagramDm } from "../delivery/deliverViaInstagramDm.ts";
 import { logLeadMagnetFunnelEvent } from "../funnelAnalytics.ts";
 import type { LeadMagnetCampaignRow, LeadMagnetEnrollmentRow } from "../types.ts";
 import { getParticipantProfile } from "./participantProfile.ts";
-import { isContactGateEnabled, resolveFlowBranch } from "./skipMatrix.ts";
+import { isAnyContactFlowActive, resolveFlowBranch } from "./skipMatrix.ts";
 import { sendContactPrompt } from "./contactGatePrompt.ts";
 
 export async function advanceAfterFollowValidated(
@@ -16,9 +16,15 @@ export async function advanceAfterFollowValidated(
     isFollower?: boolean;
   },
 ): Promise<boolean> {
-  if (!isContactGateEnabled(args.campaign)) {
+  if (!isAnyContactFlowActive(args.campaign)) {
     const { sendMaterialOfferOrDelivery } = await import("../followGateRuntime.ts");
     return sendMaterialOfferOrDelivery(admin, args);
+  }
+
+  const isFollower = args.isFollower ?? true;
+  if (!isFollower) {
+    const { sendFollowGate } = await import("../followGateRuntime.ts");
+    return sendFollowGate(admin, args);
   }
 
   await logLeadMagnetFunnelEvent(admin, {
@@ -26,7 +32,7 @@ export async function advanceAfterFollowValidated(
     campaignId: args.campaign.id,
     organizationId: args.enrollment.organization_id,
     eventType: "material_offer_skipped",
-    metadata: { reason: "contact_gate_enabled" },
+    metadata: { reason: "contact_flow_enabled" },
   });
 
   const profile = await getParticipantProfile(admin, {
@@ -38,7 +44,7 @@ export async function advanceAfterFollowValidated(
   const branch = resolveFlowBranch({
     campaign: args.campaign,
     profile: profile ?? { phone_number: null, email: null },
-    isFollower: args.isFollower ?? true,
+    isFollower,
   });
 
   if (branch.branch === "deliver_instagram") {
@@ -46,6 +52,10 @@ export async function advanceAfterFollowValidated(
   }
   if (branch.branch === "needs_contact") {
     return sendContactPrompt(admin, { ...args, ask: branch.ask });
+  }
+  if (branch.branch === "needs_follow_gate") {
+    const { sendFollowGate } = await import("../followGateRuntime.ts");
+    return sendFollowGate(admin, args);
   }
 
   const { sendMaterialOfferOrDelivery } = await import("../followGateRuntime.ts");
@@ -62,7 +72,7 @@ export async function advanceContactGateOnComment(
     isFollower: boolean;
   },
 ): Promise<boolean> {
-  if (!isContactGateEnabled(args.campaign)) {
+  if (!isAnyContactFlowActive(args.campaign)) {
     return false;
   }
 

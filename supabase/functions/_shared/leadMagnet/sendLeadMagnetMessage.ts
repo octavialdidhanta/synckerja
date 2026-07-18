@@ -134,7 +134,7 @@ async function postCommentPrivateReply(
 }
 
 function buildButtonTemplate(text: string, buttons: ButtonSpec[]): Record<string, unknown> {
-  const metaButtons = buttons.map((b) => {
+  const metaButtons = buttons.slice(0, 3).map((b) => {
     if (b.type === "postback") {
       return { type: "postback", title: b.title.slice(0, 20), payload: b.payload };
     }

@@ -6,7 +6,14 @@ import {
   syncSubmissionContactFields,
   upsertParticipantContactField,
 } from "./participantProfile.ts";
-import { getMissingContactFields } from "./skipMatrix.ts";
+import {
+  getMissingContactFields,
+  isAnyContactFlowActive,
+  isContactGateEnabled,
+  isEmailCollectionEnabled,
+  resolveFlowBranch,
+  type MissingContactField,
+} from "./skipMatrix.ts";
 import { sendContactInvalidReply } from "./contactGatePrompt.ts";
 import { orchestrateDeliveryAfterContact } from "../delivery/deliveryOrchestrator.ts";
 import { logLeadMagnetFunnelEvent, updateEnrollmentStatus } from "../funnelAnalytics.ts";
@@ -33,35 +40,69 @@ function joinEnrollmentCampaign(row: Record<string, unknown>): {
   };
   const campaignRaw = joined.campaign;
   const campaign = Array.isArray(campaignRaw) ? campaignRaw[0] : campaignRaw;
-  if (!campaign?.contact_gate_enabled) return null;
+  if (!campaign || !isAnyContactFlowActive(campaign)) return null;
   return { enrollment: joined as LeadMagnetEnrollmentRow, campaign };
 }
 
-function parsedMatchesMissingField(
+function expectedContactKind(args: {
+  enrollment: LeadMagnetEnrollmentRow;
+  campaign: LeadMagnetCampaignRow;
+  profile: { phone_number: string | null; email: string | null };
+}): MissingContactField | null {
+  const stored = args.enrollment.awaiting_contact_kind;
+  if (stored === "email" || stored === "phone") return stored;
+
+  const branch = resolveFlowBranch({
+    campaign: args.campaign,
+    profile: args.profile,
+    isFollower: true,
+  });
+  if (branch.branch === "needs_contact") return branch.ask;
+  return getMissingContactFields(args.profile);
+}
+
+function parsedMatchesExpectedKind(
   parsed: ParsedContact,
-  missing: ReturnType<typeof getMissingContactFields>,
+  expected: MissingContactField | null,
 ): boolean {
-  if (!missing || parsed.kind === "invalid") return false;
-  if (missing === "any") return parsed.kind === "phone" || parsed.kind === "email";
-  return parsed.kind === missing;
+  if (!expected || parsed.kind === "invalid") return false;
+  if (expected === "any") return parsed.kind === "phone" || parsed.kind === "email";
+  return parsed.kind === expected;
 }
 
 function qualifiesForSupplementalMatch(
   status: string,
   parsed: ParsedContact,
-  missing: ReturnType<typeof getMissingContactFields>,
+  expected: MissingContactField | null,
 ): boolean {
-  if (!parsedMatchesMissingField(parsed, missing)) return false;
+  if (!parsedMatchesExpectedKind(parsed, expected)) return false;
   if (SUPPLEMENTAL_DELIVERY_STATUSES.includes(
     status as typeof SUPPLEMENTAL_DELIVERY_STATUSES[number],
   )) {
     return true;
   }
-  // Stuck after partial delivery (e.g. comment_replied race) — not early "any" gate.
-  if (status === "comment_replied" && missing && missing !== "any") {
+  if (status === "comment_replied" && expected && expected !== "any") {
     return true;
   }
   return false;
+}
+
+async function deliverAfterEmailCollection(
+  admin: SupabaseClient,
+  args: {
+    enrollment: LeadMagnetEnrollmentRow;
+    campaign: LeadMagnetCampaignRow;
+    accessToken: string;
+    pageId: string;
+  },
+): Promise<void> {
+  const { sendDeliveryMessage } = await import("../followGateRuntime.ts");
+  await sendDeliveryMessage(admin, {
+    enrollment: args.enrollment,
+    campaign: args.campaign,
+    accessToken: args.accessToken,
+    pageId: args.pageId,
+  });
 }
 
 export async function handleInboundContact(
@@ -85,11 +126,24 @@ export async function handleInboundContact(
   )) {
     return false;
   }
-  if (!args.campaign.contact_gate_enabled) {
+  if (!isAnyContactFlowActive(args.campaign)) {
     return false;
   }
 
   const parsed = parseContactReply(args.messageBody);
+
+  const profile = await getParticipantProfile(admin, {
+    organizationId: args.enrollment.organization_id,
+    platform: args.enrollment.platform,
+    participantScopedId: args.enrollment.participant_scoped_id,
+  });
+  const profileFields = profile ?? { phone_number: null, email: null };
+  const expected = expectedContactKind({
+    enrollment: args.enrollment,
+    campaign: args.campaign,
+    profile: profileFields,
+  });
+
   if (parsed.kind === "invalid") {
     if (mode === "awaiting") {
       await sendContactInvalidReply(admin, args);
@@ -98,14 +152,7 @@ export async function handleInboundContact(
     return false;
   }
 
-  const profile = await getParticipantProfile(admin, {
-    organizationId: args.enrollment.organization_id,
-    platform: args.enrollment.platform,
-    participantScopedId: args.enrollment.participant_scoped_id,
-  });
-
-  const missingBefore = getMissingContactFields(profile ?? { phone_number: null, email: null });
-  if (!parsedMatchesMissingField(parsed, missingBefore)) {
+  if (!parsedMatchesExpectedKind(parsed, expected)) {
     if (mode === "awaiting") {
       await sendContactInvalidReply(admin, args);
       return true;
@@ -136,33 +183,66 @@ export async function handleInboundContact(
 
   await updateEnrollmentStatus(admin, args.enrollment.id, "contact_collected", {
     updated_at: now,
+    awaiting_contact_kind: null,
   });
 
-  const deliveryChannel = parsed.kind === "phone" ? "whatsapp" : "email";
-  await logLeadMagnetFunnelEvent(admin, {
-    enrollmentId: args.enrollment.id,
-    campaignId: args.campaign.id,
-    organizationId: args.enrollment.organization_id,
-    eventType: "contact_collected",
-    metadata: {
-      kind: parsed.kind,
-      delivery_channel: deliveryChannel,
-      delivery_scheduled: true,
-      supplemental: mode === "supplemental",
-    },
-  });
+  const enrollmentAfterCollect = {
+    ...args.enrollment,
+    status: "contact_collected" as const,
+    awaiting_contact_kind: null,
+  };
 
-  await orchestrateDeliveryAfterContact(admin, {
-    enrollment: { ...args.enrollment, status: "contact_collected" },
-    campaign: args.campaign,
-    accessToken: args.accessToken,
-    pageId: args.pageId,
-    collectedKind: parsed.kind,
-    phoneDigits: parsed.kind === "phone" ? parsed.normalized : undefined,
-    email: parsed.kind === "email" ? parsed.normalized : undefined,
-  });
+  if (parsed.kind === "email" && isEmailCollectionEnabled(args.campaign)) {
+    await logLeadMagnetFunnelEvent(admin, {
+      enrollmentId: args.enrollment.id,
+      campaignId: args.campaign.id,
+      organizationId: args.enrollment.organization_id,
+      eventType: "contact_collected",
+      metadata: {
+        kind: "email",
+        delivery_channel: "instagram",
+        delivery_scheduled: true,
+        supplemental: mode === "supplemental",
+      },
+    });
+    await deliverAfterEmailCollection(admin, {
+      enrollment: enrollmentAfterCollect,
+      campaign: args.campaign,
+      accessToken: args.accessToken,
+      pageId: args.pageId,
+    });
+    return true;
+  }
 
-  return true;
+  if (parsed.kind === "phone" && isContactGateEnabled(args.campaign)) {
+    await logLeadMagnetFunnelEvent(admin, {
+      enrollmentId: args.enrollment.id,
+      campaignId: args.campaign.id,
+      organizationId: args.enrollment.organization_id,
+      eventType: "contact_collected",
+      metadata: {
+        kind: "phone",
+        delivery_channel: "whatsapp",
+        delivery_scheduled: true,
+        supplemental: mode === "supplemental",
+      },
+    });
+    await orchestrateDeliveryAfterContact(admin, {
+      enrollment: enrollmentAfterCollect,
+      campaign: args.campaign,
+      accessToken: args.accessToken,
+      pageId: args.pageId,
+      collectedKind: "phone",
+      phoneDigits: parsed.normalized,
+    });
+    return true;
+  }
+
+  if (mode === "awaiting") {
+    await sendContactInvalidReply(admin, args);
+    return true;
+  }
+  return false;
 }
 
 async function findAwaitingContactRows(
@@ -229,8 +309,12 @@ export async function findActiveContactGateEnrollment(
       platform: joined.enrollment.platform,
       participantScopedId: args.participantScopedId,
     });
-    const missing = getMissingContactFields(profile ?? { phone_number: null, email: null });
-    if (qualifiesForSupplementalMatch(joined.enrollment.status, parsed, missing)) {
+    const expected = expectedContactKind({
+      enrollment: joined.enrollment,
+      campaign: joined.campaign,
+      profile: profile ?? { phone_number: null, email: null },
+    });
+    if (qualifiesForSupplementalMatch(joined.enrollment.status, parsed, expected)) {
       return { ...joined, mode: "supplemental" };
     }
   }
